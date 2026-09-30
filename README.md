@@ -1,0 +1,86 @@
+# simplicio-videos
+
+Kit para produzir vídeos promocionais com **Claude Opus 5.5** (código → vídeo) para clientes da Simplicio, mais uma curadoria de ferramentas de vídeo/motion.
+
+- **Primeiro cliente:** WJR Informática e Games (assistência técnica de consoles e controles em Guarulhos) → [`clients/wjr-informatica-games/`](clients/wjr-informatica-games/)
+- **Stack do template:** [HyperFrames](https://github.com/heygen-com/hyperframes) (HTML + GSAP → MP4), com spec JSON para render determinístico.
+- **Futuro:** plugin do `simplicio-runtime` ([proposta](docs/plugin-simplicio-runtime.md), manifest stub em [`plugin.json`](plugin.json)).
+
+## Índice
+
+| Doc | Conteúdo |
+|---|---|
+| [docs/como-gerar-videos-opus-5-5.md](docs/como-gerar-videos-opus-5-5.md) | Como as pessoas fazem vídeos com Opus 5.5: stacks, prompts reais, skills, render, custos (com fontes) |
+| [docs/tokens-e-deterministico.md](docs/tokens-e-deterministico.md) | Quanto custa, como economizar tokens, e o pipeline determinístico proposto |
+| [docs/plugin-simplicio-runtime.md](docs/plugin-simplicio-runtime.md) | Arquitetura proposta de plugin (`simplicio.plugin/v1`) |
+| [docs/setup.md](docs/setup.md) | Passo a passo no Mac: Node, FFmpeg, Claude Code/Codex, skills, render |
+| [docs/checklist-cliente.md](docs/checklist-cliente.md) | O que pedir ao cliente (com status da WJR) |
+| [clients/wjr-informatica-games/brief.md](clients/wjr-informatica-games/brief.md) | Fatos do cliente com fonte, paleta, lacunas |
+| [clients/wjr-informatica-games/video-01/](clients/wjr-informatica-games/video-01/) | Reels 9:16 de 22 s: composição, roteiro, prompt, spec, preview |
+
+## Quick start
+
+```bash
+gh repo clone simpletibr/simplicio-videos
+cd simplicio-videos/clients/wjr-informatica-games/video-01
+npm run assets:site   # imagens públicas do site p/ rascunho (gitignored)
+npm run check         # lint + layout + contraste
+npm run render        # out/video-01.mp4 (1080×1920, 30 fps, 22 s)
+```
+Requer Node ≥ 22 e FFmpeg. Preview de baixa resolução já renderizado: [`video-01/preview/`](clients/wjr-informatica-games/video-01/preview/).
+Para iterar com IA: abra Claude Code (Opus 5.5) ou Codex dentro de `video-01/` e use [`PROMPT.md`](clients/wjr-informatica-games/video-01/PROMPT.md).
+
+## Estrutura
+
+```
+plugin.json                      # simplicio.plugin/v1 — STUB/proposta
+schemas/video-spec.schema.json   # simplicio.video-spec/v1 — proposta
+docs/                            # pesquisa + setup + checklist + plugin
+clients/wjr-informatica-games/
+  brief.md
+  video-01/                      # HyperFrames: index.html, spec.json, video.json, PROMPT.md, roteiro.md, preview/
+```
+
+---
+
+## Recursos coletados
+
+Estrelas conferidas via GitHub API em 30/09/2026.
+
+### Vídeo programático (código → vídeo)
+- [heygen-com/hyperframes](https://github.com/heygen-com/hyperframes) — ⭐54.5k · TS · Apache-2.0. HTML → vídeo feito para agentes (GSAP, Chrome headless, FFmpeg), skills para Claude Code/Codex. **Base deste repo.**
+- [Vincentwei1021/video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) — ⭐10k · Apache-2.0. Skill de Claude Code/Codex: vídeos de produto cinematográficos em Remotion, 152 shot recipe cards, 209 motion previews, template pronto.
+- [mexicat/pdoom-video](https://github.com/mexicat/pdoom-video) — ⭐2k · MIT. Videoclipe 100% renderizado em código (three.js), feito com Opus 5.5 no Claude Code.
+
+### Vídeo com IA (geração/automação)
+- [harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) — ⭐127k · MIT. Tema/palavra-chave → vídeo curto com legendas.
+- [calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) — ⭐62k · AGPL-3.0. Produção de vídeo agentic (pipelines, Remotion/FFmpeg, text-to-video, custos por vídeo).
+- [browser-use/video-use](https://github.com/browser-use/video-use) — ⭐27.8k · MIT. Editar vídeos com coding agents.
+- [hypit-ai/hypit](https://github.com/hypit-ai/hypit) — ⭐17.9k. Clonar vídeos virais: troca de rosto, falas, B-roll; 100 variações.
+- [wide-trace/open-higgsfield](https://github.com/wide-trace/open-higgsfield) — ⭐3.9k. Estúdio de geração de imagem + vídeo.
+- [vargHQ/sdk](https://github.com/vargHQ/sdk) — ⭐340 · Apache-2.0. JSX para vídeo com IA (Kling, Flux, ElevenLabs, Veed).
+- [taruma/SceneFlow](https://github.com/taruma/SceneFlow) — ⭐335 · MIT. Sincroniza roteiro ↔ vídeo e avalia footage gerado por IA.
+- [wesleysimplicio/PiAPI-Skills](https://github.com/wesleysimplicio/PiAPI-Skills) — skills PiAPI (Kling, Hailuo, Luma, Veo 3, Seedance, Faceswap).
+- [wesleysimplicio/WaveSpeedAI-Skills](https://github.com/wesleysimplicio/WaveSpeedAI-Skills) — skills WaveSpeedAI (700+ modelos).
+
+### Editores
+- [OpenCut-app/OpenCut](https://github.com/OpenCut-app/OpenCut) — ⭐91k · MIT. Alternativa open-source ao CapCut.
+- [openvideodev/react-video-editor](https://github.com/openvideodev/react-video-editor) — ⭐1.8k. Editor web baseado em Remotion.
+
+### Inspiração (Opus 5.5)
+- [yihui-dev/awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) — ⭐1k · MIT. 475 vídeos virais de Opus 5.5 com prompts (motion graphics, Three.js, explainers).
+- [chuspeeism/awesome-opus-5-5-videos](https://github.com/chuspeeism/awesome-opus-5-5-videos) — ⭐87. 300 exemplos categorizados (em chinês), com player e link do post.
+
+### Borderline (úteis, mas fora do núcleo)
+- [tt-a1i/archify](https://github.com/tt-a1i/archify) — skill de diagramas (arquitetura, fluxos) verificáveis.
+- [Katzca/AutoSocial](https://github.com/Katzca/AutoSocial) — dashboard local de automação de TikTok/Instagram/YouTube.
+- [charlie947/social-media-skills](https://github.com/charlie947/social-media-skills) — skills para redes sociais.
+- [SegFault42/HeliosGen](https://github.com/SegFault42/HeliosGen) (fork: [wesleysimplicio/HeliosGen](https://github.com/wesleysimplicio/HeliosGen)) — app desktop self-hosted de IA generativa, alternativa ao Higgsfield.
+
+### Bookmarks do X (@simpliciomcp)
+Textos conferidos via API pública do fxtwitter em 30/09/2026.
+- [@shengkunye](https://x.com/shengkunye/status/2100672978749096186) — workflow UGC com GPT-6 Astra, "replicate viral videos for just $0.03/sec" (com @hypitai).
+- [@rareZuhair](https://x.com/rareZuhair/status/2099936144209354974) — "1,000 free videos + hooks created with Astra": https://doublespeed.ai/video-bucket (nota do bookmark: DaVinci MCP + Astra para 100 vídeos UGC — não conferido no texto do post).
+- [@letipfvr](https://x.com/letipfvr/status/2100412405645734103) — comentário em PT sobre os conteúdos de Astra.
+- [@Sayajiiinz](https://x.com/Sayajiiinz/status/2100336121137754476) — guia em PT: assunto, ângulo, embalagem (hooks/thumbnail), retenção, análise; edição, motion, transições, produção com IA.
+- [@shanyanggm](https://x.com/shanyanggm/status/2098941338297458746) — lista de projetos open-source gratuitos, inclui HyperFrames e MoneyPrinterTurbo.

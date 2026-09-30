@@ -1,0 +1,267 @@
+<!doctype html>
+<!--
+  WJR Infogames — video-01 (Instagram Reels 9:16, 22s, 30fps)
+  HyperFrames composition (HTML + GSAP -> MP4). Every client-facing text/image
+  is a declared variable, so the same file renders deterministically from
+  spec.json (`npm run render`) without calling any LLM.
+  All copy below comes from the client's public website (see ../brief.md).
+-->
+<html
+  lang="pt-BR"
+  data-composition-variables='[
+    {"id":"logo","type":"string","label":"Logo (PNG/SVG)","default":"assets/placeholders/logo.svg"},
+    {"id":"photo_hero","type":"string","label":"Foto 1 (loja/consoles)","default":"assets/placeholders/photo-hero.svg"},
+    {"id":"photo_bench","type":"string","label":"Foto 2 (bancada/reparo)","default":"assets/placeholders/photo-bench.svg"},
+    {"id":"kicker","type":"string","label":"Kicker","default":"Assistência técnica em Guarulhos","maxLength":40},
+    {"id":"promise","type":"string","label":"Promessa","default":"A gente coloca ele de volta no jogo.","maxLength":48},
+    {"id":"p1","type":"string","label":"Problema 1","default":"Controle com drift","maxLength":28},
+    {"id":"p2","type":"string","label":"Problema 2","default":"Console não liga","maxLength":28},
+    {"id":"p3","type":"string","label":"Problema 3","default":"Superaquecimento","maxLength":28},
+    {"id":"p4","type":"string","label":"Problema 4","default":"Defeito no HDMI","maxLength":28},
+    {"id":"p5","type":"string","label":"Problema 5","default":"Botões não funcionando","maxLength":28},
+    {"id":"cta","type":"string","label":"CTA","default":"Volte para o jogo.","maxLength":32},
+    {"id":"whatsapp","type":"string","label":"WhatsApp","default":"(11) 99700-5234","maxLength":24},
+    {"id":"address","type":"string","label":"Endereço","default":"R. Siderópolis, 168 · Jardim Jovaia, Guarulhos","maxLength":60},
+    {"id":"instagram","type":"string","label":"Instagram","default":"@wjrinformaticagames","maxLength":32},
+    {"id":"primary","type":"color","label":"Cor primária","default":"#e50914"},
+    {"id":"secondary","type":"color","label":"Cor secundária","default":"#1565ff"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+      @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #080808; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; color: #fff; font-family: "Inter", sans-serif; }
+      .clip { position: absolute; inset: 0; }
+      .display { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 1.04; letter-spacing: 0.01em; }
+
+      /* persistent background */
+      #bg { background: #080808; }
+      #bg .grid { position: absolute; inset: -200px; background-image:
+          linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+        background-size: 90px 90px; }
+      #bg .glow-a, #bg .glow-b { position: absolute; width: 900px; height: 900px; border-radius: 50%; filter: blur(140px); opacity: 0.55; }
+      #bg .glow-a { left: -380px; top: -260px; background: var(--secondary); }
+      #bg .glow-b { right: -420px; bottom: -300px; background: var(--primary); }
+
+      /* S1 hook */
+      #s1 { display: flex; flex-direction: column; justify-content: center; padding: 0 90px; }
+      .pill { display: inline-block; align-self: flex-start; padding: 16px 30px; border-radius: 999px; font-size: 34px; font-weight: 700;
+        background: rgba(21,101,255,0.18); border: 2px solid var(--secondary); color: #d9e4ff; }
+      #s1 .words { margin-top: 50px; }
+      #s1 .w { display: block; font-size: 250px; }
+      #s1 .w.red { color: var(--primary); }
+      #flash { position: absolute; inset: 0; background: var(--primary); opacity: 0; }
+
+      /* S2 promise */
+      #s2 { display: flex; flex-direction: column; align-items: center; padding: 170px 80px 0; }
+      #s2 .card { width: 920px; height: 1000px; border-radius: 48px; overflow: hidden; border: 3px solid rgba(255,255,255,0.12);
+        box-shadow: 0 40px 120px rgba(0,0,0,0.6); }
+      #s2 .card img { width: 100%; height: 100%; object-fit: cover; object-position: 62% center; }
+      #s2 h2 { margin-top: 70px; font-size: 116px; text-align: center; }
+      #s2 h2 .hl { color: var(--primary); }
+
+      /* S3 problems */
+      #s3 { padding: 260px 90px 0; }
+      #s3 .label { font-size: 40px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #6f9bff; }
+      #s3 .stack { position: relative; margin-top: 60px; height: 900px; }
+      #s3 .item { position: absolute; left: 0; right: 0; top: 0; opacity: 0; }
+      #s3 .num { font-size: 70px; font-weight: 800; line-height: 1.2; color: #ff3b45; }
+      #s3 .txt { margin-top: 30px; font-size: 168px; }
+      #s3 .note { position: absolute; left: 90px; right: 90px; bottom: 170px; font-size: 32px; color: #a5a5aa; }
+      #s3 .bar { position: absolute; left: 90px; bottom: 250px; height: 10px; width: 900px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
+      #s3 .bar i { display: block; height: 100%; width: 100%; background: var(--primary); transform-origin: left center; }
+
+      /* S4 models */
+      #s4 .photo { position: absolute; inset: 0; }
+      #s4 .photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; }
+      #s4 .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,8,8,0.55) 0%, rgba(8,8,8,0.92) 55%, #080808 100%); }
+      #s4 .content { position: absolute; left: 90px; right: 90px; top: 700px; }
+      #s4 h3 { font-size: 150px; line-height: 1.12; }
+      #s4 h3 span { display: block; }
+      #s4 h3 .x { color: #6f9bff; }
+      #s4 h3 .p { color: var(--primary); }
+      #s4 .cols { display: flex; gap: 40px; margin-top: 60px; }
+      #s4 .col { flex: 1; }
+      #s4 .col h4 { font-size: 40px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 24px; }
+      #s4 .chip { display: block; margin-bottom: 18px; padding: 20px 26px; border-radius: 22px; font-size: 38px; font-weight: 700;
+        background: rgba(20,20,20,0.9); border: 2px solid rgba(255,255,255,0.12); }
+      #s4 .col.xb .chip { border-left: 10px solid var(--secondary); }
+      #s4 .col.ps .chip { border-left: 10px solid var(--primary); }
+
+      /* S5 process */
+      #s5 { padding: 260px 90px 0; }
+      #s5 .label { font-size: 40px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #6f9bff; margin-bottom: 30px; }
+      #s5 h3 { margin-top: 20px; font-size: 130px; }
+      #s5 .steps { position: relative; margin-top: 80px; }
+      #s5 .line { position: absolute; left: 44px; top: 20px; width: 6px; height: 800px; background: var(--primary); transform-origin: top center; }
+      #s5 .step { position: relative; display: flex; align-items: center; gap: 44px; height: 200px; }
+      #s5 .dot { flex: 0 0 94px; height: 94px; border-radius: 50%; background: #141414; border: 5px solid var(--primary);
+        display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; }
+      #s5 .step p { font-size: 58px; font-weight: 800; }
+      #s5 .step small { display: block; font-size: 34px; font-weight: 500; color: #a5a5aa; margin-top: 6px; }
+
+      /* S6 CTA */
+      #s6 { display: flex; flex-direction: column; align-items: center; padding-top: 250px; text-align: center; }
+      #s6 .logo { width: 560px; height: 560px; }
+      #s6 .logo img { width: 100%; height: 100%; object-fit: contain; }
+      #s6 h2 { margin-top: 60px; font-size: 150px; }
+      #s6 .wa { margin-top: 60px; display: flex; align-items: center; gap: 24px; padding: 34px 56px; border-radius: 999px;
+        background: #1faa55; font-size: 62px; font-weight: 800; box-shadow: 0 20px 60px rgba(31,170,85,0.35); }
+      #s6 .wa span.lbl { font-size: 34px; font-weight: 700; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }
+      #s6 .meta { margin-top: 56px; font-size: 36px; color: #d6d6d8; line-height: 1.5; }
+      #s6 .meta b { color: #fff; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="22" data-width="1080" data-height="1920">
+      <!-- persistent background -->
+      <div id="bg" class="clip" data-start="0" data-duration="22" data-track-index="0">
+        <div class="grid" id="bg-grid" data-layout-allow-overflow></div>
+        <div class="glow-a" id="glow-a" data-layout-allow-overflow></div>
+        <div class="glow-b" id="glow-b" data-layout-allow-overflow></div>
+      </div>
+
+      <!-- S1 0.0–3.2 hook (site hero: "Seu console parou?") -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.2" data-track-index="1">
+        <span class="pill" id="s1-pill" data-var-text="kicker">Assistência técnica em Guarulhos</span>
+        <div class="words display">
+          <span class="w" id="s1-w1">Seu</span>
+          <span class="w" id="s1-w2">console</span>
+          <span class="w red" id="s1-w3">parou?</span>
+        </div>
+      </section>
+      <div id="flash-wrap" class="clip" data-start="2.9" data-duration="0.5" data-track-index="9"><div id="flash"></div></div>
+
+      <!-- S2 3.2–6.4 promise + photo slot 1 -->
+      <section id="s2" class="clip" data-start="3.2" data-duration="3.2" data-track-index="1">
+        <div class="card" id="s2-card"><img id="s2-img" data-var-src="photo_hero" src="assets/placeholders/photo-hero.svg" alt="" /></div>
+        <h2 class="display" id="s2-title" data-var-text="promise">A gente coloca ele de volta no jogo.</h2>
+      </section>
+
+      <!-- S3 6.4–11.2 problems (site: "Problemas que resolvemos") -->
+      <section id="s3" class="clip" data-start="6.4" data-duration="4.8" data-track-index="1">
+        <div class="label" id="s3-label">Problemas que resolvemos</div>
+        <div class="stack">
+          <div class="item" id="s3-i1"><div class="num">01</div><div class="txt display" data-var-text="p1">Controle com drift</div></div>
+          <div class="item" id="s3-i2"><div class="num">02</div><div class="txt display" data-var-text="p2">Console não liga</div></div>
+          <div class="item" id="s3-i3"><div class="num">03</div><div class="txt display" data-var-text="p3">Superaquecimento</div></div>
+          <div class="item" id="s3-i4"><div class="num">04</div><div class="txt display" data-var-text="p4">Defeito no HDMI</div></div>
+          <div class="item" id="s3-i5"><div class="num">05</div><div class="txt display" data-var-text="p5">Botões não funcionando</div></div>
+        </div>
+        <div class="bar"><i id="s3-bar"></i></div>
+        <div class="note" id="s3-note">A confirmação do serviço depende da avaliação técnica do equipamento.</div>
+      </section>
+
+      <!-- S4 11.2–14.8 models + photo slot 2 -->
+      <section id="s4" class="clip" data-start="11.2" data-duration="3.6" data-track-index="1">
+        <div class="photo" id="s4-photo"><img id="s4-img" data-var-src="photo_bench" src="assets/placeholders/photo-bench.svg" alt="" /></div>
+        <div class="shade"></div>
+        <div class="content">
+          <h3 class="display" id="s4-title" data-layout-allow-overlap><span class="x" data-layout-allow-overlap>Xbox +</span><span class="p" data-layout-allow-overlap>PlayStation</span></h3>
+          <div class="cols">
+            <div class="col xb">
+              <h4>Xbox</h4>
+              <span class="chip" id="s4-x1">Xbox 360</span>
+              <span class="chip" id="s4-x2">Xbox One</span>
+              <span class="chip" id="s4-x3">Series X e S</span>
+              <span class="chip" id="s4-x4">Controles Xbox</span>
+            </div>
+            <div class="col ps">
+              <h4>PlayStation</h4>
+              <span class="chip" id="s4-p1">PS3 · PS4</span>
+              <span class="chip" id="s4-p2">PlayStation 5</span>
+              <span class="chip" id="s4-p3">DualShock</span>
+              <span class="chip" id="s4-p4">DualSense</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- S5 14.8–18.0 process (site: "Como funciona") -->
+      <section id="s5" class="clip" data-start="14.8" data-duration="3.2" data-track-index="1">
+        <div class="label" id="s5-label">Como funciona</div>
+        <h3 class="display" id="s5-title">Sem surpresa.</h3>
+        <div class="steps">
+          <div class="line" id="s5-line"></div>
+          <div class="step" id="s5-st1"><div class="dot">01</div><p>Fale no WhatsApp<small>Informe o aparelho e o defeito</small></p></div>
+          <div class="step" id="s5-st2"><div class="dot">02</div><p>Diagnóstico<small>Avaliação técnica do equipamento</small></p></div>
+          <div class="step" id="s5-st3"><div class="dot">03</div><p>Você aprova<small>Recebe as informações e o orçamento</small></p></div>
+          <div class="step" id="s5-st4"><div class="dot">04</div><p>Reparo<small>Só depois da sua aprovação</small></p></div>
+        </div>
+      </section>
+
+      <!-- S6 18.0–22.0 CTA + logo slot -->
+      <section id="s6" class="clip" data-start="18" data-duration="4" data-track-index="1">
+        <div class="logo" id="s6-logo"><img id="s6-img" data-var-src="logo" src="assets/placeholders/logo.svg" alt="WJR Infogames" /></div>
+        <h2 class="display" id="s6-title" data-var-text="cta">Volte para o jogo.</h2>
+        <div class="wa" id="s6-wa"><span class="lbl">WhatsApp</span><span data-var-text="whatsapp">(11) 99700-5234</span></div>
+        <div class="meta" id="s6-meta"><div data-var-text="address">R. Siderópolis, 168 · Jardim Jovaia, Guarulhos</div><div><b data-var-text="instagram">@wjrinformaticagames</b></div></div>
+      </section>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      // background: slow drift for the whole piece
+      tl.fromTo("#bg-grid", { y: 0 }, { y: 180, duration: 22, ease: "none" }, 0);
+      tl.fromTo("#glow-a", { x: 0, y: 0 }, { x: 220, y: 380, duration: 22, ease: "sine.inOut" }, 0);
+      tl.fromTo("#glow-b", { x: 0, y: 0 }, { x: -200, y: -420, duration: 22, ease: "sine.inOut" }, 0);
+
+      // S1 hook
+      tl.fromTo("#s1-pill", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.1);
+      tl.fromTo("#s1-w1", { opacity: 0, yPercent: 60 }, { opacity: 1, yPercent: 0, duration: 0.35, ease: "back.out(2)" }, 0.35);
+      tl.fromTo("#s1-w2", { opacity: 0, yPercent: 60 }, { opacity: 1, yPercent: 0, duration: 0.35, ease: "back.out(2)" }, 0.6);
+      tl.fromTo("#s1-w3", { opacity: 0, scale: 1.6 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power4.out" }, 0.95);
+      tl.to("#s1-w3", { x: 14, duration: 0.05, repeat: 7, yoyo: true, ease: "none" }, 1.3);
+      tl.fromTo("#flash", { opacity: 0 }, { opacity: 0.85, duration: 0.12, ease: "none" }, 2.95);
+      tl.to("#flash", { opacity: 0, duration: 0.3, ease: "power2.out" }, 3.1);
+
+      // S2 promise
+      tl.fromTo("#s2-card", { opacity: 0, y: 160, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: "power3.out" }, 3.25);
+      tl.fromTo("#s2-img", { scale: 1.15 }, { scale: 1.0, duration: 3.2, ease: "none" }, 3.2);
+      tl.fromTo("#s2-title", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 3.7);
+
+      // S3 problems: one every 0.9s
+      tl.fromTo("#s3-label", { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.35, ease: "power2.out" }, 6.45);
+      tl.fromTo("#s3-note", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 6.7);
+      tl.fromTo("#s3-bar", { scaleX: 0 }, { scaleX: 1, duration: 4.6, ease: "none" }, 6.5);
+      ["#s3-i1", "#s3-i2", "#s3-i3", "#s3-i4", "#s3-i5"].forEach((id, i) => {
+        const t = 6.55 + i * 0.9;
+        tl.fromTo(id, { opacity: 0, y: 120 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, t);
+        if (i < 4) tl.to(id, { opacity: 0, y: -120, duration: 0.25, ease: "power2.in" }, t + 0.65);
+      });
+
+      // S4 models
+      tl.fromTo("#s4-img", { scale: 1.2 }, { scale: 1.05, duration: 3.6, ease: "none" }, 11.2);
+      tl.fromTo("#s4-title", { opacity: 0, y: 70 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 11.3);
+      ["#s4-x1", "#s4-p1", "#s4-x2", "#s4-p2", "#s4-x3", "#s4-p3", "#s4-x4", "#s4-p4"].forEach((id, i) => {
+        tl.fromTo(id, { opacity: 0, x: id.includes("-x") ? -60 : 60 }, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out" }, 11.7 + i * 0.12);
+      });
+
+      // S5 process
+      tl.fromTo("#s5-label", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 14.85);
+      tl.fromTo("#s5-title", { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 14.95);
+      tl.fromTo("#s5-line", { scaleY: 0 }, { scaleY: 1, duration: 1.8, ease: "power1.inOut" }, 15.3);
+      ["#s5-st1", "#s5-st2", "#s5-st3", "#s5-st4"].forEach((id, i) => {
+        tl.fromTo(id, { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 15.35 + i * 0.45);
+      });
+
+      // S6 CTA
+      tl.fromTo("#s6-logo", { opacity: 0, scale: 0.6, rotation: -8 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.6, ease: "back.out(1.6)" }, 18.05);
+      tl.fromTo("#s6-title", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 18.5);
+      tl.fromTo("#s6-wa", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2)" }, 18.9);
+      tl.to("#s6-wa", { scale: 1.05, duration: 0.5, repeat: 3, yoyo: true, ease: "sine.inOut" }, 19.5);
+      tl.fromTo("#s6-meta", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 19.2);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

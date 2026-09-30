@@ -1,0 +1,20 @@
+{
+  "name": "wjr-video-01",
+  "private": true,
+  "type": "module",
+  "description": "WJR Infogames — Instagram Reels promo (9:16, 22s) built with HyperFrames (HTML + GSAP -> MP4).",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "assets:site": "bash scripts/fetch-site-assets.sh",
+    "dev": "npx --yes hyperframes@0.8.97 preview",
+    "lint": "npx --yes hyperframes@0.8.97 lint",
+    "check": "npx --yes hyperframes@0.8.97 check",
+    "snapshot": "npx --yes hyperframes@0.8.97 snapshot --at 1.5,4.5,8,12.5,16.5,20.5",
+    "render:placeholder": "npx --yes hyperframes@0.8.97 render --quality draft --output out/video-01-placeholder.mp4",
+    "render:draft": "npx --yes hyperframes@0.8.97 render --quality draft --strict-variables --variables-file spec.json --output out/video-01-draft.mp4",
+    "render": "npx --yes hyperframes@0.8.97 render --quality delivery --strict-variables --variables-file spec.json --output out/video-01.mp4",
+    "doctor": "npx --yes hyperframes@0.8.97 doctor"
+  }
+}

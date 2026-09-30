@@ -1,0 +1,28 @@
+{
+  "schema": "simplicio.storyboard/v1",
+  "title": "WJR Infogames — Reels 01 (deterministic fallback)",
+  "preset": "vertical",
+  "fps": 30,
+  "brand": {
+    "palette": { "background": "#080808", "foreground": "#ffffff", "accent": "#e50914" },
+    "font_family": "Inter, Arial, sans-serif"
+  },
+  "assets": [
+    { "id": "photo-hero", "path": "assets/client/photo-hero.png" },
+    { "id": "logo", "path": "assets/client/logo.png" }
+  ],
+  "scenes": [
+    { "id": "hook", "duration_ms": 3200, "primitive": "title-card", "title": "Seu console parou?", "subtitle": "Assistência técnica em Guarulhos" },
+    { "id": "promise", "duration_ms": 3200, "primitive": "screenshot-pan-zoom", "asset": "photo-hero",
+      "caption": "A gente coloca ele de volta no jogo.",
+      "from": { "x": 50, "y": 50, "scale": 1.15 }, "to": { "x": 60, "y": 50, "scale": 1 } },
+    { "id": "problems", "duration_ms": 4800, "primitive": "bullet-reveal", "title": "Problemas que resolvemos",
+      "bullets": ["Controle com drift", "Console não liga", "Superaquecimento", "Defeito no HDMI", "Botões não funcionando"] },
+    { "id": "models", "duration_ms": 3600, "primitive": "bullet-reveal", "title": "Xbox + PlayStation",
+      "bullets": ["Xbox 360 · Xbox One · Series X e S", "PS3 · PS4 · PlayStation 5", "Controles Xbox, DualShock e DualSense"] },
+    { "id": "process", "duration_ms": 3200, "primitive": "bullet-reveal", "title": "Como funciona",
+      "bullets": ["Fale no WhatsApp", "Diagnóstico", "Você aprova o orçamento", "Reparo só depois da sua aprovação"] },
+    { "id": "cta", "duration_ms": 4000, "primitive": "logo-outro", "asset": "logo",
+      "tagline": "Volte para o jogo. WhatsApp (11) 99700-5234", "url": "@wjrinformaticagames" }
+  ]
+}

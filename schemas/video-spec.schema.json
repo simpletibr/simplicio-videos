@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.video-spec/v1",
+  "title": "PROPOSAL — simplicio-videos per-video spec",
+  "type": "object",
+  "required": ["schema", "id", "client", "engine", "format"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "simplicio.video-spec/v1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "client": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "brief": { "type": "string", "description": "relative path to the client's brief.md (source of truth for copy)" },
+    "engine": { "enum": ["hyperframes", "simplicio-motion"] },
+    "format": {
+      "type": "object",
+      "required": ["width", "height", "fps", "duration_s"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 16 },
+        "height": { "type": "integer", "minimum": 16 },
+        "fps": { "type": "integer", "minimum": 12, "maximum": 120 },
+        "duration_s": { "type": "number", "exclusiveMinimum": 0, "maximum": 600 },
+        "channel": { "type": "string", "description": "e.g. instagram-reels, tiktok, youtube-shorts" }
+      }
+    },
+    "entry": { "type": "string", "description": "engine=hyperframes: composition file (index.html)" },
+    "variables_file": { "type": "string", "description": "engine=hyperframes: JSON object of variable values (spec.json)" },
+    "storyboard_file": { "type": "string", "description": "engine=simplicio-motion: simplicio.storyboard/v1 IR" },
+    "authoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": { "type": "string", "description": "authoring model; currently only claude-opus-5-5" },
+        "prompt_file": { "type": "string" },
+        "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] }
+      }
+    },
+    "slots": {
+      "type": "array",
+      "description": "assets the client must provide",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "enum": ["image", "video", "audio", "logo", "text"] },
+          "status": { "enum": ["placeholder", "draft-from-site", "client-provided", "approved"] },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "output": { "type": "string" }
+  }
+}

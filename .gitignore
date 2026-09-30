@@ -1,0 +1,11 @@
+node_modules/
+out/
+renders/
+snapshots/
+.frames/
+*.partial
+.DS_Store
+.env
+# client assets stay local until the client approves usage
+clients/*/*/assets/client/
+.hyperframes/

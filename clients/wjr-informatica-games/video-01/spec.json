@@ -1,0 +1,18 @@
+{
+  "logo": "assets/client/logo.png",
+  "photo_hero": "assets/client/photo-hero.png",
+  "photo_bench": "assets/client/photo-bench.png",
+  "kicker": "Assistência técnica em Guarulhos",
+  "promise": "A gente coloca ele de volta no jogo.",
+  "p1": "Controle com drift",
+  "p2": "Console não liga",
+  "p3": "Superaquecimento",
+  "p4": "Defeito no HDMI",
+  "p5": "Botões não funcionando",
+  "cta": "Volte para o jogo.",
+  "whatsapp": "(11) 99700-5234",
+  "address": "R. Siderópolis, 168 · Jardim Jovaia, Guarulhos",
+  "instagram": "@wjrinformaticagames",
+  "primary": "#e50914",
+  "secondary": "#1565ff"
+}

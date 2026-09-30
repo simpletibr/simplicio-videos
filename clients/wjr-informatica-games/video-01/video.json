@@ -1,0 +1,18 @@
+{
+  "schema": "simplicio.video-spec/v1",
+  "id": "wjr-video-01",
+  "client": "wjr-informatica-games",
+  "brief": "../brief.md",
+  "engine": "hyperframes",
+  "format": { "width": 1080, "height": 1920, "fps": 30, "duration_s": 22, "channel": "instagram-reels" },
+  "entry": "index.html",
+  "variables_file": "spec.json",
+  "storyboard_file": "storyboard.simplicio.json",
+  "authoring": { "model": "claude-opus-5-5", "prompt_file": "PROMPT.md", "effort": "medium" },
+  "slots": [
+    { "id": "logo", "kind": "logo", "status": "draft-from-site", "notes": "public PNG from the site; ask for SVG/high-res + usage permission" },
+    { "id": "photo_hero", "kind": "image", "status": "draft-from-site", "notes": "site image looks illustrative; replace with a real store/console photo" },
+    { "id": "photo_bench", "kind": "image", "status": "draft-from-site", "notes": "replace with a real workbench photo or vertical video" }
+  ],
+  "output": "out/video-01.mp4"
+}

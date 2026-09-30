@@ -1,0 +1,38 @@
+{
+  "schema": "simplicio.plugin/v1",
+  "name": "videos",
+  "version": "0.0.1",
+  "description": "PROPOSAL / STUB — not installable yet (no binary). simplicio-videos: client promo videos. Authoring by Claude Opus 5.5 in the host agent (HyperFrames templates); deterministic render from a JSON spec (HyperFrames variables, or the runtime `motion` plugin storyboard). See docs/plugin-simplicio-runtime.md.",
+  "binary": "bin/simplicio-plugin-videos",
+  "protocol": 1,
+  "commands": [
+    {
+      "verb": "videos",
+      "description": "Scaffold, hand off to Opus 5.5, check and render client videos from simplicio.video-spec/v1 (proposal).",
+      "mcp_tool": "plugin_videos",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["op"],
+        "properties": {
+          "op": { "type": "string", "enum": ["schema", "new", "handoff", "check", "render", "batch"] },
+          "spec": { "type": "string", "description": "path to a simplicio.video-spec/v1 file (video.json)" },
+          "client": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "template": { "type": "string", "description": "template id or path to copy for op=new" },
+          "rows": { "type": "string", "description": "JSON rows file for op=batch" },
+          "quality": { "type": "string", "enum": ["draft", "looks", "delivery"] },
+          "out": { "type": "string" }
+        }
+      },
+      "examples": [
+        "videos schema",
+        "videos new --client wjr-informatica-games --template hyperframes/reels-9x16 --out clients/wjr-informatica-games/video-02",
+        "videos handoff --spec clients/wjr-informatica-games/video-01/video.json",
+        "videos check --spec clients/wjr-informatica-games/video-01/video.json",
+        "videos render --spec clients/wjr-informatica-games/video-01/video.json --quality delivery",
+        "videos batch --spec clients/wjr-informatica-games/video-01/video.json --rows rows.json"
+      ]
+    }
+  ],
+  "capabilities": ["repo.write", "external:node", "external:chromium", "external:ffmpeg"]
+}
