@@ -1,11 +1,11 @@
 {
   "schema": "simplicio.motion-catalog/v1",
-  "count": 36,
+  "count": 41,
   "by_status": {
     "pronto": 19,
     "lib": 1,
     "inline": 2,
-    "proposto": 14
+    "proposto": 19
   },
   "patterns": [
     {
@@ -640,6 +640,22 @@
       "source": "https://x.com/felipemoller/status/2103846311149936736"
     },
     {
+      "id": "carousel-emphasis",
+      "title": "Carrossel com destaque",
+      "status": "proposto",
+      "category": "lista",
+      "tags": [
+        "lista",
+        "carrossel",
+        "ritmo"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
       "id": "logo-shrink-lockup",
       "title": "Logo encolhe e trava com o nome (lockup)",
       "status": "proposto",
@@ -700,6 +716,70 @@
       "block": null,
       "preview": null,
       "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/transition/card-flip-reveal.md"
+    },
+    {
+      "id": "foreground-fly-through",
+      "title": "Fly-through do primeiro plano (o título vira a transição)",
+      "status": "proposto",
+      "category": "transição",
+      "tags": [
+        "transição",
+        "tipografia",
+        "escala"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
+      "id": "logo-portal",
+      "title": "Logo-portal (o furo da marca vira o próximo quadro)",
+      "status": "proposto",
+      "category": "transição",
+      "tags": [
+        "logo",
+        "máscara",
+        "marca"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
+      "id": "selection-expansion",
+      "title": "Seleção → expansão",
+      "status": "proposto",
+      "category": "transição",
+      "tags": [
+        "card",
+        "continuidade",
+        "ator-persistente"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
+      "id": "materializing-result",
+      "title": "Resultado que se materializa",
+      "status": "proposto",
+      "category": "ui",
+      "tags": [
+        "ui",
+        "relatório",
+        "causa-efeito"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
     }
   ]
 }

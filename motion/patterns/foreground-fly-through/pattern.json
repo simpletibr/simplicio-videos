@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "foreground-fly-through",
+  "title": "Fly-through do primeiro plano (o título vira a transição)",
+  "description": "A frase/logo de primeiro plano escala através da câmera com blur direcional e bordas esticadas enquanto a próxima cena já está montada por baixo — sem vão vazio entre cenas.",
+  "status": "proposto",
+  "category": "transição",
+  "tags": [
+    "transição",
+    "tipografia",
+    "escala"
+  ],
+  "use_when": "Troca de cena depois de uma frase forte (gancho → promessa, promessa → serviços).",
+  "source": {
+    "kind": "motion-video-kit",
+    "ref": "business-motion-film/references/motion-grammar.md (MIT; mecanismo descrito, reimplementar)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  }
+}

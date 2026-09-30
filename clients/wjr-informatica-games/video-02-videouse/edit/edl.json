@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "sources": {
+    "video-01": "../../video-01/out/video-01.mp4"
+  },
+  "ranges": [
+    {
+      "source": "video-01",
+      "start": 0.0,
+      "end": 4.0,
+      "beat": "HOOK + PROMESSA",
+      "quote": "Seu console parou? A gente coloca ele de volta no jogo.",
+      "reason": "Gancho e promessa intactos. Corte em 4.00: fim de cena no video-01 (CUTS), 'jogo.' termina 3.70 e 'Drift?' começa 4.02 — corte no silêncio, sobre o beat (120 BPM)."
+    },
+    {
+      "source": "video-01",
+      "start": 12.5,
+      "end": 20.0,
+      "beat": "PROVA + CONFIANÇA + CTA",
+      "quote": "Analógico Hall Effect. Você aprova antes do reparo. Chama a WJR no WhatsApp e volte pro jogo!",
+      "reason": "Entra no início da cena Hall Effect (CUTS 12.5; fala começa 12.55). Serviço mais específico + aprovação antes do reparo + CTA completo. Pula problemas/modelos/limpeza/metal líquido para caber em ~11,5 s."
+    }
+  ],
+  "grade": "none",
+  "overlays": [
+    { "file": "../out/overlay.mov", "start_in_output": 0.0, "duration": 11.5 }
+  ],
+  "total_duration_s": 11.5
+}

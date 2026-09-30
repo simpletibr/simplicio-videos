@@ -51,13 +51,14 @@ node motion/scripts/catalog.mjs --check   # falha se o catálogo estiver desatua
 - [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) (Apache-2.0) — 152 cartas de receitas de plano/motion; usamos a *técnica* descrita, reimplementada em GSAP.
 - [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) (MIT, 475 prompts em `data/videos.json`) e [Revid — 63 exemplos de motion do Opus 5.5](https://www.revid.ai/claude-motion-graphics); técnicas destiladas dos prompts citados em cada `pattern.json`.
 - [Fluxo Opus 5.5 + HyperFrames em 5 passos](https://openclawdatabase.com/news/videos/2026-09-25-opus-55-hyperframes-video-editing-workflow/) (transcrever → planejar beats → skills → verificação).
+- [motion-video-kit](https://github.com/echris6/motion-video-kit) (MIT, commit `255562b`, 29/09/2026) — `business-motion-film/references/motion-grammar.md`: 6 regras (o primeiro plano vira a transição, um ator persistente, densidade por hierarquia, variar velocidade, corte seco quando a linguagem casa, causa → efeito) e catálogo de mecanismos; 5 viraram padrões `proposto` aqui (reescritos, só a ideia). A barra de qualidade dele (tempo congelado ≤ ~1 s/30 s, nenhuma pausa > 0,6 s fora o CTA; frame 0 já composto) vale como checklist de review dos blocos.
 - Bookmarks do X (@simpliciomcp) — ver `docs/recursos.md`.
 - [Registry do HyperFrames](https://github.com/heygen-com/hyperframes/tree/main/registry) (blocos/componentes oficiais; contrato de montagem igual ao nosso).
 
 ## Catálogo
 
 <!-- catalog:start (gerado por motion/scripts/catalog.mjs — não edite à mão) -->
-36 padrões: 19 pronto, 1 lib, 2 inline, 14 proposto.
+41 padrões: 19 pronto, 1 lib, 2 inline, 19 proposto.
 
 | Preview | Padrão | Status | Categoria | Parâmetros | Quando usar | Fonte |
 |---|---|---|---|---|---|---|
@@ -93,8 +94,13 @@ node motion/scripts/catalog.mjs --check   # falha se o catálogo estiver desatua
 |  | **[ugc-replicate-structure](patterns/ugc-replicate-structure/)**<br>Replicar estrutura de vídeo viral (UGC) | proposto | estrutura | — | Quando o cliente manda um vídeo de referência. | [x-bookmark](https://x.com/shengkunye/status/2100672978749096186) |
 |  | **[recipe-ingredients-explainer](patterns/recipe-ingredients-explainer/)**<br>Receita/ingredientes entrando no recipiente | proposto | explicador | — | Alimentação/bebidas: mostrar como o produto é feito (só ingredientes confirmados). | [awesome-opus5-5-videos](https://x.com/Ror_Fly/status/2102853258582880547) |
 |  | **[spending-simulation-9x16](patterns/spending-simulation-9x16/)**<br>Simulação de uso no dia a dia (9:16) | proposto | explicador | — | Varejo/serviços financeiros: produto em situações do dia a dia. | [awesome-opus5-5-videos](https://x.com/felipemoller/status/2103846311149936736) |
+|  | **[carousel-emphasis](patterns/carousel-emphasis/)**<br>Carrossel com destaque | proposto | lista | — | Enumerar marcas, modelos, especialidades ou produtos sincronizado com a narração. | [motion-video-kit](https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md) |
 |  | **[logo-shrink-lockup](patterns/logo-shrink-lockup/)**<br>Logo encolhe e trava com o nome (lockup) | proposto | marca | — | Assinatura final de marca. | [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/outro/logo-shrink-wordmark-lockup.md) |
 |  | **[beat-cut-accelerate](patterns/beat-cut-accelerate/)**<br>Cortes secos no beat, acelerando | proposto | ritmo | — | Montagem de fotos/clipes reais antes do CTA. | [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/rhythm/beat-cut-moves.md) |
 |  | **[split-flap-title](patterns/split-flap-title/)**<br>Título em letreiro de aeroporto (split-flap) | proposto | tipografia | — | Datas de evento, inaugurações, contagem regressiva. | [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/typography/split-flap-title.md) |
 |  | **[card-flip-reveal](patterns/card-flip-reveal/)**<br>Card 3D que vira e revela resultado | proposto | transição | — | SaaS/serviços: 'o que fazemos → o que você ganha'. | [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/transition/card-flip-reveal.md) |
+|  | **[foreground-fly-through](patterns/foreground-fly-through/)**<br>Fly-through do primeiro plano (o título vira a transição) | proposto | transição | — | Troca de cena depois de uma frase forte (gancho → promessa, promessa → serviços). | [motion-video-kit](https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md) |
+|  | **[logo-portal](patterns/logo-portal/)**<br>Logo-portal (o furo da marca vira o próximo quadro) | proposto | transição | — | Abertura ou virada para o CTA quando o logo tem uma forma vazada utilizável. | [motion-video-kit](https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md) |
+|  | **[selection-expansion](patterns/selection-expansion/)**<br>Seleção → expansão | proposto | transição | — | Lista de serviços → detalhe de um serviço; catálogo → produto. | [motion-video-kit](https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md) |
+|  | **[materializing-result](patterns/materializing-result/)**<br>Resultado que se materializa | proposto | ui | — | Diagnóstico → laudo, pedido → orçamento aprovado, formulário → confirmação. | [motion-video-kit](https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md) |
 <!-- catalog:end -->

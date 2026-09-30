@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "carousel-emphasis",
+  "title": "Carrossel com destaque",
+  "description": "Lista girando com um item ativo brilhante e os vizinhos recuando (escala/blur/opacidade); o ativo troca no ritmo da fala.",
+  "status": "proposto",
+  "category": "lista",
+  "tags": [
+    "lista",
+    "carrossel",
+    "ritmo"
+  ],
+  "use_when": "Enumerar marcas, modelos, especialidades ou produtos sincronizado com a narração.",
+  "source": {
+    "kind": "motion-video-kit",
+    "ref": "business-motion-film/references/motion-grammar.md (MIT; mecanismo descrito, reimplementar)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  }
+}

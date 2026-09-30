@@ -4,39 +4,173 @@
   "title": "simplicio.motion-pattern/v1",
   "description": "One entry of the motion pattern library (motion/patterns/<id>/pattern.json).",
   "type": "object",
-  "required": ["id", "title", "description", "status", "category", "tags", "use_when", "source"],
+  "required": [
+    "id",
+    "title",
+    "description",
+    "status",
+    "category",
+    "tags",
+    "use_when",
+    "source"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "id": { "type": "string", "pattern": "^[a-z0-9-]{3,64}$" },
-    "title": { "type": "string" },
-    "description": { "type": "string" },
-    "status": { "enum": ["pronto", "inline", "lib", "proposto"], "description": "pronto = block.html + preview.png rendered and linted; inline = validated inside a client video, not extracted; lib = JS helper; proposto = researched, not built" },
-    "category": { "type": "string" },
-    "tags": { "type": "array", "items": { "type": "string" } },
-    "use_when": { "type": "string" },
-    "duration_s": { "type": "number", "exclusiveMinimum": 0 },
-    "format": { "type": "object", "properties": { "width": { "type": "integer" }, "height": { "type": "integer" }, "fps": { "type": "integer" } } },
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{3,64}$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "pronto",
+        "inline",
+        "lib",
+        "proposto"
+      ],
+      "description": "pronto = block.html + preview.png rendered and linted; inline = validated inside a client video, not extracted; lib = JS helper; proposto = researched, not built"
+    },
+    "category": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "use_when": {
+      "type": "string"
+    },
+    "duration_s": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "format": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "fps": {
+          "type": "integer"
+        }
+      }
+    },
     "params": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "type", "label", "default"],
-        "properties": { "id": { "type": "string" }, "type": { "enum": ["string", "number", "boolean", "color"] }, "label": { "type": "string" }, "default": {}, "maxLength": { "type": "integer" } }
+        "required": [
+          "id",
+          "type",
+          "label",
+          "default"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "color"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "default": {},
+          "maxLength": {
+            "type": "integer"
+          }
+        }
       }
     },
-    "files": { "type": "object", "properties": { "block": { "type": "string" }, "preview": { "type": "string" }, "lib": { "type": "string" } } },
-    "preview_at": { "type": "number", "minimum": 0 },
-    "sync": { "type": "string", "description": "How params tie to narration timestamps" },
-    "notes": { "type": "string" },
+    "files": {
+      "type": "object",
+      "properties": {
+        "block": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "string"
+        },
+        "lib": {
+          "type": "string"
+        }
+      }
+    },
+    "preview_at": {
+      "type": "number",
+      "minimum": 0
+    },
+    "sync": {
+      "type": "string",
+      "description": "How params tie to narration timestamps"
+    },
+    "notes": {
+      "type": "string"
+    },
     "source": {
       "type": "object",
-      "required": ["kind", "ref"],
+      "required": [
+        "kind",
+        "ref"
+      ],
       "properties": {
-        "kind": { "enum": ["interno", "video-shotcraft", "awesome-opus5-5-videos", "x-bookmark", "artigo", "hyperframes-registry"] },
-        "ref": { "type": "string" },
-        "url": { "type": ["string", "null"] }
+        "kind": {
+          "enum": [
+            "interno",
+            "video-shotcraft",
+            "awesome-opus5-5-videos",
+            "x-bookmark",
+            "artigo",
+            "hyperframes-registry",
+            "motion-video-kit"
+          ]
+        },
+        "ref": {
+          "type": "string"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     }
   },
-  "allOf": [{ "if": { "properties": { "status": { "const": "pronto" } } }, "then": { "required": ["duration_s", "params", "files", "preview_at"] } }]
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pronto"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "duration_s",
+          "params",
+          "files",
+          "preview_at"
+        ]
+      }
+    }
+  ]
 }

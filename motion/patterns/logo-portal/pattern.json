@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "logo-portal",
+  "title": "Logo-portal (o furo da marca vira o próximo quadro)",
+  "description": "A forma da marca cresce até que um vazado dela (o \"O\", o anel, o controle) enquadra e revela a cena seguinte.",
+  "status": "proposto",
+  "category": "transição",
+  "tags": [
+    "logo",
+    "máscara",
+    "marca"
+  ],
+  "use_when": "Abertura ou virada para o CTA quando o logo tem uma forma vazada utilizável.",
+  "source": {
+    "kind": "motion-video-kit",
+    "ref": "business-motion-film/references/motion-grammar.md (MIT; mecanismo descrito, reimplementar)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  }
+}

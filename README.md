@@ -16,6 +16,7 @@ simplicio-videos/
 ├── templates/              # 3 um template por setor (template.json + README); schema
 ├── motion/                 # 4 biblioteca de padrões: patterns/<id>/{pattern.json, block.html, preview.png}, catalog.json, lib/, scripts/
 ├── voices/                 # 5 providers de voz (gemini, elevenlabs, xai, local) + pipeline TTS
+│                           # 6 video-use (footage): docs/video-use-integracao.md
 ├── schemas/                # 2 video-spec.schema.json (simplicio.video-spec/v1)
 ├── docs/                   # ADRs (decisoes/), esteira, setup, pesquisa — índice em docs/README.md
 └── clients/<cliente>/      # trabalho de cliente
@@ -27,7 +28,7 @@ simplicio-videos/
 
 | O quê | Onde | Hoje |
 |---|---|---|
-| Padrões de motion | [motion/README.md](motion/README.md) | 36 (19 blocos prontos com preview, 1 lib, 2 inline, 14 propostos) |
+| Padrões de motion | [motion/README.md](motion/README.md) | 41 (19 blocos prontos com preview, 1 lib, 2 inline, 19 propostos) |
 | Templates por setor | [templates/README.md](templates/README.md) | 1 pronto (assistência técnica/games) + 6 skeleton |
 | Vozes | [voices/README.md](voices/README.md) | Gemini (padrão, via `file`), Chatterbox/Kokoro locais, ElevenLabs/xAI (sem chave) |
 | Intake | [intake/README.md](intake/README.md) | questionário, extração automática, schema, exemplo WJR |
@@ -38,6 +39,7 @@ simplicio-videos/
 |---|---|---|
 | WJR Informática e Games (Guarulhos) | [coleta](clients/wjr-informatica-games/coleta/) | brief, site salvo, fontes, pendências |
 | | [video-01](clients/wjr-informatica-games/video-01/) | Reels 9:16, 20 s, narração pt-BR (Gemini TTS, voz Puck) + trilha/SFX próprios · [preview](clients/wjr-informatica-games/video-01/preview/) · referência do template `assistencia-tecnica-games` |
+| | [video-02-videouse](clients/wjr-informatica-games/video-02-videouse/) | Cutdown 11,5 s do video-01 montado com [video-use](docs/video-use-integracao.md) (EDL + overlay HyperFrames) · [preview](clients/wjr-informatica-games/video-02-videouse/preview/) |
 
 ## Quick start
 
@@ -49,8 +51,15 @@ npm run check         # build (variáveis + áudio + voz) + lint + layout + cont
 npm run render        # out/video-01.mp4 (1080×1920, 30 fps, 20 s, −14 LUFS)
 npm run preview       # preview/video-01-preview-720p.mp4
 ```
-Requer Node ≥ 22 e FFmpeg ([setup](docs/setup.md)). Voz: [tutorial Gemini](voices/gemini.md) · [todas as opções](voices/README.md). Biblioteca: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`.
+Requer Node ≥ 22 e FFmpeg ([setup](docs/setup.md)). Voz: [tutorial Gemini](voices/gemini.md) · [todas as opções](voices/README.md). Footage/cutdown: [video-use](docs/video-use-integracao.md) (`bash clients/wjr-informatica-games/video-02-videouse/run.sh`). Biblioteca: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`.
 
 ## Documentação
 
 Índice em [`docs/README.md`](docs/README.md). Curadoria de ferramentas de vídeo/motion (com estrelas e licenças): [`docs/recursos.md`](docs/recursos.md).
+
+### Referências principais
+
+- [HyperFrames](https://github.com/heygen-com/hyperframes) — render HTML/GSAP → MP4 (base do repo).
+- [video-use](https://github.com/browser-use/video-use) — edição agêntica de footage (etapa 6; [avaliação](docs/video-use-integracao.md)).
+- [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) e [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) — receitas e prompts destilados em `motion/`.
+- [motion-video-kit](https://github.com/echris6/motion-video-kit) (MIT) — skill `business-motion-film` para comerciais de negócios reais: loop de crítica independente ("Gauntlet"), gramática de motion (6 regras + catálogo de mecanismos a partir de 28 launch films), barra de qualidade medida (tempo congelado, loudness, contraste, cor da marca) e scripts ffmpeg. Fonte de 5 padrões `proposto` em `motion/`.

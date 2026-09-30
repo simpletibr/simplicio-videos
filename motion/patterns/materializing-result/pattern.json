@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "materializing-result",
+  "title": "Resultado que se materializa",
+  "description": "Primeiro aparece a casca (moldura de relatório, orçamento, tela), depois as regiões internas se preenchem em ordem; mostra causa → efeito.",
+  "status": "proposto",
+  "category": "ui",
+  "tags": [
+    "ui",
+    "relatório",
+    "causa-efeito"
+  ],
+  "use_when": "Diagnóstico → laudo, pedido → orçamento aprovado, formulário → confirmação.",
+  "source": {
+    "kind": "motion-video-kit",
+    "ref": "business-motion-film/references/motion-grammar.md (MIT; mecanismo descrito, reimplementar)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  }
+}
