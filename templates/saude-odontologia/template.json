@@ -19,12 +19,12 @@
     "height": 1920,
     "fps": 30
   },
-  "duracao_s": 15.0,
+  "duracao_s": 16.0,
   "cenas": [
     {
       "id": "S1",
       "papel": "gancho",
-      "dur_s": 3.5,
+      "dur_s": 2.8125,
       "padroes": [
         "balloons-confetti",
         "kinetic-bounce-title"
@@ -35,7 +35,7 @@
     {
       "id": "S2",
       "papel": "promessa",
-      "dur_s": 4.0,
+      "dur_s": 4.21875,
       "padroes": [
         "tooth-character",
         "kinetic-bounce-title"
@@ -46,7 +46,7 @@
     {
       "id": "S3",
       "papel": "processo",
-      "dur_s": 3.5,
+      "dur_s": 4.6875,
       "padroes": [
         "toothbrush-sparkle",
         "kinetic-bounce-title"
@@ -57,7 +57,7 @@
     {
       "id": "S4",
       "papel": "marca",
-      "dur_s": 4.0,
+      "dur_s": 4.28125,
       "padroes": [
         "brand-lockup-soft",
         "balloons-confetti"
@@ -77,9 +77,9 @@
     "estilo": "Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora, natural, ritmo leve e sem pressa, sem exagero infantil."
   },
   "musica": {
-    "bpm": 120,
-    "mood": "infantil alegre (marimba, glockenspiel, palmas)",
-    "secoes": "intro 0–3.5 · verso 3.5–11 · final 11–15 com acorde sustentado"
+    "bpm": 128,
+    "mood": "festivo infantil (kick 4/4, palmas+caixa, pandeirola, marimba, glockenspiel, viradas nos cortes)",
+    "secoes": "groove até o último acorde · outro com 'ta-dá' logo depois da última fala"
   },
   "paleta_padrao": {
     "ink": "#3d3834",
@@ -113,15 +113,25 @@
       "s4"
     ],
     "blocos": [
+      "bg",
+      "x0",
       "s1-balloons",
-      "s1-title",
+      "s1-words",
+      "s1-burst",
+      "x1",
       "s2-tooth",
-      "s2-title",
+      "s2-words",
+      "s2-burst",
+      "x2",
       "s3-brush",
-      "s3-title",
+      "s3-words",
+      "s3-burst",
+      "x3",
       "s4-lockup",
-      "s4-confetti"
+      "s4-words",
+      "s4-confetti",
+      "s4-burst"
     ],
-    "_doc": "Blocos da biblioteca montados por cena; params vêm de cenas[].motion[].params (bloco = id do placeholder {{vars:<bloco>}}). Cenas: s1 saudação, s2 mascote, s3 dica, s4 marca. Títulos duram 3 s (entram em t+0,45/0,7/0,1); s1 e s3 precisam de >= 3,5 s, s2 >= 3,7 s, s4 >= 3,5 s."
+    "_doc": "v2 dinâmica: bg (bg-parallax, vídeo inteiro) e x0 (fx-transition de abertura) ficam na s1; x1/x2/x3 (fx-transition, host começa 0,2 s antes do corte: at = 0.2) ficam na cena que entra. Por cena: bloco principal + <cena>-words (kinetic-words, times: '{{words:<fala>}}') + <cena>-burst (beat-burst, bpm: '{{bpm}}'). Durações de cena em batidas inteiras (60/bpm) para os cortes caírem na batida; câmera (punch/whip/zoom/z-punch) no template."
   }
 }
