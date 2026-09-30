@@ -3,7 +3,7 @@
 | Pasta | O quê |
 |---|---|
 | [`coleta/`](coleta/) | Fatos com fonte e data: Instagram público, CNES, espelho do Google Places; conflitos em `pendencias.md` |
-| [`video-01-dia-das-criancas/`](video-01-dia-das-criancas/) | Post 9:16, 15 s, Dia das Crianças 2026 (referência do template `saude-odontologia`) |
+| [`video-01-dia-das-criancas/`](video-01-dia-das-criancas/) | Post 9:16, 15 s, Dia das Crianças 2026, gerado só pelo CLI (`contract.yaml`); referência do template `saude-odontologia` |
 
 ## Entregas no Drive
 

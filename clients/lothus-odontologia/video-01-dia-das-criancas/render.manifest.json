@@ -1,0 +1,68 @@
+{
+  "schema": "simplicio.render-manifest/v1",
+  "contract": "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml",
+  "contract_sha256": "fe4c24b1064746f8f4be9e6e6a285f7ce8712e4a9d0ffeb4baedbf2ec86c4716",
+  "timing_lock_sha256": "e7323af56b1b8befafc2803863d81a0d1869b33970362019d5c3b3b2979b97da",
+  "template": "saude-odontologia",
+  "backend": "local",
+  "quality": "delivery",
+  "gpu_encode": false,
+  "inputs_sha256": "d8e1f5963409d4c22e5ff7d293909d23e7d995b29c7682914504fc7d6937aea6",
+  "inputs": {
+    "assets/audio/build/mix.wav": "618582fad85f84e88930ba204fe3223d6072f27ec6aea6e5bed7b0beffbb26aa",
+    "assets/audio/vo/manifest.json": "3954280bf08539e8d23230e6824ecb185f147a438909dbd7f9d40bd423681869",
+    "assets/audio/vo/vo1-595ed8dfd01b.wav": "e14d5d2c3f5acb6d2b4e856b05087f8925c86b2ccb83b930b9aa1be88c1382c7",
+    "assets/audio/vo/vo2-5ef295c18ea0.wav": "3862b894e639e14def1cad39a1eabd0479b09dbc343dc81d61b5388c7dcc5a01",
+    "assets/audio/vo/vo3-6a4b04fb77f8.wav": "1fe1a1c03fc4eac9a2c0ab3e89d66ea119d6e3ae48888161ff2e2dbb609e729b",
+    "assets/audio/vo/vo4-654511b0a249.wav": "6d1ce5df4d08a2965657b5a1af323d2a39b46c12dd614416e89bf231206c4590",
+    "assets/fonts/Fredoka.ttf": "2ba02e68b152868aef9ba28e24b3648c7d457fe6f25c761f2c2c53fb61a73fc8",
+    "assets/fonts/Inter.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "assets/fonts/OFL-Fredoka.txt": "5c9e7eee5c6b25f4b05b8d53b2e470ea4962f9ced742d044a98f7d95d1375bab",
+    "assets/fonts/OFL-Inter.txt": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+    "build/mix.raw.wav": "a168c08bd58b753b9920010f9b421f3fa73058b911986ab4e14ef3a81334af32",
+    "build/variables.json": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "compositions/balloons-confetti.html": "721aa0f660811bdb75b6ac51b920774315e8a0b543affa654589ad4610393c1d",
+    "compositions/brand-lockup-soft.html": "63158a7a1bf07e0bc7b0cd63a530dd51870ba0ee3512e810140837d88acdea0d",
+    "compositions/kinetic-bounce-title.html": "4f55d68931b0fb0389ca003d83be04b9c39dc1fecb5b20b7fdf6e056a210a985",
+    "compositions/tooth-character.html": "03cebbd67c8f8a228e4ea4fc41829711917c0cdefabe40982d0589ea9caea106",
+    "compositions/toothbrush-sparkle.html": "e279de5135a68d02f2107b1fa9f04f1b4c552792fac870a13ad81bd4116f99fe",
+    "hyperframes.json": "7760693dcdca6a31fffd9ed53b7fe9b4d7877089b1778edc5a5de0cb4bac517d",
+    "index.html": "aaf8dc683b542ef9a8690fe1b097633b5992f60f174dd9e40e3d5f05a0ddbab4",
+    "meta.json": "93bc3374ba9256fdaeab72dbadc74634ff4219bcaced2e83b3fd9c167e7d3a83",
+    "scripts/build.mjs": "b7f10f42ebef74151fc882b5f607e999ff792d35fc8a26314ab506982cb0e5ca",
+    "scripts/master.sh": "ce717e9f1e6f2c7c28f39e795c93f0b16657206a69448eeb7cb37742d021f4ea",
+    "spec.json": "0bba9392e06b677a0fac56214607f268ce55988cc40208d53440d93a6b7240b8"
+  },
+  "tools": {
+    "simplicio_video": "0.2.0",
+    "hyperframes": "hyperframes@0.8.97",
+    "node": "v22.23.3",
+    "ffmpeg": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.13.5"
+  },
+  "output": {
+    "path": "out/lothus-dia-criancas.mp4",
+    "sha256": "38728a94b7f52f2e7c851d269971a3c08e1be47a8fc8c9560e45d76b259b3717",
+    "duration_s": 15.0,
+    "frames": 450,
+    "video_frames_sha256": "b9256d647ade134cd4c2e0e54820a8532b9eda0d150b44fd4d78a6cb6ebe09e2",
+    "audio_pcm_sha256": "5f69382c945367df622bad68c3d55fd5344ccbaf57c2b3f30b40795516345df8"
+  },
+  "loudness": {
+    "integrated_lufs": -14.1,
+    "true_peak_dbfs": -2.4
+  },
+  "drive": {
+    "caminho": "simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas",
+    "pasta_url": "https://drive.google.com/drive/folders/1JZmLzOtvLY9vzDlFxRs4WnnWCu-P0YKr",
+    "arquivo": "Lothus - Dia das Criancas 15s - v01.mp4",
+    "status": "aguardando render final (v01 = voz local provisória)"
+  },
+  "timings_s": {
+    "compile_build": 2.64,
+    "render": 30.06,
+    "capture": 22.3,
+    "encode": 22.3,
+    "master": 1.77
+  }
+}

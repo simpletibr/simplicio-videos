@@ -15,17 +15,35 @@ Gramática de motion do [motion-video-kit](https://github.com/echris6/motion-vid
 
 Fica **fora** do vídeo: telefone e endereço (fontes divergem), nota/avaliações, Invisalign, nome/CRO da dentista.
 
-## Voz
+## Como é gerado (só pelo CLI)
 
-- Provisória: Kokoro `pf_dora` (local). Final: Gemini TTS, voz **Sulafat** (alternativas Laomedeia, Achernar), estilo em `spec.json → voice.providers.file.gemini.style`.
-- Gere no AI Studio uma fala por arquivo em `assets/audio/vo/external/line-01.wav … line-04.wav` e rode `npm run voice:file && npm run render` (ou pelo CLI: `simplicio-video voice contract.yaml --provider file`).
-
-## Comandos (projeto npm; o caminho oficial passa a ser o CLI `simplicio-video`)
+Este vídeo não tem projeto npm: a fonte única é [`contract.yaml`](contract.yaml) (`simplicio.video-contract/v1`). O CLI compila o contrato com a composição do template ([`templates/saude-odontologia/composition/`](../../../templates/saude-odontologia/composition/)) e os blocos de `motion/patterns/`.
 
 ```bash
-npm run check      # build + lint + layout + contraste
-npm run render     # out/lothus-dia-criancas.mp4 (−14 LUFS, TP −1,5)
-npm run preview && npm run contact
+cd clients/lothus-odontologia/video-01-dia-das-criancas
+simplicio-video validate contract.yaml
+simplicio-video voice contract.yaml              # provisória: local (Kokoro pf_dora) -> assets/audio/voz/ + timing.lock.json
+simplicio-video render contract.yaml             # -> out/lothus-dia-criancas.mp4 + render.manifest.json
 ```
 
-QA do render de 30/09/2026: −14,1 LUFS integrado, pico −2,4 dBFS; faster-whisper reconheceu as 4 falas.
+| Arquivo | O quê |
+|---|---|
+| `contract.yaml` | cenas, blocos + params, falas (texto, início relativo à cena, `max_s`), SFX, voz, trilha, saída, destino no Drive |
+| `timing.lock.json` | duração real de cada fala (gerado por `voice`) |
+| `render.manifest.json` | hashes do contrato, dos inputs compilados, do vídeo/áudio decodificados, loudness e tempos |
+| `assets/audio/voz/` | falas tratadas (cache versionado) |
+| `assets/audio/vo/external/` | onde entram os WAVs do Gemini (ver README da pasta) |
+| `preview/` | prévia 720p + contact sheet |
+
+## Voz final (Gemini)
+
+- Voz **Sulafat** (alternativas Laomedeia, Achernar); estilo em `contract.yaml → voz.providers.gemini.estilo`.
+- Gere no AI Studio uma fala por arquivo em `assets/audio/vo/external/line-01.wav … line-04.wav` ([instruções](assets/audio/vo/external/README.md)) e rode:
+  `simplicio-video voice contract.yaml --provider file && simplicio-video render contract.yaml` (ou mude `voz.provider` para `file` no contrato).
+- Com `GEMINI_API_KEY`: `simplicio-video voice contract.yaml --provider gemini` (não testado aqui, sem chave).
+
+## Entrega
+
+Drive: `simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas` → `Lothus - Dia das Criancas 15s - v01.mp4` (link na tabela do [README do cliente](../README.md)).
+
+QA do render de 30/09/2026 (CLI, voz provisória): −14,1 LUFS integrado, pico −2,4 dBFS; faster-whisper reconheceu as 4 falas; frames e áudio idênticos ao render anterior pelo projeto npm (mesmo sha256 do MP4).

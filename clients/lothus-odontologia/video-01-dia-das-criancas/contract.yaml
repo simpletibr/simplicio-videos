@@ -1,0 +1,504 @@
+# simplicio.video-contract/v1 — Lothus Odontologia · Dia das Crianças 2026 (15 s, 9:16).
+# Fatos só de ../coleta/ (Instagram @lothus_odontologia, cidade Guarulhos · SP). Telefone/endereço ficam fora (fontes divergem).
+# Logo: null (só avatar 100×100) -> lockup de texto; nunca recriar a marca. Schema: ../../../schema/contract.schema.json
+# Voz: provisória local (Kokoro pf_dora). Final: Gemini no AI Studio, voz Sulafat -> assets/audio/vo/external/line-01..04.wav
+#   e `simplicio-video voice contract.yaml --provider file` (ou mude voz.provider para file). Tempos relativos à cena.
+schema: simplicio.video-contract/v1
+cliente:
+  slug: lothus-odontologia
+  nome: Lothus Odontologia
+  drive_nome: Lothus_Odontologia
+  coleta: ../coleta
+campanha:
+  id: Dia_Criancas
+  ano: 2026
+  titulo: Dia das Crianças 2026 (post 15 s)
+  objetivo: Post comemorativo de 12/10 no Instagram da clínica
+formato:
+  aspect: '9:16'
+  width: 1080
+  height: 1920
+  fps: 30
+  duracao_s: 15
+template: saude-odontologia
+marca:
+  paleta:
+    ink: '#3d3834'
+    line_cream: '#bab5b1'
+    accent: '#5aa9e6'
+    chip: '#2f7fc1'
+    background: '#fbf7f2'
+  logo: null
+  fontes:
+  - Fredoka
+  - Inter
+cenas:
+- id: s1
+  papel: gancho
+  duracao_s: 3.5
+  motion:
+  - padrao: balloons-confetti
+    bloco: s1-balloons
+    params:
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      count: 9
+      rise_s: 3.3
+      t_burst: 0.35
+      burst_x: 540
+      burst_y: 760
+      confetti: 80
+      ink: '#3d3834'
+      bg: transparent
+      seed: 11
+  - padrao: kinetic-bounce-title
+    bloco: s1-title
+    params:
+      line1: Feliz
+      line2: Dia das
+      line3: Crianças!
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      ink: '#3d3834'
+      size: 170
+      y: 600
+      t0: 0.1
+      stagger: 0.045
+      exit: true
+      bg: transparent
+      seed: 5
+  tela:
+  - Feliz / Dia das / Crianças!
+  fala:
+    id: vo1
+    texto: Feliz Dia das Crianças!
+    inicio_s: 0.5
+    max_s: 2.3
+  sfx:
+  - id: pop-confetti
+    t: 0.35
+    tipo: pop
+    gain_db: -6
+  - id: chime-open
+    t: 0.5
+    tipo: chime
+    args:
+    - 84
+    gain_db: -12
+  - id: boing-title
+    t: 0.95
+    tipo: boing
+    args:
+    - 260
+    - 0.5
+    gain_db: -14
+  - id: whoosh-t1
+    t: 3.2
+    tipo: whoosh
+    args:
+    - 0.35
+    gain_db: -12
+- id: s2
+  papel: promessa
+  duracao_s: 4
+  motion:
+  - padrao: tooth-character
+    bloco: s2-tooth
+    params:
+      x: 540
+      y: 1230
+      scale: 1.35
+      body: '#ffffff'
+      ink: '#3d3834'
+      cheek: '#ffb3b3'
+      accent: '#ffd23f'
+      t_in: 0.1
+      wave_t: 0.8
+      label: Oi!
+      bg: transparent
+      seed: 3
+  - padrao: kinetic-bounce-title
+    bloco: s2-title
+    params:
+      line1: Brincar,
+      line2: sorrir e
+      line3: se divertir!
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      ink: '#3d3834'
+      size: 118
+      y: 200
+      t0: 0.05
+      stagger: 0.035
+      exit: true
+      bg: transparent
+      seed: 8
+  tela:
+  - Oi! (balão do mascote)
+  - Brincar, / sorrir e / se divertir!
+  fala:
+    id: vo2
+    texto: Hoje é dia de brincar, sorrir e se divertir!
+    inicio_s: 0.25
+    max_s: 3.3
+  sfx:
+  - id: pop-t1
+    t: 0
+    tipo: pop
+    gain_db: -8
+  - id: boing-tooth
+    t: 0.25
+    tipo: boing
+    args:
+    - 200
+    - 0.6
+    gain_db: -12
+  - id: sparkle-star
+    t: 1
+    tipo: shimmer
+    args:
+    - 0.6
+    - 2637
+    gain_db: -16
+  - id: whoosh-t2
+    t: 3.7
+    tipo: whoosh
+    args:
+    - 0.35
+    gain_db: -12
+- id: s3
+  papel: processo
+  duracao_s: 3.5
+  motion:
+  - padrao: toothbrush-sparkle
+    bloco: s3-brush
+    params:
+      x: 540
+      y: 1200
+      scale: 1.25
+      t0: 0.2
+      strokes: 5
+      handle: '#5aa9e6'
+      ink: '#3d3834'
+      sparkle: '#ffd23f'
+      cheek: '#ffb3b3'
+      bg: transparent
+      seed: 9
+  - padrao: kinetic-bounce-title
+    bloco: s3-title
+    params:
+      line1: Depois da
+      line2: 'festa:'
+      line3: escovinha!
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      ink: '#3d3834'
+      size: 118
+      y: 200
+      t0: 0.05
+      stagger: 0.035
+      exit: true
+      bg: transparent
+      seed: 12
+  tela:
+  - 'Depois da / festa: / escovinha!'
+  fala:
+    id: vo3
+    texto: E depois da festa, escova nesses dentinhos!
+    inicio_s: 0.25
+    max_s: 3.0
+  sfx:
+  - id: pop-t2
+    t: 0
+    tipo: pop
+    gain_db: -8
+  - id: scrub1
+    t: 0.65
+    tipo: whoosh
+    args:
+    - 0.13
+    gain_db: -20
+  - id: scrub2
+    t: 0.91
+    tipo: whoosh
+    args:
+    - 0.13
+    gain_db: -20
+  - id: scrub3
+    t: 1.17
+    tipo: whoosh
+    args:
+    - 0.13
+    gain_db: -20
+  - id: scrub4
+    t: 1.43
+    tipo: whoosh
+    args:
+    - 0.13
+    gain_db: -20
+  - id: scrub5
+    t: 1.69
+    tipo: whoosh
+    args:
+    - 0.13
+    gain_db: -20
+  - id: sparkle-clean
+    t: 2.25
+    tipo: shimmer
+    args:
+    - 0.8
+    - 2637
+    gain_db: -13
+  - id: chime-clean
+    t: 2.3
+    tipo: chime
+    args:
+    - 88
+    gain_db: -15
+  - id: whoosh-t3
+    t: 3.2
+    tipo: whoosh
+    args:
+    - 0.35
+    gain_db: -12
+- id: s4
+  papel: marca
+  duracao_s: 4
+  motion:
+  - padrao: brand-lockup-soft
+    bloco: s4-lockup
+    params:
+      name: LOTHUS
+      sub: ODONTOLOGIA
+      tagline: deseja um Feliz Dia das Crianças!
+      handle: '@lothus_odontologia'
+      city: Guarulhos · SP
+      logo: ''
+      ink: '#3d3834'
+      accent: '#2f7fc1'
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      bg: transparent
+      seed: 4
+  - padrao: balloons-confetti
+    bloco: s4-confetti
+    params:
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      count: 0
+      rise_s: 3.0
+      t_burst: 0.3
+      burst_x: 540
+      burst_y: 560
+      confetti: 60
+      ink: '#3d3834'
+      bg: transparent
+      seed: 21
+  tela:
+  - LOTHUS / ODONTOLOGIA
+  - deseja um Feliz Dia das Crianças!
+  - '@lothus_odontologia'
+  - Guarulhos · SP
+  fala:
+    id: vo4
+    texto: Com carinho, Lothus Odontologia.
+    say: Com carinho, Lótus Odontologia.
+    inicio_s: 0.4
+    max_s: 2.6
+  sfx:
+  - id: pop-t3
+    t: 0
+    tipo: pop
+    gain_db: -8
+  - id: pop-confetti2
+    t: 0.3
+    tipo: pop
+    gain_db: -9
+  - id: blip-chip
+    t: 1.6
+    tipo: blip
+    args:
+    - 1320
+    gain_db: -16
+  - id: chime-end
+    t: 2.5
+    tipo: chime
+    args:
+    - 84
+    gain_db: -13
+voz:
+  provider: local
+  voice: pf_dora
+  estilo: 'Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora, natural,
+    português do Brasil, ritmo leve e sem pressa, sem exagero infantil.'
+  idioma: pt-BR
+  processamento: highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,equalizer=f=9000:t=q:w=1:g=1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=140:makeup=2:knee=4,aecho=1.0:1.0:19|31|47:0.09|0.06|0.04
+  gain_db: 0
+  duck_music_db: 10
+  duck_sfx_db: 6
+  jcut_max_s: 0.15
+  cache_dir: assets/audio/voz
+  providers:
+    local:
+      engine: kokoro
+      voice: pf_dora
+      speed: 1.0
+      lang: pt-br
+    file:
+      dir: assets/audio/vo/external
+      origem: Gemini TTS no Google AI Studio (voz Sulafat) — a gerar
+    gemini:
+      model: gemini-3.8-flash-tts
+      voice: Sulafat
+      alternativas:
+      - Laomedeia
+      - Achernar
+      estilo: 'Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora,
+        natural, português do Brasil, ritmo leve e sem pressa, sem exagero infantil.'
+trilha:
+  bpm: 120
+  seed: 20261012
+  music:
+    style: playful
+    gain_db: -5
+    fade_in_s: 0.05
+    fade_out_s: 1.2
+    progression:
+    - - 48
+      - - 60
+        - 64
+        - 67
+    - - 43
+      - - 59
+        - 62
+        - 67
+    - - 45
+      - - 57
+        - 60
+        - 64
+    - - 41
+      - - 57
+        - 60
+        - 65
+    sections:
+    - name: groove
+      from: 0
+      to: 13.5
+    - name: outro
+      from: 13.5
+      to: 15
+    melody:
+    - - 0
+      - 76
+      - 0.5
+    - - 0.5
+      - 79
+      - 0.5
+    - - 1
+      - 84
+      - 1
+    - - 2.5
+      - 83
+      - 0.5
+    - - 3
+      - 79
+      - 1
+    - - 4
+      - 79
+      - 0.5
+    - - 4.5
+      - 81
+      - 0.5
+    - - 5
+      - 83
+      - 1
+    - - 6
+      - 79
+      - 0.5
+    - - 6.5
+      - 74
+      - 1.5
+    - - 8
+      - 76
+      - 0.5
+    - - 8.5
+      - 72
+      - 0.5
+    - - 9
+      - 76
+      - 0.5
+    - - 9.5
+      - 79
+      - 1
+    - - 11
+      - 81
+      - 1
+    - - 12
+      - 77
+      - 0.5
+    - - 12.5
+      - 81
+      - 0.5
+    - - 13
+      - 84
+      - 1
+    - - 14
+      - 81
+      - 0.5
+    - - 14.5
+      - 79
+      - 1.5
+    - - 16
+      - 76
+      - 0.5
+    - - 16.5
+      - 79
+      - 0.5
+    - - 17
+      - 84
+      - 1
+    - - 18.5
+      - 83
+      - 0.5
+    - - 19
+      - 79
+      - 1
+    - - 20
+      - 79
+      - 0.5
+    - - 20.5
+      - 81
+      - 0.5
+    - - 21
+      - 83
+      - 1
+    - - 22
+      - 79
+      - 0.5
+    - - 22.5
+      - 74
+      - 1.5
+    - - 24
+      - 76
+      - 0.5
+    - - 24.5
+      - 72
+      - 0.5
+    - - 25
+      - 76
+      - 0.5
+    - - 25.5
+      - 79
+      - 1
+    - - 27
+      - 81
+      - 1
+    - - 28
+      - 84
+      - 2
+  master:
+    target_lufs: -14
+    true_peak_db: -1.5
+saida:
+  arquivo: out/lothus-dia-criancas.mp4
+  qualidade: delivery
+  preview: preview/lothus-dia-criancas-preview-720p.mp4
+drive:
+  caminho: simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas
+  pasta_url: https://drive.google.com/drive/folders/1JZmLzOtvLY9vzDlFxRs4WnnWCu-P0YKr
+  arquivo: Lothus - Dia das Criancas 15s - v01.mp4
+  status: aguardando render final (v01 = voz local provisória)
