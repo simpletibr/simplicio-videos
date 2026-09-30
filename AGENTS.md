@@ -2,6 +2,10 @@
 
 Regras, mapa e fluxos para qualquer agente (Claude Code, Codex, Grok) trabalhando neste repositório. Cada vídeo também tem o seu `AGENTS.md` com detalhes da composição.
 
+## Missão e operação de vendas
+
+Este repositório é só a **execução dos scripts e a geração dos vídeos** (CLI `simplicio-video`). A **missão de vendas e o guia de operação** (preços, mensagens aprovadas, funil, planilha de controle, Paperclip, times, estado atual e próximos passos) ficam no Google Drive, em [`simplicio-video/AGENTS.md`](https://drive.google.com/file/d/19Y0BvZw-st_YasMk39vNkbNGd_4pJ4ir/view?usp=drivesdk) (conta wesleybob4). Leia esse guia antes de qualquer trabalho de venda ativa.
+
 ## O que é
 
 **simplicio-videos** é o plugin de vídeo do **Simplicio Runtime (Simplicio MCP)** ([ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md)). Pedido de vídeo → **esteira determinística** ([docs/esteira.md](docs/esteira.md)):
