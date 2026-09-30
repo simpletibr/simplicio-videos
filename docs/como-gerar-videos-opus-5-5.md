@@ -138,6 +138,27 @@ Detalhes sobre economia de tokens e caminho determinístico: [`tokens-e-determin
 
 - **HyperFrames** como stack do template (HTML + GSAP, sem build, render por variáveis, skills oficiais para Claude Code e Codex).
 - Prompt de iteração no estilo 3.2 + 3.3 + 3.5: fonte de verdade = site do cliente, sem números inventados, tempos por cena, gate `lint → check → snapshot → render`.
+- **Som + motion no nível dos showcases** (seção 8): trilha 120 BPM e SFX sintetizados por código a partir de cues em `spec.json`, cortes no beat, tipografia cinética, câmera, glitch/RGB split.
+- **Prompt "showreel" adaptado para a WJR** (15 s, "go all out", com travas de fatos/marca/áudio): `PROMPT.md` §0.
 - Veja `clients/wjr-informatica-games/video-01/PROMPT.md`.
 
 > Os prompts acima foram copiados literalmente dos arquivos dos repositórios citados (ambos com LICENSE MIT); o conteúdo pertence aos autores linkados.
+
+## 8. Som e motion: o que os melhores exemplos fazem (estudo para o video-01)
+
+**O prompt "showreel".** No acervo `awesome-opus5-5-videos/data/videos.json`, **103 de 475** prompts citam "showreel"; a forma canônica é *"make a dynamic 15-second motion graphics video that shows what an incredible motion designer you are, like it's your showreel for a résumé. go all out."* Variações acrescentam o produto (*"…for &lt;website url&gt;"*, *"…on Distilbook"*), formato e loop (*"1080×1080, 1s hook, loop"* — [@Ishaaqahamed](https://x.com/Ishaaqahamed/status/2103837917538107563)) ou pedem pesquisa de técnica (*"check what are the recent trending techniques used for motion and sound design. question your strategy and plan, if it doesn't feel like done by a pro designer, start over"* — [@heyiammallik](https://x.com/heyiammallik/status/2103837803587293397)). A versão WJR está em `video-01/PROMPT.md` §0.
+
+**Exemplos estudados e técnica extraída:**
+
+| Exemplo | O que ensina | Como entrou no video-01 |
+|---|---|---|
+| [@twoclipping — launch film minimal](https://x.com/twoclipping/status/2102554209166000267) | estrutura em **compassos**: *"10 bars at 120 BPM, 2 seconds each. Bar 1: the hook lands word by word on the beats"*; drop com transformação; lista explícita do que é **proibido** | grade 120 BPM (beat 0,5 s, compasso 2 s); hook palavra a palavra nos beats; seções intro/groove/build/drop em `spec.json → audio.music.sections` |
+| [@twoclipping — "Apple-keynote launch film"](https://x.com/twoclipping/status/2103835273813496100) | *"a royalty-free song around 120 BPM with a drop and a quiet breakdown"*; *"text rises out of a mask line, icons pop from zero on a spring, bars draw across"* | textos sobem por máscara (`.line { overflow:hidden }`), chips/steps com `back.out`, trilho do processo desenhado (`stroke-dashoffset`) |
+| [@twoclipping / @__morse — UI morph](https://x.com/__morse/status/2103485566570369333) | "banned" list como ferramenta de direção de arte; câmera que dá zoom para cada estado encher a tela | câmera única (`#cam`) com zoom-punch/push-in por cena em vez de transições genéricas |
+| `video-shotcraft/references/pipeline.md` (estágio 6, som) | *BGM define o esqueleto de energia, SFX pregado em cada keyframe*; **só desenhar o som depois de travar a imagem**; cues com tempo **relativo**; com bateria forte, SFX contido — **"grandes slams só em 2–3 picos"**; fecho padrão **riser → impact (pico do filme) → sparkle**; volume por pico medido | 2 impacts (1,25 s e 12,0 s = pico); riser 11–12 s → glitch → impact no logo → blip de cauda; cues em `spec.json` alinhados ao grid; ducking da música nos impacts |
+| `hyperframes/skills/hyperframes-audio` | mix como relações (ducking, carve), fades, automação; preview e render usam o mesmo grafo Web Audio | aqui a mixagem é feita antes (WAV pronto, determinístico) e o HyperFrames só toca o `<audio id="soundtrack">`; alternativa documentada caso se prefira mixar dentro da composição |
+
+**Divergências conscientes.** O shotcraft desaconselha timbres "de videogame" (pluck/bloop sintético) em vídeo de produto; os prompts minimalistas do @twoclipping proíbem RGB split, shake, grid floor e partículas. Aqui o cliente **é** uma assistência gamer e o pedido foi explicitamente por blips de UI, glitch e energia de showreel — então usamos essa estética de propósito, mas com contenção (2 slams, glitch só nas trocas de cena, elastic só no logo).
+
+**Áudio sem licença de terceiros.** Em vez de baixar trilha/SFX (Pixabay, Freesound CC0, Kenney), o `scripts/build.mjs` **sintetiza** tudo (osciladores + ruído com semente + filtros biquad + reverb simples), mixa com sidechain e ducking e normaliza com `loudnorm` (−14 LUFS); `scripts/master.sh` re-mede no MP4 final e aplica limiter. Resultado verificado: −14,3 LUFS, true peak −1,7 dBTP. Vantagens: zero risco de licença, re-sincroniza sozinho quando um cue muda no JSON, e mesma entrada = mesmo WAV. Limite: é uma trilha "funcional" de 15 s, não uma produção musical — para campanhas maiores, trocar por trilha licenciada e registrar em `assets/audio/LICENSES.md`.
+

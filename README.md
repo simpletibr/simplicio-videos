@@ -14,9 +14,9 @@ Kit para produzir vídeos promocionais com **Claude Opus 5.5** (código → víd
 | [docs/tokens-e-deterministico.md](docs/tokens-e-deterministico.md) | Quanto custa, como economizar tokens, e o pipeline determinístico proposto |
 | [docs/plugin-simplicio-runtime.md](docs/plugin-simplicio-runtime.md) | Arquitetura proposta de plugin (`simplicio.plugin/v1`) |
 | [docs/setup.md](docs/setup.md) | Passo a passo no Mac: Node, FFmpeg, Claude Code/Codex, skills, render |
-| [docs/checklist-cliente.md](docs/checklist-cliente.md) | O que pedir ao cliente (com status da WJR) |
-| [clients/wjr-informatica-games/brief.md](clients/wjr-informatica-games/brief.md) | Fatos do cliente com fonte, paleta, lacunas |
-| [clients/wjr-informatica-games/video-01/](clients/wjr-informatica-games/video-01/) | Reels 9:16 de 22 s: composição, roteiro, prompt, spec, preview |
+| [docs/checklist-cliente.md](docs/checklist-cliente.md) | Template do que pedir a qualquer cliente |
+| [clients/wjr-informatica-games/coleta/](clients/wjr-informatica-games/coleta/) | **Toda a coleta do cliente**: brief, snapshot do site, imagens, paleta (`colors.json`), Instagram, fontes com data, pendências, checklist |
+| [clients/wjr-informatica-games/video-01/](clients/wjr-informatica-games/video-01/) | Reels 9:16 "showreel" de 15 s com trilha + SFX: composição, roteiro, prompt, spec, preview com áudio |
 
 ## Quick start
 
@@ -24,10 +24,10 @@ Kit para produzir vídeos promocionais com **Claude Opus 5.5** (código → víd
 gh repo clone simpletibr/simplicio-videos
 cd simplicio-videos/clients/wjr-informatica-games/video-01
 npm run assets:site   # imagens públicas do site p/ rascunho (gitignored)
-npm run check         # lint + layout + contraste
-npm run render        # out/video-01.mp4 (1080×1920, 30 fps, 22 s)
+npm run check         # build (variáveis + áudio) + lint + layout + contraste
+npm run render        # out/video-01.mp4 (1080×1920, 30 fps, 15 s, áudio −14 LUFS)
 ```
-Requer Node ≥ 22 e FFmpeg. Preview de baixa resolução já renderizado: [`video-01/preview/`](clients/wjr-informatica-games/video-01/preview/).
+Requer Node ≥ 22 e FFmpeg. Preview 720p com áudio já renderizado: [`video-01/preview/`](clients/wjr-informatica-games/video-01/preview/).
 Para iterar com IA: abra Claude Code (Opus 5.5) ou Codex dentro de `video-01/` e use [`PROMPT.md`](clients/wjr-informatica-games/video-01/PROMPT.md).
 
 ## Estrutura
@@ -35,10 +35,10 @@ Para iterar com IA: abra Claude Code (Opus 5.5) ou Codex dentro de `video-01/` e
 ```
 plugin.json                      # simplicio.plugin/v1 — STUB/proposta
 schemas/video-spec.schema.json   # simplicio.video-spec/v1 — proposta
-docs/                            # pesquisa + setup + checklist + plugin
+docs/                            # pesquisa + setup + checklist (template) + plugin
 clients/wjr-informatica-games/
-  brief.md
-  video-01/                      # HyperFrames: index.html, spec.json, video.json, PROMPT.md, roteiro.md, preview/
+  coleta/                        # brief.md, fontes.md, site/ (html, texto, imagens), colors.json, instagram-meta.json, pendencias.md, checklist
+  video-01/                      # HyperFrames: index.html, spec.json (variáveis + áudio + clipes), scripts/build.mjs, PROMPT.md, roteiro.md, preview/
 ```
 
 ---

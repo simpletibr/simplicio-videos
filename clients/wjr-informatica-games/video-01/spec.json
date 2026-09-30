@@ -1,18 +1,405 @@
 {
-  "logo": "assets/client/logo.png",
-  "photo_hero": "assets/client/photo-hero.png",
-  "photo_bench": "assets/client/photo-bench.png",
-  "kicker": "Assistência técnica em Guarulhos",
-  "promise": "A gente coloca ele de volta no jogo.",
-  "p1": "Controle com drift",
-  "p2": "Console não liga",
-  "p3": "Superaquecimento",
-  "p4": "Defeito no HDMI",
-  "p5": "Botões não funcionando",
-  "cta": "Volte para o jogo.",
-  "whatsapp": "(11) 99700-5234",
-  "address": "R. Siderópolis, 168 · Jardim Jovaia, Guarulhos",
-  "instagram": "@wjrinformaticagames",
-  "primary": "#e50914",
-  "secondary": "#1565ff"
+  "variables": {
+    "logo": "assets/client/logo.png",
+    "photo_hero": "assets/client/photo-hero.png",
+    "photo_bench": "assets/client/photo-bench.png",
+    "kicker": "Assistência técnica em Guarulhos",
+    "promise": "A gente coloca ele de volta no jogo.",
+    "p1": "Controle com drift",
+    "p2": "Console não liga",
+    "p3": "Superaquecimento",
+    "p4": "Defeito no HDMI",
+    "p5": "Botões não funcionando",
+    "cta": "Volte para o jogo.",
+    "whatsapp": "(11) 99700-5234",
+    "address": "R. Siderópolis, 168 · Jardim Jovaia, Guarulhos",
+    "instagram": "@wjrinformaticagames",
+    "primary": "#e50914",
+    "secondary": "#1565ff"
+  },
+  "audio": {
+    "bpm": 120,
+    "duration_s": 15,
+    "seed": 20260930,
+    "music": {
+      "gain_db": -4,
+      "fade_in_s": 0.25,
+      "fade_out_s": 0.9,
+      "progression": [
+        [
+          33,
+          [
+            57,
+            60,
+            64
+          ]
+        ],
+        [
+          29,
+          [
+            53,
+            57,
+            60
+          ]
+        ],
+        [
+          36,
+          [
+            60,
+            64,
+            67
+          ]
+        ],
+        [
+          31,
+          [
+            55,
+            59,
+            62
+          ]
+        ]
+      ],
+      "sections": [
+        {
+          "name": "intro",
+          "from": 0,
+          "to": 2.5
+        },
+        {
+          "name": "groove",
+          "from": 2.5,
+          "to": 11
+        },
+        {
+          "name": "build",
+          "from": 11,
+          "to": 12
+        },
+        {
+          "name": "drop",
+          "from": 12,
+          "to": 15
+        }
+      ]
+    },
+    "master": {
+      "target_lufs": -14,
+      "true_peak_db": -1.5
+    },
+    "cues": [
+      {
+        "id": "hit-seu",
+        "t": 0.25,
+        "sfx": "hit",
+        "gain_db": -7
+      },
+      {
+        "id": "hit-console",
+        "t": 0.75,
+        "sfx": "hit",
+        "gain_db": -6
+      },
+      {
+        "id": "impact-parou",
+        "t": 1.25,
+        "sfx": "impact",
+        "gain_db": -4,
+        "duck_db": 4
+      },
+      {
+        "id": "glitch-cut1",
+        "t": 2.3,
+        "sfx": "glitch",
+        "gain_db": -11
+      },
+      {
+        "id": "whoosh-cut1",
+        "t": 2.35,
+        "sfx": "whoosh",
+        "gain_db": -5,
+        "pan": -0.3
+      },
+      {
+        "id": "hit-promise",
+        "t": 3.0,
+        "sfx": "hit",
+        "gain_db": -9
+      },
+      {
+        "id": "whoosh-cut2",
+        "t": 4.3,
+        "sfx": "whoosh",
+        "gain_db": -6,
+        "pan": 0.3
+      },
+      {
+        "id": "click-p1",
+        "t": 4.6,
+        "sfx": "click",
+        "gain_db": -7,
+        "pan": 0.2
+      },
+      {
+        "id": "click-p2",
+        "t": 5.2,
+        "sfx": "click",
+        "gain_db": -7,
+        "pan": -0.2
+      },
+      {
+        "id": "click-p3",
+        "t": 5.8,
+        "sfx": "click",
+        "gain_db": -7,
+        "pan": 0.2
+      },
+      {
+        "id": "click-p4",
+        "t": 6.4,
+        "sfx": "click",
+        "gain_db": -7,
+        "pan": -0.2
+      },
+      {
+        "id": "click-p5",
+        "t": 7.0,
+        "sfx": "click",
+        "gain_db": -7,
+        "pan": 0.2
+      },
+      {
+        "id": "glitch-cut3",
+        "t": 7.8,
+        "sfx": "glitch",
+        "gain_db": -11
+      },
+      {
+        "id": "whoosh-cut3",
+        "t": 7.85,
+        "sfx": "whoosh",
+        "gain_db": -5,
+        "pan": -0.3
+      },
+      {
+        "id": "hit-models",
+        "t": 8.1,
+        "sfx": "hit",
+        "gain_db": -7
+      },
+      {
+        "id": "blip-chip1",
+        "t": 8.6,
+        "sfx": "blip",
+        "gain_db": -14,
+        "args": [
+          1046
+        ],
+        "pan": -0.4
+      },
+      {
+        "id": "blip-chip2",
+        "t": 8.7,
+        "sfx": "blip",
+        "gain_db": -14,
+        "args": [
+          1156
+        ],
+        "pan": 0.4
+      },
+      {
+        "id": "blip-chip3",
+        "t": 8.8,
+        "sfx": "blip",
+        "gain_db": -14,
+        "args": [
+          1266
+        ],
+        "pan": -0.4
+      },
+      {
+        "id": "blip-chip4",
+        "t": 8.9,
+        "sfx": "blip",
+        "gain_db": -14,
+        "args": [
+          1376
+        ],
+        "pan": 0.4
+      },
+      {
+        "id": "blip-chip5",
+        "t": 9.0,
+        "sfx": "blip",
+        "gain_db": -14,
+        "args": [
+          1486
+        ],
+        "pan": -0.4
+      },
+      {
+        "id": "blip-chip6",
+        "t": 9.1,
+        "sfx": "blip",
+        "gain_db": -14,
+        "args": [
+          1596
+        ],
+        "pan": 0.4
+      },
+      {
+        "id": "blip-chip7",
+        "t": 9.2,
+        "sfx": "blip",
+        "gain_db": -14,
+        "args": [
+          1706
+        ],
+        "pan": -0.4
+      },
+      {
+        "id": "blip-chip8",
+        "t": 9.3,
+        "sfx": "blip",
+        "gain_db": -14,
+        "args": [
+          1816
+        ],
+        "pan": 0.4
+      },
+      {
+        "id": "whoosh-cut4",
+        "t": 10.3,
+        "sfx": "whoosh",
+        "gain_db": -6,
+        "pan": 0.3
+      },
+      {
+        "id": "blip-step1",
+        "t": 10.6,
+        "sfx": "blip",
+        "gain_db": -12,
+        "args": [
+          880
+        ]
+      },
+      {
+        "id": "blip-step2",
+        "t": 10.9,
+        "sfx": "blip",
+        "gain_db": -12,
+        "args": [
+          1100
+        ]
+      },
+      {
+        "id": "blip-step3",
+        "t": 11.2,
+        "sfx": "blip",
+        "gain_db": -12,
+        "args": [
+          1320
+        ]
+      },
+      {
+        "id": "blip-step4",
+        "t": 11.5,
+        "sfx": "blip",
+        "gain_db": -12,
+        "args": [
+          1540
+        ]
+      },
+      {
+        "id": "riser-cta",
+        "t": 11.0,
+        "sfx": "riser",
+        "gain_db": -5,
+        "args": [
+          1.0
+        ]
+      },
+      {
+        "id": "glitch-precta",
+        "t": 11.8,
+        "sfx": "glitch",
+        "gain_db": -8
+      },
+      {
+        "id": "impact-logo",
+        "t": 12.0,
+        "sfx": "impact",
+        "gain_db": -1,
+        "duck_db": 6
+      },
+      {
+        "id": "blip-whatsapp",
+        "t": 12.9,
+        "sfx": "blip",
+        "gain_db": -10,
+        "args": [
+          1760
+        ]
+      }
+    ]
+  },
+  "clips": {
+    "_doc": "Grok Imagine (or any) vertical clips as full-bleed plates. Drop files at 'file'; scripts/build.mjs normalizes them to 'out' (1080x1920, 30fps, muted) and turns the slot on. Missing file => slot off => the scene keeps its current image/graphic design.",
+    "slots": [
+      {
+        "id": "clip_05",
+        "file": "assets/imagine/clip-05.mp4",
+        "out": "assets/clips/build/clip-05.mp4",
+        "scene": "s1",
+        "start": 0,
+        "duration": 2.5,
+        "media_start_s": 0,
+        "shade": 0.5,
+        "brief": "console powering on (LED/boot) — hook background"
+      },
+      {
+        "id": "clip_01",
+        "file": "assets/imagine/clip-01.mp4",
+        "out": "assets/clips/build/clip-01.mp4",
+        "scene": "s2",
+        "start": 2.5,
+        "duration": 2,
+        "media_start_s": 0,
+        "shade": 0.35,
+        "brief": "console opening on the workbench — replaces photo_hero card"
+      },
+      {
+        "id": "clip_02",
+        "file": "assets/imagine/clip-02.mp4",
+        "out": "assets/clips/build/clip-02.mp4",
+        "scene": "s3",
+        "start": 4.5,
+        "duration": 3.5,
+        "media_start_s": 0,
+        "shade": 0.72,
+        "brief": "controller board soldering — problems background"
+      },
+      {
+        "id": "clip_03",
+        "file": "assets/imagine/clip-03.mp4",
+        "out": "assets/clips/build/clip-03.mp4",
+        "scene": "s4",
+        "start": 8,
+        "duration": 2.5,
+        "media_start_s": 0,
+        "shade": 0.3,
+        "brief": "controller LEDs turning on, hero shot — replaces photo_bench"
+      },
+      {
+        "id": "clip_04",
+        "file": "assets/imagine/clip-04.mp4",
+        "out": "assets/clips/build/clip-04.mp4",
+        "scene": "s6",
+        "start": 12,
+        "duration": 3,
+        "media_start_s": 0,
+        "shade": 0.68,
+        "brief": "gamer playing — CTA background ('Volte para o jogo')"
+      }
+    ]
+  }
 }

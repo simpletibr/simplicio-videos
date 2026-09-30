@@ -9,3 +9,5 @@ snapshots/
 # client assets stay local until the client approves usage
 clients/*/*/assets/client/
 .hyperframes/
+build/
+assets/audio/build/

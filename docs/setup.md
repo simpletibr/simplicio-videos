@@ -59,16 +59,17 @@ Reinicie a sessão do agente depois de instalar skills.
 
 ```bash
 cd clients/wjr-informatica-games/video-01
-npm run assets:site        # baixa logo/imagens PÚBLICAS do site p/ assets/client/ (só rascunho)
+npm run assets:site        # copia logo/imagens PÚBLICAS do site (../coleta/site/imagens) p/ assets/client/ (só rascunho)
 npm run dev                # preview/Studio no navegador
 npm run check              # lint + runtime + layout + contraste (precisa passar)
 npm run snapshot           # frames-chave + contact-sheet.jpg em snapshots/
 npm run render:draft       # out/video-01-draft.mp4 (rápido)
-npm run render             # out/video-01.mp4 (qualidade de entrega)
+npm run render             # out/video-01.mp4 (entrega, com trilha + SFX masterizados em −14 LUFS)
+npm run loudness           # confere LUFS / true peak
 ```
 Sem assets do cliente: `npm run render:placeholder` renderiza com os slots marcados.
 
-Quando o cliente mandar os arquivos: coloque em `assets/client/` com os mesmos nomes (ou mude os caminhos em `spec.json`) e rode `npm run render`. Nenhuma chamada de LLM é necessária para trocar texto/foto/cor.
+Quando o cliente mandar os arquivos: coloque em `assets/client/` com os mesmos nomes (ou mude os caminhos em `spec.json`) e rode `npm run render`. Clipes de vídeo (ex.: Grok Imagine) vão em `assets/imagine/clip-0N.mp4`. Nenhuma chamada de LLM é necessária para trocar texto/foto/cor/clipe ou re-sincronizar o áudio (tudo sai de `spec.json`).
 
 ## 6. Iterar com IA
 

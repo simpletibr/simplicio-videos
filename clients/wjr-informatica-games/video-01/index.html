@@ -1,10 +1,11 @@
 <!doctype html>
 <!--
-  WJR Infogames — video-01 (Instagram Reels 9:16, 22s, 30fps)
-  HyperFrames composition (HTML + GSAP -> MP4). Every client-facing text/image
-  is a declared variable, so the same file renders deterministically from
-  spec.json (`npm run render`) without calling any LLM.
-  All copy below comes from the client's public website (see ../brief.md).
+  WJR Infogames — video-01 "showreel" (Instagram Reels 9:16, 15s, 30fps, 120 BPM)
+  HyperFrames composition (HTML + GSAP -> MP4). Deterministic:
+    - all client copy/images/colors are variables (spec.json -> build/variables.json)
+    - audio is pre-rendered from spec.json "audio" cues by scripts/build.mjs
+    - scene/cue times sit on the 120 BPM grid (beat = 0.5s); keep CUE times below in sync with spec.json
+  Copy comes only from the client's public website (see ../coleta/brief.md).
 -->
 <html
   lang="pt-BR"
@@ -24,7 +25,12 @@
     {"id":"address","type":"string","label":"Endereço","default":"R. Siderópolis, 168 · Jardim Jovaia, Guarulhos","maxLength":60},
     {"id":"instagram","type":"string","label":"Instagram","default":"@wjrinformaticagames","maxLength":32},
     {"id":"primary","type":"color","label":"Cor primária","default":"#e50914"},
-    {"id":"secondary","type":"color","label":"Cor secundária","default":"#1565ff"}
+    {"id":"secondary","type":"color","label":"Cor secundária","default":"#1565ff"},
+    {"id":"clip_05_on","type":"boolean","label":"Clip 05 (S1) ativo","default":false},
+    {"id":"clip_01_on","type":"boolean","label":"Clip 01 (S2) ativo","default":false},
+    {"id":"clip_02_on","type":"boolean","label":"Clip 02 (S3) ativo","default":false},
+    {"id":"clip_03_on","type":"boolean","label":"Clip 03 (S4) ativo","default":false},
+    {"id":"clip_04_on","type":"boolean","label":"Clip 04 (S6) ativo","default":false}
   ]'
 >
   <head>
@@ -39,226 +45,390 @@
       #root { position: relative; width: 100%; height: 100%; overflow: hidden; color: #fff; font-family: "Inter", sans-serif; }
       .clip { position: absolute; inset: 0; }
       .display { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 1.04; letter-spacing: 0.01em; }
+      .line { display: block; overflow: hidden; padding: 0 6px; }
+      .ch, .wd { display: inline-block; will-change: transform; }
+      .kick { color: #6f9bff; font-size: 40px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
 
-      /* persistent background */
-      #bg { background: #080808; }
-      #bg .grid { position: absolute; inset: -200px; background-image:
-          linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-        background-size: 90px 90px; }
-      #bg .glow-a, #bg .glow-b { position: absolute; width: 900px; height: 900px; border-radius: 50%; filter: blur(140px); opacity: 0.55; }
-      #bg .glow-a { left: -380px; top: -260px; background: var(--secondary); }
-      #bg .glow-b { right: -420px; bottom: -300px; background: var(--primary); }
+      /* ---------- persistent background ---------- */
+      #bg { background: radial-gradient(120% 80% at 50% 40%, #121218 0%, #080808 60%); }
+      #floor { position: absolute; left: -540px; right: -540px; top: 1100px; height: 1600px;
+        background-image: linear-gradient(rgba(21,101,255,0.55) 2px, transparent 2px), linear-gradient(90deg, rgba(21,101,255,0.55) 2px, transparent 2px);
+        background-size: 120px 120px; transform: perspective(700px) rotateX(64deg); transform-origin: top center; opacity: 0.45; }
+      #floor-fade { position: absolute; left: 0; right: 0; top: 1050px; height: 500px; background: linear-gradient(#080808, rgba(8,8,8,0)); }
+      .glow { position: absolute; width: 1000px; height: 1000px; border-radius: 50%; filter: blur(150px); opacity: 0.5; }
+      #glow-a { left: -420px; top: -300px; background: var(--secondary); }
+      #glow-b { right: -460px; top: 900px; background: var(--primary); }
+      #particles { position: absolute; inset: 0; }
+      .pt { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
 
-      /* S1 hook */
-      #s1 { display: flex; flex-direction: column; justify-content: center; padding: 0 90px; }
+      /* ---------- overlays ---------- */
+      #scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0px, rgba(0,0,0,0.22) 2px, transparent 2px, transparent 5px); opacity: 0.55; pointer-events: none; }
+      #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.7) 100%); }
+      #fx .slice { position: absolute; left: 0; width: 100%; opacity: 0; mix-blend-mode: screen; }
+      #fx .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+      #fx .bar { position: absolute; left: 0; right: 0; height: 160px; top: -200px; background: linear-gradient(rgba(21,101,255,0), rgba(21,101,255,0.35), rgba(255,255,255,0.6), rgba(21,101,255,0.35), rgba(21,101,255,0)); }
+
+      #cam { position: absolute; inset: 0; transform-origin: 50% 45%; }
+      /* ---------- video plates (optional full-bleed clips, e.g. Grok Imagine) ---------- */
+      .plate { position: absolute; inset: 0; overflow: hidden; display: none; }
+      .plate.on { display: block; }
+      .plate .mv { position: absolute; inset: 0; }
+      .plate video { width: 100%; height: 100%; object-fit: cover; }
+      .plate .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,8,8,var(--a)) 0%, rgba(8,8,8,calc(var(--a) * 0.8)) 45%, rgba(8,8,8,calc(var(--a) + 0.2)) 100%); }
+      .plate .tint { position: absolute; inset: 0; background: linear-gradient(160deg, rgba(21,101,255,0.22), rgba(229,9,20,0.18)); mix-blend-mode: screen; }
+      #s2.has-clip .card { visibility: hidden; }
+      #s4.has-clip .photo { display: none; }
+
+
+      /* ---------- S1 hook ---------- */
+      #s1 { display: flex; flex-direction: column; justify-content: center; padding: 0 80px; }
       .pill { display: inline-block; align-self: flex-start; padding: 16px 30px; border-radius: 999px; font-size: 34px; font-weight: 700;
         background: rgba(21,101,255,0.18); border: 2px solid var(--secondary); color: #d9e4ff; }
-      #s1 .words { margin-top: 50px; }
-      #s1 .w { display: block; font-size: 250px; }
-      #s1 .w.red { color: var(--primary); }
-      #flash { position: absolute; inset: 0; background: var(--primary); opacity: 0; }
+      #s1 .words { margin-top: 40px; font-size: 250px; }
+      #s1 .red { color: var(--primary); }
+      #pad1 { position: absolute; right: -120px; top: 180px; width: 700px; opacity: 0.12; }
 
-      /* S2 promise */
-      #s2 { display: flex; flex-direction: column; align-items: center; padding: 170px 80px 0; }
-      #s2 .card { width: 920px; height: 1000px; border-radius: 48px; overflow: hidden; border: 3px solid rgba(255,255,255,0.12);
-        box-shadow: 0 40px 120px rgba(0,0,0,0.6); }
+      /* ---------- S2 promise ---------- */
+      #s2 { display: flex; flex-direction: column; align-items: center; padding: 150px 70px 0; }
+      #s2 .stage { width: 940px; height: 1040px; }
+      #s2 .card { position: relative; width: 100%; height: 100%; border-radius: 48px; overflow: hidden; border: 3px solid rgba(255,255,255,0.16);
+        box-shadow: 0 40px 140px rgba(229,9,20,0.25), 0 0 0 1px rgba(21,101,255,0.3); }
       #s2 .card img { width: 100%; height: 100%; object-fit: cover; object-position: 62% center; }
-      #s2 h2 { margin-top: 70px; font-size: 116px; text-align: center; }
-      #s2 h2 .hl { color: var(--primary); }
+      .sweep { position: absolute; top: -20%; left: 0; width: 38%; height: 140%;
+        background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.45), rgba(255,255,255,0)); }
+      #s2 h2 { margin-top: 60px; font-size: 118px; text-align: center; }
+      #s2 .hlwrap { position: relative; display: inline-block; }
+      #s2 .hlbg { position: absolute; left: -10px; right: -10px; top: 12%; bottom: 6%; background: var(--primary); transform-origin: left center; }
+      #s2 .hltext { position: relative; }
 
-      /* S3 problems */
-      #s3 { padding: 260px 90px 0; }
-      #s3 .label { font-size: 40px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #6f9bff; }
-      #s3 .stack { position: relative; margin-top: 60px; height: 900px; }
-      #s3 .item { position: absolute; left: 0; right: 0; top: 0; opacity: 0; }
-      #s3 .num { font-size: 70px; font-weight: 800; line-height: 1.2; color: #ff3b45; }
-      #s3 .txt { margin-top: 30px; font-size: 168px; }
-      #s3 .note { position: absolute; left: 90px; right: 90px; bottom: 170px; font-size: 32px; color: #a5a5aa; }
-      #s3 .bar { position: absolute; left: 90px; bottom: 250px; height: 10px; width: 900px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
-      #s3 .bar i { display: block; height: 100%; width: 100%; background: var(--primary); transform-origin: left center; }
+      /* ---------- S3 problems ---------- */
+      #s3 { padding: 230px 80px 0; }
+      #s3 .count { position: relative; height: 60px; font-family: "Anton", sans-serif; font-size: 44px; color: #ff3b45; margin-top: 16px; }
+      #s3 .count span { position: absolute; left: 0; top: 0; opacity: 0; }
+      #s3 .stack { position: relative; margin-top: 40px; height: 460px; }
+      #s3 .item { position: absolute; left: 0; right: 0; top: 0; font-size: 170px; opacity: 0; }
+      #s3 .segs { display: flex; gap: 14px; margin-top: 20px; }
+      #s3 .seg { flex: 1; height: 12px; border-radius: 8px; background: rgba(255,255,255,0.12); overflow: hidden; }
+      #s3 .seg i { display: block; width: 100%; height: 100%; background: var(--primary); transform-origin: left center; }
+      #pad3 { position: absolute; left: 190px; top: 1080px; width: 700px; }
+      #s3 .note { position: absolute; left: 80px; right: 80px; bottom: 120px; font-size: 30px; color: #a5a5aa; }
 
-      /* S4 models */
-      #s4 .photo { position: absolute; inset: 0; }
-      #s4 .photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; }
-      #s4 .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,8,8,0.55) 0%, rgba(8,8,8,0.92) 55%, #080808 100%); }
-      #s4 .content { position: absolute; left: 90px; right: 90px; top: 700px; }
-      #s4 h3 { font-size: 150px; line-height: 1.12; }
-      #s4 h3 span { display: block; }
-      #s4 h3 .x { color: #6f9bff; }
-      #s4 h3 .p { color: var(--primary); }
-      #s4 .cols { display: flex; gap: 40px; margin-top: 60px; }
+      /* ---------- S4 models ---------- */
+      #s4 .photo { position: absolute; inset: -80px; }
+      #s4 .photo img { width: 100%; height: 100%; object-fit: cover; }
+      #s4 .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,8,8,0.12) 0%, rgba(8,8,8,0.85) 50%, #080808 100%); }
+      #s4 .hud { position: absolute; left: 70px; right: 70px; top: 120px; height: 560px; }
+      #s4 .hud b { position: absolute; width: 90px; height: 90px; border: 0 solid #6f9bff; }
+      #s4 .hud .tl { left: 0; top: 0; border-left-width: 8px; border-top-width: 8px; }
+      #s4 .hud .tr { right: 0; top: 0; border-right-width: 8px; border-top-width: 8px; }
+      #s4 .hud .bl { left: 0; bottom: 0; border-left-width: 8px; border-bottom-width: 8px; }
+      #s4 .hud .br { right: 0; bottom: 0; border-right-width: 8px; border-bottom-width: 8px; }
+      #s4 .hud .tag { position: absolute; left: 110px; top: 16px; font-size: 30px; font-weight: 800; letter-spacing: 0.12em; color: #d9e4ff; }
+      #s4 .content { position: absolute; left: 80px; right: 80px; top: 760px; }
+      #s4 h3 { font-size: 150px; line-height: 1.1; }
+      #s4 .x { color: #6f9bff; }
+      #s4 .p { color: var(--primary); }
+      #s4 .cols { display: flex; gap: 36px; margin-top: 50px; }
       #s4 .col { flex: 1; }
-      #s4 .col h4 { font-size: 40px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 24px; }
       #s4 .chip { display: block; margin-bottom: 18px; padding: 20px 26px; border-radius: 22px; font-size: 38px; font-weight: 700;
-        background: rgba(20,20,20,0.9); border: 2px solid rgba(255,255,255,0.12); }
-      #s4 .col.xb .chip { border-left: 10px solid var(--secondary); }
-      #s4 .col.ps .chip { border-left: 10px solid var(--primary); }
+        background: rgba(20,20,20,0.92); border: 2px solid rgba(255,255,255,0.12); }
+      #s4 .xb .chip { border-left: 10px solid var(--secondary); }
+      #s4 .ps .chip { border-left: 10px solid var(--primary); }
 
-      /* S5 process */
-      #s5 { padding: 260px 90px 0; }
-      #s5 .label { font-size: 40px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #6f9bff; margin-bottom: 30px; }
-      #s5 h3 { margin-top: 20px; font-size: 130px; }
-      #s5 .steps { position: relative; margin-top: 80px; }
-      #s5 .line { position: absolute; left: 44px; top: 20px; width: 6px; height: 800px; background: var(--primary); transform-origin: top center; }
-      #s5 .step { position: relative; display: flex; align-items: center; gap: 44px; height: 200px; }
-      #s5 .dot { flex: 0 0 94px; height: 94px; border-radius: 50%; background: #141414; border: 5px solid var(--primary);
-        display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; }
-      #s5 .step p { font-size: 58px; font-weight: 800; }
-      #s5 .step small { display: block; font-size: 34px; font-weight: 500; color: #a5a5aa; margin-top: 6px; }
+      /* ---------- S5 process ---------- */
+      #s5 { padding: 300px 80px 0; }
+      #s5 h3 { font-size: 150px; margin-top: 14px; }
+      #s5 .steps { position: relative; margin-top: 90px; }
+      #s5 svg.rail { position: absolute; left: 40px; top: 40px; width: 20px; height: 720px; overflow: visible; }
+      #s5 .step { position: relative; display: flex; align-items: center; gap: 40px; height: 200px; }
+      #s5 .dot { flex: 0 0 100px; height: 100px; border-radius: 50%; background: #141414; border: 6px solid var(--primary);
+        display: flex; align-items: center; justify-content: center; font-size: 38px; font-weight: 800; }
+      #s5 .step p { font-size: 64px; font-weight: 800; }
 
-      /* S6 CTA */
-      #s6 { display: flex; flex-direction: column; align-items: center; padding-top: 250px; text-align: center; }
-      #s6 .logo { width: 560px; height: 560px; }
+      /* ---------- S6 CTA ---------- */
+      #s6 { display: flex; flex-direction: column; align-items: center; padding-top: 230px; text-align: center; }
+      #s6 .logo-wrap { position: relative; width: 600px; height: 600px; }
+      #s6 .ring { position: absolute; left: 50%; top: 50%; width: 600px; height: 600px; margin: -300px 0 0 -300px; border-radius: 50%; border: 10px solid var(--primary); opacity: 0; }
+      #s6 .ring.b { border-color: var(--secondary); }
+      #s6 .logo { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 rgba(229,9,20,0); }
       #s6 .logo img { width: 100%; height: 100%; object-fit: contain; }
-      #s6 h2 { margin-top: 60px; font-size: 150px; }
-      #s6 .wa { margin-top: 60px; display: flex; align-items: center; gap: 24px; padding: 34px 56px; border-radius: 999px;
-        background: #1faa55; font-size: 62px; font-weight: 800; box-shadow: 0 20px 60px rgba(31,170,85,0.35); }
-      #s6 .wa span.lbl { font-size: 34px; font-weight: 700; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }
-      #s6 .meta { margin-top: 56px; font-size: 36px; color: #d6d6d8; line-height: 1.5; }
-      #s6 .meta b { color: #fff; }
+      #s6 .burst { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+      #s6 .bp { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; opacity: 0; }
+      #s6 h2 { margin-top: 70px; font-size: 132px; padding: 0 60px; }
+      #s6 .wa { margin-top: 50px; display: flex; align-items: center; gap: 24px; padding: 34px 56px; border-radius: 999px;
+        background: #1faa55; font-size: 64px; font-weight: 800; box-shadow: 0 20px 70px rgba(31,170,85,0.45); }
+      #s6 .wa .lbl { font-size: 34px; font-weight: 700; opacity: 0.92; text-transform: uppercase; letter-spacing: 0.06em; }
+      #s6 .meta { margin-top: 50px; font-size: 36px; color: #d6d6d8; line-height: 1.5; }
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="22" data-width="1080" data-height="1920">
-      <!-- persistent background -->
-      <div id="bg" class="clip" data-start="0" data-duration="22" data-track-index="0">
-        <div class="grid" id="bg-grid" data-layout-allow-overflow></div>
-        <div class="glow-a" id="glow-a" data-layout-allow-overflow></div>
-        <div class="glow-b" id="glow-b" data-layout-allow-overflow></div>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="15" data-width="1080" data-height="1920">
+      <!-- background: grid floor + glows + seeded particles -->
+      <div id="bg" class="clip" data-start="0" data-duration="15" data-track-index="0">
+        <div id="glow-a" class="glow" data-layout-allow-overflow></div>
+        <div id="glow-b" class="glow" data-layout-allow-overflow></div>
+        <div id="floor" data-layout-allow-overflow></div>
+        <div id="floor-fade"></div>
+        <div id="particles" data-layout-allow-overflow></div>
+        <div id="vignette"></div>
       </div>
 
-      <!-- S1 0.0–3.2 hook (site hero: "Seu console parou?") -->
-      <section id="s1" class="clip" data-start="0" data-duration="3.2" data-track-index="1">
-        <span class="pill" id="s1-pill" data-var-text="kicker">Assistência técnica em Guarulhos</span>
-        <div class="words display">
-          <span class="w" id="s1-w1">Seu</span>
-          <span class="w" id="s1-w2">console</span>
-          <span class="w red" id="s1-w3">parou?</span>
-        </div>
-      </section>
-      <div id="flash-wrap" class="clip" data-start="2.9" data-duration="0.5" data-track-index="9"><div id="flash"></div></div>
+      <div id="cam">
+        <!-- optional video plates: static src written by scripts/build.mjs (real clip or black stand-in);
+             shown only when <id>_on is true. Timing lives on the <video> (wrappers are untimed). -->
+        <div class="plate" id="pl-clip_05" data-scene="s1" style="--a:0.5"><div class="mv" id="mv-clip_05"><video id="v-clip_05" class="clip" src="assets/clips/build/clip-05.mp4" data-start="0" data-duration="2.5" data-track-index="2" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <div class="plate" id="pl-clip_01" data-scene="s2" style="--a:0.35"><div class="mv" id="mv-clip_01"><video id="v-clip_01" class="clip" src="assets/clips/build/clip-01.mp4" data-start="2.5" data-duration="2" data-track-index="3" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <div class="plate" id="pl-clip_02" data-scene="s3" style="--a:0.72"><div class="mv" id="mv-clip_02"><video id="v-clip_02" class="clip" src="assets/clips/build/clip-02.mp4" data-start="4.5" data-duration="3.5" data-track-index="4" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <div class="plate" id="pl-clip_03" data-scene="s4" style="--a:0.3"><div class="mv" id="mv-clip_03"><video id="v-clip_03" class="clip" src="assets/clips/build/clip-03.mp4" data-start="8" data-duration="2.5" data-track-index="5" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <div class="plate" id="pl-clip_04" data-scene="s6" style="--a:0.68"><div class="mv" id="mv-clip_04"><video id="v-clip_04" class="clip" src="assets/clips/build/clip-04.mp4" data-start="12" data-duration="3" data-track-index="6" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <!-- S1 0.0–2.5 hook -->
+        <section id="s1" class="clip" data-start="0" data-duration="2.5" data-track-index="1">
+          <svg id="pad1" viewBox="0 0 300 200" fill="none" stroke="#fff" stroke-width="10" data-layout-allow-overflow><path d="M80 40h140c35 0 55 25 62 70l10 55c4 25-24 38-40 18l-30-38H78l-30 38c-16 20-44 7-40-18l10-55c7-45 27-70 62-70z"/></svg>
+          <span class="pill" id="s1-pill"></span>
+          <div class="words display">
+            <span class="line" id="s1-l1">Seu</span>
+            <span class="line" id="s1-l2">console</span>
+            <span class="line red" id="s1-l3">parou?</span>
+          </div>
+        </section>
 
-      <!-- S2 3.2–6.4 promise + photo slot 1 -->
-      <section id="s2" class="clip" data-start="3.2" data-duration="3.2" data-track-index="1">
-        <div class="card" id="s2-card"><img id="s2-img" data-var-src="photo_hero" src="assets/placeholders/photo-hero.svg" alt="" /></div>
-        <h2 class="display" id="s2-title" data-var-text="promise">A gente coloca ele de volta no jogo.</h2>
-      </section>
+        <!-- S2 2.5–4.5 promise + photo 1 -->
+        <section id="s2" class="clip" data-start="2.5" data-duration="2" data-track-index="1">
+          <div class="stage"><div class="card" id="s2-card">
+            <img id="s2-img" data-var-src="photo_hero" src="assets/placeholders/photo-hero.svg" alt="" />
+            <div class="sweep" id="s2-sweep"></div>
+          </div></div>
+          <h2 class="display" id="s2-title"></h2>
+        </section>
 
-      <!-- S3 6.4–11.2 problems (site: "Problemas que resolvemos") -->
-      <section id="s3" class="clip" data-start="6.4" data-duration="4.8" data-track-index="1">
-        <div class="label" id="s3-label">Problemas que resolvemos</div>
-        <div class="stack">
-          <div class="item" id="s3-i1"><div class="num">01</div><div class="txt display" data-var-text="p1">Controle com drift</div></div>
-          <div class="item" id="s3-i2"><div class="num">02</div><div class="txt display" data-var-text="p2">Console não liga</div></div>
-          <div class="item" id="s3-i3"><div class="num">03</div><div class="txt display" data-var-text="p3">Superaquecimento</div></div>
-          <div class="item" id="s3-i4"><div class="num">04</div><div class="txt display" data-var-text="p4">Defeito no HDMI</div></div>
-          <div class="item" id="s3-i5"><div class="num">05</div><div class="txt display" data-var-text="p5">Botões não funcionando</div></div>
-        </div>
-        <div class="bar"><i id="s3-bar"></i></div>
-        <div class="note" id="s3-note">A confirmação do serviço depende da avaliação técnica do equipamento.</div>
-      </section>
+        <!-- S3 4.5–8.0 problems relay + reactive controller -->
+        <section id="s3" class="clip" data-start="4.5" data-duration="3.5" data-track-index="1">
+          <div class="kick" id="s3-kick">Problemas que resolvemos</div>
+          <div class="count" id="s3-count"><span id="n1">01 / 05</span><span id="n2">02 / 05</span><span id="n3">03 / 05</span><span id="n4">04 / 05</span><span id="n5">05 / 05</span></div>
+          <div class="stack">
+            <div class="item display" id="s3-i1"></div>
+            <div class="item display" id="s3-i2"></div>
+            <div class="item display" id="s3-i3"></div>
+            <div class="item display" id="s3-i4"></div>
+            <div class="item display" id="s3-i5"></div>
+          </div>
+          <div class="segs"><div class="seg"><i id="sg1"></i></div><div class="seg"><i id="sg2"></i></div><div class="seg"><i id="sg3"></i></div><div class="seg"><i id="sg4"></i></div><div class="seg"><i id="sg5"></i></div></div>
+          <svg id="pad3" viewBox="0 0 300 200" fill="none" data-layout-allow-overflow>
+            <path d="M80 40h140c35 0 55 25 62 70l10 55c4 25-24 38-40 18l-30-38H78l-30 38c-16 20-44 7-40-18l10-55c7-45 27-70 62-70z" stroke="#fff" stroke-width="6" fill="#141414"/>
+            <circle id="stick" cx="100" cy="100" r="18" fill="#2a2a2e" stroke="#6f9bff" stroke-width="5"/>
+            <circle id="btn1" cx="215" cy="80" r="11" fill="#2a2a2e"/>
+            <circle id="btn2" cx="240" cy="100" r="11" fill="#2a2a2e"/>
+            <circle id="btn3" cx="215" cy="120" r="11" fill="#2a2a2e"/>
+            <circle id="btn4" cx="190" cy="100" r="11" fill="#2a2a2e"/>
+            <rect id="led" x="140" y="60" width="20" height="8" rx="4" fill="#e50914"/>
+          </svg>
+          <div class="note" id="s3-note">A confirmação do serviço depende da avaliação técnica do equipamento.</div>
+        </section>
 
-      <!-- S4 11.2–14.8 models + photo slot 2 -->
-      <section id="s4" class="clip" data-start="11.2" data-duration="3.6" data-track-index="1">
-        <div class="photo" id="s4-photo"><img id="s4-img" data-var-src="photo_bench" src="assets/placeholders/photo-bench.svg" alt="" /></div>
-        <div class="shade"></div>
-        <div class="content">
-          <h3 class="display" id="s4-title" data-layout-allow-overlap><span class="x" data-layout-allow-overlap>Xbox +</span><span class="p" data-layout-allow-overlap>PlayStation</span></h3>
-          <div class="cols">
-            <div class="col xb">
-              <h4>Xbox</h4>
-              <span class="chip" id="s4-x1">Xbox 360</span>
-              <span class="chip" id="s4-x2">Xbox One</span>
-              <span class="chip" id="s4-x3">Series X e S</span>
-              <span class="chip" id="s4-x4">Controles Xbox</span>
-            </div>
-            <div class="col ps">
-              <h4>PlayStation</h4>
-              <span class="chip" id="s4-p1">PS3 · PS4</span>
-              <span class="chip" id="s4-p2">PlayStation 5</span>
-              <span class="chip" id="s4-p3">DualShock</span>
-              <span class="chip" id="s4-p4">DualSense</span>
+        <!-- S4 8.0–10.5 models + photo 2 (parallax + diagnostic scan) -->
+        <section id="s4" class="clip" data-start="8" data-duration="2.5" data-track-index="1">
+          <div class="photo" id="s4-photo"><img id="s4-img" data-var-src="photo_bench" src="assets/placeholders/photo-bench.svg" alt="" /></div>
+          <div class="shade"></div>
+          <div class="hud" id="s4-hud"><b class="tl"></b><b class="tr"></b><b class="bl"></b><b class="br"></b><span class="tag" id="s4-tag">Diagnóstico técnico</span></div>
+          <div class="content">
+            <h3 class="display" id="s4-title" data-layout-allow-overlap><span class="line x" id="s4-t1" data-layout-allow-overlap>Xbox +</span><span class="line p" id="s4-t2" data-layout-allow-overlap>PlayStation</span></h3>
+            <div class="cols">
+              <div class="col xb"><span class="chip" id="c1">Xbox 360</span><span class="chip" id="c3">Xbox One</span><span class="chip" id="c5">Series X e S</span><span class="chip" id="c7">Controles Xbox</span></div>
+              <div class="col ps"><span class="chip" id="c2">PS3 · PS4</span><span class="chip" id="c4">PlayStation 5</span><span class="chip" id="c6">DualShock</span><span class="chip" id="c8">DualSense</span></div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- S5 14.8–18.0 process (site: "Como funciona") -->
-      <section id="s5" class="clip" data-start="14.8" data-duration="3.2" data-track-index="1">
-        <div class="label" id="s5-label">Como funciona</div>
-        <h3 class="display" id="s5-title">Sem surpresa.</h3>
-        <div class="steps">
-          <div class="line" id="s5-line"></div>
-          <div class="step" id="s5-st1"><div class="dot">01</div><p>Fale no WhatsApp<small>Informe o aparelho e o defeito</small></p></div>
-          <div class="step" id="s5-st2"><div class="dot">02</div><p>Diagnóstico<small>Avaliação técnica do equipamento</small></p></div>
-          <div class="step" id="s5-st3"><div class="dot">03</div><p>Você aprova<small>Recebe as informações e o orçamento</small></p></div>
-          <div class="step" id="s5-st4"><div class="dot">04</div><p>Reparo<small>Só depois da sua aprovação</small></p></div>
-        </div>
-      </section>
+        <!-- S5 10.5–12.0 process (build-up) -->
+        <section id="s5" class="clip" data-start="10.5" data-duration="1.5" data-track-index="1">
+          <div class="kick" id="s5-kick">Como funciona</div>
+          <h3 class="display" id="s5-title">Sem surpresa.</h3>
+          <div class="steps">
+            <svg class="rail" viewBox="0 0 20 720" preserveAspectRatio="none"><line id="rail" x1="10" y1="0" x2="10" y2="600" stroke="#e50914" stroke-width="8" stroke-dasharray="600" stroke-dashoffset="600"/></svg>
+            <div class="step" id="st1"><div class="dot">01</div><p>Fale no WhatsApp</p></div>
+            <div class="step" id="st2"><div class="dot">02</div><p>Diagnóstico</p></div>
+            <div class="step" id="st3"><div class="dot">03</div><p>Você aprova</p></div>
+            <div class="step" id="st4"><div class="dot">04</div><p>Reparo</p></div>
+          </div>
+        </section>
 
-      <!-- S6 18.0–22.0 CTA + logo slot -->
-      <section id="s6" class="clip" data-start="18" data-duration="4" data-track-index="1">
-        <div class="logo" id="s6-logo"><img id="s6-img" data-var-src="logo" src="assets/placeholders/logo.svg" alt="WJR Infogames" /></div>
-        <h2 class="display" id="s6-title" data-var-text="cta">Volte para o jogo.</h2>
-        <div class="wa" id="s6-wa"><span class="lbl">WhatsApp</span><span data-var-text="whatsapp">(11) 99700-5234</span></div>
-        <div class="meta" id="s6-meta"><div data-var-text="address">R. Siderópolis, 168 · Jardim Jovaia, Guarulhos</div><div><b data-var-text="instagram">@wjrinformaticagames</b></div></div>
-      </section>
+        <!-- S6 12.0–15.0 CTA drop -->
+        <section id="s6" class="clip" data-start="12" data-duration="3" data-track-index="1">
+          <div class="logo-wrap" id="s6-logowrap">
+            <div class="ring" id="ring1"></div><div class="ring b" id="ring2"></div>
+            <div class="burst" id="burst"></div>
+            <div class="logo" id="s6-logo"><img id="s6-img" data-var-src="logo" src="assets/placeholders/logo.svg" alt="WJR Infogames" /><div class="sweep" id="s6-sweep"></div></div>
+          </div>
+          <h2 class="display" id="s6-title"></h2>
+          <div class="wa" id="s6-wa"><span class="lbl">WhatsApp</span><span data-var-text="whatsapp">(11) 99700-5234</span></div>
+          <div class="meta" id="s6-meta"><div data-var-text="address">R. Siderópolis, 168 · Jardim Jovaia, Guarulhos</div><div><b data-var-text="instagram">@wjrinformaticagames</b></div></div>
+        </section>
+      </div>
+
+      <!-- overlays: scanlines, vignette, glitch/flash/scan-bar FX -->
+      <div id="scan" class="clip" data-start="0" data-duration="15" data-track-index="7"></div>
+      <div id="fx" class="clip" data-start="0" data-duration="15" data-track-index="9"><div id="fx-bar" class="bar" data-layout-allow-overflow></div><div id="fx-flash" class="flash"></div></div>
+
+      <!-- pre-mixed soundtrack (music + SFX) from scripts/build.mjs -->
+      <audio id="soundtrack" src="assets/audio/build/mix.wav" data-start="0" data-duration="15" data-track-index="10" data-volume="1"></audio>
     </div>
 
     <script>
+      // ---- variables (read once; fall back to defaults in preview) ----
+      const V = Object.assign({
+        kicker: "Assistência técnica em Guarulhos", promise: "A gente coloca ele de volta no jogo.",
+        p1: "Controle com drift", p2: "Console não liga", p3: "Superaquecimento", p4: "Defeito no HDMI", p5: "Botões não funcionando",
+        cta: "Volte para o jogo.", primary: "#e50914", secondary: "#1565ff",
+      }, (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {});
+      const $ = (s) => document.querySelector(s);
+      function splitChars(el, text) { // chars grouped in no-wrap word boxes so lines only break between words
+        el.textContent = ""; text.split(" ").forEach((w, i, arr) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+          [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < arr.length - 1) el.appendChild(document.createTextNode(" ")); });
+        return el.querySelectorAll(".ch"); }
+      function splitWords(el, text) { el.textContent = ""; text.split(" ").forEach((w, i) => { const m = document.createElement("span"); m.className = "line"; m.style.display = "inline-block"; const s = document.createElement("span"); s.className = "wd"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < text.split(" ").length - 1) el.appendChild(document.createTextNode(" ")); }); return el.querySelectorAll(".wd"); }
+      function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+      const R = rng(20260930);
+
+      // text content
+      $("#s1-pill").textContent = V.kicker;
+      const ch1 = splitChars($("#s1-l1"), "Seu"), ch2 = splitChars($("#s1-l2"), "console"), ch3 = splitChars($("#s1-l3"), "parou?");
+      // promise: highlight the tail "de volta no jogo." if present
+      const pr = V.promise, cut = pr.toLowerCase().indexOf("de volta");
+      const t2 = $("#s2-title");
+      let hlBg = null, wordsA = [], wordsB = [];
+      if (cut > 0) {
+        const a = document.createElement("div"); wordsA = splitWords(a, pr.slice(0, cut).trim());
+        const w = document.createElement("span"); w.className = "hlwrap"; hlBg = document.createElement("span"); hlBg.className = "hlbg";
+        const tx = document.createElement("span"); tx.className = "hltext"; wordsB = splitWords(tx, pr.slice(cut).trim());
+        w.appendChild(hlBg); w.appendChild(tx); t2.appendChild(a); t2.appendChild(w);
+      } else { wordsA = splitWords(t2, pr); }
+      ["p1", "p2", "p3", "p4", "p5"].forEach((k, i) => { const el = $("#s3-i" + (i + 1)); el.textContent = V[k];
+        // fit: Anton caps ~0.47em per glyph; keep the longest word inside the 920px column
+        const longest = Math.max(...V[k].split(" ").map((w) => w.length)); el.style.fontSize = Math.min(170, Math.floor(920 / (0.47 * longest))) + "px"; });
+      const chCta = splitChars($("#s6-title"), V.cta);
+      // particles (seeded => deterministic)
+      const P = $("#particles"), pts = [];
+      for (let i = 0; i < 46; i++) { const d = document.createElement("div"); d.className = "pt"; d.style.left = (R() * 1080).toFixed(1) + "px"; d.style.top = (R() * 1920).toFixed(1) + "px"; d.style.opacity = (0.15 + R() * 0.5).toFixed(2); const sc = 0.5 + R() * 1.6; d.dataset.sc = sc; d.style.background = i % 3 === 0 ? V.primary : i % 3 === 1 ? V.secondary : "#ffffff"; P.appendChild(d); pts.push(d); }
+      const burst = $("#burst"), bps = [];
+      for (let i = 0; i < 28; i++) { const d = document.createElement("div"); d.className = "bp"; d.style.background = i % 2 ? V.primary : V.secondary; burst.appendChild(d); bps.push(d); }
+      // FX glitch slices
+      const fx = $("#fx"), slices = [];
+      for (let i = 0; i < 9; i++) { const s = document.createElement("div"); s.className = "slice"; const h = 40 + R() * 160; s.style.top = (R() * 1800).toFixed(0) + "px"; s.style.height = h.toFixed(0) + "px"; s.style.background = i % 3 === 0 ? V.primary : i % 3 === 1 ? V.secondary : "#ffffff"; fx.appendChild(s); slices.push(s); }
+
       const tl = gsap.timeline({ paused: true });
+      const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
 
-      // background: slow drift for the whole piece
-      tl.fromTo("#bg-grid", { y: 0 }, { y: 180, duration: 22, ease: "none" }, 0);
-      tl.fromTo("#glow-a", { x: 0, y: 0 }, { x: 220, y: 380, duration: 22, ease: "sine.inOut" }, 0);
-      tl.fromTo("#glow-b", { x: 0, y: 0 }, { x: -200, y: -420, duration: 22, ease: "sine.inOut" }, 0);
-
-      // S1 hook
-      tl.fromTo("#s1-pill", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.1);
-      tl.fromTo("#s1-w1", { opacity: 0, yPercent: 60 }, { opacity: 1, yPercent: 0, duration: 0.35, ease: "back.out(2)" }, 0.35);
-      tl.fromTo("#s1-w2", { opacity: 0, yPercent: 60 }, { opacity: 1, yPercent: 0, duration: 0.35, ease: "back.out(2)" }, 0.6);
-      tl.fromTo("#s1-w3", { opacity: 0, scale: 1.6 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power4.out" }, 0.95);
-      tl.to("#s1-w3", { x: 14, duration: 0.05, repeat: 7, yoyo: true, ease: "none" }, 1.3);
-      tl.fromTo("#flash", { opacity: 0 }, { opacity: 0.85, duration: 0.12, ease: "none" }, 2.95);
-      tl.to("#flash", { opacity: 0, duration: 0.3, ease: "power2.out" }, 3.1);
-
-      // S2 promise
-      tl.fromTo("#s2-card", { opacity: 0, y: 160, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: "power3.out" }, 3.25);
-      tl.fromTo("#s2-img", { scale: 1.15 }, { scale: 1.0, duration: 3.2, ease: "none" }, 3.2);
-      tl.fromTo("#s2-title", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 3.7);
-
-      // S3 problems: one every 0.9s
-      tl.fromTo("#s3-label", { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.35, ease: "power2.out" }, 6.45);
-      tl.fromTo("#s3-note", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 6.7);
-      tl.fromTo("#s3-bar", { scaleX: 0 }, { scaleX: 1, duration: 4.6, ease: "none" }, 6.5);
-      ["#s3-i1", "#s3-i2", "#s3-i3", "#s3-i4", "#s3-i5"].forEach((id, i) => {
-        const t = 6.55 + i * 0.9;
-        tl.fromTo(id, { opacity: 0, y: 120 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, t);
-        if (i < 4) tl.to(id, { opacity: 0, y: -120, duration: 0.25, ease: "power2.in" }, t + 0.65);
+      // ---- video plates: toggle by <id>_on (build.mjs sets it from file presence) + slow push-in ----
+      const SLOTS = [["clip_05", 0, 2.5], ["clip_01", 2.5, 2], ["clip_02", 4.5, 3.5], ["clip_03", 8, 2.5], ["clip_04", 12, 3]];
+      SLOTS.forEach(([id, t, d]) => {
+        if (V[id + "_on"] !== true) return;
+        const pl = $("#pl-" + id); pl.classList.add("on"); $("#" + pl.dataset.scene).classList.add("has-clip");
+        tl.fromTo("#mv-" + id, { scale: 1.14 }, { scale: 1.0, duration: d, ease: "none" }, t);
       });
 
-      // S4 models
-      tl.fromTo("#s4-img", { scale: 1.2 }, { scale: 1.05, duration: 3.6, ease: "none" }, 11.2);
-      tl.fromTo("#s4-title", { opacity: 0, y: 70 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 11.3);
-      ["#s4-x1", "#s4-p1", "#s4-x2", "#s4-p2", "#s4-x3", "#s4-p3", "#s4-x4", "#s4-p4"].forEach((id, i) => {
-        tl.fromTo(id, { opacity: 0, x: id.includes("-x") ? -60 : 60 }, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out" }, 11.7 + i * 0.12);
-      });
+      // ---- ambient: grid floor scroll, glows, particles drift ----
+      tl.fromTo("#floor", { backgroundPosition: "0px 0px" }, { backgroundPosition: "0px 1440px", duration: 15, ease: "none" }, 0);
+      tl.fromTo("#glow-a", { x: 0, y: 0 }, { x: 260, y: 420, duration: 15, ease: "sine.inOut" }, 0);
+      tl.fromTo("#glow-b", { x: 0, y: 0 }, { x: -240, y: -520, duration: 15, ease: "sine.inOut" }, 0);
+      pts.forEach((d, i) => { const sc = +d.dataset.sc; tl.fromTo(d, { y: 0, scale: sc }, { y: -(120 + sc * 260), duration: 15, ease: "none" }, 0); });
 
-      // S5 process
-      tl.fromTo("#s5-label", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 14.85);
-      tl.fromTo("#s5-title", { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 14.95);
-      tl.fromTo("#s5-line", { scaleY: 0 }, { scaleY: 1, duration: 1.8, ease: "power1.inOut" }, 15.3);
-      ["#s5-st1", "#s5-st2", "#s5-st3", "#s5-st4"].forEach((id, i) => {
-        tl.fromTo(id, { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 15.35 + i * 0.45);
-      });
+      // ---- glitch transition helper (slices + flash + camera jolt) ----
+      function glitchAt(t, strong) {
+        slices.forEach((s, i) => { tl.fromTo(s, { opacity: 0, x: (i % 2 ? -1 : 1) * 1080 }, { opacity: strong ? 0.9 : 0.7, x: (i % 2 ? 1 : -1) * 120, duration: 0.1, ease: "power4.out", immediateRender: false }, t + i * 0.01);
+          tl.to(s, { opacity: 0, x: (i % 2 ? 1 : -1) * 1080, duration: 0.12, ease: "power4.in" }, t + 0.14 + i * 0.01); });
+        tl.fromTo("#fx-flash", { opacity: 0 }, { opacity: strong ? 0.8 : 0.35, duration: 0.05, immediateRender: false }, t + 0.1);
+        tl.to("#fx-flash", { opacity: 0, duration: 0.2 }, t + 0.16);
+        tl.fromTo("#cam", { x: 0 }, { x: 26, duration: 0.03, repeat: 5, yoyo: true, ease: "none", immediateRender: false }, t + 0.05);
+      }
+      function shake(t, amp, n) { tl.fromTo("#cam", { y: 0 }, { y: amp, duration: 0.035, repeat: n, yoyo: true, ease: "none", immediateRender: false }, t); }
 
-      // S6 CTA
-      tl.fromTo("#s6-logo", { opacity: 0, scale: 0.6, rotation: -8 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.6, ease: "back.out(1.6)" }, 18.05);
-      tl.fromTo("#s6-title", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 18.5);
-      tl.fromTo("#s6-wa", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2)" }, 18.9);
-      tl.to("#s6-wa", { scale: 1.05, duration: 0.5, repeat: 3, yoyo: true, ease: "sine.inOut" }, 19.5);
-      tl.fromTo("#s6-meta", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 19.2);
+      // ---- S1 hook (beats 0.25 / 0.75 / 1.25) ----
+      tl.fromTo("#s1-pill", { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 0.05);
+      tl.fromTo("#pad1", { rotation: -12, scale: 0.9 }, { rotation: 6, scale: 1.05, duration: 2.5, ease: "sine.inOut" }, 0);
+      tl.fromTo(ch1, { yPercent: 115 }, { yPercent: 0, duration: 0.3, stagger: 0.03, ease: "back.out(2.2)" }, 0.2);
+      tl.fromTo(ch2, { yPercent: 115, rotation: 8 }, { yPercent: 0, rotation: 0, duration: 0.3, stagger: 0.025, ease: "back.out(2.2)" }, 0.7);
+      tl.fromTo(ch3, { scale: 2.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.25, stagger: 0.02, ease: "power4.out" }, 1.2);
+      tl.fromTo("#s1-l3", { textShadow: RGB(26) }, { textShadow: RGB(0), duration: 0.5, ease: "power2.out" }, 1.25);
+      tl.fromTo("#cam", { scale: 1 }, { scale: 1.1, duration: 0.18, ease: "power4.in" }, 1.25);
+      tl.to("#cam", { scale: 1, duration: 0.6, ease: "elastic.out(1, 0.5)" }, 1.43);
+      shake(1.43, 14, 7);
+      tl.fromTo("#s1-l3", { x: 0 }, { x: 10, duration: 0.04, repeat: 9, yoyo: true, ease: "none", immediateRender: false }, 1.8);
+      glitchAt(2.3, true);
+
+      // ---- S2 promise: 3D card push + light sweep + word mask reveal ----
+      tl.fromTo("#s2-card", { rotationY: -24, rotationX: 8, scale: 0.8, opacity: 0, transformPerspective: 1400 }, { rotationY: 0, rotationX: 0, scale: 1, opacity: 1, duration: 0.6, ease: "power3.out" }, 2.5);
+      tl.fromTo("#s2-img", { scale: 1.25, xPercent: 4 }, { scale: 1.02, xPercent: -2, duration: 2, ease: "none" }, 2.5);
+      tl.fromTo("#s2-sweep", { xPercent: -150 }, { xPercent: 320, duration: 0.7, ease: "power2.inOut" }, 2.9);
+      tl.fromTo(wordsA, { yPercent: 110 }, { yPercent: 0, duration: 0.3, stagger: 0.05, ease: "power3.out" }, 2.75);
+      if (hlBg) tl.fromTo(hlBg, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power4.out" }, 3.0);
+      tl.fromTo(wordsB, { yPercent: 110 }, { yPercent: 0, duration: 0.3, stagger: 0.05, ease: "back.out(2)" }, 3.05);
+      tl.fromTo("#s2-title", { scale: 1.12 }, { scale: 1, duration: 0.35, ease: "power3.out" }, 3.0);
+      tl.to("#s2-card", { scale: 1.08, duration: 0.25, ease: "power2.in" }, 4.25);
+      tl.fromTo("#s2", { filter: "blur(0px)" }, { filter: "blur(14px)", duration: 0.2, ease: "power2.in", immediateRender: false }, 4.3);
+
+      // ---- S3 problems relay (0.6s each on clicks) ----
+      tl.fromTo("#s3-kick", { opacity: 0, x: -50 }, { opacity: 1, x: 0, duration: 0.3, ease: "power3.out" }, 4.5);
+      tl.fromTo("#s3-count", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 4.55);
+      tl.fromTo("#pad3", { y: 200, opacity: 0, rotation: -6 }, { y: 0, opacity: 1, rotation: 0, duration: 0.5, ease: "back.out(1.6)" }, 4.5);
+      tl.fromTo("#s3-note", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 4.8);
+      const P3 = [4.6, 5.2, 5.8, 6.4, 7.0];
+      const btns = ["#stick", "#btn1", "#btn2", "#btn3", "#btn4"];
+      P3.forEach((t, i) => {
+        const id = "#s3-i" + (i + 1);
+        tl.fromTo(id, { opacity: 0, yPercent: 60, skewY: 6, scale: 1.25 }, { opacity: 1, yPercent: 0, skewY: 0, scale: 1, duration: 0.25, ease: "power4.out", immediateRender: false }, t);
+        tl.fromTo(id, { textShadow: RGB(14) }, { textShadow: RGB(0), duration: 0.3, immediateRender: false }, t);
+        if (i < 4) tl.to(id, { opacity: 0, yPercent: -70, duration: 0.18, ease: "power3.in" }, t + 0.42);
+        tl.fromTo("#sg" + (i + 1), { scaleX: 0 }, { scaleX: 1, duration: 0.25, ease: "power2.out" }, t);
+        tl.fromTo(btns[i], { scale: 1, fill: "#2a2a2e", transformOrigin: "50% 50%" }, { scale: 1.5, fill: i ? V.primary : V.secondary, duration: 0.08, ease: "power2.out", immediateRender: false }, t);
+        tl.to(btns[i], { scale: 1, fill: "#2a2a2e", duration: 0.3, ease: "power2.out" }, t + 0.1);
+        tl.fromTo("#pad3", { scale: 1 }, { scale: 1.04, duration: 0.06, yoyo: true, repeat: 1, ease: "power1.out", immediateRender: false }, t);
+      });
+      P3.forEach((t, i) => { tl.set("#n" + (i + 1), { opacity: 1 }, t); if (i < 4) tl.set("#n" + (i + 1), { opacity: 0 }, P3[i + 1]); });
+      tl.fromTo("#stick", { x: 0, y: 0 }, { x: 14, y: -6, duration: 0.12, repeat: 5, yoyo: true, ease: "sine.inOut", immediateRender: false }, 4.62); // "drift"
+      tl.fromTo("#led", { opacity: 1 }, { opacity: 0.2, duration: 0.1, repeat: 5, yoyo: true, ease: "none" }, 5.2);
+      glitchAt(7.8, false);
+
+      // ---- S4 models: parallax photo + HUD scan + slice-in title + chip cascade ----
+      tl.fromTo("#s4-photo", { scale: 1.25, y: 60 }, { scale: 1.05, y: -60, duration: 2.5, ease: "none" }, 8.0);
+      tl.fromTo("#s4-hud", { opacity: 0, scale: 1.2 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power3.out" }, 8.05);
+      tl.fromTo("#s4-tag", { opacity: 0 }, { opacity: 1, duration: 0.05, repeat: 3, yoyo: true, ease: "none" }, 8.2);
+      tl.set("#s4-tag", { opacity: 1 }, 8.45);
+      tl.fromTo("#fx-bar", { y: 0 }, { y: 2300, duration: 1.0, ease: "power1.inOut", immediateRender: false }, 8.1);
+      tl.fromTo("#s4-t1", { clipPath: "inset(0 100% 0 0)", x: -80 }, { clipPath: "inset(0 0% 0 0)", x: 0, duration: 0.3, ease: "power4.out" }, 8.1);
+      tl.fromTo("#s4-t2", { clipPath: "inset(0 0 0 100%)", x: 80 }, { clipPath: "inset(0 0 0 0%)", x: 0, duration: 0.3, ease: "power4.out" }, 8.25);
+      tl.fromTo("#s4-title", { textShadow: RGB(20) }, { textShadow: RGB(0), duration: 0.4 }, 8.25);
+      ["#c1", "#c2", "#c3", "#c4", "#c5", "#c6", "#c7", "#c8"].forEach((id, i) => {
+        tl.fromTo(id, { opacity: 0, x: i % 2 ? 80 : -80, scale: 0.85 }, { opacity: 1, x: 0, scale: 1, duration: 0.22, ease: "back.out(2)" }, 8.6 + i * 0.1);
+      });
+      tl.to("#cam", { scale: 1.06, duration: 0.25, ease: "power3.in" }, 10.2);
+      tl.set("#cam", { scale: 1 }, 10.5);
+
+      // ---- S5 process: rail draw + step pops (build-up, riser 11.0–12.0) ----
+      tl.fromTo("#s5-kick", { opacity: 0 }, { opacity: 1, duration: 0.15 }, 10.5);
+      const s5ch = splitChars($("#s5-title"), "Sem surpresa.");
+      tl.fromTo(s5ch, { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.18, stagger: 0.015, ease: "back.out(3)" }, 10.52);
+      tl.fromTo("#rail", { attr: { "stroke-dashoffset": 600 } }, { attr: { "stroke-dashoffset": 0 }, duration: 1.1, ease: "none" }, 10.6);
+      [10.6, 10.9, 11.2, 11.5].forEach((t, i) => tl.fromTo("#st" + (i + 1), { opacity: 0, x: 90, scale: 0.9 }, { opacity: 1, x: 0, scale: 1, duration: 0.2, ease: "back.out(2.5)" }, t));
+      tl.fromTo("#cam", { scale: 1 }, { scale: 1.12, duration: 1.0, ease: "power2.in", immediateRender: false }, 11.0); // push-in with the riser
+      shake(11.5, 8, 13);
+      glitchAt(11.8, true);
+      tl.set("#cam", { scale: 1 }, 12.0);
+
+      // ---- S6 CTA drop: shockwave, burst, logo glow + light sweep, per-char title, button spring ----
+      tl.fromTo("#s6-logowrap", { scale: 0.2, rotation: -25, opacity: 0 }, { scale: 1, rotation: 0, opacity: 1, duration: 0.7, ease: "elastic.out(1, 0.55)" }, 12.0);
+      tl.fromTo("#ring1", { scale: 0.6, opacity: 1 }, { scale: 2.6, opacity: 0, duration: 0.8, ease: "power2.out" }, 12.0);
+      tl.fromTo("#ring2", { scale: 0.6, opacity: 1 }, { scale: 3.2, opacity: 0, duration: 1.0, ease: "power2.out" }, 12.08);
+      bps.forEach((d, i) => { const a = (i / bps.length) * Math.PI * 2, r = 420 + (i % 4) * 90;
+        tl.fromTo(d, { x: 0, y: 0, opacity: 1, scale: 1.4 }, { x: Math.cos(a) * r, y: Math.sin(a) * r, opacity: 0, scale: 0.3, duration: 0.9, ease: "power3.out" }, 12.0); });
+      shake(12.0, 22, 9);
+      tl.fromTo("#s6-logo", { boxShadow: "0 0 0px 0px rgba(229,9,20,0)" }, { boxShadow: "0 0 120px 30px rgba(229,9,20,0.55)", duration: 0.5, yoyo: true, repeat: 3, ease: "sine.inOut" }, 12.3);
+      tl.fromTo("#s6-sweep", { xPercent: -150 }, { xPercent: 320, duration: 0.8, ease: "power2.inOut" }, 12.6);
+      tl.fromTo(chCta, { yPercent: 120, opacity: 0, rotation: 10 }, { yPercent: 0, opacity: 1, rotation: 0, duration: 0.35, stagger: 0.025, ease: "back.out(2)" }, 12.4);
+      tl.fromTo("#s6-title", { textShadow: RGB(18) }, { textShadow: RGB(0), duration: 0.5 }, 12.5);
+      tl.fromTo("#s6-wa", { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2.6)" }, 12.9);
+      tl.to("#s6-wa", { scale: 1.06, duration: 0.25, repeat: 3, yoyo: true, ease: "sine.inOut" }, 13.5);
+      tl.fromTo("#s6-meta", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 13.2);
+      tl.fromTo("#cam", { scale: 1 }, { scale: 1.04, duration: 2.2, ease: "sine.inOut", immediateRender: false }, 12.8);
 
       window.__timelines["main"] = tl;
       tl.seek(0);

@@ -7,8 +7,8 @@
 
 | # | Fonte | Como foi lida |
 |---|---|---|
-| S1 | https://www.wjrinformaticagames.com.br/ | `curl` do HTML + `css/styles.css?v=2` |
-| S2 | https://www.instagram.com/wjrinformaticagames/ | meta tags públicas (`og:title`/`og:description`) via `curl`; o conteúdo do perfil (bio, posts) exige login e **não** foi lido |
+| S1 | https://www.wjrinformaticagames.com.br/ | `curl` do HTML + `css/styles.css?v=2` → snapshot em [`site/`](site/) |
+| S2 | https://www.instagram.com/wjrinformaticagames/ | meta tags públicas (`og:title`/`og:description`) via `curl`; o conteúdo do perfil (bio, posts) exige login e **não** foi lido → [`instagram-meta.json`](instagram-meta.json) |
 
 ## Quem é
 
@@ -50,7 +50,7 @@ Direto, informal-confiante, vocabulário gamer ("de volta no jogo", "segunda cha
 
 ## Marca
 
-### Paleta do site (`css/styles.css`, variáveis CSS) [S1]
+### Paleta do site (`css/styles.css`, variáveis CSS) [S1] — versão máquina: [`colors.json`](colors.json)
 
 | Token | Hex | Uso no site |
 |---|---|---|
@@ -72,11 +72,11 @@ Fonte do site: `Arial, "Helvetica Neue", sans-serif` (sem webfont própria).
 
 ### Imagens do site
 
-`assets/hero-consoles.png`, `assets/repair-workbench.png`, `assets/controller-components.png`, `assets/images/consoles/*.png`. Aparentam ser **imagens ilustrativas/renderizadas** (não fotos identificáveis da loja) — não foi possível confirmar a origem nem o direito de uso. Para o vídeo final, pedir fotos/vídeos reais da loja e da bancada.
+`assets/hero-consoles.png`, `assets/repair-workbench.png`, `assets/controller-components.png`, `assets/images/consoles/*` — cópias em [`site/imagens/`](site/imagens/) (manifesto com URL/tamanho/hash em [`site/manifest.json`](site/manifest.json)). Aparentam ser **imagens ilustrativas/renderizadas** (não fotos identificáveis da loja) — não foi possível confirmar a origem nem o direito de uso. Para o vídeo final, pedir fotos/vídeos reais da loja e da bancada.
 
 ## Assets que precisam vir do cliente
 
-Lista completa e checklist de pedido: [`../../docs/checklist-cliente.md`](../../docs/checklist-cliente.md). Resumo:
+Lista completa e checklist de pedido: [`checklist-cliente.md`](checklist-cliente.md) · pendências: [`pendencias.md`](pendencias.md). Resumo:
 
 1. Logo em alta (SVG ou PNG ≥ 2000 px, fundo transparente) + versão horizontal, se houver.
 2. Fotos reais: fachada, balcão, bancada, técnico trabalhando, antes/depois de reparos (vertical 9:16 de preferência).

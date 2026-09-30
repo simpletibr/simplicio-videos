@@ -1,47 +1,41 @@
-# Checklist — o que pedir ao cliente
+# Checklist — o que pedir a qualquer cliente (template)
 
-Use para qualquer cliente; a coluna "WJR" mostra o status para WJR Informática e Games (30/09/2026).
+> Versão preenchida da WJR: [`clients/wjr-informatica-games/coleta/checklist-cliente.md`](../clients/wjr-informatica-games/coleta/checklist-cliente.md).
+> Para cliente novo: copie para `clients/<cliente>/coleta/checklist-cliente.md` e adicione uma coluna de status.
 
 ## Marca
-| Item | Formato ideal | WJR |
-|---|---|---|
-| Logo principal | SVG ou PNG ≥ 2000 px, fundo transparente | só PNG 1254 px do site → **pedir original** |
-| Versão horizontal / ícone | SVG/PNG | não encontrado |
-| Cores oficiais | hex | site usa `#e50914`/`#1565ff`; logo usa creme/ciano/laranja → **confirmar qual vale** |
-| Fonte da marca | nome/arquivo | site usa Arial → confirmar |
+| Item | Formato ideal |
+|---|---|
+| Logo principal | SVG ou PNG ≥ 2000 px, fundo transparente |
+| Versão horizontal / ícone | SVG/PNG |
+| Cores oficiais | hex |
+| Fonte da marca | nome/arquivo |
 
 ## Imagens e vídeos (o que mais pesa na qualidade)
-| Item | Formato ideal | WJR |
-|---|---|---|
-| Fotos reais da loja (fachada, balcão) | vertical 9:16 ou 4:5, ≥ 1080 px | **faltando** |
-| Fotos da bancada / técnico trabalhando | idem | imagens do site parecem ilustrativas → **pedir reais** |
-| Antes/depois de reparos (controle, console) | fotos ou vídeo 5–15 s | **faltando** |
-| Vídeos curtos verticais da rotina | celular, 1080×1920, 5–15 s, sem música | **faltando** |
-| Pessoas que aparecem | nome + autorização | **faltando** |
+| Item | Formato ideal |
+|---|---|
+| Fotos reais do local (fachada, balcão) | vertical 9:16 ou 4:5, ≥ 1080 px |
+| Fotos do trabalho / equipe | idem |
+| Antes/depois | fotos ou vídeo 5–15 s |
+| Vídeos curtos verticais da rotina | celular, 1080×1920, 5–15 s, sem música |
+| Pessoas que aparecem | nome + autorização |
 
 ## Conteúdo comercial
-| Item | WJR |
-|---|---|
-| Serviços que quer destacar neste vídeo | site lista Xbox 360/One/Series, PS3/4/5, controles → **escolher foco** |
-| Ofertas / preços que podem ser divulgados + validade | nenhum no site → **não usar até enviar por escrito** |
-| Garantia, prazo médio, formas de pagamento | não encontrado → **não prometer** |
-| Diferencial em uma frase | site: diagnóstico antes do reparo, transparência, atendimento rápido pelo WhatsApp |
-| Avaliações que pode citar (texto + autor + permissão) | widget Google não lido → **pedir prints/autorização** |
+- Serviços/produtos em destaque neste vídeo
+- Ofertas/preços divulgáveis + validade (só com confirmação por escrito)
+- Garantia, prazo, formas de pagamento (não prometer sem confirmação)
+- Diferencial em uma frase
+- Avaliações que pode citar (texto + autor + permissão)
 
 ## Contato (confirmar antes de publicar)
-| Item | Valor encontrado | Fonte |
-|---|---|---|
-| WhatsApp / telefone | (11) 99700-5234 | site |
-| Endereço | R. Siderópolis, 168 — Jardim Jovaia, Guarulhos - SP | site |
-| Horário | seg–sex 8h–17h · sáb 8h–14h · dom fechado | site |
-| Instagram | @wjrinformaticagames | site + Instagram |
+WhatsApp/telefone · endereço · horário · @ das redes
 
 ## Autorizações (por escrito, WhatsApp/e-mail serve)
 - [ ] Uso da marca, logo e imagens enviadas nos vídeos e nas redes
-- [ ] Uso de imagem de pessoas que aparecem (funcionários/clientes)
-- [ ] Música: preferência (usar áudio do próprio Instagram na publicação ou trilha licenciada)
+- [ ] Uso de imagem de pessoas que aparecem
+- [ ] Música: trilha original gerada por código (padrão do kit) ou áudio escolhido pelo cliente
 - [ ] Aprovação do roteiro antes do render final e do vídeo antes de postar
-- [ ] Quem posta (cliente ou nós) e em quais canais (Reels, Stories, TikTok, Status do WhatsApp)
+- [ ] Quem posta e em quais canais
 
-## Mensagem modelo (rascunho — ajustar e enviar você mesmo)
-> Oi! Para fazer os vídeos da WJR preciso de: 1) o logo no melhor arquivo que tiver (de preferência sem fundo); 2) umas 10 fotos e 3–5 vídeos curtos em pé (celular) da loja, bancada e consertos (antes/depois); 3) se tiver alguma promoção ou preço que possa aparecer, me manda por escrito com a validade; 4) confirmar WhatsApp, endereço e horário; 5) seu ok para usar essas imagens e a marca nos vídeos. Te mando o roteiro para aprovar antes de finalizar.
+## Estrutura de coleta recomendada
+`clients/<cliente>/coleta/` com `README.md`, `brief.md`, `fontes.md`, `site/` (snapshot + imagens + manifest), `colors.json`, `instagram-meta.json`, `pendencias.md`, `checklist-cliente.md` — ver o exemplo da WJR.

@@ -3,40 +3,60 @@
 Abra o agente **dentro desta pasta** (`clients/wjr-informatica-games/video-01`). Pré-requisito: skills do HyperFrames instaladas (ver `docs/setup.md`).
 No Claude Code: `/model` → Opus 5.5, `/effort medium` (ou `high` na primeira passada criativa). Os relatos coletados indicam que `max` custa bem mais sem ganho garantido (ver `docs/tokens-e-deterministico.md`).
 
-## 1) Primeira iteração (refinar o template existente)
+## 0) Prompt "showreel" adaptado para a WJR (passada criativa, do zero ou reforçando o template)
+
+Base: o prompt mais repetido no acervo `awesome-opus5-5-videos` (103 dos 475 prompts citam "showreel"), ex. *"make a dynamic 15-second motion graphics video that shows what an incredible motion designer you are, like it's your showreel for a résumé. go all out."* — aqui com as travas de fato real, marca, áudio e determinismo:
 
 ```text
-Usando /hyperframes (skills hyperframes-core e hyperframes-animation), refine a composição
-existente em index.html — NÃO recrie do zero. Leia antes: AGENTS.md, roteiro.md, ../brief.md, spec.json.
+Faça um vídeo de motion graphics dinâmico de 15 segundos para a WJR Infogames (assistência técnica de
+consoles e controles Xbox e PlayStation em Guarulhos) que mostre o quão incrível motion designer você é —
+como se fosse o seu showreel para um currículo. Vá com tudo.
 
-Formato: Instagram Reels 1080×1920, 30 fps, 22 s, sem locução, precisa funcionar sem som.
-Marca: fundo #080808, vermelho #e50914, azul #1565ff (variáveis primary/secondary), fontes Anton + Inter já embutidas.
-Copy: use APENAS os textos de spec.json e roteiro.md (vêm do site do cliente). Não invente preço, prazo,
-garantia, nota de avaliação, número de clientes ou qualquer métrica.
+Travas (não negociáveis):
+- Formato Instagram Reels 1080×1920, 30 fps, 15 s. HyperFrames (/hyperframes, /hyperframes-core,
+  /hyperframes-animation). Edite index.html — não jogue fora data-composition-variables nem os data-var-*.
+- Fatos: SÓ o que está em spec.json, roteiro.md e ../coleta/brief.md. Nada de preço, prazo, garantia, nota,
+  número de clientes. Pode reescrever a ordem e o ritmo, não pode inventar.
+- Marca: fundo #080808, vermelho #e50914, azul #1565ff, Anton + Inter (já embutidas). Tema gamer.
+- Áudio é dado: trilha e SFX saem de scripts/build.mjs a partir de spec.json → audio (120 BPM, beat = 0,5 s).
+  Todo corte cai num beat; todo golpe de texto tem um cue (whoosh na transição, hit/impact no título/logo,
+  click/blip em item de lista, riser + glitch antes do CTA, impact no logo = pico do vídeo). Se mover um
+  golpe visual, mova o cue em spec.json (e vice-versa). Master −14 LUFS / −1,5 dBTP.
+- Motion (receitas): tipografia cinética por letra/palavra (stagger, scale-punch, máscara/clip-path),
+  câmera (zoom-punch, push-in, shake curto no impacto, parallax de fundo), transição glitch/RGB-split,
+  light sweep + glow no logo, grade em perspectiva + partículas com semente fixa + scanlines,
+  ícone de controle reagindo (botões acendem no click), easing GSAP (power4/back/elastic só no logo).
+- Clipes opcionais: spec.json → clips.slots (assets/imagine/clip-0N.mp4). Presente = placa de vídeo em
+  tela cheia com shade; ausente = cena atual. Não quebre esse fallback.
+- Determinismo: um gsap.timeline({paused:true}) em window.__timelines["main"]; nada de Math.random
+  (use rng()), Date.now, fetch, repeat:-1.
+- Legível sem som (Reels abre mudo). Texto mínimo 34 px, dentro da área segura.
 
-Objetivo desta passada:
-- hook mais forte nos primeiros 1,5 s (o texto "SEU CONSOLE PAROU?" deve ser legível no 1º segundo);
-- transições entre cenas que demonstrem a ideia (ex.: o "flash" vira o card da foto), sem push/slide genérico;
-- manter todos os data-var-* e o bloco data-composition-variables intactos (o render determinístico depende deles);
-- continuar seek-safe: um único gsap.timeline({paused:true}) em window.__timelines["main"], sem Math.random, sem repeat:-1.
+Loop: edite → npm run lint → npm run check (0 erros) → npm run snapshot (olhe o contact sheet) →
+npm run render:draft → me mostre o contact sheet e o MP4 antes do render final (npm run render + npm run loudness).
+```
 
-Loop: edite → `npm run lint` → `npm run check` (0 erros) → `npm run snapshot` e olhe o contact sheet →
-só então `npm run render:draft`. Pare e me mostre o contact sheet antes do render final.
+## 1) Refinar uma cena (barato em tokens)
+
+```text
+Usando /hyperframes, refine SÓ a cena S<n> de index.html (tempos em roteiro.md). Mantenha os tempos dos cues
+de spec.json → audio (os golpes visuais têm que cair neles). Não mexa nas outras cenas.
+Loop: lint → check → snapshot → me mostre os frames de S<n>.
 ```
 
 ## 2) Trocar assets quando o cliente mandar (sem LLM)
 
-Coloque os arquivos em `assets/client/` e edite `spec.json` (caminhos e textos). Depois:
+Coloque os arquivos em `assets/client/` e edite `spec.json → variables` (caminhos e textos). Clipes de vídeo: solte em `assets/imagine/clip-0N.mp4` (ver `assets/imagine/README.md`). Depois:
 
 ```bash
-npm run check && npm run render     # out/video-01.mp4
+npm run check && npm run render && npm run loudness     # out/video-01.mp4
 ```
 
-## 3) Nova variação (ex.: oferta/promoção) — barata em tokens
+## 3) Nova variação (ex.: oferta/promoção)
 
 ```text
-Duplique video-01 para ../video-02. Mantenha index.html; altere só spec.json e, se preciso, UMA cena
-(S3) para mostrar a oferta "<texto exato enviado pelo cliente>". Não mexa nas outras cenas.
+Duplique video-01 para ../video-02. Mantenha index.html e scripts/; altere só spec.json e, se preciso, UMA cena
+(S3) para mostrar a oferta "<texto exato enviado pelo cliente>". Ajuste os cues de áudio dessa cena em spec.json.
 Rode lint/check/snapshot e renderize em draft.
 ```
 

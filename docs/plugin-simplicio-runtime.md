@@ -41,7 +41,7 @@ Engines (escolhidas por video.json → "engine"):
 | `videos batch --spec video.json --rows rows.json` | N variações (`hyperframes render --batch`) → manifest | não |
 
 ### Formato de spec
-- `video.json` (`simplicio.video-spec/v1`, proposta): id, cliente, brief, engine, formato (w/h/fps/duração/canal), `entry` + `variables_file` (HyperFrames) ou `storyboard_file` (motion), bloco `authoring` (modelo/prompt/effort) e `slots` de assets com status (`placeholder` → `draft-from-site` → `client-provided` → `approved`).
+- `video.json` (`simplicio.video-spec/v1`, proposta): id, cliente, brief + `sources` (pasta `coleta/`), engine, formato (w/h/fps/duração/canal), `entry` + `spec_file` (variáveis + cues de áudio + slots de clipe) → `build` determinístico → `variables_file` (HyperFrames), blocos `audio` (procedural, alvo LUFS, licença) e `clips` ou `storyboard_file` (motion), bloco `authoring` (modelo/prompt/effort) e `slots` de assets com status (`placeholder` → `draft-from-site` → `client-provided` → `approved`).
 - `spec.json`: valores das variáveis da composição (é o formato nativo do `hyperframes --variables-file`, então funciona hoje sem plugin).
 - Exemplo real: `clients/wjr-informatica-games/video-01/video.json`.
 
@@ -63,10 +63,12 @@ simplicio-videos/
 ├── plugin.json                 # manifest simplicio.plugin/v1 (STUB, sem binário ainda)
 ├── schemas/video-spec.schema.json   # proposta simplicio.video-spec/v1
 ├── clients/<cliente>/
-│   ├── brief.md                # fatos com fonte (entrada do handoff)
+│   ├── coleta/                 # brief.md (fatos com fonte = entrada do handoff), fontes.md, site/, colors.json, pendencias.md
 │   └── video-NN/
 │       ├── video.json          # spec do plugin (proposta)
-│       ├── spec.json           # variáveis HyperFrames (render determinístico)
+│       ├── spec.json           # variables (HyperFrames) + audio (cues) + clips (slots de vídeo)
+│       ├── scripts/build.mjs   # passo determinístico: variáveis, síntese/mix de áudio, clipes
+│       ├── scripts/master.sh   # loudness final no MP4
 │       ├── storyboard.simplicio.json  # fallback p/ plugin motion (não validado no binário)
 │       ├── index.html          # template HyperFrames
 │       ├── PROMPT.md / AGENTS.md / CLAUDE.md  # handoff p/ Opus 5.5 (ou Codex)

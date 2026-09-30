@@ -58,3 +58,11 @@ Regras práticas:
 - Variação de conteúdo (nova oferta, outro produto, outra loja) → só B + C. Custo de tokens ≈ 0.
 - Ajuste pontual de uma cena → Opus 5.5 editando **uma** cena com diff pequeno, sem reescrever o arquivo.
 - Guardar cada template aprovado em `templates/` (futuro) com sua `spec.schema.json` → vira o catálogo do plugin (ver `plugin-simplicio-runtime.md`).
+
+## Atualização (30/09/2026): áudio e clipes também são dado
+
+No `video-01`, trilha, efeitos sonoros e clipes de vídeo entraram no mesmo modelo "spec → render" sem LLM:
+- `spec.json → audio` (BPM, seções, 32 cues com tempo/ganho/ducking) → `scripts/build.mjs` sintetiza e mixa (≈3 s, bit-idêntico entre builds) → `scripts/master.sh` fecha em −14 LUFS no MP4.
+- `spec.json → clips.slots` → soltar `assets/imagine/clip-0N.mp4` liga a placa de vídeo da cena; sem arquivo, a cena volta ao design com imagens.
+- Mudar o tempo de um golpe = editar um número no JSON e re-renderizar. O Opus 5.5 só é necessário para mudar **coreografia** (o `index.html`), não para re-sincronizar som ou trocar mídia.
+
