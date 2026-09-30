@@ -138,5 +138,22 @@
     "primary": "#e50914",
     "secondary": "#1565ff",
     "background": "#080808"
+  },
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": [
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "sv1",
+      "sv2",
+      "sv3",
+      "s5",
+      "s6"
+    ],
+    "duracao_fixa_s": 20,
+    "_doc": "Composição monolítica portada de clients/wjr-informatica-games/video-01/index.html: coreografia na grade BASE de 20 s, remapeada pelos cortes do contrato ({{cuts}} -> CUTS/RETIME). Variáveis HyperFrames: kicker, promise, p1..p5, cta, whatsapp, address, instagram, primary, secondary, logo, photo_hero, photo_bench (+ clip_XX_on das placas)."
   }
 }

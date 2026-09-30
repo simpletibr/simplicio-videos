@@ -1,0 +1,15 @@
+{
+  "id": "mini-teste",
+  "setor": "teste (fixture do pytest)",
+  "status": "skeleton",
+  "nichos": [],
+  "referencia": null,
+  "formato": { "aspect": "9:16", "width": 180, "height": 320, "fps": 30 },
+  "duracao_s": 1.0,
+  "cenas": [
+    { "id": "A", "papel": "gancho", "dur_s": 0.5, "padroes": [], "campos": [] },
+    { "id": "B", "papel": "cta", "dur_s": 0.5, "padroes": [], "campos": [] }
+  ],
+  "voz": {}, "musica": {}, "tom": "", "cuidados": [],
+  "composicao": { "dir": "composition", "entrada": "index.template.html", "cenas": ["a", "b"] }
+}

@@ -11,3 +11,9 @@ clients/*/*/assets/client/
 .hyperframes/
 build/
 assets/audio/build/
+
+# python (simplicio-video CLI)
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/

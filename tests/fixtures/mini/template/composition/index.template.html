@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- Minimal deterministic composition for the simplicio-video test suite (no network, no fonts). -->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * { margin: 0; padding: 0; } html, body { width: {{width}}px; height: {{height}}px; overflow: hidden; background: #111; }
+      #root { position: relative; width: 100%; height: 100%; } .clip { position: absolute; inset: 0; }
+      #a { background: #e50914; } #b { background: #1565ff; }
+      .t { position: absolute; left: 10px; top: 140px; color: #fff; font: 700 28px sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-no-timeline data-start="0" data-duration="{{duracao}}" data-width="{{width}}" data-height="{{height}}">
+      <div id="a" class="clip" data-start="{{t:a}}" data-duration="{{dur:a}}" data-track-index="0"><div class="t" id="ta"></div></div>
+      <div id="b" class="clip" data-start="{{t:b}}" data-duration="{{dur:b}}" data-track-index="1"><div class="t" id="tb"></div></div>
+      <audio id="soundtrack" src="assets/audio/build/mix.wav" data-start="0" data-duration="{{duracao}}" data-track-index="2" data-volume="1"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const v = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+      document.getElementById("ta").textContent = v.titulo || "";
+      document.getElementById("tb").textContent = v.cta || "";
+    </script>
+  </body>
+</html>

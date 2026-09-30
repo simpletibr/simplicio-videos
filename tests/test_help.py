@@ -1,0 +1,33 @@
+import pytest
+
+from conftest import run_cli
+
+SUBS = ["init", "validate", "voice", "render", "list"]
+
+
+def test_main_help_lists_the_whole_flow():
+    r = run_cli("--help")
+    assert r.returncode == 0
+    out = r.stdout
+    pos = [out.index(w) for w in ("1. init", "3. validate", "4. voice", "5. render")]
+    assert pos == sorted(pos)
+    for s in SUBS:
+        assert f"    {s}" in out
+    assert "schema/contract.schema.json" in out and "exemplos:" in out and "skills/simplicio-video/SKILL.md" in out
+
+
+@pytest.mark.parametrize("sub,must", [
+    ("init", ["cliente", "campanha", "--template", "--nome", "--drive-nome", "--ano", "--out", "--force"]),
+    ("validate", ["CONTRATO.yaml", "--need-lock", "--json", "J-cut", "NUNCA"]),
+    ("voice", ["CONTRATO.yaml", "--provider", "--force", "FALA_ID", "file", "local", "gemini", "elevenlabs", "xai", "timing.lock.json"]),
+    ("render", ["CONTRATO.yaml", "--backend", "--out", "--quality", "--gpu", "--workdir", "colab", "render.manifest.json", "-14 LUFS"]),
+    ("list", ["templates", "motion", "voices", "--json"]),
+])
+def test_subcommand_help_is_complete(sub, must):
+    r = run_cli(sub, "--help")
+    assert r.returncode == 0, r.stderr
+    for m in must:
+        assert m in r.stdout, f"{sub} --help missing {m!r}"
+    assert "exemplos:" in r.stdout and "simplicio-video " + sub in r.stdout
+    if sub != "list":
+        assert "schema/contract.schema.json" in r.stdout

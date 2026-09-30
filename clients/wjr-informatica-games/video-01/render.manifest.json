@@ -1,0 +1,80 @@
+{
+  "schema": "simplicio.render-manifest/v1",
+  "contract": "clients/wjr-informatica-games/video-01/contract.yaml",
+  "contract_sha256": "35ce0268c92428c164ce818f1d5f14305d896109ea9c51c84b4b2d44ac681db4",
+  "timing_lock_sha256": "9699b9366283a7ce8d7c0a15373e294154a4ded0e53195e6c349ac747c26b62c",
+  "template": "assistencia-tecnica-games",
+  "backend": "local",
+  "quality": "delivery",
+  "gpu_encode": false,
+  "inputs_sha256": "c5888ccf50e4b62882079703363eb96faa2a5756c26a4e78ae7e6af683bf8204",
+  "inputs": {
+    "assets/audio/build/mix.wav": "83760754939cfa376f384024e9f44f1d1d74ccb8fea98838cd9956fac8c5c9f4",
+    "assets/audio/vo/manifest.json": "cfc193ef395edecf40e8819744894a80b0ef85f7565be1bd0ea4c6c2f7b6810d",
+    "assets/audio/vo/vo1-9e8c4f68bdcf.wav": "1d0b7c862ec7178e25dfff577d0502b7c407ffa16794b760a6b7ea1565645262",
+    "assets/audio/vo/vo2-43b7c362177f.wav": "3a43be3b4ea41bd08cd5608aba53d5edc97df62f06026c751bd8e669306f70bb",
+    "assets/audio/vo/vo3-dd79f815a8aa.wav": "a61bf2638f75e027338348cea12ce13fa31e7e2062a3a5c5aa64885279216de6",
+    "assets/audio/vo/vo4-b25ab32e1cd0.wav": "34eec28bcbb49f98fc614d76ce5c19e016364f5e5816b07306405e842e702697",
+    "assets/audio/vo/vo5-0eb9f71c679d.wav": "cc3f440f969261c45f4c5375b0abb62d254213ba045c6207d5cbf4820d280027",
+    "assets/audio/vo/vo6-c3ce2d2523b2.wav": "04625ba8cf83cafdc4503d69299da8e326302bf71cbbde58b23810126191b5c2",
+    "assets/audio/vo/vo7-623212bc36b3.wav": "32d7cd87ee7019918c61c4c9d41f012c252ff86e8f4cb7fbe9a529d3c783b4e0",
+    "assets/audio/vo/vo8-f1142ddf6686.wav": "a304ca1b442d3b695da11e8855862d55e65d5666f39a432f9466ab86809e5296",
+    "assets/audio/vo/vo9-26aa26e938b4.wav": "6d0545c39b00f0e3731060994afc1f4e524f2be9b14ef24661ad82a9f73d91bd",
+    "assets/client/logo.png": "d8713e7cc2a3da5d90aa491344a1f055767954d2234d4897373b414db5ec0255",
+    "assets/client/photo-bench.png": "b5284ecf902bc5b5bada21e25a6ee4635f578760ec3727e5cd0e600460157e1b",
+    "assets/client/photo-hero.png": "ea27d0e687b3255c9ab523a2e3793abd80e8af9a33ad79b864def796abd46491",
+    "assets/clips/build/clip-01.mp4": "70811a3109bf7739f04ee109d8e29c7bbe854c6e11a0889ffe277fea734d5dae",
+    "assets/clips/build/clip-02.mp4": "9ceaf208332cb4a7d8e3a62631c04499791c14c6c7dfcccf57284c24fbca0337",
+    "assets/clips/build/clip-03.mp4": "2c01159cfe367edd1619fa6ac2288c64fa679eaf4a2e3d0f7e514b2420a226ca",
+    "assets/clips/build/clip-04.mp4": "207a4ecf1f8189ae368edcb772422e95a28a8daf64ead98c119d8660d86d3fa3",
+    "assets/clips/build/clip-05.mp4": "9a9a1c88c051a50a64dc808ceaa15d2b38e739bb25f8e3c5e45710609a390f6e",
+    "assets/fonts/Anton-Regular.ttf": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+    "assets/fonts/Inter.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "assets/fonts/OFL-Anton.txt": "ee67e6ee22790b7929f1a3769ca2801d565c64b5a9096942c1adf5596de9c9e4",
+    "assets/fonts/OFL-Inter.txt": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+    "assets/placeholders/logo.svg": "33d290460c012edaf088b332506967500d67a8ae5d92bfd0f68d152d9c70eedb",
+    "assets/placeholders/photo-bench.svg": "d77e7639d40c950ad737efccd9be75526f32736e10a27ba140af8e7bd6fa3fbe",
+    "assets/placeholders/photo-hero.svg": "7cf45482a05c3e259b95b8864499b5264236d04600d8b734700d9f6e7d2cfd65",
+    "build/mix.raw.wav": "25eca66d4c082ab42c38f06f57836e66959526cfd8ad3765376fe54b946c3e27",
+    "build/variables.json": "2edd4198d6184e8517cf8b0ed649766326d6c49a270e32e82fb61f345cd2c3bc",
+    "hyperframes.json": "7760693dcdca6a31fffd9ed53b7fe9b4d7877089b1778edc5a5de0cb4bac517d",
+    "index.html": "052b20ab03c07457e7077cdd6c08788462850e063d97c4c01cea08884ab04f92",
+    "meta.json": "92a7d9ebf5c1aa6abb09b52887b9a52467db7b59c885c0695dae4dc8d98b9027",
+    "scripts/build.mjs": "b7f10f42ebef74151fc882b5f607e999ff792d35fc8a26314ab506982cb0e5ca",
+    "scripts/master.sh": "ce717e9f1e6f2c7c28f39e795c93f0b16657206a69448eeb7cb37742d021f4ea",
+    "spec.json": "9054151f6177d6155794ebf9a85b1218107c8249dd8bbfa870370894e377e6e1"
+  },
+  "tools": {
+    "simplicio_video": "0.2.0",
+    "hyperframes": "hyperframes@0.8.97",
+    "node": "v22.23.3",
+    "ffmpeg": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.13.5"
+  },
+  "output": {
+    "path": "out/wjr-video-01-cli.mp4",
+    "sha256": "19d8e6caa9dd060bfc19f84376b6f041eb9b51ce188c018bb00cc4832b0e84af",
+    "duration_s": 20.0,
+    "frames": 600,
+    "video_frames_sha256": "29cd1ff6ebfdb76dee0a926c4879096b596e1326c3e9d747a72b3885bef31020",
+    "audio_pcm_sha256": "ce884c2799b2eba5fd06c1c0f2782408ea2bc13c5bbee076cc74e9bffc50b24b"
+  },
+  "loudness": {
+    "integrated_lufs": -14.0,
+    "true_peak_dbfs": -2.4
+  },
+  "drive": {
+    "caminho": "simplicio-video/clientes/WJR_Informatica_Games/2026/Video_Institucional",
+    "pasta_url": "https://drive.google.com/drive/folders/1G6jHadSdWx8YRqgKjHTfKq1MqXdStH4G",
+    "arquivo": "WJR - video 20s voz Gemini - v01.mp4",
+    "link": "https://drive.google.com/file/d/1PFOPvT1nQiai7qC4qDeh40v49stBhoSk/view",
+    "status": "aprovada internamente (enviada antes da convenção de nomes como \"WJR - video 20s (voz Gemini).mp4\")"
+  },
+  "timings_s": {
+    "compile_build": 8.6,
+    "render": 76.51,
+    "capture": 65.3,
+    "encode": 65.3,
+    "master": 2.1
+  }
+}
