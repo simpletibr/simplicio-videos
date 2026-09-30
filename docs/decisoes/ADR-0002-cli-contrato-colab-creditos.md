@@ -2,7 +2,7 @@
 
 - **Status:** aceito (CLI, contrato e Colab-bundle implementados); créditos = **só design e interface**, sem cobrança real
 - **Data:** 30/09/2026 (BRT) · **Pedido:** Wesley, 15:57 e 15:59
-- **Relaciona:** [ADR-0001](ADR-0001-visao-plugin.md) (plugin do Simplicio Runtime, esteira determinística) · automação do Colab, Kaggle, voz por API, Drive e MCP: [ADR-0003](ADR-0003-fluxo-100-script.md)
+- **Relaciona:** [ADR-0001](ADR-0001-visao-plugin.md) (plugin do Simplicio Runtime, esteira determinística) · automação do Colab, Kaggle, voz por API, Drive e MCP: [ADR-0003](ADR-0003-fluxo-100-script.md) · custo real por vídeo (base das tarifas de crédito): [docs/custos.md](../custos.md)
 
 ## Contexto
 
