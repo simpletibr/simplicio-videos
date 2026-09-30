@@ -65,3 +65,15 @@ def test_lock_longer_than_slot_is_error(mini):
 
 def test_need_lock(mini):
     assert any("timing.lock.json missing" in e for e in ct.validate(ct.load(mini), need_lock=True).errors)
+
+
+def test_init_skeleton_blocks_until_filled(tmp_path):
+    from conftest import run_cli
+    out = tmp_path / "c" / "contract.yaml"
+    r = run_cli("init", "clinica-teste", "Dia_Criancas", "--template", "saude-odontologia", "--nome", "Clínica Teste", "--ano", "2026", "--out", out)
+    assert r.returncode == 0, r.stderr
+    d = yaml.safe_load(out.read_text())
+    assert d["drive"]["caminho"] == "simplicio-video/clientes/Clinica_Teste/2026/Dia_Criancas"
+    rep = ct.validate(ct.load(out))
+    assert not ct.schema_errors(d, ct.load(out).home)
+    assert any(e.startswith("todo:") for e in rep.errors)

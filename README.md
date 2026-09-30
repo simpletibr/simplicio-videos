@@ -2,7 +2,9 @@
 
 **Plugin de vídeo do Simplicio Runtime (Simplicio MCP).** Quando um usuário do Simplicio pede um vídeo, o plugin roda uma **esteira determinística**: questionário de intake (com extração automática de site/Instagram) → brief/spec → template do setor → composição com a biblioteca de padrões de motion (HyperFrames) → voz TTS (Gemini, ElevenLabs, xAI ou local, com cache) → edição de footage com video-use (opcional) → render determinístico. LLM (Opus 5.5) só cria templates e padrões novos.
 
-Decisão: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · Fluxo: [docs/esteira.md](docs/esteira.md) · Manifest (stub): [`plugin.json`](plugin.json)
+Decisões: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · [ADR-0002 (CLI + contrato + Colab + créditos)](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md) · Receita: [docs/receita-video-cliente.md](docs/receita-video-cliente.md) · Manifest: [`plugin.json`](plugin.json) · Skill: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md)
+
+**Entrada: o CLI `simplicio-video`.** O agente escreve o contrato YAML ([`schema/contract.schema.json`](schema/contract.schema.json)); o CLI valida, gera a voz e renderiza de forma determinística (local ou Colab GPU).
 
 > Agentes (Claude Code, Codex, Grok): comecem por [`AGENTS.md`](AGENTS.md).
 
@@ -11,7 +13,11 @@ Decisão: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · Fluxo: [docs/est
 ```
 simplicio-videos/
 ├── AGENTS.md / CLAUDE.md   # regras + mapa + fluxos para agentes (CLAUDE.md → AGENTS.md)
-├── plugin.json             # simplicio.plugin/v1 — STUB (ops da esteira; sem binário ainda)
+├── plugin.json             # simplicio.plugin/v1 — entrypoint simplicio-video (comandos video.*) + skill
+├── pyproject.toml          # pacote Python do CLI (src/simplicio_video/), testes em tests/
+├── schema/                 # contract.schema.json (contrato do CLI)
+├── skills/simplicio-video/ # SKILL.md para LLMs no simplicio-runtime
+├── colab/                  # render.ipynb (GPU) para bundles --backend colab
 ├── intake/                 # 1 questionário, extração automática site/IG, intake.schema.json, exemplos/
 ├── templates/              # 3 um template por setor (template.json + README); schema
 ├── motion/                 # 4 biblioteca de padrões: patterns/<id>/{pattern.json, block.html, preview.png}, catalog.json, lib/, scripts/
@@ -21,7 +27,8 @@ simplicio-videos/
 ├── docs/                   # ADRs (decisoes/), esteira, setup, pesquisa — índice em docs/README.md
 └── clients/<cliente>/      # trabalho de cliente
     ├── coleta/             #   fatos com fonte e data (brief, fontes, site salvo, cores, pendências)
-    └── video-NN/           #   projeto HyperFrames autocontido (spec.json, index.html, scripts/, assets/, preview/)
+    ├── <video>/contract.yaml #  vídeo pelo CLI (contrato, timing.lock.json, render.manifest.json, voz, preview/)
+    └── video-NN/           #   legado: projeto HyperFrames autocontido (spec.json, index.html, scripts/, assets/, preview/)
 ```
 
 ## Catálogos
@@ -45,17 +52,19 @@ simplicio-videos/
 | Lothus Odontologia (Guarulhos) | [coleta](clients/lothus-odontologia/coleta/) · [README + Drive](clients/lothus-odontologia/README.md) | Instagram público + CNES + espelho Google Places; conflitos de endereço/telefone em pendências |
 | | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) | Post 9:16, 15 s, Dia das Crianças, voz provisória local (final Gemini Sulafat) · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) · referência do template `saude-odontologia` |
 
-## Quick start
+## Quick start (CLI)
 
 ```bash
-gh repo clone simpletibr/simplicio-videos
-cd simplicio-videos/clients/wjr-informatica-games/video-01
-npm run assets:site   # imagens públicas do site p/ rascunho (gitignored)
-npm run check         # build (variáveis + áudio + voz) + lint + layout + contraste
-npm run render        # out/video-01.mp4 (1080×1920, 30 fps, 20 s, −14 LUFS)
-npm run preview       # preview/video-01-preview-720p.mp4
+gh repo clone simpletibr/simplicio-videos && cd simplicio-videos
+pip install -e .                      # comando simplicio-video (Python >= 3.10); render: Node >= 22 + ffmpeg
+simplicio-video --help                # fluxo init -> validate -> voice -> render
+cd clients/lothus-odontologia/video-01-dia-das-criancas
+simplicio-video validate contract.yaml
+simplicio-video voice contract.yaml   # voz provisória local (Kokoro) ou --provider file (WAVs do Gemini)
+simplicio-video render contract.yaml  # out/lothus-dia-criancas.mp4 + render.manifest.json
+simplicio-video render contract.yaml --backend colab   # bundle para colab/render.ipynb (GPU)
 ```
-Requer Node ≥ 22 e FFmpeg ([setup](docs/setup.md)). Voz: [tutorial Gemini](voices/gemini.md) · [todas as opções](voices/README.md). Edição opcional: [tools/video-use](tools/video-use/README.md) (exemplo: `bash clients/wjr-informatica-games/video-02-videouse/run.sh`). Biblioteca: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`.
+Testes: `python -m pytest`. Voz: [tutorial Gemini](voices/gemini.md) · [todas as opções](voices/README.md). Edição opcional: [tools/video-use](tools/video-use/README.md). Biblioteca: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`. Legado WJR (npm): `cd clients/wjr-informatica-games/video-01 && npm run render`.
 
 ## Documentação
 

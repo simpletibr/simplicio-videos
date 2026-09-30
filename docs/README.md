@@ -3,6 +3,8 @@
 | Doc | Para quê |
 |---|---|
 | [decisoes/ADR-0001-visao-plugin.md](decisoes/ADR-0001-visao-plugin.md) | **Decisão de produto** (Wesley, 30/09/2026): plugin do Simplicio Runtime, esteira determinística por setor |
+| [receita-video-cliente.md](receita-video-cliente.md) | **Receita atual:** o agente escreve o contrato, o CLI `simplicio-video` executa (coleta → contrato → validate → voice → render → Drive) |
+| [decisoes/ADR-0002-cli-contrato-colab-creditos.md](decisoes/ADR-0002-cli-contrato-colab-creditos.md) | CLI + contrato YAML, backend Colab (GPU), design de créditos para clientes pagantes |
 | [esteira.md](esteira.md) | A esteira ponta a ponta (intake → spec → template → motion → voz → footage → render), o que é determinístico e o estado atual |
 | [video-use-integracao.md](video-use-integracao.md) | Etapa 6: video-use (edição agêntica de footage) — o que faz, o que precisa de chave, integração com HyperFrames/motion/voz, o que acrescentou |
 | [setup.md](setup.md) | Instalar Node, FFmpeg, Claude Code/Codex, skills do HyperFrames; primeiro render |

@@ -1,11 +1,185 @@
 {
   "schema": "simplicio.plugin/v1",
   "name": "videos",
-  "version": "0.1.0",
-  "description": "PROPOSAL / STUB — not installable yet (no binary). simplicio-videos: Simplicio Runtime plugin that turns 'I want a video' into a deterministic pipeline: intake questionnaire (auto-extraction from site/Instagram) -> brief/spec (single source of truth) -> sector template -> HyperFrames composition from the motion pattern library -> TTS voice (gemini/elevenlabs/xai/local/file, cached) -> optional video-use edit step (only on user request) -> deterministic render + QA. LLM (Opus 5.5) only authors new templates/patterns. See docs/decisoes/ADR-0001-visao-plugin.md and docs/esteira.md.",
-  "binary": "bin/simplicio-plugin-videos",
+  "version": "0.2.0",
+  "description": "simplicio-videos: Simplicio Runtime video plugin. Entry point = the `simplicio-video` CLI (Python, pyproject.toml): the LLM writes a simplicio.video-contract/v1 YAML (schema/contract.schema.json) and the CLI validates it, renders/caches the voice (file/local/gemini; elevenlabs/xai stubs) into timing.lock.json and renders deterministically (template composition + motion blocks -> HyperFrames frames -> ffmpeg master -14 LUFS, render.manifest.json with hashes), locally or as a Colab GPU bundle (colab/render.ipynb). Skill for LLMs: skills/simplicio-video/SKILL.md. See docs/decisoes/ADR-0001-visao-plugin.md and ADR-0002-cli-contrato-colab-creditos.md. The 'videos' op command below is the older pipeline proposal (intake/brief/edit ops still run through repo scripts).",
+  "binary": "simplicio-video",
   "protocol": 1,
   "commands": [
+    {
+      "verb": "video.init",
+      "description": "Write a contract skeleton for <cliente> <campanha> from a sector template (TODOs to fill with coleta facts).",
+      "argv": [
+        "simplicio-video",
+        "init",
+        "{cliente}",
+        "{campanha}",
+        "--template",
+        "{template}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cliente",
+          "campanha",
+          "template"
+        ],
+        "properties": {
+          "cliente": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{2,64}$"
+          },
+          "campanha": {
+            "type": "string",
+            "pattern": "^[A-Z0-9][A-Za-z0-9]*(_[A-Za-z0-9]+)*$"
+          },
+          "template": {
+            "type": "string"
+          },
+          "nome": {
+            "type": "string"
+          },
+          "ano": {
+            "type": "integer"
+          },
+          "out": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.validate",
+      "description": "Validate a contract: JSON Schema, assets exist, scene durations sum, every line fits its scene without speed-up.",
+      "argv": [
+        "simplicio-video",
+        "validate",
+        "{contrato}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contrato"
+        ],
+        "properties": {
+          "contrato": {
+            "type": "string",
+            "description": "simplicio.video-contract/v1 YAML (schema/contract.schema.json)"
+          },
+          "need_lock": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.voice",
+      "description": "Render/cache narration lines (file|local|gemini; elevenlabs/xai stubs) and write timing.lock.json with real durations.",
+      "argv": [
+        "simplicio-video",
+        "voice",
+        "{contrato}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contrato"
+        ],
+        "properties": {
+          "contrato": {
+            "type": "string",
+            "description": "simplicio.video-contract/v1 YAML (schema/contract.schema.json)"
+          },
+          "provider": {
+            "enum": [
+              "file",
+              "local",
+              "gemini",
+              "elevenlabs",
+              "xai"
+            ]
+          },
+          "force": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.render",
+      "description": "Compile contract -> HyperFrames composition -> frames -> ffmpeg master; backend local (MP4) or colab (bundle zip for colab/render.ipynb). Writes render.manifest.json.",
+      "argv": [
+        "simplicio-video",
+        "render",
+        "{contrato}",
+        "--backend",
+        "{backend}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contrato"
+        ],
+        "properties": {
+          "contrato": {
+            "type": "string",
+            "description": "simplicio.video-contract/v1 YAML (schema/contract.schema.json)"
+          },
+          "backend": {
+            "enum": [
+              "local",
+              "colab"
+            ],
+            "default": "local"
+          },
+          "out": {
+            "type": "string"
+          },
+          "quality": {
+            "enum": [
+              "draft",
+              "looks",
+              "delivery"
+            ]
+          },
+          "account_id": {
+            "type": "string",
+            "description": "FUTURE (ADR-0002): credit ledger account; ignored today"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.list",
+      "description": "List templates, motion patterns or voice providers.",
+      "argv": [
+        "simplicio-video",
+        "list",
+        "{what}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "what"
+        ],
+        "properties": {
+          "what": {
+            "enum": [
+              "templates",
+              "motion",
+              "voices"
+            ]
+          }
+        }
+      }
+    },
     {
       "verb": "videos",
       "description": "Run the simplicio-videos pipeline steps (proposal): intake, brief, template, compose, voice, edit, check, render, batch; plus catalog lookups for motion patterns, templates and voice providers.",
@@ -127,5 +301,19 @@
     "external:chromium",
     "external:ffmpeg",
     "external:python"
+  ],
+  "entrypoint": {
+    "type": "python-console-script",
+    "command": "simplicio-video",
+    "module": "simplicio_video.cli:main",
+    "install": "pip install -e .  (repo root; Python >= 3.10, Node >= 22, ffmpeg)",
+    "help": "simplicio-video --help"
+  },
+  "contract_schema": "schema/contract.schema.json",
+  "skills": [
+    {
+      "name": "simplicio-video",
+      "path": "skills/simplicio-video/SKILL.md"
+    }
   ]
 }

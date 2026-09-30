@@ -1,5 +1,7 @@
 # Esteira — do pedido ao MP4 (spec como fonte única da verdade)
 
+> **Atualização 30/09/2026 (ADR-0002):** as etapas 3–7 agora rodam pelo CLI `simplicio-video` a partir de um contrato YAML (`schema/contract.schema.json`). Receita atual: [receita-video-cliente.md](receita-video-cliente.md).
+
 Decisão de produto: [ADR-0001](decisoes/ADR-0001-visao-plugin.md). Resumo: o plugin simplicio-videos do Simplicio Runtime recebe "quero um vídeo" e roda sete etapas; **só a criação de templates/padrões novos usa LLM**.
 
 ```
