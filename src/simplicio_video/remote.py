@@ -55,6 +55,16 @@ KAGGLE_DONE = re.compile(r"\bCOMPLETE\b", re.I)
 KAGGLE_FAIL = re.compile(r"\b(ERROR|CANCEL_REQUESTED|CANCEL_ACKNOWLEDGED|CANCELLED|CANCELED|FAILED)\b", re.I)
 
 
+def remote_tools(b: dict, rt: dict) -> dict:
+    """Tool versions of the machine that actually rendered (render_bundle.sh env), not the machine that built the bundle."""
+    env = rt.get("env") or {}
+    t = {**b["tools"], "bundle_built_with": b["tools"]}
+    for k in ("ffmpeg", "node", "chrome"):
+        if env.get(k):
+            t[k] = env[k]
+    return t
+
+
 def kaggle_username(explicit: str | None = None) -> str:
     """KAGGLE_USERNAME, else the `username` field of ~/.kaggle/kaggle.json (the key itself is never read here)."""
     if explicit or os.environ.get("KAGGLE_USERNAME"):
@@ -161,7 +171,7 @@ def render_kaggle(c: Contract, out: Path | None = None, quality: str | None = No
              "remote_total_s": rt.get("total_s"), "wall_s": round(time.time() - t_start, 1), "cache_hit": bool(reuse)}
     return write_manifest(c, dst, backend="kaggle", quality=b["quality"], gpu=bool(rt.get("gpu_encode")),
                           info={"inputs_sha256": b["inputs_sha256"], "files": b["files"]},
-                          timings={"compile_build": b["compile_build_s"], "remote": rt}, tools=b["tools"], usage=usage, log=log)
+                          timings={"compile_build": b["compile_build_s"], "remote": rt}, tools=remote_tools(b, rt), usage=usage, log=log)
 
 
 # ---------------------------------------------------------------- Colab CLI
@@ -199,4 +209,4 @@ def render_colab_cli(c: Contract, out: Path | None = None, quality: str | None =
              "remote_total_s": rt.get("total_s"), "wall_s": round(time.time() - t_start, 1), "cache_hit": False}
     return write_manifest(c, dst, backend="colab-cli", quality=b["quality"], gpu=bool(rt.get("gpu_encode")),
                           info={"inputs_sha256": b["inputs_sha256"], "files": b["files"]},
-                          timings={"compile_build": b["compile_build_s"], "remote": rt}, tools=b["tools"], usage=usage, log=log)
+                          timings={"compile_build": b["compile_build_s"], "remote": rt}, tools=remote_tools(b, rt), usage=usage, log=log)
