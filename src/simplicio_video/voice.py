@@ -24,10 +24,12 @@ DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=340
 FILE_PATTERNS = ["line-{n:02d}.wav", "{id}.wav", "line-{n:02d}.mp3", "line-{n:02d}.m4a"]
 TRIM = ("silenceremove=start_periods=1:start_threshold=-55dB:start_silence=0.06,areverse,"
         "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.10,areverse")
+GEMINI_MODEL = "gemini-3.8-flash-tts"   # cheaper: gemini-3.8-flash-lite-tts (same schema)
+GEMINI_SR = 24000
 PROVIDERS = {
     "file": "WAV/MP3 per line generated elsewhere (Gemini in Google AI Studio). Default dir assets/audio/vo/external, line-01.wav ...",
     "local": "Provisional local TTS: Kokoro-82M (Apache-2.0) via kokoro-onnx; needs SIMPLICIO_TTS_PY with kokoro_onnx + models in ~/.local/share/simplicio-tts",
-    "gemini": "Gemini TTS API (needs GEMINI_API_KEY); also saves the raw take to the file dir so provider=file reproduces it",
+    "gemini": "Gemini TTS API (GEMINI_API_KEY from aistudio.google.com/apikey; free tier ok): model/voice/estilo from the contract, WAV 24 kHz kept in the file dir so provider=file reproduces it",
     "elevenlabs": "stub in v0.2 (generate elsewhere, then use provider=file)",
     "xai": "stub in v0.2 (generate elsewhere, then use provider=file)",
 }
@@ -63,7 +65,10 @@ def settings_for(c: Contract, prov: str) -> dict:
         return {"engine": P.get("engine", "kokoro"), "voice": voice, "speed": P.get("speed", 1.0), "lang": P.get("lang", "pt-br")}
     if prov == "gemini":
         voice = P.get("voice") or (v.get("voice") if v["provider"] == "gemini" else None) or "Sulafat"
-        return {"model": P.get("model", "gemini-3.8-flash-tts"), "voice": voice, "estilo": P.get("estilo") or v.get("estilo", "")}
+        S = {"model": P.get("model", GEMINI_MODEL), "voice": voice, "estilo": P.get("estilo") or v.get("estilo", "")}
+        if P.get("api", "interactions") != "interactions":  # keep the default cache key identical to v0.2
+            S["api"] = P["api"]
+        return S
     return dict(P)
 
 
@@ -88,27 +93,96 @@ def _local(S: dict, text: str, dst: Path) -> None:
     subprocess.run([py, "-c", code, tts_dir, text, S["voice"], str(S["speed"]), S["lang"], str(dst)], check=True)
 
 
-def _gemini(S: dict, text: str, dst: Path) -> None:
+GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+GEMINI_RETRY = (429, 500, 502, 503, 504)
+
+
+def gemini_request(S: dict, text: str) -> tuple[str, dict]:
+    """(url, JSON body) for one single-speaker line. Style goes in speech_metadata (3.8 TTS reads `text` verbatim).
+
+    api=interactions (default, recommended by Google): POST /v1beta/interactions, voice in generation_config.speech_config.
+    api=generate_content (still fully supported): POST /v1beta/models/<model>:generateContent with
+    responseModalities=[AUDIO] + speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName and part-level speech_metadata.
+    Docs: https://ai.google.dev/gemini-api/docs/speech-generation
+    """
+    meta = {"style": S["estilo"]} if S.get("estilo") else {}
+    if S.get("api", "interactions") == "generate_content":
+        part = {"text": text, **({"speech_metadata": meta} if meta else {})}
+        body = {"contents": [{"role": "user", "parts": [part]}],
+                "generationConfig": {"responseModalities": ["AUDIO"],
+                                     "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": S["voice"]}}}}}
+        return f"{GEMINI_BASE}/models/{S['model']}:generateContent", body
+    content = {"type": "text", "text": text}
+    if meta:
+        content["annotations"] = [{"type": "speech_metadata", **meta}]
+    body = {"model": S["model"], "input": [{"type": "user_input", "content": [content]}],
+            "response_format": {"type": "audio", "mime_type": "audio/wav", "sample_rate": GEMINI_SR},
+            "generation_config": {"speech_config": [{"voice": S["voice"]}]}}
+    return f"{GEMINI_BASE}/interactions", body
+
+
+def gemini_audio(res: dict) -> tuple[bytes, str]:
+    """Extract (bytes, mime) of the last audio block from an Interactions or generateContent response."""
+    for st in reversed(res.get("steps") or []):  # Interactions: steps[].content[] {type: audio, data, mime_type}
+        if st.get("type") == "model_output":
+            for c in reversed(st.get("content") or []):
+                if c.get("type") == "audio" and c.get("data"):
+                    return base64.b64decode(c["data"]), c.get("mime_type", "audio/wav")
+    oa = res.get("output_audio") or {}
+    if oa.get("data"):
+        return base64.b64decode(oa["data"]), oa.get("mime_type", "audio/wav")
+    for cand in res.get("candidates") or []:  # generateContent: candidates[].content.parts[].inlineData
+        for part in reversed((cand.get("content") or {}).get("parts") or []):
+            d = part.get("inlineData") or part.get("inline_data")
+            if d and d.get("data"):
+                return base64.b64decode(d["data"]), d.get("mimeType") or d.get("mime_type") or "audio/L16;rate=24000"
+    raise VoiceError(f"provider=gemini: no audio in response (keys: {sorted(res)})")
+
+
+def to_wav(data: bytes, mime: str = "") -> bytes:
+    """Unary 3.8 TTS already returns WAV (RIFF); older models / generateContent return raw 16-bit mono PCM (24 kHz)."""
+    if data[:4] == b"RIFF":
+        return data
+    import re
+    import struct
+    m = re.search(r"rate=(\d+)", mime or "")
+    sr = int(m.group(1)) if m else GEMINI_SR
+    return b"RIFF" + struct.pack("<I4s4sIHHIIHH4sI", 36 + len(data), b"WAVE", b"fmt ", 16, 1, 1, sr, sr * 2, 2, 16,
+                                 b"data", len(data)) + data
+
+
+def _gemini(S: dict, text: str, dst: Path, retries: int = 4) -> dict:
+    """Generate one line with the Gemini TTS API and write a WAV (24 kHz mono 16-bit) to dst. Returns request info."""
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
-        raise VoiceError("provider=gemini: GEMINI_API_KEY not set. Export it (aistudio.google.com -> Get API key) or generate the "
-                         "lines in Google AI Studio and use --provider file (assets/audio/vo/external/line-NN.wav).")
-    body = {"model": S["model"],
-            "input": [{"type": "user_input", "content": [{"type": "text", "text": text,
-                       "annotations": [{"type": "speech_metadata", "style": S["estilo"]}]}]}],
-            "response_format": {"type": "audio"}, "generation_config": {"speech_config": [{"voice": S["voice"]}]}}
-    req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/interactions", data=json.dumps(body).encode(),
-                                 headers={"x-goog-api-key": key, "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=180) as r:
-        res = json.loads(r.read())
-    audio = [c for st in res.get("steps", []) if st.get("type") == "model_output" for c in st.get("content", []) if c.get("type") == "audio"]
-    if not audio:
-        raise VoiceError("provider=gemini: no audio in response")
-    pcm = base64.b64decode(audio[-1]["data"])
-    if pcm[:4] != b"RIFF":  # raw 16-bit mono 24 kHz
-        import struct
-        pcm = b"RIFF" + struct.pack("<I4s4sIHHIIHH4sI", 36 + len(pcm), b"WAVE", b"fmt ", 16, 1, 1, 24000, 48000, 2, 16, b"data", len(pcm)) + pcm
-    dst.write_bytes(pcm)
+        raise VoiceError("provider=gemini: GEMINI_API_KEY not set. Create a key at https://aistudio.google.com/apikey (free tier "
+                         "works; Google AI Pro does NOT include API quota), export it, or generate the lines in Google AI "
+                         "Studio and use --provider file (assets/audio/vo/external/line-NN.wav).")
+    import time
+    import urllib.error
+    url, body = gemini_request(S, text)
+    data = json.dumps(body).encode()
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(url, data=data, method="POST",
+                                     headers={"x-goog-api-key": key, "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=180) as r:
+                res = json.loads(r.read())
+            break
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf8", "replace")[:800] if hasattr(e, "read") else ""
+            if e.code in GEMINI_RETRY and attempt < retries:
+                wait = float((e.headers or {}).get("Retry-After") or 2 ** (attempt + 1))
+                time.sleep(min(wait, 60))
+                continue
+            hint = " (free-tier rate limit/quota: wait, or enable billing on the AI Studio project)" if e.code == 429 else ""
+            raise VoiceError(f"provider=gemini: HTTP {e.code} from {url}{hint}\n{detail}") from None
+    audio, mime = gemini_audio(res)
+    wav = to_wav(audio, mime)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_bytes(wav)
+    return {"api": S.get("api", "interactions"), "model": S["model"], "voice": S["voice"], "mime": mime, "chars": len(text),
+            "usage": res.get("usage") or res.get("usageMetadata")}
 
 
 def run(c: Contract, provider: str | None = None, force: bool = False, only: list[str] | None = None, log=print) -> dict:
@@ -127,7 +201,10 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
     prev_path = c.dir / "timing.lock.json"
     prev = json.loads(prev_path.read_text(encoding="utf8")).get("lines", {}) if prev_path.is_file() else {}
     lang = (v.get("idioma") or "pt-BR").split("-")[0]
+    fdir = c.rel(settings_for(c, "file")["dir"])
+    tts_chars = 0
     for idx, line in enumerate(lines):
+        gen = None
         say = line.get("say", line["texto"])
         src = _file_source(c, S, idx, line) if prov == "file" else None
         ident = [prov, S, chain, say] + ([sha256_file(src)] if src else [])
@@ -143,10 +220,9 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
                 elif prov == "local":
                     _local(S, say, raw)
                 else:  # gemini: keep the raw take next to the AI Studio files so provider=file reproduces it
-                    fdir = c.rel(settings_for(c, "file")["dir"])
-                    fdir.mkdir(parents=True, exist_ok=True)
                     keep = fdir / f"line-{idx + 1:02d}.wav"
-                    _gemini(S, say, keep)
+                    gen = _gemini(S, say, keep)
+                    tts_chars += len(say)
                     sh("ffmpeg", "-y", "-v", "error", "-i", str(keep), "-ac", "1", "-ar", "48000", str(raw))
                 sh("ffmpeg", "-y", "-v", "error", "-i", str(raw), "-af", TRIM, str(cut))
                 sh("ffmpeg", "-y", "-v", "error", "-i", str(cut), "-af", chain + ",aresample=48000", "-ac", "1",
@@ -166,14 +242,19 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
             wl, wsrc = wordsmod.align(final, line["texto"], dur, lang)
         lock_lines[line["id"]] = {"file": rel, "sha256": digest, "dur_s": dur, "t": line["t"], "max_s": line["max_s"],
                                   "scene": line["scene"], "text": line["texto"], "say": say,
-                                  "source": os.path.relpath(src, c.dir) if src else None,
+                                  "source": os.path.relpath(src, c.dir) if src else (
+                                      os.path.relpath(fdir / f"line-{idx + 1:02d}.wav", c.dir) if prov == "gemini" else None),
                                   "fits": dur <= line["max_s"] + 1e-6, "slack_s": r4(line["max_s"] - dur),
                                   "words": wl, "words_source": wsrc}
+        if prov == "gemini":
+            lock_lines[line["id"]]["tts"] = gen or (old.get("tts") if old.get("sha256") == digest else None)
         log(f"{line['id']} {status:8s} {dur:.2f}s / {line['max_s']}s  {line['texto']}")
         if dur > line["max_s"] + 1e-6:
             over.append(f"{line['id']}: {dur:.3f}s > max_s {line['max_s']}s")
     lock = {"schema": "simplicio.timing-lock/v1", "provider": prov, "settings": S, "processing": chain,
             "cache_dir": v.get("cache_dir", "assets/audio/voz"), "lines": lock_lines}
+    if prov in ("gemini", "elevenlabs", "xai"):  # metering for credits (ADR-0002): only lines synthesized in this run
+        lock["usage"] = {"tts_chars_this_run": tts_chars}
     (c.dir / "timing.lock.json").write_text(json.dumps(lock, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     log(f"voice: {prov} -> {os.path.relpath(c.dir / 'timing.lock.json')}")
     if over:

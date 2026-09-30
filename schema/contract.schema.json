@@ -101,7 +101,7 @@
           "properties": {
             "file": { "type": "object", "properties": { "dir": { "type": "string" }, "padroes": { "type": "array", "items": { "type": "string" } }, "origem": { "type": "string" } } },
             "local": { "type": "object", "properties": { "engine": { "enum": ["kokoro"] }, "voice": { "type": "string" }, "speed": { "type": "number" }, "lang": { "type": "string" } } },
-            "gemini": { "type": "object", "properties": { "model": { "type": "string" }, "voice": { "type": "string" }, "alternativas": { "type": "array", "items": { "type": "string" } }, "estilo": { "type": "string" } } },
+            "gemini": { "type": "object", "properties": { "model": { "type": "string", "description": "gemini-3.8-flash-tts (default) or gemini-3.8-flash-lite-tts (cheaper, same schema)" }, "voice": { "type": "string" }, "alternativas": { "type": "array", "items": { "type": "string" } }, "estilo": { "type": "string" }, "api": { "enum": ["interactions", "generate_content"], "default": "interactions", "description": "Gemini Interactions API (default) or generateContent with responseModalities AUDIO" } } },
             "elevenlabs": { "type": "object" },
             "xai": { "type": "object" }
           }
