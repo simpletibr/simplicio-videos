@@ -11,7 +11,7 @@
   Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="kinetic-words"].
   Origin: authored for the kids/dental template v2 (Lothus Odontologia, Dia das Criancas 2026, fast/beat-synced cut).
 -->
-<html lang="pt-BR" data-composition-id="kinetic-words" data-composition-duration="4.0" data-composition-variables='[{"id": "lines", "type": "string", "label": "Linhas (| quebra linha; as palavras seguem a ordem da fala)", "default": "Feliz|Dia das|Crianças!", "maxLength": 80}, {"id": "times", "type": "string", "label": "Início de cada palavra (s no bloco, |)", "default": "0.2|0.5|0.7|0.9", "maxLength": 200}, {"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "ink", "type": "color", "label": "Contorno/sombra", "default": "#3d3834"}, {"id": "size", "type": "number", "label": "Tamanho máx. da fonte (px)", "default": 160}, {"id": "y", "type": "number", "label": "Topo do bloco (px)", "default": 300}, {"id": "maxw", "type": "number", "label": "Largura útil (px)", "default": 980}, {"id": "exit", "type": "number", "label": "Saída em pop (s antes do fim do bloco; 0 = sem saída)", "default": 0.18}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "seed", "type": "number", "label": "Semente", "default": 21}]'>
+<html lang="pt-BR" data-composition-id="kinetic-words" data-composition-duration="4.0" data-composition-variables='[{"id": "lines", "type": "string", "label": "Linhas (| quebra linha; as palavras seguem a ordem da fala)", "default": "Feliz|Dia das|Crianças!", "maxLength": 80}, {"id": "times", "type": "string", "label": "Início de cada palavra (s no bloco, |)", "default": "0.2|0.5|0.7|0.9", "maxLength": 200}, {"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "ink", "type": "color", "label": "Contorno/sombra", "default": "#3d3834"}, {"id": "size", "type": "number", "label": "Tamanho máx. da fonte (px)", "default": 160}, {"id": "y", "type": "number", "label": "Topo do bloco (px)", "default": 300}, {"id": "maxw", "type": "number", "label": "Largura útil (px)", "default": 980}, {"id": "exit", "type": "number", "label": "Saída em pop (s antes do fim do bloco; 0 = sem saída)", "default": 0.18}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "mode", "type": "string", "label": "Estilo: bounce (festivo: estica/amassa/treme) | calm (sóbrio: sobe por máscara, sem tremer; institucional/advocacia)", "default": "bounce"}, {"id": "font", "type": "string", "label": "Fonte (Fredoka | Inter | Anton)", "default": "Fredoka"}, {"id": "seed", "type": "number", "label": "Semente", "default": 21}]'>
   <head>
     <meta charset="UTF-8" />
     <title>Tipografia cinética palavra a palavra (sincronizada com a fala)</title>
@@ -35,7 +35,7 @@
         <script>
           (() => {
             // ---- params: block defaults < host data-variable-values < CLI --variables ----
-            const DEF = {"lines": "Feliz|Dia das|Crianças!", "times": "0.2|0.5|0.7|0.9", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "ink": "#3d3834", "size": 160, "y": 300, "maxw": 980, "exit": 0.18, "dur": 4.0, "seed": 21};
+            const DEF = {"lines": "Feliz|Dia das|Crianças!", "times": "0.2|0.5|0.7|0.9", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "ink": "#3d3834", "size": 160, "y": 300, "maxw": 980, "exit": 0.18, "dur": 4.0, "mode": "bounce", "font": "Fredoka", "seed": 21};
             const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
             const V = Object.assign({}, DEF, HV);
             const root = document.getElementById("kinetic-words-root");
@@ -60,6 +60,15 @@
             const T = list(V.times).map(Number);
             const last = T.length ? T[T.length - 1] : 0.2;
             words.forEach((w, i) => { if (T[i] === undefined) T[i] = last + (i - T.length + 1) * 0.22; });
+            const calm = V.mode === "calm";
+            if (V.font && V.font !== "Fredoka") box.style.fontFamily = `"${V.font}", sans-serif`;
+            if (calm) { // sober: same word timing, no stretch/squash/shake; words rise in and stay, soft float, fade out
+              box.style.fontWeight = "700"; box.style.letterSpacing = "-0.01em";
+              words.forEach((w, i) => { w.style.color = pal[i % pal.length]; w.style.textShadow = `0 ${Math.round(fs * 0.04)}px ${Math.round(fs * 0.12)}px ${V.ink}22`;
+                tl.fromTo(w, { y: fs * 0.35, opacity: 0 }, { y: 0, opacity: 1, duration: 0.2, ease: "power3.out" }, Math.max(0, T[i] - 0.04)); });
+              tl.fromTo(box, { y: 0 }, { y: -6, duration: Math.max(0.5, V.dur / 2), yoyo: true, repeat: 1, ease: "sine.inOut" }, 0);
+              if (V.exit > 0) tl.to(words, { opacity: 0, y: -fs * 0.15, duration: 0.14, ease: "power2.in" }, V.dur - V.exit);
+            } else {
             words.forEach((w, i) => {
               w.style.color = pal[i % pal.length]; w.style.webkitTextStroke = `${Math.max(3, Math.round(fs / 26))}px ${V.ink}`;
               w.style.textShadow = `0 ${Math.round(fs * 0.07)}px 0 ${V.ink}33`;
@@ -75,6 +84,7 @@
             tl.to(box, { x: 14, duration: 0.04, yoyo: true, repeat: 5, ease: "none" }, lastT + 0.14);
             tl.fromTo(box, { y: 0 }, { y: -18, duration: Math.max(0.5, V.dur / 3), yoyo: true, repeat: 2, ease: "sine.inOut" }, 0);
             if (V.exit > 0) words.forEach((w, i) => tl.to(w, { scale: 0, rotation: (R() - 0.5) * 40, duration: 0.14, ease: "back.in(2.5)" }, V.dur - V.exit + (i % 6) * 0.012));
+            }
             tl.set({}, {}, V.dur);
             tl.seek(0);
             window.__timelines = window.__timelines || {};

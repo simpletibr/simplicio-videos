@@ -2,7 +2,7 @@
 # Coreografia = Lothus Odontologia v02 (clients/lothus-odontologia/video-01-dia-das-criancas). O prospect troca só: cliente/campanha/drive,
 # s2-main/s3-main (padrão + params por setor, setores.json), falas vo3/vo4 e textos das kinetic-words, lockup (nome, sub, @, cidade, accent)
 # e o logo REAL (site ou Instagram da empresa, nunca recriado; sem logo = lockup de texto). Padrão v2 (piloto All Prime, 30/09/2026):
-# voz Gemini 3.8 Flash TTS Puck, leva animada; trilha festiva 128 BPM idêntica à da Lothus v02. Nada de preço, promoção ou fato inventado.
+# voz Gemini 3.8 Flash TTS Laomedeia (a mesma da Lothus v02), leva animada; trilha festiva 128 BPM idêntica à da Lothus v02. Nada de preço, promoção ou fato inventado.
 schema: simplicio.video-contract/v1
 cliente:
   slug: exemplo-empresa
@@ -548,9 +548,8 @@ cenas:
     gain_db: -13
 voz:
   provider: gemini
-  voice: Puck
-  estilo: 'Locutor brasileiro animado de festa infantil: energia alta, sorrindo, vibrante e expressivo, ritmo rápido e dinâmico,
-    entonação que sobe no fim das frases, português do Brasil, sem gritar e sem voz infantilizada.'
+  voice: Laomedeia
+  estilo: 'Voz feminina brasileira bem animada, de festa infantil: sorrindo, energia alta, vibrante e calorosa, ritmo rápido, português do Brasil, sem gritar e sem voz infantilizada.'
   idioma: pt-BR
   processamento: highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,equalizer=f=9000:t=q:w=1:g=1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=140:makeup=2:knee=4,aecho=1.0:1.0:19|31|47:0.09|0.06|0.04
   gain_db: 1.5
@@ -566,12 +565,13 @@ voz:
       lang: pt-br
     file:
       dir: assets/audio/vo/external
-      origem: Gemini 3.8 Flash TTS, voz Puck, leva animada (API ou Google AI Studio), uma fala por arquivo line-01..04.wav
+      origem: Gemini 3.8 Flash TTS, voz Laomedeia (fallback Achernar), leva animada (API ou Google AI Studio), uma fala por arquivo line-01..04.wav
     gemini:
       model: gemini-3.8-flash-tts
-      voice: Puck
-      estilo: 'Locutor brasileiro animado de festa infantil: energia alta, sorrindo, vibrante e expressivo, ritmo rápido e dinâmico,
-        entonação que sobe no fim das frases, português do Brasil, sem gritar e sem voz infantilizada.'
+      voice: Laomedeia
+      alternativas:
+      - Achernar
+      estilo: 'Voz feminina brasileira bem animada, de festa infantil: sorrindo, energia alta, vibrante e calorosa, ritmo rápido, português do Brasil, sem gritar e sem voz infantilizada.'
 trilha:
   bpm: 128
   seed: 20261012

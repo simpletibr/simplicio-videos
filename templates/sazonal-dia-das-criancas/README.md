@@ -8,7 +8,7 @@ generalizada para qualquer empresa com público de pais e crianças. Usada por `
 | Arquivo | O que é |
 |---|---|
 | `composition/index.template.html` | composição; o bloco principal de s2/s3 vem do contrato via `{{padrao:s2-main}}` / `{{padrao:s3-main}}` |
-| `contract.base.yaml` | contrato-base (cenas, SFX, trilha festiva 128 BPM idêntica à da Lothus v02, voz Gemini 3.8 Flash TTS **Puck** animada = padrão v2) que o prospect preenche |
+| `contract.base.yaml` | contrato-base (cenas, SFX, trilha festiva 128 BPM idêntica à da Lothus v02, voz Gemini 3.8 Flash TTS **Laomedeia** animada = padrão v2, a mesma da Lothus v02; reserva Achernar) que o prospect preenche |
 | `setores.json` | regras setor → modelos (regex determinístico) e os textos por setor, sem preço/promoção/fato |
 
 | Cena | Papel | Duração | Conteúdo |
@@ -22,5 +22,5 @@ Setores: odontologia, pediatria, escola (escola infantil, berçário, cursos), b
 moda infantil e `geral` (sem regra casada). Nunca recria o logo: só entra o arquivo real (coluna `logo` do CSV, logo do site ou
 avatar do Instagram quando o robots.txt permitir), convertido para `coleta/logo.png`; sem ele, lockup de texto.
 
-**Padrão v2** (30/09/2026, piloto All Prime Odontologia): voz Puck animada + logo real + ritmo/confete/palavra a palavra da Lothus v02.
+**Padrão v2** (30/09/2026, piloto All Prime Odontologia): voz Laomedeia animada (a da Lothus v02) + logo real + ritmo/confete/palavra a palavra da Lothus v02.
 A prévia registra `padrao` no `result.json`; o `prospect` refaz prévias de padrão antigo (guardando `preview.v1.mp4`).

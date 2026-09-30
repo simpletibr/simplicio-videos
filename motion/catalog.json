@@ -1,8 +1,8 @@
 {
   "schema": "simplicio.motion-catalog/v1",
-  "count": 51,
+  "count": 52,
   "by_status": {
-    "pronto": 29,
+    "pronto": 30,
     "lib": 1,
     "inline": 2,
     "proposto": 19
@@ -53,6 +53,38 @@
       "block": "patterns/odometer-digit-roll/block.html",
       "preview": "patterns/odometer-digit-roll/preview.png",
       "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/data/odometer-digit-roll.md"
+    },
+    {
+      "id": "line-accent",
+      "title": "Ornamento de linhas finas (sóbrio)",
+      "status": "pronto",
+      "category": "decoração",
+      "tags": [
+        "sóbrio",
+        "institucional",
+        "linha",
+        "moldura",
+        "advocacia",
+        "estética"
+      ],
+      "duration_s": 4,
+      "params": [
+        "color",
+        "ink",
+        "y",
+        "width",
+        "corners",
+        "top",
+        "bottom",
+        "glow",
+        "t_in",
+        "dur",
+        "bpm",
+        "seed"
+      ],
+      "block": "patterns/line-accent/block.html",
+      "preview": "patterns/line-accent/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
     },
     {
       "id": "balloons-confetti",
@@ -321,12 +353,15 @@
         "logo",
         "logo_round",
         "logo_size",
+        "logo_bg",
         "ink",
         "accent",
         "colors",
         "dur",
         "bpm",
         "bg",
+        "tag_font",
+        "dots",
         "seed"
       ],
       "block": "patterns/brand-lockup-soft/block.html",
@@ -579,6 +614,8 @@
         "maxw",
         "exit",
         "dur",
+        "mode",
+        "font",
         "seed"
       ],
       "block": "patterns/kinetic-words/block.html",

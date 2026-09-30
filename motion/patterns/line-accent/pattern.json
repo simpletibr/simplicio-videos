@@ -1,0 +1,108 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "line-accent",
+  "title": "Ornamento de linhas finas (sóbrio)",
+  "description": "Linha fina que se desenha do centro para fora com um losango no meio, cantoneiras que emolduram o texto, brilho de fundo bem suave e um reflexo que corre pela linha. Sem confete, sem rosto, sem tremida: dá movimento contínuo e elegância a vídeos institucionais (advocacia, estética, clínicas).",
+  "status": "pronto",
+  "duration_s": 4.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "color",
+      "type": "color",
+      "label": "Cor das linhas (ex.: dourado/azul da marca)",
+      "default": "#b08d57"
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Cor do brilho de fundo",
+      "default": "#1f2a44"
+    },
+    {
+      "id": "y",
+      "type": "number",
+      "label": "Altura da linha central (px)",
+      "default": 1180
+    },
+    {
+      "id": "width",
+      "type": "number",
+      "label": "Largura da linha central (px)",
+      "default": 620
+    },
+    {
+      "id": "corners",
+      "type": "number",
+      "label": "Cantoneiras em volta do texto (1 = sim, 0 = não)",
+      "default": 1
+    },
+    {
+      "id": "top",
+      "type": "number",
+      "label": "Topo da moldura das cantoneiras (px)",
+      "default": 150
+    },
+    {
+      "id": "bottom",
+      "type": "number",
+      "label": "Base da moldura das cantoneiras (px)",
+      "default": 1000
+    },
+    {
+      "id": "glow",
+      "type": "number",
+      "label": "Brilho suave de fundo + reflexo na linha (1 = sim, 0 = não)",
+      "default": 1
+    },
+    {
+      "id": "t_in",
+      "type": "number",
+      "label": "Início do desenho (s)",
+      "default": 0.1
+    },
+    {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s) = data-duration do host",
+      "default": 4.0
+    },
+    {
+      "id": "bpm",
+      "type": "number",
+      "label": "BPM: o losango respira nas batidas (0 = não)",
+      "default": 0
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 5
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "decoração",
+  "tags": [
+    "sóbrio",
+    "institucional",
+    "linha",
+    "moldura",
+    "advocacia",
+    "estética"
+  ],
+  "use_when": "Cena institucional que precisa de movimento discreto sob/ao redor do texto palavra a palavra (tom sóbrio: advocacia; elegante: estética). Troca o mascote/confete dos templates festivos.",
+  "voice_sync": "t_in logo depois do corte; bpm = trilha.bpm só se quiser a respiração do losango na batida.",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para os templates institucionais do simplicio-video prospect (30/09/2026); gramática de motion 'um elemento, movimento contínuo, nada parado' do motion-video-kit",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 1.6
+}

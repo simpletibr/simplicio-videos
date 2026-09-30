@@ -137,7 +137,7 @@ def test_contract_is_valid_deterministic_and_has_no_invented_facts(tmp_path):
     assert blocks["s2-main"]["padrao"] == "icon-mascot" and blocks["s2-main"]["params"]["icon"] == "gift"
     assert blocks["s4-lockup"]["params"]["handle"] == "@brincamais.gru" and blocks["s4-lockup"]["params"]["city"] == "Guarulhos · SP"
     assert d1["cenas"][3]["fala"]["texto"] == "Com carinho, Brinca Mais."
-    assert d1["voz"]["provider"] == "gemini" and d1["voz"]["providers"]["gemini"]["voice"] == "Puck"  # standard v2
+    assert d1["voz"]["provider"] == "gemini" and d1["voz"]["providers"]["gemini"]["voice"] == "Laomedeia"  # standard v2 = Lothus v02 voice
     assert m1["padrao"] == P.PADRAO and m1["logo"] is None and blocks["s4-lockup"]["params"]["logo"] == ""  # no real logo -> text
     txt = yaml.safe_dump(d1, allow_unicode=True).lower()
     for bad in ("r$", "promo", "desconto", "grátis", "gratis", "%"):
@@ -225,13 +225,17 @@ def _png(tmp_path, w=240, h=240, name="logo-src.png"):
     return out.read_bytes()
 
 
-def test_standard_v2_is_the_default_lothus_pacing_puck_voice_same_track():
+def test_standard_v2_is_the_default_lothus_pacing_laomedeia_voice_same_track():
     base = yaml.safe_load((ROOT / "templates/sazonal-dia-das-criancas/contract.base.yaml").read_text(encoding="utf8"))
     lothus = yaml.safe_load((ROOT / "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml").read_text(encoding="utf8"))
     v = base["voz"]
-    assert P.DEFAULT_PROVIDER == "gemini" and v["provider"] == "gemini" and v["voice"] == "Puck"
-    assert v["providers"]["gemini"] == {**v["providers"]["gemini"], "model": "gemini-3.8-flash-tts", "voice": "Puck"}
-    assert "animado" in v["providers"]["gemini"]["estilo"] and "energia alta" in v["providers"]["gemini"]["estilo"]
+    assert P.DEFAULT_PROVIDER == "gemini" and v["provider"] == "gemini" and v["voice"] == "Laomedeia"
+    assert v["providers"]["gemini"] == {**v["providers"]["gemini"], "model": "gemini-3.8-flash-tts", "voice": "Laomedeia"}
+    festa = ("Voz feminina brasileira bem animada, de festa infantil: sorrindo, energia alta, vibrante e calorosa, ritmo rápido, "
+             "português do Brasil, sem gritar e sem voz infantilizada.")
+    assert v["estilo"] == v["providers"]["gemini"]["estilo"] == festa  # style prompt requested by Wesley (30/09/2026)
+    assert v["voice"] == lothus["voz"]["voice"] == lothus["voz"]["providers"]["gemini"]["voice"]  # exactly the Lothus v02 voice
+    assert "Achernar" in v["providers"]["gemini"]["alternativas"] and "Achernar" in lothus["voz"]["providers"]["gemini"]["alternativas"]
     assert base["trilha"] == lothus["trilha"]  # same festive 128 BPM track as Lothus v02
     motion = [m for s in base["cenas"] for m in s["motion"]]
     fx = [m for m in motion if m["padrao"] == "fx-transition"]
@@ -295,7 +299,7 @@ def test_logo_from_csv_column_hand_picked_from_instagram(tmp_path):
     assert lp["logo_round"] == 1 and lp["logo"] == "assets/client/logo.png" and lp["logo_size"] == 440
 
 
-def test_voice_waits_for_puck_takes_without_api_key(tmp_path, monkeypatch):
+def test_voice_waits_for_laomedeia_takes_without_api_key(tmp_path, monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     pdir = tmp_path / "x"
     pdir.mkdir()
@@ -320,7 +324,7 @@ def test_waiting_row_writes_the_exact_lines_and_only_touches_selected_rows(tmp_p
                     log=lambda *_: None)
     assert s["aguardando_voz"] == 1 and s["erros"] == 0 and s["padrao"] == P.PADRAO
     sheet = (tmp_path / "lote" / "sorriso-kids" / "falas-gemini.md").read_text(encoding="utf8")
-    assert "Puck" in sheet and "gemini-3.8-flash-tts" in sheet and "Com carinho, Sorriso Kids." in sheet and "line-04.wav" in sheet
+    assert "Laomedeia" in sheet and "Achernar" in sheet and "gemini-3.8-flash-tts" in sheet and "Com carinho, Sorriso Kids." in sheet and "line-04.wav" in sheet
     assert not (tmp_path / "lote" / "outra-loja").exists()  # --only: the other company is not touched
     rows = list(csv.DictReader(open(tmp_path / "lote" / "lote.csv", encoding="utf8")))
     assert [r["status"] for r in rows] == ["aguardando_voz", "nao_processado"]

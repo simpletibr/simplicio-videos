@@ -13,13 +13,14 @@ simplicio-video prospect lista.csv --lote dia-criancas --only <slug>       # ref
 simplicio-video render prospects/dia-criancas/<slug>/contract.yaml --preview   # refaz uma prévia
 ```
 
-**Padrão atual: v2** (definido no piloto All Prime Odontologia, 30/09/2026) — voz **Gemini 3.8 Flash TTS, Puck, leva animada**;
+**Padrão atual: v2** (definido no piloto All Prime Odontologia, 30/09/2026) — voz **Gemini 3.8 Flash TTS, Laomedeia, leva animada** (exatamente a voz da Lothus v02; reserva: Achernar);
 **logo real** da empresa no anel da assinatura; ritmo da Lothus v02 (cortes na batida de 128 BPM, transições de 6–10 frames,
 confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha festiva** da Lothus v02 (`trilha` idêntica, semente
 `20261012`). O `result.json` grava `padrao`; prévia de padrão antigo é guardada como `preview.v1.mp4` e refeita.
 
 1. **CSV** (UTF-8 com cabeçalho; só `nome` é obrigatório):
-   `nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes, logo, logo_fonte`. `nome_curto` é o nome da marca
+   `nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes, logo, logo_fonte` (+ opcionais `logo_url` = apelido
+   de `logo`, `oab` = inscrição REAL na OAB para advocacia, `template`/`campanha` = força o template da linha). `nome_curto` é o nome da marca
    no lockup e na fala ("Clínica Prata", "Pik Total"); `fontes` diz onde cada dado foi achado (busca web, site, página do shopping);
    `logo` = caminho (relativo ao CSV) ou URL do **logo real** tirado à mão do site ou do Instagram da própria empresa e
    `logo_fonte` = a página de onde veio (ex.: foto de perfil pública do Instagram quando o site está fora do ar).
@@ -34,9 +35,24 @@ confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha fe
      automatizada sem autorização por escrito, então hoje o CLI **não baixa nada do Instagram**: registra
      `nao_coletado: robots.txt…` e segue. O @ vem do CSV (busca web, com fonte) ou do link publicado no site;
    - Maps: só a URL do CSV (sem scraping).
-3. **Setor → modelo**: regex de [`templates/sazonal-dia-das-criancas/setores.json`](../templates/sazonal-dia-das-criancas/setores.json)
-   aplicados à coluna `setor` (sem acento, minúsculas); sem casar, ao título/descrição do site; senão `geral`. Setores:
-   odontologia, pediatria, escola (berçário, cursos), brinquedos, festas (buffet, parque), games, moda infantil.
+3. **Setor → template → modelo**. Primeiro [`templates/prospect-roteamento.json`](../templates/prospect-roteamento.json) escolhe o
+   template pela coluna `setor` (sem acento, minúsculas; sem casar, título/descrição do site), conforme `--campanha`:
+
+   | Setor (regex) | `auto` (padrão) | `dia-das-criancas` | `institucional` |
+   |---|---|---|---|
+   | odontologia (`odonto`, `dent`, `ortodon`, `sorriso`, `implant`) | `sazonal-dia-das-criancas` | sazonal | `institucional-odontologia` |
+   | advocacia (`advoca`, `advogad`, `juridic`, `direito`, `law`) | `institucional-advocacia` | **institucional-advocacia** (nunca festivo) | `institucional-advocacia` |
+   | estética (`estetic`, `beleza`, `harmoniza`, `depila`, `spa`, `micropig`, `sobrancelha`, `cilios`, `laser`) | `institucional-estetica` | sazonal | `institucional-estetica` |
+   | infantil (`pediatr`, `infantil`, `crianc`, `kids`, `escola`, `buffet`, `brinquedo`, `festa`, `game`…) | `sazonal-dia-das-criancas` | sazonal | erro (sem template) |
+   | outros / sem setor | `sazonal-dia-das-criancas` | sazonal | erro |
+
+   Depois, o `setores.json` do template escolhido dá o modelo do setor (blocos de s2/s3, frase da s3, subtítulo do lockup).
+   Setores do sazonal: odontologia, pediatria, escola (berçário, cursos), brinquedos, festas (buffet, parque), games, moda infantil.
+   **Templates institucionais** (mesmo padrão v2: voz Laomedeia, logo real, ritmo Lothus; sem confete):
+   [`institucional-odontologia`](../templates/institucional-odontologia/) (fora de data comemorativa, mascote dente, 128 BPM),
+   [`institucional-estetica`](../templates/institucional-estetica/) (elegante, ornamento `line-accent`, 128 BPM) e
+   [`institucional-advocacia`](../templates/institucional-advocacia/) (sóbrio, OAB Provimento 205/2021, 96 BPM, sem percussão;
+   **exige a coluna `oab`**: sem ela a linha fica `aguardando_oab`, com contrato e `falas-gemini.md`, mas sem render).
 4. **Contrato** (`contract.yaml`): [`contract.base.yaml`](../templates/sazonal-dia-das-criancas/contract.base.yaml) (a
    coreografia da Lothus v02: 16 s, 128 BPM, cortes na batida, `fx-transition`, confete, `kinetic-words` palavra a palavra
    no tempo da fala) + o modelo do setor (mascote `tooth-character`/`icon-mascot`, frase da s3) + os dados reais: nome,
@@ -46,11 +62,13 @@ confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha fe
    ou `apple-touch-icon`) > avatar do Instagram (só se o robots.txt permitir, hoje nunca). Vira `coleta/logo.png` (só conversão
    de formato, mínimo 64 px) e entra no anel do `brand-lockup-soft` (redondo 440 px se for quase quadrado; 330 px sem cortar se
    for largo). Origem, URL e página ficam em `coleta.json → logo` e em `lote.csv` (`logo`, `logo_fonte`). Sem logo real = lockup de texto.
-5. **Voz (padrão v2)**: Gemini 3.8 Flash TTS, voz **Puck**, estilo animado ("locutor brasileiro animado de festa infantil:
-   energia alta, sorrindo…"). Com `GEMINI_API_KEY` o CLI gera pela API (e guarda os WAVs em `assets/audio/vo/external/`);
+5. **Voz (padrão v2)** — institucionais usam a mesma Laomedeia com estilo do setor (advocacia: sóbria e calma): Gemini 3.8 Flash TTS, voz **Laomedeia** (reserva Achernar, como na Lothus), estilo "Voz feminina brasileira bem animada, de festa infantil:
+   sorrindo, energia alta, vibrante e calorosa, ritmo rápido, português do Brasil, sem gritar e sem voz infantilizada.". Com `GEMINI_API_KEY` o CLI gera pela API (e guarda os WAVs em `assets/audio/vo/external/`);
    sem chave, usa as falas do Google AI Studio já salvas em `<slug>/assets/audio/vo/external/line-01..04.wav` (provider
    `file`); sem nenhuma das duas, a linha fica `aguardando_voz` e o CLI escreve `<slug>/falas-gemini.md` com o texto exato de
-   cada fala, voz, estilo e duração máxima. `--provider local` (Kokoro `pf_dora`, custo 0) é só rascunho, fora do padrão.
+   cada fala, voz, estilo e duração máxima (`--so-contrato` também escreve, sem voz nem render). Procedência das falas:
+   `assets/audio/vo/external/ORIGEM.txt` (voz, modelo, conta do AI Studio, data) vai para `voz.providers.file.origem` do
+   contrato e para `assets/audio/LICENSES.md` da prévia. `--provider local` (Kokoro `pf_dora`, custo 0) é só rascunho, fora do padrão.
    Se uma fala estourar o slot, o CLI troca para a variante mais curta (frase curta do setor; nome curto; primeiro nome
    da marca), em ordem fixa (com a API; com falas fixas do AI Studio, gere uma leva mais curta). Nunca acelera a voz.
 6. **Prévia** (`render --preview`): render local `draft` → pós-processo ffmpeg determinístico: 540x960, 30 fps, x264
@@ -87,7 +105,7 @@ Prévias, coletas e relatórios ficam **fora do git** (`prospects/*` no `.gitign
 | Item | Custo |
 |---|---|
 | Coleta (1 página + robots + CSS) | R$ 0 |
-| Voz `gemini` Puck (padrão v2; 4 falas ≈ 130 caracteres) | ≈ US$ 0,003 (≈ R$ 0,02) pela API; R$ 0 no AI Studio/tier grátis, ver [custos.md](custos.md) |
+| Voz `gemini` Laomedeia (padrão v2; 4 falas ≈ 130 caracteres) | ≈ US$ 0,003 (≈ R$ 0,02) pela API; R$ 0 no AI Studio/tier grátis, ver [custos.md](custos.md) |
 | Render local (draft) + pós-processo | R$ 0 (só energia/CPU da máquina) |
 | **Total (padrão v2)** | **≈ R$ 0,02** |
 | Rascunho com voz `local` (Kokoro, fora do padrão) | R$ 0 |
@@ -132,7 +150,7 @@ simplicio-video prospect /workspace/prospects-piloto/dia-criancas/lista.csv --lo
 - Logo: o site do CSV (`allprimeodontologia.com.br`) e o da listagem de mapa (`allprimeodonto.com.br`) dão NXDOMAIN e não têm
   cópia no Wayback; o logo real veio da **foto de perfil pública do Instagram** @aprimeodonto (100x100, arte "All PRIME —
   Odontologia Especializada"), baixada uma vez à mão e registrada na coluna `logo`/`logo_fonte` do `lista.csv`.
-- Voz: sem `GEMINI_API_KEY` no box, a linha fica `aguardando_voz` até as 4 falas Puck do AI Studio entrarem em
+- Voz: sem `GEMINI_API_KEY` no box, a linha fica `aguardando_voz` até as 4 falas Laomedeia do AI Studio entrarem em
   `all-prime-odontologia/assets/audio/vo/external/` (lista exata em `falas-gemini.md`); aí o mesmo comando renderiza.
 
 ## Script de abordagem sugerido (o Wesley envia; nada automático)

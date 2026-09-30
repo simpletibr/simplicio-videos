@@ -1,0 +1,132 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "institucional-advocacia",
+  "setor": "Advocacia — vídeo institucional informativo (escritórios e sociedades de advogados)",
+  "status": "pronto",
+  "nichos": [
+    "escritório de advocacia",
+    "sociedade de advogados",
+    "advogado(a)",
+    "consultoria jurídica"
+  ],
+  "referencia": "clients/lothus-odontologia/video-01-dia-das-criancas (ritmo v02); prospects gerados por simplicio-video prospect",
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 16.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "pergunta",
+      "dur_s": 3.125,
+      "padroes": [
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "Tem dúvidas sobre os seus direitos?"
+    },
+    {
+      "id": "S2",
+      "papel": "informação",
+      "dur_s": 4.375,
+      "padroes": [
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "Conhecer seus direitos é o primeiro passo."
+    },
+    {
+      "id": "S3",
+      "papel": "orientação",
+      "dur_s": 4.375,
+      "padroes": [
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "Orientação jurídica com ética e discrição."
+    },
+    {
+      "id": "S4",
+      "papel": "identificação",
+      "dur_s": 4.125,
+      "padroes": [
+        "brand-lockup-soft",
+        "kinetic-words"
+      ],
+      "campos": [
+        "empresa.nome",
+        "empresa.contatos.instagram",
+        "empresa.cidade",
+        "marca.logo",
+        "empresa.oab"
+      ],
+      "fala": "{empresa.nome}."
+    }
+  ],
+  "voz": {
+    "tipo": "feminina, sóbria e calma, pt-BR (Laomedeia com estilo calmo)",
+    "gemini_voz": "Laomedeia",
+    "gemini_voz_alternativa": "Achernar",
+    "estilo": "Voz feminina brasileira sóbria e segura, tom calmo, cordial e informativo, ritmo moderado e pausado, dicção clara, português do Brasil, sem entusiasmo publicitário e sem dramatizar."
+  },
+  "musica": {
+    "bpm": 96,
+    "mood": "institucional sóbrio (pad + sino lento + baixo), SEM percussão (drums 0)",
+    "secoes": "groove até 15 s · outro com acorde final"
+  },
+  "paleta_padrao": {
+    "ink": "#1f2a44",
+    "background": "#f7f5f0",
+    "institucional": [
+      "#1f2a44",
+      "#b08d57",
+      "#8a8f98",
+      "#d9d4c7"
+    ]
+  },
+  "tom": "Sóbrio, discreto e informativo (OAB Provimento 205/2021): sem mercantilização, sem apelo emocional, sem captação",
+  "transicoes": [
+    "flash discreto (flash_max 0,3, 8 frames) — sem whip, glitch ou shapes"
+  ],
+  "cuidados": [
+    "OAB Provimento 205/2021 e Código de Ética e Disciplina (arts. 39-47): publicidade meramente informativa, discreta e sóbria; sem mercantilização, captação de clientela ou apelo emocional",
+    "Proibido: promessa de resultado, 'melhor/garantido/ganhe sua causa/causa ganha', preço/honorários/gratuidade, valores de causas, casos ou clientes, comparação com colegas, telefone/WhatsApp em anúncio pago como convite à contratação",
+    "Obrigatório: nome do advogado/sociedade + número de inscrição na OAB (art. 44 do CED) — coluna `oab` do CSV, conferida no CNA",
+    "Sem confete, balões, mascote, beat-burst, punch/shake de câmera ou SFX lúdicos",
+    "Logo: só o arquivo REAL da empresa (site ou Instagram dela, coluna logo/logo_url do CSV); nunca gerar/recriar; sem arquivo, lockup de texto",
+    "Sem preço, desconto, promoção, prazo, garantia, promessa de resultado ou superlativo (melhor, nº 1, garantido)",
+    "Telefone/endereço/avaliações só se confirmados pela empresa"
+  ],
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": [
+      "s1",
+      "s2",
+      "s3",
+      "s4"
+    ],
+    "blocos": [
+      "bg",
+      "x0",
+      "s1-accent",
+      "s1-words",
+      "x1",
+      "s2-main",
+      "s2-words",
+      "x2",
+      "s3-main",
+      "s3-words",
+      "x3",
+      "s4-lockup",
+      "s4-words"
+    ],
+    "_doc": "Modelo institucional do prospect (padrão v2: voz Laomedeia, logo real, ritmo Lothus). s2-main/s3-main via {{padrao:<bloco>}} de setores.json; base do contrato em contract.base.yaml; roteamento por setor em templates/prospect-roteamento.json."
+  }
+}

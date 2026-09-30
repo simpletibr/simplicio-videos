@@ -3,7 +3,7 @@
 //   -) renders index.html from src/index.template.html: {{vars:<id>}} -> JSON of spec.blocks[<id>] (motion block params)
 //   0) normalizes optional video plates (spec.clips) or writes black stand-ins + <id>_on flags
 //   1) splits spec.json -> build/variables.json (HyperFrames --variables-file)
-//   2) synthesizes an original track (spec.audio.bpm; styles: default/playful/festive) + SFX from spec.json "audio" cues, adds the cached VO lines
+//   2) synthesizes an original track (spec.audio.bpm; styles: default/playful/festive/institucional) + SFX from spec.json "audio" cues, adds the cached VO lines
 //      (spec.json "voice", rendered by scripts/voice.py) and ducks music/SFX under the voice
 //   3) mixes them (sidechain pump, SFX ducking, fade in/out) -> build/mix.raw.wav
 //   4) loudness-normalizes with ffmpeg loudnorm (2-pass) -> assets/audio/build/mix.wav
@@ -169,7 +169,25 @@ if (festive) { // upbeat party groove (~120-128 BPM): four-on-the-floor soft kic
   if (o) { const [, chord] = prog[Math.floor(o.from / barLen) % prog.length]; add(L, R, o.from, kickS, 0.6); chord.forEach((n, k) => add(L, R, o.from + k * 0.035, bell(midi(n + 12), 1.4, 1), 0.12, (k - 1) * 0.3)); add(L, R, o.from, tambourine(0.6), 0.2, 0); }
   for (let i = 0; i < N; i++) { L[i] *= sidechain[i] ** 0.6; R[i] *= sidechain[i] ** 0.6; }
 }
-for (let b = 0; !playful && !festive && b * BEAT < DUR; b++) {
+const inst = audio.music.style === "institucional";
+if (inst) { // calm institutional bed for non-seasonal business videos (odontologia, estética, advocacia):
+  // warm pad per bar, soft piano-like bell arpeggio in 8ths, round bass on the bar root; optional light drums
+  // (music.drums 0..1: 0 = no percussion at all, e.g. advocacia). No claps, whistles or festive percussion.
+  const dr = Math.max(0, Math.min(1, audio.music.drums ?? 0));
+  for (let b = 0; b * BEAT < DUR; b++) {
+    const t = b * BEAT; const bar = Math.floor(b / 4); const [root, chord] = prog[bar % prog.length];
+    const groove = inSection(t, "groove"), outro = inSection(t, "outro"), intro = inSection(t, "intro");
+    if (dr > 0 && groove && b % 2 === 0) add(L, R, t, kickS, 0.5 * dr);
+    if (dr > 0 && groove) add(L, R, t + BEAT / 2, hatS, 0.06 * dr, 0.3);
+    if (groove || outro || intro) for (let s = 0; s < 2; s++) { const note = chord[(b * 2 + s) % chord.length] + 12; add(L, R, t + s * BEAT / 2, bell(midi(note), 0.9, 0.35), outro ? 0.1 : 0.13, s ? 0.3 : -0.3); }
+    if (b % 4 === 0 && (groove || intro)) add(L, R, t, bassNote(midi(root), barLen * 0.9), 0.3);
+    if (b % 4 === 0) { const p = pad(chord.map(midi), barLen); add(L, R, t, p, 0.1, -0.25); add(L, R, t, p, 0.1, 0.25); }
+  }
+  for (const [beat, note, beats] of audio.music.melody ?? []) add(L, R, beat * BEAT, bell(midi(note), Math.max(0.8, beats * BEAT + 0.5), 0.5), 0.16, 0);
+  const o = audio.music.sections.find((x) => x.name === "outro");
+  if (o) { const [, chord] = prog[Math.floor(o.from / barLen) % prog.length]; chord.forEach((n, k) => add(L, R, o.from + k * 0.05, bell(midi(n + 12), 1.8, 0.5), 0.1, (k - 1) * 0.3)); }
+}
+for (let b = 0; !playful && !festive && !inst && b * BEAT < DUR; b++) {
   const t = b * BEAT; const bar = Math.floor(b / 4); const [root, chord] = prog[bar % prog.length];
   const intro = inSection(t, "intro"), groove = inSection(t, "groove"), build = inSection(t, "build"), drop = inSection(t, "drop");
   if (intro || groove || drop) { add(L, R, t, kickS, 0.95); for (let k = 0; k < Math.round(0.3 * SR) && Math.round(t * SR) + k < N; k++) sidechain[Math.round(t * SR) + k] = Math.min(sidechain[Math.round(t * SR) + k], 0.45 + 0.55 * Math.min(1, k / (0.3 * SR))); }
@@ -181,7 +199,7 @@ for (let b = 0; !playful && !festive && b * BEAT < DUR; b++) {
   if (build) { for (let s = 0; s < 4; s++) add(L, R, t + s * BEAT / 4, clapS, 0.12 + 0.3 * ((t - audio.music.sections.find((x) => x.name === "build").from) / BEAT) / 2, 0); }
   if (b % 4 === 0) { const p = pad(chord.map(midi), barLen); add(L, R, t, p, drop ? 0.2 : 0.13, -0.2); add(L, R, t, p, drop ? 0.2 : 0.13, 0.2); }
 }
-if (!playful && !festive) for (let i = 0; i < N; i++) { L[i] *= sidechain[i] ** 0.6; R[i] *= sidechain[i] ** 0.6; }
+if (!playful && !festive && !inst) for (let i = 0; i < N; i++) { L[i] *= sidechain[i] ** 0.6; R[i] *= sidechain[i] ** 0.6; }
 
 // ---------- SFX cues + ducking ----------
 const duck = new Float32Array(N).fill(1);

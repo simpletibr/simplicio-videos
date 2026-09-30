@@ -76,9 +76,10 @@
     }
   ],
   "voz": {
-    "tipo": "masculina, animada, energia alta, pt-BR (padrão v2 das prévias)",
-    "gemini_voz": "Puck",
-    "estilo": "Locutor brasileiro animado de festa infantil: energia alta, sorrindo, vibrante e expressivo, ritmo rápido e dinâmico, entonação que sobe no fim das frases, português do Brasil, sem gritar e sem voz infantilizada."
+    "tipo": "feminina, bem animada, energia alta, pt-BR (padrão v2 das prévias = voz da Lothus v02)",
+    "gemini_voz": "Laomedeia",
+    "gemini_voz_alternativa": "Achernar",
+    "estilo": "Voz feminina brasileira bem animada, de festa infantil: sorrindo, energia alta, vibrante e calorosa, ritmo rápido, português do Brasil, sem gritar e sem voz infantilizada."
   },
   "musica": {
     "bpm": 128,

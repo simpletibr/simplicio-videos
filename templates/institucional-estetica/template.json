@@ -1,0 +1,136 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "institucional-estetica",
+  "setor": "Estética e beleza — vídeo institucional (clínicas, studios, harmonização, depilação, sobrancelhas)",
+  "status": "pronto",
+  "nichos": [
+    "clínica de estética",
+    "estética facial/corporal",
+    "harmonização facial",
+    "depilação",
+    "design de sobrancelhas",
+    "micropigmentação",
+    "spa"
+  ],
+  "referencia": "clients/lothus-odontologia/video-01-dia-das-criancas (ritmo v02); prospects gerados por simplicio-video prospect",
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 16.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.8125,
+      "padroes": [
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "Hora de cuidar de você!"
+    },
+    {
+      "id": "S2",
+      "papel": "mensagem",
+      "dur_s": 4.21875,
+      "padroes": [
+        "beat-burst",
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "Beleza e bem-estar começam com cuidado."
+    },
+    {
+      "id": "S3",
+      "papel": "setor",
+      "dur_s": 4.6875,
+      "padroes": [
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "Cuidar de si é um gesto de carinho."
+    },
+    {
+      "id": "S4",
+      "papel": "marca",
+      "dur_s": 4.28125,
+      "padroes": [
+        "beat-burst",
+        "brand-lockup-soft",
+        "kinetic-words"
+      ],
+      "campos": [
+        "empresa.nome",
+        "empresa.contatos.instagram",
+        "empresa.cidade",
+        "marca.logo"
+      ],
+      "fala": "Conheça {empresa.nome}."
+    }
+  ],
+  "voz": {
+    "tipo": "feminina, elegante e acolhedora, pt-BR (Laomedeia)",
+    "gemini_voz": "Laomedeia",
+    "gemini_voz_alternativa": "Achernar",
+    "estilo": "Voz feminina brasileira elegante e acolhedora, sorrindo, energia média, suave, confiante e próxima, ritmo fluido sem pressa, português do Brasil, sem exagero publicitário."
+  },
+  "musica": {
+    "bpm": 128,
+    "mood": "institucional elegante (pad, sino suave, baixo; bateria leve 0,35), cortes na grade de 128 BPM",
+    "secoes": "groove até 15 s · outro com acorde final"
+  },
+  "paleta_padrao": {
+    "ink": "#4a3b3b",
+    "background": "#fdf8f5",
+    "institucional": [
+      "#e8b4b8",
+      "#d4a373",
+      "#f1d6c8",
+      "#b5838d",
+      "#e9c46a"
+    ]
+  },
+  "tom": "Elegante, acolhedor e leve; fala de cuidado e bem-estar, nunca de resultado estético",
+  "transicoes": [
+    "flash|zoom suave (flash_max 0,5, 6-10 frames)"
+  ],
+  "cuidados": [
+    "Sem antes/depois, sem promessa de resultado ('rejuvenesça', 'pele perfeita', 'emagreça'); procedimentos de saúde (harmonização por dentista/médico/biomédico) seguem CFO/CFM/CFBM: sem resultado garantido e sem preço",
+    "Logo: só o arquivo REAL da empresa (site ou Instagram dela, coluna logo/logo_url do CSV); nunca gerar/recriar; sem arquivo, lockup de texto",
+    "Sem preço, desconto, promoção, prazo, garantia, promessa de resultado ou superlativo (melhor, nº 1, garantido)",
+    "Telefone/endereço/avaliações só se confirmados pela empresa"
+  ],
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": [
+      "s1",
+      "s2",
+      "s3",
+      "s4"
+    ],
+    "blocos": [
+      "bg",
+      "x0",
+      "s1-accent",
+      "s1-words",
+      "x1",
+      "s2-main",
+      "s2-words",
+      "s2-burst",
+      "x2",
+      "s3-main",
+      "s3-words",
+      "x3",
+      "s4-lockup",
+      "s4-words",
+      "s4-burst"
+    ],
+    "_doc": "Modelo institucional do prospect (padrão v2: voz Laomedeia, logo real, ritmo Lothus). s2-main/s3-main via {{padrao:<bloco>}} de setores.json; base do contrato em contract.base.yaml; roteamento por setor em templates/prospect-roteamento.json."
+  }
+}

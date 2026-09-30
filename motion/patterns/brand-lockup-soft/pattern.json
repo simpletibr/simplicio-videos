@@ -65,6 +65,12 @@
       "default": 300
     },
     {
+      "id": "logo_bg",
+      "type": "string",
+      "label": "Fundo do anel atrás do logo (cor; vazio = sem fundo). Use cor escura para logo claro com transparência",
+      "default": ""
+    },
+    {
       "id": "ink",
       "type": "color",
       "label": "Tinta",
@@ -99,6 +105,18 @@
       "type": "string",
       "label": "Fundo",
       "default": "#fbf7f2"
+    },
+    {
+      "id": "tag_font",
+      "type": "string",
+      "label": "Fonte da mensagem (Fredoka = lúdica; Inter = sóbria)",
+      "default": "Fredoka"
+    },
+    {
+      "id": "dots",
+      "type": "number",
+      "label": "Pontos coloridos em volta do anel (0 = nenhum, sóbrio)",
+      "default": 14
     },
     {
       "id": "seed",

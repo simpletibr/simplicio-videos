@@ -25,7 +25,7 @@ Fluxo completo:
   6. publish   sobe o MP4 no Drive em drive.caminho/drive.arquivo (rclone, nunca sobrescreve uma versão)
                e grava o link em clients/<slug>/README.md (tabela "Entregas no Drive")
   run          tudo de uma vez: voice -> validate --need-lock -> render -> publish (dry-run sem --publish)
-  prospect     venda ativa em massa (alias batch): lista.csv -> coleta pública + logo real -> contrato por setor -> voz Puck ->
+  prospect     venda ativa em massa (alias batch): lista.csv -> coleta pública + logo real -> contrato por setor -> voz Laomedeia ->
                prévia 540x960 com marca d'água SimpleTI + lote.csv (docs/venda-ativa.md)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
 
@@ -195,20 +195,25 @@ def build_parser() -> argparse.ArgumentParser:
                     "              recurso, timeout 15 s. Instagram: só og:* público sem login, se o robots.txt permitir (hoje o\n"
                     "              instagram.com proíbe robôs genéricos: o @ vem do CSV ou do site); intervalo mínimo 6 s; bloqueio\n"
                     "              vira status e o lote segue. LGPD: só dados da empresa (sem pessoas, e-mails ou telefones pessoais).\n"
-                    "  2. setor    regras de templates/sazonal-dia-das-criancas/setores.json (coluna setor; senão título do site)\n"
+                    "  2. template templates/prospect-roteamento.json escolhe o template pela coluna setor (senão título do site):\n"
+                    "              --campanha auto (padrão): odontologia e segmentos infantis -> sazonal-dia-das-criancas; advocacia ->\n"
+                    "              institucional-advocacia (sóbrio, OAB Provimento 205/2021); estética -> institucional-estetica.\n"
+                    "              --campanha institucional: odontologia -> institucional-odontologia (e advocacia/estética idem).\n"
+                    "              Colunas template/campanha do CSV forçam por linha. Advocacia exige a coluna oab (sem ela: aguardando_oab).\n"
                     "  3. logo     só o logo REAL da empresa, nunca gerado/recriado: coluna logo do CSV (pego à mão no site/Instagram\n"
                     "              dela, com logo_fonte) > logo do site > avatar do Instagram (só se o robots.txt permitir). Vira\n"
                     "              coleta/logo.png e entra no anel da assinatura (s4). Sem logo real = lockup de texto.\n"
-                    "  4. contrato contract.base.yaml (coreografia Lothus v02: 128 BPM, cortes na batida, transições de 6-10 frames,\n"
-                    "              confete, texto palavra a palavra, trilha festiva da Lothus v02) + textos do setor + nome/@/cidade/logo\n"
-                    "              reais. Nunca preço, promoção, prazo ou fato inventado.\n"
-                    "  5. voz      PADRÃO v2: Gemini 3.8 Flash TTS, voz Puck, leva animada (GEMINI_API_KEY). Sem chave, usa as falas do\n"
+                    "  4. contrato contract.base.yaml do template (ritmo Lothus v02: cortes na batida, transições de 6-10 frames,\n"
+                    "              texto palavra a palavra; confete só no sazonal) + textos do setor + nome/@/cidade/logo (+ OAB)\n"
+                    "              reais. Nunca preço, promoção, prazo, promessa de resultado ou fato inventado.\n"
+                    "  5. voz      PADRÃO v2: Gemini 3.8 Flash TTS, voz Laomedeia (a da Lothus v02; reserva Achernar), leva animada (GEMINI_API_KEY). Sem chave, usa as falas do\n"
                     "              AI Studio em <slug>/assets/audio/vo/external/line-01..04.wav; sem elas, a linha fica aguardando_voz\n"
                     "              com falas-gemini.md (texto exato, voz, estilo). --provider local = rascunho Kokoro (custo 0).\n"
                     "              Fala que estoura o slot cai para a variante mais curta (ordem fixa). Nunca acelera.\n"
                     "  6. prévia   render --preview (540x960, crf 30, 30 fps, marca d'água SimpleTI + cartão final)\n"
                     "CSV (UTF-8 com cabeçalho; só nome é obrigatório): nome, cidade, setor, site, instagram, whatsapp, maps,\n"
-                    "  nome_curto (lockup/fala), fontes (onde cada dado foi achado), logo (URL/caminho do logo real), logo_fonte.\n"
+                    "  nome_curto (lockup/fala), fontes (onde cada dado foi achado), logo ou logo_url (URL/caminho do logo real),\n"
+                    "  logo_fonte, oab (advocacia: inscrição real, ex. OAB/SP 123.456), template/campanha (opcional, por linha).\n"
                     "  Exemplo: prospects/exemplo-dia-criancas.csv\n"
                     "Saída: <out>/<slug>/{coleta.json, contract.yaml, preview.mp4, result.json} + <out>/lote.csv (nome, setor,\n"
                     "  instagram, whatsapp, fontes, status, motivo, dados achados, caminho, tempo) + lote.json.\n"
@@ -218,22 +223,25 @@ def build_parser() -> argparse.ArgumentParser:
                     "Prévias ficam fora do git (prospects/*/ no .gitignore).",
         epilog="exemplos:\n  simplicio-video prospect prospects/exemplo-dia-criancas.csv\n"
                "  simplicio-video prospect lista.csv --lote dia-criancas --out /workspace/prospects-piloto/dia-criancas --jobs 2\n"
-               "  simplicio-video batch lista.csv --so-contrato          # só coleta + contrato (sem voz/render)\n"
+               "  simplicio-video batch lista.csv --so-contrato          # só coleta + contrato + falas-gemini.md (sem voz/render)\n"
+               "  simplicio-video prospect lista.csv --campanha institucional   # vídeo institucional por setor (sem data)\n"
                "  simplicio-video prospect lista.csv --only all-prime-odontologia   # piloto: só uma empresa, o resto intacto\n"
                "  simplicio-video prospect lista.csv --provider local    # rascunho com voz Kokoro (fora do padrão)")
     p.add_argument("csv", type=Path, metavar="LISTA.csv", help="lista de empresas (ver descrição acima)")
     p.add_argument("--lote", help="nome do lote (padrão: nome do CSV); pasta prospects/<lote>/")
     p.add_argument("--out", "-o", type=Path, help="pasta de saída do lote (padrão: <plugin>/prospects/<lote>)")
-    p.add_argument("--campanha", default="dia-das-criancas", choices=["dia-das-criancas"], help="campanha sazonal (padrão: dia-das-criancas)")
+    p.add_argument("--campanha", default="auto", choices=["auto", "dia-das-criancas", "institucional"],
+                   help="auto (padrão) = template pelo setor (infantil/odonto: Dia das Crianças; advocacia/estética: institucional); "
+                        "dia-das-criancas = sazonal para todos (advocacia continua institucional); institucional = só institucionais")
     p.add_argument("--provider", "-p", choices=["gemini", "local"], default="gemini",
-                   help="voz da prévia (padrão: gemini = Gemini 3.8 Flash TTS Puck animada; API ou falas do AI Studio). "
+                   help="voz da prévia (padrão: gemini = Gemini 3.8 Flash TTS Laomedeia animada, a voz da Lothus v02; API ou falas do AI Studio). "
                         "local = rascunho Kokoro, fora do padrão")
     p.add_argument("--only", "--so", action="append", metavar="SLUG",
                    help="processa só estas empresas (slug ou nome; repetível ou separado por vírgula); as outras não são tocadas")
     p.add_argument("--jobs", "-j", type=int, default=1, help="empresas em paralelo (padrão 1; cada render já usa SV_WORKERS núcleos)")
     p.add_argument("--force", action="store_true", help="refaz prévias existentes (a coleta continua reaproveitada)")
     p.add_argument("--recoletar", action="store_true", help="refaz a coleta mesmo com coleta.json existente")
-    p.add_argument("--so-contrato", action="store_true", help="só coleta + contract.yaml (sem voz nem render)")
+    p.add_argument("--so-contrato", action="store_true", help="só coleta + contract.yaml + falas-gemini.md (sem voz nem render)")
     p.add_argument("--limite", type=int, help="processa só as N primeiras linhas")
     p.add_argument("--json", action="store_true", help="resumo em JSON")
 
