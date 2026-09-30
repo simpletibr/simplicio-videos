@@ -204,8 +204,9 @@ def test_preview_filter_has_watermark_and_end_card(tmp_path):
     from simplicio_video import render
     fc = render.preview_filter(16.0, render.preview_font(ROOT), tmp_path)
     assert "scale=540:960" in fc and "rotate=-30*PI/180" in fc and "concat=n=2:v=1:a=1" in fc
-    assert (tmp_path / "wm.txt").read_text().count("Prévia • SimpleTI • simpleti.com.br") == 3
-    assert (tmp_path / "end1.txt").read_text() == "Vídeo feito pela SimpleTI" and (tmp_path / "end2.txt").read_text() == "simpleti.com.br"
+    assert (tmp_path / "wm.txt").read_text().count("Prévia • Wesley Simplicio • @wesleysimplicio") == 3
+    assert (tmp_path / "end1.txt").read_text() == "Vídeo feito por Wesley Simplicio" and (tmp_path / "end2.txt").read_text() == "@wesleysimplicio"
+    assert (tmp_path / "badge.txt").read_text() == "PRÉVIA · @wesleysimplicio"
     assert render.PREVIEW["crf"] >= 28 and render.PREVIEW["fps"] == 30
 
 
@@ -214,7 +215,7 @@ def test_cli_help_mentions_prospect():
     assert r.returncode == 0 and "robots.txt" in r.stdout and "LGPD" in r.stdout and "lote.csv" in r.stdout
     assert run_cli("batch", "--help").returncode == 0
     r = run_cli("render", "--help")
-    assert "--preview" in r.stdout and "simpleti.com.br" in r.stdout
+    assert "--preview" in r.stdout and "@wesleysimplicio" in r.stdout and "simpleti" not in r.stdout.lower()
 
 
 # ------------------------------------------------------------------ standard v2 (pilot All Prime, 30/09/2026)

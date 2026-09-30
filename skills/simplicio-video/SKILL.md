@@ -36,7 +36,7 @@ simplicio-video render <contrato.yaml> --backend colab-cli  # OPCIONAL (crédito
 simplicio-video render <contrato.yaml> --backend colab    # OPCIONAL: bundle zip para colab/render.ipynb (manual)
 simplicio-video publish <contrato.yaml> --dry-run         # mostra destino/link; sem --dry-run SÓ com pedido explícito
 simplicio-video run <contrato.yaml> --provider gemini [--publish]   # tudo em sequência, render local (padrão)
-simplicio-video render <contrato.yaml> --preview          # prévia 540x960 crf 30 + marca d'água SimpleTI + cartão final
+simplicio-video render <contrato.yaml> --preview          # prévia 540x960 crf 30 + marca d'água Wesley Simplicio · @wesleysimplicio + cartão final
 simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N] [--only SLUG] [--provider gemini|local] [--so-contrato]
                                                           # venda ativa: coleta pública -> contrato por setor -> prévia + lote.csv
 simplicio-video mcp                                       # mesmas operações como tools MCP (stdio)

@@ -362,6 +362,8 @@
         "bg",
         "tag_font",
         "dots",
+        "tag_y",
+        "chip_y",
         "seed"
       ],
       "block": "patterns/brand-lockup-soft/block.html",

@@ -1,6 +1,6 @@
 # Venda ativa em massa — `simplicio-video prospect`
 
-Lista de empresas → coleta pública → contrato por setor → **prévia com marca d'água SimpleTI** para o Wesley oferecer.
+Lista de empresas → coleta pública → contrato por setor → **prévia com marca d'água Wesley Simplicio (@wesleysimplicio)** para o Wesley oferecer.
 Tudo determinístico: nenhuma chamada de LLM por vídeo; mesma lista + mesma coleta → mesmos contratos e mesmas prévias.
 
 ## Fluxo
@@ -72,10 +72,11 @@ confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha fe
    Se uma fala estourar o slot, o CLI troca para a variante mais curta (frase curta do setor; nome curto; primeiro nome
    da marca), em ordem fixa (com a API; com falas fixas do AI Studio, gere uma leva mais curta). Nunca acelera a voz.
 6. **Prévia** (`render --preview`): render local `draft` → pós-processo ffmpeg determinístico: 540x960, 30 fps, x264
-   crf 30, AAC 96 kb/s; marca d'água "Prévia • SimpleTI • simpleti.com.br" em linhas diagonais (−30°, 20 % de opacidade,
-   contorno escuro) cobrindo o quadro inteiro + selo "PRÉVIA · simpleti.com.br" em dois cantos opostos (cortar um canto não
-   remove a marca); cartão final de 2,5 s "Vídeo feito pela SimpleTI — simpleti.com.br". Logo da SimpleTI entra no canto se
-   existir `assets/brand/simpleti-logo.png` no repo (hoje não há: só texto). Não toca no `render.manifest.json` de entrega
+   crf 30, AAC 96 kb/s; marca d'água "Prévia • Wesley Simplicio • @wesleysimplicio" em linhas diagonais (−30°, 20 % de opacidade,
+   contorno escuro) cobrindo o quadro inteiro + selo "PRÉVIA · @wesleysimplicio" em dois cantos opostos (cortar um canto não
+   remove a marca); cartão final de 2,5 s "Vídeo feito por Wesley Simplicio — @wesleysimplicio" (padrão desde 30/09/2026, pedido do Wesley:
+   nunca SimpleTI/simpleti.com.br na prévia; teste garante). Logo entra no canto se
+   existir `assets/brand/wesley-simplicio-logo.png` no repo (hoje não há: só texto). Não toca no `render.manifest.json` de entrega
    (grava `preview.manifest.json`).
 7. **Saída**: `<out>/<slug>/{coleta.json, contract.yaml, preview.mp4, result.json}` + `<out>/lote.csv` (nome, setor, regra,
    instagram + fonte, whatsapp + fonte, status do site/Instagram, título, cores, logo, fontes, status, motivo da falha,
@@ -153,11 +154,22 @@ simplicio-video prospect /workspace/prospects-piloto/dia-criancas/lista.csv --lo
 - Voz: sem `GEMINI_API_KEY` no box, a linha fica `aguardando_voz` até as 4 falas Laomedeia do AI Studio entrarem em
   `all-prime-odontologia/assets/audio/vo/external/` (lista exata em `falas-gemini.md`); aí o mesmo comando renderiza.
 
+**v02 → v03 (QA interno, 30/09/2026):** (1) fechamento: no cartão da marca as palavras "Com carinho, {nome}." (modo
+bounce entra de cima, esticada) alcançavam o "@ / cidade" do `brand-lockup-soft`; agora os 4 templates de prospect usam
+`tag_y: 880`, `chip_y: 1120` (cidade 130 px abaixo) e palavras em `y: 1470` / `size: 84`, e `src/simplicio_video/layout.py`
+(`endcard_collisions`) recusa qualquer contrato cujo pior caso de animação chegue a menos de 20 px do bloco @/cidade
+(testado em `tests/test_prospect_institucional.py`). A Lothus v02 entregue tem a mesma geometria antiga (não mexida).
+(2) voz: o pipeline só corta silêncio no início/fim (fala intacta, amostra a amostra; verificado take → voz processada →
+mix → mp4). Se uma fala não couber no slot, `voice` tenta uma vez o corte mais justo `TRIM_TIGHT` (-42/-45 dB, 40 ms
+antes / 80 ms depois), que tira só o "ar" de -55..-45 dB que o AI Studio deixa antes da fala; nunca acelera a voz.
+(3) marca: prévia assina **Wesley Simplicio · @wesleysimplicio** (marca d'água, selos e cartão final); teste garante que
+nenhum template/prévia contém SimpleTI ou simpleti.com.br.
+
 ## Script de abordagem sugerido (o Wesley envia; nada automático)
 
 Primeira mensagem (WhatsApp comercial ou DM do Instagram da empresa):
 
-> Oi, tudo bem? Aqui é o Wesley, da SimpleTI (simpleti.com.br), de Guarulhos. Fiz uma prévia de um vídeo de
+> Oi, tudo bem? Aqui é o Wesley Simplicio (@wesleysimplicio no Instagram), de Guarulhos. Fiz uma prévia de um vídeo de
 > **Dia das Crianças** para a **{nome}**, com o nome e o @ de vocês, pronto para Reels/Stories. Posso te mandar aqui
 > para você ver? São 16 segundos.
 

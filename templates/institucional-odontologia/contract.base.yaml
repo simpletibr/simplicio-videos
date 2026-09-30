@@ -11,7 +11,7 @@ campanha:
   id: Previa_Institucional
   ano: 2026
   titulo: Prévia institucional odontologia (16 s, venda ativa)
-  objetivo: Prévia com marca d'água SimpleTI para oferecer o vídeo à empresa
+  objetivo: Prévia com marca d'água Wesley Simplicio (@wesleysimplicio) para oferecer o vídeo à empresa
 formato:
   aspect: '9:16'
   width: 1080
@@ -397,6 +397,8 @@ cenas:
       name: EMPRESA
       sub: EXEMPLO
       tagline: cuidando do seu sorriso
+      tag_y: 880
+      chip_y: 1120
       handle: '@empresa'
       city: Cidade · UF
       logo: ''
@@ -416,8 +418,8 @@ cenas:
       times: '{{words:vo4}}'
       colors: '#5aa9e6|#4ecdc4|#ffd23f|#8fd3f4|#7bdcb5'
       ink: '#2f3b45'
-      size: 92
-      y: 1500
+      size: 84
+      y: 1470
       maxw: 980
       exit: 0
       dur: '{{dur:s4}}'

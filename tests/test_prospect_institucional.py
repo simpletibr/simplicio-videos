@@ -254,3 +254,49 @@ def test_non_ascii_logo_url_is_percent_encoded():
         raise urllib.error.HTTPError(req.full_url, 404, "nf", {}, None)
     P.Fetcher(opener=op).get("https://x.example/wp-content/logo-250-×-150-px.png")
     assert seen == ["https://x.example/wp-content/logo-250-%C3%97-150-px.png"]
+
+
+# --- sign-off layout guard (All Prime v02 QA, 30/09/2026: "Com carinho, All Prime." over "@aprimeodonto / Guarulhos · SP") ---
+from simplicio_video.layout import endcard_collisions  # noqa: E402
+
+
+def test_guard_catches_the_v02_end_card_collision():
+    v02 = [{"id": "s4", "motion": [
+        {"padrao": "brand-lockup-soft", "bloco": "s4-lockup", "params": {"handle": "@x", "city": "Guarulhos · SP"}},
+        {"padrao": "kinetic-words", "bloco": "s4-words", "params": {"lines": "Com carinho,|All Prime.", "size": 92, "y": 1500}}]}]
+    assert endcard_collisions(v02)
+
+
+@pytest.mark.parametrize("tid", ALL)
+def test_sign_off_words_never_reach_the_handle_city_block(tid):
+    assert endcard_collisions(_base(tid)["cenas"]) == []
+
+
+def test_build_contract_refuses_a_colliding_end_card(tmp_path, monkeypatch):
+    monkeypatch.setattr(P, "endcard_collisions", lambda scenes: ["s4/s4-words: colisão"])
+    row = {"nome": "Clínica Sorriso", "cidade": "Guarulhos · SP", "setor": "odontologia"}
+    with pytest.raises(ValueError, match="layout do fechamento"):
+        P.build_contract(ROOT, "institucional-odontologia", row, _coleta())
+
+
+# --- branding (Wesley, 30/09/2026): previews say "Wesley Simplicio / @wesleysimplicio", never SimpleTI/simpleti.com.br ---
+OLD_BRAND = re.compile(r"simple\s*ti|simpleti\.com\.br", re.I)
+
+
+def test_preview_watermark_and_end_card_have_no_simpleti(tmp_path):
+    from simplicio_video import render
+    assert render.PREVIEW["watermark"] == "Prévia • Wesley Simplicio • @wesleysimplicio"
+    render.preview_filter(16.0, render.preview_font(ROOT), tmp_path)
+    for f in ("wm", "badge", "end1", "end2", "end3"):
+        assert not OLD_BRAND.search((tmp_path / f"{f}.txt").read_text()), f
+    assert "@wesleysimplicio" in (tmp_path / "end2.txt").read_text()
+    assert all(not OLD_BRAND.search(str(v)) for v in render.PREVIEW.values())
+
+
+@pytest.mark.parametrize("tid", ALL)
+def test_no_template_output_mentions_simpleti(tid, tmp_path):
+    """Whole generated contract (end card lockup, tela, objetivo, drive name) of every prospect template."""
+    row = {"nome": "Clínica Sorriso", "cidade": "Guarulhos · SP", "setor": "odontologia", "oab": "OAB/SP 123.456"}
+    d, meta = P.build_contract(ROOT, tid, row, _coleta())
+    assert not OLD_BRAND.search(yaml.safe_dump(d, allow_unicode=True)), tid
+    assert not OLD_BRAND.search((ROOT / "templates" / tid / "composition" / "index.template.html").read_text(encoding="utf8"))

@@ -2,7 +2,7 @@
 
 Same processing as the legacy scripts/voice.py (so takes are bit-identical): source -> 48 kHz mono ->
 silence trim -> contract ffmpeg chain -> pcm_s16le -bitexact. Never time-stretches: a take longer than
-its max_s is an error. Cache key = provider + resolved settings + chain + text-to-say (+ source file hash).
+its max_s is an error (after one retry with the tighter silence trim TRIM_TIGHT). Cache key = provider + resolved settings + chain + text-to-say (+ source file hash).
 """
 from __future__ import annotations
 
@@ -24,6 +24,11 @@ DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=340
 FILE_PATTERNS = ["line-{n:02d}.wav", "{id}.wav", "line-{n:02d}.mp3", "line-{n:02d}.m4a"]
 TRIM = ("silenceremove=start_periods=1:start_threshold=-55dB:start_silence=0.06,areverse,"
         "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.10,areverse")
+# Fallback only when a take is longer than its slot: Gemini/AI Studio takes carry a -55..-45 dB noise/breath
+# lead-in (0.2 s+) that TRIM keeps. Trimming at -42/-45 dB (40 ms pre-roll, 80 ms tail) removes only that
+# air, never speech, and never time-stretches. Takes that already fit keep TRIM (bit-identical to before).
+TRIM_TIGHT = ("silenceremove=start_periods=1:start_threshold=-42dB:start_silence=0.04,areverse,"
+              "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.08,areverse")
 GEMINI_MODEL = "gemini-3.8-flash-tts"   # cheaper: gemini-3.8-flash-lite-tts (same schema)
 GEMINI_SR = 24000
 PROVIDERS = {
@@ -232,6 +237,22 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
                     o.unlink()
             status = "rendered"
         dur = round(duration(final), 3)
+        trim = "normal"
+        take = src if prov == "file" else (fdir / f"line-{idx + 1:02d}.wav" if prov == "gemini" else None)
+        if dur > line["max_s"] + 1e-6 and take is not None and take.is_file():
+            ht = hashlib.sha256(json.dumps(ident + ["trim-tight"], ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:12]
+            tight = cache / f"{line['id']}-{ht}.wav"
+            if not tight.is_file() or force or (only and line["id"] in only):
+                with tempfile.TemporaryDirectory() as td:
+                    raw, cut = Path(td) / "raw.wav", Path(td) / "cut.wav"
+                    sh("ffmpeg", "-y", "-v", "error", "-i", str(take), "-ac", "1", "-ar", "48000", str(raw))
+                    sh("ffmpeg", "-y", "-v", "error", "-i", str(raw), "-af", TRIM_TIGHT, str(cut))
+                    sh("ffmpeg", "-y", "-v", "error", "-i", str(cut), "-af", chain + ",aresample=48000", "-ac", "1",
+                       "-c:a", "pcm_s16le", "-bitexact", str(tight))
+            dur_t = round(duration(tight), 3)
+            if dur_t < dur:
+                final, dur, trim = tight, dur_t, "tight"
+                status += "+tight"
         rel = os.path.relpath(final, c.dir)
         digest = sha256_file(final)
         # word timings (kinetic typography): reuse the lock when the take and the text did not change
@@ -246,6 +267,8 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
                                       os.path.relpath(fdir / f"line-{idx + 1:02d}.wav", c.dir) if prov == "gemini" else None),
                                   "fits": dur <= line["max_s"] + 1e-6, "slack_s": r4(line["max_s"] - dur),
                                   "words": wl, "words_source": wsrc}
+        if trim != "normal":
+            lock_lines[line["id"]]["trim"] = trim
         if prov == "gemini":
             lock_lines[line["id"]]["tts"] = gen or (old.get("tts") if old.get("sha256") == digest else None)
         log(f"{line['id']} {status:8s} {dur:.2f}s / {line['max_s']}s  {line['texto']}")

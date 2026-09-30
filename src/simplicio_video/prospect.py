@@ -24,7 +24,7 @@ Per row, fully deterministic (no LLM per video):
               in assets/audio/vo/external/line-01..04.wav are used (provider file); with neither, the row waits
               (status aguardando_voz + falas-gemini.md with the exact lines). --provider local = Kokoro draft (cost 0).
               Lines that overflow their slot fall back to the shorter sector/name variants (deterministic list order).
-  6. render --preview  540x960, crf 30, 30 fps, SimpleTI watermark + end card (render.render_preview)
+  6. render --preview  540x960, crf 30, 30 fps, watermark + end card Wesley Simplicio · @wesleysimplicio (render.render_preview)
 Output: <out>/<slug>/{coleta.json, contract.yaml, preview.mp4, result.json} + <out>/lote.csv.
 Idempotent: rows whose preview.mp4 + result.json(status ok, same `padrao`) exist are skipped; coleta.json is reused.
 A preview of an older standard is kept as preview.<padrao>.mp4 and redone. --only renders just the chosen rows.
@@ -53,6 +53,7 @@ from pathlib import Path
 import yaml
 
 from . import __version__, paths
+from .layout import endcard_collisions
 
 UA = f"SimplicioVideoBot/{__version__} (+https://simpleti.com.br; previa publica, sem login)"
 TIMEOUT_S = 15
@@ -699,7 +700,7 @@ def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider:
     camp = S["campanha"]
     d["cliente"] = {"slug": slug, "nome": row["nome"].strip(), "drive_nome": drive_name(disp), "coleta": "coleta.json"}
     d["campanha"] = {"id": camp["campanha_id"], "ano": 2026, "titulo": camp["titulo"],
-                     "objetivo": "Prévia com marca d'água SimpleTI para oferecer o vídeo (venda ativa; não publicar)"}
+                     "objetivo": "Prévia com marca d'água Wesley Simplicio (@wesleysimplicio) para oferecer o vídeo (venda ativa; não publicar)"}
     colors = site.get("cores") or []
     logo = coleta.get("logo") or {}
     logo_dst, logo_round = None, 1
@@ -754,6 +755,9 @@ def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider:
             "padrao": PADRAO, "voz": provider, "logo": ({"origem": logo.get("origem"), "url": logo.get("url"), "fonte": logo.get("fonte")}
                                                       if logo_dst else None),
             "accent": next(m["params"]["accent"] for m in d["cenas"][3]["motion"] if m.get("bloco") == "s4-lockup")}
+    clash = endcard_collisions(d["cenas"])  # fechamento: palavras nunca por cima do @/cidade (bug All Prime v02)
+    if clash:
+        raise ValueError("layout do fechamento: " + "; ".join(clash))
     return d, meta
 
 

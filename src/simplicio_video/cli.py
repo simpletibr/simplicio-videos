@@ -26,7 +26,7 @@ Fluxo completo:
                e grava o link em clients/<slug>/README.md (tabela "Entregas no Drive")
   run          tudo de uma vez: voice -> validate --need-lock -> render -> publish (dry-run sem --publish)
   prospect     venda ativa em massa (alias batch): lista.csv -> coleta pública + logo real -> contrato por setor -> voz Laomedeia ->
-               prévia 540x960 com marca d'água SimpleTI + lote.csv (docs/venda-ativa.md)
+               prévia 540x960 com marca d'água Wesley Simplicio + lote.csv (docs/venda-ativa.md)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
@@ -43,7 +43,7 @@ exemplos:
   simplicio-video publish clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --dry-run
   simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini --publish
   simplicio-video prospect prospects/exemplo-dia-criancas.csv --lote dia-criancas --jobs 1
-  simplicio-video render contract.yaml --preview          # 540x960, marca d'água SimpleTI (prévia de venda)
+  simplicio-video render contract.yaml --preview          # 540x960, marca d'água Wesley Simplicio (prévia de venda)
 
 ambiente:
   SIMPLICIO_VIDEO_HOME  checkout do plugin (templates/, motion/, schema/); padrão: procura a partir do contrato/cwd
@@ -169,7 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video render contract.yaml --backend kaggle --accelerator none\n"
                "  simplicio-video render contract.yaml --backend colab-cli --accelerator T4\n"
                "  simplicio-video render contract.yaml --backend colab   # -> out/<nome>.colab-bundle.zip\n"
-               "  simplicio-video render contract.yaml --preview         # prévia de venda 540x960 + marca d'água SimpleTI")
+               "  simplicio-video render contract.yaml --preview         # prévia de venda 540x960 + marca d'água Wesley Simplicio")
     _contract_arg(p)
     p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via créditos)")
     p.add_argument("--out", "-o", type=Path, help="MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo")
@@ -183,8 +183,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--workdir", type=Path, help="pasta da composição compilada (padrão: <contrato>/build/simplicio-video)")
     p.add_argument("--preview", action="store_true",
                    help="prévia de venda (só local): render draft -> 540x960, 30 fps, x264 crf 30, marca d'água diagonal "
-                        "'Prévia • SimpleTI • simpleti.com.br' + selo nos cantos + cartão final 'Vídeo feito pela SimpleTI — "
-                        "simpleti.com.br' (2,5 s). Padrão --out: <saida.arquivo>-previa.mp4. Grava preview.manifest.json "
+                        "'Prévia • Wesley Simplicio • @wesleysimplicio' + selo nos cantos + cartão final 'Vídeo feito por Wesley Simplicio — "
+                        "@wesleysimplicio' (2,5 s). Padrão --out: <saida.arquivo>-previa.mp4. Grava preview.manifest.json "
                         "(não toca no render.manifest.json da entrega)")
 
     p = sub.add_parser("prospect", aliases=["batch"], formatter_class=Fmt,
@@ -210,7 +210,7 @@ def build_parser() -> argparse.ArgumentParser:
                     "              AI Studio em <slug>/assets/audio/vo/external/line-01..04.wav; sem elas, a linha fica aguardando_voz\n"
                     "              com falas-gemini.md (texto exato, voz, estilo). --provider local = rascunho Kokoro (custo 0).\n"
                     "              Fala que estoura o slot cai para a variante mais curta (ordem fixa). Nunca acelera.\n"
-                    "  6. prévia   render --preview (540x960, crf 30, 30 fps, marca d'água SimpleTI + cartão final)\n"
+                    "  6. prévia   render --preview (540x960, crf 30, 30 fps, marca d'água Wesley Simplicio + cartão final)\n"
                     "CSV (UTF-8 com cabeçalho; só nome é obrigatório): nome, cidade, setor, site, instagram, whatsapp, maps,\n"
                     "  nome_curto (lockup/fala), fontes (onde cada dado foi achado), logo ou logo_url (URL/caminho do logo real),\n"
                     "  logo_fonte, oab (advocacia: inscrição real, ex. OAB/SP 123.456), template/campanha (opcional, por linha).\n"

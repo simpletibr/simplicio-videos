@@ -13,7 +13,7 @@ campanha:
   id: Previa_Institucional
   ano: 2026
   titulo: Prévia institucional advocacia (16 s, informativa)
-  objetivo: Prévia com marca d'água SimpleTI para oferecer o vídeo à empresa
+  objetivo: Prévia com marca d'água Wesley Simplicio (@wesleysimplicio) para oferecer o vídeo à empresa
 formato:
   aspect: '9:16'
   width: 1080
@@ -247,6 +247,8 @@ cenas:
       name: EMPRESA
       sub: EXEMPLO
       tagline: informação e orientação jurídica
+      tag_y: 880
+      chip_y: 1120
       handle: '@empresa'
       city: Cidade · UF
       logo: ''
@@ -267,7 +269,7 @@ cenas:
       colors: '#1f2a44|#b08d57'
       ink: '#1f2a44'
       size: 84
-      y: 1500
+      y: 1470
       maxw: 980
       exit: 0
       dur: '{{dur:s4}}'

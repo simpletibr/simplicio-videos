@@ -119,6 +119,18 @@
       "default": 14
     },
     {
+      "id": "tag_y",
+      "type": "number",
+      "label": "Topo da mensagem (px; 900 = padrão)",
+      "default": 900
+    },
+    {
+      "id": "chip_y",
+      "type": "number",
+      "label": "Topo do chip @ (px; a cidade fica 130 px abaixo). Suba quando houver kinetic-words embaixo",
+      "default": 1240
+    },
+    {
       "id": "seed",
       "type": "number",
       "label": "Semente",

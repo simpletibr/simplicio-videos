@@ -22,7 +22,7 @@ simplicio-video voice    clients/<slug>/<video>/contract.yaml [--provider file|l
 simplicio-video render   clients/<slug>/<video>/contract.yaml [--backend local|kaggle|colab-cli|colab] [--out x.mp4]
 simplicio-video publish  clients/<slug>/<video>/contract.yaml [--dry-run]    # Drive via rclone; SÓ com pedido explícito
 simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini [--publish]   # render local (padrão)
-simplicio-video render   <contrato.yaml> --preview   # prévia de venda 540x960 com marca d'água SimpleTI
+simplicio-video render   <contrato.yaml> --preview   # prévia de venda 540x960 com marca d'água Wesley Simplicio (@wesleysimplicio)
 simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N] [--only SLUG]   # venda ativa em massa (alias batch; padrão v2: voz Laomedeia animada + logo real), docs/venda-ativa.md
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices

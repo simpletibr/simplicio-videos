@@ -271,10 +271,11 @@ def render_colab(c: Contract, out: Path | None = None, quality: str | None = Non
 
 # ---------------------------------------------------------------------------------------------------------------------
 # render --preview: low-res watermarked sales preview (simplicio-video prospect). Deterministic ffmpeg post-process of a
-# draft local render: 540x960 @30 fps, x264 crf 30, diagonal tiled watermark + corner badge + SimpleTI end card.
+# draft local render: 540x960 @30 fps, x264 crf 30, diagonal tiled watermark + corner badge + end card.
+# Branding (Wesley, 30/09/2026): Wesley Simplicio + Instagram @wesleysimplicio; never SimpleTI/simpleti.com.br on previews.
 PREVIEW = {"width": 540, "height": 960, "fps": 30, "crf": 30, "end_card_s": 2.5,
-           "watermark": "Prévia • SimpleTI • simpleti.com.br", "badge": "PRÉVIA · simpleti.com.br",
-           "end_title": "Vídeo feito pela SimpleTI", "end_url": "simpleti.com.br", "end_note": "Prévia em baixa resolução"}
+           "watermark": "Prévia • Wesley Simplicio • @wesleysimplicio", "badge": "PRÉVIA · @wesleysimplicio",
+           "end_title": "Vídeo feito por Wesley Simplicio", "end_url": "@wesleysimplicio", "end_note": "Prévia em baixa resolução"}
 
 
 def preview_font(home: Path) -> Path:
@@ -289,8 +290,8 @@ def preview_font(home: Path) -> Path:
 
 
 def preview_logo(home: Path) -> Path | None:
-    """SimpleTI logo, only if one is versioned in the repo (assets/brand/simpleti-logo.png); else text-only watermark."""
-    for name in ("simpleti-logo.png", "simpleti.png"):
+    """Wesley Simplicio logo, only if one is versioned in the repo (assets/brand/wesley-simplicio-logo.png); else text-only."""
+    for name in ("wesley-simplicio-logo.png",):
         f = home / "assets" / "brand" / name
         if f.is_file():
             return f

@@ -13,7 +13,7 @@ campanha:
   id: Previa_Dia_Criancas
   ano: 2026
   titulo: Prévia Dia das Crianças 2026 (16 s, venda ativa)
-  objetivo: Prévia com marca d'água SimpleTI para oferecer o vídeo à empresa
+  objetivo: Prévia com marca d'água Wesley Simplicio (@wesleysimplicio) para oferecer o vídeo à empresa
 formato:
   aspect: '9:16'
   width: 1080
@@ -449,6 +449,8 @@ cenas:
       name: EMPRESA
       sub: EXEMPLO
       tagline: deseja um Feliz Dia das Crianças!
+      tag_y: 880
+      chip_y: 1120
       handle: '@empresa'
       city: Guarulhos · SP
       logo: ''
@@ -466,8 +468,8 @@ cenas:
       times: '{{words:vo4}}'
       colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
       ink: '#3d3834'
-      size: 92
-      y: 1500
+      size: 84
+      y: 1470
       maxw: 960
       exit: 0
       dur: '{{dur:s4}}'
