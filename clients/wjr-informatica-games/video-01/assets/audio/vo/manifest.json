@@ -1,123 +1,116 @@
 {
-  "provider": "chatterbox",
+  "provider": "file",
   "settings": {
-    "model": "Chatterbox Multilingual V3 (ResembleAI/chatterbox, MIT)",
-    "t3_model": "v3",
-    "language": "pt",
-    "exaggeration": 0.55,
-    "cfg_weight": 0.5,
-    "temperature": 0.7,
-    "seeds": [
-      7,
-      11,
-      23
+    "_doc": "Externally generated narration (e.g. Gemini TTS / Google AI Studio). One file per voice.lines entry, in order: line-01.wav = vo1 ... line-09.wav = vo9 (or vo1.wav...). Any sample rate/channels; voice.py trims silence, applies voice.processing, converts to 48 kHz mono and enforces max_s (no time-stretch). Use: VOICE_PROVIDER=file npm run voice (or set provider to \"file\").",
+    "dir": "assets/audio/vo/external",
+    "patterns": [
+      "line-{n:02d}.wav",
+      "{id}.wav",
+      "line-{n:02d}.mp3",
+      "line-{n:02d}.m4a"
     ],
-    "reference": {
-      "engine": "kokoro-v1.0",
-      "voice": "pm_alex",
-      "text": "Olá! Hoje eu vou te mostrar como a gente conserta consoles e controles, com diagnóstico cuidadoso e atendimento rápido. Tudo explicado, sem surpresa."
-    }
+    "source": "Gemini TTS (Google AI Studio) — record model/voice/date in assets/audio/LICENSES.md"
   },
   "processing": "highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,equalizer=f=9000:t=q:w=1:g=1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=140:makeup=2:knee=4,aecho=1.0:1.0:19|31|47:0.09|0.06|0.04",
   "lines": {
     "vo1": {
-      "file": "assets/audio/vo/vo1-0b9855438b35.wav",
-      "t": 0.15,
-      "dur_s": 1.2,
-      "max_s": 1.8,
+      "file": "assets/audio/vo/vo1-d9c8087b6c81.wav",
+      "t": 0.05,
+      "dur_s": 1.369,
+      "max_s": 1.45,
       "text": "Seu console parou?",
       "say": "Seu console parou?",
-      "seed": 23,
+      "seed": 0,
       "asr_score": 1.0,
-      "asr_text": "Seu console parou."
+      "asr_text": "Seu console parou?"
     },
     "vo2": {
-      "file": "assets/audio/vo/vo2-c04b2692cf15.wav",
-      "t": 2.0,
-      "dur_s": 1.913,
-      "max_s": 1.95,
+      "file": "assets/audio/vo/vo2-55ca08fc9ea7.wav",
+      "t": 1.5,
+      "dur_s": 2.439,
+      "max_s": 2.5,
       "text": "A gente coloca ele de volta no jogo.",
       "say": "A gente coloca ele de volta no jogo.",
-      "seed": 23,
+      "seed": 0,
       "asr_score": 1.0,
       "asr_text": "A gente coloca ele de volta no jogo."
     },
     "vo3": {
-      "file": "assets/audio/vo/vo3-ec9e3d04aac0.wav",
+      "file": "assets/audio/vo/vo3-915ae042d3e8.wav",
       "t": 4.0,
-      "dur_s": 2.526,
-      "max_s": 2.55,
+      "dur_s": 2.734,
+      "max_s": 2.8,
       "text": "Drift? Superaquecimento? Não liga?",
       "say": "Drift? Superaquecimento? Não liga?",
-      "seed": 7,
+      "seed": 0,
       "asr_score": 1.0,
-      "asr_text": "Drift, superaquecimento, não liga!"
+      "asr_text": "Drift, superaquecimento, não liga?"
     },
     "vo4": {
-      "file": "assets/audio/vo/vo4-df1b77bb4330.wav",
-      "t": 6.6,
-      "dur_s": 1.854,
-      "max_s": 1.9,
+      "file": "assets/audio/vo/vo4-f13ae9ae3e04.wav",
+      "t": 6.8,
+      "dur_s": 1.704,
+      "max_s": 1.75,
       "text": "Xbox e PlayStation.",
       "say": "Équis box e PlayStation.",
-      "seed": 23,
+      "seed": 0,
       "asr_score": 1.0,
-      "asr_text": "Xbox e Playstation."
+      "asr_text": "Xbox e PlayStation."
     },
     "vo5": {
-      "file": "assets/audio/vo/vo5-1de07a865eed.wav",
+      "file": "assets/audio/vo/vo5-22aac30656bd.wav",
       "t": 8.55,
-      "dur_s": 1.396,
-      "max_s": 1.45,
+      "dur_s": 1.735,
+      "max_s": 1.75,
       "text": "Limpeza de controle.",
       "say": "Limpeza de controle.",
-      "seed": 23,
+      "seed": 0,
       "asr_score": 1.0,
       "asr_text": "Limpeza de controle."
     },
     "vo6": {
-      "file": "assets/audio/vo/vo6-34c73b99b5bb.wav",
-      "t": 10.05,
-      "dur_s": 1.661,
-      "max_s": 1.95,
+      "file": "assets/audio/vo/vo6-ab19d498cfa4.wav",
+      "t": 10.3,
+      "dur_s": 2.228,
+      "max_s": 2.25,
       "text": "Metal líquido no PS5.",
       "say": "Metal líquido no PS cinco.",
-      "seed": 11,
+      "seed": 0,
       "asr_score": 1.0,
       "asr_text": "Metal líquido no PS5."
     },
     "vo7": {
-      "file": "assets/audio/vo/vo7-ae39ab0a8e77.wav",
-      "t": 12.05,
-      "dur_s": 1.69,
-      "max_s": 1.95,
+      "file": "assets/audio/vo/vo7-5cae801d8ac9.wav",
+      "t": 12.55,
+      "dur_s": 1.837,
+      "max_s": 2.0,
       "text": "Analógico Hall Effect.",
       "say": "Analógico Ról Iféct.",
-      "seed": 7,
+      "seed": 0,
       "asr_score": 0.667,
-      "asr_text": "analógico raw effect."
+      "asr_text": "Analógico Whole Effect."
     },
     "vo8": {
-      "file": "assets/audio/vo/vo8-656bd9863b90.wav",
-      "t": 14.05,
-      "dur_s": 1.75,
-      "max_s": 1.9,
+      "file": "assets/audio/vo/vo8-c4d2f608cce3.wav",
+      "t": 14.55,
+      "dur_s": 1.899,
+      "max_s": 2.05,
       "text": "Você aprova antes do reparo.",
       "say": "Você aprova antes do reparo.",
-      "seed": 7,
+      "seed": 0,
       "asr_score": 1.0,
       "asr_text": "Você aprova antes do reparo."
     },
     "vo9": {
-      "file": "assets/audio/vo/vo9-99a22429c038.wav",
-      "t": 16.15,
-      "dur_s": 3.31,
-      "max_s": 3.6,
+      "file": "assets/audio/vo/vo9-28f101798b08.wav",
+      "t": 16.6,
+      "dur_s": 3.269,
+      "max_s": 3.4,
       "text": "Chama a WJR no WhatsApp e volte pro jogo!",
       "say": "Chama a dáblio jota erre no WhatsApp e volte pro jogo!",
-      "seed": 23,
-      "asr_score": 0.778,
-      "asr_text": "Chama W. J.R. no WhatsApp e volte pro jogo."
+      "seed": 0,
+      "asr_score": 1.0,
+      "asr_text": "Chama a WJR no WhatsApp e volte pro jogo."
     }
   }
 }

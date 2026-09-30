@@ -15,7 +15,7 @@
     "dev": "node scripts/build.mjs && npx --yes hyperframes@0.8.97 preview",
     "lint": "npx --yes hyperframes@0.8.97 lint",
     "check": "node scripts/build.mjs && npx --yes hyperframes@0.8.97 check",
-    "snapshot": "npx --yes hyperframes@0.8.97 snapshot --at 1.2,3.3,5.0,7.6,9.6,11.3,13.2,15.2,17.0,19.5",
+    "snapshot": "npx --yes hyperframes@0.8.97 snapshot --at 1.0,3.0,5.0,7.8,9.6,11.5,13.6,15.4,17.5,19.5",
     "render:placeholder": "node scripts/build.mjs && npx --yes hyperframes@0.8.97 render --quality draft --output out/video-01-placeholder.mp4",
     "render:draft": "node scripts/build.mjs && npx --yes hyperframes@0.8.97 render --quality draft --strict-variables --variables-file build/variables.json --output out/video-01-draft.raw.mp4 && bash scripts/master.sh out/video-01-draft.raw.mp4 out/video-01-draft.mp4",
     "render": "node scripts/build.mjs && npx --yes hyperframes@0.8.97 render --quality delivery --strict-variables --variables-file build/variables.json --output out/video-01.raw.mp4 && bash scripts/master.sh out/video-01.raw.mp4 out/video-01.mp4",

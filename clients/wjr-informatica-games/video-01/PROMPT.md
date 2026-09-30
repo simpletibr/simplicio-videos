@@ -30,7 +30,7 @@ Travas (não negociáveis):
   câmera (zoom-punch, push-in, shake curto no impacto, parallax de fundo), transição glitch/RGB-split,
   light sweep + glow no logo, grade em perspectiva + partículas com semente fixa + scanlines,
   ícone de controle reagindo (botões acendem no click), easing GSAP (power4/back/elastic só no logo).
-- Narração: spec.json → voice.lines (9 frases pt-BR, Chatterbox local, velocidade natural — SEM aceleração).
+- Narração: spec.json → voice.lines (9 frases pt-BR, Gemini TTS voz Puck via provider "file", velocidade natural — SEM aceleração).
   Os cortes foram desenhados em volta da duração real de cada frase (assets/audio/vo/manifest.json). Se mudar a
   coreografia, mantenha o texto na tela dizendo o mesmo que a voz naquele instante; se mudar uma frase, rode
   npm run voice (frase maior que o slot = erro: encurte o texto ou alargue o slot, nunca acelere).

@@ -24,14 +24,14 @@
   "scenes": [
     {
       "id": "hook",
-      "duration_ms": 2000,
+      "duration_ms": 1500,
       "primitive": "title-card",
       "title": "Seu console parou?",
       "subtitle": "Assistência técnica em Guarulhos"
     },
     {
       "id": "promise",
-      "duration_ms": 2000,
+      "duration_ms": 2500,
       "primitive": "screenshot-pan-zoom",
       "asset": "photo-hero",
       "caption": "A gente coloca ele de volta no jogo.",
@@ -48,7 +48,7 @@
     },
     {
       "id": "problems",
-      "duration_ms": 2500,
+      "duration_ms": 2750,
       "primitive": "bullet-reveal",
       "title": "Problemas que resolvemos",
       "bullets": [
@@ -61,7 +61,7 @@
     },
     {
       "id": "models",
-      "duration_ms": 2000,
+      "duration_ms": 1750,
       "primitive": "bullet-reveal",
       "title": "Xbox + PlayStation",
       "bullets": [
@@ -72,7 +72,7 @@
     },
     {
       "id": "services",
-      "duration_ms": 5500,
+      "duration_ms": 6000,
       "primitive": "bullet-reveal",
       "title": "Serviços",
       "bullets": [
@@ -95,7 +95,7 @@
     },
     {
       "id": "cta",
-      "duration_ms": 4000,
+      "duration_ms": 3500,
       "primitive": "logo-outro",
       "asset": "logo",
       "tagline": "Volte para o jogo. WhatsApp (11) 99700-5234",

@@ -1,6 +1,6 @@
 # video-01 — WJR Infogames · Instagram Reels "showreel" (9:16)
 
-1080×1920 · 30 fps · **20 s** · 120 BPM · **narração pt-BR (Chatterbox V3 local, MIT, velocidade natural; ou WAVs externos via provider `file`)** + trilha + efeitos sonoros originais (gerados por código) · HyperFrames 0.8.97 (HTML + GSAP).
+1080×1920 · 30 fps · **20 s** · 120 BPM · **narração pt-BR (Gemini 3.8 Flash TTS, voz Puck, via provider `file`; Chatterbox local como alternativa)** + trilha + efeitos sonoros originais (gerados por código) · HyperFrames 0.8.97 (HTML + GSAP).
 
 | Arquivo | Para quê |
 |---|---|
@@ -37,6 +37,6 @@ npm run preview            # preview/video-01-preview-720p.mp4
 npm run render:placeholder # sem assets do cliente
 ```
 
-Verificado no box (Linux, Node 22.23.3, FFmpeg 7.1), 30/09/2026 14:48 BRT: `check` passou (0 erros); `render` gerou H.264 1080×1920 30 fps (600 frames) + AAC 48 kHz, **20,0 s**, 21 MB; MP4 final **−14,0 LUFS, true peak −2,4 dBTP, LRA 1,4 LU**; faster-whisper small no MP4 final reconhece as 9 frases; narração sem aceleração; mesmo `spec.json` = mesma mixagem (md5).
+Verificado no box (Linux, Node 22.23.3, FFmpeg 7.1), 30/09/2026 15:08 BRT: `check` passou (0 erros); `render` gerou H.264 1080×1920 30 fps (600 frames) + AAC 48 kHz, **20,0 s**, 21 MB; voz **Gemini 3.8 Flash TTS (Puck)** via provider `file`; MP4 final **−14,0 LUFS, true peak −2,4 dBTP, LRA 0,9 LU**; faster-whisper small no MP4 final reconhece as 9 frases ("Hall Effect" sai como "Whole Effect" — pronúncia da voz); narração sem aceleração; mesmo `spec.json` + mesmos WAVs = mesma mixagem (md5).
 
 **Antes de publicar:** trocar fotos pelas reais do cliente (ou clipes aprovados), confirmar logo/cores e aprovar o roteiro — ver [`../coleta/checklist-cliente.md`](../coleta/checklist-cliente.md) e [`../coleta/pendencias.md`](../coleta/pendencias.md).

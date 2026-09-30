@@ -63,21 +63,21 @@
         {
           "name": "intro",
           "from": 0,
-          "to": 2
+          "to": 1.5
         },
         {
           "name": "groove",
-          "from": 2,
-          "to": 15
+          "from": 1.5,
+          "to": 15.5
         },
         {
           "name": "build",
-          "from": 15,
-          "to": 16
+          "from": 15.5,
+          "to": 16.5
         },
         {
           "name": "drop",
-          "from": 16,
+          "from": 16.5,
           "to": 20
         }
       ]
@@ -89,45 +89,45 @@
     "cues": [
       {
         "id": "hit-seu",
-        "t": 0.25,
+        "t": 0.188,
         "sfx": "hit",
         "gain_db": -7
       },
       {
         "id": "hit-console",
-        "t": 0.5,
+        "t": 0.375,
         "sfx": "hit",
         "gain_db": -6
       },
       {
         "id": "impact-parou",
-        "t": 1.0,
+        "t": 0.75,
         "sfx": "impact",
         "gain_db": -4,
         "duck_db": 4
       },
       {
         "id": "glitch-cut1",
-        "t": 1.8,
+        "t": 1.35,
         "sfx": "glitch",
         "gain_db": -11
       },
       {
         "id": "whoosh-cut1",
-        "t": 1.85,
+        "t": 1.388,
         "sfx": "whoosh",
         "gain_db": -5,
         "pan": -0.3
       },
       {
         "id": "hit-promise",
-        "t": 3.0,
+        "t": 2.5,
         "sfx": "hit",
         "gain_db": -9
       },
       {
         "id": "whoosh-cut2",
-        "t": 3.8,
+        "t": 3.75,
         "sfx": "whoosh",
         "gain_db": -6,
         "pan": 0.3
@@ -141,47 +141,47 @@
       },
       {
         "id": "click-p2",
-        "t": 4.7,
+        "t": 5.05,
         "sfx": "click",
         "gain_db": -7,
         "pan": -0.2
       },
       {
         "id": "click-p3",
-        "t": 5.9,
+        "t": 5.95,
         "sfx": "click",
         "gain_db": -7,
         "pan": 0.2
       },
       {
         "id": "click-more",
-        "t": 6.0,
+        "t": 6.05,
         "sfx": "click",
         "gain_db": -10,
         "pan": -0.2
       },
       {
         "id": "glitch-cut3",
-        "t": 6.3,
+        "t": 6.53,
         "sfx": "glitch",
         "gain_db": -11
       },
       {
         "id": "whoosh-cut3",
-        "t": 6.35,
+        "t": 6.585,
         "sfx": "whoosh",
         "gain_db": -5,
         "pan": -0.3
       },
       {
         "id": "hit-models",
-        "t": 6.6,
+        "t": 6.837,
         "sfx": "hit",
         "gain_db": -7
       },
       {
         "id": "blip-chip1",
-        "t": 7.0,
+        "t": 7.188,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -191,7 +191,7 @@
       },
       {
         "id": "blip-chip2",
-        "t": 7.08,
+        "t": 7.258,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -201,7 +201,7 @@
       },
       {
         "id": "blip-chip3",
-        "t": 7.16,
+        "t": 7.328,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -211,7 +211,7 @@
       },
       {
         "id": "blip-chip4",
-        "t": 7.24,
+        "t": 7.397,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -221,7 +221,7 @@
       },
       {
         "id": "blip-chip5",
-        "t": 7.32,
+        "t": 7.468,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -231,7 +231,7 @@
       },
       {
         "id": "blip-chip6",
-        "t": 7.4,
+        "t": 7.538,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -241,7 +241,7 @@
       },
       {
         "id": "blip-chip7",
-        "t": 7.48,
+        "t": 7.607,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -251,7 +251,7 @@
       },
       {
         "id": "blip-chip8",
-        "t": 7.56,
+        "t": 7.677,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -261,7 +261,7 @@
       },
       {
         "id": "whoosh-sv1",
-        "t": 8.3,
+        "t": 8.325,
         "sfx": "whoosh",
         "gain_db": -6,
         "pan": 0.3
@@ -274,7 +274,7 @@
       },
       {
         "id": "brush-sv1",
-        "t": 8.85,
+        "t": 8.908,
         "sfx": "whoosh",
         "gain_db": -13,
         "args": [
@@ -284,7 +284,7 @@
       },
       {
         "id": "shimmer-clean",
-        "t": 9.45,
+        "t": 9.608,
         "sfx": "shimmer",
         "gain_db": -13,
         "args": [
@@ -295,14 +295,14 @@
       },
       {
         "id": "whoosh-sv2",
-        "t": 9.82,
+        "t": 10.04,
         "sfx": "whoosh",
         "gain_db": -6,
         "pan": -0.3
       },
       {
         "id": "blip-foam",
-        "t": 10.25,
+        "t": 10.531,
         "sfx": "blip",
         "gain_db": -14,
         "args": [
@@ -311,7 +311,7 @@
       },
       {
         "id": "shimmer-lm",
-        "t": 10.8,
+        "t": 11.15,
         "sfx": "shimmer",
         "gain_db": -10,
         "args": [
@@ -321,7 +321,7 @@
       },
       {
         "id": "shimmer-shine",
-        "t": 11.35,
+        "t": 11.769,
         "sfx": "shimmer",
         "gain_db": -14,
         "args": [
@@ -332,14 +332,14 @@
       },
       {
         "id": "whoosh-sv3",
-        "t": 11.82,
+        "t": 12.297,
         "sfx": "whoosh",
         "gain_db": -6,
         "pan": 0.3
       },
       {
         "id": "blip-hall1",
-        "t": 12.3,
+        "t": 12.8,
         "sfx": "blip",
         "gain_db": -14,
         "args": [
@@ -348,7 +348,7 @@
       },
       {
         "id": "blip-sensor",
-        "t": 12.5,
+        "t": 13.0,
         "sfx": "blip",
         "gain_db": -15,
         "args": [
@@ -358,21 +358,21 @@
       },
       {
         "id": "click-ps4",
-        "t": 12.5,
+        "t": 13.0,
         "sfx": "click",
         "gain_db": -10,
         "pan": 0.3
       },
       {
         "id": "click-ps5",
-        "t": 12.6,
+        "t": 13.1,
         "sfx": "click",
         "gain_db": -10,
         "pan": -0.3
       },
       {
         "id": "blip-hall2",
-        "t": 13.1,
+        "t": 13.6,
         "sfx": "blip",
         "gain_db": -16,
         "args": [
@@ -382,20 +382,20 @@
       },
       {
         "id": "glitch-cut5",
-        "t": 13.8,
+        "t": 14.3,
         "sfx": "glitch",
         "gain_db": -11
       },
       {
         "id": "whoosh-cut5",
-        "t": 13.85,
+        "t": 14.35,
         "sfx": "whoosh",
         "gain_db": -5,
         "pan": -0.3
       },
       {
         "id": "blip-step1",
-        "t": 14.1,
+        "t": 14.6,
         "sfx": "blip",
         "gain_db": -12,
         "args": [
@@ -404,7 +404,7 @@
       },
       {
         "id": "blip-step2",
-        "t": 14.4,
+        "t": 14.9,
         "sfx": "blip",
         "gain_db": -12,
         "args": [
@@ -413,7 +413,7 @@
       },
       {
         "id": "blip-step3",
-        "t": 14.7,
+        "t": 15.2,
         "sfx": "blip",
         "gain_db": -12,
         "args": [
@@ -422,7 +422,7 @@
       },
       {
         "id": "blip-step4",
-        "t": 15.0,
+        "t": 15.5,
         "sfx": "blip",
         "gain_db": -12,
         "args": [
@@ -431,7 +431,7 @@
       },
       {
         "id": "riser-cta",
-        "t": 15.0,
+        "t": 15.5,
         "sfx": "riser",
         "gain_db": -5,
         "args": [
@@ -440,20 +440,20 @@
       },
       {
         "id": "glitch-precta",
-        "t": 15.8,
+        "t": 16.3,
         "sfx": "glitch",
         "gain_db": -8
       },
       {
         "id": "impact-logo",
-        "t": 16.0,
+        "t": 16.5,
         "sfx": "impact",
         "gain_db": -3,
         "duck_db": 6
       },
       {
         "id": "blip-whatsapp",
-        "t": 16.9,
+        "t": 17.287,
         "sfx": "blip",
         "gain_db": -10,
         "args": [
@@ -471,7 +471,7 @@
         "out": "assets/clips/build/clip-05.mp4",
         "scene": "s1",
         "start": 0,
-        "duration": 2,
+        "duration": 1.5,
         "media_start_s": 0,
         "shade": 0.5,
         "brief": "console powering on (LED/boot) — hook background"
@@ -481,8 +481,8 @@
         "file": "assets/imagine/clip-01.mp4",
         "out": "assets/clips/build/clip-01.mp4",
         "scene": "s2",
-        "start": 2,
-        "duration": 2,
+        "start": 1.5,
+        "duration": 2.5,
         "media_start_s": 0,
         "shade": 0.35,
         "brief": "console opening on the workbench — replaces photo_hero card"
@@ -493,7 +493,7 @@
         "out": "assets/clips/build/clip-02.mp4",
         "scene": "s3",
         "start": 4,
-        "duration": 2.5,
+        "duration": 2.75,
         "media_start_s": 0,
         "shade": 0.72,
         "brief": "controller board soldering — problems background"
@@ -503,8 +503,8 @@
         "file": "assets/imagine/clip-03.mp4",
         "out": "assets/clips/build/clip-03.mp4",
         "scene": "s4",
-        "start": 6.5,
-        "duration": 2,
+        "start": 6.75,
+        "duration": 1.75,
         "media_start_s": 0,
         "shade": 0.3,
         "brief": "controller LEDs turning on, hero shot — replaces photo_bench"
@@ -514,8 +514,8 @@
         "file": "assets/imagine/clip-04.mp4",
         "out": "assets/clips/build/clip-04.mp4",
         "scene": "s6",
-        "start": 16,
-        "duration": 4,
+        "start": 16.5,
+        "duration": 3.5,
         "media_start_s": 0,
         "shade": 0.68,
         "brief": "gamer playing — CTA background ('Volte para o jogo')"
@@ -525,7 +525,7 @@
   "voice": {
     "_doc": "Voice-over (narração). 'text' = exact copy (facts from ../coleta/brief.md); 'say' = optional pronunciation respelling sent to the TTS. 't' = start (s) on the 120 BPM grid; 'max_s' = slot length. NO time-stretch: a take longer than its slot fails. npm run voice renders/caches lines in assets/audio/vo/; npm run build mixes them.",
     "enabled": true,
-    "provider": "chatterbox",
+    "provider": "file",
     "providers": {
       "chatterbox": {
         "model": "Chatterbox Multilingual V3 (ResembleAI/chatterbox, MIT)",
@@ -583,29 +583,29 @@
     "lines": [
       {
         "id": "vo1",
-        "t": 0.15,
-        "max_s": 1.8,
+        "t": 0.05,
+        "max_s": 1.45,
         "scene": "s1",
         "text": "Seu console parou?"
       },
       {
         "id": "vo2",
-        "t": 2.0,
-        "max_s": 1.95,
+        "t": 1.5,
+        "max_s": 2.5,
         "scene": "s2",
         "text": "A gente coloca ele de volta no jogo."
       },
       {
         "id": "vo3",
         "t": 4.0,
-        "max_s": 2.55,
+        "max_s": 2.8,
         "scene": "s3",
         "text": "Drift? Superaquecimento? Não liga?"
       },
       {
         "id": "vo4",
-        "t": 6.6,
-        "max_s": 1.9,
+        "t": 6.8,
+        "max_s": 1.75,
         "scene": "s4",
         "text": "Xbox e PlayStation.",
         "say": "Équis box e PlayStation."
@@ -613,37 +613,37 @@
       {
         "id": "vo5",
         "t": 8.55,
-        "max_s": 1.45,
+        "max_s": 1.75,
         "scene": "sv",
         "text": "Limpeza de controle."
       },
       {
         "id": "vo6",
-        "t": 10.05,
-        "max_s": 1.95,
+        "t": 10.3,
+        "max_s": 2.25,
         "scene": "sv",
         "text": "Metal líquido no PS5.",
         "say": "Metal líquido no PS cinco."
       },
       {
         "id": "vo7",
-        "t": 12.05,
-        "max_s": 1.95,
+        "t": 12.55,
+        "max_s": 2.0,
         "scene": "sv",
         "text": "Analógico Hall Effect.",
         "say": "Analógico Ról Iféct."
       },
       {
         "id": "vo8",
-        "t": 14.05,
-        "max_s": 1.9,
+        "t": 14.55,
+        "max_s": 2.05,
         "scene": "s5",
         "text": "Você aprova antes do reparo."
       },
       {
         "id": "vo9",
-        "t": 16.15,
-        "max_s": 3.6,
+        "t": 16.6,
+        "max_s": 3.4,
         "scene": "s6",
         "text": "Chama a WJR no WhatsApp e volte pro jogo!",
         "say": "Chama a dáblio jota erre no WhatsApp e volte pro jogo!"
