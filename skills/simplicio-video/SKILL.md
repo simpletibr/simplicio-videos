@@ -1,6 +1,6 @@
 ---
 name: simplicio-video
-description: Use this when a Simplicio Runtime user asks for a short marketing video (Reels/Stories/Shorts, date greeting, institutional, promo) for a real business, or asks to re-render, change the voice, retime or deliver an existing one. You reason about the client facts, pick template/motion/voice/timings and write a simplicio.video-contract/v1 YAML; the deterministic `simplicio-video` CLI validates, generates the voice and renders the MP4 (local or Colab GPU) for delivery to Google Drive.
+description: Use this when a Simplicio Runtime user asks for a short marketing video (Reels/Stories/Shorts, date greeting, institutional, promo) for a real business, or asks to re-render, change the voice, retime or deliver an existing one. You reason about the client facts, pick template/motion/voice/timings and write a simplicio.video-contract/v1 YAML; the deterministic `simplicio-video` CLI validates, generates the voice and renders the MP4 (local, Kaggle, Colab CLI or Colab notebook) and, only when explicitly asked, publishes it to Google Drive. Also available as an MCP server (`simplicio-video mcp`, tools video.*).
 ---
 
 # simplicio-video — contrato primeiro, CLI executa
@@ -16,7 +16,7 @@ Você (LLM) **raciocina e escreve o contrato**; o CLI **executa**. Nunca edite H
 1. **Fatos:** leia `clients/<slug>/coleta/` (`brief.md`, `pendencias.md`, `intake.json`). Só entra no vídeo o que tem fonte + data e não está em conflito. Sem coleta → rode o intake (`intake/questionario.md`) primeiro.
 2. **Template:** `simplicio-video list templates` → escolha pelo nicho; precisa estar `renderizável`. Os ids de cena do contrato têm de ser os da composição do template (`template.json → composicao.cenas`).
 3. **Motion:** `simplicio-video list motion` → use os padrões que o template prevê; `bloco` = id do placeholder `{{vars:<bloco>}}` na composição; `params` seguem `motion/patterns/<id>/pattern.json`. Uma ideia por cena; o primeiro plano vira a transição. Params string aceitam placeholders: `{{bpm}}`, `{{beat}}`, `{{dur:<cena>}}`, `{{duracao}}` e `{{words:<fala>}}` (inícios das palavras da fala, em s desde o início da cena, vindos do `timing.lock.json`: use em `kinetic-words.times`). Para vídeos rápidos: `bg-parallax` + `fx-transition` (6-10 frames) + `beat-burst` + `kinetic-words`, cenas em batidas inteiras.
-4. **Voz:** pt-BR, gênero/energia do público. Provisória: `local` (Kokoro, ex. `pf_dora`/`pm_alex`). Final: Gemini no AI Studio → `file`. Sugira voz Gemini + instrução de estilo no contrato (`voz.providers.gemini`).
+4. **Voz:** pt-BR, gênero/energia do público. Provisória: `local` (Kokoro, ex. `pf_dora`/`pm_alex`). Final: `gemini` (API, precisa de `GEMINI_API_KEY`) ou WAVs do AI Studio → `file`. Sugira voz Gemini + instrução de estilo no contrato (`voz.providers.gemini`).
 5. **Tempos:** leia cada fala em voz alta a ~2,5 palavras/s; `max_s` = duração natural + folga (0,2–0,5 s). `inicio_s + max_s` ≤ duração da cena (+ J-cut ≤ 0,15 s). A soma das cenas = `formato.duracao_s`. SFX com tempo relativo à cena, nas batidas (120 BPM = 0,5 s).
 6. **Marca:** logo só com arquivo real (`marca.logo`); sem arquivo → `logo: null` e lockup de texto. Não mostre telefone/endereço/preço/avaliações não confirmados.
 7. **Entrega:** `drive.caminho = simplicio-video/clientes/<Drive_Nome>/<ANO>/<Campanha>`, `drive.arquivo = "<CLIENTE> - <descricao> - vNN.mp4"`.
@@ -30,7 +30,12 @@ simplicio-video validate <contrato.yaml>                  # schema + assets + du
 simplicio-video voice <contrato.yaml> [--provider file|local|gemini]   # -> timing.lock.json
 simplicio-video validate <contrato.yaml> --need-lock      # antes do render
 simplicio-video render <contrato.yaml>                    # local -> saida.arquivo + render.manifest.json
-simplicio-video render <contrato.yaml> --backend colab    # bundle zip para colab/render.ipynb (GPU)
+simplicio-video render <contrato.yaml> --backend kaggle   # remoto, sem navegador (KAGGLE_USERNAME + token)
+simplicio-video render <contrato.yaml> --backend colab-cli  # remoto via Colab CLI oficial (login único)
+simplicio-video render <contrato.yaml> --backend colab    # bundle zip para colab/render.ipynb (manual)
+simplicio-video publish <contrato.yaml> --dry-run         # mostra destino/link; sem --dry-run SÓ com pedido explícito
+simplicio-video run <contrato.yaml> --provider gemini --backend local [--publish]   # tudo em sequência
+simplicio-video mcp                                       # mesmas operações como tools MCP (stdio)
 ```
 Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz do repo (Python ≥ 3.10, Node ≥ 22, ffmpeg).
 
@@ -42,12 +47,13 @@ Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz 
 - [ ] Copy rastreável até `coleta/` (liste no README do vídeo).
 - [ ] Commit do contrato + `timing.lock.json` + `render.manifest.json` + `assets/audio/voz/` (MP4 fica em `out/`, gitignored).
 
-## Render local × Colab
-- **local:** padrão; referência de hash (mesma entrada → mesmo MP4 byte a byte).
-- **colab:** `--backend colab` gera `out/<nome>.colab-bundle.zip`; abra `colab/render.ipynb` com runtime GPU, envie o zip, rode tudo; o notebook imprime tempos por etapa, GPU e compara com o render local. NVENC muda os bytes do vídeo (visualmente equivalente).
+## Render: local × remoto
+- **local:** padrão; referência de hash (mesma entrada → mesmo MP4 byte a byte). 8 vCPU renderizam a WJR (600 frames) em ~77 s.
+- **kaggle / colab-cli / colab:** mesmo bundle + `render_bundle.sh`. A captura do Chrome headless é **CPU** (gargalo): Colab grátis = 2 vCPU → 1 worker (WJR 460 s); Kaggle = 4 vCPU → 2 workers. A GPU só entra no encode (NVENC, `--gpu-encode auto|1|0`), que muda os bytes do vídeo.
+- Frames/áudio remotos só batem com o local se o ffmpeg for o mesmo build (`SIMPLICIO_FFMPEG_DIR` local + `SIMPLICIO_FFMPEG_URL`/`SIMPLICIO_FFMPEG_SHA256` no bundle) e com `--gpu-encode 0`. Ver `docs/decisoes/ADR-0003-fluxo-100-script.md`.
 
 ## Destino no Drive
-Não faça upload sem pedido explícito do usuário. Informe o caminho do MP4 e `drive.caminho`; depois do upload, registre o link na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
+Não faça upload sem pedido explícito do usuário para aquele vídeo. Sem pedido: `publish --dry-run` (ou `run` sem `--publish`) e informe o caminho do MP4 e `drive.caminho`. Com pedido: `simplicio-video publish <contrato>` (rclone, remote `gdrive`): nunca sobrescreve (mesmo nome com bytes diferentes = erro, suba vNN+1), é idempotente e grava o link sozinho na tabela **Entregas no Drive** de `clients/<slug>/README.md`.
 
 ## Exemplo mínimo de contrato
 ```yaml

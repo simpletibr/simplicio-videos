@@ -111,7 +111,7 @@
     },
     {
       "verb": "video.render",
-      "description": "Compile contract -> HyperFrames composition -> frames -> ffmpeg master; backend local (MP4) or colab (bundle zip for colab/render.ipynb). Writes render.manifest.json.",
+      "description": "Compile contract -> HyperFrames composition -> frames -> ffmpeg master. Backends: local (hash reference), kaggle and colab-cli (remote, no browser; same bundle + render_bundle.sh), colab (bundle zip for colab/render.ipynb). Writes render.manifest.json (+ usage for remote). See docs/decisoes/ADR-0003-fluxo-100-script.md.",
       "argv": [
         "simplicio-video",
         "render",
@@ -133,6 +133,8 @@
           "backend": {
             "enum": [
               "local",
+              "kaggle",
+              "colab-cli",
               "colab"
             ],
             "default": "local"
@@ -150,6 +152,103 @@
           "account_id": {
             "type": "string",
             "description": "FUTURE (ADR-0002): credit ledger account; ignored today"
+          },
+          "accelerator": {
+            "type": "string",
+            "description": "kaggle: NvidiaTeslaT4 (default) | NvidiaL4 | none; colab-cli: T4 (default) | L4 | A100 | none"
+          },
+          "gpu_encode": {
+            "enum": [
+              "auto",
+              "1",
+              "0"
+            ],
+            "default": "auto",
+            "description": "remote NVENC encode; 0 = libx264 (needed to compare frames with local)"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.publish",
+      "description": "Upload saida.arquivo to Google Drive (rclone remote, default gdrive) at drive.caminho/drive.arquivo; never overwrites, idempotent, link from the file ID; records it in clients/<slug>/README.md. Only with an explicit request from the user; otherwise dry_run.",
+      "argv": [
+        "simplicio-video",
+        "publish",
+        "{contrato}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contrato"
+        ],
+        "properties": {
+          "contrato": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "remote": {
+            "type": "string",
+            "default": "gdrive"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.run",
+      "description": "validate -> voice -> validate --need-lock -> render -> publish (dry-run unless publish=true).",
+      "argv": [
+        "simplicio-video",
+        "run",
+        "{contrato}",
+        "--provider",
+        "{provider}",
+        "--backend",
+        "{backend}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contrato"
+        ],
+        "properties": {
+          "contrato": {
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "file",
+              "local",
+              "gemini"
+            ]
+          },
+          "backend": {
+            "enum": [
+              "local",
+              "kaggle",
+              "colab-cli",
+              "colab"
+            ],
+            "default": "local"
+          },
+          "quality": {
+            "enum": [
+              "draft",
+              "looks",
+              "delivery"
+            ]
+          },
+          "publish": {
+            "type": "boolean",
+            "default": false
           }
         }
       }
@@ -300,7 +399,10 @@
     "external:node",
     "external:chromium",
     "external:ffmpeg",
-    "external:python"
+    "external:python",
+    "external:kaggle",
+    "external:colab-cli",
+    "external:rclone"
   ],
   "entrypoint": {
     "type": "python-console-script",
@@ -315,5 +417,20 @@
       "name": "simplicio-video",
       "path": "skills/simplicio-video/SKILL.md"
     }
-  ]
+  ],
+  "mcp": {
+    "transport": "stdio",
+    "command": "simplicio-video-mcp",
+    "alt_command": "simplicio-video mcp",
+    "install": "pip install -e .[mcp]",
+    "tools": [
+      "video.init",
+      "video.validate",
+      "video.voice",
+      "video.render",
+      "video.publish",
+      "video.run",
+      "video.list"
+    ]
+  }
 }

@@ -1,6 +1,6 @@
 # Receita — vídeo de cliente do pedido à entrega
 
-**Regra:** o agente (LLM) **raciocina e escreve o contrato**; o CLI `simplicio-video` **executa** (validação, voz, render). Nada de editar HTML/spec à mão. Skill para LLMs: [`skills/simplicio-video/SKILL.md`](../skills/simplicio-video/SKILL.md) · decisão: [ADR-0002](decisoes/ADR-0002-cli-contrato-colab-creditos.md) · schema: [`schema/contract.schema.json`](../schema/contract.schema.json).
+**Regra:** o agente (LLM) **raciocina e escreve o contrato**; o CLI `simplicio-video` **executa** (validação, voz, render). Nada de editar HTML/spec à mão. Skill para LLMs: [`skills/simplicio-video/SKILL.md`](../skills/simplicio-video/SKILL.md) · decisões: [ADR-0002](decisoes/ADR-0002-cli-contrato-colab-creditos.md), [ADR-0003](decisoes/ADR-0003-fluxo-100-script.md) (fluxo 100% script) · schema: [`schema/contract.schema.json`](../schema/contract.schema.json).
 
 Exemplos reais: [WJR video-01](../clients/wjr-informatica-games/video-01/contract.yaml) (porte 1:1 do vídeo entregue) e [Lothus Dia_Criancas](../clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml) (feito só pelo CLI).
 
@@ -43,14 +43,18 @@ simplicio-video voice <contrato.yaml>                     # provisória local ->
 # final Gemini (AI Studio): gere line-01.wav ... line-NN.wav em assets/audio/vo/external/ com a voz/estilo do contrato
 simplicio-video voice <contrato.yaml> --provider file
 ```
-Fala maior que `max_s` = erro: encurte o texto ou alargue a cena (ajuste SFX junto). **Nunca acelerar.** Com `GEMINI_API_KEY`: `--provider gemini`.
+Fala maior que `max_s` = erro: encurte o texto ou alargue a cena (ajuste SFX junto). **Nunca acelerar.** Com `GEMINI_API_KEY`: `--provider gemini` (API, sem AI Studio; ver [voices/gemini.md](../voices/gemini.md)).
 
 ## 5. Render + QA
 ```bash
 simplicio-video validate <contrato.yaml> --need-lock
 simplicio-video render <contrato.yaml>                    # -> saida.arquivo (out/, gitignored) + render.manifest.json
-simplicio-video render <contrato.yaml> --backend colab    # opcional: bundle para colab/render.ipynb (GPU)
+simplicio-video render <contrato.yaml> --backend kaggle   # opcional: remoto sem navegador (4 vCPU grátis)
+simplicio-video render <contrato.yaml> --backend colab-cli  # opcional: Colab CLI oficial (2 vCPU no grátis)
+simplicio-video render <contrato.yaml> --backend colab    # opcional: bundle para colab/render.ipynb (manual)
+simplicio-video run <contrato.yaml> --provider gemini --backend local   # voz + validate + render + publish em dry-run
 ```
+- A captura do Chrome headless é CPU: o local (8 vCPU) é ~6× mais rápido que o Colab grátis. Remoto só bate byte a byte com o local usando o mesmo ffmpeg e `--gpu-encode 0` ([ADR-0003](decisoes/ADR-0003-fluxo-100-script.md)).
 - `render.manifest.json`: hash do contrato e de cada input, versões, hash dos frames/áudio, loudness (alvo −14 LUFS, pico ≤ −1,5) e tempos.
 - STT: faster-whisper no MP4 deve reconhecer todas as falas; gere prévia 720p + contact sheet em `preview/`.
 - Edição de footage/cortes (opcional, só a pedido): [`tools/video-use`](../tools/video-use/README.md).
@@ -61,7 +65,7 @@ simplicio-video render <contrato.yaml> --backend colab    # opcional: bundle par
   - `CAMPANHA` idem (ex.: `Dia_Criancas`, `Video_Institucional`). O contrato valida `drive.caminho` contra `cliente.drive_nome`/`campanha`.
 - Nome do arquivo: `<CLIENTE> - <descricao> - vNN.mp4` (ex.: `Lothus - Dia das Criancas 15s - v01.mp4`); nova versão = vNN+1.
 - O repositório guarda **links**, nunca o MP4 final. Todo link novo entra na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
-- Upload é do Wesley (o agente não sobe nada sem pedido explícito).
+- Upload: `simplicio-video publish <contrato.yaml>` (rclone, remote `gdrive`, configurado uma vez) ou `run ... --publish`. Nunca sobrescreve, é idempotente e grava o link na tabela sozinho. **Só com pedido explícito do Wesley;** sem pedido, use `publish --dry-run`.
 
 ## 7. Commit
 Contrato + `timing.lock.json` + `render.manifest.json` + `assets/audio/voz/` + README/roteiro do vídeo + link no README do cliente. `pytest` e `simplicio-video validate` antes do push.

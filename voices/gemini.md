@@ -46,7 +46,27 @@ Passo a passo para uma pessoa (sem programar) gerar as frases da narração com 
 4. Em `spec.json → audio`, mova os cues de efeito e as seções da música (`build` 1 s antes do CTA, `drop` no corte do CTA).
 5. `npm run check && npm run render`, depois confira o `roteiro.md`.
 
-## Rota opcional pela API (sem clicar) — **não testada**
+## Rota pelo CLI (API, sem clicar): `simplicio-video voice --provider gemini`
+
+Implementada no CLI (`src/simplicio_video/voice.py`) e testada só com mock (ainda não há chave). Precisa de `GEMINI_API_KEY` ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)). O tier grátis serve, mas nele o Google usa os dados para melhorar produtos. Com billing, o custo é de ≈ US$ 0,002 por 10 s de áudio no `gemini-3.8-flash-tts` até 31/12/2026. O plano Google AI Pro **não** dá cota de API: ele vale só na interface web. Preços e limites no [ADR-0003](../docs/decisoes/ADR-0003-fluxo-100-script.md).
+
+```yaml
+voz:
+  provider: gemini
+  providers:
+    gemini: { voice: Sulafat, estilo: "Voz feminina brasileira, calorosa e sorridente...", model: gemini-3.8-flash-tts }
+    # api: generate_content   # opcional: usa /models/<model>:generateContent em vez da Interactions API (padrão)
+```
+
+```bash
+export GEMINI_API_KEY=...                          # não commitar
+simplicio-video voice <contrato.yaml> --provider gemini     # -> vo/external/line-NN.wav + timing.lock.json
+simplicio-video run <contrato.yaml> --provider gemini       # voz + validate + render (+ --publish)
+```
+
+A fala vai **literal** no texto, o estilo vai em `speech_metadata.style` e a resposta é WAV 24 kHz. Os WAVs ficam no diretório do provider `file`, então `--provider file` reproduz a mesma voz sem rede. O cache é por hash de texto+voz+modelo+estilo: rodar de novo não chama a API (use `--force` para regerar). Em 429/5xx o CLI tenta de novo respeitando `Retry-After`. O lock registra `usage.tts_chars_this_run`.
+
+## Rota antiga pelo script do projeto npm (WJR) — **não testada**
 
 Precisa de uma chave da Gemini API (AI Studio → *Get API key*). **Não foi testada** nesta máquina (sem chave). Formato da chamada conferido na [documentação oficial de TTS](https://ai.google.dev/gemini-api/docs/speech-generation) em 30/09/2026: Interactions API, modelos `gemini-3.8-flash-tts` (padrão) e `gemini-3.8-flash-lite-tts` (mais barato), 30 vozes prontas (Puck = *Upbeat*, Kore = *Firm*, Charon = *Informative*, Sulafat = *Warm*, Achird = *Friendly*…) + biblioteca estendida (`GET /v1beta/voices`) + *voice design*.
 

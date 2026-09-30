@@ -10,7 +10,7 @@ Regras, mapa e fluxos para qualquer agente (Claude Code, Codex, Grok) trabalhand
 
 LLM (Opus 5.5) **só** cria template/padrão novo; nunca está no caminho do render.
 
-**Entrada oficial: o CLI `simplicio-video`** ([ADR-0002](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md)). O agente raciocina e escreve o **contrato YAML** (`schema/contract.schema.json`); o CLI valida, gera a voz e renderiza. Skill para qualquer LLM no simplicio-runtime: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md). Receita passo a passo: [`docs/receita-video-cliente.md`](docs/receita-video-cliente.md).
+**Entrada oficial: o CLI `simplicio-video`** ([ADR-0002](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md); fluxo 100% script, backends remotos, Drive e MCP: [ADR-0003](docs/decisoes/ADR-0003-fluxo-100-script.md)). O agente raciocina e escreve o **contrato YAML** (`schema/contract.schema.json`); o CLI valida, gera a voz e renderiza. Skill para qualquer LLM no simplicio-runtime: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md). Receita passo a passo: [`docs/receita-video-cliente.md`](docs/receita-video-cliente.md).
 
 ### Quickstart do CLI
 ```bash
@@ -18,8 +18,11 @@ pip install -e .                                   # raiz do repo (Python >= 3.1
 simplicio-video --help                             # fluxo init -> validate -> voice -> render (cada comando tem --help)
 simplicio-video init <slug> <Campanha> --template <id> --nome "<Nome>"
 simplicio-video validate clients/<slug>/<video>/contract.yaml
-simplicio-video voice    clients/<slug>/<video>/contract.yaml [--provider file|local|gemini]
-simplicio-video render   clients/<slug>/<video>/contract.yaml [--backend local|colab] [--out x.mp4]
+simplicio-video voice    clients/<slug>/<video>/contract.yaml [--provider file|local|gemini]   # gemini = API (GEMINI_API_KEY)
+simplicio-video render   clients/<slug>/<video>/contract.yaml [--backend local|kaggle|colab-cli|colab] [--out x.mp4]
+simplicio-video publish  clients/<slug>/<video>/contract.yaml [--dry-run]    # Drive via rclone; SÓ com pedido explícito
+simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini --backend local [--publish]
+simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
 python -m pytest                                   # schema, validate, --help, determinismo (render curto)
 ```
@@ -29,7 +32,7 @@ python -m pytest                                   # schema, validate, --help, d
 | Pasta | O quê | Entrada principal |
 |---|---|---|
 | `schema/` | `contract.schema.json` (`simplicio.video-contract/v1`, entrada do CLI) | [receita](docs/receita-video-cliente.md) |
-| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local/colab, `render.manifest.json`), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`) | `simplicio-video --help` |
+| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local + bundle, `render.manifest.json`), `remote.py` (Kaggle, Colab CLI), `publish.py` (Drive/rclone), `pipeline.py` (`run`), `mcp_server.py` (tools `video.*`), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`, `remote_render.py` = script headless dos backends remotos) | `simplicio-video --help` |
 | `skills/simplicio-video/` | `SKILL.md`: como um LLM escolhe template/motion/voz/tempos e escreve o contrato | [SKILL.md](skills/simplicio-video/SKILL.md) |
 | `colab/` | `render.ipynb` (render do bundle na GPU, tempos por etapa) + README | [colab/README.md](colab/README.md) |
 | `tests/` | pytest: schema, validate, voice, compile (WJR byte a byte), `--help`, determinismo de hash (render de 1 s), fixture `fixtures/mini/` | — |
@@ -55,11 +58,11 @@ python -m pytest                                   # schema, validate, --help, d
 **Novo vídeo (etapas 3–7) — pelo CLI**
 1. `simplicio-video list templates` → template pelo nicho (renderizável). `simplicio-video init <slug> <Campanha> --template <id>`.
 2. Escreva o contrato (copy só da coleta; cenas, blocos + params, falas com `max_s`, SFX relativos à cena, voz, trilha, drive). Ver [SKILL.md](skills/simplicio-video/SKILL.md).
-3. `validate` → `voice` → `validate --need-lock` → `render` (ou `--backend colab`). Confira `render.manifest.json` (loudness), STT e a prévia.
+3. `validate` → `voice` → `validate --need-lock` → `render` (ou `run`, que faz tudo; `--backend kaggle|colab-cli` renderiza remoto sem navegador). Confira `render.manifest.json` (loudness), STT e a prévia.
 4. Os projetos npm da WJR (`video-01`, `video-02-videouse`) ficam como referência; o `video-01` também tem `contract.yaml` (render idêntico).
 
 **Voz / narração** ([voices/](voices/README.md))
-- `file` (padrão atual): WAVs externos em `assets/audio/vo/external/line-NN.wav` — ex.: Gemini no AI Studio ([voices/gemini.md](voices/gemini.md)); `scripts/gemini-tts.mjs` faz a rota API (não testada, sem chave).
+- `gemini`: API do Gemini TTS pelo CLI (`GEMINI_API_KEY`, `gemini-3.8-flash-tts`, Interactions API; cache no lock). `file`: WAVs externos em `assets/audio/vo/external/line-NN.wav` (ex.: AI Studio manual, [voices/gemini.md](voices/gemini.md)).
 - `chatterbox` / `kokoro` (locais), `elevenlabs` / `xai` (pagos, chave no ambiente).
 - `voice.py` corta silêncio, trata, **nunca acelera**; frase maior que `max_s` = erro → reajuste tempos (cenas + cues) ou texto.
 
@@ -77,7 +80,7 @@ python -m pytest                                   # schema, validate, --help, d
 
 **Render**
 - `simplicio-video render` = compila contrato + lock + template + blocos → `engine/build.mjs` (trilha/SFX/voz) → HyperFrames (`--strict-variables`) → `master.sh` (−14 LUFS, TP ≤ −1,5 dBTP) → `render.manifest.json`. HyperFrames sempre fixado: `npx --yes hyperframes@0.8.97`. Node ≥ 22.
-- Colab: `--backend colab` gera bundle zip reprodutível; `colab/render.ipynb` renderiza na GPU e imprime tempos (setup, frames, encode). NVENC muda os bytes do vídeo.
+- Remoto: `--backend kaggle` (4 vCPU) / `colab-cli` (Colab grátis = 2 vCPU) / `colab` (notebook manual) usam o mesmo bundle + `render_bundle.sh`. A captura do Chrome é CPU (gargalo); GPU só no encode (NVENC, `--gpu-encode`, muda os bytes). Frames/áudio só batem com o local com o mesmo ffmpeg (`SIMPLICIO_FFMPEG_DIR` / `SIMPLICIO_FFMPEG_URL`+`_SHA256`). Ver ADR-0003.
 - Legado WJR: `npm run render` dentro de `clients/wjr-informatica-games/video-01`.
 
 **Determinismo**
@@ -96,7 +99,7 @@ python -m pytest                                   # schema, validate, --help, d
 - Nome do arquivo: `<CLIENTE> - <descricao> - vNN.mp4` (ex.: `Lothus - Dia das Criancas 15s - v01.mp4`); versão nova = `vNN+1`, nunca sobrescrever.
 - O repositório guarda **os links**, nunca o MP4 final como entrega (`out/` é gitignored; `preview/` só leva a prévia leve 720p).
 - Todo link novo entra na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
-- Upload é feito pelo Wesley; agente não sobe nada ao Drive sem pedido explícito.
+- Upload: `simplicio-video publish` / `run --publish` (rclone, remote `gdrive`; nunca sobrescreve, link pelo ID). O agente **só** roda publish sem `--dry-run` com pedido explícito do Wesley para aquele vídeo.
 
 ## Convenções e travas
 

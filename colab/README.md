@@ -1,4 +1,8 @@
-# colab/ — render na GPU do Google Colab
+# colab/ — render no Google Colab (notebook manual ou Colab CLI)
+
+**Sem navegador:** `simplicio-video render <contrato> --backend colab-cli` usa o [Colab CLI oficial](https://github.com/googlecolab/google-colab-cli) (`pip install google-colab-cli`, login OAuth único colando o código): `colab new --gpu T4` → upload do bundle + `engine/remote_render.py` → `exec` → download de `final.mp4`/`timings.json` → `stop` (sempre). Kaggle: `--backend kaggle`. Ver [ADR-0003](../docs/decisoes/ADR-0003-fluxo-100-script.md).
+
+**Velocidade (medido, WJR 600 frames):** Colab T4 grátis = 459,7 s de render contra 76,5 s no box local. A captura do HTML pelo Chrome headless é CPU; o Colab grátis tem 2 vCPU, e o HyperFrames usa `núcleos − 2` workers (mínimo 1). A GPU só acelera o encode (NVENC).
 
 `render.ipynb` renderiza um **bundle** gerado pelo CLI e imprime os tempos por etapa (setup, frames, encode, master) e a GPU usada.
 
@@ -21,8 +25,8 @@ do Chrome (alternativas como `libasound2` | `libasound2t64` resolvidas pelo apt)
 algo, para com a lista de `.so` ausentes. Nenhum erro é escondido: `sh()` mostra exit code, stdout e stderr reais; `apt-get update` com
 repositório de terceiros quebrado vira aviso. O render usa exatamente esse Chrome (`HYPERFRAMES_BROWSER_PATH`).
 
-O bundle é a composição já compilada (index.html, blocos, fontes, assets, VO tratada, trilha mixada `mix.wav`, `build/variables.json`) + `render_bundle.sh` (HyperFrames fixado, `--gpu` quando o ffmpeg tem NVENC) + `scripts/master.sh`. O zip é reprodutível (timestamps fixos): mesmo contrato → mesmo sha256.
+O bundle é a composição já compilada (index.html, blocos, fontes, assets, VO tratada, trilha mixada `mix.wav`, `build/variables.json`) + `render_bundle.sh` (HyperFrames fixado; `--gpu` quando o NVENC passa num encode de teste, `SV_GPU_ENCODE=0` desliga; Chrome em raster de software, `--no-browser-gpu`, para manter os pixels do local; `SV_WORKERS=N` força workers) + `scripts/master.sh`. O zip é reprodutível (timestamps fixos): mesmo contrato → mesmo sha256.
 
-**Determinismo:** encode por CPU reproduz os bytes do render local (testado com o bundle mini: frames, áudio e sha256 do MP4 iguais). Com NVENC o vídeo é recodificado por outro encoder, então os bytes mudam; o áudio masterizado deve bater.
+**Determinismo:** com o **mesmo ffmpeg** e encode por CPU, o bundle reproduz os bytes do render local (testado com o bundle mini, sha256 do MP4 igual). No Colab real (WJR) frames e áudio **não** bateram: o ffmpeg do Ubuntu do Colab é outro build (x264, AAC e loudnorm/resampler mudam entre versões), e o modo auto do Chrome podia ligar raster de GPU (agora forçado para software). Para comparar, use ffmpeg travado (`SIMPLICIO_FFMPEG_URL` + `SIMPLICIO_FFMPEG_SHA256`, aplicado pelo `remote_render.py`) e `--gpu-encode 0`. Com NVENC os bytes do vídeo sempre mudam.
 
-**Automação (próximo passo, não feito):** o Colab gratuito não tem API pública para rodar notebook. Opções avaliadas no [ADR-0002](../docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md): Colab Enterprise / Vertex AI (execuções agendadas por API, pago), ou um runner GPU próprio que roda `render_bundle.sh`. Nenhuma conta foi criada e nada foi gasto.
+**Automação:** feita pelo `--backend colab-cli` (Colab CLI oficial, anunciado em 05/06/2026) e pelo `--backend kaggle`. Comparação com Colab Enterprise, Modal e RunPod no [ADR-0003](../docs/decisoes/ADR-0003-fluxo-100-script.md). Nenhuma conta foi usada e nada foi gasto.
