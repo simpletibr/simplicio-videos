@@ -42,6 +42,24 @@ ambiente:
   GEMINI_API_KEY        só para --provider gemini (nunca commitar)"""
 
 
+BACKENDS = ["local", "kaggle", "colab-cli", "colab"]
+
+
+def do_render(c, backend: str, out=None, quality=None, workdir=None, gpu=False, accelerator=None, timeout=3600, log=print) -> dict:
+    """Dispatch one render to a backend (shared by render, run and the MCP server)."""
+    from . import remote, render
+    acc = None if (accelerator or "").lower() in ("none", "cpu") else accelerator
+    if backend == "colab":
+        return render.render_colab(c, out=out, quality=quality, log=log)
+    if backend == "kaggle":
+        return remote.render_kaggle(c, out=out, quality=quality, timeout_s=timeout, log=log,
+                                    accelerator="NvidiaTeslaT4" if accelerator is None else acc)
+    if backend == "colab-cli":
+        return remote.render_colab_cli(c, out=out, quality=quality, timeout_s=timeout, log=log,
+                                       gpu="T4" if accelerator is None else acc)
+    return render.render_local(c, out=out, quality=quality, workdir=workdir, gpu=gpu, log=log)
+
+
 class Fmt(argparse.RawDescriptionHelpFormatter):
     def __init__(self, prog):
         super().__init__(prog, max_help_position=34, width=110)
@@ -115,16 +133,26 @@ def build_parser() -> argparse.ArgumentParser:
                     f"(engine build.mjs, semente fixa), renderiza os frames ({HYPERFRAMES}) e masteriza com ffmpeg\n"
                     "(loudnorm 2 passes, alvo trilha.master: -14 LUFS / TP -1,5). Grava render.manifest.json ao lado do\n"
                     "contrato: hash do contrato, de cada input compilado, das ferramentas e do vídeo/áudio decodificados.\n"
-                    "backends:\n"
-                    "  local  renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver)\n"
-                    "  colab  NÃO renderiza: gera <saida>.colab-bundle.zip (composição pronta + render_bundle.sh) para\n"
-                    "         colab/render.ipynb (GPU, NVENC quando disponível; imprime tempos por etapa)",
+                    "backends (todos sem navegador, exceto colab):\n"
+                    "  local      renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver). Referência de hash.\n"
+                    "  kaggle     bundle -> dataset privado Kaggle -> kernel (T4, internet) -> poll -> baixa o MP4.\n"
+                    "             Precisa do CLI `kaggle`, KAGGLE_USERNAME + token (KAGGLE_API_TOKEN ou ~/.kaggle/access_token)\n"
+                    "             e conta com telefone verificado (internet no kernel). --accelerator none = CPU (sem cota de GPU).\n"
+                    "  colab-cli  Colab oficial por CLI (`pip install google-colab-cli`): new --gpu T4 -> upload -> exec ->\n"
+                    "             download -> stop (sempre). Login Google uma vez (código colado no terminal).\n"
+                    "  colab      NÃO renderiza: gera <saida>.colab-bundle.zip para colab/render.ipynb no navegador (manual)\n"
+                    "Remotos baixam final.mp4 e gravam o mesmo render.manifest.json (+ usage: backend, GPU, tempos) para créditos.",
         epilog="exemplos:\n  simplicio-video render contract.yaml\n"
                "  simplicio-video render contract.yaml --out /tmp/teste.mp4 --quality draft\n"
+               "  simplicio-video render contract.yaml --backend kaggle                   # GPU T4 grátis (cota semanal)\n"
+               "  simplicio-video render contract.yaml --backend kaggle --accelerator none\n"
+               "  simplicio-video render contract.yaml --backend colab-cli --accelerator T4\n"
                "  simplicio-video render contract.yaml --backend colab   # -> out/<nome>.colab-bundle.zip")
     _contract_arg(p)
-    p.add_argument("--backend", "-b", choices=["local", "colab"], default="local", help="onde renderizar (padrão: local)")
+    p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local)")
     p.add_argument("--out", "-o", type=Path, help="MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo")
+    p.add_argument("--accelerator", help="kaggle: NvidiaTeslaT4 (padrão) | NvidiaL4 | none; colab-cli: T4 (padrão) | L4 | A100 | none")
+    p.add_argument("--timeout", type=int, default=3600, help="kaggle/colab-cli: limite do render remoto em s (padrão 3600)")
     p.add_argument("--quality", "-q", choices=["draft", "looks", "delivery"], help="qualidade HyperFrames (padrão: saida.qualidade)")
     p.add_argument("--gpu", action="store_true", help="local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo")
     p.add_argument("--workdir", type=Path, help="pasta da composição compilada (padrão: <contrato>/build/simplicio-video)")
@@ -193,10 +221,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "render":
         from . import render
-        if a.backend == "colab":
-            render.render_colab(c, out=a.out, quality=a.quality)
-        else:
-            render.render_local(c, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu)
+        do_render(c, a.backend, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu, accelerator=a.accelerator,
+                  timeout=a.timeout)
         return 0
     return 2
 

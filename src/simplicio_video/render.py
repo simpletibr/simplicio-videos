@@ -136,29 +136,39 @@ def render_local(c: Contract, out: Path | None = None, quality: str | None = Non
     rlog = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", rlog)
     (wd / "out" / "render.log").write_text(rlog)
     cap, enc = _secs(rlog, "capture"), _secs(rlog, r"encode(?: \(during capture\))?")
+    timings = {"compile_build": info["compile_build_s"], "render": round(t1 - t0, 2), "capture": cap, "encode": enc,
+               "master": round(t2 - t1, 2)}
+    log(mlog.strip().splitlines()[-1] if mlog.strip() else "")
+    return write_manifest(c, dst, backend="local", quality=q, gpu=gpu, info=info, timings=timings, log=log)
+
+
+def write_manifest(c: Contract, dst: Path, backend: str, quality: str, gpu: bool, info: dict, timings: dict,
+                   tools: dict | None = None, usage: dict | None = None, log=print) -> dict:
+    """render.manifest.json next to the contract (same schema for every backend) + <out>.frames.md5."""
     media = media_hashes(dst)
     manifest = {
         "schema": "simplicio.render-manifest/v1",
         "contract": os.path.relpath(c.path, c.home), "contract_sha256": c.sha256(),
         "timing_lock_sha256": sha256_file(c.dir / "timing.lock.json") if (c.dir / "timing.lock.json").is_file() else None,
-        "template": c.data["template"], "backend": "local", "quality": q, "gpu_encode": gpu,
-        "inputs_sha256": info["inputs_sha256"], "inputs": info["files"], "tools": tool_versions(),
+        "template": c.data["template"], "backend": backend, "quality": quality, "gpu_encode": gpu,
+        "inputs_sha256": info["inputs_sha256"], "inputs": info["files"], "tools": tools or tool_versions(),
         "output": {"path": os.path.relpath(dst, c.dir), **{k: v for k, v in media.items() if k != "frame_md5"}},
         "loudness": loudness(dst),
         "drive": c.data["drive"],
-        "timings_s": {"compile_build": info["compile_build_s"], "render": round(t1 - t0, 2),
-                      "capture": cap, "encode": enc,
-                      "master": round(t2 - t1, 2)},
+        "timings_s": timings,
     }
+    if usage:
+        manifest["usage"] = usage
     (c.dir / "render.manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     (dst.parent / (dst.stem + ".frames.md5")).write_text("\n".join(media["frame_md5"]) + "\n")
-    log(mlog.strip().splitlines()[-1] if mlog.strip() else "")
-    log(f"render: {dst} ({media['duration_s']} s, {media['frames']} frames) · inputs {info['inputs_sha256'][:12]} · "
+    log(f"render[{backend}]: {dst} ({media['duration_s']} s, {media['frames']} frames) · inputs {info['inputs_sha256'][:12]} · "
         f"frames {media['video_frames_sha256'][:12]} · audio {media['audio_pcm_sha256'][:12]}")
     return manifest
 
 
-def render_colab(c: Contract, out: Path | None = None, quality: str | None = None, log=print) -> dict:
+def build_bundle(c: Contract, out: Path | None = None, quality: str | None = None, log=print) -> dict:
+    """Compile + engine build, then zip the workdir into a reproducible bundle (fixed timestamps) with
+    render_bundle.sh and bundle.json. Shared by the colab, colab-cli and kaggle backends."""
     wd = c.dir / "build" / "simplicio-video"
     q = quality or c.data["saida"].get("qualidade", "delivery")
     info, _ = prepare(c, wd, log)
@@ -170,7 +180,7 @@ def render_colab(c: Contract, out: Path | None = None, quality: str | None = Non
     ref = c.dir / "render.manifest.json"
     if ref.is_file():
         m = json.loads(ref.read_text(encoding="utf8"))
-        if m.get("inputs_sha256") == info["inputs_sha256"]:  # same compiled inputs -> local render is a valid reference
+        if m.get("inputs_sha256") == info["inputs_sha256"] and m.get("backend", "local") == "local":
             bundle_meta["reference_local"] = {k: m["output"][k] for k in ("sha256", "video_frames_sha256", "audio_pcm_sha256", "frames", "duration_s")}
             bundle_meta["reference_local"]["timings_s"] = m.get("timings_s")
             bundle_meta["reference_local"]["tools"] = m.get("tools")
@@ -187,7 +197,15 @@ def render_colab(c: Contract, out: Path | None = None, quality: str | None = Non
                 zi.compress_type = zipfile.ZIP_DEFLATED
                 zi.external_attr = (0o755 if p.suffix == ".sh" else 0o644) << 16
                 z.writestr(zi, p.read_bytes())
+    log(f"bundle: {dst} ({dst.stat().st_size / 1e6:.1f} MB, inputs {info['inputs_sha256'][:12]})")
+    return {**bundle_meta, "bundle": str(dst), "bundle_sha256": sha256_file(dst), "files": info["files"],
+            "compile_build_s": info["compile_build_s"]}
+
+
+def render_colab(c: Contract, out: Path | None = None, quality: str | None = None, log=print) -> dict:
+    """Manual Colab: bundle + colab/render.ipynb opened in the browser (use --backend colab-cli for no browser)."""
+    res = build_bundle(c, out, quality, log)
     nb = c.home / "colab" / "render.ipynb"
-    log(f"colab bundle: {dst} ({dst.stat().st_size / 1e6:.1f} MB, inputs {info['inputs_sha256'][:12]})")
-    log(f"notebook: {nb} - open in Colab (GPU runtime), upload the bundle, run all cells")
-    return {**bundle_meta, "bundle": str(dst), "bundle_sha256": sha256_file(dst), "notebook": str(nb)}
+    log(f"notebook: {nb} - open in Colab (GPU runtime), upload the bundle, run all cells "
+        "(no browser: `simplicio-video render <contrato> --backend colab-cli`)")
+    return {**{k: v for k, v in res.items() if k not in ("files", "compile_build_s")}, "notebook": str(nb)}
