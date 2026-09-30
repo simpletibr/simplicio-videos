@@ -25,6 +25,12 @@ echo "ffmpeg version 9.9-fake"
 """
 
 
+@pytest.fixture(autouse=True)
+def _clean_env(monkeypatch):
+    for k in ("SV_WORKERS", "SV_BROWSER_GPU", "SV_GPU_ENCODE"):
+        monkeypatch.delenv(k, raising=False)
+
+
 def _setup(tmp_path: Path, gpu_encode="auto", nvidia=True):
     bin_ = tmp_path / "bin"
     bin_.mkdir()
@@ -58,6 +64,16 @@ def test_script_has_no_sigpipe_grep_and_is_deterministic_by_default():
     assert "__" not in s.replace("__file__", "")      # all placeholders filled
     with pytest.raises(ValueError):
         render.bundle_script("draft", "yes")
+
+
+def test_env_at_build_time_becomes_remote_default(monkeypatch):
+    monkeypatch.setenv("SV_WORKERS", "3")
+    monkeypatch.setenv("SV_BROWSER_GPU", "1")
+    s = render.bundle_script("draft")
+    assert 'SV_WORKERS="${SV_WORKERS:-3}"' in s and "${SV_BROWSER_GPU:-1}" in s
+    monkeypatch.setenv("SV_WORKERS", "many")
+    with pytest.raises(ValueError):
+        render.bundle_script("draft")
 
 
 def test_nvenc_is_used_when_it_really_works(tmp_path):

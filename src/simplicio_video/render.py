@@ -41,11 +41,12 @@ if [ "$GPU_ENCODE" != "0" ]; then
     GPU_WHY="h264_nvenc present but test encode failed (driver/libnvidia-encode)"
   else GPU="--gpu"; GPU_WHY="nvenc ok"; fi
 fi
-BROWSER="--no-browser-gpu"; if [ "${SV_BROWSER_GPU:-0}" = "1" ]; then BROWSER="--browser-gpu"; fi
+BROWSER="--no-browser-gpu"; if [ "${SV_BROWSER_GPU:-__BROWSER_GPU__}" = "1" ]; then BROWSER="--browser-gpu"; fi
 # keep BeginFrame capture with the software (SwiftShader) raster: same pixels as the local reference
 export PRODUCER_FORCE_SCREENSHOT="${PRODUCER_FORCE_SCREENSHOT:-false}"
-WORKERS=""; if [ -n "${SV_WORKERS:-}" ] && [ "${SV_WORKERS}" != "auto" ]; then WORKERS="--workers ${SV_WORKERS}"; fi
-echo "render_bundle: gpu_encode=${GPU:-no} (${GPU_WHY}) browser=${BROWSER} workers=${SV_WORKERS:-auto} nproc=$(nproc)"
+SV_WORKERS="${SV_WORKERS:-__WORKERS__}"
+WORKERS=""; if [ "${SV_WORKERS}" != "auto" ]; then WORKERS="--workers ${SV_WORKERS}"; fi
+echo "render_bundle: gpu_encode=${GPU:-no} (${GPU_WHY}) browser=${BROWSER} workers=${SV_WORKERS} nproc=$(nproc)"
 mkdir -p out
 t0=$(date +%s.%N)
 npx --yes __HF__ render --quality "$Q" --strict-variables --variables-file build/variables.json --output out/raw.mp4 $GPU $BROWSER $WORKERS 2>&1 | tee out/render.log
@@ -83,9 +84,16 @@ PY
 
 
 def bundle_script(quality: str, gpu_encode: str = "auto") -> str:
+    """render_bundle.sh with the defaults baked in. SV_WORKERS / SV_BROWSER_GPU set when the bundle is built become the
+    remote defaults (Kaggle and colab-cli can't receive arbitrary env); the remote env still overrides them."""
     if gpu_encode not in ("auto", "1", "0"):
         raise ValueError("gpu_encode must be auto|1|0")
-    return BUNDLE_SCRIPT.replace("__QUALITY__", quality).replace("__HF__", HYPERFRAMES).replace("__GPU_ENCODE__", gpu_encode)
+    workers = os.environ.get("SV_WORKERS", "auto") or "auto"
+    if workers != "auto" and not workers.isdigit():
+        raise ValueError("SV_WORKERS must be auto or an integer")
+    browser_gpu = "1" if os.environ.get("SV_BROWSER_GPU") == "1" else "0"
+    return (BUNDLE_SCRIPT.replace("__QUALITY__", quality).replace("__HF__", HYPERFRAMES).replace("__GPU_ENCODE__", gpu_encode)
+            .replace("__WORKERS__", workers).replace("__BROWSER_GPU__", browser_gpu))
 
 
 def _run(cmd: list[str], cwd: Path, log, extra_env: dict | None = None) -> str:
@@ -169,7 +177,8 @@ def render_local(c: Contract, out: Path | None = None, quality: str | None = Non
     dst.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     cmd = ["npx", "--yes", HYPERFRAMES, "render", "--quality", q, "--strict-variables", "--variables-file", "build/variables.json",
-           "--output", "out/raw.mp4", "--no-browser-gpu"] + (["--gpu"] if gpu else [])
+           "--output", "out/raw.mp4", "--browser-gpu" if os.environ.get("SV_BROWSER_GPU") == "1" else "--no-browser-gpu"]
+    cmd += (["--gpu"] if gpu else []) + (["--workers", os.environ["SV_WORKERS"]] if os.environ.get("SV_WORKERS", "auto") != "auto" else [])
     # software raster + BeginFrame capture, pinned explicitly (same pixels as the remote bundles, see ADR-0003)
     rlog = _run(cmd, wd, log, {"PRODUCER_FORCE_SCREENSHOT": "false"})
     t1 = time.time()
