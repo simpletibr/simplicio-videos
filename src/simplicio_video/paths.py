@@ -47,4 +47,9 @@ def node_env() -> dict:
     extra = Path.home() / ".local/node22/bin"
     if extra.is_dir():
         env["PATH"] = f"{extra}{os.pathsep}{env.get('PATH', '')}"
+    ff = env.get("SIMPLICIO_FFMPEG_DIR")  # pinned ffmpeg toolchain (ADR-0003): HyperFrames + master.sh + build.mjs use it
+    if ff:
+        env["PATH"] = f"{ff}{os.pathsep}{env['PATH']}"
+        env.setdefault("HYPERFRAMES_FFMPEG_PATH", str(Path(ff) / "ffmpeg"))
+        env.setdefault("HYPERFRAMES_FFPROBE_PATH", str(Path(ff) / "ffprobe"))
     return env

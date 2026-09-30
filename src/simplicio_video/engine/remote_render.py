@@ -9,7 +9,14 @@ env:
   SV_OUT         output dir (default: /kaggle/working on Kaggle, else ./sv-out)
   SV_QUALITY     draft|looks|delivery (default: the bundle's quality)
   SV_SKIP_SETUP  1 = assume node/ffmpeg/chrome already present (local smoke test)
+  SV_FFMPEG_URL / SV_FFMPEG_SHA256  pinned static ffmpeg (.tar.xz); default: bundle.json toolchain (SIMPLICIO_FFMPEG_URL at
+                 bundle time). Same ffmpeg build as the local reference = same x264/aac/loudnorm bytes (ADR-0003).
+  SV_GPU_ENCODE / SV_BROWSER_GPU / SV_WORKERS  passed to render_bundle.sh (see its header)
 """
+import hashlib
+import lzma
+import tarfile
+import urllib.request
 import glob
 import json
 import os
@@ -150,6 +157,34 @@ def setup():
     T["setup_s"] = round(time.time() - t, 1)
 
 
+def pin_ffmpeg(url, sha256=None):
+    """Download + verify + unpack a static ffmpeg build and put it first on PATH (HyperFrames + master.sh use it)."""
+    t = time.time()
+    dst = "/tmp/sv-ffmpeg"
+    tarball = dst + ".tar.xz"
+    if not os.path.exists(tarball):
+        urllib.request.urlretrieve(url, tarball)
+    got = hashlib.sha256(open(tarball, "rb").read()).hexdigest()
+    if sha256 and got != sha256:
+        raise RuntimeError(f"ffmpeg sha256 mismatch: {got} != {sha256} ({url})")
+    if not os.path.isdir(dst):
+        with lzma.open(tarball) as f:
+            tarfile.open(fileobj=f).extractall(dst)
+    ff = next(iter(sorted(glob.glob(dst + "/**/ffmpeg", recursive=True))), None)
+    if not ff:
+        raise RuntimeError(f"no ffmpeg binary inside {url}")
+    os.chmod(ff, 0o755)
+    d = os.path.dirname(ff)
+    os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
+    os.environ["HYPERFRAMES_FFMPEG_PATH"] = ff
+    if os.path.exists(os.path.join(d, "ffprobe")):
+        os.chmod(os.path.join(d, "ffprobe"), 0o755)
+        os.environ["HYPERFRAMES_FFPROBE_PATH"] = os.path.join(d, "ffprobe")
+    log("ffmpeg pinned:", run(f"'{ff}' -version").stdout.splitlines()[0], "| sha256", got[:12])
+    T["ffmpeg_pin_s"] = round(time.time() - t, 1)
+    return got
+
+
 # ---------------- bundle ----------------
 def find_bundle():
     env = os.environ.get("SV_BUNDLE")
@@ -181,6 +216,10 @@ def main():
         os.chmod(sh_file, 0o755)
     meta = json.load(open(os.path.join(work, "bundle.json"), encoding="utf8"))
     log("bundle:", src, "| inputs", meta.get("inputs_sha256", "")[:12], "| quality", meta.get("quality"))
+    pin = {"url": os.environ.get("SV_FFMPEG_URL") or (meta.get("toolchain") or {}).get("ffmpeg_url"),
+           "sha256": os.environ.get("SV_FFMPEG_SHA256") or (meta.get("toolchain") or {}).get("ffmpeg_sha256")}
+    if pin["url"]:
+        pin["sha256"] = pin_ffmpeg(pin["url"], pin["sha256"])
     q = os.environ.get("SV_QUALITY") or meta.get("quality") or "delivery"
     logfile = os.path.join(out, "render.log")
     res = stream(f"bash render_bundle.sh {q}", work, dict(os.environ), logfile)
@@ -190,6 +229,7 @@ def main():
     T.update(tim)
     T["total_s"] = round(time.time() - T0, 1)
     info = {"gpu": gpu or None, "inputs_sha256": meta.get("inputs_sha256"), "quality": q, "timings_s": T,
+            "ffmpeg_pin": pin if pin["url"] else None,
             "host": "kaggle" if os.path.isdir("/kaggle/working") else ("colab" if os.path.isdir("/content") else "other")}
     with open(os.path.join(out, "timings.json"), "w", encoding="utf8") as f:
         json.dump(info, f, indent=1)

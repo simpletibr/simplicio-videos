@@ -88,11 +88,11 @@ def kaggle_metadata(user: str, kernel_slug: str, dataset_slug: str, accelerator:
 
 def render_kaggle(c: Contract, out: Path | None = None, quality: str | None = None, accelerator: str | None = "NvidiaTeslaT4",
                   timeout_s: int = 3600, poll_s: int = 20, user: str | None = None, run: Runner | None = None,
-                  sleep=time.sleep, log=print) -> dict:
+                  sleep=time.sleep, gpu_encode: str = "auto", log=print) -> dict:
     run = run or _default_runner
     kg = _bin("SIMPLICIO_KAGGLE_BIN", "kaggle")
     user = kaggle_username(user)
-    b = build_bundle(c, None, quality, log)
+    b = build_bundle(c, None, quality, gpu_encode=gpu_encode, log=log)
     ds_slug, k_slug = kaggle_slugs(b["inputs_sha256"])
     kref, dref = f"{user}/{k_slug}", f"{user}/{ds_slug}"
     base = c.dir / "build" / "kaggle"
@@ -166,13 +166,13 @@ def render_kaggle(c: Contract, out: Path | None = None, quality: str | None = No
 
 # ---------------------------------------------------------------- Colab CLI
 def render_colab_cli(c: Contract, out: Path | None = None, quality: str | None = None, gpu: str | None = "T4",
-                     timeout_s: int = 3600, run: Runner | None = None, log=print) -> dict:
+                     timeout_s: int = 3600, run: Runner | None = None, gpu_encode: str = "auto", log=print) -> dict:
     """Official Google Colab CLI (github.com/googlecolab/google-colab-cli): new -> upload -> exec -> download -> stop."""
     run = run or _default_runner
     cb = [_bin("SIMPLICIO_COLAB_BIN", "colab")]
     if os.environ.get("SIMPLICIO_COLAB_AUTH"):
         cb += ["--auth", os.environ["SIMPLICIO_COLAB_AUTH"]]
-    b = build_bundle(c, None, quality, log)
+    b = build_bundle(c, None, quality, gpu_encode=gpu_encode, log=log)
     sess = f"sv-{b['inputs_sha256'][:10]}"
     rb, ro = "/content/sv/bundle.zip", "/content/sv/out"
     t_start = time.time()

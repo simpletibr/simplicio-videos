@@ -23,33 +23,74 @@ from .voice import sha256_file
 
 SKIP_DIRS = {"out", "renders", ".debug", "node_modules"}
 BUNDLE_SCRIPT = r"""#!/usr/bin/env bash
-# Render a simplicio-video bundle (GPU encode when NVENC is available). Prints per-stage timings as JSON.
+# Render a simplicio-video bundle. Prints per-stage timings + environment as JSON (TIMINGS {...}).
+# env: SV_GPU_ENCODE=auto|1|0 (NVENC encode; default __GPU_ENCODE__), SV_BROWSER_GPU=0|1 (Chrome GPU raster; default 0 =
+#      deterministic SwiftShader), SV_WORKERS=auto|N (parallel Chrome capture workers; HyperFrames auto = cores-2).
 set -euo pipefail
 cd "$(dirname "$0")"
 Q="${1:-__QUALITY__}"
-GPU=""; if command -v nvidia-smi >/dev/null 2>&1 && ffmpeg -hide_banner -encoders 2>/dev/null | grep -q h264_nvenc; then GPU="--gpu"; fi
+GPU_ENCODE="${SV_GPU_ENCODE:-__GPU_ENCODE__}"
+GPU=""; GPU_WHY="off"
+if [ "$GPU_ENCODE" != "0" ]; then
+  # never pipe ffmpeg into grep -q here: with pipefail, grep -q exits early, ffmpeg gets SIGPIPE (141) and the test is false
+  # even when h264_nvenc exists (the bug that left gpu_encode=false on the Colab T4).
+  ENC="$(ffmpeg -hide_banner -encoders 2>/dev/null || true)"
+  if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi >/dev/null 2>&1; then GPU_WHY="no nvidia-smi/driver"
+  elif ! grep -q h264_nvenc <<<"$ENC"; then GPU_WHY="ffmpeg without h264_nvenc"
+  elif ! ffmpeg -hide_banner -v error -f lavfi -i color=c=black:s=256x256:d=0.2 -c:v h264_nvenc -f null - >/dev/null 2>&1; then
+    GPU_WHY="h264_nvenc present but test encode failed (driver/libnvidia-encode)"
+  else GPU="--gpu"; GPU_WHY="nvenc ok"; fi
+fi
+BROWSER="--no-browser-gpu"; if [ "${SV_BROWSER_GPU:-0}" = "1" ]; then BROWSER="--browser-gpu"; fi
+# keep BeginFrame capture with the software (SwiftShader) raster: same pixels as the local reference
+export PRODUCER_FORCE_SCREENSHOT="${PRODUCER_FORCE_SCREENSHOT:-false}"
+WORKERS=""; if [ -n "${SV_WORKERS:-}" ] && [ "${SV_WORKERS}" != "auto" ]; then WORKERS="--workers ${SV_WORKERS}"; fi
+echo "render_bundle: gpu_encode=${GPU:-no} (${GPU_WHY}) browser=${BROWSER} workers=${SV_WORKERS:-auto} nproc=$(nproc)"
 mkdir -p out
 t0=$(date +%s.%N)
-npx --yes __HF__ render --quality "$Q" --strict-variables --variables-file build/variables.json --output out/raw.mp4 $GPU 2>&1 | tee out/render.log
+npx --yes __HF__ render --quality "$Q" --strict-variables --variables-file build/variables.json --output out/raw.mp4 $GPU $BROWSER $WORKERS 2>&1 | tee out/render.log
 t1=$(date +%s.%N)
 bash scripts/master.sh out/raw.mp4 out/final.mp4
 t2=$(date +%s.%N)
-python3 - "$t0" "$t1" "$t2" "$GPU" <<'PY'
-import json, re, sys
-t0, t1, t2, gpu = float(sys.argv[1]), float(sys.argv[2]), float(sys.argv[3]), sys.argv[4]
+python3 - "$t0" "$t1" "$t2" "$GPU" "$GPU_WHY" "$BROWSER" <<'PY'
+import json, os, re, shutil, subprocess, sys
+t0, t1, t2, gpu, why, browser = float(sys.argv[1]), float(sys.argv[2]), float(sys.argv[3]), sys.argv[4], sys.argv[5], sys.argv[6]
 log = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", open("out/render.log", encoding="utf8", errors="ignore").read())
 def g(k):
     m = re.search(k + r" (?:([0-9]+)m ?)?([0-9.]+)s\b", log)
     return round(int(m.group(1) or 0) * 60 + float(m.group(2)), 2) if m else None
+def first(cmd):
+    try:
+        return (subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout.strip().splitlines() or [None])[0]
+    except Exception:
+        return None
+def mem_gb():
+    try:
+        return round(int(open("/proc/meminfo").read().split()[1]) / 1048576, 1)
+    except Exception:
+        return None
+w = re.findall(r'"workerCount":\s*([0-9]+)', log) or re.findall(r"\(([0-9]+) workers?\)", log)
+chrome = os.environ.get("HYPERFRAMES_BROWSER_PATH") or shutil.which("chrome-headless-shell") or shutil.which("google-chrome")
+fonts = subprocess.run("fc-list 2>/dev/null | wc -l", shell=True, capture_output=True, text=True).stdout.strip()
+env = {"nproc": os.cpu_count(), "mem_gb": mem_gb(), "workers": int(w[-1]) if w else None, "browser": browser,
+       "chrome": first([chrome, "--version"]) if chrome else None, "ffmpeg": first(["ffmpeg", "-version"]),
+       "node": first(["node", "--version"]), "system_fonts": int(fonts) if fonts.isdigit() else None,
+       "gpu": first(["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"]) if shutil.which("nvidia-smi") else None}
 print("TIMINGS " + json.dumps({"render_s": round(t1 - t0, 2), "capture_s": g("capture"), "encode_s": g(r"encode(?: \(during capture\))?"),
-    "master_s": round(t2 - t1, 2), "gpu_encode": bool(gpu)}))
+    "master_s": round(t2 - t1, 2), "gpu_encode": bool(gpu), "gpu_encode_reason": why, "env": env}))
 PY
 """
 
 
-def _run(cmd: list[str], cwd: Path, log) -> str:
+def bundle_script(quality: str, gpu_encode: str = "auto") -> str:
+    if gpu_encode not in ("auto", "1", "0"):
+        raise ValueError("gpu_encode must be auto|1|0")
+    return BUNDLE_SCRIPT.replace("__QUALITY__", quality).replace("__HF__", HYPERFRAMES).replace("__GPU_ENCODE__", gpu_encode)
+
+
+def _run(cmd: list[str], cwd: Path, log, extra_env: dict | None = None) -> str:
     log("$ " + " ".join(cmd))
-    p = subprocess.run(cmd, cwd=cwd, env=paths.node_env(), capture_output=True, text=True)
+    p = subprocess.run(cmd, cwd=cwd, env={**paths.node_env(), **(extra_env or {})}, capture_output=True, text=True)
     out = (p.stdout or "") + (p.stderr or "")
     if p.returncode != 0:
         raise SystemExit(f"command failed ({p.returncode}): {' '.join(cmd)}\n{out[-4000:]}")
@@ -128,8 +169,9 @@ def render_local(c: Contract, out: Path | None = None, quality: str | None = Non
     dst.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     cmd = ["npx", "--yes", HYPERFRAMES, "render", "--quality", q, "--strict-variables", "--variables-file", "build/variables.json",
-           "--output", "out/raw.mp4"] + (["--gpu"] if gpu else [])
-    rlog = _run(cmd, wd, log)
+           "--output", "out/raw.mp4", "--no-browser-gpu"] + (["--gpu"] if gpu else [])
+    # software raster + BeginFrame capture, pinned explicitly (same pixels as the remote bundles, see ADR-0003)
+    rlog = _run(cmd, wd, log, {"PRODUCER_FORCE_SCREENSHOT": "false"})
     t1 = time.time()
     mlog = _run(["bash", "scripts/master.sh", "out/raw.mp4", str(dst)], wd, log)
     t2 = time.time()
@@ -166,17 +208,21 @@ def write_manifest(c: Contract, dst: Path, backend: str, quality: str, gpu: bool
     return manifest
 
 
-def build_bundle(c: Contract, out: Path | None = None, quality: str | None = None, log=print) -> dict:
+def build_bundle(c: Contract, out: Path | None = None, quality: str | None = None, gpu_encode: str = "auto",
+                 log=print) -> dict:
     """Compile + engine build, then zip the workdir into a reproducible bundle (fixed timestamps) with
     render_bundle.sh and bundle.json. Shared by the colab, colab-cli and kaggle backends."""
     wd = c.dir / "build" / "simplicio-video"
     q = quality or c.data["saida"].get("qualidade", "delivery")
     info, _ = prepare(c, wd, log)
-    (wd / "render_bundle.sh").write_text(BUNDLE_SCRIPT.replace("__QUALITY__", q).replace("__HF__", HYPERFRAMES))
+    (wd / "render_bundle.sh").write_text(bundle_script(q, gpu_encode))
     bundle_meta = {"schema": "simplicio.render-bundle/v1", "contract": os.path.relpath(c.path, c.home), "contract_sha256": c.sha256(),
                    "inputs_sha256": info["inputs_sha256"], "quality": q, "tools": tool_versions(),
                    "output_name": Path(c.data["saida"]["arquivo"]).name, "drive": c.data["drive"],
                    "run": "bash render_bundle.sh  # -> out/final.mp4"}
+    if os.environ.get("SIMPLICIO_FFMPEG_URL"):  # pinned static ffmpeg: remote_render.py downloads + verifies the same build
+        bundle_meta["toolchain"] = {"ffmpeg_url": os.environ["SIMPLICIO_FFMPEG_URL"],
+                                    "ffmpeg_sha256": os.environ.get("SIMPLICIO_FFMPEG_SHA256")}
     ref = c.dir / "render.manifest.json"
     if ref.is_file():
         m = json.loads(ref.read_text(encoding="utf8"))
@@ -202,9 +248,10 @@ def build_bundle(c: Contract, out: Path | None = None, quality: str | None = Non
             "compile_build_s": info["compile_build_s"]}
 
 
-def render_colab(c: Contract, out: Path | None = None, quality: str | None = None, log=print) -> dict:
+def render_colab(c: Contract, out: Path | None = None, quality: str | None = None, gpu_encode: str = "auto",
+                 log=print) -> dict:
     """Manual Colab: bundle + colab/render.ipynb opened in the browser (use --backend colab-cli for no browser)."""
-    res = build_bundle(c, out, quality, log)
+    res = build_bundle(c, out, quality, gpu_encode=gpu_encode, log=log)
     nb = c.home / "colab" / "render.ipynb"
     log(f"notebook: {nb} - open in Colab (GPU runtime), upload the bundle, run all cells "
         "(no browser: `simplicio-video render <contrato> --backend colab-cli`)")

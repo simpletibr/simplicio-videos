@@ -53,17 +53,18 @@ credenciais e custos: docs/decisoes/ADR-0003-fluxo-100-script.md"""
 BACKENDS = ["local", "kaggle", "colab-cli", "colab"]
 
 
-def do_render(c, backend: str, out=None, quality=None, workdir=None, gpu=False, accelerator=None, timeout=3600, log=print) -> dict:
+def do_render(c, backend: str, out=None, quality=None, workdir=None, gpu=False, accelerator=None, timeout=3600,
+              gpu_encode="auto", log=print) -> dict:
     """Dispatch one render to a backend (shared by render, run and the MCP server)."""
     from . import remote, render
     acc = None if (accelerator or "").lower() in ("none", "cpu") else accelerator
     if backend == "colab":
-        return render.render_colab(c, out=out, quality=quality, log=log)
+        return render.render_colab(c, out=out, quality=quality, gpu_encode=gpu_encode, log=log)
     if backend == "kaggle":
-        return remote.render_kaggle(c, out=out, quality=quality, timeout_s=timeout, log=log,
+        return remote.render_kaggle(c, out=out, quality=quality, timeout_s=timeout, gpu_encode=gpu_encode, log=log,
                                     accelerator="NvidiaTeslaT4" if accelerator is None else acc)
     if backend == "colab-cli":
-        return remote.render_colab_cli(c, out=out, quality=quality, timeout_s=timeout, log=log,
+        return remote.render_colab_cli(c, out=out, quality=quality, timeout_s=timeout, gpu_encode=gpu_encode, log=log,
                                        gpu="T4" if accelerator is None else acc)
     return render.render_local(c, out=out, quality=quality, workdir=workdir, gpu=gpu, log=log)
 
@@ -165,6 +166,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=int, default=3600, help="kaggle/colab-cli: limite do render remoto em s (padrão 3600)")
     p.add_argument("--quality", "-q", choices=["draft", "looks", "delivery"], help="qualidade HyperFrames (padrão: saida.qualidade)")
     p.add_argument("--gpu", action="store_true", help="local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo")
+    p.add_argument("--gpu-encode", choices=["auto", "1", "0"], default="auto",
+                   help="kaggle/colab-cli/colab: NVENC no encode (auto = usa se o teste de encode passar; 0 = libx264, "
+                        "necessário p/ comparar frames com o local). A captura (Chrome) é CPU de qualquer jeito")
     p.add_argument("--workdir", type=Path, help="pasta da composição compilada (padrão: <contrato>/build/simplicio-video)")
 
     p = sub.add_parser("publish", formatter_class=Fmt, help="sobe o MP4 no Google Drive (rclone) e grava o link no README do cliente",
@@ -294,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "render":
         from . import render
         do_render(c, a.backend, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu, accelerator=a.accelerator,
-                  timeout=a.timeout)
+                  timeout=a.timeout, gpu_encode=a.gpu_encode)
         return 0
     return 2
 
