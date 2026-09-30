@@ -1,0 +1,137 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "icon-mascot",
+  "title": "Mascote-ícone sorridente (SVG), qualquer setor",
+  "description": "Ícone de setor com rosto (presente, controle, livro, bolo, camiseta, coração, balão, estrela): entra com mola, giro ou queda, acena, pisca e dança na batida; estrela de brilho e balão de fala opcional. 100% vetorial, sem arte de terceiros.",
+  "status": "pronto",
+  "duration_s": 4.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "icon",
+      "type": "string",
+      "label": "Ícone: gift | controller | book | cake | shirt | heart | balloon | star",
+      "default": "gift"
+    },
+    {
+      "id": "x",
+      "type": "number",
+      "label": "Centro x (px)",
+      "default": 540
+    },
+    {
+      "id": "y",
+      "type": "number",
+      "label": "Centro y (px)",
+      "default": 1080
+    },
+    {
+      "id": "scale",
+      "type": "number",
+      "label": "Escala",
+      "default": 1.3
+    },
+    {
+      "id": "body",
+      "type": "color",
+      "label": "Cor do corpo",
+      "default": "#4ecdc4"
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Contorno",
+      "default": "#3d3834"
+    },
+    {
+      "id": "cheek",
+      "type": "color",
+      "label": "Bochechas",
+      "default": "#ffb3b3"
+    },
+    {
+      "id": "accent",
+      "type": "color",
+      "label": "Detalhe (laço, lombada, vela, botões)",
+      "default": "#ffd23f"
+    },
+    {
+      "id": "enter",
+      "type": "string",
+      "label": "Entrada: spring | spin | drop",
+      "default": "spring"
+    },
+    {
+      "id": "t_in",
+      "type": "number",
+      "label": "Entrada (s)",
+      "default": 0.1
+    },
+    {
+      "id": "wave_t",
+      "type": "number",
+      "label": "Aceno começa (s)",
+      "default": 0.7
+    },
+    {
+      "id": "label",
+      "type": "string",
+      "label": "Balão de fala (vazio = sem balão)",
+      "default": "Oi!",
+      "maxLength": 18
+    },
+    {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s) = data-duration do host",
+      "default": 4.0
+    },
+    {
+      "id": "bpm",
+      "type": "number",
+      "label": "BPM: dança com squash & stretch em cada batida (0 = quique suave)",
+      "default": 0
+    },
+    {
+      "id": "beat0",
+      "type": "number",
+      "label": "Primeira batida (s, no bloco)",
+      "default": 0
+    },
+    {
+      "id": "bg",
+      "type": "string",
+      "label": "Fundo",
+      "default": "transparent"
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 3
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "personagem",
+  "tags": [
+    "infantil",
+    "mascote",
+    "svg",
+    "sazonal",
+    "qualquer setor"
+  ],
+  "use_when": "Campanhas sazonais infantis (Dia das Crianças) em qualquer setor: o ícone representa o setor (brinquedos=gift, games=controller, escola=book, buffet=cake, moda infantil=shirt, saúde=heart). Não é o logo do cliente.",
+  "voice_sync": "wave_t na saudação; label curto (≤ 18); bpm = trilha.bpm para dançar na batida.",
+  "source": {
+    "kind": "interno",
+    "ref": "Generalização de tooth-character (Lothus, Dia das Crianças 2026) para simplicio-video prospect (30/09/2026)"
+  },
+  "preview_at": 1.8
+}

@@ -1,8 +1,8 @@
 {
   "schema": "simplicio.motion-catalog/v1",
-  "count": 50,
+  "count": 51,
   "by_status": {
-    "pronto": 28,
+    "pronto": 29,
     "lib": 1,
     "inline": 2,
     "proposto": 19
@@ -407,6 +407,42 @@
       "block": "patterns/beat-burst/block.html",
       "preview": "patterns/beat-burst/preview.png",
       "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
+      "id": "icon-mascot",
+      "title": "Mascote-ícone sorridente (SVG), qualquer setor",
+      "status": "pronto",
+      "category": "personagem",
+      "tags": [
+        "infantil",
+        "mascote",
+        "svg",
+        "sazonal",
+        "qualquer setor"
+      ],
+      "duration_s": 4,
+      "params": [
+        "icon",
+        "x",
+        "y",
+        "scale",
+        "body",
+        "ink",
+        "cheek",
+        "accent",
+        "enter",
+        "t_in",
+        "wave_t",
+        "label",
+        "dur",
+        "bpm",
+        "beat0",
+        "bg",
+        "seed"
+      ],
+      "block": "patterns/icon-mascot/block.html",
+      "preview": "patterns/icon-mascot/preview.png",
+      "source": "Generalização de tooth-character (Lothus, Dia das Crianças 2026) para simplicio-video prospect (30/09/2026)"
     },
     {
       "id": "tooth-character",

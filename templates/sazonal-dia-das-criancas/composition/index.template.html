@@ -1,0 +1,86 @@
+<!doctype html>
+<!--
+  sazonal-dia-das-criancas: the saude-odontologia v2 ("dopaminérgico", Lothus Odontologia — Dia das Crianças 2026)
+  generalised to ANY sector for `simplicio-video prospect` (Reels/Stories 9:16, 30 fps). The main block of s2/s3 is
+  chosen per contract via {{padrao:s2-main}} / {{padrao:s3-main}} (odontologia: tooth-character + toothbrush-sparkle;
+  other sectors: icon-mascot with the sector icon). Composed ONLY from motion library blocks (motion/patterns, copied to compositions/
+  by simplicio-video) whose params come from the contract (cenas[].motion[].params -> {{vars:<bloco>}}); scene
+  times come from cenas[].duracao_s ({{t:<cena>}}, {{dur:<cena>}}); beat grid from trilha.bpm ({{beat}}).
+  Scenes: s1 greeting | s2 mascot + message | s3 sector line | s4 brand sign-off. Cuts should fall on beats
+  (scene durations = whole beats) so the camera punches, fx-transition hosts and SFX land with the music.
+  Layers: bg-parallax (never static) · scene blocks · kinetic-words (word-by-word, times from timing.lock.json)
+  · beat-burst (stars + confetti on beats) · fx-transition (6-10 frame cuts). Camera (this file): punch-in /
+  whip on each cut, slow continuous zoom per scene, z-punch on every bar, small shake on impacts.
+  Deterministic: no Math.random, Date.now, fetch or infinite repeats. Facts only from ../coleta/.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #fbf7f2; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+      .clip { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{duracao}}" data-width="1080" data-height="1920">
+      <div id="bg" class="clip" data-composition-id="bg-parallax" data-composition-src="compositions/bg-parallax.html" data-start="0" data-duration="{{duracao}}" data-track-index="0" data-variable-values='{{vars:bg}}'></div>
+
+      <!-- S1 greeting -->
+      <div id="s1-balloons" class="clip cam-s1" data-composition-id="balloons-confetti" data-composition-src="compositions/balloons-confetti.html" data-start="{{t:s1}}" data-duration="{{dur:s1}}" data-track-index="1" data-variable-values='{{vars:s1-balloons}}'></div>
+      <div id="s1-words" class="clip cam-s1" data-composition-id="kinetic-words" data-composition-src="compositions/kinetic-words.html" data-start="{{t:s1}}" data-duration="{{dur:s1}}" data-track-index="3" data-variable-values='{{vars:s1-words}}'></div>
+      <div id="s1-burst" class="clip" data-composition-id="beat-burst" data-composition-src="compositions/beat-burst.html" data-start="{{t:s1}}" data-duration="{{dur:s1}}" data-track-index="4" data-variable-values='{{vars:s1-burst}}'></div>
+
+      <!-- S2 mascot (tooth-character | icon-mascot) -->
+      <div id="s2-main" class="clip cam-s2" data-composition-id="{{padrao:s2-main}}" data-composition-src="compositions/{{padrao:s2-main}}.html" data-start="{{t:s2}}" data-duration="{{dur:s2}}" data-track-index="1" data-variable-values='{{vars:s2-main}}'></div>
+      <div id="s2-words" class="clip cam-s2" data-composition-id="kinetic-words" data-composition-src="compositions/kinetic-words.html" data-start="{{t:s2}}" data-duration="{{dur:s2}}" data-track-index="3" data-variable-values='{{vars:s2-words}}'></div>
+      <div id="s2-burst" class="clip" data-composition-id="beat-burst" data-composition-src="compositions/beat-burst.html" data-start="{{t:s2}}" data-duration="{{dur:s2}}" data-track-index="4" data-variable-values='{{vars:s2-burst}}'></div>
+
+      <!-- S3 sector line (toothbrush-sparkle | icon-mascot) -->
+      <div id="s3-main" class="clip cam-s3" data-composition-id="{{padrao:s3-main}}" data-composition-src="compositions/{{padrao:s3-main}}.html" data-start="{{t:s3}}" data-duration="{{dur:s3}}" data-track-index="1" data-variable-values='{{vars:s3-main}}'></div>
+      <div id="s3-words" class="clip cam-s3" data-composition-id="kinetic-words" data-composition-src="compositions/kinetic-words.html" data-start="{{t:s3}}" data-duration="{{dur:s3}}" data-track-index="3" data-variable-values='{{vars:s3-words}}'></div>
+      <div id="s3-burst" class="clip" data-composition-id="beat-burst" data-composition-src="compositions/beat-burst.html" data-start="{{t:s3}}" data-duration="{{dur:s3}}" data-track-index="4" data-variable-values='{{vars:s3-burst}}'></div>
+
+      <!-- S4 brand sign-off -->
+      <div id="s4-lockup" class="clip cam-s4" data-composition-id="brand-lockup-soft" data-composition-src="compositions/brand-lockup-soft.html" data-start="{{t:s4}}" data-duration="{{dur:s4}}" data-track-index="1" data-variable-values='{{vars:s4-lockup}}'></div>
+      <div id="s4-words" class="clip cam-s4" data-composition-id="kinetic-words" data-composition-src="compositions/kinetic-words.html" data-start="{{t:s4}}" data-duration="{{dur:s4}}" data-track-index="3" data-variable-values='{{vars:s4-words}}'></div>
+      <div id="s4-confetti" class="clip" data-composition-id="balloons-confetti" data-composition-src="compositions/balloons-confetti.html" data-start="{{t:s4}}" data-duration="{{dur:s4}}" data-track-index="2" data-variable-values='{{vars:s4-confetti}}'></div>
+      <div id="s4-burst" class="clip" data-composition-id="beat-burst" data-composition-src="compositions/beat-burst.html" data-start="{{t:s4}}" data-duration="{{dur:s4}}" data-track-index="4" data-variable-values='{{vars:s4-burst}}'></div>
+
+      <!-- fast transitions (6-10 frames), centred on each cut; x0 = opening pop, x4 = final "ta-da" -->
+      <div id="x0" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="0" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x0}}'></div>
+      <div id="x1" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="{{t:s2-0.2}}" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x1}}'></div>
+      <div id="x2" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="{{t:s3-0.2}}" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x2}}'></div>
+      <div id="x3" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="{{t:s4-0.2}}" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x3}}'></div>
+
+      <audio id="soundtrack" src="assets/audio/build/mix.wav" data-start="0" data-duration="{{duracao}}" data-track-index="10" data-volume="1"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const D = {{duracao}}, B = {{beat}};
+      const SC = [["s1", {{t:s1}}, {{end:s1}}], ["s2", {{t:s2}}, {{end:s2}}], ["s3", {{t:s3}}, {{end:s3}}], ["s4", {{t:s4}}, {{end:s4}}]];
+      const ENTRY = { s1: "punch", s2: "punch", s3: "whipL", s4: "whipR" };  // camera move on each scene start
+      SC.forEach(([id, a, b], k) => {
+        const els = gsap.utils.toArray(".cam-" + id);
+        gsap.set(els, { transformPerspective: 1000, transformOrigin: "50% 45%" });
+        // entry: 6-8 frame punch-in or whip, then slow continuous zoom until the cut (never static)
+        const e = ENTRY[id];
+        if (e === "punch") tl.fromTo(els, { scale: 1.22, rotation: k % 2 ? 2 : -2 }, { scale: 1.0, rotation: 0, duration: 0.24, ease: "expo.out" }, a);
+        else tl.fromTo(els, { x: e === "whipL" ? 460 : -460, rotation: e === "whipL" ? 4 : -4, filter: "blur(14px)" }, { x: 0, rotation: 0, filter: "blur(0px)", duration: 0.26, ease: "expo.out" }, a);
+        tl.fromTo(els, { scale: 1.0 }, { scale: 1.06, duration: Math.max(0.1, b - a - 0.24), ease: "none", immediateRender: false }, a + 0.24);
+        // bar downbeats (every 4 beats) inside the scene: z-punch + tiny shake; beats 2: softer z-punch
+        for (let t = a + 2 * B, n = 2; t < b - 0.12; t += 2 * B, n += 2) {
+          const strong = n % 4 === 0;
+          tl.fromTo(els, { z: strong ? 60 : 30 }, { z: 0, duration: Math.min(0.3, B * 0.8), ease: "power2.out", immediateRender: false }, t);
+          if (strong) tl.fromTo(els, { x: 10, y: -6 }, { x: 0, y: 0, duration: 0.18, ease: "elastic.out(1,0.35)", immediateRender: false }, t);
+        }
+      });
+      tl.set({}, {}, D);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

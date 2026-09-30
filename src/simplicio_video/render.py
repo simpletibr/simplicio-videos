@@ -169,7 +169,7 @@ def prepare(c: Contract, workdir: Path, log) -> tuple[dict, dict]:
 
 
 def render_local(c: Contract, out: Path | None = None, quality: str | None = None, workdir: Path | None = None,
-                 gpu: bool = False, log=print) -> dict:
+                 gpu: bool = False, log=print, manifest: bool = True) -> dict:
     wd = workdir or (c.dir / "build" / "simplicio-video")
     q = quality or c.data["saida"].get("qualidade", "delivery")
     info, lock = prepare(c, wd, log)
@@ -190,6 +190,8 @@ def render_local(c: Contract, out: Path | None = None, quality: str | None = Non
     timings = {"compile_build": info["compile_build_s"], "render": round(t1 - t0, 2), "capture": cap, "encode": enc,
                "master": round(t2 - t1, 2)}
     log(mlog.strip().splitlines()[-1] if mlog.strip() else "")
+    if not manifest:  # render --preview: never overwrite the delivery render.manifest.json
+        return {"output": str(dst), "inputs_sha256": info["inputs_sha256"], "quality": q, "timings_s": timings}
     return write_manifest(c, dst, backend="local", quality=q, gpu=gpu, info=info, timings=timings, log=log)
 
 
@@ -265,3 +267,118 @@ def render_colab(c: Contract, out: Path | None = None, quality: str | None = Non
     log(f"notebook: {nb} - open in Colab (GPU runtime), upload the bundle, run all cells "
         "(no browser: `simplicio-video render <contrato> --backend colab-cli`)")
     return {**{k: v for k, v in res.items() if k not in ("files", "compile_build_s")}, "notebook": str(nb)}
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# render --preview: low-res watermarked sales preview (simplicio-video prospect). Deterministic ffmpeg post-process of a
+# draft local render: 540x960 @30 fps, x264 crf 30, diagonal tiled watermark + corner badge + SimpleTI end card.
+PREVIEW = {"width": 540, "height": 960, "fps": 30, "crf": 30, "end_card_s": 2.5,
+           "watermark": "Prévia • SimpleTI • simpleti.com.br", "badge": "PRÉVIA · simpleti.com.br",
+           "end_title": "Vídeo feito pela SimpleTI", "end_url": "simpleti.com.br", "end_note": "Prévia em baixa resolução"}
+
+
+def preview_font(home: Path) -> Path:
+    for t in ("assistencia-tecnica-games", "saude-odontologia"):
+        f = home / "templates" / t / "composition" / "assets" / "fonts" / "Inter.ttf"
+        if f.is_file():
+            return f
+    hits = sorted((home / "templates").rglob("Inter*.ttf"))
+    if not hits:
+        raise SystemExit("render --preview: no Inter.ttf under templates/*/composition/assets/fonts")
+    return hits[0]
+
+
+def preview_logo(home: Path) -> Path | None:
+    """SimpleTI logo, only if one is versioned in the repo (assets/brand/simpleti-logo.png); else text-only watermark."""
+    for name in ("simpleti-logo.png", "simpleti.png"):
+        f = home / "assets" / "brand" / name
+        if f.is_file():
+            return f
+    return None
+
+
+def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False) -> str:
+    """filter_complex for: [0] draft render, [1] logo (optional). Output labels [v] [a]."""
+    P = PREVIEW
+    W, H, fps = P["width"], P["height"], P["fps"]
+    def tf(name: str, text: str) -> str:
+        f = tmp / f"{name}.txt"
+        f.write_text(text, encoding="utf8")
+        return str(f).replace("\\", "/").replace(":", "\\:")
+    ff = str(font).replace(":", "\\:")
+    row = tf("wm", ("   " + P["watermark"]) * 3)
+    # diagonal tiled rows on a transparent 1000x1000 canvas, rotated -30° and centred over the 540x960 frame
+    rows = []
+    for i in range(10):
+        y = 30 + i * 100
+        x = -((i * 137) % 260)
+        rows.append(f"drawtext=fontfile='{ff}':textfile='{row}':x={x}:y={y}:fontsize=30:fontcolor=white:"
+                    f"borderw=2:bordercolor=black")
+    wm = (f"color=c=black@0.0:s=1000x1000:r={fps}:d={dur_s:.3f},format=rgba," + ",".join(rows) +
+          ",rotate=-30*PI/180:c=none:ow=1000:oh=1000,colorchannelmixer=aa=0.2[wm]")
+    badge = tf("badge", P["badge"])
+    main = (f"[0:v]scale={W}:{H}:flags=lanczos,fps={fps},setsar=1,format=yuv420p[m0];"
+            f"{wm};[m0][wm]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1,"
+            f"drawtext=fontfile='{ff}':textfile='{badge}':x=w-tw-18:y=18:fontsize=18:fontcolor=white@0.85:"
+            f"box=1:boxcolor=black@0.45:boxborderw=8,"
+            f"drawtext=fontfile='{ff}':textfile='{badge}':x=18:y=h-th-22:fontsize=18:fontcolor=white@0.85:"
+            f"box=1:boxcolor=black@0.45:boxborderw=8")
+    if logo:
+        main += f"[m1];[1:v]scale=90:-1,format=rgba,colorchannelmixer=aa=0.55[lg];[m1][lg]overlay=x=18:y=18"
+    main += "[mv];"
+    t1, t2, t3 = tf("end1", P["end_title"]), tf("end2", P["end_url"]), tf("end3", P["end_note"])
+    e = P["end_card_s"]
+    end = (f"color=c=0x0b0b10:s={W}x{H}:r={fps}:d={e},format=yuv420p,"
+           f"drawtext=fontfile='{ff}':textfile='{t1}':x=(w-tw)/2:y=h/2-70:fontsize=34:fontcolor=white,"
+           f"drawtext=fontfile='{ff}':textfile='{t2}':x=(w-tw)/2:y=h/2:fontsize=44:fontcolor=0x4fa3ff,"
+           f"drawtext=fontfile='{ff}':textfile='{t3}':x=(w-tw)/2:y=h/2+80:fontsize=20:fontcolor=white@0.6,"
+           f"fade=t=in:st=0:d=0.35[ev];")
+    audio = (f"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"
+             f"afade=t=out:st={max(dur_s - 0.4, 0):.3f}:d=0.4[ma];"
+             f"anullsrc=r=48000:cl=stereo,atrim=duration={e},aformat=sample_fmts=fltp:channel_layouts=stereo[ea];"
+             f"[mv][ma][ev][ea]concat=n=2:v=1:a=1[v][a]")
+    return main + end + audio
+
+
+def make_preview(src: Path, dst: Path, home: Path, log=print) -> dict:
+    """Draft render -> watermarked 540x960 preview (+ end card). Returns {path, sha256, duration_s, bytes}."""
+    import tempfile
+    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(src)],
+                               capture_output=True, text=True, env=paths.node_env()).stdout.strip())
+    logo = preview_logo(home)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as td:
+        fc = preview_filter(dur, preview_font(home), Path(td), logo=bool(logo))
+        cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)] + (["-i", str(logo)] if logo else []) + [
+            "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium",
+            "-crf", str(PREVIEW["crf"]), "-pix_fmt", "yuv420p", "-r", str(PREVIEW["fps"]), "-threads", "4",
+            "-c:a", "aac", "-b:a", "96k", "-ar", "48000", "-movflags", "+faststart", "-map_metadata", "-1",
+            "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact", str(dst)]
+        log(f"$ ffmpeg (prévia {PREVIEW['width']}x{PREVIEW['height']} crf {PREVIEW['crf']}, marca d'água + cartão final) -> {dst}")
+        p = subprocess.run(cmd, cwd=dst.parent, env=paths.node_env(), capture_output=True, text=True)
+        if p.returncode != 0:
+            raise SystemExit(f"render --preview: ffmpeg failed ({p.returncode})\n{(p.stderr or '')[-3000:]}")
+    out_dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(dst)],
+                                   capture_output=True, text=True, env=paths.node_env()).stdout.strip())
+    return {"path": str(dst), "sha256": sha256_file(dst), "duration_s": round(out_dur, 3), "bytes": dst.stat().st_size,
+            "watermark": PREVIEW["watermark"], "logo": str(logo) if logo else None}
+
+
+def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = None, log=print) -> dict:
+    """`render --preview`: draft local render (no delivery manifest) -> make_preview. Writes preview.manifest.json."""
+    t0 = time.time()
+    raw = c.dir / "out" / "draft-full.mp4"
+    info = render_local(c, out=raw, quality="draft", workdir=workdir, log=log, manifest=False)
+    t1 = time.time()
+    s = c.data["saida"]["arquivo"]
+    dst = (out or c.rel(str(Path(s).with_name(Path(s).stem + "-previa.mp4")))).resolve()
+    res = make_preview(raw, dst, c.home, log=log)
+    t2 = time.time()
+    man = {"schema": "simplicio.preview-manifest/v1", "contract_sha256": c.sha256(), "inputs_sha256": info["inputs_sha256"],
+           "preview": {**res, "path": os.path.relpath(dst, c.dir)}, "spec": {k: v for k, v in PREVIEW.items()},
+           "timings_s": {**info["timings_s"], "render_total": round(t1 - t0, 2), "preview_post": round(t2 - t1, 2),
+                         "total": round(t2 - t0, 2)}}
+    (c.dir / "preview.manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
+    log(f"preview: {dst} ({res['duration_s']} s, {res['bytes'] // 1024} KiB) · render {t1 - t0:.1f}s + pós {t2 - t1:.1f}s")
+    return man
+

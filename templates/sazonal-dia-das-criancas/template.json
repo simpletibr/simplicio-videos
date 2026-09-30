@@ -1,0 +1,141 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "sazonal-dia-das-criancas",
+  "setor": "Campanha sazonal Dia das Crianças (12/10) — qualquer setor com público de pais e crianças",
+  "status": "pronto",
+  "nichos": [
+    "odontopediatria",
+    "odontologia",
+    "pediatria",
+    "escola infantil",
+    "berçário",
+    "curso infantil",
+    "loja de brinquedos",
+    "buffet infantil",
+    "parque infantil",
+    "games",
+    "moda infantil"
+  ],
+  "referencia": "clients/lothus-odontologia/video-01-dia-das-criancas (base visual); prospects gerados por simplicio-video prospect",
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 16.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.8125,
+      "padroes": [
+        "balloons-confetti",
+        "kinetic-bounce-title"
+      ],
+      "campos": [],
+      "fala": "{saudação da data} (ex.: 'Feliz Dia das Crianças!')"
+    },
+    {
+      "id": "S2",
+      "papel": "promessa",
+      "dur_s": 4.21875,
+      "padroes": [
+        "tooth-character|icon-mascot",
+        "kinetic-words"
+      ],
+      "campos": [],
+      "fala": "{mensagem leve da data, igual para todos os setores}"
+    },
+    {
+      "id": "S3",
+      "papel": "processo",
+      "dur_s": 4.6875,
+      "padroes": [
+        "toothbrush-sparkle|icon-mascot",
+        "kinetic-words"
+      ],
+      "campos": [],
+      "fala": "{frase do setor (setores.json), sem preço, promoção ou fato}"
+    },
+    {
+      "id": "S4",
+      "papel": "marca",
+      "dur_s": 4.28125,
+      "padroes": [
+        "brand-lockup-soft",
+        "balloons-confetti"
+      ],
+      "campos": [
+        "empresa.nome",
+        "empresa.contatos.instagram",
+        "empresa.cidade",
+        "marca.logo"
+      ],
+      "fala": "Com carinho, {empresa.nome}."
+    }
+  ],
+  "voz": {
+    "tipo": "feminina, calorosa, sorridente, pt-BR",
+    "gemini_voz": "Sulafat",
+    "estilo": "Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora, natural, ritmo leve e sem pressa, sem exagero infantil."
+  },
+  "musica": {
+    "bpm": 128,
+    "mood": "festivo infantil (kick 4/4, palmas+caixa, pandeirola, marimba, glockenspiel, viradas nos cortes)",
+    "secoes": "groove até o último acorde · outro com 'ta-dá' logo depois da última fala"
+  },
+  "paleta_padrao": {
+    "ink": "#3d3834",
+    "background": "#fbf7f2",
+    "playful": [
+      "#ff6b6b",
+      "#ffd23f",
+      "#4ecdc4",
+      "#5aa9e6",
+      "#b388eb"
+    ]
+  },
+  "tom": "Acolhedor, lúdico e familiar; fala com pais e crianças; nada de jargão clínico",
+  "transicoes": [
+    "wipe de disco colorido (o primeiro plano vira a transição)"
+  ],
+  "cuidados": [
+    "CFO: sem promessa de resultado, sem antes/depois, sem preço/desconto em publicidade odontológica",
+    "Não citar nota/avaliações nem marcas de terceiros (ex.: Invisalign) sem confirmação",
+    "Imagem de crianças reais só com autorização do responsável",
+    "Não recriar o logo: sem arquivo em alta, usar lockup de texto",
+    "Telefone/endereço só se confirmados pela clínica"
+  ],
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": [
+      "s1",
+      "s2",
+      "s3",
+      "s4"
+    ],
+    "blocos": [
+      "bg",
+      "x0",
+      "s1-balloons",
+      "s1-words",
+      "s1-burst",
+      "x1",
+      "s2-main",
+      "s2-words",
+      "s2-burst",
+      "x2",
+      "s3-main",
+      "s3-words",
+      "s3-burst",
+      "x3",
+      "s4-lockup",
+      "s4-words",
+      "s4-confetti",
+      "s4-burst"
+    ],
+    "_doc": "Mesma coreografia v2 da Lothus (128 BPM, cortes na batida, fx-transition, kinetic-words no tempo da fala, beat-burst). s2-main/s3-main: padrão escolhido pelo contrato ({{padrao:<bloco>}}): odontologia usa tooth-character/toothbrush-sparkle, os demais setores icon-mascot com o ícone do setor. Textos por setor em setores.json; base do contrato em contract.base.yaml."
+  }
+}

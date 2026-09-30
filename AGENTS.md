@@ -22,6 +22,8 @@ simplicio-video voice    clients/<slug>/<video>/contract.yaml [--provider file|l
 simplicio-video render   clients/<slug>/<video>/contract.yaml [--backend local|kaggle|colab-cli|colab] [--out x.mp4]
 simplicio-video publish  clients/<slug>/<video>/contract.yaml [--dry-run]    # Drive via rclone; SÓ com pedido explícito
 simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini [--publish]   # render local (padrão)
+simplicio-video render   <contrato.yaml> --preview   # prévia de venda 540x960 com marca d'água SimpleTI
+simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N]   # venda ativa em massa (alias batch), docs/venda-ativa.md
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
 python -m pytest                                   # schema, validate, --help, determinismo (render curto)
@@ -32,7 +34,7 @@ python -m pytest                                   # schema, validate, --help, d
 | Pasta | O quê | Entrada principal |
 |---|---|---|
 | `schema/` | `contract.schema.json` (`simplicio.video-contract/v1`, entrada do CLI) | [receita](docs/receita-video-cliente.md) |
-| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local + bundle, `render.manifest.json`), `remote.py` (Kaggle, Colab CLI), `publish.py` (Drive/rclone), `pipeline.py` (`run`), `mcp_server.py` (tools `video.*`), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`, `remote_render.py` = script headless dos backends remotos) | `simplicio-video --help` |
+| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local + bundle, `render.manifest.json`), `remote.py` (Kaggle, Colab CLI), `publish.py` (Drive/rclone), `pipeline.py` (`run`), `prospect.py` (venda ativa: coleta pública, setor → modelo, contrato, lote), `mcp_server.py` (tools `video.*`), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`, `remote_render.py` = script headless dos backends remotos) | `simplicio-video --help` |
 | `skills/simplicio-video/` | `SKILL.md`: como um LLM escolhe template/motion/voz/tempos e escreve o contrato | [SKILL.md](skills/simplicio-video/SKILL.md) |
 | `colab/` | `render.ipynb` (render do bundle na GPU, tempos por etapa) + README | [colab/README.md](colab/README.md) |
 | `tests/` | pytest: schema, validate, voice, compile (WJR byte a byte), `--help`, determinismo de hash (render de 1 s), fixture `fixtures/mini/` | — |
@@ -43,6 +45,7 @@ python -m pytest                                   # schema, validate, --help, d
 | `voices/` | Etapa 5: providers (`gemini.md` = tutorial, `elevenlabs.md`, `xai.md`, `local.md`), `narracao-tts.md` (pipeline, cache, tratamento) | [voices/README.md](voices/README.md) |
 | `tools/` | Ferramentas **opcionais** com versão fixada: `video-use/` (etapa 6 — `setup.sh`, `transcribe_local.py`, `edl_transcript.py`, README com quando usar × HyperFrames direto) | [tools/README.md](tools/README.md) |
 | `docs/` | `decisoes/` (ADRs), `esteira.md`, setup, pipeline determinístico, plugin, pesquisa | [docs/README.md](docs/README.md) |
+| `prospects/` | **Venda ativa** (fora do git, exceto `exemplo-dia-criancas.csv`): `<lote>/<slug>/{coleta.json, contract.yaml, preview.mp4, result.json}` + `<lote>/lote.csv` | [docs/venda-ativa.md](docs/venda-ativa.md) |
 | `clients/<cliente>/coleta/` | **Fatos** do cliente: `brief.md`, `fontes.md` (com data), `pendencias.md`, site salvo, `colors.json`, checklist | — |
 | `clients/<cliente>/video-NN-videouse/` | Edição com video-use (etapa 6, opcional): `run.sh`, `source.variables.json` (variante da fonte), `edit/` (`edl.json`, transcrições, `takes_packed.md`, `project.md`, `verify/`), `overlay/` (HyperFrames → MOV alfa), `preview/` | README do vídeo |
 | `clients/<cliente>/<video>/contract.yaml` | **Vídeo pelo CLI**: `contract.yaml`, `timing.lock.json`, `render.manifest.json`, `assets/audio/voz/` (falas tratadas), `assets/audio/vo/external/` (WAVs Gemini), README/roteiro, `preview/`. Ex.: Lothus `video-01-dia-das-criancas` | README do vídeo |
@@ -54,6 +57,11 @@ python -m pytest                                   # schema, validate, --help, d
 1. Rode o [questionário](intake/questionario.md): com site/IG, extraia conforme [extracao-automatica.md](intake/extracao-automatica.md) e pergunte só o que falta.
 2. Congele em `clients/<slug>/coleta/intake.json` (valide com `intake/intake.schema.json`) + `brief.md`, `fontes.md` (URL + data), `pendencias.md`. Fato dito em conversa = fonte nova ("confirmado por X em DD/MM/AAAA").
 3. Confirme o brief com o usuário antes de seguir.
+
+**Venda ativa em massa (prévias para oferecer)**
+1. Monte o CSV (`nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes`) com empresas achadas por busca web; registre a fonte de cada @/WhatsApp.
+2. `simplicio-video prospect lista.csv --lote <lote>` → `prospects/<lote>/<slug>/preview.mp4` + `lote.csv` (status, motivo, dados achados, tempo). Retomada idempotente; `--jobs N` para paralelo.
+3. Só dado público e da empresa (LGPD), Instagram sem login (robots.txt do instagram.com proíbe robôs: o @ vem do CSV/site), nunca preço/promoção/fato inventado. **Nada é enviado pelo agente**: o Wesley revisa e envia ([docs/venda-ativa.md](docs/venda-ativa.md)).
 
 **Novo vídeo (etapas 3–7) — pelo CLI**
 1. `simplicio-video list templates` → template pelo nicho (renderizável). `simplicio-video init <slug> <Campanha> --template <id>`.

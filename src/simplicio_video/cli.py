@@ -25,6 +25,8 @@ Fluxo completo:
   6. publish   sobe o MP4 no Drive em drive.caminho/drive.arquivo (rclone, nunca sobrescreve uma versão)
                e grava o link em clients/<slug>/README.md (tabela "Entregas no Drive")
   run          tudo de uma vez: voice -> validate --need-lock -> render -> publish (dry-run sem --publish)
+  prospect     venda ativa em massa (alias batch): lista.csv -> coleta pública -> contrato por setor -> voz local ->
+               prévia 540x960 com marca d'água SimpleTI + lote.csv (docs/venda-ativa.md)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
@@ -40,6 +42,8 @@ exemplos:
   simplicio-video render clients/wjr-informatica-games/video-01/contract.yaml --backend kaggle
   simplicio-video publish clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --dry-run
   simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini --publish
+  simplicio-video prospect prospects/exemplo-dia-criancas.csv --lote dia-criancas --jobs 1
+  simplicio-video render contract.yaml --preview          # 540x960, marca d'água SimpleTI (prévia de venda)
 
 ambiente:
   SIMPLICIO_VIDEO_HOME  checkout do plugin (templates/, motion/, schema/); padrão: procura a partir do contrato/cwd
@@ -164,7 +168,8 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video render contract.yaml --backend kaggle                   # opcional: T4 grátis (cota semanal)\n"
                "  simplicio-video render contract.yaml --backend kaggle --accelerator none\n"
                "  simplicio-video render contract.yaml --backend colab-cli --accelerator T4\n"
-               "  simplicio-video render contract.yaml --backend colab   # -> out/<nome>.colab-bundle.zip")
+               "  simplicio-video render contract.yaml --backend colab   # -> out/<nome>.colab-bundle.zip\n"
+               "  simplicio-video render contract.yaml --preview         # prévia de venda 540x960 + marca d'água SimpleTI")
     _contract_arg(p)
     p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via créditos)")
     p.add_argument("--out", "-o", type=Path, help="MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo")
@@ -176,6 +181,48 @@ def build_parser() -> argparse.ArgumentParser:
                    help="kaggle/colab-cli/colab: NVENC no encode (auto = usa se o teste de encode passar; 0 = libx264, "
                         "necessário p/ comparar frames com o local). A captura (Chrome) é CPU de qualquer jeito")
     p.add_argument("--workdir", type=Path, help="pasta da composição compilada (padrão: <contrato>/build/simplicio-video)")
+    p.add_argument("--preview", action="store_true",
+                   help="prévia de venda (só local): render draft -> 540x960, 30 fps, x264 crf 30, marca d'água diagonal "
+                        "'Prévia • SimpleTI • simpleti.com.br' + selo nos cantos + cartão final 'Vídeo feito pela SimpleTI — "
+                        "simpleti.com.br' (2,5 s). Padrão --out: <saida.arquivo>-previa.mp4. Grava preview.manifest.json "
+                        "(não toca no render.manifest.json da entrega)")
+
+    p = sub.add_parser("prospect", aliases=["batch"], formatter_class=Fmt,
+        help="venda ativa em massa: lista.csv -> coleta pública -> contrato por setor -> prévia com marca d'água",
+        description="Gera prévias de venda em massa, 100% determinístico (sem LLM por vídeo). Para cada linha do CSV:\n"
+                    "  1. coleta   pública e leve: página inicial do site (title/meta/og, theme-color + cores do CSS, logo/og:image,\n"
+                    "              links de Instagram e WhatsApp publicados pela empresa), respeitando robots.txt, 1 requisição por\n"
+                    "              recurso, timeout 15 s. Instagram: só og:* público sem login, se o robots.txt permitir (hoje o\n"
+                    "              instagram.com proíbe robôs genéricos: o @ vem do CSV ou do site); intervalo mínimo 6 s; bloqueio\n"
+                    "              vira status e o lote segue. LGPD: só dados da empresa (sem pessoas, e-mails ou telefones pessoais).\n"
+                    "  2. setor    regras de templates/sazonal-dia-das-criancas/setores.json (coluna setor; senão título do site)\n"
+                    "  3. contrato contract.base.yaml (coreografia Lothus v02, 128 BPM) + textos do setor + nome/@/cidade reais.\n"
+                    "              Nunca preço, promoção, prazo ou fato inventado.\n"
+                    "  4. voz      local (Kokoro pf_dora, custo 0) por padrão; gemini opcional (GEMINI_API_KEY). Fala que estoura o\n"
+                    "              slot cai para a variante mais curta (ordem fixa).\n"
+                    "  5. prévia   render --preview (540x960, crf 30, 30 fps, marca d'água SimpleTI + cartão final)\n"
+                    "CSV (UTF-8 com cabeçalho; só nome é obrigatório): nome, cidade, setor, site, instagram, whatsapp, maps,\n"
+                    "  nome_curto (lockup/fala), fontes (onde cada dado foi achado). Exemplo: prospects/exemplo-dia-criancas.csv\n"
+                    "Saída: <out>/<slug>/{coleta.json, contract.yaml, preview.mp4, result.json} + <out>/lote.csv (nome, setor,\n"
+                    "  instagram, whatsapp, fontes, status, motivo, dados achados, caminho, tempo) + lote.json.\n"
+                    "Retomada idempotente: linha com preview.mp4 + result.json ok é pulada; coleta.json é reaproveitada.\n"
+                    "Nada é enviado a ninguém: o Wesley revisa e envia (script de abordagem em docs/venda-ativa.md).\n"
+                    "Prévias ficam fora do git (prospects/*/ no .gitignore).",
+        epilog="exemplos:\n  simplicio-video prospect prospects/exemplo-dia-criancas.csv\n"
+               "  simplicio-video prospect lista.csv --lote dia-criancas --out /workspace/prospects-piloto/dia-criancas --jobs 2\n"
+               "  simplicio-video batch lista.csv --so-contrato          # só coleta + contrato (sem voz/render)\n"
+               "  simplicio-video prospect lista.csv --provider gemini   # voz Gemini (API, custo em docs/custos.md)")
+    p.add_argument("csv", type=Path, metavar="LISTA.csv", help="lista de empresas (ver descrição acima)")
+    p.add_argument("--lote", help="nome do lote (padrão: nome do CSV); pasta prospects/<lote>/")
+    p.add_argument("--out", "-o", type=Path, help="pasta de saída do lote (padrão: <plugin>/prospects/<lote>)")
+    p.add_argument("--campanha", default="dia-das-criancas", choices=["dia-das-criancas"], help="campanha sazonal (padrão: dia-das-criancas)")
+    p.add_argument("--provider", "-p", choices=["local", "gemini"], default="local", help="voz da prévia (padrão: local = Kokoro, custo 0)")
+    p.add_argument("--jobs", "-j", type=int, default=1, help="empresas em paralelo (padrão 1; cada render já usa SV_WORKERS núcleos)")
+    p.add_argument("--force", action="store_true", help="refaz prévias existentes (a coleta continua reaproveitada)")
+    p.add_argument("--recoletar", action="store_true", help="refaz a coleta mesmo com coleta.json existente")
+    p.add_argument("--so-contrato", action="store_true", help="só coleta + contract.yaml (sem voz nem render)")
+    p.add_argument("--limite", type=int, help="processa só as N primeiras linhas")
+    p.add_argument("--json", action="store_true", help="resumo em JSON")
 
     p = sub.add_parser("publish", formatter_class=Fmt, help="sobe o MP4 no Google Drive (rclone) e grava o link no README do cliente",
         description="Sobe saida.arquivo (ou --file) para <remote>:drive.caminho/drive.arquivo com rclone (sem navegador) e grava o\n"
@@ -259,6 +306,14 @@ def main(argv: list[str] | None = None) -> int:
         scaffold.write(out, data, a.force)
         print(f"contrato: {out}\npróximo: preencha os TODO (só fatos de coleta/) e rode `simplicio-video validate {out}`")
         return 0
+    if a.cmd in ("prospect", "batch"):
+        from . import prospect
+        res = prospect.run_batch(a.csv, out=a.out, lote=a.lote, campanha=a.campanha, provider=a.provider, jobs=a.jobs,
+                                 force=a.force, recollect=a.recoletar, render=not a.so_contrato, limit=a.limite,
+                                 log=(lambda *_: None) if a.json else print)
+        if a.json:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+        return 0 if res["erros"] == 0 else 1
     if a.cmd == "mcp":
         from . import mcp_server
         mcp_server.main()
@@ -304,6 +359,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "render":
         from . import render
+        if a.preview:
+            if a.backend != "local":
+                print("render --preview: só no backend local", file=sys.stderr)
+                return 2
+            render.render_preview(c, out=a.out, workdir=a.workdir)
+            return 0
         do_render(c, a.backend, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu, accelerator=a.accelerator,
                   timeout=a.timeout, gpu_encode=a.gpu_encode)
         return 0

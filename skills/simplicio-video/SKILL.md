@@ -10,6 +10,7 @@ Você (LLM) **raciocina e escreve o contrato**; o CLI **executa**. Nunca edite H
 ## Quando usar
 - Pedido de vídeo curto para um negócio real (post de data comemorativa, institucional, oferta, CTA para WhatsApp).
 - Trocar a voz provisória pela final (WAVs do Gemini), mudar texto/tempo, renderizar de novo, gerar bundle para o Colab.
+- **Venda ativa em massa** (lista de empresas → prévias com marca d'água para o Wesley oferecer): `simplicio-video prospect <lista.csv>` (alias `batch`), sem LLM por vídeo; ver `docs/venda-ativa.md`.
 - **Não** use para edição de footage bruto (cortar/legendar gravações): isso é `tools/video-use/` (etapa opcional).
 
 ## Como raciocinar (antes de escrever)
@@ -35,6 +36,9 @@ simplicio-video render <contrato.yaml> --backend colab-cli  # OPCIONAL (crédito
 simplicio-video render <contrato.yaml> --backend colab    # OPCIONAL: bundle zip para colab/render.ipynb (manual)
 simplicio-video publish <contrato.yaml> --dry-run         # mostra destino/link; sem --dry-run SÓ com pedido explícito
 simplicio-video run <contrato.yaml> --provider gemini [--publish]   # tudo em sequência, render local (padrão)
+simplicio-video render <contrato.yaml> --preview          # prévia 540x960 crf 30 + marca d'água SimpleTI + cartão final
+simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N] [--provider local|gemini] [--so-contrato]
+                                                          # venda ativa: coleta pública -> contrato por setor -> prévia + lote.csv
 simplicio-video mcp                                       # mesmas operações como tools MCP (stdio)
 ```
 Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz do repo (Python ≥ 3.10, Node ≥ 22, ffmpeg).
@@ -88,3 +92,11 @@ saida: { arquivo: out/lothus-dia-criancas.mp4, qualidade: delivery }
 drive: { caminho: simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas, arquivo: "Lothus - Dia das Criancas 15s - v01.mp4" }
 ```
 Contratos completos: `clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml`, `clients/wjr-informatica-games/video-01/contract.yaml`.
+
+## Venda ativa (prospect)
+- Entrada: CSV `nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes` (só `nome` obrigatório; exemplo `prospects/exemplo-dia-criancas.csv`). Registre em `fontes` onde achou cada dado.
+- O CLI coleta só dado público e leve (página inicial do site, robots.txt respeitado), escolhe o modelo do setor por regex (`templates/sazonal-dia-das-criancas/setores.json`), gera o contrato (nome/@/cidade reais + textos genéricos da data; **nunca** preço, promoção ou fato inventado), voz `local` (custo 0) e `render --preview`.
+- Instagram: nunca com login nem scraping; o `robots.txt` do instagram.com proíbe robôs, então o @ vem do CSV ou do link no site.
+- LGPD: só dados da empresa (WhatsApp comercial publicado por ela); nada de pessoas, e-mails ou telefones pessoais.
+- Saída fora do git (`prospects/*`); **nunca envie nada**: o Wesley revisa `lote.csv` e envia (script em `docs/venda-ativa.md`).
+

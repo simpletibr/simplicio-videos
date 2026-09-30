@@ -1,0 +1,586 @@
+{
+  "_doc": "Modelos por setor da campanha Dia das Crianças (simplicio-video prospect). Regras determinísticas: o primeiro setor cujo regex casa com a coluna 'setor' do CSV (sem acento, minúsculas) vence; sem setor no CSV, testa título/descrição do site. Textos são genéricos da data e do setor: NUNCA preço, promoção, prazo, garantia ou fato da empresa. s2/s3: bloco principal da cena ({{dur:s2}}/{{dur:s3}} são trocados pelo cena certa). nome_setor: palavras tiradas do nome para o subtítulo do lockup; sub: subtítulo quando o nome não tem palavra de setor.",
+  "campanha": {
+    "id": "dia-das-criancas",
+    "campanha_id": "Previa_Dia_Criancas",
+    "titulo": "Prévia Dia das Crianças 2026 (16 s, venda ativa)",
+    "data": "12/10",
+    "vo1": "Feliz Dia das Crianças!",
+    "vo2": "Hoje é dia de brincar, sorrir e se divertir!",
+    "vo4": [
+      "Com carinho, {nome}.",
+      "Com carinho, {curto}.",
+      "Com carinho, {primeiro}."
+    ],
+    "tagline": "deseja um Feliz Dia das Crianças!"
+  },
+  "setores": [
+    {
+      "id": "odontologia",
+      "regex": [
+        "odonto",
+        "dent",
+        "ortodon",
+        "sorriso"
+      ],
+      "sub": "ODONTOLOGIA",
+      "nome_setor": [
+        "odontologia",
+        "odontologica",
+        "odontologico",
+        "odonto",
+        "clinica",
+        "dental",
+        "dentista",
+        "consultorio",
+        "oral",
+        "especializada"
+      ],
+      "s2": {
+        "padrao": "tooth-character",
+        "params": {
+          "x": 540,
+          "y": 1290,
+          "scale": 1.3,
+          "body": "#ffffff",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oi!",
+          "dur": "{{dur:s2}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "s3": {
+        "padrao": "toothbrush-sparkle",
+        "params": {
+          "x": 540,
+          "y": 1270,
+          "scale": 1.25,
+          "t0": 0.2,
+          "strokes": 8,
+          "handle": "#5aa9e6",
+          "ink": "#3d3834",
+          "sparkle": "#ffd23f",
+          "cheek": "#ffb3b3",
+          "dur": "{{dur:s3}}",
+          "bpm": "{{bpm}}",
+          "bg": "transparent",
+          "seed": 9
+        }
+      },
+      "vo3": [
+        "E depois da festa, escova nesses dentinhos!",
+        "Depois da festa, escova os dentinhos!"
+      ],
+      "lines3": [
+        "E depois da festa,|escova nesses|dentinhos!",
+        "Depois da festa,|escova os|dentinhos!"
+      ],
+      "scrub": true
+    },
+    {
+      "id": "pediatria",
+      "regex": [
+        "pediatr",
+        "saude infantil",
+        "clinica infantil",
+        "neonat"
+      ],
+      "sub": "PEDIATRIA",
+      "nome_setor": [
+        "pediatria",
+        "pediatrica",
+        "clinica",
+        "consultorio",
+        "infantil"
+      ],
+      "s2": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "heart",
+          "x": 540,
+          "y": 1290,
+          "scale": 1.3,
+          "body": "#ff6b6b",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "enter": "spring",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oi!",
+          "dur": "{{dur:s2}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "s3": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "star",
+          "x": 540,
+          "y": 1270,
+          "scale": 1.3,
+          "body": "#ffd23f",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#5aa9e6",
+          "enter": "spin",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Viva!",
+          "dur": "{{dur:s3}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "vo3": [
+        "Criança feliz é criança bem cuidada!",
+        "Criança feliz é bem cuidada!"
+      ],
+      "lines3": [
+        "Criança feliz|é criança|bem cuidada!",
+        "Criança feliz|é bem|cuidada!"
+      ]
+    },
+    {
+      "id": "escola",
+      "regex": [
+        "escola",
+        "colegio",
+        "bercario",
+        "creche",
+        "educacao",
+        "educacional",
+        "curso",
+        "ingles",
+        "idioma",
+        "ballet",
+        "bale",
+        "natacao",
+        "judo",
+        "musica",
+        "kids"
+      ],
+      "sub": "EDUCAÇÃO INFANTIL",
+      "nome_setor": [
+        "escola",
+        "colegio",
+        "bercario",
+        "creche",
+        "educacao",
+        "infantil",
+        "centro",
+        "educacional",
+        "de",
+        "e"
+      ],
+      "s2": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "book",
+          "x": 540,
+          "y": 1290,
+          "scale": 1.3,
+          "body": "#5aa9e6",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "enter": "spring",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oi!",
+          "dur": "{{dur:s2}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "s3": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "star",
+          "x": 540,
+          "y": 1270,
+          "scale": 1.3,
+          "body": "#ffd23f",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ff6b6b",
+          "enter": "spin",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Viva!",
+          "dur": "{{dur:s3}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "vo3": [
+        "Aprender brincando é muito mais divertido!",
+        "Aprender brincando é mais divertido!"
+      ],
+      "lines3": [
+        "Aprender brincando|é muito mais|divertido!",
+        "Aprender brincando|é mais|divertido!"
+      ]
+    },
+    {
+      "id": "brinquedos",
+      "regex": [
+        "brinquedo",
+        "toy"
+      ],
+      "sub": "BRINQUEDOS",
+      "nome_setor": [
+        "brinquedos",
+        "brinquedo",
+        "loja",
+        "toys"
+      ],
+      "s2": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "gift",
+          "x": 540,
+          "y": 1290,
+          "scale": 1.3,
+          "body": "#4ecdc4",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ff6b6b",
+          "enter": "spring",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oi!",
+          "dur": "{{dur:s2}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "s3": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "balloon",
+          "x": 540,
+          "y": 1270,
+          "scale": 1.3,
+          "body": "#b388eb",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "enter": "drop",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oba!",
+          "dur": "{{dur:s3}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "vo3": [
+        "Que tal um presente pra deixar o dia especial?",
+        "Um presente deixa o dia especial!"
+      ],
+      "lines3": [
+        "Que tal um presente|pra deixar o dia|especial?",
+        "Um presente|deixa o dia|especial!"
+      ]
+    },
+    {
+      "id": "festas",
+      "regex": [
+        "buffet",
+        "bufe",
+        "festa",
+        "parque",
+        "diversoes",
+        "recreacao",
+        "playground"
+      ],
+      "sub": "FESTAS INFANTIS",
+      "nome_setor": [
+        "buffet",
+        "infantil",
+        "festas",
+        "festa",
+        "diversoes",
+        "parque"
+      ],
+      "s2": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "cake",
+          "x": 540,
+          "y": 1290,
+          "scale": 1.3,
+          "body": "#ffb3d1",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "enter": "drop",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oi!",
+          "dur": "{{dur:s2}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "s3": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "balloon",
+          "x": 540,
+          "y": 1270,
+          "scale": 1.3,
+          "body": "#ff6b6b",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "enter": "spring",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oba!",
+          "dur": "{{dur:s3}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "vo3": [
+        "Festa boa é festa com a criançada reunida!",
+        "Festa boa é com a criançada!"
+      ],
+      "lines3": [
+        "Festa boa|é festa com a|criançada reunida!",
+        "Festa boa|é com a|criançada!"
+      ]
+    },
+    {
+      "id": "games",
+      "regex": [
+        "game",
+        "console",
+        "videogame",
+        "video game",
+        "playstation",
+        "xbox",
+        "nintendo"
+      ],
+      "sub": "GAMES",
+      "nome_setor": [
+        "games",
+        "game",
+        "eletronicos",
+        "eletronica",
+        "assistencia",
+        "tecnica",
+        "informatica"
+      ],
+      "s2": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "controller",
+          "x": 540,
+          "y": 1290,
+          "scale": 1.3,
+          "body": "#5aa9e6",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "enter": "spring",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oi!",
+          "dur": "{{dur:s2}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "s3": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "star",
+          "x": 540,
+          "y": 1270,
+          "scale": 1.3,
+          "body": "#ffd23f",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ff6b6b",
+          "enter": "spin",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Bora!",
+          "dur": "{{dur:s3}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "vo3": [
+        "Chama a turma e bora jogar junto!",
+        "Chama a turma pra jogar!"
+      ],
+      "lines3": [
+        "Chama a turma|e bora|jogar junto!",
+        "Chama a turma|pra|jogar!"
+      ]
+    },
+    {
+      "id": "moda-infantil",
+      "regex": [
+        "roupa",
+        "moda",
+        "vestuario",
+        "bebe",
+        "baby",
+        "boutique",
+        "calcado"
+      ],
+      "sub": "MODA INFANTIL",
+      "nome_setor": [
+        "moda",
+        "infantil",
+        "roupas",
+        "loja",
+        "kids",
+        "boutique"
+      ],
+      "s2": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "shirt",
+          "x": 540,
+          "y": 1290,
+          "scale": 1.3,
+          "body": "#4ecdc4",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "enter": "spring",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oi!",
+          "dur": "{{dur:s2}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "s3": {
+        "padrao": "icon-mascot",
+        "params": {
+          "icon": "gift",
+          "x": 540,
+          "y": 1270,
+          "scale": 1.3,
+          "body": "#ff6b6b",
+          "ink": "#3d3834",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "enter": "spin",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Oba!",
+          "dur": "{{dur:s3}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "vo3": [
+        "Look novo pra brincar com muito estilo!",
+        "Look novo pra brincar!"
+      ],
+      "lines3": [
+        "Look novo|pra brincar com|muito estilo!",
+        "Look novo|pra|brincar!"
+      ]
+    }
+  ],
+  "padrao": {
+    "id": "geral",
+    "regex": [],
+    "sub": "",
+    "nome_setor": [],
+    "s2": {
+      "padrao": "icon-mascot",
+      "params": {
+        "icon": "gift",
+        "x": 540,
+        "y": 1290,
+        "scale": 1.3,
+        "body": "#4ecdc4",
+        "ink": "#3d3834",
+        "cheek": "#ffb3b3",
+        "accent": "#ff6b6b",
+        "enter": "spring",
+        "t_in": 0.02,
+        "wave_t": 0.5,
+        "label": "Oi!",
+        "dur": "{{dur:s2}}",
+        "bpm": "{{bpm}}",
+        "beat0": 0,
+        "bg": "transparent",
+        "seed": 3
+      }
+    },
+    "s3": {
+      "padrao": "icon-mascot",
+      "params": {
+        "icon": "balloon",
+        "x": 540,
+        "y": 1270,
+        "scale": 1.3,
+        "body": "#b388eb",
+        "ink": "#3d3834",
+        "cheek": "#ffb3b3",
+        "accent": "#ffd23f",
+        "enter": "drop",
+        "t_in": 0.02,
+        "wave_t": 0.5,
+        "label": "Oba!",
+        "dur": "{{dur:s3}}",
+        "bpm": "{{bpm}}",
+        "beat0": 0,
+        "bg": "transparent",
+        "seed": 3
+      }
+    },
+    "vo3": [
+      "Aproveite cada momento com a criançada!",
+      "Aproveite o dia com a criançada!"
+    ],
+    "lines3": [
+      "Aproveite|cada momento com|a criançada!",
+      "Aproveite o dia|com a|criançada!"
+    ]
+  }
+}

@@ -8,6 +8,8 @@ Template placeholders (index.template.html):
   {{duracao}} {{fps}} {{width}} {{height}}   format values; {{cuts}} = [0, end1, end2, ...]
   {{bpm}} {{beat}}      trilha.bpm and one beat in seconds (sync visual hits with the music)
   {{words:<fala id>}}   word start times of that line, seconds from its SCENE start, "|"-joined (timing.lock.json)
+  {{padrao:<bloco>}}    motion pattern id used by that bloco (lets one template swap the scene's main block per
+                        contract, e.g. s2-main = tooth-character | icon-mascot in sazonal-dia-das-criancas)
 The same placeholders work inside string params of cenas[].motion[].params (a param that is exactly one numeric
 placeholder becomes a number), e.g. times: '{{words:vo1}}', bpm: '{{bpm}}', t_cut: '{{dur:s1}}'.
 """
@@ -33,6 +35,7 @@ def _subber(c: Contract, blocks: dict | None, lock: dict | None):
     sc = {s["id"]: s for s in c.scenes()}
     f = c.data["formato"]
     lines = {l["id"]: l for l in c.lines()}
+    padrao = {m["bloco"]: m["padrao"] for s in c.data["cenas"] for m in s.get("motion", []) if m.get("bloco")}
 
     def sub(m: re.Match) -> str:
         kind, arg, off = m.group(1), m.group(2), m.group(3)
@@ -48,6 +51,10 @@ def _subber(c: Contract, blocks: dict | None, lock: dict | None):
                 raise SystemExit(f"{{{{words:{arg}}}}}: timing.lock.json has no word timings - run `simplicio-video voice <contrato>`")
             base = lines[arg]["t"] - sc[lines[arg]["scene"]]["_start"] + (float(off) if off else 0.0)
             return "|".join(str(round(base + x["t"], 3)) for x in w)
+        if kind == "padrao":
+            if arg not in padrao:
+                raise SystemExit(f"template uses {{{{padrao:{arg}}}}} but no cenas[].motion[] has bloco: {arg}")
+            return padrao[arg]
         if kind == "vars":
             if blocks is None:
                 raise SystemExit("{{vars:...}} is only valid in the template")

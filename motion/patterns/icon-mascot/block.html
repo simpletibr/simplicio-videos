@@ -1,0 +1,139 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/icon-mascot/block.html — Mascote-ícone sorridente (SVG), qualquer setor
+  Ícone de setor com rosto (presente, controle, livro, bolo, camiseta, coração, balão, estrela): entra com mola, giro
+  ou queda, acena, pisca e dança na batida; estrela de brilho e balão de fala opcional. 100% vetorial, sem arte de
+  terceiros; generaliza tooth-character para campanhas sazonais (templates/sazonal-dia-das-criancas).
+  HyperFrames block (sub-composition), 1080x1920, 4.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/icon-mascot.html and add
+    <div id="..." class="clip" data-composition-id="icon-mascot" data-composition-src="compositions/icon-mascot.html"
+         data-start="T" data-duration="4.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract: the runtime clones only the <template>; the paused timeline registers under the literal "icon-mascot" key.
+  Deterministic: seeded rng only, no Math.random, Date.now, fetch or infinite repeats. Styles scoped under
+  [data-composition-id="icon-mascot"]. Origin: simplicio-video prospect, campanha Dia das Crianças 2026.
+-->
+<html lang="pt-BR" data-composition-id="icon-mascot" data-composition-duration="4.0" data-composition-variables='[{"id": "icon", "type": "string", "label": "Ícone: gift | controller | book | cake | shirt | heart | balloon | star", "default": "gift"}, {"id": "x", "type": "number", "label": "Centro x (px)", "default": 540}, {"id": "y", "type": "number", "label": "Centro y (px)", "default": 1080}, {"id": "scale", "type": "number", "label": "Escala", "default": 1.3}, {"id": "body", "type": "color", "label": "Cor do corpo", "default": "#4ecdc4"}, {"id": "ink", "type": "color", "label": "Contorno", "default": "#3d3834"}, {"id": "cheek", "type": "color", "label": "Bochechas", "default": "#ffb3b3"}, {"id": "accent", "type": "color", "label": "Detalhe (laço, lombada, vela, botões)", "default": "#ffd23f"}, {"id": "enter", "type": "string", "label": "Entrada: spring | spin | drop", "default": "spring"}, {"id": "t_in", "type": "number", "label": "Entrada (s)", "default": 0.1}, {"id": "wave_t", "type": "number", "label": "Aceno começa (s)", "default": 0.7}, {"id": "label", "type": "string", "label": "Balão de fala (vazio = sem balão)", "default": "Oi!", "maxLength": 18}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "bpm", "type": "number", "label": "BPM: dança com squash & stretch em cada batida (0 = quique suave)", "default": 0}, {"id": "beat0", "type": "number", "label": "Primeira batida (s, no bloco)", "default": 0}, {"id": "bg", "type": "string", "label": "Fundo", "default": "transparent"}, {"id": "seed", "type": "number", "label": "Semente", "default": 3}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mascote-ícone sorridente (SVG)</title>
+  </head>
+  <body>
+    <template>
+      <div id="icon-mascot-root" data-composition-id="icon-mascot" data-duration="4.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Fredoka"; src: url("assets/fonts/Fredoka.ttf") format("truetype"); font-weight: 300 700; font-display: block; }
+          [data-composition-id="icon-mascot"] { position: absolute; inset: 0; overflow: hidden; color: #3d3834; font-family: "Fredoka", sans-serif; background: var(--bg, transparent); }
+          [data-composition-id="icon-mascot"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="icon-mascot"] .wrap { position: absolute; left: 0; top: 0; width: 400px; height: 470px; }
+          [data-composition-id="icon-mascot"] .bubble { position: absolute; left: 250px; top: -90px; padding: 18px 30px; border-radius: 40px; background: #fff; font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 54px; white-space: nowrap; }
+        </style>
+        <div class="wrap"><svg width="400" height="470" viewBox="0 0 400 470" overflow="visible">
+          <ellipse class="shadow" cx="200" cy="455" rx="130" ry="16" fill="#000" fill-opacity="0.08"/>
+          <g class="arms">
+            <g class="armL"><path d="M78,240 Q40,250 26,205" fill="none" stroke-width="12" stroke-linecap="round"/><circle cx="24" cy="198" r="17"/></g>
+            <g class="armR"><path d="M322,240 Q362,232 378,188" fill="none" stroke-width="12" stroke-linecap="round"/><circle cx="380" cy="180" r="17"/></g>
+          </g>
+          <g class="icon" data-icon="gift">
+            <rect class="b" x="75" y="185" width="250" height="235" rx="14"/><rect class="a" x="182" y="185" width="36" height="235"/>
+            <rect class="b" x="55" y="125" width="290" height="70" rx="14"/><rect class="a" x="182" y="125" width="36" height="70"/>
+            <ellipse class="a" cx="158" cy="100" rx="46" ry="26" transform="rotate(-24 158 100)"/><ellipse class="a" cx="242" cy="100" rx="46" ry="26" transform="rotate(24 242 100)"/><circle class="a" cx="200" cy="114" r="17"/>
+          </g>
+          <g class="icon" data-icon="controller">
+            <path class="b" d="M60,205 C58,150 105,128 150,138 L250,138 C295,128 342,150 340,205 L354,330 C358,372 318,392 292,360 L260,318 L140,318 L108,360 C82,392 42,372 46,330 Z"/>
+            <path class="a" d="M92,190 h18 v-18 h16 v18 h18 v16 h-18 v18 h-16 v-18 h-18 Z"/><circle class="a" cx="290" cy="178" r="11"/><circle class="a" cx="312" cy="200" r="11"/><circle class="a" cx="268" cy="200" r="11"/><circle class="a" cx="290" cy="222" r="11"/>
+          </g>
+          <g class="icon" data-icon="book">
+            <rect class="p" x="92" y="100" width="250" height="322" rx="16"/><rect class="b" x="70" y="88" width="250" height="322" rx="18"/><rect class="a" x="70" y="88" width="42" height="322" rx="14"/>
+          </g>
+          <g class="icon" data-icon="cake">
+            <rect class="a" x="190" y="92" width="20" height="62" rx="6"/><path class="f" d="M200,52 C214,70 214,84 200,90 C186,84 186,70 200,52 Z"/>
+            <rect class="b" x="105" y="152" width="190" height="96" rx="18"/><rect class="b" x="58" y="240" width="284" height="182" rx="22"/>
+            <path class="a" d="M58,262 Q82,292 106,262 Q130,292 154,262 Q178,292 200,262 Q224,292 248,262 Q272,292 296,262 Q320,292 342,262 L342,256 L58,256 Z"/>
+          </g>
+          <g class="icon" data-icon="shirt">
+            <path class="b" d="M136,92 L92,104 L28,172 L84,222 L112,198 L112,422 L288,422 L288,198 L316,222 L372,172 L308,104 L264,92 C250,124 150,124 136,92 Z"/>
+            <path class="a" d="M112,380 L288,380 L288,400 L112,400 Z"/>
+          </g>
+          <g class="icon" data-icon="heart">
+            <path class="b" d="M200,424 C120,356 48,292 48,190 C48,120 98,78 150,78 C180,78 196,98 200,114 C204,98 220,78 250,78 C302,78 352,120 352,190 C352,292 280,356 200,424 Z"/>
+          </g>
+          <g class="icon" data-icon="balloon">
+            <path class="s" d="M200,392 C180,412 222,430 200,452" fill="none" stroke-width="5"/><path class="a" d="M186,392 L214,392 L200,372 Z"/>
+            <ellipse class="b" cx="200" cy="214" rx="146" ry="168"/>
+          </g>
+          <g class="icon" data-icon="star">
+            <path class="b" d="M200,52 L246,158 L360,168 L274,244 L300,356 L200,298 L100,356 L126,244 L40,168 L154,158 Z" stroke-linejoin="round"/>
+          </g>
+          <g class="face">
+            <ellipse class="ck" cx="122" cy="208" rx="24" ry="15"/><ellipse class="ck" cx="278" cy="208" rx="24" ry="15"/>
+            <g class="eye"><ellipse cx="158" cy="160" rx="17" ry="23"/><circle cx="164" cy="151" r="6" fill="#fff"/></g>
+            <g class="eye"><ellipse cx="242" cy="160" rx="17" ry="23"/><circle cx="248" cy="151" r="6" fill="#fff"/></g>
+            <path class="mouth" d="M150,205 Q200,272 250,205 Q200,228 150,205 Z" stroke-width="6" stroke-linejoin="round"/>
+            <path class="tongue" d="M178,236 Q200,258 222,236 Q200,226 178,236 Z" fill="#ff8a8a"/>
+          </g>
+          <path class="star" d="M340,40 L352,72 L384,84 L352,96 L340,128 L328,96 L296,84 L328,72 Z"/>
+         </svg><div class="bubble"></div></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"icon": "gift", "x": 540, "y": 1080, "scale": 1.3, "body": "#4ecdc4", "ink": "#3d3834", "cheek": "#ffb3b3", "accent": "#ffd23f", "enter": "spring", "t_in": 0.1, "wave_t": 0.7, "label": "Oi!", "dur": 4.0, "bpm": 0, "beat0": 0, "bg": "transparent", "seed": 3};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("icon-mascot-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--bg", V.bg || "transparent");
+            // face height (svg y of the eyes) per icon; the face group is authored at y=160
+            const FACE = { gift: 290, controller: 222, book: 232, cake: 318, shirt: 250, heart: 200, balloon: 190, star: 212 };
+            const icon = FACE[V.icon] !== undefined ? V.icon : "gift";
+            $$(".icon").forEach((g) => { if (g.dataset.icon !== icon) g.remove(); });
+            const dy = FACE[icon] - 160;
+            $(".face").setAttribute("transform", `translate(0 ${dy})`);
+            $(".arms").setAttribute("transform", `translate(0 ${Math.max(0, dy - 40)})`);
+            $$(".icon .b").forEach((e) => { e.setAttribute("fill", V.body); e.setAttribute("stroke", V.ink); e.setAttribute("stroke-width", "11"); e.setAttribute("stroke-linejoin", "round"); });
+            $$(".icon .a").forEach((e) => { e.setAttribute("fill", V.accent); e.setAttribute("stroke", V.ink); e.setAttribute("stroke-width", "6"); e.setAttribute("stroke-linejoin", "round"); });
+            $$(".icon .p").forEach((e) => { e.setAttribute("fill", "#ffffff"); e.setAttribute("stroke", V.ink); e.setAttribute("stroke-width", "9"); });
+            $$(".icon .f").forEach((e) => { e.setAttribute("fill", "#ff9f1c"); e.setAttribute("stroke", V.ink); e.setAttribute("stroke-width", "5"); });
+            $$(".icon .s").forEach((e) => e.setAttribute("stroke", V.ink));
+            $$(".armL path, .armR path, .mouth").forEach((e) => e.setAttribute("stroke", V.ink));
+            $(".mouth").setAttribute("fill", V.ink);
+            $$(".armL circle, .armR circle").forEach((e) => { e.setAttribute("fill", V.body); e.setAttribute("stroke", V.ink); e.setAttribute("stroke-width", "8"); });
+            $$(".eye ellipse").forEach((e) => e.setAttribute("fill", V.ink)); $$(".ck").forEach((e) => e.setAttribute("fill", V.cheek));
+            $(".star").setAttribute("fill", V.accent);
+            const b = $(".bubble"); b.textContent = V.label; b.style.border = `6px solid ${V.ink}`; if (!V.label) b.style.display = "none";
+            const tl = gsap.timeline({ paused: true });
+            const w = $(".wrap");
+            gsap.set(w, { x: V.x - 200, y: V.y - 235, scale: V.scale, transformOrigin: "50% 100%" });
+            if (V.enter === "spin") tl.fromTo(w, { scale: 0, rotation: -200 }, { scale: V.scale, rotation: 0, duration: 0.7, ease: "back.out(1.8)" }, V.t_in);
+            else if (V.enter === "drop") tl.fromTo(w, { y: V.y - 1500 }, { y: V.y - 235, duration: 0.6, ease: "bounce.out" }, V.t_in);
+            else tl.fromTo(w, { scale: 0, y: V.y - 35 }, { scale: V.scale, y: V.y - 235, duration: 0.7, ease: "back.out(2.2)" }, V.t_in);
+            if (V.bpm > 0) { // dance: squash on the beat, stretch + hop between beats, tiny tilt alternating
+              const B = 60 / V.bpm, sv = $(".wrap svg"); gsap.set(sv, { transformOrigin: "50% 100%" }); let k = 0;
+              for (let t = V.beat0; t < V.dur - 0.35; t += B, k++) { if (t < V.t_in + 0.65) continue;
+                tl.to(sv, { scaleX: 1.14, scaleY: 0.84, rotation: 0, duration: 0.06, ease: "power2.out" }, t);
+                tl.to(sv, { scaleX: 0.92, scaleY: 1.1, rotation: k % 2 ? 5 : -5, duration: B * 0.35, ease: "power2.out" }, t + 0.06);
+                tl.to(w, { y: V.y - 275, duration: B * 0.35, ease: "power2.out" }, t + 0.06);
+                tl.to(w, { y: V.y - 235, duration: B * 0.5 - 0.06, ease: "power2.in" }, t + 0.06 + B * 0.35);
+                tl.to(sv, { scaleX: 1, scaleY: 1, duration: B * 0.3, ease: "sine.inOut" }, t + 0.06 + B * 0.35); }
+            } else {
+              const bob = 0.5, reps = Math.max(1, Math.floor((V.dur - V.t_in - 0.8) / bob));
+              tl.fromTo(w, { y: V.y - 235 }, { y: V.y - 265, duration: bob / 2, yoyo: true, repeat: reps * 2 - 1, ease: "sine.inOut", immediateRender: false }, V.t_in + 0.8);
+            }
+            const ay = Math.max(0, dy - 40);
+            tl.fromTo(".armR", { rotation: 0 }, { rotation: -32, duration: 0.18, yoyo: true, repeat: 7, ease: "sine.inOut", svgOrigin: `322 ${240 + ay}` }, V.wave_t);
+            tl.fromTo(".armL", { rotation: 0 }, { rotation: 10, duration: 0.4, yoyo: true, repeat: 3, ease: "sine.inOut", svgOrigin: `78 ${240 + ay}` }, V.wave_t + 0.2);
+            [1.3, 2.9, 4.5, 6.1].filter((t) => t < V.dur - 0.5).forEach((t) => { tl.to(".eye ellipse", { scaleY: 0.12, duration: 0.06, svgOrigin: `200 ${160 + dy}`, ease: "none" }, t); tl.to(".eye ellipse", { scaleY: 1, duration: 0.08, ease: "none" }, t + 0.1); });
+            tl.fromTo(".star", { scale: 0, rotation: -90 }, { scale: 1, rotation: 0, duration: 0.45, ease: "back.out(3)", svgOrigin: "340 84" }, V.t_in + 0.9);
+            tl.to(".star", { scale: 0.75, duration: 0.3, yoyo: true, repeat: 3, ease: "sine.inOut", svgOrigin: "340 84" }, V.t_in + 1.4);
+            tl.fromTo(b, { scale: 0, opacity: 1 }, { scale: 1, duration: 0.4, ease: "back.out(2.5)", transformOrigin: "0% 100%" }, V.t_in + 0.6);
+            tl.to(w, { scale: 0, duration: 0.25, ease: "back.in(2)" }, V.dur - 0.28);
+            tl.set({}, {}, V.dur);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["icon-mascot"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

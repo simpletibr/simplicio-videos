@@ -17,3 +17,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .venv/
+
+# venda ativa (simplicio-video prospect): prévias, coletas e relatórios ficam fora do git; só o CSV de exemplo entra
+prospects/*
+!prospects/exemplo-dia-criancas.csv
