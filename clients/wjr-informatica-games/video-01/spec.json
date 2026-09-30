@@ -401,5 +401,74 @@
         "brief": "gamer playing — CTA background ('Volte para o jogo')"
       }
     ]
+  },
+  "voice": {
+    "_doc": "Voice-over (narração). 'text' = exact copy (facts from ../coleta/brief.md); 'say' = optional pronunciation respelling sent to the TTS. 't' = start time (s) on the 120 BPM grid; 'max_s' = slot length (line is sped up with atempo, max 1.3x, if longer). npm run voice renders/caches lines in assets/audio/vo/; npm run build mixes them.",
+    "enabled": true,
+    "provider": "kokoro",
+    "providers": {
+      "kokoro": {
+        "model": "kokoro-v1.0 (hexgrad/Kokoro-82M, ONNX via kokoro-onnx)",
+        "voice": "pm_alex",
+        "lang": "pt-br",
+        "speed": 1.15
+      },
+      "elevenlabs": {
+        "model": "eleven_multilingual_v2",
+        "voice_id": "<ELEVENLABS_VOICE_ID>",
+        "stability": 0.4,
+        "similarity_boost": 0.8,
+        "style": 0.35,
+        "env": "ELEVENLABS_API_KEY"
+      }
+    },
+    "gain_db": 0,
+    "duck_music_db": 10,
+    "duck_sfx_db": 6,
+    "lines": [
+      {
+        "id": "vo1",
+        "t": 0.15,
+        "max_s": 1.3,
+        "scene": "s1",
+        "text": "Seu console parou?"
+      },
+      {
+        "id": "vo2",
+        "t": 2.55,
+        "max_s": 1.9,
+        "scene": "s2",
+        "text": "A gente coloca ele de volta no jogo!"
+      },
+      {
+        "id": "vo3",
+        "t": 4.6,
+        "max_s": 3.2,
+        "scene": "s3",
+        "text": "Drift no controle, console que não liga, superaquecimento?"
+      },
+      {
+        "id": "vo4",
+        "t": 8.1,
+        "max_s": 2.35,
+        "scene": "s4",
+        "text": "Xbox, PlayStation e controles, em Guarulhos.",
+        "say": "Équis box, PlayStation e controles, em Guarulhos."
+      },
+      {
+        "id": "vo5",
+        "t": 10.5,
+        "max_s": 1.45,
+        "scene": "s5",
+        "text": "Você aprova antes do reparo."
+      },
+      {
+        "id": "vo6",
+        "t": 12.45,
+        "max_s": 2.45,
+        "scene": "s6",
+        "text": "Chama a WJR no WhatsApp e volte pro jogo!"
+      }
+    ]
   }
 }

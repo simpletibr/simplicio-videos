@@ -64,5 +64,6 @@ Regras práticas:
 No `video-01`, trilha, efeitos sonoros e clipes de vídeo entraram no mesmo modelo "spec → render" sem LLM:
 - `spec.json → audio` (BPM, seções, 32 cues com tempo/ganho/ducking) → `scripts/build.mjs` sintetiza e mixa (≈3 s, bit-idêntico entre builds) → `scripts/master.sh` fecha em −14 LUFS no MP4.
 - `spec.json → clips.slots` → soltar `assets/imagine/clip-0N.mp4` liga a placa de vídeo da cena; sem arquivo, a cena volta ao design com imagens.
+- `spec.json → voice` (6 frases com tempo) → `scripts/voice.py` (TTS local, cache por hash) → mixada com ducking. Trocar uma frase regenera só aquela frase; sem mudança, nenhum TTS roda.
 - Mudar o tempo de um golpe = editar um número no JSON e re-renderizar. O Opus 5.5 só é necessário para mudar **coreografia** (o `index.html`), não para re-sincronizar som ou trocar mídia.
 

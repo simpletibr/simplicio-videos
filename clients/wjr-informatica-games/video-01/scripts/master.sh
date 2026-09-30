@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Final audio master on the rendered MP4: 2-pass loudnorm to the spec target, video stream copied untouched.
-# (HyperFrames' mixer + AAC encode lands ~0.8 LU below the pre-mixed WAV, so we measure the real container.)
+# HyperFrames' mixer applies a constant gain to the pre-mixed WAV (measured: -1 dB without video plates,
+# -6 dB with the 5 <video> plates present, same waveform otherwise), so we measure the real container.
 # usage: scripts/master.sh <in.mp4> <out.mp4>
 set -euo pipefail
 cd "$(dirname "$0")/.."

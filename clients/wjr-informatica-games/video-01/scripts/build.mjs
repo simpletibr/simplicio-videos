@@ -2,7 +2,8 @@
 // Deterministic build step for video-01 (no network, no LLM, no third-party audio):
 //   0) normalizes optional video plates (spec.clips) or writes black stand-ins + <id>_on flags
 //   1) splits spec.json -> build/variables.json (HyperFrames --variables-file)
-//   2) synthesizes an original 120 BPM track + SFX from spec.json "audio" cues
+//   2) synthesizes an original 120 BPM track + SFX from spec.json "audio" cues, adds the cached VO lines
+//      (spec.json "voice", rendered by scripts/voice.py) and ducks music/SFX under the voice
 //   3) mixes them (sidechain pump, SFX ducking, fade in/out) -> build/mix.raw.wav
 //   4) loudness-normalizes with ffmpeg loudnorm (2-pass) -> assets/audio/build/mix.wav
 // Same spec.json => bit-identical audio (seeded PRNG).
@@ -120,12 +121,48 @@ for (const cue of audio.cues) {
   if (cue.duck_db) { const depth = db(-cue.duck_db), a = Math.round(cue.t * SR), rel = Math.round(0.35 * SR), hold = s.length * 0.4;
     for (let k = -480; k < hold + rel; k++) { const j = a + k; if (j < 0 || j >= N) continue; const g = k < 0 ? 1 - (1 - depth) * ((k + 480) / 480) : k < hold ? depth : depth + (1 - depth) * ((k - hold) / rel); duck[j] = Math.min(duck[j], g); } }
 }
+// ---------- voice-over (pre-rendered by scripts/voice.py, cached in assets/audio/vo/) ----------
+// VO bus is centered, high-passed and level-matched per line; its envelope ducks music (and SFX a little).
+const VO = new Float32Array(N), voEnv = new Float32Array(N);
+const voice = spec.voice;
+let voLines = 0;
+function readWavMono(path) { // minimal RIFF reader: PCM s16, mono, 48 kHz (what voice.py writes)
+  const b = readFileSync(path); let off = 12, fmt = null;
+  while (off < b.length) { const id = b.toString("ascii", off, off + 4), size = b.readUInt32LE(off + 4);
+    if (id === "fmt ") fmt = { ch: b.readUInt16LE(off + 10), sr: b.readUInt32LE(off + 12), bits: b.readUInt16LE(off + 22) };
+    if (id === "data") { if (!fmt || fmt.ch !== 1 || fmt.sr !== SR || fmt.bits !== 16) throw new Error(`${path}: expected 48k mono s16`);
+      const n = size / 2, o = new Float32Array(n); for (let i = 0; i < n; i++) o[i] = b.readInt16LE(off + 8 + i * 2) / 32768; return o; }
+    off += 8 + size + (size & 1); }
+  throw new Error(`${path}: no data chunk`);
+}
+if (voice?.enabled) {
+  const manPath = join(ROOT, "assets/audio/vo/manifest.json");
+  if (!existsSync(manPath)) throw new Error("voice.enabled but assets/audio/vo/manifest.json missing - run `npm run voice`");
+  const man = JSON.parse(readFileSync(manPath, "utf8"));
+  for (const line of voice.lines) {
+    const m = man.lines[line.id]; if (!m) throw new Error(`VO ${line.id} not rendered - run \`npm run voice\``);
+    if (m.text !== line.text) throw new Error(`VO ${line.id} text changed in spec.json - run \`npm run voice\``);
+    const x = readWavMono(join(ROOT, m.file)), hp = biquad("hp"); hp.set(110, 0.7);
+    let ss = 0; for (let i = 0; i < x.length; i++) { x[i] = hp.run(x[i]); ss += x[i] * x[i]; }
+    const g = db(voice.gain_db ?? 0) * (0.16 / Math.sqrt(ss / x.length + 1e-9)); // level-match lines to the same RMS
+    const i0 = Math.round(line.t * SR);
+    for (let i = 0; i < x.length; i++) { const j = i0 + i; if (j >= 0 && j < N) VO[j] += Math.tanh(x[i] * g * 1.4) / 1.4; }
+    voLines++;
+  }
+  // envelope follower (10 ms attack, 300 ms release) with 60 ms look-ahead so the duck lands before the word
+  const att = Math.exp(-1 / (0.01 * SR)), rel = Math.exp(-1 / (0.3 * SR)), look = Math.round(0.06 * SR);
+  let e = 0;
+  for (let i = 0; i < N; i++) { const a = Math.abs(VO[Math.min(N - 1, i + look)]); e = a > e ? att * e + (1 - att) * a : rel * e + (1 - rel) * a; voEnv[i] = Math.min(1, e / 0.05); }
+}
+const duckMusicVO = db(-(voice?.duck_music_db ?? 0)), duckSfxVO = db(-(voice?.duck_sfx_db ?? 0));
+
 const fi = audio.music.fade_in_s * SR, fo = audio.music.fade_out_s * SR;
 const out = new Int16Array(N * 2);
 for (let i = 0; i < N; i++) {
   const fade = Math.min(1, i / fi, (N - i) / fo);
-  const m = db(audio.music.gain_db) * duck[i] * fade, sfxFade = Math.min(1, (N - i) / (0.05 * SR));
-  let l = L[i] * m + SL[i] * sfxFade, r = R[i] * m + SRr[i] * sfxFade;
+  const v = voEnv[i], mv = 1 - (1 - duckMusicVO) * v, sv = 1 - (1 - duckSfxVO) * v;
+  const m = db(audio.music.gain_db) * Math.min(duck[i], mv) * fade, sfxFade = Math.min(1, (N - i) / (0.05 * SR)) * sv;
+  let l = L[i] * m + SL[i] * sfxFade + VO[i], r = R[i] * m + SRr[i] * sfxFade + VO[i];
   l = Math.tanh(l * 0.9); r = Math.tanh(r * 0.9); // soft clip
   out[i * 2] = Math.max(-32767, Math.min(32767, l * 32767)); out[i * 2 + 1] = Math.max(-32767, Math.min(32767, r * 32767));
 }
@@ -139,7 +176,7 @@ let meas; try { meas = JSON.parse(execFileSync("sh", ["-c", `ffmpeg -hide_banner
 const af = `loudnorm=I=${I}:TP=${TP}:LRA=11:measured_I=${meas.input_i}:measured_TP=${meas.input_tp}:measured_LRA=${meas.input_lra}:measured_thresh=${meas.input_thresh}:offset=${meas.target_offset}:linear=true`;
 const final = join(ROOT, "assets/audio/build/mix.wav");
 execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-i", raw, "-af", af, "-ar", String(SR), "-c:a", "pcm_s16le", final]);
-console.log(`audio: ${final} (${DUR}s, ${audio.cues.length} cues, input ${meas.input_i} LUFS -> target ${I} LUFS)`);
+console.log(`audio: ${final} (${DUR}s, ${audio.cues.length} cues, ${voLines} VO lines, input ${meas.input_i} LUFS -> target ${I} LUFS)`);
 console.log(`variables: build/variables.json (${Object.keys(variables).length} keys)`);
 console.log(`plates: ${plates.join(" ") || "none"}`);
 void pass1;

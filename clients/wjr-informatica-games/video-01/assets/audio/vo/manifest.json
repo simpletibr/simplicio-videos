@@ -1,0 +1,55 @@
+{
+  "provider": "kokoro",
+  "model": "kokoro-v1.0 (hexgrad/Kokoro-82M, ONNX via kokoro-onnx)",
+  "voice": "pm_alex",
+  "lines": {
+    "vo1": {
+      "file": "assets/audio/vo/vo1-180fa180f8b6.wav",
+      "t": 0.15,
+      "dur_s": 1.216,
+      "text": "Seu console parou?",
+      "say": "Seu console parou?",
+      "atempo": 1.0
+    },
+    "vo2": {
+      "file": "assets/audio/vo/vo2-223b34c2dc54.wav",
+      "t": 2.55,
+      "dur_s": 1.896,
+      "text": "A gente coloca ele de volta no jogo!",
+      "say": "A gente coloca ele de volta no jogo!",
+      "atempo": 1.173
+    },
+    "vo3": {
+      "file": "assets/audio/vo/vo3-bf4a5a94c710.wav",
+      "t": 4.6,
+      "dur_s": 3.202,
+      "text": "Drift no controle, console que não liga, superaquecimento?",
+      "say": "Drift no controle, console que não liga, superaquecimento?",
+      "atempo": 1.0098
+    },
+    "vo4": {
+      "file": "assets/audio/vo/vo4-43585d7678a2.wav",
+      "t": 8.1,
+      "dur_s": 2.362,
+      "text": "Xbox, PlayStation e controles, em Guarulhos.",
+      "say": "Équis box, PlayStation e controles, em Guarulhos.",
+      "atempo": 1.2256
+    },
+    "vo5": {
+      "file": "assets/audio/vo/vo5-4a8824f0f24e.wav",
+      "t": 10.5,
+      "dur_s": 1.441,
+      "text": "Você aprova antes do reparo.",
+      "say": "Você aprova antes do reparo.",
+      "atempo": 1.1918
+    },
+    "vo6": {
+      "file": "assets/audio/vo/vo6-5825d1beb81f.wav",
+      "t": 12.45,
+      "dur_s": 2.44,
+      "text": "Chama a WJR no WhatsApp e volte pro jogo!",
+      "say": "Chama a WJR no WhatsApp e volte pro jogo!",
+      "atempo": 1.1764
+    }
+  }
+}

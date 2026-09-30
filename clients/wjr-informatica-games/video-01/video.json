@@ -25,6 +25,16 @@
     "true_peak_db": -1.5,
     "license": "assets/audio/LICENSES.md"
   },
+  "voice": {
+    "spec_key": "voice",
+    "provider": "kokoro",
+    "model": "kokoro-v1.0",
+    "voice": "pm_alex",
+    "lang": "pt-br",
+    "license": "Apache-2.0",
+    "render": "npm run voice",
+    "cache": "assets/audio/vo/manifest.json"
+  },
   "clips": {
     "spec_key": "clips",
     "dir": "assets/imagine",

@@ -26,6 +26,8 @@ Travas (não negociáveis):
   câmera (zoom-punch, push-in, shake curto no impacto, parallax de fundo), transição glitch/RGB-split,
   light sweep + glow no logo, grade em perspectiva + partículas com semente fixa + scanlines,
   ícone de controle reagindo (botões acendem no click), easing GSAP (power4/back/elastic só no logo).
+- Narração: spec.json → voice.lines (6 frases pt-BR, uma por cena, no beat). Se mudar a coreografia, mantenha o
+  texto na tela dizendo o mesmo que a voz naquele instante; se mudar uma frase, rode npm run voice.
 - Clipes opcionais: spec.json → clips.slots (assets/imagine/clip-0N.mp4). Presente = placa de vídeo em
   tela cheia com shade; ausente = cena atual. Não quebre esse fallback.
 - Determinismo: um gsap.timeline({paused:true}) em window.__timelines["main"]; nada de Math.random

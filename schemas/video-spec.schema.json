@@ -204,6 +204,41 @@
           "minimum": 0
         }
       }
+    },
+    "voice": {
+      "type": "object",
+      "description": "voice-over: lines live in spec_file[spec_key]; audio rendered/cached by the voice step",
+      "additionalProperties": false,
+      "properties": {
+        "spec_key": {
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "kokoro",
+            "elevenlabs",
+            "none"
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "voice": {
+          "type": "string"
+        },
+        "lang": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "render": {
+          "type": "string"
+        },
+        "cache": {
+          "type": "string"
+        }
+      }
     }
   }
 }
