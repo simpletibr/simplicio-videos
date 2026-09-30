@@ -1,0 +1,58 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "hud-scan-photo",
+  "title": "HUD de mira + barra de scan + parallax de foto",
+  "description": "Foto em parallax lento, cantoneiras de HUD entram com scale, etiqueta pisca e uma barra de scan atravessa a tela — leitura 'diagnóstico/técnico'.",
+  "status": "pronto",
+  "duration_s": 2.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "image",
+      "type": "string",
+      "label": "Imagem",
+      "default": "assets/placeholder-photo.svg"
+    },
+    {
+      "id": "label",
+      "type": "string",
+      "label": "Etiqueta",
+      "default": "Diagnóstico técnico",
+      "maxLength": 28
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "imagem",
+  "tags": [
+    "técnico",
+    "hud",
+    "scan",
+    "foto"
+  ],
+  "use_when": "Serviços técnicos (assistência, clínica, oficina, TI): 'a gente analisa'.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S4)",
+    "url": null
+  },
+  "preview_at": 0.75
+}

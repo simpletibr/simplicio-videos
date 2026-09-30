@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://simplicio.dev/schemas/simplicio.video-template/v1",
+  "title": "simplicio.video-template/v1",
+  "description": "A sector template: scene structure + motion patterns + voice/music defaults that turn an intake into a spec without an LLM.",
+  "type": "object",
+  "required": ["id", "setor", "status", "nichos", "formato", "duracao_s", "cenas", "voz", "musica", "tom", "cuidados"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]{3,64}$" },
+    "setor": { "type": "string" },
+    "status": { "enum": ["pronto", "skeleton"], "description": "pronto = has a rendered reference video; skeleton = structure only, first client validates it" },
+    "nichos": { "type": "array", "items": { "type": "string" }, "description": "keywords matched against intake empresa.nicho/descricao" },
+    "referencia": { "type": ["string", "null"], "description": "path of the reference project (clients/.../video-NN)" },
+    "formato": { "type": "object", "properties": { "aspect": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" }, "fps": { "type": "integer" } } },
+    "duracao_s": { "type": "number" },
+    "cenas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "papel", "dur_s", "padroes", "campos"],
+        "properties": {
+          "id": { "type": "string" },
+          "papel": { "enum": ["gancho", "promessa", "problemas", "prova", "servicos", "processo", "oferta", "produto", "ambiente", "depoimento", "marca", "cta"] },
+          "dur_s": { "type": "number" },
+          "padroes": { "type": "array", "items": { "type": "string" }, "description": "motion/patterns ids" },
+          "campos": { "type": "array", "items": { "type": "string" }, "description": "intake fields that feed this scene" },
+          "fala": { "type": "string", "description": "narration line template; {placeholders} come from intake" }
+        }
+      }
+    },
+    "voz": { "type": "object", "properties": { "tipo": { "type": "string" }, "gemini_voz": { "type": "string" }, "estilo": { "type": "string" } } },
+    "musica": { "type": "object", "properties": { "bpm": { "type": "number" }, "mood": { "type": "string" }, "secoes": { "type": "string" } } },
+    "paleta_padrao": { "type": "object", "description": "used only when the client has no brand colors" },
+    "tom": { "type": "string" },
+    "transicoes": { "type": "array", "items": { "type": "string" } },
+    "cuidados": { "type": "array", "items": { "type": "string" }, "description": "sector-specific claims/compliance to avoid or check" }
+  }
+}

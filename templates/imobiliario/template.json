@@ -1,0 +1,114 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "imobiliario",
+  "setor": "Imobiliário (imobiliária, corretor, construtora, aluguel)",
+  "status": "skeleton",
+  "nichos": [
+    "imobiliária",
+    "corretor",
+    "imóveis",
+    "construtora",
+    "incorporadora",
+    "aluguel",
+    "lançamento imobiliário",
+    "condomínio"
+  ],
+  "referencia": null,
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 20.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.5,
+      "padroes": [
+        "marker-underline-title"
+      ],
+      "campos": [
+        "empresa.frases_proprias"
+      ],
+      "fala": "{desejo: o lugar certo}"
+    },
+    {
+      "id": "S2",
+      "papel": "ambiente",
+      "dur_s": 7.0,
+      "padroes": [
+        "spotlight-sweep",
+        "card-3d-pushin-sweep",
+        "hud-scan-photo"
+      ],
+      "campos": [
+        "pedido.material_proprio"
+      ],
+      "fala": "{ambientes do imóvel (fotos/vídeos reais)}"
+    },
+    {
+      "id": "S3",
+      "papel": "prova",
+      "dur_s": 3.5,
+      "padroes": [
+        "cliptitle-chip-cascade"
+      ],
+      "campos": [
+        "empresa.servicos"
+      ],
+      "fala": "{características confirmadas: quartos, m², bairro}"
+    },
+    {
+      "id": "S4",
+      "papel": "processo",
+      "dur_s": 3.0,
+      "padroes": [
+        "process-timeline"
+      ],
+      "campos": [
+        "empresa.diferenciais"
+      ],
+      "fala": "{como visitar/financiar}"
+    },
+    {
+      "id": "S5",
+      "papel": "cta",
+      "dur_s": 4.0,
+      "padroes": [
+        "logo-shrink-lockup",
+        "cta-button-spring"
+      ],
+      "campos": [
+        "pedido.cta",
+        "empresa.contatos"
+      ],
+      "fala": "{cta: agende sua visita}"
+    }
+  ],
+  "voz": {
+    "tipo": "madura, confiável",
+    "gemini_voz": "Gacrux",
+    "estilo": "calmo, sofisticado, seguro"
+  },
+  "musica": {
+    "bpm": 90,
+    "mood": "cinemático/ambiente elegante",
+    "secoes": "contínua com leve crescendo no CTA"
+  },
+  "tom": "sofisticado, confiável, aspiracional sem exagero",
+  "transicoes": [
+    "circle-iris-transition"
+  ],
+  "cuidados": [
+    "Número do CRECI do corretor/imobiliária no anúncio (exigência do sistema COFECI/CRECI — confirmar a regra vigente).",
+    "Metragem, preço, condições e prazos de entrega só como constam no material oficial do empreendimento.",
+    "Imagens ilustrativas/renderizações marcadas como tal."
+  ],
+  "paleta_padrao": {
+    "primary": "#c9a227",
+    "secondary": "#f2e8cf",
+    "background": "#101418"
+  }
+}

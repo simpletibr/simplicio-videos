@@ -7,7 +7,7 @@
 | `index.html` | composição; todo texto/imagem/cor é variável (`data-composition-variables` + `data-var-*`) |
 | `spec.json` | **tudo que muda**: `variables` (copy, imagens, cores), `audio` (BPM, seções, 46 cues de SFX com tempo/ganho/ducking, master), `voice` (9 frases com tempo/slot, provedor chatterbox/kokoro/elevenlabs/xai/file, tratamento, ducking) e `clips` (slots de vídeo opcionais) |
 | `scripts/build.mjs` | passo determinístico: gera `build/variables.json`, sintetiza trilha + SFX, mixa (sidechain, ducking, fades), normaliza (−14 LUFS) e prepara os clipes |
-| `scripts/voice.py` / `scripts/setup-tts.sh` | narração: gera/cacheia as frases em `assets/audio/vo/` (Chatterbox local, ou WAVs externos em `assets/audio/vo/external/`) — ver `docs/narracao-tts.md` |
+| `scripts/voice.py` / `scripts/setup-tts.sh` | narração: gera/cacheia as frases em `assets/audio/vo/` (Chatterbox local, ou WAVs externos em `assets/audio/vo/external/`) — ver `voices/narracao-tts.md` |
 | `scripts/master.sh` | master final no MP4 renderizado (loudnorm 2 passagens + limiter, vídeo copiado) |
 | `video.json` | spec do futuro plugin (`simplicio.video-spec/v1`, proposta) |
 | `storyboard.simplicio.json` | versão para o plugin `motion` do simplicio-runtime (fallback sem áudio; não validada no binário) |

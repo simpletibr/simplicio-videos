@@ -1,0 +1,65 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "cliptitle-chip-cascade",
+  "title": "Título por clip-path + cascata de chips",
+  "description": "Duas metades do título abrem por clip-path em direções opostas (com split RGB) e uma grade de chips cai em cascata alternando os lados.",
+  "status": "pronto",
+  "duration_s": 2.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "title1",
+      "type": "string",
+      "label": "Título linha 1",
+      "default": "Atendemos",
+      "maxLength": 16
+    },
+    {
+      "id": "title2",
+      "type": "string",
+      "label": "Título linha 2",
+      "default": "todas as marcas",
+      "maxLength": 18
+    },
+    {
+      "id": "chips",
+      "type": "string",
+      "label": "Chips (separados por |)",
+      "default": "Marca A|Marca B|Marca C|Marca D|Marca E|Marca F"
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "lista",
+  "tags": [
+    "marcas",
+    "modelos",
+    "chips",
+    "clip-path"
+  ],
+  "use_when": "Mostrar variedade (marcas, modelos, categorias, bairros atendidos).",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S4)",
+    "url": null
+  },
+  "preview_at": 1.8
+}

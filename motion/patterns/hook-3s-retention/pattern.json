@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "hook-3s-retention",
+  "title": "Estrutura de gancho 3 s + retenção",
+  "description": "Estrutura (não é um efeito): gancho visual+falado nos 3 primeiros segundos, ângulo, embalagem e quebras de padrão a cada 2–3 s para reter.",
+  "status": "proposto",
+  "category": "estrutura",
+  "tags": [
+    "gancho",
+    "retenção",
+    "roteiro"
+  ],
+  "use_when": "Todo reels curto; aplicar no roteiro antes da animação.",
+  "source": {
+    "kind": "x-bookmark",
+    "ref": "@Sayajiiinz — guia: assunto, ângulo, embalagem (hooks/thumbnail), retenção, análise",
+    "url": "https://x.com/Sayajiiinz/status/2100336121137754476"
+  }
+}

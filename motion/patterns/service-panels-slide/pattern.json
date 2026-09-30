@@ -1,0 +1,71 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "service-panels-slide",
+  "title": "Painéis de serviço deslizando no beat + contador",
+  "description": "Cada serviço é um painel que entra pela direita no beat (split RGB no título, arte com back.out) e sai pela esquerda; contador 01/03 troca com scale.",
+  "status": "pronto",
+  "duration_s": 4.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "kicker",
+      "type": "string",
+      "label": "Kicker",
+      "default": "Serviços",
+      "maxLength": 24
+    },
+    {
+      "id": "titles",
+      "type": "string",
+      "label": "Títulos (|)",
+      "default": "Serviço um|Serviço dois|Serviço três"
+    },
+    {
+      "id": "captions",
+      "type": "string",
+      "label": "Legendas (|)",
+      "default": "Descrição curta do serviço um|Descrição curta do serviço dois|Descrição curta do serviço três"
+    },
+    {
+      "id": "times",
+      "type": "string",
+      "label": "Entradas (s, |)",
+      "default": "0.1|1.6|3.1"
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "lista",
+  "tags": [
+    "serviços",
+    "painéis",
+    "beat",
+    "contador"
+  ],
+  "use_when": "2–4 serviços principais, um por beat, com legenda curta.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (SV)",
+    "url": null
+  },
+  "preview_at": 2.3,
+  "sync": "times = beats/palavras de cada serviço"
+}

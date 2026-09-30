@@ -1,0 +1,117 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "alimentacao",
+  "setor": "Alimentação (restaurante, delivery, confeitaria, café)",
+  "status": "skeleton",
+  "nichos": [
+    "restaurante",
+    "lanchonete",
+    "hamburgueria",
+    "pizzaria",
+    "delivery",
+    "confeitaria",
+    "doceria",
+    "café",
+    "padaria",
+    "marmita"
+  ],
+  "referencia": null,
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 15.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.0,
+      "padroes": [
+        "kinetic-letters-punch"
+      ],
+      "campos": [
+        "empresa.frases_proprias"
+      ],
+      "fala": "{desejo/fome} (ex.: 'Bateu a fome?')"
+    },
+    {
+      "id": "S2",
+      "papel": "produto",
+      "dur_s": 5.0,
+      "padroes": [
+        "card-3d-pushin-sweep",
+        "recipe-ingredients-explainer"
+      ],
+      "campos": [
+        "empresa.servicos",
+        "pedido.material_proprio"
+      ],
+      "fala": "{prato/produto carro-chefe}"
+    },
+    {
+      "id": "S3",
+      "papel": "oferta",
+      "dur_s": 3.0,
+      "padroes": [
+        "odometer-digit-roll",
+        "marker-underline-title"
+      ],
+      "campos": [
+        "empresa.ofertas"
+      ],
+      "fala": "{oferta confirmada, se houver}"
+    },
+    {
+      "id": "S4",
+      "papel": "processo",
+      "dur_s": 2.0,
+      "padroes": [
+        "process-timeline"
+      ],
+      "campos": [
+        "empresa.contatos.horario"
+      ],
+      "fala": "{como pedir / horário}"
+    },
+    {
+      "id": "S5",
+      "papel": "cta",
+      "dur_s": 3.0,
+      "padroes": [
+        "logo-wireframe-shards",
+        "cta-button-spring"
+      ],
+      "campos": [
+        "pedido.cta",
+        "empresa.contatos"
+      ],
+      "fala": "{cta: peça pelo WhatsApp/app}"
+    }
+  ],
+  "voz": {
+    "tipo": "feminina ou masculina, calorosa",
+    "gemini_voz": "Sulafat",
+    "estilo": "caloroso, apetitoso, sorridente"
+  },
+  "musica": {
+    "bpm": 100,
+    "mood": "funk/pop leve, alegre",
+    "secoes": "intro curta → groove → CTA"
+  },
+  "tom": "acolhedor, sensorial (sabor, textura), simples",
+  "transicoes": [
+    "circle-iris-transition"
+  ],
+  "cuidados": [
+    "Foto/vídeo do prato tem que ser do próprio cliente (nada de banco de imagem passando por produto real).",
+    "Não afirmar benefício à saúde ('saudável', 'emagrece') sem base; atenção a alergênicos se citar ingredientes.",
+    "Preço/promoção só com valor e validade confirmados."
+  ],
+  "paleta_padrao": {
+    "primary": "#ff7a00",
+    "secondary": "#ffd23f",
+    "background": "#1a0f0a"
+  }
+}

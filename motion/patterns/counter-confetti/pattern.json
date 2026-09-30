@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "counter-confetti",
+  "title": "Contador com confete",
+  "description": "Número conta com easeOutQuart e overshoot; confete entra dos lados um beat antes, anel de impacto e rótulo.",
+  "status": "proposto",
+  "category": "dados",
+  "tags": [
+    "número",
+    "celebração"
+  ],
+  "use_when": "Marco real (aniversário da loja, nº de clientes) confirmado.",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/data/counter-confetti.md (Apache-2.0; descrever e reimplementar, não copiar)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/data/counter-confetti.md"
+  }
+}

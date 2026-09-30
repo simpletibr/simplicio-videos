@@ -1,0 +1,74 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/one-shape-morph/block.html — Uma forma, sem corte (morph de estados de UI)
+  Um único elemento muda de tamanho, raio e cor passando por estados (pílula → card → botão), trocando o conteúdo com um blur curto — nunca há corte.
+  HyperFrames block (sub-composition), 1080x1920, 4.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/one-shape-morph.html and add
+    <div id="..." class="clip" data-composition-id="one-shape-morph" data-composition-src="compositions/one-shape-morph.html"
+         data-start="T" data-duration="4.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "one-shape-morph" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="one-shape-morph"].
+  Técnica destilada dos prompts 'One shape, never cut' do acervo awesome-opus5-5-videos (@twoclipping, @__morse, @AnnaCher___), reimplementada.
+-->
+<html lang="pt-BR" data-composition-id="one-shape-morph" data-composition-duration="4.0" data-composition-variables='[{"id": "states", "type": "string", "label": "Textos dos estados (|)", "default": "Agende|Escolha o horário|Confirmado ✓"}, {"id": "times", "type": "string", "label": "Tempos (s, |)", "default": "0.2|1.4|2.7"}, {"id": "primary", "type": "color", "label": "Cor primária", "default": "#e50914"}, {"id": "secondary", "type": "color", "label": "Cor secundária", "default": "#1565ff"}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Uma forma, sem corte (morph de estados de UI)</title>
+  </head>
+  <body>
+    <template>
+      <div id="one-shape-morph-root" data-composition-id="one-shape-morph" data-duration="4.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="one-shape-morph"] { position: absolute; inset: 0; overflow: hidden; color: #fff; font-family: "Inter", sans-serif;
+            background: radial-gradient(120% 70% at 50% 35%, #1a1a1f 0%, #080808 70%); }
+          [data-composition-id="one-shape-morph"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="one-shape-morph"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="one-shape-morph"] .shape { position: absolute; left: 50%; top: 50%; width: 420px; height: 140px; margin: 0; transform: translate(-50%, -50%); border-radius: 70px; background: #fff; color: #0b0b0e; display: grid; place-items: center; overflow: hidden; }
+          [data-composition-id="one-shape-morph"] .shape .tx { font-size: 54px; font-weight: 800; letter-spacing: -0.02em; text-align: center; padding: 0 40px; }
+        </style>
+        <div class="shape"><div class="tx"></div></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"states": "Agende|Escolha o horário|Confirmado ✓", "times": "0.2|1.4|2.7", "primary": "#e50914", "secondary": "#1565ff"};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("one-shape-morph-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            const st = list(V.states), times = list(V.times).map(Number), tx = $(".tx");
+            const LOOK = [ { width: 420, height: 140, borderRadius: 70, backgroundColor: "#ffffff", color: "#0b0b0e" },
+              { width: 860, height: 620, borderRadius: 48, backgroundColor: "#15151a", color: "#ffffff" },
+              { width: 640, height: 170, borderRadius: 85, backgroundColor: V.primary, color: "#ffffff" } ];
+            tl.fromTo($(".shape"), { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(2)" }, 0);
+            times.forEach((t, i) => {
+              const look = LOOK[i % LOOK.length];
+              if (i > 0) { tl.to($(".shape"), { ...look, duration: 0.5, ease: "power3.inOut" }, t - 0.1);
+                tl.to(tx, { filter: "blur(10px)", opacity: 0, duration: 0.12 }, t - 0.1); }
+              else tl.set($(".shape"), look, 0);
+              tl.call(() => { tx.textContent = st[i]; }, null, i === 0 ? 0 : t + 0.02);
+              if (i > 0) tl.fromTo(tx, { filter: "blur(10px)", opacity: 0 }, { filter: "blur(0px)", opacity: 1, duration: 0.2, immediateRender: false }, t + 0.03);
+            });
+            tl.set(tx, { textContent: st[0] }, 0);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["one-shape-morph"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

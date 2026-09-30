@@ -139,7 +139,7 @@ Detalhes sobre economia de tokens e caminho determinístico: [`tokens-e-determin
 - **HyperFrames** como stack do template (HTML + GSAP, sem build, render por variáveis, skills oficiais para Claude Code e Codex).
 - Prompt de iteração no estilo 3.2 + 3.3 + 3.5: fonte de verdade = site do cliente, sem números inventados, tempos por cena, gate `lint → check → snapshot → render`.
 - **Som + motion no nível dos showcases** (seção 8): trilha 120 BPM e SFX sintetizados por código a partir de cues em `spec.json`, cortes no beat, tipografia cinética, câmera, glitch/RGB split.
-- **Narração pt-BR** com TTS local (Chatterbox Multilingual V3, MIT, velocidade natural; Kokoro-82M como referência/alternativa), frases com tempo em `spec.json → voice`, cacheadas, música abaixando sob a voz: [`narracao-tts.md`](narracao-tts.md).
+- **Narração pt-BR** com TTS local (Chatterbox Multilingual V3, MIT, velocidade natural; Kokoro-82M como referência/alternativa), frases com tempo em `spec.json → voice`, cacheadas, música abaixando sob a voz: [`narracao-tts.md`](../voices/narracao-tts.md).
 - **Prompt "showreel" adaptado para a WJR** (20 s, "go all out", com travas de fatos/marca/áudio): `PROMPT.md` §0.
 - Veja `clients/wjr-informatica-games/video-01/PROMPT.md`.
 

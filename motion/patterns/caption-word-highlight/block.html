@@ -1,0 +1,70 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/caption-word-highlight/block.html — Legenda palavra a palavra sincronizada com a voz
+  Legenda em blocos curtos; cada palavra acende (cor + leve pop) no instante em que é falada. Tempos vêm do timestamp por palavra (faster-whisper) da narração.
+  HyperFrames block (sub-composition), 1080x1920, 3.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/caption-word-highlight.html and add
+    <div id="..." class="clip" data-composition-id="caption-word-highlight" data-composition-src="compositions/caption-word-highlight.html"
+         data-start="T" data-duration="3.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "caption-word-highlight" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="caption-word-highlight"].
+  Padrão destilado do fluxo 'transcreva primeiro para as animações caírem no momento exato' (Opus 5.5 + HyperFrames, OpenClawDatabase) e do video-use (legendas por palavra); implementação própria.
+-->
+<html lang="pt-BR" data-composition-id="caption-word-highlight" data-composition-duration="3.0" data-composition-variables='[{"id": "words", "type": "string", "label": "Palavras com tempo &#39;palavra@s&#39; (|)", "default": "Chama@0.2|a@0.5|gente@0.65|no@0.95|WhatsApp@1.1|e@1.7|volte@1.85|pro@2.15|jogo@2.3"}, {"id": "chunk", "type": "number", "label": "Palavras por bloco", "default": 3}, {"id": "primary", "type": "color", "label": "Cor primária", "default": "#e50914"}, {"id": "secondary", "type": "color", "label": "Cor secundária", "default": "#1565ff"}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Legenda palavra a palavra sincronizada com a voz</title>
+  </head>
+  <body>
+    <template>
+      <div id="caption-word-highlight-root" data-composition-id="caption-word-highlight" data-duration="3.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="caption-word-highlight"] { position: absolute; inset: 0; overflow: hidden; color: #fff; font-family: "Inter", sans-serif;
+            background: radial-gradient(120% 70% at 50% 35%, #1a1a1f 0%, #080808 70%); }
+          [data-composition-id="caption-word-highlight"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="caption-word-highlight"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="caption-word-highlight"] .cap { position: absolute; left: 70px; right: 70px; top: 1360px; text-align: center; font-size: 86px; font-weight: 900; line-height: 1.15; text-transform: uppercase; letter-spacing: -0.01em; }
+          [data-composition-id="caption-word-highlight"] .cap .ck { position: absolute; left: 0; right: 0; top: 0; opacity: 0; }
+          [data-composition-id="caption-word-highlight"] .cap .w { display: inline-block; margin: 0 .2em; color: rgba(255,255,255,.55); -webkit-text-stroke: 2px rgba(0,0,0,.6); }
+        </style>
+        <div class="cap"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"words": "Chama@0.2|a@0.5|gente@0.65|no@0.95|WhatsApp@1.1|e@1.7|volte@1.85|pro@2.15|jogo@2.3", "chunk": 3, "primary": "#e50914", "secondary": "#1565ff"};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("caption-word-highlight-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            const W = list(V.words).map((s) => { const i = s.lastIndexOf("@"); return { w: s.slice(0, i), t: +s.slice(i + 1) }; }), k = Math.max(1, +V.chunk);
+            for (let c = 0; c < W.length; c += k) {
+              const part = W.slice(c, c + k), ck = document.createElement("div"); ck.className = "ck";
+              part.forEach((x) => { const s = document.createElement("span"); s.className = "w"; s.textContent = x.w; ck.appendChild(s); x.el = s; }); $(".cap").appendChild(ck);
+              const tIn = part[0].t - 0.05, next = W[c + k];
+              tl.set(ck, { opacity: 1 }, Math.max(0, tIn)); if (next) tl.set(ck, { opacity: 0 }, next.t - 0.05);
+              part.forEach((x) => { tl.to(x.el, { color: "#ffffff", duration: 0.05 }, x.t); tl.fromTo(x.el, { scale: 1 }, { scale: 1.12, duration: 0.08, yoyo: true, repeat: 1, immediateRender: false }, x.t);
+                tl.to(x.el, { color: V.primary, duration: 0.01 }, x.t); });
+            }
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["caption-word-highlight"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

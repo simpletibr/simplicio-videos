@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "spotlight-sweep",
+  "title": "Holofote revelando painéis no escuro",
+  "description": "Fundo escuro; um holofote varre e acende cada painel/área ao passar ('a luz conta a história').",
+  "status": "proposto",
+  "category": "efeito",
+  "tags": [
+    "revelação",
+    "premium"
+  ],
+  "use_when": "Marcas premium (imobiliário, estética) apresentando ambientes/produtos.",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/effects/spotlight-sweep-moves.md (Apache-2.0; descrever e reimplementar, não copiar)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/effects/spotlight-sweep-moves.md"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "reactive-icon-controller",
+  "title": "Ícone que reage à fala (controle SVG)",
+  "description": "Ícone do produto reage a cada item falado: analógico com drift, carcaça esquentando (cor), LED piscando.",
+  "status": "inline",
+  "category": "ilustração",
+  "tags": [
+    "ícone",
+    "sincronia-fala",
+    "games"
+  ],
+  "use_when": "Dar vida ao objeto central do negócio enquanto a lista de problemas passa.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S3 #pad3)",
+    "url": null
+  }
+}

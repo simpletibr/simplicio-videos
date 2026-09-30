@@ -48,14 +48,16 @@ Passo a passo para uma pessoa (sem programar) gerar as frases da narração com 
 
 ## Rota opcional pela API (sem clicar) — **não testada**
 
-Precisa de uma chave da Gemini API (AI Studio → *Get API key*). **Não foi testado** nesta máquina (sem chave); o id do modelo pode ser diferente — copie o id exato no AI Studio em *Get code*.
+Precisa de uma chave da Gemini API (AI Studio → *Get API key*). **Não foi testada** nesta máquina (sem chave). Formato da chamada conferido na [documentação oficial de TTS](https://ai.google.dev/gemini-api/docs/speech-generation) em 30/09/2026: Interactions API, modelos `gemini-3.8-flash-tts` (padrão) e `gemini-3.8-flash-lite-tts` (mais barato), 30 vozes prontas (Puck = *Upbeat*, Kore = *Firm*, Charon = *Informative*, Sulafat = *Warm*, Achird = *Friendly*…) + biblioteca estendida (`GET /v1beta/voices`) + *voice design*.
 
 ```bash
 export GEMINI_API_KEY=...                      # não commitar
-export GEMINI_TTS_MODEL=<id do modelo no "Get code">
+export GEMINI_TTS_MODEL=gemini-3.8-flash-tts   # opcional (padrão)
 node scripts/gemini-tts.mjs                    # gera assets/audio/vo/external/line-01..09.wav (voz Puck + o mesmo estilo)
 node scripts/gemini-tts.mjs vo2 vo5            # só algumas frases
 npm run voice && npm run render
 ```
 
-O script (`video-01/scripts/gemini-tts.mjs`) chama `POST https://generativelanguage.googleapis.com/v1beta/models/<modelo>:generateContent` com `responseModalities: ["AUDIO"]` e `voiceName: "Puck"`, e salva o PCM 24 kHz como WAV. Pela API paga (projeto com faturamento), o Google não usa os dados para treinar; pela cota gratuita, usa.
+O script (`video-01/scripts/gemini-tts.mjs`) chama `POST https://generativelanguage.googleapis.com/v1beta/interactions` com o texto da frase **literal** (o Gemini 3.8 lê o `text` ao pé da letra) e o estilo numa anotação `speech_metadata.style`, voz em `generation_config.speech_config`; a resposta unária já vem em WAV (24 kHz mono). Pela API paga (projeto com faturamento), o Google não usa os dados para treinar; pela cota gratuita, usa.
+
+Para escolher outra voz: ouça as prontas no AI Studio (*Generate speech* → Voice) e troque `GEMINI_TTS_VOICE` (ou a voz no AI Studio) — registre a troca em `LICENSES.md`.

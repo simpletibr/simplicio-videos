@@ -1,0 +1,70 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "circle-iris-transition",
+  "title": "Transição íris circular (match cut)",
+  "description": "Um círculo nasce do centro de um elemento redondo da cena A e se expande revelando a cena B, cujo elemento principal também é circular — o corte ganha âncora visual.",
+  "status": "pronto",
+  "duration_s": 1.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "label_a",
+      "type": "string",
+      "label": "Texto cena A",
+      "default": "Antes",
+      "maxLength": 12
+    },
+    {
+      "id": "label_b",
+      "type": "string",
+      "label": "Texto cena B",
+      "default": "Depois",
+      "maxLength": 12
+    },
+    {
+      "id": "cx",
+      "type": "number",
+      "label": "Centro X (px)",
+      "default": 540
+    },
+    {
+      "id": "cy",
+      "type": "number",
+      "label": "Centro Y (px)",
+      "default": 900
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "transição",
+  "tags": [
+    "íris",
+    "match-cut",
+    "antes-depois"
+  ],
+  "use_when": "Antes/depois ou troca de tema com elemento redondo (logo, foto de perfil, prato, relógio).",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/transition/circle-match-iris.md (Apache-2.0; técnica descrita e reimplementada do zero em GSAP — nenhum código copiado)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/transition/circle-match-iris.md"
+  },
+  "preview_at": 1.0
+}

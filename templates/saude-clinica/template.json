@@ -1,0 +1,128 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "saude-clinica",
+  "setor": "Saúde e clínicas (odonto, fisioterapia, psicologia, clínica médica, pet)",
+  "status": "skeleton",
+  "nichos": [
+    "clínica",
+    "consultório",
+    "dentista",
+    "odontologia",
+    "fisioterapia",
+    "psicologia",
+    "nutrição",
+    "médico",
+    "veterinária",
+    "pet"
+  ],
+  "referencia": null,
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 20.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.5,
+      "padroes": [
+        "marker-underline-title"
+      ],
+      "campos": [
+        "empresa.frases_proprias"
+      ],
+      "fala": "{situação do paciente, sem alarmismo}"
+    },
+    {
+      "id": "S2",
+      "papel": "promessa",
+      "dur_s": 3.0,
+      "padroes": [
+        "word-mask-highlight"
+      ],
+      "campos": [
+        "empresa.descricao"
+      ],
+      "fala": "{como a clínica ajuda}"
+    },
+    {
+      "id": "S3",
+      "papel": "servicos",
+      "dur_s": 6.0,
+      "padroes": [
+        "service-panels-slide"
+      ],
+      "campos": [
+        "empresa.servicos"
+      ],
+      "fala": "{especialidades}"
+    },
+    {
+      "id": "S4",
+      "papel": "ambiente",
+      "dur_s": 3.0,
+      "padroes": [
+        "card-3d-pushin-sweep",
+        "spotlight-sweep"
+      ],
+      "campos": [
+        "pedido.material_proprio"
+      ],
+      "fala": "{estrutura/equipe (fotos reais)}"
+    },
+    {
+      "id": "S5",
+      "papel": "processo",
+      "dur_s": 2.5,
+      "padroes": [
+        "process-timeline"
+      ],
+      "campos": [
+        "empresa.contatos.horario"
+      ],
+      "fala": "{como agendar}"
+    },
+    {
+      "id": "S6",
+      "papel": "cta",
+      "dur_s": 3.0,
+      "padroes": [
+        "logo-wireframe-shards",
+        "cta-button-spring"
+      ],
+      "campos": [
+        "pedido.cta",
+        "empresa.contatos"
+      ],
+      "fala": "{cta: agende sua avaliação}"
+    }
+  ],
+  "voz": {
+    "tipo": "calma, clara, confiável",
+    "gemini_voz": "Achird",
+    "estilo": "tranquilo, acolhedor, sem pressa"
+  },
+  "musica": {
+    "bpm": 85,
+    "mood": "piano/ambiente leve",
+    "secoes": "contínua, sem drop"
+  },
+  "tom": "sereno, informativo, humano; nada de sensacionalismo",
+  "transicoes": [
+    "circle-iris-transition"
+  ],
+  "cuidados": [
+    "Publicidade de saúde segue o conselho profissional de cada área (medicina, odontologia, psicologia, fisioterapia, nutrição, veterinária) — confirmar as regras vigentes antes de publicar.",
+    "Sem promessa de cura/resultado, sem preço como chamariz, sem depoimento/antes-depois sem checar a norma do conselho.",
+    "Mostrar nome e registro profissional do responsável quando exigido.",
+    "Evitar glitch/cortes agressivos."
+  ],
+  "paleta_padrao": {
+    "primary": "#2a9d8f",
+    "secondary": "#8ecae6",
+    "background": "#0f1c1f"
+  }
+}

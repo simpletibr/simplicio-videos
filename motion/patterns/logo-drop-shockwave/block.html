@@ -1,0 +1,75 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/logo-drop-shockwave/block.html — Drop de logo: elastic + ondas de choque + partículas
+  Logo cai com elastic, duas ondas de choque expandem, partículas explodem radialmente (semente fixa), a câmera treme e o logo respira com glow.
+  HyperFrames block (sub-composition), 1080x1920, 3.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/logo-drop-shockwave.html and add
+    <div id="..." class="clip" data-composition-id="logo-drop-shockwave" data-composition-src="compositions/logo-drop-shockwave.html"
+         data-start="T" data-duration="3.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "logo-drop-shockwave" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="logo-drop-shockwave"].
+  Extraído de clients/wjr-informatica-games/video-01 (cena S6).
+-->
+<html lang="pt-BR" data-composition-id="logo-drop-shockwave" data-composition-duration="3.0" data-composition-variables='[{"id": "logo", "type": "string", "label": "Logo (PNG/SVG)", "default": "assets/placeholder-logo.svg"}, {"id": "particles", "type": "number", "label": "Nº de partículas", "default": 28}, {"id": "seed", "type": "number", "label": "Semente", "default": 7}, {"id": "primary", "type": "color", "label": "Cor primária", "default": "#e50914"}, {"id": "secondary", "type": "color", "label": "Cor secundária", "default": "#1565ff"}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Drop de logo: elastic + ondas de choque + partículas</title>
+  </head>
+  <body>
+    <template>
+      <div id="logo-drop-shockwave-root" data-composition-id="logo-drop-shockwave" data-duration="3.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="logo-drop-shockwave"] { position: absolute; inset: 0; overflow: hidden; color: #fff; font-family: "Inter", sans-serif;
+            background: radial-gradient(120% 70% at 50% 35%, #1a1a1f 0%, #080808 70%); }
+          [data-composition-id="logo-drop-shockwave"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="logo-drop-shockwave"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="logo-drop-shockwave"] .cam { position: absolute; inset: 0; }
+          [data-composition-id="logo-drop-shockwave"] .lw { position: absolute; left: 50%; top: 42%; width: 520px; height: 520px; margin: -260px 0 0 -260px; }
+          [data-composition-id="logo-drop-shockwave"] .lw img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; }
+          [data-composition-id="logo-drop-shockwave"] .ring { position: absolute; left: 50%; top: 42%; width: 600px; height: 600px; margin: -300px 0 0 -300px; border-radius: 50%; border: 10px solid var(--primary); opacity: 0; }
+          [data-composition-id="logo-drop-shockwave"] .ring.b { border-color: var(--secondary); }
+          [data-composition-id="logo-drop-shockwave"] .burst { position: absolute; left: 50%; top: 42%; }
+          [data-composition-id="logo-drop-shockwave"] .bp { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; opacity: 0; }
+        </style>
+        <div class="cam"><div class="ring a"></div><div class="ring b"></div><div class="burst"></div><div class="lw"><img class="logo" alt="" /></div></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"logo": "assets/placeholder-logo.svg", "particles": 28, "seed": 7, "primary": "#e50914", "secondary": "#1565ff"};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("logo-drop-shockwave-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            $(".logo").src = V.logo;
+            const R = rng(+V.seed), n = +V.particles, bps = [];
+            for (let i = 0; i < n; i++) { const d = document.createElement("div"); d.className = "bp"; d.style.background = i % 2 ? V.primary : V.secondary; $(".burst").appendChild(d); bps.push(d); }
+            tl.fromTo($(".lw"), { scale: 0.2, rotation: -25, opacity: 0 }, { scale: 1, rotation: 0, opacity: 1, duration: 0.7, ease: "elastic.out(1, 0.55)" }, 0);
+            tl.fromTo($(".ring.a"), { scale: 0.6, opacity: 1 }, { scale: 2.6, opacity: 0, duration: 0.8, ease: "power2.out" }, 0);
+            tl.fromTo($(".ring.b"), { scale: 0.6, opacity: 1 }, { scale: 3.2, opacity: 0, duration: 1.0, ease: "power2.out" }, 0.08);
+            bps.forEach((d, i) => { const a = (i / n) * Math.PI * 2 + R() * 0.3, r = 380 + R() * 320;
+              tl.fromTo(d, { x: 0, y: 0, opacity: 1, scale: 1.4 }, { x: Math.cos(a) * r, y: Math.sin(a) * r, opacity: 0, scale: 0.3, duration: 0.9, ease: "power3.out" }, 0); });
+            tl.fromTo($(".cam"), { y: 0 }, { y: 22, duration: 0.035, repeat: 9, yoyo: true, ease: "none", immediateRender: false }, 0);
+            tl.fromTo($(".logo"), { filter: "drop-shadow(0 0 0px rgba(255,255,255,0))" }, { filter: "drop-shadow(0 0 60px rgba(255,255,255,.35))", duration: 0.5, yoyo: true, repeat: 3, ease: "sine.inOut" }, 0.6);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["logo-drop-shockwave"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

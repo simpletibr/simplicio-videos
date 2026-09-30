@@ -1,0 +1,88 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/service-panels-slide/block.html — Painéis de serviço deslizando no beat + contador
+  Cada serviço é um painel que entra pela direita no beat (split RGB no título, arte com back.out) e sai pela esquerda; contador 01/03 troca com scale.
+  HyperFrames block (sub-composition), 1080x1920, 4.5s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/service-panels-slide.html and add
+    <div id="..." class="clip" data-composition-id="service-panels-slide" data-composition-src="compositions/service-panels-slide.html"
+         data-start="T" data-duration="4.5" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "service-panels-slide" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="service-panels-slide"].
+  Extraído de clients/wjr-informatica-games/video-01 (cena SV). A arte de cada painel aqui é um número; no video-01 são ilustrações próprias (ver padrões 'inline').
+-->
+<html lang="pt-BR" data-composition-id="service-panels-slide" data-composition-duration="4.5" data-composition-variables='[{"id": "kicker", "type": "string", "label": "Kicker", "default": "Serviços", "maxLength": 24}, {"id": "titles", "type": "string", "label": "Títulos (|)", "default": "Serviço um|Serviço dois|Serviço três"}, {"id": "captions", "type": "string", "label": "Legendas (|)", "default": "Descrição curta do serviço um|Descrição curta do serviço dois|Descrição curta do serviço três"}, {"id": "times", "type": "string", "label": "Entradas (s, |)", "default": "0.1|1.6|3.1"}, {"id": "primary", "type": "color", "label": "Cor primária", "default": "#e50914"}, {"id": "secondary", "type": "color", "label": "Cor secundária", "default": "#1565ff"}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Painéis de serviço deslizando no beat + contador</title>
+  </head>
+  <body>
+    <template>
+      <div id="service-panels-slide-root" data-composition-id="service-panels-slide" data-duration="4.5" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="service-panels-slide"] { position: absolute; inset: 0; overflow: hidden; color: #fff; font-family: "Inter", sans-serif;
+            background: radial-gradient(120% 70% at 50% 35%, #1a1a1f 0%, #080808 70%); }
+          [data-composition-id="service-panels-slide"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="service-panels-slide"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="service-panels-slide"] .kick { position: absolute; left: 80px; top: 300px; font-size: 40px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--secondary); }
+          [data-composition-id="service-panels-slide"] .num { position: absolute; left: 80px; top: 360px; font-size: 40px; font-weight: 800; color: #aaa; }
+          [data-composition-id="service-panels-slide"] .num span { position: absolute; left: 0; top: 0; opacity: 0; white-space: nowrap; }
+          [data-composition-id="service-panels-slide"] .pn { position: absolute; left: 0; top: 440px; width: 1080px; height: 1100px; padding: 0 80px; }
+          [data-composition-id="service-panels-slide"] .pn h3 { font-size: 140px; }
+          [data-composition-id="service-panels-slide"] .pn h3 em { font-style: normal; color: var(--primary); display: block; }
+          [data-composition-id="service-panels-slide"] .pn .art { margin-top: 70px; width: 920px; height: 520px; border-radius: 40px; background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border: 3px solid rgba(255,255,255,.12); display: grid; place-items: center; font-family: "Anton", sans-serif; font-size: 260px; color: rgba(255,255,255,.12); }
+          [data-composition-id="service-panels-slide"] .pn p { margin-top: 40px; font-size: 42px; color: #cfcfcf; font-weight: 600; }
+        </style>
+        <div class="kick"></div><div class="num"></div><div class="panels"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"kicker": "Serviços", "titles": "Serviço um|Serviço dois|Serviço três", "captions": "Descrição curta do serviço um|Descrição curta do serviço dois|Descrição curta do serviço três", "times": "0.1|1.6|3.1", "primary": "#e50914", "secondary": "#1565ff"};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("service-panels-slide-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            $(".kick").textContent = V.kicker;
+            const titles = list(V.titles), caps = list(V.captions), times = list(V.times).map(Number), n = titles.length;
+            titles.forEach((t, i) => {
+              const p = document.createElement("div"); p.className = "pn";
+              const words = t.split(" "), h = document.createElement("h3"); h.className = "anton";
+              h.append(words.slice(0, Math.ceil(words.length / 2)).join(" ")); const em = document.createElement("em"); em.textContent = words.slice(Math.ceil(words.length / 2)).join(" "); h.appendChild(em);
+              const art = document.createElement("div"); art.className = "art"; art.textContent = String(i + 1).padStart(2, "0");
+              const cp = document.createElement("p"); cp.textContent = caps[i] || "";
+              p.append(h, art, cp); $(".panels").appendChild(p);
+              const s = document.createElement("span"); s.textContent = String(i + 1).padStart(2, "0") + " / " + String(n).padStart(2, "0"); $(".num").appendChild(s);
+            });
+            const pns = $$(".pn"), nums = $$(".num span");
+            tl.set(pns, { x: 1080 }, 0);
+            tl.fromTo($(".kick"), { opacity: 0, x: -50 }, { opacity: 1, x: 0, duration: 0.3, ease: "power3.out" }, 0);
+            times.forEach((t, i) => {
+              tl.fromTo(pns[i], { x: 1080 }, { x: 0, duration: 0.32, ease: "power3.out", immediateRender: false }, t);
+              tl.fromTo(pns[i].querySelector("h3"), { textShadow: RGB(18) }, { textShadow: RGB(0), duration: 0.45, immediateRender: false }, t + 0.1);
+              tl.fromTo(pns[i].querySelector(".art"), { scale: 0.86, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.6)", immediateRender: false }, t + 0.08);
+              if (i < n - 1) tl.to(pns[i], { x: -1080, duration: 0.2, ease: "power3.in" }, times[i + 1] - 0.18);
+              tl.set(nums[i], { opacity: 1 }, t); if (i < n - 1) tl.set(nums[i], { opacity: 0 }, times[i + 1]);
+              tl.fromTo(nums[i], { scale: 1.4, transformOrigin: "0% 50%" }, { scale: 1, duration: 0.25, ease: "back.out(2)", immediateRender: false }, t);
+            });
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["service-panels-slide"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

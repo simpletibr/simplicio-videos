@@ -1,0 +1,119 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "saas-tech",
+  "setor": "SaaS / tecnologia / apps",
+  "status": "skeleton",
+  "nichos": [
+    "saas",
+    "software",
+    "aplicativo",
+    "app",
+    "startup",
+    "tecnologia",
+    "plataforma",
+    "automação",
+    "ia"
+  ],
+  "referencia": null,
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 20.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.0,
+      "padroes": [
+        "scramble-text",
+        "kinetic-letters-punch"
+      ],
+      "campos": [
+        "empresa.frases_proprias"
+      ],
+      "fala": "{dor do usuário}"
+    },
+    {
+      "id": "S2",
+      "papel": "produto",
+      "dur_s": 6.0,
+      "padroes": [
+        "one-shape-morph",
+        "caption-word-highlight"
+      ],
+      "campos": [
+        "empresa.servicos",
+        "pedido.material_proprio"
+      ],
+      "fala": "{o produto resolvendo em 3 estados}"
+    },
+    {
+      "id": "S3",
+      "papel": "prova",
+      "dur_s": 3.0,
+      "padroes": [
+        "odometer-digit-roll",
+        "card-flip-reveal"
+      ],
+      "campos": [
+        "empresa.diferenciais"
+      ],
+      "fala": "{métrica real confirmada}"
+    },
+    {
+      "id": "S4",
+      "papel": "servicos",
+      "dur_s": 5.0,
+      "padroes": [
+        "cliptitle-chip-cascade",
+        "service-panels-slide"
+      ],
+      "campos": [
+        "empresa.servicos"
+      ],
+      "fala": "{recursos principais}"
+    },
+    {
+      "id": "S5",
+      "papel": "cta",
+      "dur_s": 4.0,
+      "padroes": [
+        "logo-wireframe-shards",
+        "cta-button-spring"
+      ],
+      "campos": [
+        "pedido.cta",
+        "empresa.contatos.site"
+      ],
+      "fala": "{cta: teste grátis / acesse o site}"
+    }
+  ],
+  "voz": {
+    "tipo": "neutra, clara, confiante",
+    "gemini_voz": "Charon",
+    "estilo": "informativo, moderno, seguro"
+  },
+  "musica": {
+    "bpm": 110,
+    "mood": "eletrônica minimalista",
+    "secoes": "intro → groove → build → CTA"
+  },
+  "tom": "moderno, preciso, sem jargão desnecessário",
+  "transicoes": [
+    "transition-glitch-rgb",
+    "circle-iris-transition"
+  ],
+  "cuidados": [
+    "Prints/UI do produto real (nada de interface inventada passando por real).",
+    "Métricas (usuários, economia, uptime) só confirmadas e com data.",
+    "Marcas de terceiros (integrações) só com permissão/uso nominativo."
+  ],
+  "paleta_padrao": {
+    "primary": "#7c5cff",
+    "secondary": "#00d1ff",
+    "background": "#0b0b12"
+  }
+}

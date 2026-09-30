@@ -1,0 +1,142 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "assistencia-tecnica-games",
+  "setor": "Assistência técnica / games",
+  "status": "pronto",
+  "nichos": [
+    "assistência técnica",
+    "conserto de console",
+    "conserto de controle",
+    "games",
+    "videogame",
+    "celular",
+    "informática",
+    "eletrônicos"
+  ],
+  "referencia": "clients/wjr-informatica-games/video-01",
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 20.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 1.5,
+      "padroes": [
+        "kinetic-letters-punch",
+        "bg-grid-glow-particles"
+      ],
+      "campos": [
+        "empresa.frases_proprias"
+      ],
+      "fala": "{pergunta de dor}? (ex.: 'Seu console parou?')"
+    },
+    {
+      "id": "S2",
+      "papel": "promessa",
+      "dur_s": 2.5,
+      "padroes": [
+        "card-3d-pushin-sweep",
+        "word-mask-highlight"
+      ],
+      "campos": [
+        "empresa.frases_proprias",
+        "marca.logo"
+      ],
+      "fala": "{promessa com trecho destacado}"
+    },
+    {
+      "id": "S3",
+      "papel": "problemas",
+      "dur_s": 2.75,
+      "padroes": [
+        "item-relay-counter",
+        "reactive-icon-controller"
+      ],
+      "campos": [
+        "empresa.servicos"
+      ],
+      "fala": "{problema 1}. {problema 2}. {problema 3}?"
+    },
+    {
+      "id": "S4",
+      "papel": "prova",
+      "dur_s": 1.75,
+      "padroes": [
+        "hud-scan-photo",
+        "cliptitle-chip-cascade"
+      ],
+      "campos": [
+        "empresa.servicos"
+      ],
+      "fala": "{linhas/marcas atendidas}"
+    },
+    {
+      "id": "SV",
+      "papel": "servicos",
+      "dur_s": 6.0,
+      "padroes": [
+        "service-panels-slide",
+        "service-illustrations-wjr"
+      ],
+      "campos": [
+        "empresa.servicos"
+      ],
+      "fala": "{serviço 1}. {serviço 2}. {serviço 3}."
+    },
+    {
+      "id": "S5",
+      "papel": "processo",
+      "dur_s": 2.0,
+      "padroes": [
+        "process-timeline"
+      ],
+      "campos": [
+        "empresa.diferenciais"
+      ],
+      "fala": "{diferencial de processo} (ex.: 'Você aprova antes do reparo.')"
+    },
+    {
+      "id": "S6",
+      "papel": "cta",
+      "dur_s": 3.5,
+      "padroes": [
+        "logo-drop-shockwave",
+        "cta-button-spring"
+      ],
+      "campos": [
+        "pedido.cta",
+        "empresa.contatos"
+      ],
+      "fala": "{cta com o canal}"
+    }
+  ],
+  "voz": {
+    "tipo": "masculina jovem, animada",
+    "gemini_voz": "Puck",
+    "estilo": "locutor de propaganda de loja de games, animado, natural, ritmo ágil sem correr"
+  },
+  "musica": {
+    "bpm": 120,
+    "mood": "eletrônica energética, sidechain",
+    "secoes": "intro → groove → build 1 s antes do CTA → drop no CTA"
+  },
+  "tom": "direto, informal-confiante, vocabulário do público (gamer), promessas moderadas",
+  "transicoes": [
+    "transition-glitch-rgb"
+  ],
+  "cuidados": [
+    "Não citar preço, prazo, garantia ou avaliações sem confirmação registrada.",
+    "Não prometer resultado absoluto ('fim do drift'); o próprio site da WJR diz que o serviço depende da avaliação técnica.",
+    "Marcas (Xbox, PlayStation) só como compatibilidade, sem logotipos oficiais."
+  ],
+  "paleta_padrao": {
+    "primary": "#e50914",
+    "secondary": "#1565ff",
+    "background": "#080808"
+  }
+}

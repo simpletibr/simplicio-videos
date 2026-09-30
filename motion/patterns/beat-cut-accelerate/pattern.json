@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "beat-cut-accelerate",
+  "title": "Cortes secos no beat, acelerando",
+  "description": "Sequência de cortes secos com intervalo caindo pela metade até o drop; ou três flashes brancos congelando três enquadramentos.",
+  "status": "proposto",
+  "category": "ritmo",
+  "tags": [
+    "montagem",
+    "música",
+    "drop"
+  ],
+  "use_when": "Montagem de fotos/clipes reais antes do CTA.",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/rhythm/beat-cut-moves.md (Apache-2.0; descrever e reimplementar, não copiar)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/rhythm/beat-cut-moves.md"
+  }
+}

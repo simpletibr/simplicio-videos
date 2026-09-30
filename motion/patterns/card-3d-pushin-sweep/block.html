@@ -1,0 +1,67 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/card-3d-pushin-sweep/block.html — Card 3D com push-in + light sweep
+  Foto/print entra em card 3D (rotationY/X → 0) com push-in lento da imagem e um brilho que atravessa o card.
+  HyperFrames block (sub-composition), 1080x1920, 2.5s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/card-3d-pushin-sweep.html and add
+    <div id="..." class="clip" data-composition-id="card-3d-pushin-sweep" data-composition-src="compositions/card-3d-pushin-sweep.html"
+         data-start="T" data-duration="2.5" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "card-3d-pushin-sweep" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="card-3d-pushin-sweep"].
+  Extraído de clients/wjr-informatica-games/video-01 (cena S2 e logo do CTA).
+-->
+<html lang="pt-BR" data-composition-id="card-3d-pushin-sweep" data-composition-duration="2.5" data-composition-variables='[{"id": "image", "type": "string", "label": "Imagem", "default": "assets/placeholder-photo.svg"}, {"id": "caption", "type": "string", "label": "Legenda", "default": "Foto real do cliente", "maxLength": 40}, {"id": "primary", "type": "color", "label": "Cor primária", "default": "#e50914"}, {"id": "secondary", "type": "color", "label": "Cor secundária", "default": "#1565ff"}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Card 3D com push-in + light sweep</title>
+  </head>
+  <body>
+    <template>
+      <div id="card-3d-pushin-sweep-root" data-composition-id="card-3d-pushin-sweep" data-duration="2.5" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="card-3d-pushin-sweep"] { position: absolute; inset: 0; overflow: hidden; color: #fff; font-family: "Inter", sans-serif;
+            background: radial-gradient(120% 70% at 50% 35%, #1a1a1f 0%, #080808 70%); }
+          [data-composition-id="card-3d-pushin-sweep"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="card-3d-pushin-sweep"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="card-3d-pushin-sweep"] .card { position: absolute; left: 110px; top: 420px; width: 860px; height: 1000px; border-radius: 36px; overflow: hidden; box-shadow: 0 40px 120px rgba(0,0,0,.6), 0 0 0 4px rgba(255,255,255,.08); }
+          [data-composition-id="card-3d-pushin-sweep"] .card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+          [data-composition-id="card-3d-pushin-sweep"] .sweep { position: absolute; top: -20%; bottom: -20%; width: 34%; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.35), rgba(255,255,255,0)); transform: skewX(-18deg); }
+          [data-composition-id="card-3d-pushin-sweep"] .cap { position: absolute; left: 110px; top: 1480px; font-size: 44px; font-weight: 700; color: #ddd; border-left: 8px solid var(--primary); padding-left: 22px; }
+        </style>
+        <div class="card"><img class="img" alt="" /><div class="sweep"></div></div><div class="cap"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"image": "assets/placeholder-photo.svg", "caption": "Foto real do cliente", "primary": "#e50914", "secondary": "#1565ff"};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("card-3d-pushin-sweep-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            $(".img").src = V.image; $(".cap").textContent = V.caption;
+            tl.fromTo($(".card"), { rotationY: -24, rotationX: 8, scale: 0.8, opacity: 0, transformPerspective: 1400 }, { rotationY: 0, rotationX: 0, scale: 1, opacity: 1, duration: 0.6, ease: "power3.out" }, 0);
+            tl.fromTo($(".img"), { scale: 1.25, xPercent: 4 }, { scale: 1.02, xPercent: -2, duration: 2.5, ease: "none" }, 0);
+            tl.fromTo($(".sweep"), { xPercent: -150 }, { xPercent: 420, duration: 0.8, ease: "power2.inOut" }, 0.5);
+            tl.fromTo($(".cap"), { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 0.45);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["card-3d-pushin-sweep"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

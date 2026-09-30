@@ -1,0 +1,57 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "bg-grid-glow-particles",
+  "title": "Fundo: grade em perspectiva + glows + partículas",
+  "description": "Fundo vivo e determinístico: piso de grade em perspectiva rolando, dois glows derivando, partículas com semente subindo, scanlines e vinheta.",
+  "status": "pronto",
+  "duration_s": 4.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 20260930
+    },
+    {
+      "id": "particles",
+      "type": "number",
+      "label": "Nº de partículas",
+      "default": 46
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "fundo",
+  "tags": [
+    "fundo",
+    "grade",
+    "partículas",
+    "glow"
+  ],
+  "use_when": "Fundo de vídeo inteiro para marcas tech/games; troque as cores para outros setores.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (#bg)",
+    "url": null
+  },
+  "preview_at": 2.0
+}

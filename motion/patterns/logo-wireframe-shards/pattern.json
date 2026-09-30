@@ -1,0 +1,64 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "logo-wireframe-shards",
+  "title": "Logo: wireframe → estilhaços que montam → nome digitado",
+  "description": "Contorno do logo é desenhado em linha, estilhaços triangulares (semente fixa) voam e se encaixam, o logo real aparece e o nome da marca é digitado abaixo.",
+  "status": "pronto",
+  "duration_s": 3.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "logo",
+      "type": "string",
+      "label": "Logo (PNG/SVG)",
+      "default": "assets/placeholder-logo.svg"
+    },
+    {
+      "id": "name",
+      "type": "string",
+      "label": "Nome da marca",
+      "default": "Sua Marca",
+      "maxLength": 24
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 5
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "marca",
+  "tags": [
+    "logo",
+    "abertura",
+    "encerramento",
+    "digitação"
+  ],
+  "use_when": "Abertura ou assinatura de marca para qualquer setor (sem energia de 'glitch').",
+  "source": {
+    "kind": "awesome-opus5-5-videos",
+    "ref": "@Mounnna — wireframe → shards → brand name typed (técnica destilada do prompt/vídeo; reimplementada)",
+    "url": "https://x.com/Mounnna/status/2103802871934497266"
+  },
+  "preview_at": 1.2
+}

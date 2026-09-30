@@ -1,0 +1,119 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "varejo",
+  "setor": "Varejo (loja física/online, moda, material, eletro)",
+  "status": "skeleton",
+  "nichos": [
+    "loja",
+    "varejo",
+    "moda",
+    "roupas",
+    "calçados",
+    "material de construção",
+    "papelaria",
+    "eletrodomésticos",
+    "e-commerce",
+    "mercado"
+  ],
+  "referencia": null,
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 15.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.0,
+      "padroes": [
+        "kinetic-letters-punch"
+      ],
+      "campos": [
+        "empresa.frases_proprias",
+        "empresa.ofertas"
+      ],
+      "fala": "{oferta/novidade}"
+    },
+    {
+      "id": "S2",
+      "papel": "produto",
+      "dur_s": 5.0,
+      "padroes": [
+        "beat-cut-accelerate",
+        "card-3d-pushin-sweep"
+      ],
+      "campos": [
+        "pedido.material_proprio",
+        "empresa.servicos"
+      ],
+      "fala": "{produtos/categorias}"
+    },
+    {
+      "id": "S3",
+      "papel": "oferta",
+      "dur_s": 3.0,
+      "padroes": [
+        "odometer-digit-roll",
+        "cliptitle-chip-cascade"
+      ],
+      "campos": [
+        "empresa.ofertas"
+      ],
+      "fala": "{condição confirmada}"
+    },
+    {
+      "id": "S4",
+      "papel": "processo",
+      "dur_s": 2.0,
+      "padroes": [
+        "spending-simulation-9x16",
+        "process-timeline"
+      ],
+      "campos": [
+        "empresa.contatos"
+      ],
+      "fala": "{como comprar / entrega}"
+    },
+    {
+      "id": "S5",
+      "papel": "cta",
+      "dur_s": 3.0,
+      "padroes": [
+        "logo-drop-shockwave",
+        "cta-button-spring"
+      ],
+      "campos": [
+        "pedido.cta",
+        "empresa.contatos"
+      ],
+      "fala": "{cta: venha/peça agora}"
+    }
+  ],
+  "voz": {
+    "tipo": "animada, próxima",
+    "gemini_voz": "Fenrir",
+    "estilo": "empolgado, varejo, chamada de oferta"
+  },
+  "musica": {
+    "bpm": 124,
+    "mood": "pop/house animado",
+    "secoes": "intro → groove → build → drop no CTA"
+  },
+  "tom": "energético, direto, oferta clara",
+  "transicoes": [
+    "transition-glitch-rgb"
+  ],
+  "cuidados": [
+    "Preço/condição com validade e regras (CDC: oferta anunciada obriga o fornecedor).",
+    "Produto mostrado = produto vendido (fotos do cliente).",
+    "Estoque limitado/urgência só se for verdade."
+  ],
+  "paleta_padrao": {
+    "primary": "#ff006e",
+    "secondary": "#ffbe0b",
+    "background": "#0e0e0e"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "card-3d-pushin-sweep",
+  "title": "Card 3D com push-in + light sweep",
+  "description": "Foto/print entra em card 3D (rotationY/X → 0) com push-in lento da imagem e um brilho que atravessa o card.",
+  "status": "pronto",
+  "duration_s": 2.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "image",
+      "type": "string",
+      "label": "Imagem",
+      "default": "assets/placeholder-photo.svg"
+    },
+    {
+      "id": "caption",
+      "type": "string",
+      "label": "Legenda",
+      "default": "Foto real do cliente",
+      "maxLength": 40
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "imagem",
+  "tags": [
+    "foto",
+    "3d",
+    "brilho",
+    "produto"
+  ],
+  "use_when": "Mostrar foto real do cliente (loja, produto, antes/depois) com cara de produto premium.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S2)",
+    "url": null
+  },
+  "preview_at": 1.05
+}

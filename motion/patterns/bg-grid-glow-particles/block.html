@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/bg-grid-glow-particles/block.html — Fundo: grade em perspectiva + glows + partículas
+  Fundo vivo e determinístico: piso de grade em perspectiva rolando, dois glows derivando, partículas com semente subindo, scanlines e vinheta.
+  HyperFrames block (sub-composition), 1080x1920, 4.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/bg-grid-glow-particles.html and add
+    <div id="..." class="clip" data-composition-id="bg-grid-glow-particles" data-composition-src="compositions/bg-grid-glow-particles.html"
+         data-start="T" data-duration="4.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "bg-grid-glow-particles" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="bg-grid-glow-particles"].
+  Extraído de clients/wjr-informatica-games/video-01 (#bg). Em uso real fica numa trilha de fundo a vídeo inteiro.
+-->
+<html lang="pt-BR" data-composition-id="bg-grid-glow-particles" data-composition-duration="4.0" data-composition-variables='[{"id": "seed", "type": "number", "label": "Semente", "default": 20260930}, {"id": "particles", "type": "number", "label": "Nº de partículas", "default": 46}, {"id": "primary", "type": "color", "label": "Cor primária", "default": "#e50914"}, {"id": "secondary", "type": "color", "label": "Cor secundária", "default": "#1565ff"}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Fundo: grade em perspectiva + glows + partículas</title>
+  </head>
+  <body>
+    <template>
+      <div id="bg-grid-glow-particles-root" data-composition-id="bg-grid-glow-particles" data-duration="4.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="bg-grid-glow-particles"] { position: absolute; inset: 0; overflow: hidden; color: #fff; font-family: "Inter", sans-serif;
+            background: radial-gradient(120% 70% at 50% 35%, #1a1a1f 0%, #080808 70%); }
+          [data-composition-id="bg-grid-glow-particles"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="bg-grid-glow-particles"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="bg-grid-glow-particles"] .floor { position: absolute; left: -540px; right: -540px; top: 1100px; height: 1600px; transform: perspective(700px) rotateX(62deg); transform-origin: 50% 0;
+            background-image: linear-gradient(var(--secondary) 2px, transparent 2px), linear-gradient(90deg, var(--secondary) 2px, transparent 2px); background-size: 120px 120px; opacity: .35; }
+          [data-composition-id="bg-grid-glow-particles"] .fade { position: absolute; left: 0; right: 0; top: 1050px; height: 500px; background: linear-gradient(#080808, rgba(8,8,8,0)); }
+          [data-composition-id="bg-grid-glow-particles"] .glow { position: absolute; width: 900px; height: 900px; border-radius: 50%; filter: blur(120px); opacity: .45; }
+          [data-composition-id="bg-grid-glow-particles"] .glow.a { left: -300px; top: -200px; background: var(--primary); } [data-composition-id="bg-grid-glow-particles"] .glow.b { right: -300px; top: 900px; background: var(--secondary); }
+          [data-composition-id="bg-grid-glow-particles"] .pt { position: absolute; width: 6px; height: 6px; border-radius: 50%; }
+          [data-composition-id="bg-grid-glow-particles"] .scan { position: absolute; inset: 0; background: repeating-linear-gradient(rgba(255,255,255,.035) 0 2px, transparent 2px 6px); }
+          [data-composition-id="bg-grid-glow-particles"] .vig { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.75) 100%); }
+        </style>
+        <div class="glow a"></div><div class="glow b"></div><div class="floor"></div><div class="fade"></div><div class="pts"></div><div class="scan"></div><div class="vig"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"seed": 20260930, "particles": 46, "primary": "#e50914", "secondary": "#1565ff"};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("bg-grid-glow-particles-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            const R = rng(+V.seed), pts = [], D = 4.0;
+            for (let i = 0; i < +V.particles; i++) { const d = document.createElement("div"); d.className = "pt"; d.style.left = (R() * 1080).toFixed(1) + "px"; d.style.top = (R() * 1920).toFixed(1) + "px";
+              d.style.opacity = (0.15 + R() * 0.5).toFixed(2); d.dataset.sc = (0.5 + R() * 1.6).toFixed(2); d.style.background = i % 3 === 0 ? V.primary : i % 3 === 1 ? V.secondary : "#ffffff"; $(".pts").appendChild(d); pts.push(d); }
+            tl.fromTo($(".floor"), { backgroundPosition: "0px 0px" }, { backgroundPosition: "0px 480px", duration: D, ease: "none" }, 0);
+            tl.fromTo($(".glow.a"), { x: 0, y: 0 }, { x: 160, y: 260, duration: D, ease: "sine.inOut" }, 0);
+            tl.fromTo($(".glow.b"), { x: 0, y: 0 }, { x: -150, y: -320, duration: D, ease: "sine.inOut" }, 0);
+            pts.forEach((d) => { const sc = +d.dataset.sc; tl.fromTo(d, { y: 0, scale: sc }, { y: -(60 + sc * 140), duration: D, ease: "none" }, 0); });
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["bg-grid-glow-particles"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

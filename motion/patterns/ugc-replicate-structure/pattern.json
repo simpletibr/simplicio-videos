@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "ugc-replicate-structure",
+  "title": "Replicar estrutura de vídeo viral (UGC)",
+  "description": "Pegar a estrutura de um vídeo viral de referência (tempo de gancho, cortes, legenda) e refazer com o conteúdo do cliente — só estrutura, nunca material alheio.",
+  "status": "proposto",
+  "category": "estrutura",
+  "tags": [
+    "ugc",
+    "referência"
+  ],
+  "use_when": "Quando o cliente manda um vídeo de referência.",
+  "source": {
+    "kind": "x-bookmark",
+    "ref": "@shengkunye — workflow UGC com GPT-6 Astra + @hypitai",
+    "url": "https://x.com/shengkunye/status/2100672978749096186"
+  }
+}

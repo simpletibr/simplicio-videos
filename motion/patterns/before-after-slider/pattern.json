@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "before-after-slider",
+  "title": "Antes/depois com barra deslizante",
+  "description": "Duas versões sobrepostas; a barra divisória entra rápida e depois varre devagar revelando o 'depois'.",
+  "status": "proposto",
+  "category": "dados",
+  "tags": [
+    "antes-depois",
+    "resultado"
+  ],
+  "use_when": "Beleza, estética, reforma, limpeza, reparo — só com fotos reais autorizadas.",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/data/before-after-slider-scrub.md (Apache-2.0; descrever e reimplementar, não copiar)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/data/before-after-slider-scrub.md"
+  }
+}

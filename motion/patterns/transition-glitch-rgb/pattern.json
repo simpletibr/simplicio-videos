@@ -1,0 +1,71 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "transition-glitch-rgb",
+  "title": "Transição glitch (fatias RGB + flash + tranco)",
+  "description": "Fatias coloridas (semente fixa) cruzam a tela em sentidos alternados, flash branco e tranco horizontal de câmera; troca do painel A para o B no meio.",
+  "status": "pronto",
+  "duration_s": 1.2,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "label_a",
+      "type": "string",
+      "label": "Texto cena A",
+      "default": "Cena A",
+      "maxLength": 12
+    },
+    {
+      "id": "label_b",
+      "type": "string",
+      "label": "Texto cena B",
+      "default": "Cena B",
+      "maxLength": 12
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 3
+    },
+    {
+      "id": "strong",
+      "type": "boolean",
+      "label": "Forte",
+      "default": true
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "transição",
+  "tags": [
+    "glitch",
+    "rgb",
+    "flash",
+    "corte"
+  ],
+  "use_when": "Troca de cena energética (games, tech, varejo jovem). Evite em saúde/imobiliário.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (glitchAt)",
+    "url": null
+  },
+  "preview_at": 0.42
+}

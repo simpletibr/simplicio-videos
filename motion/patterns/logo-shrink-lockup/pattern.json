@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "logo-shrink-lockup",
+  "title": "Logo encolhe e trava com o nome (lockup)",
+  "description": "Grande forma gráfica se contrai no ícone com freio/overshoot, ícone desliza, letras do nome entram uma a uma e o slogan fecha.",
+  "status": "proposto",
+  "category": "marca",
+  "tags": [
+    "encerramento",
+    "lockup"
+  ],
+  "use_when": "Assinatura final de marca.",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/outro/logo-shrink-wordmark-lockup.md (Apache-2.0; descrever e reimplementar, não copiar)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/outro/logo-shrink-wordmark-lockup.md"
+  }
+}

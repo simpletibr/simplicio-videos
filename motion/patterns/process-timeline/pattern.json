@@ -1,0 +1,64 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "process-timeline",
+  "title": "Linha do tempo de processo (trilho + passos)",
+  "description": "Título entra por letra; um trilho vertical se desenha (stroke-dashoffset) e os passos numerados saltam no trilho em sequência.",
+  "status": "pronto",
+  "duration_s": 2.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "kicker",
+      "type": "string",
+      "label": "Kicker",
+      "default": "Como funciona",
+      "maxLength": 24
+    },
+    {
+      "id": "title",
+      "type": "string",
+      "label": "Título",
+      "default": "Simples assim.",
+      "maxLength": 20
+    },
+    {
+      "id": "steps",
+      "type": "string",
+      "label": "Passos (|)",
+      "default": "Você chama|A gente avalia|Você aprova"
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "processo",
+  "tags": [
+    "passos",
+    "como-funciona",
+    "confiança"
+  ],
+  "use_when": "Explicar o atendimento em 3–4 passos (reduz objeção antes do CTA).",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S5)",
+    "url": null
+  },
+  "preview_at": 2.0
+}

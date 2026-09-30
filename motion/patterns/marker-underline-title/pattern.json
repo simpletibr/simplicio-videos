@@ -1,0 +1,65 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "marker-underline-title",
+  "title": "Título com sublinhado de marca-texto",
+  "description": "Título assenta e um traço de marcador (SVG com borda irregular e leve inclinação) é desenhado da esquerda para a direita sob a palavra-chave.",
+  "status": "pronto",
+  "duration_s": 2.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "before",
+      "type": "string",
+      "label": "Texto antes",
+      "default": "Atendimento",
+      "maxLength": 20
+    },
+    {
+      "id": "keyword",
+      "type": "string",
+      "label": "Palavra-chave",
+      "default": "humano",
+      "maxLength": 16
+    },
+    {
+      "id": "after",
+      "type": "string",
+      "label": "Texto depois",
+      "default": "de verdade.",
+      "maxLength": 20
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "tipografia",
+  "tags": [
+    "destaque",
+    "manuscrito",
+    "humano"
+  ],
+  "use_when": "Tom humano/acolhedor (saúde, beleza, alimentação) — alternativa suave ao split RGB.",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/typography/marker-underline-title.md (Apache-2.0; técnica descrita e reimplementada do zero em GSAP — nenhum código copiado)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/typography/marker-underline-title.md"
+  },
+  "preview_at": 1.5
+}

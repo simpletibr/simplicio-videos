@@ -1,0 +1,705 @@
+{
+  "schema": "simplicio.motion-catalog/v1",
+  "count": 36,
+  "by_status": {
+    "pronto": 19,
+    "lib": 1,
+    "inline": 2,
+    "proposto": 14
+  },
+  "patterns": [
+    {
+      "id": "cta-button-spring",
+      "title": "CTA: título por letra + botão com mola e respiração",
+      "status": "pronto",
+      "category": "cta",
+      "tags": [
+        "cta",
+        "whatsapp",
+        "botão",
+        "contato"
+      ],
+      "duration_s": 3,
+      "params": [
+        "cta",
+        "button_label",
+        "button_value",
+        "meta",
+        "t_pulse",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/cta-button-spring/block.html",
+      "preview": "patterns/cta-button-spring/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S6)"
+    },
+    {
+      "id": "odometer-digit-roll",
+      "title": "Número em odômetro (dígitos rolando)",
+      "status": "pronto",
+      "category": "dados",
+      "tags": [
+        "número",
+        "métrica",
+        "prova"
+      ],
+      "duration_s": 3,
+      "params": [
+        "value",
+        "label",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/odometer-digit-roll/block.html",
+      "preview": "patterns/odometer-digit-roll/preview.png",
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/data/odometer-digit-roll.md"
+    },
+    {
+      "id": "bg-grid-glow-particles",
+      "title": "Fundo: grade em perspectiva + glows + partículas",
+      "status": "pronto",
+      "category": "fundo",
+      "tags": [
+        "fundo",
+        "grade",
+        "partículas",
+        "glow"
+      ],
+      "duration_s": 4,
+      "params": [
+        "seed",
+        "particles",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/bg-grid-glow-particles/block.html",
+      "preview": "patterns/bg-grid-glow-particles/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (#bg)"
+    },
+    {
+      "id": "card-3d-pushin-sweep",
+      "title": "Card 3D com push-in + light sweep",
+      "status": "pronto",
+      "category": "imagem",
+      "tags": [
+        "foto",
+        "3d",
+        "brilho",
+        "produto"
+      ],
+      "duration_s": 2.5,
+      "params": [
+        "image",
+        "caption",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/card-3d-pushin-sweep/block.html",
+      "preview": "patterns/card-3d-pushin-sweep/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S2)"
+    },
+    {
+      "id": "hud-scan-photo",
+      "title": "HUD de mira + barra de scan + parallax de foto",
+      "status": "pronto",
+      "category": "imagem",
+      "tags": [
+        "técnico",
+        "hud",
+        "scan",
+        "foto"
+      ],
+      "duration_s": 2.5,
+      "params": [
+        "image",
+        "label",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/hud-scan-photo/block.html",
+      "preview": "patterns/hud-scan-photo/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S4)"
+    },
+    {
+      "id": "caption-word-highlight",
+      "title": "Legenda palavra a palavra sincronizada com a voz",
+      "status": "pronto",
+      "category": "legenda",
+      "tags": [
+        "legenda",
+        "acessibilidade",
+        "sincronia-fala",
+        "tts"
+      ],
+      "duration_s": 3,
+      "params": [
+        "words",
+        "chunk",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/caption-word-highlight/block.html",
+      "preview": "patterns/caption-word-highlight/preview.png",
+      "source": "https://openclawdatabase.com/news/videos/2026-09-25-opus-55-hyperframes-video-editing-workflow/"
+    },
+    {
+      "id": "cliptitle-chip-cascade",
+      "title": "Título por clip-path + cascata de chips",
+      "status": "pronto",
+      "category": "lista",
+      "tags": [
+        "marcas",
+        "modelos",
+        "chips",
+        "clip-path"
+      ],
+      "duration_s": 2.5,
+      "params": [
+        "title1",
+        "title2",
+        "chips",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/cliptitle-chip-cascade/block.html",
+      "preview": "patterns/cliptitle-chip-cascade/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S4)"
+    },
+    {
+      "id": "item-relay-counter",
+      "title": "Revezamento de itens com contador + barra segmentada",
+      "status": "pronto",
+      "category": "lista",
+      "tags": [
+        "problemas",
+        "serviços",
+        "contador",
+        "sincronia-fala"
+      ],
+      "duration_s": 3,
+      "params": [
+        "kicker",
+        "items",
+        "times",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/item-relay-counter/block.html",
+      "preview": "patterns/item-relay-counter/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S3)"
+    },
+    {
+      "id": "service-panels-slide",
+      "title": "Painéis de serviço deslizando no beat + contador",
+      "status": "pronto",
+      "category": "lista",
+      "tags": [
+        "serviços",
+        "painéis",
+        "beat",
+        "contador"
+      ],
+      "duration_s": 4.5,
+      "params": [
+        "kicker",
+        "titles",
+        "captions",
+        "times",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/service-panels-slide/block.html",
+      "preview": "patterns/service-panels-slide/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (SV)"
+    },
+    {
+      "id": "logo-drop-shockwave",
+      "title": "Drop de logo: elastic + ondas de choque + partículas",
+      "status": "pronto",
+      "category": "marca",
+      "tags": [
+        "logo",
+        "drop",
+        "partículas",
+        "cta"
+      ],
+      "duration_s": 3,
+      "params": [
+        "logo",
+        "particles",
+        "seed",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/logo-drop-shockwave/block.html",
+      "preview": "patterns/logo-drop-shockwave/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S6)"
+    },
+    {
+      "id": "logo-wireframe-shards",
+      "title": "Logo: wireframe → estilhaços que montam → nome digitado",
+      "status": "pronto",
+      "category": "marca",
+      "tags": [
+        "logo",
+        "abertura",
+        "encerramento",
+        "digitação"
+      ],
+      "duration_s": 3.5,
+      "params": [
+        "logo",
+        "name",
+        "seed",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/logo-wireframe-shards/block.html",
+      "preview": "patterns/logo-wireframe-shards/preview.png",
+      "source": "https://x.com/Mounnna/status/2103802871934497266"
+    },
+    {
+      "id": "process-timeline",
+      "title": "Linha do tempo de processo (trilho + passos)",
+      "status": "pronto",
+      "category": "processo",
+      "tags": [
+        "passos",
+        "como-funciona",
+        "confiança"
+      ],
+      "duration_s": 2.5,
+      "params": [
+        "kicker",
+        "title",
+        "steps",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/process-timeline/block.html",
+      "preview": "patterns/process-timeline/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S5)"
+    },
+    {
+      "id": "kinetic-letters-punch",
+      "title": "Tipografia cinética por letra + punch RGB",
+      "status": "pronto",
+      "category": "tipografia",
+      "tags": [
+        "hook",
+        "título",
+        "punch",
+        "rgb-split"
+      ],
+      "duration_s": 2,
+      "params": [
+        "line1",
+        "line2",
+        "line3",
+        "t3",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/kinetic-letters-punch/block.html",
+      "preview": "patterns/kinetic-letters-punch/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S1)"
+    },
+    {
+      "id": "marker-underline-title",
+      "title": "Título com sublinhado de marca-texto",
+      "status": "pronto",
+      "category": "tipografia",
+      "tags": [
+        "destaque",
+        "manuscrito",
+        "humano"
+      ],
+      "duration_s": 2,
+      "params": [
+        "before",
+        "keyword",
+        "after",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/marker-underline-title/block.html",
+      "preview": "patterns/marker-underline-title/preview.png",
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/typography/marker-underline-title.md"
+    },
+    {
+      "id": "scramble-text",
+      "title": "Texto que decodifica (scramble com semente)",
+      "status": "pronto",
+      "category": "tipografia",
+      "tags": [
+        "tech",
+        "decodificar",
+        "revelação"
+      ],
+      "duration_s": 2,
+      "params": [
+        "text",
+        "seed",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/scramble-text/block.html",
+      "preview": "patterns/scramble-text/preview.png",
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/typography/scramble.md"
+    },
+    {
+      "id": "word-mask-highlight",
+      "title": "Revelação por máscara de palavras + faixa destacada",
+      "status": "pronto",
+      "category": "tipografia",
+      "tags": [
+        "promessa",
+        "destaque",
+        "máscara"
+      ],
+      "duration_s": 2.2,
+      "params": [
+        "text",
+        "highlight",
+        "t_hl",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/word-mask-highlight/block.html",
+      "preview": "patterns/word-mask-highlight/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (S2)"
+    },
+    {
+      "id": "circle-iris-transition",
+      "title": "Transição íris circular (match cut)",
+      "status": "pronto",
+      "category": "transição",
+      "tags": [
+        "íris",
+        "match-cut",
+        "antes-depois"
+      ],
+      "duration_s": 1.5,
+      "params": [
+        "label_a",
+        "label_b",
+        "cx",
+        "cy",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/circle-iris-transition/block.html",
+      "preview": "patterns/circle-iris-transition/preview.png",
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/transition/circle-match-iris.md"
+    },
+    {
+      "id": "transition-glitch-rgb",
+      "title": "Transição glitch (fatias RGB + flash + tranco)",
+      "status": "pronto",
+      "category": "transição",
+      "tags": [
+        "glitch",
+        "rgb",
+        "flash",
+        "corte"
+      ],
+      "duration_s": 1.2,
+      "params": [
+        "label_a",
+        "label_b",
+        "seed",
+        "strong",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/transition-glitch-rgb/block.html",
+      "preview": "patterns/transition-glitch-rgb/preview.png",
+      "source": "clients/wjr-informatica-games/video-01/index.html (glitchAt)"
+    },
+    {
+      "id": "one-shape-morph",
+      "title": "Uma forma, sem corte (morph de estados de UI)",
+      "status": "pronto",
+      "category": "ui",
+      "tags": [
+        "ui",
+        "app",
+        "saas",
+        "agendamento",
+        "morph"
+      ],
+      "duration_s": 4,
+      "params": [
+        "states",
+        "times",
+        "primary",
+        "secondary"
+      ],
+      "block": "patterns/one-shape-morph/block.html",
+      "preview": "patterns/one-shape-morph/preview.png",
+      "source": "https://x.com/twoclipping/status/2103273003555402193"
+    },
+    {
+      "id": "retime-piecewise",
+      "title": "RETIME: coreografia em grade base remapeada para os cortes reais",
+      "status": "lib",
+      "category": "tempo",
+      "tags": [
+        "sincronia",
+        "tts",
+        "determinístico"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "clients/wjr-informatica-games/video-01/index.html (bloco RETIME)"
+    },
+    {
+      "id": "reactive-icon-controller",
+      "title": "Ícone que reage à fala (controle SVG)",
+      "status": "inline",
+      "category": "ilustração",
+      "tags": [
+        "ícone",
+        "sincronia-fala",
+        "games"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "clients/wjr-informatica-games/video-01/index.html (S3 #pad3)"
+    },
+    {
+      "id": "service-illustrations-wjr",
+      "title": "Ilustrações de serviço animadas (pincel+poeira, metal líquido, Hall Effect)",
+      "status": "inline",
+      "category": "ilustração",
+      "tags": [
+        "serviço",
+        "svg",
+        "assistência-técnica"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "clients/wjr-informatica-games/video-01/index.html (SV-A/B/C)"
+    },
+    {
+      "id": "crash-zoom-punch",
+      "title": "Crash zoom (empurrão seco até o detalhe)",
+      "status": "proposto",
+      "category": "câmera",
+      "tags": [
+        "zoom",
+        "ênfase"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/camera/crash-zoom-punch.md"
+    },
+    {
+      "id": "infinite-zoom-collage",
+      "title": "Zoom infinito por colagem",
+      "status": "proposto",
+      "category": "câmera",
+      "tags": [
+        "loop",
+        "storytelling"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://x.com/koldo2k/status/2103129343253778767"
+    },
+    {
+      "id": "before-after-slider",
+      "title": "Antes/depois com barra deslizante",
+      "status": "proposto",
+      "category": "dados",
+      "tags": [
+        "antes-depois",
+        "resultado"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/data/before-after-slider-scrub.md"
+    },
+    {
+      "id": "counter-confetti",
+      "title": "Contador com confete",
+      "status": "proposto",
+      "category": "dados",
+      "tags": [
+        "número",
+        "celebração"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/data/counter-confetti.md"
+    },
+    {
+      "id": "spotlight-sweep",
+      "title": "Holofote revelando painéis no escuro",
+      "status": "proposto",
+      "category": "efeito",
+      "tags": [
+        "revelação",
+        "premium"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/effects/spotlight-sweep-moves.md"
+    },
+    {
+      "id": "hook-3s-retention",
+      "title": "Estrutura de gancho 3 s + retenção",
+      "status": "proposto",
+      "category": "estrutura",
+      "tags": [
+        "gancho",
+        "retenção",
+        "roteiro"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://x.com/Sayajiiinz/status/2100336121137754476"
+    },
+    {
+      "id": "showreel-15s-techniques",
+      "title": "Showreel 15 s (catálogo de técnicas)",
+      "status": "proposto",
+      "category": "estrutura",
+      "tags": [
+        "showreel",
+        "portfólio"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://x.com/reflex_cloud/status/2103552840027304046"
+    },
+    {
+      "id": "ugc-replicate-structure",
+      "title": "Replicar estrutura de vídeo viral (UGC)",
+      "status": "proposto",
+      "category": "estrutura",
+      "tags": [
+        "ugc",
+        "referência"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://x.com/shengkunye/status/2100672978749096186"
+    },
+    {
+      "id": "recipe-ingredients-explainer",
+      "title": "Receita/ingredientes entrando no recipiente",
+      "status": "proposto",
+      "category": "explicador",
+      "tags": [
+        "alimentação",
+        "passo-a-passo"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://x.com/Ror_Fly/status/2102853258582880547"
+    },
+    {
+      "id": "spending-simulation-9x16",
+      "title": "Simulação de uso no dia a dia (9:16)",
+      "status": "proposto",
+      "category": "explicador",
+      "tags": [
+        "varejo",
+        "fintech",
+        "cotidiano"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://x.com/felipemoller/status/2103846311149936736"
+    },
+    {
+      "id": "logo-shrink-lockup",
+      "title": "Logo encolhe e trava com o nome (lockup)",
+      "status": "proposto",
+      "category": "marca",
+      "tags": [
+        "encerramento",
+        "lockup"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/outro/logo-shrink-wordmark-lockup.md"
+    },
+    {
+      "id": "beat-cut-accelerate",
+      "title": "Cortes secos no beat, acelerando",
+      "status": "proposto",
+      "category": "ritmo",
+      "tags": [
+        "montagem",
+        "música",
+        "drop"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/rhythm/beat-cut-moves.md"
+    },
+    {
+      "id": "split-flap-title",
+      "title": "Título em letreiro de aeroporto (split-flap)",
+      "status": "proposto",
+      "category": "tipografia",
+      "tags": [
+        "abertura",
+        "data",
+        "anúncio"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/typography/split-flap-title.md"
+    },
+    {
+      "id": "card-flip-reveal",
+      "title": "Card 3D que vira e revela resultado",
+      "status": "proposto",
+      "category": "transição",
+      "tags": [
+        "recurso→resultado",
+        "3d"
+      ],
+      "duration_s": null,
+      "params": [],
+      "block": null,
+      "preview": null,
+      "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/transition/card-flip-reveal.md"
+    }
+  ]
+}

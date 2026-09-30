@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "showreel-15s-techniques",
+  "title": "Showreel 15 s (catálogo de técnicas)",
+  "description": "Formato viral do lançamento do Opus 5.5: gancho no 1º segundo, sequência de técnicas distintas (tipografia, formas, câmera, cor) cortada na música e frame final limpo.",
+  "status": "proposto",
+  "category": "estrutura",
+  "tags": [
+    "showreel",
+    "portfólio"
+  ],
+  "use_when": "Vídeo-portfólio da própria Simplicio ou de agência.",
+  "source": {
+    "kind": "awesome-opus5-5-videos",
+    "ref": "@reflex_cloud / @lukasersil — 15-second résumé reel prompts",
+    "url": "https://x.com/reflex_cloud/status/2103552840027304046"
+  }
+}

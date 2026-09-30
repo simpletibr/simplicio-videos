@@ -1,0 +1,65 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "item-relay-counter",
+  "title": "Revezamento de itens com contador + barra segmentada",
+  "description": "Itens grandes entram um de cada vez (skew + split RGB) no tempo em que são falados, com contador 01/03 e barra segmentada que preenche.",
+  "status": "pronto",
+  "duration_s": 3.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "kicker",
+      "type": "string",
+      "label": "Kicker",
+      "default": "Problemas que resolvemos",
+      "maxLength": 32
+    },
+    {
+      "id": "items",
+      "type": "string",
+      "label": "Itens (separados por |)",
+      "default": "Item um|Item dois|Item três"
+    },
+    {
+      "id": "times",
+      "type": "string",
+      "label": "Tempos de entrada (s, separados por |)",
+      "default": "0.3|1.2|2.1"
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "lista",
+  "tags": [
+    "problemas",
+    "serviços",
+    "contador",
+    "sincronia-fala"
+  ],
+  "use_when": "Lista de 2–5 dores/serviços, cada um entrando na palavra falada.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S3)",
+    "url": null
+  },
+  "preview_at": 1.6,
+  "sync": "times = inícios das palavras na narração (whisper word timestamps)"
+}

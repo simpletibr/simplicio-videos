@@ -20,7 +20,7 @@ Proposta de bloco no `spec.json` (hoje o `video-01` usa `provider: "file"` com W
 "voice": {
   "provider": "gemini",
   "providers": { "gemini": {
-    "model": "<id exato do Gemini 3.8 Flash TTS>", "voice": "Puck",
+    "model": "gemini-3.8-flash-tts", "voice": "Puck",
     "style": "Locutor brasileiro de propaganda de loja de games, tom animado, natural e próximo, português do Brasil, ritmo ágil sem correr.",
     "env": "GEMINI_API_KEY" } },
   "lines": [ { "id": "vo1", "text": "Seu console parou?", "t": 0.05, "max_s": 1.45 } ]
@@ -35,7 +35,7 @@ Proposta de bloco no `spec.json` (hoje o `video-01` usa `provider: "file"` com W
 
 ## (b) Biblioteca de padrões de motion
 
-Hoje os padrões vivem dentro de `video-01/index.html`. O próximo passo é extraí-los como **blocos parametrizados** (HyperFrames sub-composições com `data-composition-src` + variáveis, ou funções JS puras que recebem `tl`, seletores, tempo e parâmetros). Catálogo do que já existe e foi validado em render:
+**Implementada em [`motion/`](../motion/README.md)** (30/09/2026): cada padrão é um bloco HyperFrames parametrizado (`motion/patterns/<id>/block.html`, montado com `data-composition-src` + `data-variable-values`), com `pattern.json`, preview e fonte. 19 blocos prontos, 14 propostos; catálogo gerado em `motion/catalog.json`. A tabela abaixo é o inventário original tirado do `video-01/index.html` (fonte da extração):
 
 | Padrão | Onde no video-01 | Parâmetros |
 |---|---|---|
@@ -55,13 +55,13 @@ Hoje os padrões vivem dentro de `video-01/index.html`. O próximo passo é extr
 | Fundo: grade em perspectiva rolando, glows derivando, partículas com semente, scanlines, vinheta | tudo | cores, semente, densidade |
 | **RETIME**: coreografia numa grade base remapeada para os cortes reais (`CUTS`) + tempos absolutos `@t` para palavras | script | cortes por cena |
 
-A acrescentar (fontes no `README`/`docs/recursos.md`): receitas de câmera/produto do **video-shotcraft** (152 shot recipe cards: orbit, dolly-in, reveal, macro), padrões recorrentes do acervo **awesome-opus5-5-videos** (showreel, contadores, gráficos animados, mockups de celular/UI, mapas, "explainer" com ícones). Regra: um padrão só entra na biblioteca depois de renderizado, com `npm run check` limpo e um preview.
+Receitas do **video-shotcraft** e padrões do acervo **awesome-opus5-5-videos**/bookmarks do X já foram destilados (reimplementados, com link da fonte) no catálogo de `motion/`. Regra: um padrão só vira `pronto` com lint limpo e preview renderizado.
 
 ## (c) Spec → `simplicio videos render` sem LLM
 
 - **Execução** (plugin, determinística): `videos new` copia um template; `videos render --spec video.json` roda `build` → voz (cache) → HyperFrames (versão fixada) → master → checagens (LUFS/TP, duração, STT opcional). **Zero LLM.** Um vídeo novo do mesmo formato = só um `spec.json` novo (copy da coleta, lista de cenas/blocos, tempos, linhas de voz).
 - **Autoria** (Opus 5.5, só quando precisa): criar um **padrão novo** para a biblioteca ou um template novo. O LLM nunca está no caminho do render.
-- Ainda falta para chegar lá: (1) extrair os blocos do `index.html` para a biblioteca; (2) gerar o `index.html` a partir de uma lista de cenas no spec (hoje ele é escrito à mão/por IA); (3) um "auto-timing" que calcule `CUTS`, `t`/`max_s` e cues a partir das durações medidas da voz (hoje é manual, ~10 min); (4) o binário do plugin (`plugin.json` é stub).
+- Ainda falta para chegar lá: (1) ~~extrair os blocos do `index.html` para a biblioteca~~ feito em `motion/` (o video-01 ainda usa a versão inline); (2) gerar o `index.html` a partir de uma lista de cenas no spec (hoje ele é escrito à mão/por IA); (3) um "auto-timing" que calcule `CUTS`, `t`/`max_s` e cues a partir das durações medidas da voz (hoje é manual, ~10 min); (4) o binário do plugin (`plugin.json` é stub).
 
 ## (d) Python/ffmpeg vs HyperFrames (e Remotion, plugin `motion`)
 

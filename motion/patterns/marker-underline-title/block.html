@@ -1,0 +1,65 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/marker-underline-title/block.html — Título com sublinhado de marca-texto
+  Título assenta e um traço de marcador (SVG com borda irregular e leve inclinação) é desenhado da esquerda para a direita sob a palavra-chave.
+  HyperFrames block (sub-composition), 1080x1920, 2.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/marker-underline-title.html and add
+    <div id="..." class="clip" data-composition-id="marker-underline-title" data-composition-src="compositions/marker-underline-title.html"
+         data-start="T" data-duration="2.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "marker-underline-title" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="marker-underline-title"].
+  Técnica do card 'marker-underline-title' do video-shotcraft, reimplementada.
+-->
+<html lang="pt-BR" data-composition-id="marker-underline-title" data-composition-duration="2.0" data-composition-variables='[{"id": "before", "type": "string", "label": "Texto antes", "default": "Atendimento", "maxLength": 20}, {"id": "keyword", "type": "string", "label": "Palavra-chave", "default": "humano", "maxLength": 16}, {"id": "after", "type": "string", "label": "Texto depois", "default": "de verdade.", "maxLength": 20}, {"id": "primary", "type": "color", "label": "Cor primária", "default": "#e50914"}, {"id": "secondary", "type": "color", "label": "Cor secundária", "default": "#1565ff"}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Título com sublinhado de marca-texto</title>
+  </head>
+  <body>
+    <template>
+      <div id="marker-underline-title-root" data-composition-id="marker-underline-title" data-duration="2.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="marker-underline-title"] { position: absolute; inset: 0; overflow: hidden; color: #fff; font-family: "Inter", sans-serif;
+            background: radial-gradient(120% 70% at 50% 35%, #1a1a1f 0%, #080808 70%); }
+          [data-composition-id="marker-underline-title"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="marker-underline-title"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="marker-underline-title"] .tt { position: absolute; left: 80px; right: 80px; top: 700px; font-size: 130px; font-weight: 900; letter-spacing: -0.03em; line-height: 1.05; }
+          [data-composition-id="marker-underline-title"] .kw { position: relative; display: inline-block; color: #fff; }
+          [data-composition-id="marker-underline-title"] .kw svg { position: absolute; left: -3%; bottom: -0.12em; width: 106%; height: 0.36em; overflow: visible; }
+        </style>
+        <h2 class="tt"><span class="b"></span> <span class="kw"><span class="k"></span><svg viewBox="0 0 300 40" preserveAspectRatio="none"><path class="mk" d="M4 30 C60 22 120 26 180 18 S270 14 296 10" fill="none" stroke="var(--primary)" stroke-width="16" stroke-linecap="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" opacity=".9"/></svg></span> <span class="a"></span></h2>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"before": "Atendimento", "keyword": "humano", "after": "de verdade.", "primary": "#e50914", "secondary": "#1565ff"};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("marker-underline-title-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            $(".b").textContent = V.before; $(".k").textContent = V.keyword; $(".a").textContent = V.after;
+            tl.fromTo($(".tt"), { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.1);
+            tl.fromTo($(".mk"), { attr: { "stroke-dashoffset": 1 } }, { attr: { "stroke-dashoffset": 0 }, duration: 0.35, ease: "power2.inOut" }, 0.7);
+            tl.fromTo($(".kw"), { scale: 1 }, { scale: 1.04, duration: 0.12, yoyo: true, repeat: 1, ease: "power1.out", immediateRender: false }, 1.0);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["marker-underline-title"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

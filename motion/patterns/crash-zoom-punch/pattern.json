@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "crash-zoom-punch",
+  "title": "Crash zoom (empurrão seco até o detalhe)",
+  "description": "Plano geral dá um zoom de ~6 frames até um card/detalhe e trava com overshoot elástico ou tranco com tremida.",
+  "status": "proposto",
+  "category": "câmera",
+  "tags": [
+    "zoom",
+    "ênfase"
+  ],
+  "use_when": "Chamar atenção para um detalhe (preço confirmado, selo, botão).",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/camera/crash-zoom-punch.md (Apache-2.0; descrever e reimplementar, não copiar)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/camera/crash-zoom-punch.md"
+  }
+}

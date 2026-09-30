@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "split-flap-title",
+  "title": "Título em letreiro de aeroporto (split-flap)",
+  "description": "Cada caractere é uma placa de duas metades que vira 2 glifos aleatórios (semente) e para no alvo, em onda da esquerda.",
+  "status": "proposto",
+  "category": "tipografia",
+  "tags": [
+    "abertura",
+    "data",
+    "anúncio"
+  ],
+  "use_when": "Datas de evento, inaugurações, contagem regressiva.",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/typography/split-flap-title.md (Apache-2.0; descrever e reimplementar, não copiar)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/typography/split-flap-title.md"
+  }
+}

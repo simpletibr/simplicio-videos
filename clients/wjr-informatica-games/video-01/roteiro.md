@@ -21,7 +21,7 @@ Os cortes seguem a duração real de cada frase (grade de 0,25 s = meio beat a 1
 
 ## Narração (VO) — pt-BR, velocidade natural (sem aceleração)
 
-Voz: **Gemini 3.8 Flash TTS, voz Puck** (Google AI Studio, conta do Wesley, 30/09/2026), estilo "Locutor brasileiro de propaganda de loja de games, tom animado, natural e próximo, português do Brasil, ritmo ágil sem correr." Entra pelo provider `file` (`assets/audio/vo/external/line-NN.wav`) com corte de silêncio + EQ/compressor/sala. Licença em [`assets/audio/LICENSES.md`](assets/audio/LICENSES.md); passo a passo em [`docs/tutorial-voz-gemini.md`](../../../docs/tutorial-voz-gemini.md).
+Voz: **Gemini 3.8 Flash TTS, voz Puck** (Google AI Studio, conta do Wesley, 30/09/2026), estilo "Locutor brasileiro de propaganda de loja de games, tom animado, natural e próximo, português do Brasil, ritmo ágil sem correr." Entra pelo provider `file` (`assets/audio/vo/external/line-NN.wav`) com corte de silêncio + EQ/compressor/sala. Licença em [`assets/audio/LICENSES.md`](assets/audio/LICENSES.md); passo a passo em [`voices/gemini.md`](../../../voices/gemini.md).
 
 | Linha | Cena | Início (s) | Fim (s) | Duração (s) | Máx. (s) | Texto |
 |---|---|---|---|---|---|---|

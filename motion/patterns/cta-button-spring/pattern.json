@@ -1,0 +1,80 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "cta-button-spring",
+  "title": "CTA: título por letra + botão com mola e respiração",
+  "description": "Título do CTA entra letra a letra com rotação, botão (ex.: WhatsApp) salta com mola e 'respira' no tempo em que o canal é falado; linha de contato sobe.",
+  "status": "pronto",
+  "duration_s": 3.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "cta",
+      "type": "string",
+      "label": "Chamada",
+      "default": "Fale com a gente.",
+      "maxLength": 32
+    },
+    {
+      "id": "button_label",
+      "type": "string",
+      "label": "Rótulo do botão",
+      "default": "WhatsApp",
+      "maxLength": 16
+    },
+    {
+      "id": "button_value",
+      "type": "string",
+      "label": "Contato",
+      "default": "(00) 00000-0000",
+      "maxLength": 24
+    },
+    {
+      "id": "meta",
+      "type": "string",
+      "label": "Linha de contato",
+      "default": "Endereço · @perfil",
+      "maxLength": 60
+    },
+    {
+      "id": "t_pulse",
+      "type": "string",
+      "label": "Tempo da respiração (s)",
+      "default": "1.3"
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "cta",
+  "tags": [
+    "cta",
+    "whatsapp",
+    "botão",
+    "contato"
+  ],
+  "use_when": "Fechamento com um único canal de contato confirmado.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S6)",
+    "url": null
+  },
+  "preview_at": 1.2,
+  "sync": "t_pulse = palavra do canal na narração (ex.: 'WhatsApp')"
+}

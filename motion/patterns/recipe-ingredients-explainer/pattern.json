@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "recipe-ingredients-explainer",
+  "title": "Receita/ingredientes entrando no recipiente",
+  "description": "Explicador passo a passo: cada ingrediente com medida entra no copo/prato até o produto final.",
+  "status": "proposto",
+  "category": "explicador",
+  "tags": [
+    "alimentação",
+    "passo-a-passo"
+  ],
+  "use_when": "Alimentação/bebidas: mostrar como o produto é feito (só ingredientes confirmados).",
+  "source": {
+    "kind": "awesome-opus5-5-videos",
+    "ref": "@Ror_Fly — recipe motion graphic (empty glass → cocktail)",
+    "url": "https://x.com/Ror_Fly/status/2102853258582880547"
+  }
+}

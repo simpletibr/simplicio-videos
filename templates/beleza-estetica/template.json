@@ -1,0 +1,114 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "beleza-estetica",
+  "setor": "Beleza e estética (salão, barbearia, estética, manicure)",
+  "status": "skeleton",
+  "nichos": [
+    "salão de beleza",
+    "barbearia",
+    "estética",
+    "manicure",
+    "sobrancelha",
+    "cílios",
+    "maquiagem",
+    "spa"
+  ],
+  "referencia": null,
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 15.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.0,
+      "padroes": [
+        "marker-underline-title"
+      ],
+      "campos": [
+        "empresa.frases_proprias"
+      ],
+      "fala": "{transformação/desejo}"
+    },
+    {
+      "id": "S2",
+      "papel": "servicos",
+      "dur_s": 5.0,
+      "padroes": [
+        "service-panels-slide",
+        "card-3d-pushin-sweep"
+      ],
+      "campos": [
+        "empresa.servicos",
+        "pedido.material_proprio"
+      ],
+      "fala": "{serviço 1}, {serviço 2}, {serviço 3}"
+    },
+    {
+      "id": "S3",
+      "papel": "prova",
+      "dur_s": 3.0,
+      "padroes": [
+        "before-after-slider"
+      ],
+      "campos": [
+        "pedido.material_proprio"
+      ],
+      "fala": "{resultado real, com autorização}"
+    },
+    {
+      "id": "S4",
+      "papel": "processo",
+      "dur_s": 2.0,
+      "padroes": [
+        "one-shape-morph"
+      ],
+      "campos": [
+        "empresa.contatos"
+      ],
+      "fala": "{como agendar}"
+    },
+    {
+      "id": "S5",
+      "papel": "cta",
+      "dur_s": 3.0,
+      "padroes": [
+        "logo-wireframe-shards",
+        "cta-button-spring"
+      ],
+      "campos": [
+        "pedido.cta",
+        "empresa.contatos"
+      ],
+      "fala": "{cta: agende pelo WhatsApp}"
+    }
+  ],
+  "voz": {
+    "tipo": "feminina, suave e confiante",
+    "gemini_voz": "Aoede",
+    "estilo": "leve, elegante, próximo"
+  },
+  "musica": {
+    "bpm": 95,
+    "mood": "pop/R&B suave",
+    "secoes": "intro → groove → CTA"
+  },
+  "tom": "elegante, acolhedor, autoestima",
+  "transicoes": [
+    "circle-iris-transition"
+  ],
+  "cuidados": [
+    "Antes/depois só com foto real do cliente e autorização escrita da pessoa fotografada.",
+    "Procedimentos estéticos regulados (injetáveis, laser) seguem as regras do conselho profissional de quem executa — confirmar antes de publicar.",
+    "Sem promessa de resultado garantido."
+  ],
+  "paleta_padrao": {
+    "primary": "#d4a373",
+    "secondary": "#e5989b",
+    "background": "#1b1417"
+  }
+}

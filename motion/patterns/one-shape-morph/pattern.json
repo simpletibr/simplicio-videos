@@ -1,0 +1,58 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "one-shape-morph",
+  "title": "Uma forma, sem corte (morph de estados de UI)",
+  "description": "Um único elemento muda de tamanho, raio e cor passando por estados (pílula → card → botão), trocando o conteúdo com um blur curto — nunca há corte.",
+  "status": "pronto",
+  "duration_s": 4.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "states",
+      "type": "string",
+      "label": "Textos dos estados (|)",
+      "default": "Agende|Escolha o horário|Confirmado ✓"
+    },
+    {
+      "id": "times",
+      "type": "string",
+      "label": "Tempos (s, |)",
+      "default": "0.2|1.4|2.7"
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "ui",
+  "tags": [
+    "ui",
+    "app",
+    "saas",
+    "agendamento",
+    "morph"
+  ],
+  "use_when": "Mostrar um fluxo de app/agendamento/compra em 3 estados sem cortes.",
+  "source": {
+    "kind": "awesome-opus5-5-videos",
+    "ref": "@twoclipping — 'Dribbble-level UI motion. One shape, never cut' (técnica destilada do prompt/vídeo; reimplementada)",
+    "url": "https://x.com/twoclipping/status/2103273003555402193"
+  },
+  "preview_at": 2.0
+}

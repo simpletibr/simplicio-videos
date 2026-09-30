@@ -14,7 +14,7 @@ Solte aqui um arquivo por frase de `spec.json → voice.lines`, na ordem:
 | `line-08.wav` | vo8 | Você aprova antes do reparo. | 2,05 s |
 | `line-09.wav` | vo9 | Chama a WJR no WhatsApp e volte pro jogo! ("dáblio jota erre") | 3,40 s |
 
-WAV/MP3/M4A, qualquer taxa. Depois: `npm run voice && npm run render` (o `spec.json` já usa `provider: "file"`). Atuais: Gemini 3.8 Flash TTS, voz Puck (AI Studio, 30/09/2026) — tutorial em `docs/tutorial-voz-gemini.md`.
+WAV/MP3/M4A, qualquer taxa. Depois: `npm run voice && npm run render` (o `spec.json` já usa `provider: "file"`). Atuais: Gemini 3.8 Flash TTS, voz Puck (AI Studio, 30/09/2026) — tutorial em `voices/gemini.md`.
 Duração máx. = tempo depois do corte de silêncio e com a cauda da sala (~0,1 s a mais que o arquivo aparado).
 O script corta silêncio, aplica EQ/compressor/sala, converte para 48 kHz mono e **para com erro** se a frase (sem silêncio) passar do slot — sem acelerar.
 Registre modelo/voz/data (ex.: Gemini TTS no AI Studio) em `../../LICENSES.md`.

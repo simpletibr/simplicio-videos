@@ -1,0 +1,19 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "spending-simulation-9x16",
+  "title": "Simulação de uso no dia a dia (9:16)",
+  "description": "Cenas curtas de situações reais (mercado, posto, restaurante) com cartões/valores surgindo — produto no cotidiano.",
+  "status": "proposto",
+  "category": "explicador",
+  "tags": [
+    "varejo",
+    "fintech",
+    "cotidiano"
+  ],
+  "use_when": "Varejo/serviços financeiros: produto em situações do dia a dia.",
+  "source": {
+    "kind": "awesome-opus5-5-videos",
+    "ref": "@felipemoller — vídeo 9:16 JS+Playwright+FFmpeg para lp.meuorbe.com.br",
+    "url": "https://x.com/felipemoller/status/2103846311149936736"
+  }
+}

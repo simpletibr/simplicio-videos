@@ -1,0 +1,20 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "service-illustrations-wjr",
+  "title": "Ilustrações de serviço animadas (pincel+poeira, metal líquido, Hall Effect)",
+  "description": "Três mini-ilustrações SVG com física falsa: pincel que varre e levanta poeira + brilhos; gotas que se juntam numa mancha prateada com brilho; ímã orbitando com arcos de campo e LED do sensor.",
+  "status": "inline",
+  "category": "ilustração",
+  "tags": [
+    "serviço",
+    "svg",
+    "assistência-técnica"
+  ],
+  "use_when": "Explicar um serviço técnico específico com um desenho, sem foto.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (SV-A/B/C)",
+    "url": null
+  },
+  "notes": "Muito específico do setor; extrair como bloco quando outro cliente de assistência técnica precisar."
+}

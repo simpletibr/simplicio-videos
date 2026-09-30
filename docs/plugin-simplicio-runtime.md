@@ -33,7 +33,13 @@ Engines (escolhidas por video.json → "engine"):
 
 | Op | Faz | LLM? |
 |---|---|---|
-| `videos schema` | devolve `simplicio.video-spec/v1` | não |
+| `videos schema` | devolve os schemas (`video-spec`, `intake`, `video-template`, `motion-pattern`) | não |
+| `videos intake --client <slug> [--site] [--instagram]` | estado do questionário ([`intake/`](../intake/README.md)): extrai dados públicos, devolve só as perguntas que faltam, valida `intake.json` | não (a conversa é do host) |
+| `videos brief --intake intake.json` | intake aprovado + template → `brief.md` + `spec.json`/`video.json` (a construir) | não |
+| `videos template [--intake]` | lista/escolhe template por nicho ([`templates/`](../templates/README.md)) | não |
+| `videos patterns` / `videos voices` | catálogo de motion ([`motion/catalog.json`](../motion/README.md)) / providers de voz ([`voices/`](../voices/README.md)) | não |
+| `videos voice --spec video.json [--provider] [--force]` | narração com cache por hash | não (TTS é serviço, não LLM de autoria) |
+| `videos edit --edl edl.json` | executa um EDL do video-use sobre footage do cliente | a *decisão* do corte é do host; a execução não |
 | `videos new --client <slug> --template <id> --out <dir>` | copia um template aprovado + cria `video.json`, `spec.json`, slots placeholder | não |
 | `videos handoff --spec video.json` | monta o **pacote para o Opus 5.5**: `PROMPT.md` + `AGENTS.md` + brief + regras de gate, e devolve o texto/arquivos para o host (Claude Code) executar | **o host roda o Opus 5.5**; o plugin não chama modelo (mesmo padrão do `image-gen`) |
 | `videos check --spec video.json` | `hyperframes lint` + `check` + `snapshot` → receipt com findings e contact sheet | não |
@@ -56,24 +62,8 @@ Decisão do Wesley: **geração só com Opus 5.5**. No desenho do runtime, o plu
 - **Nível 2:** `engine: "simplicio-motion"` → o plugin só traduz/encaminha para o `motion` existente (`storyboard.simplicio.json`). Mais barato e 100% dentro do runtime, porém com o catálogo fechado de primitivas (qualidade visual mais genérica).
 - **Nível 3:** catálogo de templates versionados (`templates/<id>/` com `spec.schema.json` derivado de `data-composition-variables`) + formulário/MCP para preencher spec. O Opus 5.5 volta a ser usado só para **criar template novo**.
 
-## 3. Estrutura do repo para caber nisso
+## 3. Estrutura do repo
 
-```
-simplicio-videos/
-├── plugin.json                 # manifest simplicio.plugin/v1 (STUB, sem binário ainda)
-├── schemas/video-spec.schema.json   # proposta simplicio.video-spec/v1
-├── clients/<cliente>/
-│   ├── coleta/                 # brief.md (fatos com fonte = entrada do handoff), fontes.md, site/, colors.json, pendencias.md
-│   └── video-NN/
-│       ├── video.json          # spec do plugin (proposta)
-│       ├── spec.json           # variables (HyperFrames) + audio (cues) + clips (slots de vídeo)
-│       ├── scripts/build.mjs   # passo determinístico: variáveis, síntese/mix de áudio, clipes
-│       ├── scripts/master.sh   # loudness final no MP4
-│       ├── storyboard.simplicio.json  # fallback p/ plugin motion (não validado no binário)
-│       ├── index.html          # template HyperFrames
-│       ├── PROMPT.md / AGENTS.md / CLAUDE.md  # handoff p/ Opus 5.5 (ou Codex)
-│       └── package.json        # scripts lint/check/snapshot/render
-└── docs/
-```
+Atualizada em 30/09/2026 para a esteira ([ADR-0001](decisoes/ADR-0001-visao-plugin.md)): `intake/`, `templates/`, `motion/`, `voices/`, `schemas/`, `docs/`, `clients/`. Mapa completo e atualizado em [`AGENTS.md`](../AGENTS.md); fluxo em [`esteira.md`](esteira.md).
 
-Próximo passo sugerido (quando fizer sentido): mover o template genérico para `templates/hyperframes-reels-9x16/`, escrever o binário `simplicio-plugin-videos` (Rust, espelhando `simplicio-plugin-motion/src/{lib,main}.rs`: `handle_op`, `ok_envelope`/`err_envelope`, argv direto + `--simplicio-plugin-request`) e abrir issue no simplicio-runtime para registrar no catálogo.
+Próximo passo sugerido: gerador intake + template → spec; depois o binário `simplicio-plugin-videos` (Rust, espelhando `simplicio-plugin-motion/src/{lib,main}.rs`: `handle_op`, `ok_envelope`/`err_envelope`, argv direto + `--simplicio-plugin-request`) e issue no simplicio-runtime para registrar no catálogo.

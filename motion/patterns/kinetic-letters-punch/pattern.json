@@ -1,0 +1,73 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "kinetic-letters-punch",
+  "title": "Tipografia cinética por letra + punch RGB",
+  "description": "Três linhas de título entram letra a letra (stagger + back.out); a última palavra bate com scale-punch, split RGB e tremida de câmera.",
+  "status": "pronto",
+  "duration_s": 2.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "line1",
+      "type": "string",
+      "label": "Linha 1",
+      "default": "Seu",
+      "maxLength": 14
+    },
+    {
+      "id": "line2",
+      "type": "string",
+      "label": "Linha 2",
+      "default": "negócio",
+      "maxLength": 14
+    },
+    {
+      "id": "line3",
+      "type": "string",
+      "label": "Linha 3 (punch)",
+      "default": "parado?",
+      "maxLength": 12
+    },
+    {
+      "id": "t3",
+      "type": "string",
+      "label": "Tempo da palavra punch (s)",
+      "default": "0.68"
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "tipografia",
+  "tags": [
+    "hook",
+    "título",
+    "punch",
+    "rgb-split"
+  ],
+  "use_when": "Gancho dos primeiros 1–2 s; pergunta curta de dor do cliente.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S1)",
+    "url": null
+  },
+  "preview_at": 1.3,
+  "sync": "t3 = tempo (s) da palavra falada que recebe o punch"
+}

@@ -1,0 +1,63 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "logo-drop-shockwave",
+  "title": "Drop de logo: elastic + ondas de choque + partículas",
+  "description": "Logo cai com elastic, duas ondas de choque expandem, partículas explodem radialmente (semente fixa), a câmera treme e o logo respira com glow.",
+  "status": "pronto",
+  "duration_s": 3.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "logo",
+      "type": "string",
+      "label": "Logo (PNG/SVG)",
+      "default": "assets/placeholder-logo.svg"
+    },
+    {
+      "id": "particles",
+      "type": "number",
+      "label": "Nº de partículas",
+      "default": 28
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 7
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "marca",
+  "tags": [
+    "logo",
+    "drop",
+    "partículas",
+    "cta"
+  ],
+  "use_when": "Entrada do logo no drop da música, antes do CTA.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S6)",
+    "url": null
+  },
+  "preview_at": 0.35
+}

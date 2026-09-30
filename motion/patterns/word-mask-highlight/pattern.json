@@ -1,0 +1,65 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "word-mask-highlight",
+  "title": "Revelação por máscara de palavras + faixa destacada",
+  "description": "Frase entra palavra a palavra por máscara (yPercent); o trecho final ganha uma faixa de cor que varre da esquerda no tempo da palavra falada.",
+  "status": "pronto",
+  "duration_s": 2.2,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "text",
+      "type": "string",
+      "label": "Frase (antes do destaque)",
+      "default": "A gente resolve",
+      "maxLength": 40
+    },
+    {
+      "id": "highlight",
+      "type": "string",
+      "label": "Trecho destacado",
+      "default": "sem enrolação.",
+      "maxLength": 30
+    },
+    {
+      "id": "t_hl",
+      "type": "string",
+      "label": "Tempo do destaque (s)",
+      "default": "0.9"
+    },
+    {
+      "id": "primary",
+      "type": "color",
+      "label": "Cor primária",
+      "default": "#e50914"
+    },
+    {
+      "id": "secondary",
+      "type": "color",
+      "label": "Cor secundária",
+      "default": "#1565ff"
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "tipografia",
+  "tags": [
+    "promessa",
+    "destaque",
+    "máscara"
+  ],
+  "use_when": "Promessa/benefício em uma frase, com o trecho-chave destacado quando é falado.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (S2)",
+    "url": null
+  },
+  "preview_at": 1.8,
+  "sync": "t_hl = início da palavra destacada na narração"
+}

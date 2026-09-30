@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "card-flip-reveal",
+  "title": "Card 3D que vira e revela resultado",
+  "description": "Card gira 180° no eixo Y com faixa de brilho no ângulo mais fino e mostra o resultado no verso; cards em sequência.",
+  "status": "proposto",
+  "category": "transição",
+  "tags": [
+    "recurso→resultado",
+    "3d"
+  ],
+  "use_when": "SaaS/serviços: 'o que fazemos → o que você ganha'.",
+  "source": {
+    "kind": "video-shotcraft",
+    "ref": "references/shots/transition/card-flip-reveal.md (Apache-2.0; descrever e reimplementar, não copiar)",
+    "url": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/transition/card-flip-reveal.md"
+  }
+}

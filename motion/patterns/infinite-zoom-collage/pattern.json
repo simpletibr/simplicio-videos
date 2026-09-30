@@ -1,0 +1,18 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "infinite-zoom-collage",
+  "title": "Zoom infinito por colagem",
+  "description": "Câmera atravessa objetos recortados (halftone) de um cenário para outro em loop contínuo.",
+  "status": "proposto",
+  "category": "câmera",
+  "tags": [
+    "loop",
+    "storytelling"
+  ],
+  "use_when": "Abertura criativa/institucional (turismo, história da marca).",
+  "source": {
+    "kind": "awesome-opus5-5-videos",
+    "ref": "@koldo2k — looping 'infinite zoom' After Effects style",
+    "url": "https://x.com/koldo2k/status/2103129343253778767"
+  }
+}

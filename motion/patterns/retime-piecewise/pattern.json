@@ -1,0 +1,22 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "retime-piecewise",
+  "title": "RETIME: coreografia em grade base remapeada para os cortes reais",
+  "description": "A coreografia é escrita numa grade base (beats) e um mapa linear por partes (BASE→CUTS) desloca tudo para os cortes que a narração exige; tempos '@t' ficam absolutos para batidas em palavras.",
+  "status": "lib",
+  "category": "tempo",
+  "tags": [
+    "sincronia",
+    "tts",
+    "determinístico"
+  ],
+  "use_when": "Sempre que a duração real das falas (TTS) mudar os cortes.",
+  "source": {
+    "kind": "interno",
+    "ref": "clients/wjr-informatica-games/video-01/index.html (bloco RETIME)",
+    "url": null
+  },
+  "files": {
+    "lib": "../../lib/retime.js"
+  }
+}

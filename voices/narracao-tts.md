@@ -20,7 +20,7 @@ assets/audio/build/mix.wav  →  hyperframes render  →  scripts/master.sh (−
 - `build.mjs` falha com mensagem clara se o texto de uma frase no `spec.json` não bater com o que foi gerado (evita narração velha).
 - O manifest guarda, por frase: semente escolhida, nota e texto do ASR, duração e slot.
 
-## Provedor atual do video-01: `file` (Gemini TTS, voz Puck) — ver seção "Narração gerada fora" e [tutorial-voz-gemini.md](tutorial-voz-gemini.md)
+## Provedor atual do video-01: `file` (Gemini TTS, voz Puck) — ver seção "Narração gerada fora" e [gemini.md](gemini.md)
 
 ## Provedor local recomendado: Chatterbox Multilingual V3 (local, MIT)
 
