@@ -2,7 +2,7 @@ import pytest
 
 from conftest import run_cli
 
-SUBS = ["init", "validate", "voice", "render", "publish", "run", "mcp", "list"]
+SUBS = ["init", "validate", "voice", "render", "publish", "run", "venda", "mcp", "list"]
 
 
 def test_main_help_lists_the_whole_flow():
@@ -24,6 +24,7 @@ def test_main_help_lists_the_whole_flow():
                 "kaggle", "colab-cli", "--accelerator", "--timeout", "KAGGLE_USERNAME"]),
     ("publish", ["CONTRATO.yaml", "--file", "--remote", "--dry-run", "--no-readme", "rclone", "Entregas no Drive", "vNN+1"]),
     ("run", ["CONTRATO.yaml", "--provider", "--backend", "--publish", "--accelerator", "dry-run"]),
+    ("venda", ["cobrar", "webhook", "entregar", "status", "--preco", "ABACATEPAY_API_KEY", "cobranca_criada", "erro_entrega"]),
     ("mcp", ["video.init", "video.render", "video.publish", "stdio"]),
     ("list", ["templates", "motion", "voices", "--json"]),
 ])
@@ -33,5 +34,22 @@ def test_subcommand_help_is_complete(sub, must):
     for m in must:
         assert m in r.stdout, f"{sub} --help missing {m!r}"
     assert "exemplos:" in r.stdout and "simplicio-video " + sub in r.stdout
+    if sub == "venda":
+        return
     if sub != "list":
         assert "schema/contract.schema.json" in r.stdout
+
+
+@pytest.mark.parametrize("args,must", [
+    (("venda", "cobrar"), ["PASTA", "--preco", "120|80|60", "sem padrão", "copia-e-cola", "pix-qr.png", "Idempotente", "ABACATEPAY_API_KEY"]),
+    (("venda", "webhook"), ["serve", "ABACATEPAY_WEBHOOK_SECRET", "X-Webhook-Signature", "4xx", "127.0.0.1"]),
+    (("venda", "webhook", "serve"), ["--port", "--host", "--raiz"]),
+    (("venda", "entregar"), ["PASTA", "erro_entrega", "publish"]),
+    (("venda", "status"), ["lote", "slug"]),
+])
+def test_venda_subcommand_help(args, must):
+    r = run_cli(*args, "--help")
+    assert r.returncode == 0, r.stderr
+    for m in must:
+        assert m in r.stdout, f"{' '.join(args)} --help missing {m!r}"
+    assert "exemplo" in r.stdout

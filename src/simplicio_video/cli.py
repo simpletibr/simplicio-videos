@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, paths
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, paths, venda
 
 SCHEMA_REL = "schema/contract.schema.json"
 
@@ -27,6 +27,8 @@ Fluxo completo:
   run          tudo de uma vez: voice -> validate --need-lock -> render -> publish (dry-run sem --publish)
   prospect     venda ativa em massa (alias batch): lista.csv -> coleta pública -> contrato por setor -> voz local ->
                prévia 540x960 com marca d'água SimpleTI + lote.csv (docs/venda-ativa.md)
+  venda        depois da prévia aprovada: cobrança Pix (AbacatePay) -> webhook de pagamento -> render HD -> publish
+               (subcomandos cobrar | webhook serve | entregar | status; docs/venda-ativa.md)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
@@ -43,6 +45,7 @@ exemplos:
   simplicio-video publish clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --dry-run
   simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini --publish
   simplicio-video prospect prospects/exemplo-dia-criancas.csv --lote dia-criancas --jobs 1
+  simplicio-video venda cobrar prospects/dia-criancas/<slug> --preco 120   # Pix; o Wesley envia ao cliente
   simplicio-video render contract.yaml --preview          # 540x960, marca d'água SimpleTI (prévia de venda)
 
 ambiente:
@@ -261,6 +264,55 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--remote", help="remote rclone do Drive (padrão: gdrive)")
     p.add_argument("--json", action="store_true", help="resumo em JSON")
 
+    p = sub.add_parser("venda", formatter_class=Fmt, help="depois da prévia aprovada: cobrança Pix -> pagamento -> entrega HD no Drive",
+        description="Fluxo pós-aprovação da prévia (docs/venda-ativa.md, seção Cobrança e entrega). Estado em\n"
+                    "<prospect>/venda.json: cobranca_criada -> pago -> entregue | erro_entrega.\n"
+                    "  cobrar           cria a cobrança Pix (AbacatePay) com o preço que VOCÊ escolheu (120|80|60, sem padrão)\n"
+                    "  webhook serve    recebe o webhook de pagamento; pago => render final HD => publish no Drive => entregue\n"
+                    "  entregar         refaz só a entrega (render + publish) de uma venda paga ou em erro_entrega\n"
+                    "  status           tabela slug, preço, status e link\n"
+                    "O CLI nunca envia nada ao cliente. Credenciais só por ambiente: ABACATEPAY_API_KEY,\n"
+                    "ABACATEPAY_WEBHOOK_SECRET, SIMPLICIO_DRIVE_REMOTE. Pagamento confirmado = autorização do conselho para o\n"
+                    "publish automático DAQUELE vídeo, e só neste fluxo.",
+        epilog="exemplos:\n  simplicio-video venda cobrar prospects/dia-criancas/clinica-prata --preco 120\n"
+               "  simplicio-video venda webhook serve --port 8787\n"
+               "  simplicio-video venda entregar prospects/dia-criancas/clinica-prata\n"
+               "  simplicio-video venda status dia-criancas")
+    vs = p.add_subparsers(dest="vcmd", metavar="SUBCOMANDO", required=True)
+    vp = vs.add_parser("cobrar", formatter_class=Fmt, help="cria a cobrança Pix e imprime o copia-e-cola",
+        description="Cria a cobrança Pix transparente (POST /transparents/create, valor em centavos) e grava venda.json na pasta do\n"
+                    "prospect: preço, id da cobrança, copia-e-cola (brCode), QR em PNG (pix-qr.png), status=cobranca_criada.\n"
+                    "Idempotente: com cobrança existente não cria outra. Nada é enviado ao cliente: você envia o copia-e-cola/QR.\n"
+                    "Requer ABACATEPAY_API_KEY no ambiente.",
+        epilog="exemplos:\n  simplicio-video venda cobrar prospects/dia-criancas/clinica-prata --preco 120\n"
+               "  simplicio-video venda cobrar prospects/dia-criancas/pik-total --preco 80   # oferta Dia das Crianças, só se o cliente perguntar")
+    vp.add_argument("pasta", type=Path, metavar="PASTA", help="prospects/<lote>/<slug>")
+    vp.add_argument("--preco", type=int, required=True, choices=sorted(venda.PRECOS, reverse=True), metavar="120|80|60",
+                    help="preço em R$ (obrigatório, sem padrão): 120 cheio, 80 oferta Dia das Crianças, 60 após 3 dias sem fechar")
+    vp = vs.add_parser("webhook", formatter_class=Fmt, help="servidor do webhook de pagamento da AbacatePay",
+        description="`webhook serve` escuta POST /webhook/abacatepay?webhookSecret=..., valida o secret e a assinatura HMAC\n"
+                    "(X-Webhook-Signature), casa transparent.completed com venda.json pelo id da cobrança e marca pago; a entrega\n"
+                    "(render final + publish) roda em segundo plano. Evento repetido não faz nada; evento inválido/desconhecido = 4xx\n"
+                    "sem mudar estado. Requer ABACATEPAY_WEBHOOK_SECRET. Expor na internet (HTTPS) é tarefa de infra aprovada\n"
+                    "pelo conselho; por padrão escuta só em 127.0.0.1.",
+        epilog="exemplos:\n  simplicio-video venda webhook serve\n  simplicio-video venda webhook serve --port 9000 --raiz prospects/dia-criancas")
+    ws = vp.add_subparsers(dest="wcmd", metavar="serve", required=True)
+    wp = ws.add_parser("serve", formatter_class=Fmt, help="sobe o servidor do webhook",
+        description="Sobe o servidor do webhook (ver `venda webhook --help`).",
+        epilog="exemplo:\n  simplicio-video venda webhook serve --port 8787")
+    wp.add_argument("--port", type=int, default=8787, help="porta (padrão 8787)")
+    wp.add_argument("--host", default="127.0.0.1", help="endereço (padrão 127.0.0.1)")
+    wp.add_argument("--raiz", type=Path, help="pasta com os prospects (padrão: <plugin>/prospects)")
+    vp = vs.add_parser("entregar", formatter_class=Fmt, help="refaz a entrega (render final HD + publish) de uma venda paga",
+        description="Refaz só a entrega: render final HD do contract.yaml + publish no Drive (rclone, nunca sobrescreve). Só para\n"
+                    "status pago ou erro_entrega; grava entregue + link, ou erro_entrega + motivo.",
+        epilog="exemplo:\n  simplicio-video venda entregar prospects/dia-criancas/clinica-prata")
+    vp.add_argument("pasta", type=Path, metavar="PASTA", help="prospects/<lote>/<slug>")
+    vp = vs.add_parser("status", formatter_class=Fmt, help="tabela de vendas: slug, preço, status, link",
+        description="Lista as vendas (venda.json) de um lote ou de todos os prospects: slug, preço, status e link.",
+        epilog="exemplos:\n  simplicio-video venda status\n  simplicio-video venda status dia-criancas")
+    vp.add_argument("lote", nargs="?", help="nome do lote (padrão: todos)")
+
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
                     "video.publish, video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
@@ -314,6 +366,23 @@ def main(argv: list[str] | None = None) -> int:
         if a.json:
             print(json.dumps(res, indent=2, ensure_ascii=False))
         return 0 if res["erros"] == 0 else 1
+    if a.cmd == "venda":
+        try:
+            if a.vcmd == "cobrar":
+                venda.cobrar(a.pasta, a.preco)
+            elif a.vcmd == "webhook":
+                venda.serve(a.raiz or paths.home() / "prospects", host=a.host, port=a.port)
+            elif a.vcmd == "entregar":
+                v = venda.entregar(a.pasta)
+                print(f"{v['status']}: {v.get('link') or v.get('motivo')}")
+                return 0 if v["status"] == "entregue" else 1
+            else:
+                root = paths.home() / "prospects"
+                print(venda.tabela(venda.listar(root / a.lote if a.lote else root)))
+        except venda.VendaError as e:
+            print(f"venda: {e}", file=sys.stderr)
+            return 1
+        return 0
     if a.cmd == "mcp":
         from . import mcp_server
         mcp_server.main()

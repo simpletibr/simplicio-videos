@@ -54,6 +54,39 @@ simplicio-video render prospects/dia-criancas/<slug>/contract.yaml --preview   #
 
 Prévias, coletas e relatórios ficam **fora do git** (`prospects/*` no `.gitignore`, exceto o CSV de exemplo).
 
+## Cobrança e entrega (prévia aprovada → Pix → HD no Drive)
+
+Depois que o cliente aprova a prévia, o Wesley escolhe o preço (**R$ 120** cheio; **R$ 80** oferta Dia das Crianças, só se o
+cliente perguntar; **R$ 60** depois de 3 dias sem fechar). O código **nunca** aplica desconto sozinho: `--preco` é
+obrigatório e só aceita 120, 80 ou 60. O CLI **não envia nada ao cliente**: o Wesley manda o copia-e-cola/QR.
+
+```bash
+export ABACATEPAY_API_KEY=...            # só no ambiente (chave de teste até o KYC, SIM-116)
+simplicio-video venda cobrar prospects/<lote>/<slug> --preco 120   # Pix transparente; grava venda.json + pix-qr.png
+export ABACATEPAY_WEBHOOK_SECRET=...     # o mesmo secret cadastrado no webhook da AbacatePay
+simplicio-video venda webhook serve --port 8787                    # escuta em 127.0.0.1
+simplicio-video venda entregar prospects/<lote>/<slug>             # refaz só a entrega (status pago ou erro_entrega)
+simplicio-video venda status [<lote>]                              # slug, preço, status, link
+```
+
+Estado em `prospects/<lote>/<slug>/venda.json` (fora do git): `cobranca_criada` → `pago` → `entregue` (com `link` do Drive) ou
+`erro_entrega` (com `motivo`).
+
+- **Cobrança**: `POST https://api.abacatepay.com/v2/transparents/create` com `method: PIX` e `data.amount` em centavos
+  (12000 / 8000 / 6000). Precisa de chave com permissão de Pix transparente (SIM-112). Idempotente: com `venda.json`
+  existente não cria outra cobrança (preço diferente = erro).
+- **Webhook**: `POST /webhook/abacatepay?webhookSecret=...`. Valida o secret e a assinatura HMAC-SHA256 (`X-Webhook-Signature`,
+  chave pública da AbacatePay), casa `transparent.completed` (`data.transparent.id`, `status=PAID`, valor igual ao da cobrança)
+  com o `venda.json` e marca `pago`. Segredo/assinatura errados: 401; payload inválido: 400; evento de outro tipo ou valor
+  diferente: 422; cobrança desconhecida: 404, tudo sem mudar estado. Evento repetido: 200 sem fazer nada. A entrega roda em segundo plano.
+- **Entrega**: render final HD do `contract.yaml` do prospect + `publish` (rclone, nunca sobrescreve) em
+  `simplicio-video/clientes/<CLIENTE>/<ANO>/<CAMPANHA>`, arquivo `<CLIENTE> - <descricao> - vNN.mp4` (o " - Previa " do nome da prévia
+  sai). Não altera README de cliente. Falha de render/publish = `erro_entrega`; rode `venda entregar`.
+- **Segredos**: só por variável de ambiente; nada em `venda.json`, log ou saída do CLI (teste cobre).
+- **Fora daqui**: expor o webhook na internet (HTTPS/Funnel na VPS) precisa de aprovação do conselho; o servidor só escuta em
+  127.0.0.1 por padrão. O payload do webhook segue a doc da AbacatePay; o E2E em modo teste (cobrança + `simulate-payment` +
+  webhook local) fica pendente da chave da SIM-112.
+
 ## Limites
 
 - **Só dados públicos e leves**: uma página por site, `robots.txt` respeitado, sem login, sem burlar bloqueio, sem
