@@ -99,7 +99,12 @@ def _local(S: dict, text: str, dst: Path) -> None:
 
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+# SIMPLICIO_GEMINI_BASE: only for dry runs against a local mock (scripts/mock_gemini_tts.py); never a real key there.
 GEMINI_RETRY = (429, 500, 502, 503, 504)
+
+
+def gemini_base() -> str:
+    return os.environ.get("SIMPLICIO_GEMINI_BASE", "").rstrip("/") or GEMINI_BASE
 
 
 def gemini_request(S: dict, text: str) -> tuple[str, dict]:
@@ -116,14 +121,14 @@ def gemini_request(S: dict, text: str) -> tuple[str, dict]:
         body = {"contents": [{"role": "user", "parts": [part]}],
                 "generationConfig": {"responseModalities": ["AUDIO"],
                                      "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": S["voice"]}}}}}
-        return f"{GEMINI_BASE}/models/{S['model']}:generateContent", body
+        return f"{gemini_base()}/models/{S['model']}:generateContent", body
     content = {"type": "text", "text": text}
     if meta:
         content["annotations"] = [{"type": "speech_metadata", **meta}]
     body = {"model": S["model"], "input": [{"type": "user_input", "content": [content]}],
             "response_format": {"type": "audio", "mime_type": "audio/wav", "sample_rate": GEMINI_SR},
             "generation_config": {"speech_config": [{"voice": S["voice"]}]}}
-    return f"{GEMINI_BASE}/interactions", body
+    return f"{gemini_base()}/interactions", body
 
 
 def gemini_audio(res: dict) -> tuple[bytes, str]:

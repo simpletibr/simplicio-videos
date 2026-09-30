@@ -329,3 +329,10 @@ def test_waiting_row_writes_the_exact_lines_and_only_touches_selected_rows(tmp_p
     assert not (tmp_path / "lote" / "outra-loja").exists()  # --only: the other company is not touched
     rows = list(csv.DictReader(open(tmp_path / "lote" / "lote.csv", encoding="utf8")))
     assert [r["status"] for r in rows] == ["aguardando_voz", "nao_processado"]
+
+
+def test_site_logo_served_as_image_jpg_is_kept():
+    """Loja Integrada's CDN answers `image/jpg` (non-standard): the real logo must still be saved (Happily, 30/09/2026)."""
+    assert P.IMG_EXT["image/jpg"] == ".jpg"
+    import inspect
+    assert "IMG_EXT.get(" in inspect.getsource(P.collect_site)

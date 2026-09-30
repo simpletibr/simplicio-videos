@@ -412,7 +412,7 @@ def collect_site(url: str, f: Fetcher, dest: Path | None = None) -> dict:
     if dest is not None and logo and f.allowed(logo):  # logo kept for the paid video (never used/recreated in the preview)
         try:
             lst, _, lct, lb = f.get(logo, MAX_IMG)
-            ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/svg+xml": ".svg", "image/webp": ".webp"}.get(lct.split(";")[0].strip())
+            ext = IMG_EXT.get((lct or "").split(";")[0].strip().lower())  # incl. the non-standard image/jpg (Loja Integrada CDN)
             if lst < 400 and ext and lb:
                 dest.mkdir(parents=True, exist_ok=True)
                 (dest / f"logo{ext}").write_bytes(lb)
@@ -862,6 +862,10 @@ def write_licenses(pdir: Path, d: dict, coleta: dict):
         f"| Logo | {logo} | Marca de terceiro: só na prévia oferecida à própria empresa, nunca recriada |\n", encoding="utf8")
 
 
+VOICE_REGEN = int(os.environ.get("SIMPLICIO_VOICE_REGEN", "3"))  # new takes per line/variant before shortening
+VOICE_VARIANTS = {"vo3": 1, "vo4": 2}  # last variant index per line (setores.json vo3[0..1], campaign fala4 variants)
+
+
 def _voice_fit(pdir: Path, home: Path, campanha: str, row: dict, coleta: dict, provider: str, log) -> tuple[dict, dict]:
     from . import voice
     from .contract import load
@@ -873,7 +877,11 @@ def _voice_fit(pdir: Path, home: Path, campanha: str, row: dict, coleta: dict, p
         write_contract(pdir / "contract.yaml", d, row, meta)
         write_lines_sheet(pdir, d)
         raise
-    for _ in range(4):
+    # a take longer than its slot is never sped up: regenerate that line (Gemini takes vary) up to VOICE_REGEN times,
+    # then fall to the next shorter variant of the text (vo3/vo4, fixed order); anything else stops with the reason.
+    regen: dict = {}
+    only = None
+    for _ in range(4 * (VOICE_REGEN + 1)):
         d, meta = build_contract(home, campanha, row, coleta, prov, variant)
         if prov == "file" and provider == "gemini":
             d["voz"]["voice"] = d["voz"]["providers"]["gemini"]["voice"]
@@ -884,17 +892,28 @@ def _voice_fit(pdir: Path, home: Path, campanha: str, row: dict, coleta: dict, p
         write_contract(pdir / "contract.yaml", d, row, meta)
         c = load(pdir / "contract.yaml")
         try:
-            voice.run(c, log=log)
+            voice.run(c, only=only, log=log)
+            if regen:
+                meta["voz_regeneradas"] = {k: v for k, v in regen.items() if v}
             return d, meta
         except voice.VoiceError as e:
             over = re.findall(r"(vo\d):", str(e))
-            if not over or not set(over) <= {"vo3", "vo4"} or prov == "file":  # fixed takes: shorter text needs a new take
+            if not over or prov == "file":  # fixed takes (AI Studio): a shorter text needs a new take
                 raise
+            only = []
             for v in over:
-                variant[v] += 1
-            if variant["vo3"] > 1 or variant["vo4"] > 2:
-                raise
-            log(f"voz: {', '.join(over)} maior que o slot -> variante mais curta {variant}")
+                key = f"{v}@{variant.get(v, 0)}"
+                if regen.get(key, 0) < VOICE_REGEN:
+                    regen[key] = regen.get(key, 0) + 1
+                    only.append(v)
+                    log(f"voz: {v} maior que o slot -> nova leva ({regen[key]}/{VOICE_REGEN}), sem acelerar")
+                elif v in variant and variant[v] < VOICE_VARIANTS[v]:
+                    variant[v] += 1
+                    only.append(v)
+                    log(f"voz: {v} ainda longa após {VOICE_REGEN} levas -> variante mais curta {variant}")
+                else:
+                    raise voice.VoiceError(f"{v}: fala maior que o slot após {VOICE_REGEN} levas por variante "
+                                           f"(nunca acelera): {str(e).splitlines()[-1].strip()}") from None
     raise SystemExit("voice did not fit")
 
 

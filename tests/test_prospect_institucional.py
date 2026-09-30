@@ -300,3 +300,42 @@ def test_no_template_output_mentions_simpleti(tid, tmp_path):
     d, meta = P.build_contract(ROOT, tid, row, _coleta())
     assert not OLD_BRAND.search(yaml.safe_dump(d, allow_unicode=True)), tid
     assert not OLD_BRAND.search((ROOT / "templates" / tid / "composition" / "index.template.html").read_text(encoding="utf8"))
+
+
+# --- batch voice via the Gemini API: bounded regeneration, never speed-up (mock server, no network) ---
+def _mock_server(overlong_first, log):
+    import socket
+    import threading
+    from simplicio_video import mock_gemini
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    threading.Thread(target=mock_gemini.serve, args=(port, overlong_first, str(log)), daemon=True).start()
+    import time
+    for _ in range(50):
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+            break
+        except OSError:
+            time.sleep(0.05)
+    return f"http://127.0.0.1:{port}/v1beta"
+
+
+def test_gemini_overlong_take_is_regenerated_not_sped_up(tmp_path, monkeypatch):
+    log = tmp_path / "mock.jsonl"
+    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", _mock_server(1, log))
+    monkeypatch.setenv("GEMINI_API_KEY", "mock-not-a-key")
+    pdir = tmp_path / "sorriso"
+    pdir.mkdir()
+    row = {"nome": "Clínica Sorriso", "cidade": "Guarulhos-SP", "setor": "odontologia"}
+    msgs = []
+    d, meta = P._voice_fit(pdir, ROOT, "sazonal-dia-das-criancas", row, _coleta(), "gemini", msgs.append)
+    calls = [json.loads(x) for x in log.read_text().splitlines()]
+    assert calls[0]["overlong"] and calls[0]["text"] == d["cenas"][0]["fala"]["texto"]
+    assert len(calls) == 5 and calls[4]["text"] == calls[0]["text"]  # 4 lines + 1 regeneration of vo1
+    assert {c["voice"] for c in calls} == {"Laomedeia"} and {c["model"] for c in calls} == {"gemini-3.8-flash-tts"}
+    assert all("animada" in c["style"] for c in calls)
+    assert meta["voz_regeneradas"] == {"vo1@0": 1} and any("nova leva" in m for m in msgs)
+    lock = json.loads((pdir / "timing.lock.json").read_text())
+    assert all(v["fits"] for v in lock["lines"].values())
