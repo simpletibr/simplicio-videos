@@ -137,7 +137,8 @@ def test_contract_is_valid_deterministic_and_has_no_invented_facts(tmp_path):
     assert blocks["s2-main"]["padrao"] == "icon-mascot" and blocks["s2-main"]["params"]["icon"] == "gift"
     assert blocks["s4-lockup"]["params"]["handle"] == "@brincamais.gru" and blocks["s4-lockup"]["params"]["city"] == "Guarulhos · SP"
     assert d1["cenas"][3]["fala"]["texto"] == "Com carinho, Brinca Mais."
-    assert d1["voz"]["provider"] == "local"
+    assert d1["voz"]["provider"] == "gemini" and d1["voz"]["providers"]["gemini"]["voice"] == "Puck"  # standard v2
+    assert m1["padrao"] == P.PADRAO and m1["logo"] is None and blocks["s4-lockup"]["params"]["logo"] == ""  # no real logo -> text
     txt = yaml.safe_dump(d1, allow_unicode=True).lower()
     for bad in ("r$", "promo", "desconto", "grátis", "gratis", "%"):
         assert bad not in txt
@@ -188,9 +189,15 @@ def test_batch_so_contrato_report_and_resume(tmp_path, monkeypatch):
     # resume: an existing ok preview is skipped without touching the network
     d = tmp_path / "lote" / "brinca-mais"
     (d / "preview.mp4").write_bytes(b"x")
-    (d / "result.json").write_text(json.dumps({"nome": "Brinca Mais", "slug": "brinca-mais", "status": "ok", "timings_s": {"total": 1}}))
+    (d / "result.json").write_text(json.dumps({"nome": "Brinca Mais", "slug": "brinca-mais", "status": "ok", "padrao": P.PADRAO,
+                                               "timings_s": {"total": 1}}))
     r = P.process({"nome": "Brinca Mais"}, "brinca-mais", tmp_path / "lote", ROOT, P.Fetcher(opener=fake_opener({})))
     assert r["pulado"] and r["status"] == "ok"
+    # a preview of an older standard (v1 = no "padrao") is NOT skipped: it is redone with the current standard
+    (d / "result.json").write_text(json.dumps({"nome": "Brinca Mais", "slug": "brinca-mais", "status": "ok", "timings_s": {"total": 1}}))
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    r = P.process({"nome": "Brinca Mais"}, "brinca-mais", tmp_path / "lote", ROOT, P.Fetcher(opener=fake_opener({})))
+    assert not r.get("pulado") and r["status"] == "aguardando_voz" and (d / "preview.mp4").read_bytes() == b"x"
 
 
 def test_preview_filter_has_watermark_and_end_card(tmp_path):
@@ -208,3 +215,112 @@ def test_cli_help_mentions_prospect():
     assert run_cli("batch", "--help").returncode == 0
     r = run_cli("render", "--help")
     assert "--preview" in r.stdout and "simpleti.com.br" in r.stdout
+
+
+# ------------------------------------------------------------------ standard v2 (pilot All Prime, 30/09/2026)
+def _png(tmp_path, w=240, h=240, name="logo-src.png"):
+    import subprocess
+    out = tmp_path / name
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"color=c=0xb87333:s={w}x{h}", "-frames:v", "1", str(out)], check=True)
+    return out.read_bytes()
+
+
+def test_standard_v2_is_the_default_lothus_pacing_puck_voice_same_track():
+    base = yaml.safe_load((ROOT / "templates/sazonal-dia-das-criancas/contract.base.yaml").read_text(encoding="utf8"))
+    lothus = yaml.safe_load((ROOT / "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml").read_text(encoding="utf8"))
+    v = base["voz"]
+    assert P.DEFAULT_PROVIDER == "gemini" and v["provider"] == "gemini" and v["voice"] == "Puck"
+    assert v["providers"]["gemini"] == {**v["providers"]["gemini"], "model": "gemini-3.8-flash-tts", "voice": "Puck"}
+    assert "animado" in v["providers"]["gemini"]["estilo"] and "energia alta" in v["providers"]["gemini"]["estilo"]
+    assert base["trilha"] == lothus["trilha"]  # same festive 128 BPM track as Lothus v02
+    motion = [m for s in base["cenas"] for m in s["motion"]]
+    fx = [m for m in motion if m["padrao"] == "fx-transition"]
+    assert len(fx) == len(base["cenas"]) and all(6 <= m["params"]["frames"] <= 10 for m in fx)  # fast cuts, 6-10 frames
+    assert sum(m["padrao"] in ("balloons-confetti", "beat-burst") for m in motion) >= 6  # confetti in every scene
+    words = [m for m in motion if m["padrao"] == "kinetic-words"]
+    assert [m["params"]["times"] for m in words] == [f"{{{{words:vo{i}}}}}" for i in range(1, 5)]  # word by word, on the voice
+    import argparse  # CLI default follows the standard
+    from simplicio_video import cli
+    ap = cli.build_parser() if hasattr(cli, "build_parser") else None
+    if isinstance(ap, argparse.ArgumentParser):
+        assert ap.parse_args(["prospect", "x.csv"]).provider == "gemini"
+
+
+def test_real_logo_from_site_goes_into_the_lockup(tmp_path):
+    pages = {**PAGES, "https://brinca.example/img/logo.png": (_png(tmp_path, 400, 160), "image/png")}
+    f = P.Fetcher(opener=fake_opener(pages))
+    pdir = tmp_path / "brinca-mais"
+    row = {"nome": "Brinca Mais", "cidade": "Guarulhos-SP", "setor": "loja de brinquedos", "site": "brinca.example"}
+    c = P.collect(row, f, pdir / "coleta")
+    lg = c["logo"]
+    assert lg["status"] == "ok" and lg["origem"] == "site" and lg["url"] == "https://brinca.example/img/logo.png"
+    assert lg["arquivo"] == "logo.png" and (lg["largura"], lg["altura"]) == (400, 160) and (pdir / "coleta" / "logo.png").is_file()
+    d, m = P.build_contract(ROOT, "dia-das-criancas", row, c)
+    lp = next(mm["params"] for s in d["cenas"] for mm in s["motion"] if mm.get("bloco") == "s4-lockup")
+    assert d["marca"]["logo"] == {"arquivo": "coleta/logo.png", "destino": "assets/client/logo.png"}
+    assert lp["logo"] == "assets/client/logo.png" and lp["logo_round"] == 0 and lp["logo_size"] == 330  # wide: not cropped
+    assert m["logo"]["origem"] == "site"
+    P.write_contract(pdir / "contract.yaml", d, row, m)
+    rep = ct.validate(ct.load(pdir / "contract.yaml"))
+    assert rep.ok, rep.errors
+    cc = ct.load(pdir / "contract.yaml")
+    lock = {"provider": "gemini", "lines": {l["id"]: {"words": [{"w": w, "t": 0.1 * i, "end": 0.1 * i + 0.1}
+                                                               for i, w in enumerate(l["texto"].split())]} for l in cc.lines()}}
+    cc.data["voz"]["habilitada"] = False
+    compile_project(cc, tmp_path / "wd", lock)
+    assert (tmp_path / "wd" / "assets/client/logo.png").is_file()
+
+
+def test_logo_is_never_invented(tmp_path):
+    # undecodable/too small file = no logo; Instagram avatar never fetched when robots.txt disallows
+    tiny = _png(tmp_path, 32, 32, "tiny.png")
+    pages = {**PAGES, "https://brinca.example/img/logo.png": (tiny, "image/png")}
+    op = fake_opener(pages)
+    c = P.collect({"nome": "Brinca Mais", "site": "brinca.example"}, P.Fetcher(opener=op), tmp_path / "x" / "coleta")
+    assert c["logo"]["arquivo"] is None and c["logo"]["status"].startswith("nao_encontrado")
+    assert not any("cdninstagram" in u for u, _ in op.calls)
+    d, m = P.build_contract(ROOT, "dia-das-criancas", {"nome": "Brinca Mais"}, c)
+    assert d["marca"]["logo"] is None and m["logo"] is None
+
+
+def test_logo_from_csv_column_hand_picked_from_instagram(tmp_path):
+    src = tmp_path / "avatar.jpg"
+    src.write_bytes(_png(tmp_path, 100, 100))
+    row = {"nome": "All Prime Odontologia", "setor": "odontologia", "logo": str(src),
+           "logo_fonte": "https://www.instagram.com/aprimeodonto/ (foto de perfil pública)"}
+    c = P.collect(row, P.Fetcher(opener=fake_opener(PAGES)), tmp_path / "ap" / "coleta")
+    assert c["logo"]["origem"] == "csv" and c["logo"]["fonte"].startswith("https://www.instagram.com/aprimeodonto/")
+    d, m = P.build_contract(ROOT, "dia-das-criancas", row, c)
+    lp = next(mm["params"] for s in d["cenas"] for mm in s["motion"] if mm.get("bloco") == "s4-lockup")
+    assert lp["logo_round"] == 1 and lp["logo"] == "assets/client/logo.png" and lp["logo_size"] == 440
+
+
+def test_voice_waits_for_puck_takes_without_api_key(tmp_path, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    pdir = tmp_path / "x"
+    pdir.mkdir()
+    with pytest.raises(P.AguardandoVoz):
+        P.resolve_provider(pdir, "gemini")
+    assert P.resolve_provider(pdir, "local") == "local"
+    ext = pdir / "assets/audio/vo/external"
+    ext.mkdir(parents=True)
+    for i in range(1, 5):
+        (ext / f"line-{i:02d}.wav").write_bytes(b"RIFF")
+    assert P.resolve_provider(pdir, "gemini") == "file"
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    assert P.resolve_provider(tmp_path, "gemini") == "gemini"
+
+
+def test_waiting_row_writes_the_exact_lines_and_only_touches_selected_rows(tmp_path, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    lst = tmp_path / "lista.csv"
+    lst.write_text("nome,cidade,setor,instagram\nSorriso Kids,Guarulhos-SP,odontopediatria,@sorrisokids\n"
+                   "Outra Loja,Guarulhos-SP,loja de brinquedos,@outra\n", encoding="utf8")
+    s = P.run_batch(lst, out=tmp_path / "lote", fetcher=P.Fetcher(opener=fake_opener(PAGES)), only=["sorriso-kids"],
+                    log=lambda *_: None)
+    assert s["aguardando_voz"] == 1 and s["erros"] == 0 and s["padrao"] == P.PADRAO
+    sheet = (tmp_path / "lote" / "sorriso-kids" / "falas-gemini.md").read_text(encoding="utf8")
+    assert "Puck" in sheet and "gemini-3.8-flash-tts" in sheet and "Com carinho, Sorriso Kids." in sheet and "line-04.wav" in sheet
+    assert not (tmp_path / "lote" / "outra-loja").exists()  # --only: the other company is not touched
+    rows = list(csv.DictReader(open(tmp_path / "lote" / "lote.csv", encoding="utf8")))
+    assert [r["status"] for r in rows] == ["aguardando_voz", "nao_processado"]

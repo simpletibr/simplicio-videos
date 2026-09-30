@@ -9,12 +9,20 @@ Tudo determinístico: nenhuma chamada de LLM por vídeo; mesma lista + mesma col
 simplicio-video prospect lista.csv --lote dia-criancas            # saída em prospects/dia-criancas/
 simplicio-video prospect lista.csv --out /caminho/lote --jobs 2    # outra pasta, 2 empresas em paralelo
 simplicio-video batch lista.csv --so-contrato                      # alias; só coleta + contract.yaml (sem voz/render)
+simplicio-video prospect lista.csv --lote dia-criancas --only <slug>       # refaz só uma empresa (piloto); as outras ficam intactas
 simplicio-video render prospects/dia-criancas/<slug>/contract.yaml --preview   # refaz uma prévia
 ```
 
+**Padrão atual: v2** (definido no piloto All Prime Odontologia, 30/09/2026) — voz **Gemini 3.8 Flash TTS, Puck, leva animada**;
+**logo real** da empresa no anel da assinatura; ritmo da Lothus v02 (cortes na batida de 128 BPM, transições de 6–10 frames,
+confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha festiva** da Lothus v02 (`trilha` idêntica, semente
+`20261012`). O `result.json` grava `padrao`; prévia de padrão antigo é guardada como `preview.v1.mp4` e refeita.
+
 1. **CSV** (UTF-8 com cabeçalho; só `nome` é obrigatório):
-   `nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes`. `nome_curto` é o nome da marca no lockup e
-   na fala ("Clínica Prata", "Pik Total"); `fontes` diz onde cada dado foi achado (busca web, site, página do shopping).
+   `nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes, logo, logo_fonte`. `nome_curto` é o nome da marca
+   no lockup e na fala ("Clínica Prata", "Pik Total"); `fontes` diz onde cada dado foi achado (busca web, site, página do shopping);
+   `logo` = caminho (relativo ao CSV) ou URL do **logo real** tirado à mão do site ou do Instagram da própria empresa e
+   `logo_fonte` = a página de onde veio (ex.: foto de perfil pública do Instagram quando o site está fora do ar).
    Exemplo versionado: [`prospects/exemplo-dia-criancas.csv`](../prospects/exemplo-dia-criancas.csv).
 2. **Coleta** (`coleta.json`), pública e leve, com o agente `SimplicioVideoBot/<versão> (+https://simpleti.com.br)`:
    - site: só a página inicial (+ `robots.txt`, até 2 CSS do mesmo domínio e o arquivo do logo): `title`/`description`/
@@ -32,12 +40,19 @@ simplicio-video render prospects/dia-criancas/<slug>/contract.yaml --preview   #
 4. **Contrato** (`contract.yaml`): [`contract.base.yaml`](../templates/sazonal-dia-das-criancas/contract.base.yaml) (a
    coreografia da Lothus v02: 16 s, 128 BPM, cortes na batida, `fx-transition`, confete, `kinetic-words` palavra a palavra
    no tempo da fala) + o modelo do setor (mascote `tooth-character`/`icon-mascot`, frase da s3) + os dados reais: nome,
-   @ do Instagram, cidade e a cor do site (ajustada para contraste ≥ 3:1 com texto branco). As falas são genéricas da data
-   e do setor: **nunca** preço, promoção, prazo, garantia, avaliação ou qualquer fato que não esteja na coleta. O logo não
-   é recriado (lockup de texto); o arquivo coletado fica em `coleta/` para o vídeo pago.
-5. **Voz**: `local` (Kokoro `pf_dora`, custo 0) é o padrão da prévia; `--provider gemini` usa a API (`GEMINI_API_KEY`).
+   @ do Instagram, cidade, logo e a cor do site (ajustada para contraste ≥ 3:1 com texto branco). As falas são genéricas da data
+   e do setor: **nunca** preço, promoção, prazo, garantia, avaliação ou qualquer fato que não esteja na coleta.
+   **Logo real** (nunca gerado, redesenhado ou inventado), nesta ordem: coluna `logo` do CSV > logo do site (`<img>` com "logo"
+   ou `apple-touch-icon`) > avatar do Instagram (só se o robots.txt permitir, hoje nunca). Vira `coleta/logo.png` (só conversão
+   de formato, mínimo 64 px) e entra no anel do `brand-lockup-soft` (redondo 440 px se for quase quadrado; 330 px sem cortar se
+   for largo). Origem, URL e página ficam em `coleta.json → logo` e em `lote.csv` (`logo`, `logo_fonte`). Sem logo real = lockup de texto.
+5. **Voz (padrão v2)**: Gemini 3.8 Flash TTS, voz **Puck**, estilo animado ("locutor brasileiro animado de festa infantil:
+   energia alta, sorrindo…"). Com `GEMINI_API_KEY` o CLI gera pela API (e guarda os WAVs em `assets/audio/vo/external/`);
+   sem chave, usa as falas do Google AI Studio já salvas em `<slug>/assets/audio/vo/external/line-01..04.wav` (provider
+   `file`); sem nenhuma das duas, a linha fica `aguardando_voz` e o CLI escreve `<slug>/falas-gemini.md` com o texto exato de
+   cada fala, voz, estilo e duração máxima. `--provider local` (Kokoro `pf_dora`, custo 0) é só rascunho, fora do padrão.
    Se uma fala estourar o slot, o CLI troca para a variante mais curta (frase curta do setor; nome curto; primeiro nome
-   da marca), em ordem fixa. Nunca acelera a voz.
+   da marca), em ordem fixa (com a API; com falas fixas do AI Studio, gere uma leva mais curta). Nunca acelera a voz.
 6. **Prévia** (`render --preview`): render local `draft` → pós-processo ffmpeg determinístico: 540x960, 30 fps, x264
    crf 30, AAC 96 kb/s; marca d'água "Prévia • SimpleTI • simpleti.com.br" em linhas diagonais (−30°, 20 % de opacidade,
    contorno escuro) cobrindo o quadro inteiro + selo "PRÉVIA · simpleti.com.br" em dois cantos opostos (cortar um canto não
@@ -72,10 +87,10 @@ Prévias, coletas e relatórios ficam **fora do git** (`prospects/*` no `.gitign
 | Item | Custo |
 |---|---|
 | Coleta (1 página + robots + CSS) | R$ 0 |
-| Voz `local` (Kokoro) | R$ 0 |
+| Voz `gemini` Puck (padrão v2; 4 falas ≈ 130 caracteres) | ≈ US$ 0,003 (≈ R$ 0,02) pela API; R$ 0 no AI Studio/tier grátis, ver [custos.md](custos.md) |
 | Render local (draft) + pós-processo | R$ 0 (só energia/CPU da máquina) |
-| **Total com voz local** | **R$ 0** |
-| Opcional: voz `gemini` (4 falas ≈ 130 caracteres) | ≈ US$ 0,003 (≈ R$ 0,02), ver [custos.md](custos.md) |
+| **Total (padrão v2)** | **≈ R$ 0,02** |
+| Rascunho com voz `local` (Kokoro, fora do padrão) | R$ 0 |
 
 Tempo medido no piloto (8 vCPU, `--jobs 1`): **~99 s por prévia**, 10 prévias em 16 min 32 s.
 
@@ -104,6 +119,21 @@ simplicio-video prospect /workspace/prospects-piloto/dia-criancas/lista.csv --lo
 | ShopKids Guarulhos | moda-infantil | @shopkids_gru (csv confirmado no site) | coletado (site) | ok | 97.65 s |
 
 Os números de WhatsApp ficam só no `lote.csv` do piloto (fora do git). Fontes completas por empresa na coluna `fontes` de `lista.csv`/`lote.csv` (busca web de 30/09/2026 + o próprio site). Falhas de coleta: All Prime Odontologia (domínio não resolveu no DNS na hora da coleta; @ e WhatsApp vieram do conteúdo do site indexado pela busca); Pikoki Diversões (sem site próprio: dados da página da loja no Shopping Bonsucesso); Instagram de todas: não coletado automaticamente (robots.txt do instagram.com proíbe robôs). Substituições durante o piloto: Clínica Prata e Game Velho saíram porque o @ não aparecia em fonte primária (entraram Aurea Odontologia e GuaruSmart, com @ e WhatsApp linkados no site).
+
+## Piloto do padrão v2 — All Prime Odontologia (30/09/2026)
+
+Refeita **só** a prévia da All Prime (as outras 9 continuam v1 até o Wesley aprovar o piloto):
+
+```bash
+simplicio-video prospect /workspace/prospects-piloto/dia-criancas/lista.csv --lote dia-criancas \
+  --out /workspace/prospects-piloto/dia-criancas --only all-prime-odontologia
+```
+
+- Logo: o site do CSV (`allprimeodontologia.com.br`) e o da listagem de mapa (`allprimeodonto.com.br`) dão NXDOMAIN e não têm
+  cópia no Wayback; o logo real veio da **foto de perfil pública do Instagram** @aprimeodonto (100x100, arte "All PRIME —
+  Odontologia Especializada"), baixada uma vez à mão e registrada na coluna `logo`/`logo_fonte` do `lista.csv`.
+- Voz: sem `GEMINI_API_KEY` no box, a linha fica `aguardando_voz` até as 4 falas Puck do AI Studio entrarem em
+  `all-prime-odontologia/assets/audio/vo/external/` (lista exata em `falas-gemini.md`); aí o mesmo comando renderiza.
 
 ## Script de abordagem sugerido (o Wesley envia; nada automático)
 

@@ -49,8 +49,20 @@
     {
       "id": "logo",
       "type": "string",
-      "label": "Logo (caminho; vazio = só texto)",
+      "label": "Logo REAL do cliente (caminho; vazio = só texto; nunca recriar)",
       "default": ""
+    },
+    {
+      "id": "logo_round",
+      "type": "number",
+      "label": "Logo em círculo (1 = avatar/selo redondo; 0 = logo largo, sem cortar)",
+      "default": 1
+    },
+    {
+      "id": "logo_size",
+      "type": "number",
+      "label": "Lado do logo em px, centrado no anel (300 = padrão; até 440 redondo, até 330 largo)",
+      "default": 300
     },
     {
       "id": "ink",

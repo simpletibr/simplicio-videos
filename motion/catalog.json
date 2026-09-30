@@ -319,6 +319,8 @@
         "handle",
         "city",
         "logo",
+        "logo_round",
+        "logo_size",
         "ink",
         "accent",
         "colors",

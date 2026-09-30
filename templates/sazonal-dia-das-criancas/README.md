@@ -8,7 +8,7 @@ generalizada para qualquer empresa com público de pais e crianças. Usada por `
 | Arquivo | O que é |
 |---|---|
 | `composition/index.template.html` | composição; o bloco principal de s2/s3 vem do contrato via `{{padrao:s2-main}}` / `{{padrao:s3-main}}` |
-| `contract.base.yaml` | contrato-base (cenas, SFX, trilha festiva 128 BPM, voz local Kokoro `pf_dora`) que o prospect preenche |
+| `contract.base.yaml` | contrato-base (cenas, SFX, trilha festiva 128 BPM idêntica à da Lothus v02, voz Gemini 3.8 Flash TTS **Puck** animada = padrão v2) que o prospect preenche |
 | `setores.json` | regras setor → modelos (regex determinístico) e os textos por setor, sem preço/promoção/fato |
 
 | Cena | Papel | Duração | Conteúdo |
@@ -16,8 +16,11 @@ generalizada para qualquer empresa com público de pais e crianças. Usada por `
 | s1 | saudação | 2,8125 s | balões + confete, "Feliz / Dia das / Crianças!" (igual para todos) |
 | s2 | mascote | 4,21875 s | odontologia: `tooth-character`; demais: `icon-mascot` com o ícone do setor · "Hoje é dia de brincar, sorrir e se divertir!" |
 | s3 | frase do setor | 4,6875 s | odontologia: `toothbrush-sparkle`; demais: `icon-mascot` (2º ícone) · frase de `setores.json` |
-| s4 | assinatura | 4,28125 s | `brand-lockup-soft` (nome real, subtítulo, @ do Instagram, cidade, cor do site) · "Com carinho, {nome}." |
+| s4 | assinatura | 4,28125 s | `brand-lockup-soft` (**logo real** no anel quando houver — site/Instagram da empresa, `logo_round`/`logo_size` —, senão nome + subtítulo; @ do Instagram, cidade, cor do site) · "Com carinho, {nome}." |
 
 Setores: odontologia, pediatria, escola (escola infantil, berçário, cursos), brinquedos, festas (buffet, parque), games,
-moda infantil e `geral` (sem regra casada). Nunca recria o logo: lockup de texto; o logo coletado fica em `coleta/` para o
-vídeo pago.
+moda infantil e `geral` (sem regra casada). Nunca recria o logo: só entra o arquivo real (coluna `logo` do CSV, logo do site ou
+avatar do Instagram quando o robots.txt permitir), convertido para `coleta/logo.png`; sem ele, lockup de texto.
+
+**Padrão v2** (30/09/2026, piloto All Prime Odontologia): voz Puck animada + logo real + ritmo/confete/palavra a palavra da Lothus v02.
+A prévia registra `padrao` no `result.json`; o `prospect` refaz prévias de padrão antigo (guardando `preview.v1.mp4`).
