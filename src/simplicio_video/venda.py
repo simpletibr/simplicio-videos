@@ -34,6 +34,7 @@ ENV_WEBHOOK_SECRET = "ABACATEPAY_WEBHOOK_SECRET"
 ABACATEPAY_PUBLIC_KEY = ("t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7"
                          "RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyz"
                          "GEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9")
+EXPIRES_IN = 86400  # seconds; explicit (AbacatePay's default is 30 min) so the copia-e-cola survives a day of negotiation
 VENDA = "venda.json"
 QR = "pix-qr.png"
 PAID_EVENT = "transparent.completed"
@@ -84,6 +85,14 @@ def save_venda(pdir: Path, v: dict) -> None:
     tmp.replace(pdir / VENDA)
 
 
+def _expirada(v: dict) -> bool:
+    try:
+        exp = dt.datetime.fromisoformat(str(v["expira_em"]).replace("Z", "+00:00"))
+    except (KeyError, ValueError):
+        return False
+    return exp <= dt.datetime.now(dt.timezone.utc)
+
+
 def _norm_id(i: str) -> str:
     return re.sub(r"^pix_", "", i or "")
 
@@ -96,7 +105,11 @@ def cobrar(pdir: Path, preco: int, http: Http | None = None, log=print) -> dict:
     if not (pdir / "contract.yaml").is_file():
         raise VendaError(f"{pdir}: sem contract.yaml (esperado prospects/<lote>/<slug>)")
     v = load_venda(pdir)
-    if v:
+    anteriores: list[str] = []
+    if v and v["status"] == "cobranca_criada" and _expirada(v):
+        anteriores = [*v.get("cobrancas_anteriores", []), v["cobranca_id"]]
+        log(f"cobrança {v['cobranca_id']} venceu sem pagamento; criando uma nova.")
+    elif v:
         if v["preco"] != preco:
             raise VendaError(f"já existe cobrança de R$ {v['preco']} ({v['status']}) em {pdir}; não crio outra de R$ {preco}")
         log(f"cobrança já existe ({v['status']}); nada criado.")
@@ -105,7 +118,7 @@ def cobrar(pdir: Path, preco: int, http: Http | None = None, log=print) -> dict:
     key = os.environ.get(ENV_KEY)
     if not key:
         raise VendaError(f"defina {ENV_KEY} no ambiente (nunca em arquivo do repo)")
-    body = {"method": "PIX", "data": {"amount": PRECOS[preco], "description": f"Video SimpleTI - {pdir.name}",
+    body = {"method": "PIX", "data": {"amount": PRECOS[preco], "expiresIn": EXPIRES_IN, "description": f"Video SimpleTI - {pdir.name}",
                                       "metadata": {"prospect": pdir.name}}}
     status, resp = (http or _http)("POST", f"{API_BASE}/transparents/create", {"Authorization": f"Bearer {key}"}, body)
     d = (resp or {}).get("data") or {}
@@ -117,6 +130,8 @@ def cobrar(pdir: Path, preco: int, http: Http | None = None, log=print) -> dict:
     v = {"slug": pdir.name, "preco": preco, "valor_centavos": PRECOS[preco], "cobranca_id": d["id"], "br_code": d["brCode"],
          "qr_png": QR if qr else None, "expira_em": d.get("expiresAt"), "dev_mode": d.get("devMode"),
          "status": "cobranca_criada", "criado_em": _now(), "pago_em": None, "entregue_em": None, "link": None, "motivo": None}
+    if anteriores:
+        v["cobrancas_anteriores"] = anteriores
     save_venda(pdir, v)
     _print_cobranca(pdir, v, log)
     return v

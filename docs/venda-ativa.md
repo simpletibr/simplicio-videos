@@ -63,6 +63,7 @@ obrigatório e só aceita 120, 80 ou 60. O CLI **não envia nada ao cliente**: o
 ```bash
 export ABACATEPAY_API_KEY=...            # só no ambiente (chave de teste até o KYC, SIM-116)
 simplicio-video venda cobrar prospects/<lote>/<slug> --preco 120   # Pix transparente; grava venda.json + pix-qr.png
+# cobrança não paga vence em 24h (expiresIn explícito); rodar `cobrar` de novo depois de vencida cria outra (aceita outro --preco) e guarda o id antigo em cobrancas_anteriores
 export ABACATEPAY_WEBHOOK_SECRET=...     # o mesmo secret cadastrado no webhook da AbacatePay
 simplicio-video venda webhook serve --port 8787                    # escuta em 127.0.0.1
 simplicio-video venda entregar prospects/<lote>/<slug>             # refaz só a entrega (status pago ou erro_entrega)

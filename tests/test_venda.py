@@ -15,7 +15,7 @@ WH = "whsec-test-456"
 PNG = base64.b64encode(b"\x89PNG\r\n\x1a\nfake").decode()
 CREATE_OK = {"data": {"id": "pix_char_abc123xyz", "amount": 12000, "status": "PENDING", "devMode": True,
                       "brCode": "00020160014BR.GOV.BCB.PIX070503***6304ABCD", "brCodeBase64": f"data:image/png;base64,{PNG}",
-                      "expiresAt": "2026-10-01T10:00:00.000Z"}, "success": True, "error": None}
+                      "expiresAt": "2099-01-01T10:00:00.000Z"}, "success": True, "error": None}
 
 
 @pytest.fixture(autouse=True)
@@ -77,6 +77,51 @@ def test_cobrar_idempotente_e_nao_troca_preco(pdir):
     assert len(h.calls) == 1
     with pytest.raises(venda.VendaError):
         venda.cobrar(pdir, 60, http=h)
+    assert len(h.calls) == 1
+
+
+def test_cobrar_envia_expires_in_explicito(pdir):
+    h = FakeHttp()
+    venda.cobrar(pdir, 120, http=h)
+    assert h.calls[0][3]["data"]["expiresIn"] == venda.EXPIRES_IN == 86400
+
+
+def _vencer(pdir):
+    v = venda.load_venda(pdir)
+    v["expira_em"] = "2020-01-01T00:00:00.000Z"
+    venda.save_venda(pdir, v)
+
+
+def test_cobranca_vencida_gera_nova_guardando_id_anterior_e_aceita_novo_preco(pdir):
+    h = FakeHttp()
+    venda.cobrar(pdir, 120, http=h)
+    _vencer(pdir)
+    novo = {"data": {**CREATE_OK["data"], "id": "pix_char_novo", "amount": 6000}, "success": True, "error": None}
+    h2 = FakeHttp((200, novo))
+    v = venda.cobrar(pdir, 60, http=h2)
+    assert len(h2.calls) == 1 and h2.calls[0][3]["data"]["amount"] == 6000
+    on_disk = venda.load_venda(pdir)
+    assert on_disk["cobranca_id"] == "pix_char_novo" and on_disk["preco"] == 60 and v["status"] == "cobranca_criada"
+    assert on_disk["cobrancas_anteriores"] == ["pix_char_abc123xyz"]
+
+
+def test_cobranca_vencida_mesmo_preco_tambem_recria(pdir):
+    venda.cobrar(pdir, 120, http=FakeHttp())
+    _vencer(pdir)
+    h = FakeHttp()
+    venda.cobrar(pdir, 120, http=h)
+    assert len(h.calls) == 1
+
+
+def test_cobranca_paga_nao_recria_nem_troca_preco(pdir):
+    h = FakeHttp()
+    venda.cobrar(pdir, 120, http=h)
+    v = venda.load_venda(pdir)
+    v.update(status="pago", expira_em="2020-01-01T00:00:00.000Z")
+    venda.save_venda(pdir, v)
+    with pytest.raises(venda.VendaError):
+        venda.cobrar(pdir, 60, http=h)
+    venda.cobrar(pdir, 120, http=h)
     assert len(h.calls) == 1
 
 
