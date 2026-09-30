@@ -66,6 +66,18 @@
       "default": "#ffb3b3"
     },
     {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s) = data-duration do host",
+      "default": 3.5
+    },
+    {
+      "id": "bpm",
+      "type": "number",
+      "label": "BPM: dente faz squash & stretch em cada batida (0 = off)",
+      "default": 0
+    },
+    {
       "id": "bg",
       "type": "string",
       "label": "Fundo",

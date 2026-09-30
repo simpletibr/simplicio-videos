@@ -11,7 +11,7 @@
   Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="toothbrush-sparkle"].
   Origin: authored for the kids/dental template (Lothus Odontologia, Dia das Criancas 2026).
 -->
-<html lang="pt-BR" data-composition-id="toothbrush-sparkle" data-composition-duration="3.5" data-composition-variables='[{"id": "x", "type": "number", "label": "Centro x (px)", "default": 540}, {"id": "y", "type": "number", "label": "Centro y (px)", "default": 1080}, {"id": "scale", "type": "number", "label": "Escala do dente", "default": 1.25}, {"id": "t0", "type": "number", "label": "Escova entra (s)", "default": 0.2}, {"id": "strokes", "type": "number", "label": "Vaivéns", "default": 5}, {"id": "handle", "type": "color", "label": "Cabo da escova", "default": "#5aa9e6"}, {"id": "ink", "type": "color", "label": "Contorno", "default": "#3d3834"}, {"id": "sparkle", "type": "color", "label": "Brilho", "default": "#ffd23f"}, {"id": "cheek", "type": "color", "label": "Bochechas", "default": "#ffb3b3"}, {"id": "bg", "type": "string", "label": "Fundo", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 9}]'>
+<html lang="pt-BR" data-composition-id="toothbrush-sparkle" data-composition-duration="3.5" data-composition-variables='[{"id": "x", "type": "number", "label": "Centro x (px)", "default": 540}, {"id": "y", "type": "number", "label": "Centro y (px)", "default": 1080}, {"id": "scale", "type": "number", "label": "Escala do dente", "default": 1.25}, {"id": "t0", "type": "number", "label": "Escova entra (s)", "default": 0.2}, {"id": "strokes", "type": "number", "label": "Vaivéns", "default": 5}, {"id": "handle", "type": "color", "label": "Cabo da escova", "default": "#5aa9e6"}, {"id": "ink", "type": "color", "label": "Contorno", "default": "#3d3834"}, {"id": "sparkle", "type": "color", "label": "Brilho", "default": "#ffd23f"}, {"id": "cheek", "type": "color", "label": "Bochechas", "default": "#ffb3b3"}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 3.5}, {"id": "bpm", "type": "number", "label": "BPM: dente faz squash & stretch em cada batida (0 = off)", "default": 0}, {"id": "bg", "type": "string", "label": "Fundo", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 9}]'>
   <head>
     <meta charset="UTF-8" />
     <title>Escovinha + espuma + brilho</title>
@@ -45,7 +45,7 @@
         <script>
           (() => {
             // ---- params: block defaults < host data-variable-values < CLI --variables ----
-            const DEF = {"x": 540, "y": 1080, "scale": 1.25, "t0": 0.2, "strokes": 5, "handle": "#5aa9e6", "ink": "#3d3834", "sparkle": "#ffd23f", "cheek": "#ffb3b3", "bg": "#fbf7f2", "seed": 9};
+            const DEF = {"x": 540, "y": 1080, "scale": 1.25, "t0": 0.2, "strokes": 5, "handle": "#5aa9e6", "ink": "#3d3834", "sparkle": "#ffd23f", "cheek": "#ffb3b3", "dur": 3.5, "bpm": 0, "bg": "#fbf7f2", "seed": 9};
             const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
             const V = Object.assign({}, DEF, HV);
             const root = document.getElementById("toothbrush-sparkle-root");
@@ -93,10 +93,13 @@
               sp.appendChild(d); const a = (i / 7) * Math.PI * 2 + R() * 0.4, rr = 290 + R() * 90;
               const at = t + 0.3 + i * 0.06, sc = 0.6 + R() * 0.7;
               tl.fromTo(d, { x: V.x - 45 + Math.cos(a) * rr, y: V.y - 45 + Math.sin(a) * rr * 1.1, scale: 0, rotation: -60 }, { scale: sc, rotation: 0, duration: 0.35, ease: "back.out(3)" }, at);
-              tl.to(d, { scale: 0, rotation: 60, duration: 0.3, ease: "power2.in" }, Math.min(3.4, at + 0.9));
+              tl.to(d, { scale: 0, rotation: 60, duration: 0.3, ease: "power2.in" }, Math.min(V.dur - 0.1, at + 0.9));
             }
             tl.to(tw, { scale: V.scale * 1.08, duration: 0.15, yoyo: true, repeat: 1, ease: "sine.inOut" }, t + 0.3);
-            tl.set({}, {}, 3.5);
+            if (V.bpm > 0) { const B = 60 / V.bpm, sv = $(".tw svg"); gsap.set(sv, { transformOrigin: "50% 100%" }); let k = 0;
+              for (let u = B; u < V.dur - 0.3; u += B, k++) { tl.to(sv, { scaleX: 1.1, scaleY: 0.88, rotation: k % 2 ? 3 : -3, duration: 0.06, ease: "power2.out" }, u);
+                tl.to(sv, { scaleX: 1, scaleY: 1, rotation: 0, duration: B * 0.7, ease: "elastic.out(1,0.5)" }, u + 0.06); } }
+            tl.set({}, {}, V.dur);
             tl.seek(0);
             window.__timelines = window.__timelines || {};
             window.__timelines["toothbrush-sparkle"] = tl;

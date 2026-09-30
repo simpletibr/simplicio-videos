@@ -1,0 +1,97 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/fx-transition/block.html — Transição rápida 6-10 frames (whip, zoom punch, flash, formas, glitch)
+  Camada de transição curta centrada no corte: whip (faixas coloridas em alta velocidade), zoom (anéis + raios a partir do centro), flash (branco), shapes (formas da paleta cobrindo a tela) e glitch (fatias coloridas deslocadas, leve). Combine com | (ex.: zoom|flash). O conteúdo em si (punch/whip de câmera) fica no template.
+  HyperFrames block (sub-composition), 1080x1920, 0.5s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/fx-transition.html and add
+    <div id="..." class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html"
+         data-start="T" data-duration="0.5" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "fx-transition" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="fx-transition"].
+  Origin: authored for the kids/dental template v2 (Lothus Odontologia, Dia das Criancas 2026, fast/beat-synced cut).
+-->
+<html lang="pt-BR" data-composition-id="fx-transition" data-composition-duration="0.5" data-composition-variables='[{"id": "kind", "type": "string", "label": "Tipos (whip|zoom|flash|shapes|glitch, combináveis com |)", "default": "zoom|flash", "maxLength": 40}, {"id": "at", "type": "number", "label": "Momento do corte no bloco (s)", "default": 0.2}, {"id": "frames", "type": "number", "label": "Duração total em frames (6-10)", "default": 8}, {"id": "fps", "type": "number", "label": "FPS", "default": 30}, {"id": "dir", "type": "number", "label": "Direção (1 = para a direita, -1 = esquerda)", "default": 1}, {"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "flash", "type": "color", "label": "Cor do flash", "default": "#ffffff"}, {"id": "flash_max", "type": "number", "label": "Opacidade máx. do flash", "default": 0.9}, {"id": "seed", "type": "number", "label": "Semente", "default": 13}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Transição rápida 6-10 frames (whip, zoom punch, flash, formas, glitch)</title>
+  </head>
+  <body>
+    <template>
+      <div id="fx-transition-root" data-composition-id="fx-transition" data-duration="0.5" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          @font-face { font-family: "Fredoka"; src: url("assets/fonts/Fredoka.ttf") format("truetype"); font-weight: 300 700; font-display: block; }
+          [data-composition-id="fx-transition"] { position: absolute; inset: 0; overflow: hidden; color: #3d3834; font-family: "Inter", sans-serif; background: var(--bg, transparent); }
+          [data-composition-id="fx-transition"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="fx-transition"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="fx-transition"] .fl { position: absolute; inset: 0; opacity: 0; }
+          [data-composition-id="fx-transition"] .bar { position: absolute; left: 0; top: 0; height: 150px; border-radius: 75px; }
+          [data-composition-id="fx-transition"] .ringx { position: absolute; left: 540px; top: 960px; border-radius: 50%; }
+          [data-composition-id="fx-transition"] .ray { position: absolute; left: 540px; top: 960px; height: 14px; border-radius: 7px; transform-origin: 0% 50%; }
+          [data-composition-id="fx-transition"] .sh { position: absolute; left: 0; top: 0; }
+          [data-composition-id="fx-transition"] .sl { position: absolute; left: -40px; right: -40px; height: 120px; opacity: 0; mix-blend-mode: multiply; }
+        </style>
+        <div class="fx"></div><div class="fl"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"kind": "zoom|flash", "at": 0.2, "frames": 8, "fps": 30, "dir": 1, "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "flash": "#ffffff", "flash_max": 0.9, "seed": 13};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("fx-transition-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            root.style.setProperty("--bg", V.bg || "transparent");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            const R = rng(V.seed), pal = list(V.colors), kinds = list(V.kind), fx = $(".fx"), F = V.frames / V.fps, half = F / 2, t0 = Math.max(0, V.at - half);
+            const el = (cls, css) => { const d = document.createElement("div"); d.className = cls; Object.assign(d.style, css || {}); fx.appendChild(d); return d; };
+            if (kinds.includes("flash")) { const f = $(".fl"); f.style.background = V.flash;
+              tl.fromTo(f, { opacity: 0 }, { opacity: V.flash_max, duration: Math.max(1 / V.fps, half * 0.5), ease: "power2.in" }, V.at - half * 0.5);
+              tl.to(f, { opacity: 0, duration: half * 1.2, ease: "power2.out" }, V.at); }
+            if (kinds.includes("whip")) for (let i = 0; i < 16; i++) {
+              const w = 700 + R() * 900, y = -60 + i * 125 + (R() - 0.5) * 40, b = el("bar", { width: w + "px", background: pal[i % pal.length] });
+              const from = V.dir > 0 ? -w - 200 : 1280, to = V.dir > 0 ? 1280 : -w - 200;
+              tl.fromTo(b, { x: from, y }, { x: to, duration: F * (0.8 + R() * 0.4), ease: "power1.inOut" }, t0 + R() * F * 0.15);
+            }
+            if (kinds.includes("zoom")) {
+              for (let i = 0; i < 3; i++) { const s = 200, r = el("ringx", { width: s + "px", height: s + "px", margin: `${-s / 2}px 0 0 ${-s / 2}px`, border: `${36 - i * 8}px solid ${pal[(i + 1) % pal.length]}` });
+                tl.fromTo(r, { scale: 0.1, opacity: 1 }, { scale: 14 - i * 3, opacity: 0.0, duration: F, ease: "power2.out" }, t0 + i * F * 0.12); }
+              for (let i = 0; i < 18; i++) { const a = (i / 18) * 360 + R() * 8, len = 500 + R() * 500, r = el("ray", { width: len + "px", background: pal[i % pal.length] });
+                tl.fromTo(r, { rotation: a, x: 60, scaleX: 0.1, opacity: 1 }, { x: 900, scaleX: 1, opacity: 0, duration: F, ease: "power3.out" }, t0); }
+            }
+            if (kinds.includes("shapes")) { const N = 7;
+              for (let i = 0; i < N; i++) { const s = 900 + R() * 500, col = pal[i % pal.length], k = i % 3, d = el("sh", { width: s + "px", height: s + "px" });
+                d.innerHTML = k === 0 ? `<svg width="100%" height="100%" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${col}"/></svg>`
+                  : k === 1 ? `<svg width="100%" height="100%" viewBox="0 0 100 100"><path d="M50,0 L61,35 L98,35 L68,57 L79,92 L50,70 L21,92 L32,57 L2,35 L39,35 Z" fill="${col}"/></svg>`
+                  : `<svg width="100%" height="100%" viewBox="0 0 100 100"><rect x="6" y="6" width="88" height="88" rx="26" fill="${col}"/></svg>`;
+                const cx = (V.dir > 0 ? -300 : 1380), tx = (i / (N - 1)) * 1400 - 160, ty = (R()) * 1920;
+                tl.fromTo(d, { x: cx - s / 2, y: ty - s / 2, scale: 0.2, rotation: -40 }, { x: tx - s / 2, scale: 1, rotation: 0, duration: half, ease: "power3.out" }, t0 + i * half * 0.08);
+                tl.to(d, { x: (V.dir > 0 ? 1500 : -1500) - s / 2, scale: 0.3, rotation: 40, duration: half, ease: "power3.in" }, V.at + i * half * 0.05); }
+            }
+            if (kinds.includes("glitch")) for (let i = 0; i < 9; i++) {
+              const s = el("sl", { top: (R() * 1800) + "px", height: (40 + R() * 140) + "px", background: pal[i % pal.length] });
+              const steps = Math.max(2, Math.round(V.frames / 2));
+              for (let k = 0; k < steps; k++) tl.set(s, { x: (R() - 0.5) * 160, opacity: 0.35 + R() * 0.3 }, t0 + (k / steps) * F);
+              tl.set(s, { opacity: 0 }, t0 + F);
+            }
+            tl.set({}, {}, Math.max(V.at + half + 0.05, 0.5));
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["fx-transition"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

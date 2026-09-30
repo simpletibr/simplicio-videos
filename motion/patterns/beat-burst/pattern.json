@@ -1,0 +1,107 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "beat-burst",
+  "title": "Estrelas + confete explodindo nas batidas",
+  "description": "A cada N batidas, uma explosão: anel de choque, estrelas (SVG) girando para fora e confete da paleta. Posições por lista (x,y;x,y) em ciclo; tudo semeado.",
+  "status": "pronto",
+  "duration_s": 4.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "bpm",
+      "type": "number",
+      "label": "BPM da trilha",
+      "default": 128
+    },
+    {
+      "id": "beat0",
+      "type": "number",
+      "label": "Primeira explosão (s, no bloco)",
+      "default": 0
+    },
+    {
+      "id": "every",
+      "type": "number",
+      "label": "A cada N batidas",
+      "default": 2
+    },
+    {
+      "id": "count",
+      "type": "number",
+      "label": "Nº de explosões",
+      "default": 4
+    },
+    {
+      "id": "points",
+      "type": "string",
+      "label": "Posições x,y separadas por ; (em ciclo)",
+      "default": "200,1500;880,1450;540,1650"
+    },
+    {
+      "id": "colors",
+      "type": "string",
+      "label": "Paleta (hex |)",
+      "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Contorno das estrelas",
+      "default": "#3d3834"
+    },
+    {
+      "id": "stars",
+      "type": "number",
+      "label": "Estrelas por explosão",
+      "default": 6
+    },
+    {
+      "id": "confetti",
+      "type": "number",
+      "label": "Confetes por explosão",
+      "default": 16
+    },
+    {
+      "id": "size",
+      "type": "number",
+      "label": "Escala",
+      "default": 1
+    },
+    {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s) = data-duration do host",
+      "default": 4.0
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 17
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "partículas",
+  "tags": [
+    "batida",
+    "confete",
+    "estrelas",
+    "explosão",
+    "festivo"
+  ],
+  "use_when": "Impactos visuais sincronizados com a trilha (a cada 1-2 batidas) longe do texto: cantos e parte de baixo no 9:16.",
+  "voice_sync": "bpm = trilha.bpm; beat0 numa batida (o host começa no corte, que já cai na batida).",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças v02 'dopaminérgica', 30/09/2026); motion-video-kit (o primeiro plano vira a transição; variar velocidade) + receitas de cortes rápidos de 6-10 frames",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 0.25
+}

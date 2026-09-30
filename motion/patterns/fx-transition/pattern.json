@@ -1,0 +1,92 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "fx-transition",
+  "title": "Transição rápida 6-10 frames (whip, zoom punch, flash, formas, glitch)",
+  "description": "Camada de transição curta centrada no corte: whip (faixas coloridas em alta velocidade), zoom (anéis + raios a partir do centro), flash (branco), shapes (formas da paleta cobrindo a tela) e glitch (fatias coloridas deslocadas, leve). Combine com | (ex.: zoom|flash). O conteúdo em si (punch/whip de câmera) fica no template.",
+  "status": "pronto",
+  "duration_s": 0.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "kind",
+      "type": "string",
+      "label": "Tipos (whip|zoom|flash|shapes|glitch, combináveis com |)",
+      "default": "zoom|flash",
+      "maxLength": 40
+    },
+    {
+      "id": "at",
+      "type": "number",
+      "label": "Momento do corte no bloco (s)",
+      "default": 0.2
+    },
+    {
+      "id": "frames",
+      "type": "number",
+      "label": "Duração total em frames (6-10)",
+      "default": 8
+    },
+    {
+      "id": "fps",
+      "type": "number",
+      "label": "FPS",
+      "default": 30
+    },
+    {
+      "id": "dir",
+      "type": "number",
+      "label": "Direção (1 = para a direita, -1 = esquerda)",
+      "default": 1
+    },
+    {
+      "id": "colors",
+      "type": "string",
+      "label": "Paleta (hex |)",
+      "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"
+    },
+    {
+      "id": "flash",
+      "type": "color",
+      "label": "Cor do flash",
+      "default": "#ffffff"
+    },
+    {
+      "id": "flash_max",
+      "type": "number",
+      "label": "Opacidade máx. do flash",
+      "default": 0.9
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 13
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "transição",
+  "tags": [
+    "corte rápido",
+    "whip",
+    "zoom punch",
+    "flash",
+    "glitch",
+    "wipe de formas",
+    "6-10 frames"
+  ],
+  "use_when": "Cortes rápidos e dopaminérgicos (Reels/Shorts); host curto centrado no corte, com SFX whoosh/pop/sparkle no mesmo instante.",
+  "voice_sync": "at = corte (na batida); frames 6-10 a 30 fps.",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças v02 'dopaminérgica', 30/09/2026); motion-video-kit (o primeiro plano vira a transição; variar velocidade) + receitas de cortes rápidos de 6-10 frames",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 0.2
+}

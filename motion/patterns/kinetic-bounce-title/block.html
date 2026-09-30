@@ -11,7 +11,7 @@
   Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="kinetic-bounce-title"].
   Origin: authored for the kids/dental template (Lothus Odontologia, Dia das Criancas 2026).
 -->
-<html lang="pt-BR" data-composition-id="kinetic-bounce-title" data-composition-duration="3.0" data-composition-variables='[{"id": "line1", "type": "string", "label": "Linha 1", "default": "Feliz", "maxLength": 14}, {"id": "line2", "type": "string", "label": "Linha 2", "default": "Dia das", "maxLength": 14}, {"id": "line3", "type": "string", "label": "Linha 3", "default": "Crianças!", "maxLength": 14}, {"id": "colors", "type": "string", "label": "Paleta (hex separados por |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "ink", "type": "color", "label": "Cor da sombra/contorno", "default": "#3d3834"}, {"id": "size", "type": "number", "label": "Tamanho da fonte (px)", "default": 170}, {"id": "y", "type": "number", "label": "Topo do bloco de texto (px)", "default": 560}, {"id": "t0", "type": "number", "label": "Início (s)", "default": 0.15}, {"id": "stagger", "type": "number", "label": "Atraso entre letras (s)", "default": 0.045}, {"id": "exit", "type": "boolean", "label": "Sair em pop no fim", "default": true}, {"id": "bg", "type": "string", "label": "Fundo (cor CSS ou transparent)", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 5}]'>
+<html lang="pt-BR" data-composition-id="kinetic-bounce-title" data-composition-duration="3.0" data-composition-variables='[{"id": "line1", "type": "string", "label": "Linha 1", "default": "Feliz", "maxLength": 14}, {"id": "line2", "type": "string", "label": "Linha 2", "default": "Dia das", "maxLength": 14}, {"id": "line3", "type": "string", "label": "Linha 3", "default": "Crianças!", "maxLength": 14}, {"id": "colors", "type": "string", "label": "Paleta (hex separados por |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "ink", "type": "color", "label": "Cor da sombra/contorno", "default": "#3d3834"}, {"id": "size", "type": "number", "label": "Tamanho da fonte (px)", "default": 170}, {"id": "y", "type": "number", "label": "Topo do bloco de texto (px)", "default": 560}, {"id": "t0", "type": "number", "label": "Início (s)", "default": 0.15}, {"id": "stagger", "type": "number", "label": "Atraso entre letras (s)", "default": 0.045}, {"id": "exit", "type": "boolean", "label": "Sair em pop no fim", "default": true}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host (saída em pop 0,3 s antes)", "default": 3.0}, {"id": "bg", "type": "string", "label": "Fundo (cor CSS ou transparent)", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 5}]'>
   <head>
     <meta charset="UTF-8" />
     <title>Título com letras quicando (infantil)</title>
@@ -35,7 +35,7 @@
         <script>
           (() => {
             // ---- params: block defaults < host data-variable-values < CLI --variables ----
-            const DEF = {"line1": "Feliz", "line2": "Dia das", "line3": "Crianças!", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "ink": "#3d3834", "size": 170, "y": 560, "t0": 0.15, "stagger": 0.045, "exit": true, "bg": "#fbf7f2", "seed": 5};
+            const DEF = {"line1": "Feliz", "line2": "Dia das", "line3": "Crianças!", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "ink": "#3d3834", "size": 170, "y": 560, "t0": 0.15, "stagger": 0.045, "exit": true, "dur": 3.0, "bg": "#fbf7f2", "seed": 5};
             const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
             const V = Object.assign({}, DEF, HV);
             const root = document.getElementById("kinetic-bounce-title-root");
@@ -68,7 +68,8 @@
             });
             const land = V.t0 + chars.length * V.stagger + 0.7;
             chars.forEach((c, i) => tl.to(c, { y: -22, duration: 0.18, yoyo: true, repeat: 1, ease: "sine.inOut" }, land + i * 0.03));
-            if (V.exit) chars.forEach((c, i) => tl.to(c, { scale: 0, duration: 0.22, ease: "back.in(2)" }, 3.0 - 0.3 + (i % 5) * 0.012));
+            if (V.exit) chars.forEach((c, i) => tl.to(c, { scale: 0, duration: 0.22, ease: "back.in(2)" }, V.dur - 0.3 + (i % 5) * 0.012));
+            tl.set({}, {}, V.dur);
             tl.seek(0);
             window.__timelines = window.__timelines || {};
             window.__timelines["kinetic-bounce-title"] = tl;

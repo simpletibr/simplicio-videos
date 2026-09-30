@@ -1,0 +1,97 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "kinetic-words",
+  "title": "Tipografia cinética palavra a palavra (sincronizada com a fala)",
+  "description": "Cada palavra entra no instante em que é falada (times vindos do timing.lock.json via {{words:<fala>}}), com stretch → squash → assenta; a palavra atual fica maior e as anteriores ficam; o bloco flutua e dá um shake na última palavra. Linhas por |, tamanho ajustado à largura do 9:16.",
+  "status": "pronto",
+  "duration_s": 4.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "lines",
+      "type": "string",
+      "label": "Linhas (| quebra linha; as palavras seguem a ordem da fala)",
+      "default": "Feliz|Dia das|Crianças!",
+      "maxLength": 80
+    },
+    {
+      "id": "times",
+      "type": "string",
+      "label": "Início de cada palavra (s no bloco, |)",
+      "default": "0.2|0.5|0.7|0.9",
+      "maxLength": 200
+    },
+    {
+      "id": "colors",
+      "type": "string",
+      "label": "Paleta (hex |)",
+      "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Contorno/sombra",
+      "default": "#3d3834"
+    },
+    {
+      "id": "size",
+      "type": "number",
+      "label": "Tamanho máx. da fonte (px)",
+      "default": 160
+    },
+    {
+      "id": "y",
+      "type": "number",
+      "label": "Topo do bloco (px)",
+      "default": 300
+    },
+    {
+      "id": "maxw",
+      "type": "number",
+      "label": "Largura útil (px)",
+      "default": 980
+    },
+    {
+      "id": "exit",
+      "type": "number",
+      "label": "Saída em pop (s antes do fim do bloco; 0 = sem saída)",
+      "default": 0.18
+    },
+    {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s) = data-duration do host",
+      "default": 4.0
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 21
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "tipografia",
+  "tags": [
+    "kinetic typography",
+    "palavra a palavra",
+    "legenda animada",
+    "sincronia com voz",
+    "squash & stretch"
+  ],
+  "use_when": "Frase da locução na tela, palavra por palavra (Reels/Shorts). Use times: '{{words:<fala>}}' (tempos reais do WAV no timing.lock.json).",
+  "voice_sync": "Exata: cada palavra entra no início dela na fala (lock).",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças v02 'dopaminérgica', 30/09/2026); motion-video-kit (o primeiro plano vira a transição; variar velocidade) + receitas de cortes rápidos de 6-10 frames",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 1.6
+}

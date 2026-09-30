@@ -1,0 +1,95 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "bg-parallax",
+  "title": "Fundo em movimento (parallax de formas + zoom contínuo)",
+  "description": "Três camadas em parallax (manchas desfocadas lentas, formas de contorno médias, pontinhos rápidos) subindo e girando, zoom contínuo leve e pulso opcional nas batidas. Nunca fica parado; cores da paleta sobre o fundo claro.",
+  "status": "pronto",
+  "duration_s": 16.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "colors",
+      "type": "string",
+      "label": "Paleta (hex |)",
+      "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"
+    },
+    {
+      "id": "base",
+      "type": "string",
+      "label": "Cor de fundo",
+      "default": "#fbf7f2"
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Contorno das formas",
+      "default": "#3d3834"
+    },
+    {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s) = data-duration do host",
+      "default": 16.0
+    },
+    {
+      "id": "speed",
+      "type": "number",
+      "label": "Velocidade base (px/s)",
+      "default": 60
+    },
+    {
+      "id": "zoom",
+      "type": "number",
+      "label": "Zoom contínuo (0,06 = 6 %)",
+      "default": 0.06
+    },
+    {
+      "id": "bpm",
+      "type": "number",
+      "label": "BPM para o pulso (0 = sem pulso)",
+      "default": 0
+    },
+    {
+      "id": "shapes",
+      "type": "number",
+      "label": "Formas na camada média",
+      "default": 18
+    },
+    {
+      "id": "dots",
+      "type": "number",
+      "label": "Pontinhos na camada da frente",
+      "default": 26
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 7
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "fundo",
+  "tags": [
+    "parallax",
+    "partículas",
+    "movimento contínuo",
+    "infantil",
+    "festivo"
+  ],
+  "use_when": "Fundo de vídeo inteiro que nunca pode ficar parado (Reels rápidos, festivos, infantis). Host na trilha 0 com a duração total.",
+  "voice_sync": "bpm = trilha.bpm para o pulso da camada média cair nas batidas.",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças v02 'dopaminérgica', 30/09/2026); motion-video-kit (o primeiro plano vira a transição; variar velocidade) + receitas de cortes rápidos de 6-10 frames",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 2.0
+}

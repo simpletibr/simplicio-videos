@@ -1,0 +1,84 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/beat-burst/block.html — Estrelas + confete explodindo nas batidas
+  A cada N batidas, uma explosão: anel de choque, estrelas (SVG) girando para fora e confete da paleta. Posições por lista (x,y;x,y) em ciclo; tudo semeado.
+  HyperFrames block (sub-composition), 1080x1920, 4.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/beat-burst.html and add
+    <div id="..." class="clip" data-composition-id="beat-burst" data-composition-src="compositions/beat-burst.html"
+         data-start="T" data-duration="4.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "beat-burst" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="beat-burst"].
+  Origin: authored for the kids/dental template v2 (Lothus Odontologia, Dia das Criancas 2026, fast/beat-synced cut).
+-->
+<html lang="pt-BR" data-composition-id="beat-burst" data-composition-duration="4.0" data-composition-variables='[{"id": "bpm", "type": "number", "label": "BPM da trilha", "default": 128}, {"id": "beat0", "type": "number", "label": "Primeira explosão (s, no bloco)", "default": 0}, {"id": "every", "type": "number", "label": "A cada N batidas", "default": 2}, {"id": "count", "type": "number", "label": "Nº de explosões", "default": 4}, {"id": "points", "type": "string", "label": "Posições x,y separadas por ; (em ciclo)", "default": "200,1500;880,1450;540,1650"}, {"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "ink", "type": "color", "label": "Contorno das estrelas", "default": "#3d3834"}, {"id": "stars", "type": "number", "label": "Estrelas por explosão", "default": 6}, {"id": "confetti", "type": "number", "label": "Confetes por explosão", "default": 16}, {"id": "size", "type": "number", "label": "Escala", "default": 1}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "seed", "type": "number", "label": "Semente", "default": 17}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Estrelas + confete explodindo nas batidas</title>
+  </head>
+  <body>
+    <template>
+      <div id="beat-burst-root" data-composition-id="beat-burst" data-duration="4.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          @font-face { font-family: "Fredoka"; src: url("assets/fonts/Fredoka.ttf") format("truetype"); font-weight: 300 700; font-display: block; }
+          [data-composition-id="beat-burst"] { position: absolute; inset: 0; overflow: hidden; color: #3d3834; font-family: "Inter", sans-serif; background: var(--bg, transparent); }
+          [data-composition-id="beat-burst"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="beat-burst"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="beat-burst"] .st { position: absolute; left: 0; top: 0; width: 100px; height: 100px; }
+          [data-composition-id="beat-burst"] .cf { position: absolute; left: 0; top: 0; border-radius: 3px; }
+          [data-composition-id="beat-burst"] .sw { position: absolute; left: 0; top: 0; width: 100px; height: 100px; border-radius: 50%; }
+        </style>
+        <div class="bb"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"bpm": 128, "beat0": 0, "every": 2, "count": 4, "points": "200,1500;880,1450;540,1650", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "ink": "#3d3834", "stars": 6, "confetti": 16, "size": 1, "dur": 4.0, "seed": 17};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("beat-burst-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            root.style.setProperty("--bg", V.bg || "transparent");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            const R = rng(V.seed), pal = list(V.colors), B = 60 / V.bpm, box = $(".bb");
+            const pts = list(String(V.points).replace(/;/g, "|")).map((p) => p.split(",").map(Number));
+            for (let n = 0; n < V.count; n++) {
+              const t = V.beat0 + n * V.every * B; if (t > V.dur - 0.1) break;
+              const [px, py] = pts[n % pts.length], sc = V.size;
+              const sw = document.createElement("div"); sw.className = "sw"; sw.style.border = `10px solid ${pal[n % pal.length]}`; box.appendChild(sw);
+              tl.fromTo(sw, { x: px - 50, y: py - 50, scale: 0.2, opacity: 0.9 }, { scale: 4.2 * sc, opacity: 0, duration: 0.45, ease: "power2.out" }, t);
+              for (let i = 0; i < V.stars; i++) {
+                const d = document.createElement("div"); d.className = "st"; const col = pal[(i + n) % pal.length];
+                d.innerHTML = `<svg width="100" height="100" viewBox="0 0 100 100"><path d="M50,0 L61,35 L98,35 L68,57 L79,92 L50,70 L21,92 L32,57 L2,35 L39,35 Z" fill="${col}" stroke="${V.ink}" stroke-width="6" stroke-linejoin="round"/></svg>`; box.appendChild(d);
+                const a = (i / V.stars) * Math.PI * 2 + R() * 0.6, dist = (170 + R() * 150) * sc, s = (0.45 + R() * 0.5) * sc;
+                tl.fromTo(d, { x: px - 50, y: py - 50, scale: 0, rotation: -120 }, { x: px - 50 + Math.cos(a) * dist, y: py - 50 + Math.sin(a) * dist, scale: s, rotation: 0, duration: 0.38, ease: "back.out(2.2)" }, t);
+                tl.to(d, { scale: 0, rotation: 140, y: "+=60", duration: 0.25, ease: "power2.in" }, t + 0.42 + R() * 0.12);
+              }
+              for (let i = 0; i < V.confetti; i++) {
+                const p = document.createElement("div"); p.className = "cf"; const s = 10 + R() * 12; p.style.width = s + "px"; p.style.height = s * (R() < 0.5 ? 1 : 1.8) + "px"; p.style.background = pal[i % pal.length]; box.appendChild(p);
+                const a = R() * Math.PI * 2, dist = (140 + R() * 260) * sc;
+                tl.fromTo(p, { x: px, y: py, scale: 0.3, rotation: 0, opacity: 1 }, { x: px + Math.cos(a) * dist, y: py + Math.sin(a) * dist * 0.8, scale: 1, rotation: (R() - 0.5) * 540, duration: 0.45, ease: "power3.out" }, t);
+                tl.to(p, { y: "+=220", opacity: 0, rotation: "+=180", duration: 0.5, ease: "power1.in" }, t + 0.45);
+              }
+            }
+            tl.set({}, {}, V.dur);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["beat-burst"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

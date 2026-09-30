@@ -75,6 +75,12 @@
       "default": true
     },
     {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s) = data-duration do host (saída em pop 0,3 s antes)",
+      "default": 3.0
+    },
+    {
       "id": "bg",
       "type": "string",
       "label": "Fundo (cor CSS ou transparent)",

@@ -1,8 +1,8 @@
 {
   "schema": "simplicio.motion-catalog/v1",
-  "count": 46,
+  "count": 50,
   "by_status": {
-    "pronto": 24,
+    "pronto": 28,
     "lib": 1,
     "inline": 2,
     "proposto": 19
@@ -105,6 +105,35 @@
       "source": "clients/wjr-informatica-games/video-01/index.html (#bg)"
     },
     {
+      "id": "bg-parallax",
+      "title": "Fundo em movimento (parallax de formas + zoom contínuo)",
+      "status": "pronto",
+      "category": "fundo",
+      "tags": [
+        "parallax",
+        "partículas",
+        "movimento contínuo",
+        "infantil",
+        "festivo"
+      ],
+      "duration_s": 16,
+      "params": [
+        "colors",
+        "base",
+        "ink",
+        "dur",
+        "speed",
+        "zoom",
+        "bpm",
+        "shapes",
+        "dots",
+        "seed"
+      ],
+      "block": "patterns/bg-parallax/block.html",
+      "preview": "patterns/bg-parallax/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
       "id": "toothbrush-sparkle",
       "title": "Escovinha + espuma + brilho",
       "status": "pronto",
@@ -126,6 +155,8 @@
         "ink",
         "sparkle",
         "cheek",
+        "dur",
+        "bpm",
         "bg",
         "seed"
       ],
@@ -291,6 +322,8 @@
         "ink",
         "accent",
         "colors",
+        "dur",
+        "bpm",
         "bg",
         "seed"
       ],
@@ -345,6 +378,37 @@
       "source": "https://x.com/Mounnna/status/2103802871934497266"
     },
     {
+      "id": "beat-burst",
+      "title": "Estrelas + confete explodindo nas batidas",
+      "status": "pronto",
+      "category": "partículas",
+      "tags": [
+        "batida",
+        "confete",
+        "estrelas",
+        "explosão",
+        "festivo"
+      ],
+      "duration_s": 4,
+      "params": [
+        "bpm",
+        "beat0",
+        "every",
+        "count",
+        "points",
+        "colors",
+        "ink",
+        "stars",
+        "confetti",
+        "size",
+        "dur",
+        "seed"
+      ],
+      "block": "patterns/beat-burst/block.html",
+      "preview": "patterns/beat-burst/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
       "id": "tooth-character",
       "title": "Personagem dente sorridente (SVG)",
       "status": "pronto",
@@ -367,6 +431,9 @@
         "t_in",
         "wave_t",
         "label",
+        "dur",
+        "bpm",
+        "beat0",
         "bg",
         "seed"
       ],
@@ -419,6 +486,7 @@
         "t0",
         "stagger",
         "exit",
+        "dur",
         "bg",
         "seed"
       ],
@@ -449,6 +517,35 @@
       "block": "patterns/kinetic-letters-punch/block.html",
       "preview": "patterns/kinetic-letters-punch/preview.png",
       "source": "clients/wjr-informatica-games/video-01/index.html (S1)"
+    },
+    {
+      "id": "kinetic-words",
+      "title": "Tipografia cinética palavra a palavra (sincronizada com a fala)",
+      "status": "pronto",
+      "category": "tipografia",
+      "tags": [
+        "kinetic typography",
+        "palavra a palavra",
+        "legenda animada",
+        "sincronia com voz",
+        "squash & stretch"
+      ],
+      "duration_s": 4,
+      "params": [
+        "lines",
+        "times",
+        "colors",
+        "ink",
+        "size",
+        "y",
+        "maxw",
+        "exit",
+        "dur",
+        "seed"
+      ],
+      "block": "patterns/kinetic-words/block.html",
+      "preview": "patterns/kinetic-words/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
     },
     {
       "id": "marker-underline-title",
@@ -537,6 +634,36 @@
       "block": "patterns/circle-iris-transition/block.html",
       "preview": "patterns/circle-iris-transition/preview.png",
       "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/transition/circle-match-iris.md"
+    },
+    {
+      "id": "fx-transition",
+      "title": "Transição rápida 6-10 frames (whip, zoom punch, flash, formas, glitch)",
+      "status": "pronto",
+      "category": "transição",
+      "tags": [
+        "corte rápido",
+        "whip",
+        "zoom punch",
+        "flash",
+        "glitch",
+        "wipe de formas",
+        "6-10 frames"
+      ],
+      "duration_s": 0.5,
+      "params": [
+        "kind",
+        "at",
+        "frames",
+        "fps",
+        "dir",
+        "colors",
+        "flash",
+        "flash_max",
+        "seed"
+      ],
+      "block": "patterns/fx-transition/block.html",
+      "preview": "patterns/fx-transition/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
     },
     {
       "id": "transition-glitch-rgb",

@@ -11,7 +11,7 @@
   Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="brand-lockup-soft"].
   Origin: authored for the kids/dental template (Lothus Odontologia, Dia das Criancas 2026).
 -->
-<html lang="pt-BR" data-composition-id="brand-lockup-soft" data-composition-duration="4.0" data-composition-variables='[{"id": "name", "type": "string", "label": "Nome", "default": "LOTHUS", "maxLength": 16}, {"id": "sub", "type": "string", "label": "Subtítulo", "default": "ODONTOLOGIA", "maxLength": 20}, {"id": "tagline", "type": "string", "label": "Mensagem", "default": "deseja um Feliz Dia das Crianças!", "maxLength": 44}, {"id": "handle", "type": "string", "label": "@ / contato", "default": "@lothus_odontologia", "maxLength": 28}, {"id": "city", "type": "string", "label": "Cidade", "default": "Guarulhos · SP", "maxLength": 32}, {"id": "logo", "type": "string", "label": "Logo (caminho; vazio = só texto)", "default": ""}, {"id": "ink", "type": "color", "label": "Tinta", "default": "#3d3834"}, {"id": "accent", "type": "color", "label": "Destaque (chip, texto branco: use cor com contraste ≥3:1)", "default": "#2f7fc1"}, {"id": "colors", "type": "string", "label": "Paleta dos pontos (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "bg", "type": "string", "label": "Fundo", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 4}]'>
+<html lang="pt-BR" data-composition-id="brand-lockup-soft" data-composition-duration="4.0" data-composition-variables='[{"id": "name", "type": "string", "label": "Nome", "default": "LOTHUS", "maxLength": 16}, {"id": "sub", "type": "string", "label": "Subtítulo", "default": "ODONTOLOGIA", "maxLength": 20}, {"id": "tagline", "type": "string", "label": "Mensagem", "default": "deseja um Feliz Dia das Crianças!", "maxLength": 44}, {"id": "handle", "type": "string", "label": "@ / contato", "default": "@lothus_odontologia", "maxLength": 28}, {"id": "city", "type": "string", "label": "Cidade", "default": "Guarulhos · SP", "maxLength": 32}, {"id": "logo", "type": "string", "label": "Logo (caminho; vazio = só texto)", "default": ""}, {"id": "ink", "type": "color", "label": "Tinta", "default": "#3d3834"}, {"id": "accent", "type": "color", "label": "Destaque (chip, texto branco: use cor com contraste ≥3:1)", "default": "#2f7fc1"}, {"id": "colors", "type": "string", "label": "Paleta dos pontos (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "bpm", "type": "number", "label": "BPM: anel/chip pulsam nas batidas (0 = respiração suave)", "default": 0}, {"id": "bg", "type": "string", "label": "Fundo", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 4}]'>
   <head>
     <meta charset="UTF-8" />
     <title>Assinatura suave da marca (anel + nome + @)</title>
@@ -41,7 +41,7 @@
         <script>
           (() => {
             // ---- params: block defaults < host data-variable-values < CLI --variables ----
-            const DEF = {"name": "LOTHUS", "sub": "ODONTOLOGIA", "tagline": "deseja um Feliz Dia das Crianças!", "handle": "@lothus_odontologia", "city": "Guarulhos · SP", "logo": "", "ink": "#3d3834", "accent": "#2f7fc1", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "bg": "#fbf7f2", "seed": 4};
+            const DEF = {"name": "LOTHUS", "sub": "ODONTOLOGIA", "tagline": "deseja um Feliz Dia das Crianças!", "handle": "@lothus_odontologia", "city": "Guarulhos · SP", "logo": "", "ink": "#3d3834", "accent": "#2f7fc1", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "dur": 4.0, "bpm": 0, "bg": "#fbf7f2", "seed": 4};
             const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
             const V = Object.assign({}, DEF, HV);
             const root = document.getElementById("brand-lockup-soft-root");
@@ -77,8 +77,11 @@
               tl.fromTo(d, { x: 540, y: 550, scale: 0 }, { x, y, scale: 1, duration: 0.6, ease: "back.out(2)" }, 0.5 + i * 0.03);
               tl.to(d, { y: y - 16, duration: 0.6, yoyo: true, repeat: 3, ease: "sine.inOut" }, 1.2 + i * 0.03);
             }
-            tl.to(root.querySelector(".ring"), { scale: 1.03, duration: 1.4, ease: "sine.inOut", yoyo: true, repeat: 1 }, 1.2);
-            tl.set({}, {}, 4.0);
+            if (V.bpm > 0) { const B = 60 / V.bpm, rg = root.querySelector(".ring");
+              for (let u = 1.2; u < V.dur - 0.2; u += B) { tl.fromTo(rg, { scale: 1.06 }, { scale: 1, duration: B * 0.8, ease: "power2.out", immediateRender: false }, u);
+                tl.fromTo(chip, { scale: 1.08 }, { scale: 1, duration: B * 0.8, ease: "power2.out", immediateRender: false }, u + 0.4 > 1.6 ? u : 1.6); }
+            } else tl.to(root.querySelector(".ring"), { scale: 1.03, duration: 1.4, ease: "sine.inOut", yoyo: true, repeat: 1 }, 1.2);
+            tl.set({}, {}, V.dur);
             tl.seek(0);
             window.__timelines = window.__timelines || {};
             window.__timelines["brand-lockup-soft"] = tl;

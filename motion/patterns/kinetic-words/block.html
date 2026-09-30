@@ -1,0 +1,87 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/kinetic-words/block.html — Tipografia cinética palavra a palavra (sincronizada com a fala)
+  Cada palavra entra no instante em que é falada (times vindos do timing.lock.json via {{words:<fala>}}), com stretch → squash → assenta; a palavra atual fica maior e as anteriores ficam; o bloco flutua e dá um shake na última palavra. Linhas por |, tamanho ajustado à largura do 9:16.
+  HyperFrames block (sub-composition), 1080x1920, 4.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/kinetic-words.html and add
+    <div id="..." class="clip" data-composition-id="kinetic-words" data-composition-src="compositions/kinetic-words.html"
+         data-start="T" data-duration="4.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "kinetic-words" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="kinetic-words"].
+  Origin: authored for the kids/dental template v2 (Lothus Odontologia, Dia das Criancas 2026, fast/beat-synced cut).
+-->
+<html lang="pt-BR" data-composition-id="kinetic-words" data-composition-duration="4.0" data-composition-variables='[{"id": "lines", "type": "string", "label": "Linhas (| quebra linha; as palavras seguem a ordem da fala)", "default": "Feliz|Dia das|Crianças!", "maxLength": 80}, {"id": "times", "type": "string", "label": "Início de cada palavra (s no bloco, |)", "default": "0.2|0.5|0.7|0.9", "maxLength": 200}, {"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "ink", "type": "color", "label": "Contorno/sombra", "default": "#3d3834"}, {"id": "size", "type": "number", "label": "Tamanho máx. da fonte (px)", "default": 160}, {"id": "y", "type": "number", "label": "Topo do bloco (px)", "default": 300}, {"id": "maxw", "type": "number", "label": "Largura útil (px)", "default": 980}, {"id": "exit", "type": "number", "label": "Saída em pop (s antes do fim do bloco; 0 = sem saída)", "default": 0.18}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "seed", "type": "number", "label": "Semente", "default": 21}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tipografia cinética palavra a palavra (sincronizada com a fala)</title>
+  </head>
+  <body>
+    <template>
+      <div id="kinetic-words-root" data-composition-id="kinetic-words" data-duration="4.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          @font-face { font-family: "Fredoka"; src: url("assets/fonts/Fredoka.ttf") format("truetype"); font-weight: 300 700; font-display: block; }
+          [data-composition-id="kinetic-words"] { position: absolute; inset: 0; overflow: hidden; color: #3d3834; font-family: "Inter", sans-serif; background: var(--bg, transparent); }
+          [data-composition-id="kinetic-words"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="kinetic-words"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
+          [data-composition-id="kinetic-words"] .kw { position: absolute; left: 30px; right: 30px; text-align: center; font-family: "Fredoka", sans-serif; font-weight: 700; line-height: 1.12; }
+          [data-composition-id="kinetic-words"] .ln { display: block; white-space: nowrap; }
+          [data-composition-id="kinetic-words"] .w { display: inline-block; margin: 0 0.2em; will-change: transform; paint-order: stroke fill; }
+        </style>
+        <div class="kw"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"lines": "Feliz|Dia das|Crianças!", "times": "0.2|0.5|0.7|0.9", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "ink": "#3d3834", "size": 160, "y": 300, "maxw": 980, "exit": 0.18, "dur": 4.0, "seed": 21};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("kinetic-words-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            root.style.setProperty("--primary", V.primary || "#e50914");
+            root.style.setProperty("--secondary", V.secondary || "#1565ff");
+            root.style.setProperty("--bg", V.bg || "transparent");
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const splitChars = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
+              [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.style.display = "inline-block"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".ch")]; };
+            const splitWords = (el, text) => { el.textContent = ""; text.split(" ").forEach((w, i, a) => { const m = document.createElement("span"); m.style.display = "inline-block"; m.style.overflow = "hidden"; m.style.verticalAlign = "top"; m.style.padding = "0.2em 0.04em 0.04em"; m.style.margin = "-0.2em -0.04em -0.04em";
+              const s = document.createElement("span"); s.className = "wd"; s.style.display = "inline-block"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < a.length - 1) el.appendChild(document.createTextNode(" ")); }); return [...el.querySelectorAll(".wd")]; };
+            const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
+            const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
+            const tl = gsap.timeline({ paused: true });
+            const R = rng(V.seed), pal = list(V.colors), box = $(".kw"), rows = String(V.lines).split("|");
+            const em = Math.max(...rows.map((r) => r.trim().length * 0.56 + r.trim().split(/\s+/).length * 0.4)), fs = Math.min(V.size, Math.floor(V.maxw / em)); // width heuristic in em (Fredoka 700)
+            box.style.top = V.y + "px"; box.style.fontSize = fs + "px";
+            const words = [];
+            rows.forEach((r) => { const ln = document.createElement("span"); ln.className = "ln"; box.appendChild(ln);
+              r.trim().split(/\s+/).forEach((w) => { const s = document.createElement("span"); s.className = "w"; s.textContent = w; ln.appendChild(s); words.push(s); }); });
+            const T = list(V.times).map(Number);
+            const last = T.length ? T[T.length - 1] : 0.2;
+            words.forEach((w, i) => { if (T[i] === undefined) T[i] = last + (i - T.length + 1) * 0.22; });
+            words.forEach((w, i) => {
+              w.style.color = pal[i % pal.length]; w.style.webkitTextStroke = `${Math.max(3, Math.round(fs / 26))}px ${V.ink}`;
+              w.style.textShadow = `0 ${Math.round(fs * 0.07)}px 0 ${V.ink}33`;
+              const t = Math.max(0, T[i] - 0.04), rot = (R() - 0.5) * 12, nxt = i + 1 < words.length ? T[i + 1] : t + 0.5;
+              // stretch in -> squash on landing -> settle; the current word stays a bit bigger until the next one lands
+              tl.fromTo(w, { scaleX: 0.3, scaleY: 1.7, y: -fs * 0.6, rotation: rot, opacity: 0, transformOrigin: "50% 100%" },
+                { scaleX: 1.14, scaleY: 1.14, y: 0, opacity: 1, duration: 0.12, ease: "power3.out" }, t);
+              tl.to(w, { scaleX: 1.26, scaleY: 0.84, duration: 0.06, ease: "power2.out" }, t + 0.12);
+              tl.to(w, { scaleX: 1.08, scaleY: 1.08, rotation: rot * 0.4, duration: 0.22, ease: "elastic.out(1,0.45)" }, t + 0.18);
+              tl.to(w, { scaleX: 1, scaleY: 1, duration: 0.16, ease: "power2.out" }, Math.max(t + 0.4, nxt - 0.02));
+            });
+            const lastT = T[words.length - 1] ?? 0.2;
+            tl.to(box, { x: 14, duration: 0.04, yoyo: true, repeat: 5, ease: "none" }, lastT + 0.14);
+            tl.fromTo(box, { y: 0 }, { y: -18, duration: Math.max(0.5, V.dur / 3), yoyo: true, repeat: 2, ease: "sine.inOut" }, 0);
+            if (V.exit > 0) words.forEach((w, i) => tl.to(w, { scale: 0, rotation: (R() - 0.5) * 40, duration: 0.14, ease: "back.in(2.5)" }, V.dur - V.exit + (i % 6) * 0.012));
+            tl.set({}, {}, V.dur);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["kinetic-words"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

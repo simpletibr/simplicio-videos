@@ -71,6 +71,18 @@
       "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"
     },
     {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s) = data-duration do host",
+      "default": 4.0
+    },
+    {
+      "id": "bpm",
+      "type": "number",
+      "label": "BPM: anel/chip pulsam nas batidas (0 = respiração suave)",
+      "default": 0
+    },
+    {
       "id": "bg",
       "type": "string",
       "label": "Fundo",

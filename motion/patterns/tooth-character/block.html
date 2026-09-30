@@ -11,7 +11,7 @@
   Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="tooth-character"].
   Origin: authored for the kids/dental template (Lothus Odontologia, Dia das Criancas 2026).
 -->
-<html lang="pt-BR" data-composition-id="tooth-character" data-composition-duration="4.0" data-composition-variables='[{"id": "x", "type": "number", "label": "Centro x (px)", "default": 540}, {"id": "y", "type": "number", "label": "Centro y (px)", "default": 1060}, {"id": "scale", "type": "number", "label": "Escala", "default": 1.3}, {"id": "body", "type": "color", "label": "Cor do dente", "default": "#ffffff"}, {"id": "ink", "type": "color", "label": "Contorno", "default": "#3d3834"}, {"id": "cheek", "type": "color", "label": "Bochechas", "default": "#ffb3b3"}, {"id": "accent", "type": "color", "label": "Brilho/estrela", "default": "#ffd23f"}, {"id": "t_in", "type": "number", "label": "Entrada (s)", "default": 0.1}, {"id": "wave_t", "type": "number", "label": "Aceno começa (s)", "default": 0.7}, {"id": "label", "type": "string", "label": "Balão de fala (vazio = sem balão)", "default": "Oi!", "maxLength": 18}, {"id": "bg", "type": "string", "label": "Fundo", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 3}]'>
+<html lang="pt-BR" data-composition-id="tooth-character" data-composition-duration="4.0" data-composition-variables='[{"id": "x", "type": "number", "label": "Centro x (px)", "default": 540}, {"id": "y", "type": "number", "label": "Centro y (px)", "default": 1060}, {"id": "scale", "type": "number", "label": "Escala", "default": 1.3}, {"id": "body", "type": "color", "label": "Cor do dente", "default": "#ffffff"}, {"id": "ink", "type": "color", "label": "Contorno", "default": "#3d3834"}, {"id": "cheek", "type": "color", "label": "Bochechas", "default": "#ffb3b3"}, {"id": "accent", "type": "color", "label": "Brilho/estrela", "default": "#ffd23f"}, {"id": "t_in", "type": "number", "label": "Entrada (s)", "default": 0.1}, {"id": "wave_t", "type": "number", "label": "Aceno começa (s)", "default": 0.7}, {"id": "label", "type": "string", "label": "Balão de fala (vazio = sem balão)", "default": "Oi!", "maxLength": 18}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "bpm", "type": "number", "label": "BPM: dança com squash & stretch em cada batida (0 = quique suave)", "default": 0}, {"id": "beat0", "type": "number", "label": "Primeira batida (s, no bloco)", "default": 0}, {"id": "bg", "type": "string", "label": "Fundo", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 3}]'>
   <head>
     <meta charset="UTF-8" />
     <title>Personagem dente sorridente (SVG)</title>
@@ -46,7 +46,7 @@
         <script>
           (() => {
             // ---- params: block defaults < host data-variable-values < CLI --variables ----
-            const DEF = {"x": 540, "y": 1060, "scale": 1.3, "body": "#ffffff", "ink": "#3d3834", "cheek": "#ffb3b3", "accent": "#ffd23f", "t_in": 0.1, "wave_t": 0.7, "label": "Oi!", "bg": "#fbf7f2", "seed": 3};
+            const DEF = {"x": 540, "y": 1060, "scale": 1.3, "body": "#ffffff", "ink": "#3d3834", "cheek": "#ffb3b3", "accent": "#ffd23f", "t_in": 0.1, "wave_t": 0.7, "label": "Oi!", "dur": 4.0, "bpm": 0, "beat0": 0, "bg": "#fbf7f2", "seed": 3};
             const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
             const V = Object.assign({}, DEF, HV);
             const root = document.getElementById("tooth-character-root");
@@ -70,15 +70,26 @@
             $(".star").setAttribute("fill", V.accent); const b = $(".bubble"); b.textContent = V.label; b.style.border = `6px solid ${V.ink}`; if (!V.label) b.style.display = "none";
             gsap.set(w, { x: V.x - 200, y: V.y - 235, scale: V.scale, transformOrigin: "50% 100%" });
             tl.fromTo(w, { scale: 0, y: V.y - 35 }, { scale: V.scale, y: V.y - 235, duration: 0.7, ease: "back.out(2.2)" }, V.t_in);
-            const bob = 0.5, reps = Math.max(1, Math.floor((4.0 - V.t_in - 0.8) / bob));
-            tl.fromTo(w, { y: V.y - 235 }, { y: V.y - 265, duration: bob / 2, yoyo: true, repeat: reps * 2 - 1, ease: "sine.inOut", immediateRender: false }, V.t_in + 0.8);
+            if (V.bpm > 0) { // dance: squash on the beat, stretch + hop between beats, tiny tilt alternating
+              const B = 60 / V.bpm, sv = $(".wrap svg"); gsap.set(sv, { transformOrigin: "50% 100%" }); let k = 0;
+              for (let t = V.beat0; t < V.dur - 0.35; t += B, k++) { if (t < V.t_in + 0.55) continue;
+                tl.to(sv, { scaleX: 1.14, scaleY: 0.84, rotation: 0, duration: 0.06, ease: "power2.out" }, t);
+                tl.to(sv, { scaleX: 0.92, scaleY: 1.1, rotation: k % 2 ? 5 : -5, duration: B * 0.35, ease: "power2.out" }, t + 0.06);
+                tl.to(w, { y: V.y - 275, duration: B * 0.35, ease: "power2.out" }, t + 0.06);
+                tl.to(w, { y: V.y - 235, duration: B * 0.5 - 0.06, ease: "power2.in" }, t + 0.06 + B * 0.35);
+                tl.to(sv, { scaleX: 1, scaleY: 1, duration: B * 0.3, ease: "sine.inOut" }, t + 0.06 + B * 0.35); }
+            } else {
+              const bob = 0.5, reps = Math.max(1, Math.floor((V.dur - V.t_in - 0.8) / bob));
+              tl.fromTo(w, { y: V.y - 235 }, { y: V.y - 265, duration: bob / 2, yoyo: true, repeat: reps * 2 - 1, ease: "sine.inOut", immediateRender: false }, V.t_in + 0.8);
+            }
             tl.fromTo(".armR", { rotation: 0 }, { rotation: -32, duration: 0.18, yoyo: true, repeat: 7, ease: "sine.inOut", svgOrigin: "322 240" }, V.wave_t);
             tl.fromTo(".armL", { rotation: 0 }, { rotation: 10, duration: 0.4, yoyo: true, repeat: 3, ease: "sine.inOut", svgOrigin: "78 240" }, V.wave_t + 0.2);
-            [1.3, 2.9].forEach((t) => { tl.to(".eye ellipse", { scaleY: 0.12, duration: 0.06, svgOrigin: "200 160", ease: "none" }, t); tl.to(".eye ellipse", { scaleY: 1, duration: 0.08, ease: "none" }, t + 0.1); });
+            [1.3, 2.9, 4.5, 6.1].filter((t) => t < V.dur - 0.5).forEach((t) => { tl.to(".eye ellipse", { scaleY: 0.12, duration: 0.06, svgOrigin: "200 160", ease: "none" }, t); tl.to(".eye ellipse", { scaleY: 1, duration: 0.08, ease: "none" }, t + 0.1); });
             tl.fromTo(".star", { scale: 0, rotation: -90 }, { scale: 1, rotation: 0, duration: 0.45, ease: "back.out(3)", svgOrigin: "340 84" }, V.t_in + 0.9);
             tl.to(".star", { scale: 0.75, duration: 0.3, yoyo: true, repeat: 3, ease: "sine.inOut", svgOrigin: "340 84" }, V.t_in + 1.4);
             tl.fromTo(b, { scale: 0, opacity: 1 }, { scale: 1, duration: 0.4, ease: "back.out(2.5)", transformOrigin: "0% 100%" }, V.t_in + 0.6);
-            tl.to(w, { scale: 0, duration: 0.25, ease: "back.in(2)" }, 4.0 - 0.28);
+            tl.to(w, { scale: 0, duration: 0.25, ease: "back.in(2)" }, V.dur - 0.28);
+            tl.set({}, {}, V.dur);
             tl.seek(0);
             window.__timelines = window.__timelines || {};
             window.__timelines["tooth-character"] = tl;
