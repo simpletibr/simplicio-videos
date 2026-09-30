@@ -13,11 +13,11 @@ Kit para produzir vídeos promocionais com **Claude Opus 5.5** (código → víd
 | [docs/como-gerar-videos-opus-5-5.md](docs/como-gerar-videos-opus-5-5.md) | Como as pessoas fazem vídeos com Opus 5.5: stacks, prompts reais, skills, render, custos (com fontes) |
 | [docs/tokens-e-deterministico.md](docs/tokens-e-deterministico.md) | Quanto custa, como economizar tokens, e o pipeline determinístico proposto |
 | [docs/plugin-simplicio-runtime.md](docs/plugin-simplicio-runtime.md) | Arquitetura proposta de plugin (`simplicio.plugin/v1`) |
-| [docs/narracao-tts.md](docs/narracao-tts.md) | Narração com TTS local (Kokoro, Apache-2.0), cache, ducking e como trocar para ElevenLabs |
+| [docs/narracao-tts.md](docs/narracao-tts.md) | Narração com TTS local (Chatterbox V3, MIT — sem aceleração, melhor take por ASR), cache, ducking e como trocar para ElevenLabs ou xAI |
 | [docs/setup.md](docs/setup.md) | Passo a passo no Mac: Node, FFmpeg, Claude Code/Codex, skills, render |
 | [docs/checklist-cliente.md](docs/checklist-cliente.md) | Template do que pedir a qualquer cliente |
 | [clients/wjr-informatica-games/coleta/](clients/wjr-informatica-games/coleta/) | **Toda a coleta do cliente**: brief, snapshot do site, imagens, paleta (`colors.json`), Instagram, fontes com data, pendências, checklist |
-| [clients/wjr-informatica-games/video-01/](clients/wjr-informatica-games/video-01/) | Reels 9:16 "showreel" de 15 s com narração + trilha + SFX: composição, roteiro, prompt, spec, preview com áudio |
+| [clients/wjr-informatica-games/video-01/](clients/wjr-informatica-games/video-01/) | Reels 9:16 "showreel" de 20 s com narração + trilha + SFX + cena de serviços: composição, roteiro, prompt, spec, preview com áudio |
 
 ## Quick start
 
@@ -26,7 +26,7 @@ gh repo clone simpletibr/simplicio-videos
 cd simplicio-videos/clients/wjr-informatica-games/video-01
 npm run assets:site   # imagens públicas do site p/ rascunho (gitignored)
 npm run check         # build (variáveis + áudio) + lint + layout + contraste
-npm run render        # out/video-01.mp4 (1080×1920, 30 fps, 15 s, áudio −14 LUFS)
+npm run render        # out/video-01.mp4 (1080×1920, 30 fps, 20 s, áudio −14 LUFS)
 ```
 Requer Node ≥ 22 e FFmpeg. Preview 720p com áudio já renderizado: [`video-01/preview/`](clients/wjr-informatica-games/video-01/preview/).
 Para iterar com IA: abra Claude Code (Opus 5.5) ou Codex dentro de `video-01/` e use [`PROMPT.md`](clients/wjr-informatica-games/video-01/PROMPT.md).

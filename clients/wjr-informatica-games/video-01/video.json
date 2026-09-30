@@ -9,7 +9,7 @@
     "width": 1080,
     "height": 1920,
     "fps": 30,
-    "duration_s": 15,
+    "duration_s": 20,
     "channel": "instagram-reels"
   },
   "entry": "index.html",
@@ -27,11 +27,11 @@
   },
   "voice": {
     "spec_key": "voice",
-    "provider": "kokoro",
-    "model": "kokoro-v1.0",
-    "voice": "pm_alex",
-    "lang": "pt-br",
-    "license": "Apache-2.0",
+    "provider": "chatterbox",
+    "model": "chatterbox-multilingual-v3",
+    "voice": "ref:kokoro-pm_alex (synthetic)",
+    "lang": "pt",
+    "license": "MIT",
     "render": "npm run voice",
     "cache": "assets/audio/vo/manifest.json"
   },

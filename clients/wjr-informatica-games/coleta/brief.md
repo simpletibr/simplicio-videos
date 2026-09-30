@@ -44,6 +44,18 @@
 
 **Não encontrado no site (não verificado):** venda de consoles/jogos/PCs, informática geral (apesar do nome "informática" no Instagram), preços, prazos, garantia, formas de pagamento, tempo de mercado, nº de clientes atendidos. **Não prometer nada disso no vídeo.**
 
+## Serviços confirmados pelo cliente (fonte S3)
+
+> **S3 = confirmado pelo Wesley em 30/09/2026** (informação passada diretamente, não aparece no site em 30/09/2026). Pode ser usado em vídeo.
+
+| Serviço | Observação |
+|---|---|
+| Limpeza de controle | — |
+| Troca de metal líquido do PS5 | pasta térmica de metal líquido do PlayStation 5 |
+| Instalação de analógico **Hall Effect** nos controles de PS5 e PS4 | analógicos com sensor magnético (Hall Effect), ligados ao problema de drift listado no site. Obs.: a mensagem original dizia "how effects" — é "Hall Effect". |
+
+Ainda não confirmado para esses serviços: preço, prazo, garantia, marcas das peças → não citar.
+
 ## Tom
 
 Direto, informal-confiante, vocabulário gamer ("de volta no jogo", "segunda chance"), sem jargão técnico. Promessas moderadas (diagnóstico antes de reparo, transparência). Sem números/estatísticas no site.

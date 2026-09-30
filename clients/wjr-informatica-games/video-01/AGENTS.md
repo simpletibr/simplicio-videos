@@ -1,4 +1,4 @@
-# AGENTS.md — video-01 (WJR Infogames Reels · showreel 15 s)
+# AGENTS.md — video-01 (WJR Infogames Reels · showreel 20 s)
 
 Rules for any coding agent (Claude Code / Opus 5.5, Codex) working in this folder:
 

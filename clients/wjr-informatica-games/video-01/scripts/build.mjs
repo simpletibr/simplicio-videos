@@ -89,7 +89,11 @@ function blip(f = 1320) { const o = len(0.12); for (let i = 0; i < o.length; i++
 function riser(d = 1.0) { const o = len(d), bp = biquad("bp"); let ph = 0; for (let i = 0; i < o.length; i++) { const x = i / o.length; if (i % 16 === 0) bp.set(300 * Math.pow(30, x), 2); ph = (ph + (180 * Math.pow(6, x)) / SR) % 1; o[i] = (bp.run(noise()) * 1.4 + (2 * ph - 1) * 0.25) * x * x; } return o; }
 function glitch(d = 0.28) { const o = len(d); const step = Math.round(SR / 90); let hold = 0; for (let i = 0; i < o.length; i++) { if (i % step === 0) hold = rnd() < 0.5 ? noise() : (rnd() < 0.5 ? 0.8 : -0.8); const t = i / SR; const sq = Math.sin(TAU * (400 + 1200 * rnd() * 0) * t) > 0 ? 0.3 : -0.3; o[i] = (Math.floor(i / (step * 3)) % 2 ? hold : sq) * 0.9; } return o; }
 function reverb(x, mix = 0.3) { const out = new Float32Array(x.length); const combs = [1557, 1617, 1491, 1422].map((d) => ({ d, buf: new Float32Array(d), i: 0 })); for (let n = 0; n < x.length; n++) { let s = 0; for (const c of combs) { const y = c.buf[c.i]; c.buf[c.i] = x[n] + y * 0.78; c.i = (c.i + 1) % c.d; s += y; } out[n] = x[n] * (1 - mix) + (s / 4) * mix; } return out; }
-const SFX = { whoosh, impact, hit, click, blip, riser, glitch };
+function shimmer(d = 0.7, f = 2637) { // metallic sparkle: inharmonic partials with tremolo (liquid-metal / cleaning sparkle)
+  const o = len(d), parts = [1, 1.5, 2.01, 2.76, 3.52]; for (let i = 0; i < o.length; i++) { const t = i / SR; let s = 0;
+    parts.forEach((p, k) => { s += Math.sin(TAU * f * p * t + k) * Math.exp(-t * (4 + k * 2)) / (k + 1); });
+    o[i] = s * 0.45 * (0.75 + 0.25 * Math.sin(TAU * 18 * t)) * Math.min(1, t * 300); } return reverb(o, 0.3); }
+const SFX = { whoosh, impact, hit, click, blip, riser, glitch, shimmer };
 
 // ---------- music (arrangement driven by spec.audio.music.sections) ----------
 const prog = audio.music.progression; // array of [rootMidi, [chord midis]] per bar
@@ -122,7 +126,7 @@ for (const cue of audio.cues) {
     for (let k = -480; k < hold + rel; k++) { const j = a + k; if (j < 0 || j >= N) continue; const g = k < 0 ? 1 - (1 - depth) * ((k + 480) / 480) : k < hold ? depth : depth + (1 - depth) * ((k - hold) / rel); duck[j] = Math.min(duck[j], g); } }
 }
 // ---------- voice-over (pre-rendered by scripts/voice.py, cached in assets/audio/vo/) ----------
-// VO bus is centered, high-passed and level-matched per line; its envelope ducks music (and SFX a little).
+// VO bus is centered and level-matched per line (no extra saturation); its envelope ducks music (and SFX a little).
 const VO = new Float32Array(N), voEnv = new Float32Array(N);
 const voice = spec.voice;
 let voLines = 0;
@@ -142,11 +146,12 @@ if (voice?.enabled) {
   for (const line of voice.lines) {
     const m = man.lines[line.id]; if (!m) throw new Error(`VO ${line.id} not rendered - run \`npm run voice\``);
     if (m.text !== line.text) throw new Error(`VO ${line.id} text changed in spec.json - run \`npm run voice\``);
-    const x = readWavMono(join(ROOT, m.file)), hp = biquad("hp"); hp.set(110, 0.7);
-    let ss = 0; for (let i = 0; i < x.length; i++) { x[i] = hp.run(x[i]); ss += x[i] * x[i]; }
+    // EQ / compression / room are applied once in voice.py (spec.voice.processing); here only level-match + place
+    const x = readWavMono(join(ROOT, m.file));
+    let ss = 0; for (let i = 0; i < x.length; i++) ss += x[i] * x[i];
     const g = db(voice.gain_db ?? 0) * (0.16 / Math.sqrt(ss / x.length + 1e-9)); // level-match lines to the same RMS
     const i0 = Math.round(line.t * SR);
-    for (let i = 0; i < x.length; i++) { const j = i0 + i; if (j >= 0 && j < N) VO[j] += Math.tanh(x[i] * g * 1.4) / 1.4; }
+    for (let i = 0; i < x.length; i++) { const j = i0 + i; if (j >= 0 && j < N) VO[j] += x[i] * g; }
     voLines++;
   }
   // envelope follower (10 ms attack, 300 ms release) with 60 ms look-ahead so the duck lands before the word

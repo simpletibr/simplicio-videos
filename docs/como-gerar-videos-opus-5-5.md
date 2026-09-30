@@ -139,8 +139,8 @@ Detalhes sobre economia de tokens e caminho determinístico: [`tokens-e-determin
 - **HyperFrames** como stack do template (HTML + GSAP, sem build, render por variáveis, skills oficiais para Claude Code e Codex).
 - Prompt de iteração no estilo 3.2 + 3.3 + 3.5: fonte de verdade = site do cliente, sem números inventados, tempos por cena, gate `lint → check → snapshot → render`.
 - **Som + motion no nível dos showcases** (seção 8): trilha 120 BPM e SFX sintetizados por código a partir de cues em `spec.json`, cortes no beat, tipografia cinética, câmera, glitch/RGB split.
-- **Narração pt-BR** com TTS local (Kokoro-82M, Apache-2.0), frases com tempo em `spec.json → voice`, cacheadas, música abaixando sob a voz: [`narracao-tts.md`](narracao-tts.md).
-- **Prompt "showreel" adaptado para a WJR** (15 s, "go all out", com travas de fatos/marca/áudio): `PROMPT.md` §0.
+- **Narração pt-BR** com TTS local (Chatterbox Multilingual V3, MIT, velocidade natural; Kokoro-82M como referência/alternativa), frases com tempo em `spec.json → voice`, cacheadas, música abaixando sob a voz: [`narracao-tts.md`](narracao-tts.md).
+- **Prompt "showreel" adaptado para a WJR** (20 s, "go all out", com travas de fatos/marca/áudio): `PROMPT.md` §0.
 - Veja `clients/wjr-informatica-games/video-01/PROMPT.md`.
 
 > Os prompts acima foram copiados literalmente dos arquivos dos repositórios citados (ambos com LICENSE MIT); o conteúdo pertence aos autores linkados.
@@ -161,5 +161,5 @@ Detalhes sobre economia de tokens e caminho determinístico: [`tokens-e-determin
 
 **Divergências conscientes.** O shotcraft desaconselha timbres "de videogame" (pluck/bloop sintético) em vídeo de produto; os prompts minimalistas do @twoclipping proíbem RGB split, shake, grid floor e partículas. Aqui o cliente **é** uma assistência gamer e o pedido foi explicitamente por blips de UI, glitch e energia de showreel — então usamos essa estética de propósito, mas com contenção (2 slams, glitch só nas trocas de cena, elastic só no logo).
 
-**Áudio sem licença de terceiros.** Em vez de baixar trilha/SFX (Pixabay, Freesound CC0, Kenney), o `scripts/build.mjs` **sintetiza** tudo (osciladores + ruído com semente + filtros biquad + reverb simples), mixa com sidechain e ducking e normaliza com `loudnorm` (−14 LUFS); `scripts/master.sh` re-mede no MP4 final e aplica limiter. Resultado verificado: −14,3 LUFS, true peak −1,7 dBTP. Vantagens: zero risco de licença, re-sincroniza sozinho quando um cue muda no JSON, e mesma entrada = mesmo WAV. Limite: é uma trilha "funcional" de 15 s, não uma produção musical — para campanhas maiores, trocar por trilha licenciada e registrar em `assets/audio/LICENSES.md`.
+**Áudio sem licença de terceiros.** Em vez de baixar trilha/SFX (Pixabay, Freesound CC0, Kenney), o `scripts/build.mjs` **sintetiza** tudo (osciladores + ruído com semente + filtros biquad + reverb simples), mixa com sidechain e ducking e normaliza com `loudnorm` (−14 LUFS); `scripts/master.sh` re-mede no MP4 final e aplica limiter. Resultado verificado: −14,3 LUFS, true peak −1,7 dBTP. Vantagens: zero risco de licença, re-sincroniza sozinho quando um cue muda no JSON, e mesma entrada = mesmo WAV. Limite: é uma trilha "funcional" de 20 s, não uma produção musical — para campanhas maiores, trocar por trilha licenciada e registrar em `assets/audio/LICENSES.md`.
 

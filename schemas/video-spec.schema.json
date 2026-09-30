@@ -215,8 +215,11 @@
         },
         "provider": {
           "enum": [
+            "chatterbox",
             "kokoro",
             "elevenlabs",
+            "xai",
+            "file",
             "none"
           ]
         },

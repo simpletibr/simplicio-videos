@@ -1,11 +1,13 @@
 <!doctype html>
 <!--
-  WJR Infogames — video-01 "showreel" (Instagram Reels 9:16, 15s, 30fps, 120 BPM)
+  WJR Infogames — video-01 "showreel" (Instagram Reels 9:16, 20s, 30fps, 120 BPM)
   HyperFrames composition (HTML + GSAP -> MP4). Deterministic:
     - all client copy/images/colors are variables (spec.json -> build/variables.json)
     - audio is pre-rendered from spec.json "audio" cues by scripts/build.mjs
     - scene/cue times sit on the 120 BPM grid (beat = 0.5s); keep CUE times below in sync with spec.json
-  Copy comes only from the client's public website (see ../coleta/brief.md).
+  Copy comes only from ../coleta/ (public website + services confirmed by the client, source S3).
+  Scenes: S1 0-2 hook | S2 2-4 promise | S3 4-6.5 problems | S4 6.5-8.5 models |
+          SV 8.5-14 services (cleaning 8.5-10, liquid metal 10-12, Hall Effect 12-14) | S5 14-16 process | S6 16-20 CTA drop
 -->
 <html
   lang="pt-BR"
@@ -113,6 +115,9 @@
       #pad3 { position: absolute; left: 190px; top: 1080px; width: 700px; }
       #s3 .note { position: absolute; left: 80px; right: 80px; bottom: 120px; font-size: 30px; color: #a5a5aa; }
 
+      #s3 .more { position: absolute; left: 80px; right: 80px; top: 900px; font-size: 44px; font-weight: 800; color: #d9e4ff; opacity: 0; }
+      #s3 .more span { color: #ff3b45; }
+
       /* ---------- S4 models ---------- */
       #s4 .photo { position: absolute; inset: -80px; }
       #s4 .photo img { width: 100%; height: 100%; object-fit: cover; }
@@ -134,6 +139,21 @@
         background: rgba(20,20,20,0.92); border: 2px solid rgba(255,255,255,0.12); }
       #s4 .xb .chip { border-left: 10px solid var(--secondary); }
       #s4 .ps .chip { border-left: 10px solid var(--primary); }
+
+      /* ---------- SV services ---------- */
+      #sv { padding: 230px 80px 0; }
+      #sv .count { position: relative; height: 60px; font-family: "Anton", sans-serif; font-size: 44px; color: #6f9bff; margin-top: 16px; }
+      #sv .count span { position: absolute; left: 0; top: 0; opacity: 0; }
+      #sv .svp { position: absolute; left: 80px; right: 80px; top: 400px; bottom: 0; }
+      #sv h3 { font-size: 132px; line-height: 1.2; }
+      #sv h3 .line { line-height: 1.2; }
+      #sv .red { color: #ff3b45; }
+      #sv .blue { color: #6f9bff; }
+      #sv .art { position: absolute; left: -20px; top: 330px; width: 960px; height: 704px; overflow: visible; }
+      #sv .cap { position: absolute; left: 0; right: 0; top: 1080px; font-size: 40px; font-weight: 700; color: #cfd3dc; }
+      #sv .caps { position: absolute; left: 0; right: 0; top: 1070px; display: flex; gap: 20px; }
+      #sv .pillc { padding: 16px 28px; border-radius: 999px; font-size: 36px; font-weight: 800; background: rgba(21,101,255,0.18); border: 2px solid var(--secondary); color: #d9e4ff; }
+      #sv .pillc.ps { background: rgba(229,9,20,0.16); border-color: var(--primary); }
 
       /* ---------- S5 process ---------- */
       #s5 { padding: 300px 80px 0; }
@@ -162,9 +182,9 @@
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="15" data-width="1080" data-height="1920">
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1080" data-height="1920">
       <!-- background: grid floor + glows + seeded particles -->
-      <div id="bg" class="clip" data-start="0" data-duration="15" data-track-index="0">
+      <div id="bg" class="clip" data-start="0" data-duration="20" data-track-index="0">
         <div id="glow-a" class="glow" data-layout-allow-overflow></div>
         <div id="glow-b" class="glow" data-layout-allow-overflow></div>
         <div id="floor" data-layout-allow-overflow></div>
@@ -176,13 +196,13 @@
       <div id="cam">
         <!-- optional video plates: static src written by scripts/build.mjs (real clip or black stand-in);
              shown only when <id>_on is true. Timing lives on the <video> (wrappers are untimed). -->
-        <div class="plate" id="pl-clip_05" data-scene="s1" style="--a:0.5"><div class="mv" id="mv-clip_05"><video id="v-clip_05" class="clip" src="assets/clips/build/clip-05.mp4" data-start="0" data-duration="2.5" data-track-index="2" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
-        <div class="plate" id="pl-clip_01" data-scene="s2" style="--a:0.35"><div class="mv" id="mv-clip_01"><video id="v-clip_01" class="clip" src="assets/clips/build/clip-01.mp4" data-start="2.5" data-duration="2" data-track-index="3" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
-        <div class="plate" id="pl-clip_02" data-scene="s3" style="--a:0.72"><div class="mv" id="mv-clip_02"><video id="v-clip_02" class="clip" src="assets/clips/build/clip-02.mp4" data-start="4.5" data-duration="3.5" data-track-index="4" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
-        <div class="plate" id="pl-clip_03" data-scene="s4" style="--a:0.3"><div class="mv" id="mv-clip_03"><video id="v-clip_03" class="clip" src="assets/clips/build/clip-03.mp4" data-start="8" data-duration="2.5" data-track-index="5" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
-        <div class="plate" id="pl-clip_04" data-scene="s6" style="--a:0.68"><div class="mv" id="mv-clip_04"><video id="v-clip_04" class="clip" src="assets/clips/build/clip-04.mp4" data-start="12" data-duration="3" data-track-index="6" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
-        <!-- S1 0.0–2.5 hook -->
-        <section id="s1" class="clip" data-start="0" data-duration="2.5" data-track-index="1">
+        <div class="plate" id="pl-clip_05" data-scene="s1" style="--a:0.5"><div class="mv" id="mv-clip_05"><video id="v-clip_05" class="clip" src="assets/clips/build/clip-05.mp4" data-start="0" data-duration="2" data-track-index="2" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <div class="plate" id="pl-clip_01" data-scene="s2" style="--a:0.35"><div class="mv" id="mv-clip_01"><video id="v-clip_01" class="clip" src="assets/clips/build/clip-01.mp4" data-start="2" data-duration="2" data-track-index="3" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <div class="plate" id="pl-clip_02" data-scene="s3" style="--a:0.72"><div class="mv" id="mv-clip_02"><video id="v-clip_02" class="clip" src="assets/clips/build/clip-02.mp4" data-start="4" data-duration="2.5" data-track-index="4" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <div class="plate" id="pl-clip_03" data-scene="s4" style="--a:0.3"><div class="mv" id="mv-clip_03"><video id="v-clip_03" class="clip" src="assets/clips/build/clip-03.mp4" data-start="6.5" data-duration="2" data-track-index="5" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <div class="plate" id="pl-clip_04" data-scene="s6" style="--a:0.68"><div class="mv" id="mv-clip_04"><video id="v-clip_04" class="clip" src="assets/clips/build/clip-04.mp4" data-start="16" data-duration="4" data-track-index="6" muted playsinline></video></div><div class="tint"></div><div class="shade"></div></div>
+        <!-- S1 0.0–2.0 hook -->
+        <section id="s1" class="clip" data-start="0" data-duration="2" data-track-index="1">
           <svg id="pad1" viewBox="0 0 300 200" fill="none" stroke="#fff" stroke-width="10" data-layout-allow-overflow><path d="M80 40h140c35 0 55 25 62 70l10 55c4 25-24 38-40 18l-30-38H78l-30 38c-16 20-44 7-40-18l10-55c7-45 27-70 62-70z"/></svg>
           <span class="pill" id="s1-pill"></span>
           <div class="words display">
@@ -192,8 +212,8 @@
           </div>
         </section>
 
-        <!-- S2 2.5–4.5 promise + photo 1 -->
-        <section id="s2" class="clip" data-start="2.5" data-duration="2" data-track-index="1">
+        <!-- S2 2.0–4.0 promise + photo 1 -->
+        <section id="s2" class="clip" data-start="2" data-duration="2" data-track-index="1">
           <div class="stage"><div class="card" id="s2-card">
             <img id="s2-img" data-var-src="photo_hero" src="assets/placeholders/photo-hero.svg" alt="" />
             <div class="sweep" id="s2-sweep"></div>
@@ -201,18 +221,17 @@
           <h2 class="display" id="s2-title"></h2>
         </section>
 
-        <!-- S3 4.5–8.0 problems relay + reactive controller -->
-        <section id="s3" class="clip" data-start="4.5" data-duration="3.5" data-track-index="1">
+        <!-- S3 4.0–6.5 problems relay (synced to vo3) + reactive controller -->
+        <section id="s3" class="clip" data-start="4" data-duration="2.5" data-track-index="1">
           <div class="kick" id="s3-kick">Problemas que resolvemos</div>
-          <div class="count" id="s3-count"><span id="n1">01 / 05</span><span id="n2">02 / 05</span><span id="n3">03 / 05</span><span id="n4">04 / 05</span><span id="n5">05 / 05</span></div>
+          <div class="count" id="s3-count"><span id="n1">01 / 03</span><span id="n2">02 / 03</span><span id="n3">03 / 03</span></div>
           <div class="stack">
             <div class="item display" id="s3-i1"></div>
             <div class="item display" id="s3-i2"></div>
             <div class="item display" id="s3-i3"></div>
-            <div class="item display" id="s3-i4"></div>
-            <div class="item display" id="s3-i5"></div>
           </div>
-          <div class="segs"><div class="seg"><i id="sg1"></i></div><div class="seg"><i id="sg2"></i></div><div class="seg"><i id="sg3"></i></div><div class="seg"><i id="sg4"></i></div><div class="seg"><i id="sg5"></i></div></div>
+          <div class="segs"><div class="seg"><i id="sg1"></i></div><div class="seg"><i id="sg2"></i></div><div class="seg"><i id="sg3"></i></div></div>
+          <div class="more" id="s3-more"><span>+</span> <b id="s3-m1"></b> <span>·</span> <b id="s3-m2"></b></div>
           <svg id="pad3" viewBox="0 0 300 200" fill="none" data-layout-allow-overflow>
             <path d="M80 40h140c35 0 55 25 62 70l10 55c4 25-24 38-40 18l-30-38H78l-30 38c-16 20-44 7-40-18l10-55c7-45 27-70 62-70z" stroke="#fff" stroke-width="6" fill="#141414"/>
             <circle id="stick" cx="100" cy="100" r="18" fill="#2a2a2e" stroke="#6f9bff" stroke-width="5"/>
@@ -225,8 +244,8 @@
           <div class="note" id="s3-note">A confirmação do serviço depende da avaliação técnica do equipamento.</div>
         </section>
 
-        <!-- S4 8.0–10.5 models + photo 2 (parallax + diagnostic scan) -->
-        <section id="s4" class="clip" data-start="8" data-duration="2.5" data-track-index="1">
+        <!-- S4 6.5–8.5 models + photo 2 (parallax + diagnostic scan) -->
+        <section id="s4" class="clip" data-start="6.5" data-duration="2" data-track-index="1">
           <div class="photo" id="s4-photo"><img id="s4-img" data-var-src="photo_bench" src="assets/placeholders/photo-bench.svg" alt="" /></div>
           <div class="shade"></div>
           <div class="hud" id="s4-hud"><b class="tl"></b><b class="tr"></b><b class="bl"></b><b class="br"></b><span class="tag" id="s4-tag">Diagnóstico técnico</span></div>
@@ -239,8 +258,83 @@
           </div>
         </section>
 
-        <!-- S5 10.5–12.0 process (build-up) -->
-        <section id="s5" class="clip" data-start="10.5" data-duration="1.5" data-track-index="1">
+
+        <!-- SV 8.5–14.0 services confirmed by the client (coleta S3): cleaning 8.5–10 | liquid metal 10–12 | Hall Effect 12–14 -->
+        <section id="sv" class="clip" data-start="8.5" data-duration="5.5" data-track-index="1">
+          <div class="kick" id="sv-kick">Serviços</div>
+          <div class="count" id="sv-count"><span id="svn1">01 / 03</span><span id="svn2">02 / 03</span><span id="svn3">03 / 03</span></div>
+
+          <!-- A: controller cleaning (brush sweep + dust + sparkles) -->
+          <div class="svp" id="sva" data-layout-allow-overflow>
+            <h3 class="display"><span class="line" id="sva-t1" data-layout-allow-overlap>Limpeza de</span><span class="line red" id="sva-t2" data-layout-allow-overlap>controle</span></h3>
+            <svg class="art" id="sva-art" viewBox="0 0 300 220" fill="none" data-layout-allow-overflow>
+              <path d="M80 50h140c35 0 55 25 62 70l10 55c4 25-24 38-40 18l-30-38H78l-30 38c-16 20-44 7-40-18l10-55c7-45 27-70 62-70z" fill="#141416" stroke="#fff" stroke-width="5"/>
+              <circle cx="102" cy="112" r="17" fill="#232327" stroke="#6f9bff" stroke-width="4"/>
+              <circle cx="176" cy="140" r="14" fill="#232327" stroke="#6f9bff" stroke-width="3"/>
+              <circle cx="215" cy="92" r="9" fill="#2a2a2e"/><circle cx="237" cy="110" r="9" fill="#2a2a2e"/><circle cx="215" cy="128" r="9" fill="#2a2a2e"/><circle cx="193" cy="110" r="9" fill="#2a2a2e"/>
+              <rect x="136" y="66" width="28" height="7" rx="3.5" fill="#6f9bff" opacity="0.8"/>
+              <g id="sva-dust"></g>
+              <g id="sva-spark"></g>
+              <g id="sva-brush">
+                <rect x="-8" y="-92" width="16" height="70" rx="7" fill="#e50914"/>
+                <rect x="-16" y="-26" width="32" height="14" rx="3" fill="#d9d9de"/>
+                <g stroke="#f2e6c9" stroke-width="2.4" stroke-linecap="round"><path d="M-13 -12v26M-8 -12v28M-3 -12v29M2 -12v29M7 -12v28M12 -12v26"/></g>
+              </g>
+            </svg>
+            <div class="cap" id="sva-cap">Sujeira fora, botões e analógicos limpos</div>
+          </div>
+
+          <!-- B: PS5 liquid metal (die + foam barrier + silver blob spreading + shine) -->
+          <div class="svp" id="svb" data-layout-allow-overflow>
+            <h3 class="display"><span class="line" id="svb-t1" data-layout-allow-overlap>Metal líquido</span><span class="line blue" id="svb-t2" data-layout-allow-overlap>no PS5</span></h3>
+            <svg class="art" id="svb-art" viewBox="0 0 300 220" fill="none" data-layout-allow-overflow>
+              <defs>
+                <linearGradient id="lmg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="0.35" stop-color="#b9c2cc"/><stop offset="0.6" stop-color="#eef2f6"/><stop offset="1" stop-color="#8d96a1"/></linearGradient>
+                <linearGradient id="shg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+                <clipPath id="dieclip"><rect x="108" y="72" width="84" height="76" rx="4"/></clipPath>
+              </defs>
+              <rect x="10" y="12" width="280" height="196" rx="14" fill="#0d1f18" stroke="#1f5c43" stroke-width="2"/>
+              <g stroke="#1f5c43" stroke-width="2"><path d="M20 40h50l12 12M20 180h60l14-14M280 40h-50l-12 12M280 180h-60l-14-14M150 12v24M150 208v-24"/></g>
+              <rect x="74" y="40" width="152" height="140" rx="8" fill="#16352a" stroke="#2b6b52" stroke-width="2"/>
+              <g fill="#c9a24a"><rect x="84" y="50" width="8" height="5"/><rect x="208" y="50" width="8" height="5"/><rect x="84" y="165" width="8" height="5"/><rect x="208" y="165" width="8" height="5"/><rect x="96" y="50" width="8" height="5"/><rect x="196" y="165" width="8" height="5"/></g>
+              <rect id="svb-foam" x="100" y="64" width="100" height="92" rx="8" stroke="#ff7a1a" stroke-width="5" stroke-dasharray="6 4"/>
+              <rect x="108" y="72" width="84" height="76" rx="4" fill="#2b2b31" stroke="#44444c" stroke-width="2"/>
+              <g clip-path="url(#dieclip)">
+                <ellipse id="svb-blob" cx="150" cy="110" rx="46" ry="42" fill="url(#lmg)"/>
+                <rect id="svb-shine" x="60" y="60" width="34" height="110" fill="url(#shg)" transform="skewX(-18)"/>
+              </g>
+              <g id="svb-drops" fill="url(#lmg)"></g>
+            </svg>
+            <div class="cap" id="svb-cap">Troca de metal líquido no PlayStation 5</div>
+          </div>
+
+          <!-- C: Hall Effect analog stick (top view: stick cap + magnet orbit, field arcs, magnetic sensor, precise trace) -->
+          <div class="svp" id="svc" data-layout-allow-overflow>
+            <h3 class="display"><span class="line" id="svc-t1" data-layout-allow-overlap>Analógico</span><span class="line blue" id="svc-t2" data-layout-allow-overlap>Hall Effect</span></h3>
+            <svg class="art" id="svc-art" viewBox="0 0 300 220" fill="none" data-layout-allow-overflow>
+              <circle cx="150" cy="100" r="86" fill="#121214" stroke="#34343a" stroke-width="5"/>
+              <circle cx="150" cy="100" r="62" stroke="#24242a" stroke-width="2" stroke-dasharray="3 5"/>
+              <g id="svc-field" stroke="#6f9bff" stroke-width="2.5"></g>
+              <circle id="svc-trace" cx="150" cy="100" r="40" stroke="#e50914" stroke-width="4" stroke-linecap="round" stroke-dasharray="251.33" stroke-dashoffset="251.33"/>
+              <g id="svc-orbit"><g id="svc-stick">
+                <circle cx="150" cy="100" r="30" fill="#2a2a2e" stroke="#6f9bff" stroke-width="4" opacity="0.92"/>
+                <circle cx="150" cy="100" r="21" stroke="#3a3a40" stroke-width="2"/>
+                <rect x="136" y="94" width="14" height="12" fill="#e50914"/><rect x="150" y="94" width="14" height="12" fill="#1565ff"/>
+                <text x="143" y="103.5" font-size="9" font-family="Inter" font-weight="800" fill="#fff" text-anchor="middle">N</text>
+                <text x="157" y="103.5" font-size="9" font-family="Inter" font-weight="800" fill="#fff" text-anchor="middle">S</text>
+              </g></g>
+              <g id="svc-sensor">
+                <rect x="124" y="196" width="52" height="18" rx="3" fill="#1d1d22" stroke="#6f9bff" stroke-width="2"/>
+                <g stroke="#9aa0aa" stroke-width="2"><path d="M130 196v-5M138 196v-5M146 196v-5M154 196v-5M162 196v-5M170 196v-5"/></g>
+                <circle id="svc-led" cx="168" cy="205" r="3" fill="#1faa55"/>
+              </g>
+            </svg>
+            <div class="caps"><span class="pillc" id="svc-lbl">sensor magnético</span><span class="pillc ps" id="svc-ps4">PS4</span><span class="pillc ps" id="svc-ps5">PS5</span></div>
+          </div>
+        </section>
+
+        <!-- S5 14.0–16.0 process (build-up) -->
+        <section id="s5" class="clip" data-start="14" data-duration="2" data-track-index="1">
           <div class="kick" id="s5-kick">Como funciona</div>
           <h3 class="display" id="s5-title">Sem surpresa.</h3>
           <div class="steps">
@@ -252,8 +346,8 @@
           </div>
         </section>
 
-        <!-- S6 12.0–15.0 CTA drop -->
-        <section id="s6" class="clip" data-start="12" data-duration="3" data-track-index="1">
+        <!-- S6 16.0–20.0 CTA drop -->
+        <section id="s6" class="clip" data-start="16" data-duration="4" data-track-index="1">
           <div class="logo-wrap" id="s6-logowrap">
             <div class="ring" id="ring1"></div><div class="ring b" id="ring2"></div>
             <div class="burst" id="burst"></div>
@@ -266,11 +360,11 @@
       </div>
 
       <!-- overlays: scanlines, vignette, glitch/flash/scan-bar FX -->
-      <div id="scan" class="clip" data-start="0" data-duration="15" data-track-index="7"></div>
-      <div id="fx" class="clip" data-start="0" data-duration="15" data-track-index="9"><div id="fx-bar" class="bar" data-layout-allow-overflow></div><div id="fx-flash" class="flash"></div></div>
+      <div id="scan" class="clip" data-start="0" data-duration="20" data-track-index="7"></div>
+      <div id="fx" class="clip" data-start="0" data-duration="20" data-track-index="9"><div id="fx-bar" class="bar" data-layout-allow-overflow></div><div id="fx-flash" class="flash"></div></div>
 
       <!-- pre-mixed soundtrack (music + SFX) from scripts/build.mjs -->
-      <audio id="soundtrack" src="assets/audio/build/mix.wav" data-start="0" data-duration="15" data-track-index="10" data-volume="1"></audio>
+      <audio id="soundtrack" src="assets/audio/build/mix.wav" data-start="0" data-duration="20" data-track-index="10" data-volume="1"></audio>
     </div>
 
     <script>
@@ -288,6 +382,12 @@
       function splitWords(el, text) { el.textContent = ""; text.split(" ").forEach((w, i) => { const m = document.createElement("span"); m.className = "line"; m.style.display = "inline-block"; const s = document.createElement("span"); s.className = "wd"; s.textContent = w; m.appendChild(s); el.appendChild(m); if (i < text.split(" ").length - 1) el.appendChild(document.createTextNode(" ")); }); return el.querySelectorAll(".wd"); }
       function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
       const R = rng(20260930);
+      const NS = "http://www.w3.org/2000/svg";
+      const svgEl = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); parent.appendChild(e); return e; };
+
+      // ---- timing (seconds, 120 BPM grid; VO onsets from assets/audio/vo/manifest.json + ASR word times) ----
+      const T = { s2: 2.0, s3: 4.0, s4: 6.5, sv: 8.5, svb: 10.0, svc: 12.0, s5: 14.0, s6: 16.0, end: 20.0 };
+      const P3 = [4.05, 4.7, 5.9]; // S3 items on the spoken words: "Drift" / "Superaquecimento" / "Não liga"
 
       // text content
       $("#s1-pill").textContent = V.kicker;
@@ -302,9 +402,11 @@
         const tx = document.createElement("span"); tx.className = "hltext"; wordsB = splitWords(tx, pr.slice(cut).trim());
         w.appendChild(hlBg); w.appendChild(tx); t2.appendChild(a); t2.appendChild(w);
       } else { wordsA = splitWords(t2, pr); }
-      ["p1", "p2", "p3", "p4", "p5"].forEach((k, i) => { const el = $("#s3-i" + (i + 1)); el.textContent = V[k];
+      // S3 follows the VO order (drift, superaquecimento, não liga); the other two problems ride along as a footer line
+      ["p1", "p3", "p2"].forEach((k, i) => { const el = $("#s3-i" + (i + 1)); el.textContent = V[k];
         // fit: Anton caps ~0.47em per glyph; keep the longest word inside the 920px column
         const longest = Math.max(...V[k].split(" ").map((w) => w.length)); el.style.fontSize = Math.min(170, Math.floor(920 / (0.47 * longest))) + "px"; });
+      $("#s3-m1").textContent = V.p4; $("#s3-m2").textContent = V.p5;
       const chCta = splitChars($("#s6-title"), V.cta);
       // particles (seeded => deterministic)
       const P = $("#particles"), pts = [];
@@ -314,12 +416,23 @@
       // FX glitch slices
       const fx = $("#fx"), slices = [];
       for (let i = 0; i < 9; i++) { const s = document.createElement("div"); s.className = "slice"; const h = 40 + R() * 160; s.style.top = (R() * 1800).toFixed(0) + "px"; s.style.height = h.toFixed(0) + "px"; s.style.background = i % 3 === 0 ? V.primary : i % 3 === 1 ? V.secondary : "#ffffff"; fx.appendChild(s); slices.push(s); }
+      // SV-A dust specks + sparkles, SV-B liquid-metal droplets, SV-C field arcs (all seeded)
+      const dustG = $("#sva-dust"), dust = [];
+      for (let i = 0; i < 34; i++) { const x = 40 + R() * 230, y = 70 + R() * 110; const d = svgEl("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: (1.6 + R() * 3.4).toFixed(1), fill: i % 4 ? "#8c8474" : "#b3a78f", opacity: (0.55 + R() * 0.4).toFixed(2) }, dustG); dust.push([d, x]); }
+      const sparkG = $("#sva-spark"), sparks = [];
+      [[70, 80], [120, 150], [168, 72], [230, 150], [262, 96], [104, 112]].forEach(([x, y], i) => {
+        const g = svgEl("g", { transform: `translate(${x} ${y})` }, sparkG);
+        sparks.push(svgEl("path", { d: "M0 -14 L3 -3 L14 0 L3 3 L0 14 L-3 3 L-14 0 L-3 -3 Z", fill: i % 2 ? "#ffffff" : "#bcd0ff" }, g)); });
+      const dropG = $("#svb-drops"), drops = [];
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.4; drops.push([svgEl("circle", { cx: (150 + Math.cos(a) * 30).toFixed(1), cy: (110 + Math.sin(a) * 26).toFixed(1), r: (5 + R() * 4).toFixed(1) }, dropG), a]); }
+      const fieldG = $("#svc-field"), arcs = [];
+      for (let i = 0; i < 3; i++) arcs.push(svgEl("ellipse", { cx: 150, cy: 100, rx: 44, ry: 26, opacity: 0 }, fieldG));
 
       const tl = gsap.timeline({ paused: true });
       const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
 
       // ---- video plates: toggle by <id>_on (build.mjs sets it from file presence) + slow push-in ----
-      const SLOTS = [["clip_05", 0, 2.5], ["clip_01", 2.5, 2], ["clip_02", 4.5, 3.5], ["clip_03", 8, 2.5], ["clip_04", 12, 3]];
+      const SLOTS = [["clip_05", 0, 2], ["clip_01", 2, 2], ["clip_02", 4, 2.5], ["clip_03", 6.5, 2], ["clip_04", 16, 4]];
       SLOTS.forEach(([id, t, d]) => {
         if (V[id + "_on"] !== true) return;
         const pl = $("#pl-" + id); pl.classList.add("on"); $("#" + pl.dataset.scene).classList.add("has-clip");
@@ -327,10 +440,10 @@
       });
 
       // ---- ambient: grid floor scroll, glows, particles drift ----
-      tl.fromTo("#floor", { backgroundPosition: "0px 0px" }, { backgroundPosition: "0px 1440px", duration: 15, ease: "none" }, 0);
-      tl.fromTo("#glow-a", { x: 0, y: 0 }, { x: 260, y: 420, duration: 15, ease: "sine.inOut" }, 0);
-      tl.fromTo("#glow-b", { x: 0, y: 0 }, { x: -240, y: -520, duration: 15, ease: "sine.inOut" }, 0);
-      pts.forEach((d, i) => { const sc = +d.dataset.sc; tl.fromTo(d, { y: 0, scale: sc }, { y: -(120 + sc * 260), duration: 15, ease: "none" }, 0); });
+      tl.fromTo("#floor", { backgroundPosition: "0px 0px" }, { backgroundPosition: "0px 1920px", duration: T.end, ease: "none" }, 0);
+      tl.fromTo("#glow-a", { x: 0, y: 0 }, { x: 260, y: 420, duration: T.end, ease: "sine.inOut" }, 0);
+      tl.fromTo("#glow-b", { x: 0, y: 0 }, { x: -240, y: -520, duration: T.end, ease: "sine.inOut" }, 0);
+      pts.forEach((d, i) => { const sc = +d.dataset.sc; tl.fromTo(d, { y: 0, scale: sc }, { y: -(160 + sc * 340), duration: T.end, ease: "none" }, 0); });
 
       // ---- glitch transition helper (slices + flash + camera jolt) ----
       function glitchAt(t, strong) {
@@ -342,93 +455,139 @@
       }
       function shake(t, amp, n) { tl.fromTo("#cam", { y: 0 }, { y: amp, duration: 0.035, repeat: n, yoyo: true, ease: "none", immediateRender: false }, t); }
 
-      // ---- S1 hook (beats 0.25 / 0.75 / 1.25) ----
+      // ---- S1 hook: words land on the VO ("Seu" 0.15 / "console" 0.4 / "parou?" 0.75), impact on beat 1.0 ----
       tl.fromTo("#s1-pill", { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 0.05);
-      tl.fromTo("#pad1", { rotation: -12, scale: 0.9 }, { rotation: 6, scale: 1.05, duration: 2.5, ease: "sine.inOut" }, 0);
-      tl.fromTo(ch1, { yPercent: 115 }, { yPercent: 0, duration: 0.3, stagger: 0.03, ease: "back.out(2.2)" }, 0.2);
-      tl.fromTo(ch2, { yPercent: 115, rotation: 8 }, { yPercent: 0, rotation: 0, duration: 0.3, stagger: 0.025, ease: "back.out(2.2)" }, 0.7);
-      tl.fromTo(ch3, { scale: 2.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.25, stagger: 0.02, ease: "power4.out" }, 1.2);
-      tl.fromTo("#s1-l3", { textShadow: RGB(26) }, { textShadow: RGB(0), duration: 0.5, ease: "power2.out" }, 1.25);
-      tl.fromTo("#cam", { scale: 1 }, { scale: 1.1, duration: 0.18, ease: "power4.in" }, 1.25);
-      tl.to("#cam", { scale: 1, duration: 0.6, ease: "elastic.out(1, 0.5)" }, 1.43);
-      shake(1.43, 14, 7);
-      tl.fromTo("#s1-l3", { x: 0 }, { x: 10, duration: 0.04, repeat: 9, yoyo: true, ease: "none", immediateRender: false }, 1.8);
-      glitchAt(2.3, true);
+      tl.fromTo("#pad1", { rotation: -12, scale: 0.9 }, { rotation: 6, scale: 1.05, duration: 2, ease: "sine.inOut" }, 0);
+      tl.fromTo(ch1, { yPercent: 115 }, { yPercent: 0, duration: 0.25, stagger: 0.03, ease: "back.out(2.2)" }, 0.12);
+      tl.fromTo(ch2, { yPercent: 115, rotation: 8 }, { yPercent: 0, rotation: 0, duration: 0.28, stagger: 0.02, ease: "back.out(2.2)" }, 0.38);
+      tl.fromTo(ch3, { scale: 2.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.25, stagger: 0.02, ease: "power4.out" }, 0.76);
+      tl.fromTo("#s1-l3", { textShadow: RGB(26) }, { textShadow: RGB(0), duration: 0.5, ease: "power2.out" }, 1.0);
+      tl.fromTo("#cam", { scale: 1 }, { scale: 1.1, duration: 0.18, ease: "power4.in" }, 0.82);
+      tl.to("#cam", { scale: 1, duration: 0.6, ease: "elastic.out(1, 0.5)" }, 1.0);
+      shake(1.0, 14, 7);
+      tl.fromTo("#s1-l3", { x: 0 }, { x: 10, duration: 0.04, repeat: 9, yoyo: true, ease: "none", immediateRender: false }, 1.4);
+      glitchAt(1.8, true);
 
       // ---- S2 promise: 3D card push + light sweep + word mask reveal ----
-      tl.fromTo("#s2-card", { rotationY: -24, rotationX: 8, scale: 0.8, opacity: 0, transformPerspective: 1400 }, { rotationY: 0, rotationX: 0, scale: 1, opacity: 1, duration: 0.6, ease: "power3.out" }, 2.5);
-      tl.fromTo("#s2-img", { scale: 1.25, xPercent: 4 }, { scale: 1.02, xPercent: -2, duration: 2, ease: "none" }, 2.5);
-      tl.fromTo("#s2-sweep", { xPercent: -150 }, { xPercent: 320, duration: 0.7, ease: "power2.inOut" }, 2.9);
-      tl.fromTo(wordsA, { yPercent: 110 }, { yPercent: 0, duration: 0.3, stagger: 0.05, ease: "power3.out" }, 2.75);
-      if (hlBg) tl.fromTo(hlBg, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power4.out" }, 3.0);
-      tl.fromTo(wordsB, { yPercent: 110 }, { yPercent: 0, duration: 0.3, stagger: 0.05, ease: "back.out(2)" }, 3.05);
-      tl.fromTo("#s2-title", { scale: 1.12 }, { scale: 1, duration: 0.35, ease: "power3.out" }, 3.0);
-      tl.to("#s2-card", { scale: 1.08, duration: 0.25, ease: "power2.in" }, 4.25);
-      tl.fromTo("#s2", { filter: "blur(0px)" }, { filter: "blur(14px)", duration: 0.2, ease: "power2.in", immediateRender: false }, 4.3);
+      tl.fromTo("#s2-card", { rotationY: -24, rotationX: 8, scale: 0.8, opacity: 0, transformPerspective: 1400 }, { rotationY: 0, rotationX: 0, scale: 1, opacity: 1, duration: 0.6, ease: "power3.out" }, T.s2);
+      tl.fromTo("#s2-img", { scale: 1.25, xPercent: 4 }, { scale: 1.02, xPercent: -2, duration: 2, ease: "none" }, T.s2);
+      tl.fromTo("#s2-sweep", { xPercent: -150 }, { xPercent: 320, duration: 0.7, ease: "power2.inOut" }, 2.4);
+      tl.fromTo(wordsA, { yPercent: 110 }, { yPercent: 0, duration: 0.3, stagger: 0.05, ease: "power3.out" }, 2.1);
+      if (hlBg) tl.fromTo(hlBg, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power4.out" }, 2.95);
+      tl.fromTo(wordsB, { yPercent: 110 }, { yPercent: 0, duration: 0.3, stagger: 0.05, ease: "back.out(2)" }, 3.0);
+      tl.fromTo("#s2-title", { scale: 1.12 }, { scale: 1, duration: 0.35, ease: "power3.out" }, 2.95);
+      tl.to("#s2-card", { scale: 1.08, duration: 0.25, ease: "power2.in" }, 3.75);
+      tl.fromTo("#s2", { filter: "blur(0px)" }, { filter: "blur(14px)", duration: 0.2, ease: "power2.in", immediateRender: false }, 3.8);
 
-      // ---- S3 problems relay (0.6s each on clicks) ----
-      tl.fromTo("#s3-kick", { opacity: 0, x: -50 }, { opacity: 1, x: 0, duration: 0.3, ease: "power3.out" }, 4.5);
-      tl.fromTo("#s3-count", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 4.55);
-      tl.fromTo("#pad3", { y: 200, opacity: 0, rotation: -6 }, { y: 0, opacity: 1, rotation: 0, duration: 0.5, ease: "back.out(1.6)" }, 4.5);
-      tl.fromTo("#s3-note", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 4.8);
-      const P3 = [4.6, 5.2, 5.8, 6.4, 7.0];
-      const btns = ["#stick", "#btn1", "#btn2", "#btn3", "#btn4"];
+      // ---- S3 problems relay (on the spoken words) + footer with the other two problems ----
+      tl.fromTo("#s3-kick", { opacity: 0, x: -50 }, { opacity: 1, x: 0, duration: 0.3, ease: "power3.out" }, T.s3);
+      tl.fromTo("#s3-count", { opacity: 0 }, { opacity: 1, duration: 0.2 }, T.s3 + 0.05);
+      tl.fromTo("#pad3", { y: 200, opacity: 0, rotation: -6 }, { y: 0, opacity: 1, rotation: 0, duration: 0.5, ease: "back.out(1.6)" }, T.s3);
+      tl.fromTo("#s3-note", { opacity: 0 }, { opacity: 1, duration: 0.3 }, T.s3 + 0.3);
       P3.forEach((t, i) => {
         const id = "#s3-i" + (i + 1);
         tl.fromTo(id, { opacity: 0, yPercent: 60, skewY: 6, scale: 1.25 }, { opacity: 1, yPercent: 0, skewY: 0, scale: 1, duration: 0.25, ease: "power4.out", immediateRender: false }, t);
         tl.fromTo(id, { textShadow: RGB(14) }, { textShadow: RGB(0), duration: 0.3, immediateRender: false }, t);
-        if (i < 4) tl.to(id, { opacity: 0, yPercent: -70, duration: 0.18, ease: "power3.in" }, t + 0.42);
+        if (i < 2) tl.to(id, { opacity: 0, yPercent: -70, duration: 0.16, ease: "power3.in" }, P3[i + 1] - 0.16);
         tl.fromTo("#sg" + (i + 1), { scaleX: 0 }, { scaleX: 1, duration: 0.25, ease: "power2.out" }, t);
-        tl.fromTo(btns[i], { scale: 1, fill: "#2a2a2e", transformOrigin: "50% 50%" }, { scale: 1.5, fill: i ? V.primary : V.secondary, duration: 0.08, ease: "power2.out", immediateRender: false }, t);
-        tl.to(btns[i], { scale: 1, fill: "#2a2a2e", duration: 0.3, ease: "power2.out" }, t + 0.1);
         tl.fromTo("#pad3", { scale: 1 }, { scale: 1.04, duration: 0.06, yoyo: true, repeat: 1, ease: "power1.out", immediateRender: false }, t);
       });
-      P3.forEach((t, i) => { tl.set("#n" + (i + 1), { opacity: 1 }, t); if (i < 4) tl.set("#n" + (i + 1), { opacity: 0 }, P3[i + 1]); });
-      tl.fromTo("#stick", { x: 0, y: 0 }, { x: 14, y: -6, duration: 0.12, repeat: 5, yoyo: true, ease: "sine.inOut", immediateRender: false }, 4.62); // "drift"
-      tl.fromTo("#led", { opacity: 1 }, { opacity: 0.2, duration: 0.1, repeat: 5, yoyo: true, ease: "none" }, 5.2);
-      glitchAt(7.8, false);
+      P3.forEach((t, i) => { tl.set("#n" + (i + 1), { opacity: 1 }, t); if (i < 2) tl.set("#n" + (i + 1), { opacity: 0 }, P3[i + 1]); });
+      tl.fromTo("#stick", { x: 0, y: 0 }, { x: 14, y: -6, duration: 0.1, repeat: 3, yoyo: true, ease: "sine.inOut", immediateRender: false }, P3[0] + 0.02); // "drift"
+      tl.fromTo("#pad3 path", { fill: "#141414" }, { fill: "#3a1012", duration: 0.35, yoyo: true, repeat: 1, ease: "sine.inOut", immediateRender: false }, P3[1]); // overheating
+      tl.fromTo("#led", { opacity: 1 }, { opacity: 0.1, duration: 0.08, repeat: 5, yoyo: true, ease: "none", immediateRender: false }, P3[2]); // "não liga"
+      tl.fromTo("#s3-more", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, P3[2] + 0.1);
+      glitchAt(6.3, false);
 
       // ---- S4 models: parallax photo + HUD scan + slice-in title + chip cascade ----
-      tl.fromTo("#s4-photo", { scale: 1.25, y: 60 }, { scale: 1.05, y: -60, duration: 2.5, ease: "none" }, 8.0);
-      tl.fromTo("#s4-hud", { opacity: 0, scale: 1.2 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power3.out" }, 8.05);
-      tl.fromTo("#s4-tag", { opacity: 0 }, { opacity: 1, duration: 0.05, repeat: 3, yoyo: true, ease: "none" }, 8.2);
-      tl.set("#s4-tag", { opacity: 1 }, 8.45);
-      tl.fromTo("#fx-bar", { y: 0 }, { y: 2300, duration: 1.0, ease: "power1.inOut", immediateRender: false }, 8.1);
-      tl.fromTo("#s4-t1", { clipPath: "inset(0 100% 0 0)", x: -80 }, { clipPath: "inset(0 0% 0 0)", x: 0, duration: 0.3, ease: "power4.out" }, 8.1);
-      tl.fromTo("#s4-t2", { clipPath: "inset(0 0 0 100%)", x: 80 }, { clipPath: "inset(0 0 0 0%)", x: 0, duration: 0.3, ease: "power4.out" }, 8.25);
-      tl.fromTo("#s4-title", { textShadow: RGB(20) }, { textShadow: RGB(0), duration: 0.4 }, 8.25);
+      tl.fromTo("#s4-photo", { scale: 1.25, y: 60 }, { scale: 1.05, y: -60, duration: 2, ease: "none" }, T.s4);
+      tl.fromTo("#s4-hud", { opacity: 0, scale: 1.2 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power3.out" }, T.s4 + 0.05);
+      tl.fromTo("#s4-tag", { opacity: 0 }, { opacity: 1, duration: 0.05, repeat: 3, yoyo: true, ease: "none" }, T.s4 + 0.2);
+      tl.set("#s4-tag", { opacity: 1 }, T.s4 + 0.45);
+      tl.fromTo("#fx-bar", { y: 0 }, { y: 2300, duration: 1.0, ease: "power1.inOut", immediateRender: false }, T.s4 + 0.1);
+      tl.fromTo("#s4-t1", { clipPath: "inset(0 100% 0 0)", x: -80 }, { clipPath: "inset(0 0% 0 0)", x: 0, duration: 0.3, ease: "power4.out" }, T.s4 + 0.1);
+      tl.fromTo("#s4-t2", { clipPath: "inset(0 0 0 100%)", x: 80 }, { clipPath: "inset(0 0 0 0%)", x: 0, duration: 0.3, ease: "power4.out" }, T.s4 + 0.35);
+      tl.fromTo("#s4-title", { textShadow: RGB(20) }, { textShadow: RGB(0), duration: 0.4 }, T.s4 + 0.35);
       ["#c1", "#c2", "#c3", "#c4", "#c5", "#c6", "#c7", "#c8"].forEach((id, i) => {
-        tl.fromTo(id, { opacity: 0, x: i % 2 ? 80 : -80, scale: 0.85 }, { opacity: 1, x: 0, scale: 1, duration: 0.22, ease: "back.out(2)" }, 8.6 + i * 0.1);
+        tl.fromTo(id, { opacity: 0, x: i % 2 ? 80 : -80, scale: 0.85 }, { opacity: 1, x: 0, scale: 1, duration: 0.22, ease: "back.out(2)" }, 7.0 + i * 0.08);
       });
-      tl.to("#cam", { scale: 1.06, duration: 0.25, ease: "power3.in" }, 10.2);
-      tl.set("#cam", { scale: 1 }, 10.5);
+      tl.to("#cam", { scale: 1.06, duration: 0.25, ease: "power3.in" }, 8.25);
+      tl.set("#cam", { scale: 1 }, T.sv);
 
-      // ---- S5 process: rail draw + step pops (build-up, riser 11.0–12.0) ----
-      tl.fromTo("#s5-kick", { opacity: 0 }, { opacity: 1, duration: 0.15 }, 10.5);
+      // ---- SV services: header + three panels sliding on the beat (8.5 / 10.0 / 12.0) ----
+      tl.fromTo("#sv-kick", { opacity: 0, x: -50 }, { opacity: 1, x: 0, duration: 0.3, ease: "power3.out" }, T.sv);
+      [T.sv, T.svb, T.svc].forEach((t, i, a) => { tl.set("#svn" + (i + 1), { opacity: 1 }, t); if (i < 2) tl.set("#svn" + (i + 1), { opacity: 0 }, a[i + 1]);
+        tl.fromTo("#svn" + (i + 1), { scale: 1.4, transformOrigin: "0% 50%" }, { scale: 1, duration: 0.25, ease: "back.out(2)", immediateRender: false }, t); });
+      function panelIn(id, t) {
+        tl.fromTo(id, { x: 1080 }, { x: 0, duration: 0.32, ease: "power3.out", immediateRender: false }, t);
+        tl.fromTo(id + " h3", { textShadow: RGB(18) }, { textShadow: RGB(0), duration: 0.45, immediateRender: false }, t + 0.1);
+        tl.fromTo(id + " .art", { scale: 0.86, opacity: 0, transformOrigin: "50% 50%" }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.6)", immediateRender: false }, t + 0.08);
+      }
+      function panelOut(id, t) { tl.to(id, { x: -1080, duration: 0.2, ease: "power3.in" }, t); }
+      tl.set(["#svb", "#svc"], { x: 1080 }, 0);
+      // A — cleaning: brush sweeps left->right, dust under the bristles lifts off, then sparkles
+      panelIn("#sva", T.sv);
+      tl.fromTo("#sva-cap", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.3 }, T.sv + 0.35);
+      const B0 = 8.85, B1 = 9.5; // brush in/out
+      tl.set("#sva-brush", { opacity: 0 }, 0);
+      tl.fromTo("#sva-brush", { x: 20, rotation: -18, opacity: 0, svgOrigin: "0 0" }, { x: 290, rotation: 14, opacity: 1, duration: B1 - B0, ease: "sine.inOut", immediateRender: false }, B0);
+      tl.fromTo("#sva-brush", { y: 100 }, { y: 126, duration: 0.08, repeat: 7, yoyo: true, ease: "sine.inOut", immediateRender: false }, B0);
+      dust.forEach(([d, x], i) => { const t = B0 + ((x - 20) / 270) * (B1 - B0);
+        tl.to(d, { opacity: 0, attr: { cy: "-=" + (18 + (i % 5) * 6) }, x: 10 + (i % 3) * 6, duration: 0.22, ease: "power2.out" }, t); });
+      sparks.forEach((p, i) => tl.fromTo(p, { scale: 0, rotation: 0, transformOrigin: "50% 50%" }, { scale: 1.2, rotation: 90, duration: 0.18, yoyo: true, repeat: 1, ease: "power2.out", immediateRender: false }, 9.45 + i * 0.05));
+      panelOut("#sva", T.svb - 0.18);
+      // B — PS5 liquid metal: barrier, droplets merge, silver blob spreads over the die, shine sweep
+      panelIn("#svb", T.svb);
+      tl.fromTo("#svb-cap", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.3 }, T.svb + 0.35);
+      tl.fromTo("#svb-foam", { opacity: 0, attr: { "stroke-dashoffset": 40 } }, { opacity: 1, attr: { "stroke-dashoffset": 0 }, duration: 0.5, ease: "power2.out" }, T.svb + 0.25);
+      drops.forEach(([d, a], i) => tl.fromTo(d, { x: Math.cos(a) * 90, y: Math.sin(a) * 80 - 40, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 0.4, ease: "power2.in", immediateRender: false }, T.svb + 0.4 + i * 0.04));
+      tl.to(drops.map((x) => x[0]), { opacity: 0, duration: 0.15 }, T.svb + 0.95);
+      tl.fromTo("#svb-blob", { scale: 0, transformOrigin: "50% 50%" }, { scale: 1.08, duration: 0.7, ease: "elastic.out(1, 0.6)" }, T.svb + 0.8);
+      tl.fromTo("#svb-blob", { attr: { rx: 46, ry: 42 } }, { attr: { rx: 52, ry: 48 }, duration: 0.5, ease: "sine.inOut", immediateRender: false }, T.svb + 1.2);
+      tl.fromTo("#svb-shine", { x: 0 }, { x: 170, duration: 0.55, ease: "power2.inOut" }, T.svb + 1.35);
+      tl.fromTo("#svb-art", { filter: "drop-shadow(0 0 0px rgba(200,215,235,0))" }, { filter: "drop-shadow(0 0 26px rgba(200,215,235,0.45))", duration: 0.3, yoyo: true, repeat: 1, ease: "sine.inOut", immediateRender: false }, T.svb + 1.35);
+      panelOut("#svb", T.svc - 0.18);
+      // C — Hall Effect: magnet under the stick orbits in a precise circle, field arcs pulse, sensor LED answers
+      panelIn("#svc", T.svc);
+      tl.fromTo("#svc-stick", { x: 0 }, { x: 40, duration: 0.2, ease: "power2.out", immediateRender: false }, 12.3);
+      tl.fromTo("#svc-orbit", { rotation: 0, svgOrigin: "150 100" }, { rotation: 540, duration: 1.2, ease: "power1.inOut", immediateRender: false }, 12.5);
+      tl.fromTo("#svc-stick", { rotation: 0, transformOrigin: "50% 50%" }, { rotation: -540, duration: 1.2, ease: "power1.inOut", immediateRender: false }, 12.5);
+      tl.fromTo("#svc-trace", { attr: { "stroke-dashoffset": 251.33 } }, { attr: { "stroke-dashoffset": 0 }, duration: 0.8, ease: "power1.in" }, 12.5);
+      tl.to("#svc-stick", { x: 0, duration: 0.2, ease: "power2.inOut" }, 13.72);
+      arcs.forEach((e, i) => tl.fromTo(e, { scale: 0.7, opacity: 0.9, svgOrigin: "150 100" }, { scale: 2.1, opacity: 0, duration: 0.55, repeat: 2, ease: "power1.out", immediateRender: false }, 12.25 + i * 0.18));
+      tl.fromTo("#svc-led", { fill: "#1faa55", scale: 1, svgOrigin: "168 205" }, { fill: "#8dffb8", scale: 1.8, duration: 0.09, repeat: 7, yoyo: true, ease: "none", immediateRender: false }, 12.5);
+      tl.fromTo("#svc-lbl", { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.25, ease: "back.out(2)" }, 12.35);
+      tl.fromTo("#svc-ps4", { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1, duration: 0.22, ease: "back.out(2.6)" }, 12.5);
+      tl.fromTo("#svc-ps5", { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1, duration: 0.22, ease: "back.out(2.6)" }, 12.6);
+      glitchAt(13.8, false);
+
+      // ---- S5 process: rail draw + step pops (build-up, riser 15.0–16.0) ----
+      tl.fromTo("#s5-kick", { opacity: 0 }, { opacity: 1, duration: 0.15 }, T.s5);
       const s5ch = splitChars($("#s5-title"), "Sem surpresa.");
-      tl.fromTo(s5ch, { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.18, stagger: 0.015, ease: "back.out(3)" }, 10.52);
-      tl.fromTo("#rail", { attr: { "stroke-dashoffset": 600 } }, { attr: { "stroke-dashoffset": 0 }, duration: 1.1, ease: "none" }, 10.6);
-      [10.6, 10.9, 11.2, 11.5].forEach((t, i) => tl.fromTo("#st" + (i + 1), { opacity: 0, x: 90, scale: 0.9 }, { opacity: 1, x: 0, scale: 1, duration: 0.2, ease: "back.out(2.5)" }, t));
-      tl.fromTo("#cam", { scale: 1 }, { scale: 1.12, duration: 1.0, ease: "power2.in", immediateRender: false }, 11.0); // push-in with the riser
-      shake(11.5, 8, 13);
-      glitchAt(11.8, true);
-      tl.set("#cam", { scale: 1 }, 12.0);
+      tl.fromTo(s5ch, { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.18, stagger: 0.015, ease: "back.out(3)" }, T.s5 + 0.02);
+      tl.fromTo("#rail", { attr: { "stroke-dashoffset": 600 } }, { attr: { "stroke-dashoffset": 0 }, duration: 1.1, ease: "none" }, 14.1);
+      [14.1, 14.4, 14.7, 15.0].forEach((t, i) => tl.fromTo("#st" + (i + 1), { opacity: 0, x: 90, scale: 0.9 }, { opacity: 1, x: 0, scale: 1, duration: 0.2, ease: "back.out(2.5)" }, t));
+      tl.fromTo("#cam", { scale: 1 }, { scale: 1.12, duration: 1.0, ease: "power2.in", immediateRender: false }, 15.0); // push-in with the riser
+      shake(15.5, 8, 13);
+      glitchAt(15.8, true);
+      tl.set("#cam", { scale: 1 }, T.s6);
 
       // ---- S6 CTA drop: shockwave, burst, logo glow + light sweep, per-char title, button spring ----
-      tl.fromTo("#s6-logowrap", { scale: 0.2, rotation: -25, opacity: 0 }, { scale: 1, rotation: 0, opacity: 1, duration: 0.7, ease: "elastic.out(1, 0.55)" }, 12.0);
-      tl.fromTo("#ring1", { scale: 0.6, opacity: 1 }, { scale: 2.6, opacity: 0, duration: 0.8, ease: "power2.out" }, 12.0);
-      tl.fromTo("#ring2", { scale: 0.6, opacity: 1 }, { scale: 3.2, opacity: 0, duration: 1.0, ease: "power2.out" }, 12.08);
+      tl.fromTo("#s6-logowrap", { scale: 0.2, rotation: -25, opacity: 0 }, { scale: 1, rotation: 0, opacity: 1, duration: 0.7, ease: "elastic.out(1, 0.55)" }, T.s6);
+      tl.fromTo("#ring1", { scale: 0.6, opacity: 1 }, { scale: 2.6, opacity: 0, duration: 0.8, ease: "power2.out" }, T.s6);
+      tl.fromTo("#ring2", { scale: 0.6, opacity: 1 }, { scale: 3.2, opacity: 0, duration: 1.0, ease: "power2.out" }, T.s6 + 0.08);
       bps.forEach((d, i) => { const a = (i / bps.length) * Math.PI * 2, r = 420 + (i % 4) * 90;
-        tl.fromTo(d, { x: 0, y: 0, opacity: 1, scale: 1.4 }, { x: Math.cos(a) * r, y: Math.sin(a) * r, opacity: 0, scale: 0.3, duration: 0.9, ease: "power3.out" }, 12.0); });
-      shake(12.0, 22, 9);
-      tl.fromTo("#s6-logo", { boxShadow: "0 0 0px 0px rgba(229,9,20,0)" }, { boxShadow: "0 0 120px 30px rgba(229,9,20,0.55)", duration: 0.5, yoyo: true, repeat: 3, ease: "sine.inOut" }, 12.3);
-      tl.fromTo("#s6-sweep", { xPercent: -150 }, { xPercent: 320, duration: 0.8, ease: "power2.inOut" }, 12.6);
-      tl.fromTo(chCta, { yPercent: 120, opacity: 0, rotation: 10 }, { yPercent: 0, opacity: 1, rotation: 0, duration: 0.35, stagger: 0.025, ease: "back.out(2)" }, 12.4);
-      tl.fromTo("#s6-title", { textShadow: RGB(18) }, { textShadow: RGB(0), duration: 0.5 }, 12.5);
-      tl.fromTo("#s6-wa", { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2.6)" }, 12.9);
-      tl.to("#s6-wa", { scale: 1.06, duration: 0.25, repeat: 3, yoyo: true, ease: "sine.inOut" }, 13.5);
-      tl.fromTo("#s6-meta", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 13.2);
-      tl.fromTo("#cam", { scale: 1 }, { scale: 1.04, duration: 2.2, ease: "sine.inOut", immediateRender: false }, 12.8);
+        tl.fromTo(d, { x: 0, y: 0, opacity: 1, scale: 1.4 }, { x: Math.cos(a) * r, y: Math.sin(a) * r, opacity: 0, scale: 0.3, duration: 0.9, ease: "power3.out" }, T.s6); });
+      shake(T.s6, 22, 9);
+      tl.fromTo("#s6-logo", { boxShadow: "0 0 0px 0px rgba(229,9,20,0)" }, { boxShadow: "0 0 120px 30px rgba(229,9,20,0.55)", duration: 0.5, yoyo: true, repeat: 5, ease: "sine.inOut" }, 16.3);
+      tl.fromTo("#s6-sweep", { xPercent: -150 }, { xPercent: 320, duration: 0.8, ease: "power2.inOut" }, 16.6);
+      tl.fromTo(chCta, { yPercent: 120, opacity: 0, rotation: 10 }, { yPercent: 0, opacity: 1, rotation: 0, duration: 0.35, stagger: 0.025, ease: "back.out(2)" }, 16.4);
+      tl.fromTo("#s6-title", { textShadow: RGB(18) }, { textShadow: RGB(0), duration: 0.5 }, 16.5);
+      tl.fromTo("#s6-wa", { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2.6)" }, 16.9);
+      tl.to("#s6-wa", { scale: 1.06, duration: 0.25, repeat: 7, yoyo: true, ease: "sine.inOut" }, 17.85); // on the spoken "WhatsApp"
+      tl.fromTo("#s6-meta", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 17.2);
+      tl.fromTo("#cam", { scale: 1 }, { scale: 1.04, duration: 3.2, ease: "sine.inOut", immediateRender: false }, 16.8);
+      tl.fromTo("#s6-img", { rotation: 0 }, { rotation: 4, duration: 0.25, yoyo: true, repeat: 1, ease: "sine.inOut", immediateRender: false }, 19.0);
 
       window.__timelines["main"] = tl;
       tl.seek(0);

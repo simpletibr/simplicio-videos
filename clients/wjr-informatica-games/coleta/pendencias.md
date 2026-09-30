@@ -20,6 +20,12 @@ Regra do projeto: **nada desta lista entra em vídeo** até o cliente confirmar 
 
 Checklist completo com mensagem-modelo: [`checklist-cliente.md`](checklist-cliente.md).
 
+## Confirmado pelo Wesley em 30/09/2026 (liberado para vídeo)
+- Limpeza de controle.
+- Troca de metal líquido do PS5.
+- Instalação de analógico Hall Effect nos controles de PS5 e PS4 ("how effects" na mensagem = Hall Effect).
+- Continua **não** confirmado para esses serviços: preço, prazo, garantia, marca das peças.
+
 ## Usado no video-01 (e de onde veio)
 | Texto/asset no vídeo | Fonte |
 |---|---|
@@ -29,6 +35,7 @@ Checklist completo com mensagem-modelo: [`checklist-cliente.md`](checklist-clien
 | Xbox 360 / One / Series X e S / controles Xbox; PS3 · PS4 / PS5 / DualShock / DualSense | S1 (seção Consoles) |
 | Processo: WhatsApp → diagnóstico → aprovação → reparo | S1 ("Como funciona", resumido de 5 para 4 passos) |
 | "Volte para o jogo." | S1 (frase do site) |
+| Limpeza de controle · Metal líquido no PS5 · Analógico Hall Effect (PS4 e PS5) | **S3 — confirmado pelo Wesley em 30/09/2026** |
 | WhatsApp, endereço, @ | S1 (+ S2 para o @) |
 | Ressalva "A confirmação do serviço depende da avaliação técnica do equipamento." | S1 |
 | Logo e 2 imagens (hero-consoles, repair-workbench) | S1b/S1c — **só rascunho**, até o cliente mandar os originais |

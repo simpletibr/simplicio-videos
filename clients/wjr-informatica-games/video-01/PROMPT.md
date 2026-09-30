@@ -8,15 +8,19 @@ No Claude Code: `/model` → Opus 5.5, `/effort medium` (ou `high` na primeira p
 Base: o prompt mais repetido no acervo `awesome-opus5-5-videos` (103 dos 475 prompts citam "showreel"), ex. *"make a dynamic 15-second motion graphics video that shows what an incredible motion designer you are, like it's your showreel for a résumé. go all out."* — aqui com as travas de fato real, marca, áudio e determinismo:
 
 ```text
-Faça um vídeo de motion graphics dinâmico de 15 segundos para a WJR Infogames (assistência técnica de
+Faça um vídeo de motion graphics dinâmico de 20 segundos para a WJR Infogames (assistência técnica de
 consoles e controles Xbox e PlayStation em Guarulhos) que mostre o quão incrível motion designer você é —
 como se fosse o seu showreel para um currículo. Vá com tudo.
 
 Travas (não negociáveis):
-- Formato Instagram Reels 1080×1920, 30 fps, 15 s. HyperFrames (/hyperframes, /hyperframes-core,
+- Formato Instagram Reels 1080×1920, 30 fps, 20 s. HyperFrames (/hyperframes, /hyperframes-core,
   /hyperframes-animation). Edite index.html — não jogue fora data-composition-variables nem os data-var-*.
 - Fatos: SÓ o que está em spec.json, roteiro.md e ../coleta/brief.md. Nada de preço, prazo, garantia, nota,
   número de clientes. Pode reescrever a ordem e o ritmo, não pode inventar.
+- Cena de serviços (SV, 8,5–14 s) com os 3 serviços confirmados pelo cliente (coleta, fonte S3): limpeza de
+  controle (pincel + poeira saindo + brilho), troca de metal líquido no PS5 (chip + gota prateada espalhando +
+  reflexo), analógico Hall Effect no PS4/PS5 (ímã sob o analógico, arcos de campo, sensor magnético, traço
+  circular preciso). Não prometa "sem drift", durabilidade, preço ou prazo.
 - Marca: fundo #080808, vermelho #e50914, azul #1565ff, Anton + Inter (já embutidas). Tema gamer.
 - Áudio é dado: trilha e SFX saem de scripts/build.mjs a partir de spec.json → audio (120 BPM, beat = 0,5 s).
   Todo corte cai num beat; todo golpe de texto tem um cue (whoosh na transição, hit/impact no título/logo,
@@ -26,8 +30,10 @@ Travas (não negociáveis):
   câmera (zoom-punch, push-in, shake curto no impacto, parallax de fundo), transição glitch/RGB-split,
   light sweep + glow no logo, grade em perspectiva + partículas com semente fixa + scanlines,
   ícone de controle reagindo (botões acendem no click), easing GSAP (power4/back/elastic só no logo).
-- Narração: spec.json → voice.lines (6 frases pt-BR, uma por cena, no beat). Se mudar a coreografia, mantenha o
-  texto na tela dizendo o mesmo que a voz naquele instante; se mudar uma frase, rode npm run voice.
+- Narração: spec.json → voice.lines (9 frases pt-BR, Chatterbox local, velocidade natural — SEM aceleração).
+  Os cortes foram desenhados em volta da duração real de cada frase (assets/audio/vo/manifest.json). Se mudar a
+  coreografia, mantenha o texto na tela dizendo o mesmo que a voz naquele instante; se mudar uma frase, rode
+  npm run voice (frase maior que o slot = erro: encurte o texto ou alargue o slot, nunca acelere).
 - Clipes opcionais: spec.json → clips.slots (assets/imagine/clip-0N.mp4). Presente = placa de vídeo em
   tela cheia com shade; ausente = cena atual. Não quebre esse fallback.
 - Determinismo: um gsap.timeline({paused:true}) em window.__timelines["main"]; nada de Math.random

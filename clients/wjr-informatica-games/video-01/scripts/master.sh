@@ -11,5 +11,5 @@ TPE="$TP" # loudnorm target; a brickwall limiter at -2.5 dBFS below absorbs AAC 
 M=$(ffmpeg -hide_banner -nostats -i "$IN" -af "loudnorm=I=$I:TP=$TPE:LRA=11:print_format=json" -f null - 2>&1 | sed -n '/^{/,/^}/p')
 get() { echo "$M" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s)[process.argv[1]]))' "$1"; }
 AF="loudnorm=I=$I:TP=$TPE:LRA=11:measured_I=$(get input_i):measured_TP=$(get input_tp):measured_LRA=$(get input_lra):measured_thresh=$(get input_thresh):offset=$(get target_offset):linear=true"
-ffmpeg -y -hide_banner -loglevel error -i "$IN" -map 0:v:0 -map 0:a:0 -c:v copy -af "$AF,alimiter=limit=0.75:attack=1:release=40:level=false" -ar 48000 -c:a aac -b:a 192k -movflags +faststart "$OUT"
+ffmpeg -y -hide_banner -loglevel error -i "$IN" -map 0:v:0 -map 0:a:0 -c:v copy -af "$AF,alimiter=limit=0.75:attack=1:release=40:level=false" -ar 48000 -c:a aac -b:a 192k -shortest -movflags +faststart "$OUT"
 echo "master: $OUT (input $(get input_i) LUFS -> target $I LUFS, TP $TP dBTP)"
