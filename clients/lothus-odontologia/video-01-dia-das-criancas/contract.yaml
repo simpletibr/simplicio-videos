@@ -1,8 +1,9 @@
-# simplicio.video-contract/v1 — Lothus Odontologia · Dia das Crianças 2026 (15 s, 9:16).
+# simplicio.video-contract/v1 — Lothus Odontologia · Dia das Crianças 2026 (16 s, 9:16) · v02 dinâmica.
 # Fatos só de ../coleta/ (Instagram @lothus_odontologia, cidade Guarulhos · SP). Telefone/endereço ficam fora (fontes divergem).
 # Logo: null (só avatar 100×100) -> lockup de texto; nunca recriar a marca. Schema: ../../../schema/contract.schema.json
-# Voz: provisória local (Kokoro pf_dora). Final: Gemini no AI Studio, voz Sulafat -> assets/audio/vo/external/line-01..04.wav
-#   e `simplicio-video voice contract.yaml --provider file` (ou mude voz.provider para file). Tempos relativos à cena.
+# Voz: Gemini 3.8 Flash TTS, voz Laomedeia, leva animada (AI Studio, 30/09/2026) -> assets/audio/vo/external/line-01..04.wav, provider file.
+# Ritmo: trilha 128 BPM; cenas em batidas inteiras (6/9/10 batidas + final) -> cortes em 2,8125 / 7,03125 / 11,71875 s, na batida.
+#   Kinetic typography usa os tempos reais das palavras ({{words:voN}} <- timing.lock.json). Tempos de fala/SFX relativos à cena.
 schema: simplicio.video-contract/v1
 cliente:
   slug: lothus-odontologia
@@ -12,14 +13,14 @@ cliente:
 campanha:
   id: Dia_Criancas
   ano: 2026
-  titulo: Dia das Crianças 2026 (post 15 s)
+  titulo: Dia das Crianças 2026 (post 16 s)
   objetivo: Post comemorativo de 12/10 no Instagram da clínica
 formato:
   aspect: '9:16'
   width: 1080
   height: 1920
   fps: 30
-  duracao_s: 15
+  duracao_s: 16
 template: saude-odontologia
 marca:
   paleta:
@@ -35,179 +36,315 @@ marca:
 cenas:
 - id: s1
   papel: gancho
-  duracao_s: 3.5
+  duracao_s: 2.8125
   motion:
+  - padrao: bg-parallax
+    bloco: bg
+    params:
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      base: '#fbf7f2'
+      ink: '#3d3834'
+      dur: '{{duracao}}'
+      speed: 70
+      zoom: 0.06
+      bpm: '{{bpm}}'
+      shapes: 18
+      dots: 26
+      seed: 7
+  - padrao: fx-transition
+    bloco: x0
+    params:
+      kind: flash|zoom
+      at: 0.07
+      frames: 8
+      fps: 30
+      dir: 1
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      flash: '#ffffff'
+      flash_max: 0.85
+      seed: 13
   - padrao: balloons-confetti
     bloco: s1-balloons
     params:
       colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
-      count: 9
-      rise_s: 3.3
-      t_burst: 0.35
+      count: 7
+      rise_s: 2.6
+      t_burst: 0.05
       burst_x: 540
-      burst_y: 760
-      confetti: 80
+      burst_y: 1150
+      confetti: 70
       ink: '#3d3834'
       bg: transparent
       seed: 11
-  - padrao: kinetic-bounce-title
-    bloco: s1-title
+  - padrao: kinetic-words
+    bloco: s1-words
     params:
-      line1: Feliz
-      line2: Dia das
-      line3: Crianças!
+      lines: Feliz|Dia das|Crianças!
+      times: '{{words:vo1}}'
       colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
       ink: '#3d3834'
-      size: 170
-      y: 600
-      t0: 0.1
-      stagger: 0.045
-      exit: true
-      bg: transparent
+      size: 190
+      y: 470
+      maxw: 980
+      exit: 0.12
+      dur: '{{dur:s1}}'
       seed: 5
+  - padrao: beat-burst
+    bloco: s1-burst
+    params:
+      bpm: '{{bpm}}'
+      beat0: 0
+      every: 2
+      count: 3
+      points: 190,1480;890,1400;540,1680
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      ink: '#3d3834'
+      stars: 6
+      confetti: 16
+      size: 1.0
+      dur: '{{dur:s1}}'
+      seed: 17
   tela:
-  - Feliz / Dia das / Crianças!
+  - Feliz / Dia das / Crianças! (palavra a palavra, no tempo da fala)
   fala:
     id: vo1
     texto: Feliz Dia das Crianças!
-    inicio_s: 0.5
-    max_s: 2.3
+    inicio_s: 0.28
+    max_s: 2.5
   sfx:
-  - id: pop-confetti
-    t: 0.35
+  - id: pop-open
+    t: 0
     tipo: pop
     gain_db: -6
+  - id: sparkle-open
+    t: 0
+    tipo: shimmer
+    args:
+    - 0.6
+    - 2637
+    gain_db: -14
   - id: chime-open
-    t: 0.5
+    t: 0.05
     tipo: chime
     args:
     - 84
-    gain_db: -12
-  - id: boing-title
-    t: 0.95
-    tipo: boing
-    args:
-    - 260
-    - 0.5
-    gain_db: -14
+    gain_db: -13
+  - id: pop-b1
+    t: 0.9375
+    tipo: pop
+    gain_db: -16
+  - id: pop-b2
+    t: 1.875
+    tipo: pop
+    gain_db: -16
   - id: whoosh-t1
-    t: 3.2
+    t: 2.5625
     tipo: whoosh
     args:
-    - 0.35
-    gain_db: -12
+    - 0.3
+    gain_db: -13
+  - id: slide-t1
+    t: 2.5925
+    tipo: slide
+    args:
+    - 700
+    - 1700
+    - 0.22
+    gain_db: -16
 - id: s2
   papel: promessa
-  duracao_s: 4
+  duracao_s: 4.21875
   motion:
+  - padrao: fx-transition
+    bloco: x1
+    params:
+      kind: zoom|flash
+      at: 0.2
+      frames: 8
+      fps: 30
+      dir: 1
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      flash: '#ffffff'
+      flash_max: 0.8
+      seed: 14
   - padrao: tooth-character
     bloco: s2-tooth
     params:
       x: 540
-      y: 1230
-      scale: 1.35
+      y: 1290
+      scale: 1.3
       body: '#ffffff'
       ink: '#3d3834'
       cheek: '#ffb3b3'
       accent: '#ffd23f'
-      t_in: 0.1
-      wave_t: 0.8
+      t_in: 0.02
+      wave_t: 0.5
       label: Oi!
+      dur: '{{dur:s2}}'
+      bpm: '{{bpm}}'
+      beat0: 0
       bg: transparent
       seed: 3
-  - padrao: kinetic-bounce-title
-    bloco: s2-title
+  - padrao: kinetic-words
+    bloco: s2-words
     params:
-      line1: Brincar,
-      line2: sorrir e
-      line3: se divertir!
+      lines: Hoje é dia de|brincar, sorrir|e se divertir!
+      times: '{{words:vo2}}'
       colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
       ink: '#3d3834'
-      size: 118
-      y: 200
-      t0: 0.05
-      stagger: 0.035
-      exit: true
-      bg: transparent
+      size: 132
+      y: 170
+      maxw: 980
+      exit: 0.12
+      dur: '{{dur:s2}}'
       seed: 8
+  - padrao: beat-burst
+    bloco: s2-burst
+    params:
+      bpm: '{{bpm}}'
+      beat0: 0.9375
+      every: 2
+      count: 3
+      points: 160,1740;920,1700;150,1020
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      ink: '#3d3834'
+      stars: 6
+      confetti: 14
+      size: 0.9
+      dur: '{{dur:s2}}'
+      seed: 18
   tela:
   - Oi! (balão do mascote)
-  - Brincar, / sorrir e / se divertir!
+  - Hoje é dia de / brincar, sorrir / e se divertir! (palavra a palavra)
   fala:
     id: vo2
     texto: Hoje é dia de brincar, sorrir e se divertir!
-    inicio_s: 0.25
-    max_s: 3.3
+    inicio_s: 0.1
+    max_s: 4.1
   sfx:
   - id: pop-t1
     t: 0
     tipo: pop
-    gain_db: -8
+    gain_db: -7
+  - id: sparkle-t1
+    t: 0
+    tipo: shimmer
+    args:
+    - 0.5
+    - 2637
+    gain_db: -15
   - id: boing-tooth
-    t: 0.25
+    t: 0.2
     tipo: boing
     args:
     - 200
     - 0.6
     gain_db: -12
-  - id: sparkle-star
-    t: 1
-    tipo: shimmer
-    args:
-    - 0.6
-    - 2637
-    gain_db: -16
+  - id: pop-b3
+    t: 0.9375
+    tipo: pop
+    gain_db: -17
+  - id: pop-b4
+    t: 1.875
+    tipo: pop
+    gain_db: -17
+  - id: pop-b5
+    t: 2.8125
+    tipo: pop
+    gain_db: -17
   - id: whoosh-t2
-    t: 3.7
+    t: 3.9688
     tipo: whoosh
     args:
-    - 0.35
-    gain_db: -12
+    - 0.3
+    gain_db: -13
+  - id: slide-t2
+    t: 3.9987
+    tipo: slide
+    args:
+    - 700
+    - 1700
+    - 0.22
+    gain_db: -16
 - id: s3
   papel: processo
-  duracao_s: 3.5
+  duracao_s: 4.6875
   motion:
+  - padrao: fx-transition
+    bloco: x2
+    params:
+      kind: shapes
+      at: 0.2
+      frames: 10
+      fps: 30
+      dir: -1
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      flash: '#ffffff'
+      flash_max: 0.8
+      seed: 15
   - padrao: toothbrush-sparkle
     bloco: s3-brush
     params:
       x: 540
-      y: 1200
+      y: 1270
       scale: 1.25
       t0: 0.2
-      strokes: 5
+      strokes: 8
       handle: '#5aa9e6'
       ink: '#3d3834'
       sparkle: '#ffd23f'
       cheek: '#ffb3b3'
+      dur: '{{dur:s3}}'
+      bpm: '{{bpm}}'
       bg: transparent
       seed: 9
-  - padrao: kinetic-bounce-title
-    bloco: s3-title
+  - padrao: kinetic-words
+    bloco: s3-words
     params:
-      line1: Depois da
-      line2: 'festa:'
-      line3: escovinha!
+      lines: E depois da festa,|escova nesses|dentinhos!
+      times: '{{words:vo3}}'
       colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
       ink: '#3d3834'
-      size: 118
-      y: 200
-      t0: 0.05
-      stagger: 0.035
-      exit: true
-      bg: transparent
+      size: 132
+      y: 170
+      maxw: 980
+      exit: 0.12
+      dur: '{{dur:s3}}'
       seed: 12
+  - padrao: beat-burst
+    bloco: s3-burst
+    params:
+      bpm: '{{bpm}}'
+      beat0: 0.9375
+      every: 4
+      count: 2
+      points: 170,1740;910,1740
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      ink: '#3d3834'
+      stars: 5
+      confetti: 12
+      size: 0.8
+      dur: '{{dur:s3}}'
+      seed: 19
   tela:
-  - 'Depois da / festa: / escovinha!'
+  - E depois da festa, / escova nesses / dentinhos! (palavra a palavra)
   fala:
     id: vo3
     texto: E depois da festa, escova nesses dentinhos!
-    inicio_s: 0.25
-    max_s: 3.0
+    inicio_s: 0.12
+    max_s: 4.5
   sfx:
   - id: pop-t2
     t: 0
     tipo: pop
-    gain_db: -8
+    gain_db: -7
+  - id: sparkle-t2
+    t: 0
+    tipo: shimmer
+    args:
+    - 0.5
+    - 2637
+    gain_db: -15
   - id: scrub1
     t: 0.65
     tipo: whoosh
@@ -238,29 +375,75 @@ cenas:
     args:
     - 0.13
     gain_db: -20
+  - id: scrub6
+    t: 1.95
+    tipo: whoosh
+    args:
+    - 0.13
+    gain_db: -20
+  - id: scrub7
+    t: 2.21
+    tipo: whoosh
+    args:
+    - 0.13
+    gain_db: -20
+  - id: scrub8
+    t: 2.47
+    tipo: whoosh
+    args:
+    - 0.13
+    gain_db: -20
+  - id: pop-b6
+    t: 0.9375
+    tipo: pop
+    gain_db: -18
+  - id: pop-b7
+    t: 2.8125
+    tipo: pop
+    gain_db: -18
   - id: sparkle-clean
-    t: 2.25
+    t: 3.03
     tipo: shimmer
     args:
     - 0.8
     - 2637
     gain_db: -13
   - id: chime-clean
-    t: 2.3
+    t: 3.08
     tipo: chime
     args:
     - 88
     gain_db: -15
   - id: whoosh-t3
-    t: 3.2
+    t: 4.4375
     tipo: whoosh
     args:
-    - 0.35
-    gain_db: -12
+    - 0.3
+    gain_db: -13
+  - id: slide-t3
+    t: 4.4675
+    tipo: slide
+    args:
+    - 700
+    - 1700
+    - 0.22
+    gain_db: -16
 - id: s4
   papel: marca
-  duracao_s: 4
+  duracao_s: 4.28125
   motion:
+  - padrao: fx-transition
+    bloco: x3
+    params:
+      kind: whip|glitch
+      at: 0.2
+      frames: 8
+      fps: 30
+      dir: 1
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      flash: '#ffffff'
+      flash_max: 0.8
+      seed: 16
   - padrao: brand-lockup-soft
     bloco: s4-lockup
     params:
@@ -275,60 +458,105 @@ cenas:
       colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
       bg: transparent
       seed: 4
+      dur: '{{dur:s4}}'
+      bpm: '{{bpm}}'
+  - padrao: kinetic-words
+    bloco: s4-words
+    params:
+      lines: Com carinho,|Lothus Odontologia.
+      times: '{{words:vo4}}'
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      ink: '#3d3834'
+      size: 92
+      y: 1500
+      maxw: 960
+      exit: 0
+      dur: '{{dur:s4}}'
+      seed: 22
   - padrao: balloons-confetti
     bloco: s4-confetti
     params:
       colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
       count: 0
       rise_s: 3.0
-      t_burst: 0.3
+      t_burst: 0.05
       burst_x: 540
       burst_y: 560
-      confetti: 60
+      confetti: 80
       ink: '#3d3834'
       bg: transparent
       seed: 21
+  - padrao: beat-burst
+    bloco: s4-burst
+    params:
+      bpm: '{{bpm}}'
+      beat0: 0
+      every: 7
+      count: 2
+      points: 540,560;540,250
+      colors: '#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb'
+      ink: '#3d3834'
+      stars: 8
+      confetti: 22
+      size: 1.3
+      dur: '{{dur:s4}}'
+      seed: 20
   tela:
   - LOTHUS / ODONTOLOGIA
   - deseja um Feliz Dia das Crianças!
   - '@lothus_odontologia'
   - Guarulhos · SP
+  - Com carinho, / Lothus Odontologia. (palavra a palavra)
   fala:
     id: vo4
     texto: Com carinho, Lothus Odontologia.
     say: Com carinho, Lótus Odontologia.
-    inicio_s: 0.4
-    max_s: 2.6
+    inicio_s: 0.25
+    max_s: 3.5
   sfx:
   - id: pop-t3
     t: 0
     tipo: pop
-    gain_db: -8
-  - id: pop-confetti2
-    t: 0.3
-    tipo: pop
-    gain_db: -9
+    gain_db: -7
+  - id: sparkle-t3
+    t: 0
+    tipo: shimmer
+    args:
+    - 0.5
+    - 2637
+    gain_db: -15
   - id: blip-chip
     t: 1.6
     tipo: blip
     args:
     - 1320
     gain_db: -16
-  - id: chime-end
-    t: 2.5
+  - id: tada-chime
+    t: 3.2812
     tipo: chime
     args:
     - 84
+    gain_db: -11
+  - id: tada-pop
+    t: 3.2812
+    tipo: pop
+    gain_db: -9
+  - id: tada-sparkle
+    t: 3.2812
+    tipo: shimmer
+    args:
+    - 0.9
+    - 2637
     gain_db: -13
 voz:
-  provider: local
-  voice: pf_dora
-  estilo: 'Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora, natural,
-    português do Brasil, ritmo leve e sem pressa, sem exagero infantil.'
+  provider: file
+  voice: Laomedeia
+  estilo: 'Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora, natural, português do
+    Brasil, ritmo leve e sem pressa, sem exagero infantil.'
   idioma: pt-BR
   processamento: highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,equalizer=f=9000:t=q:w=1:g=1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=140:makeup=2:knee=4,aecho=1.0:1.0:19|31|47:0.09|0.06|0.04
-  gain_db: 0
-  duck_music_db: 10
+  gain_db: 1.5
+  duck_music_db: 11
   duck_sfx_db: 6
   jcut_max_s: 0.15
   cache_dir: assets/audio/voz
@@ -340,23 +568,28 @@ voz:
       lang: pt-br
     file:
       dir: assets/audio/vo/external
-      origem: Gemini TTS no Google AI Studio (voz Sulafat) — a gerar
+      origem: Gemini 3.8 Flash TTS, voz Laomedeia, Google AI Studio (conta do Wesley), 30/09/2026, uma fala por arquivo; leva 'animada' (~/Downloads/lothus-animado-01..04.wav,
+        estilo bem mais animado a pedido do Wesley); fala 4 com a grafia "Lótus". Leva anterior (calma, lothus-line-01..04) substituída.
     gemini:
       model: gemini-3.8-flash-tts
-      voice: Sulafat
+      voice: Laomedeia
       alternativas:
-      - Laomedeia
+      - Sulafat (indisponível no AI Studio em 30/09/2026)
       - Achernar
-      estilo: 'Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora,
-        natural, português do Brasil, ritmo leve e sem pressa, sem exagero infantil.'
+      estilo: 'Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora, natural, português
+        do Brasil, ritmo leve e sem pressa, sem exagero infantil.'
 trilha:
-  bpm: 120
+  bpm: 128
   seed: 20261012
   music:
-    style: playful
+    style: festive
     gain_db: -5
     fade_in_s: 0.05
-    fade_out_s: 1.2
+    fade_out_s: 0.6
+    fills:
+    - 2.8125
+    - 7.03125
+    - 11.71875
     progression:
     - - 48
       - - 60
@@ -377,10 +610,10 @@ trilha:
     sections:
     - name: groove
       from: 0
-      to: 13.5
+      to: 15.0
     - name: outro
-      from: 13.5
-      to: 15
+      from: 15.0
+      to: 16
     melody:
     - - 0
       - 76
@@ -489,6 +722,21 @@ trilha:
       - 1
     - - 28
       - 84
+      - 1
+    - - 29
+      - 81
+      - 0.5
+    - - 29.5
+      - 79
+      - 0.5
+    - - 30
+      - 76
+      - 1
+    - - 31
+      - 79
+      - 1
+    - - 32
+      - 84
       - 2
   master:
     target_lufs: -14
@@ -500,5 +748,5 @@ saida:
 drive:
   caminho: simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas
   pasta_url: https://drive.google.com/drive/folders/1JZmLzOtvLY9vzDlFxRs4WnnWCu-P0YKr
-  arquivo: Lothus - Dia das Criancas 15s - v01.mp4
-  status: aguardando render final (v01 = voz local provisória)
+  arquivo: Lothus - Dia das Criancas 16s - v02.mp4
+  status: v02 dinâmica (voz Gemini Laomedeia animada, trilha festiva 128 BPM) - aguardando aprovação do cliente

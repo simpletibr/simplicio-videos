@@ -1,66 +1,201 @@
 {
   "schema": "simplicio.timing-lock/v1",
-  "provider": "local",
+  "provider": "file",
   "settings": {
-    "engine": "kokoro",
-    "voice": "pf_dora",
-    "speed": 1.0,
-    "lang": "pt-br"
+    "dir": "assets/audio/vo/external",
+    "padroes": [
+      "line-{n:02d}.wav",
+      "{id}.wav",
+      "line-{n:02d}.mp3",
+      "line-{n:02d}.m4a"
+    ]
   },
   "processing": "highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,equalizer=f=9000:t=q:w=1:g=1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=140:makeup=2:knee=4,aecho=1.0:1.0:19|31|47:0.09|0.06|0.04",
   "cache_dir": "assets/audio/voz",
   "lines": {
     "vo1": {
-      "file": "assets/audio/voz/vo1-595ed8dfd01b.wav",
-      "sha256": "e14d5d2c3f5acb6d2b4e856b05087f8925c86b2ccb83b930b9aa1be88c1382c7",
-      "dur_s": 1.796,
-      "t": 0.5,
-      "max_s": 2.3,
+      "file": "assets/audio/voz/vo1-895ea5a8ecc2.wav",
+      "sha256": "566de51080ff11227d837fee382c970391ed7d514d0046e082a01539b97c47b1",
+      "dur_s": 2.242,
+      "t": 0.28,
+      "max_s": 2.5,
       "scene": "s1",
       "text": "Feliz Dia das Crianças!",
       "say": "Feliz Dia das Crianças!",
-      "source": null,
+      "source": "assets/audio/vo/external/line-01.wav",
       "fits": true,
-      "slack_s": 0.504
+      "slack_s": 0.258,
+      "words": [
+        {
+          "w": "Feliz",
+          "t": 0.0,
+          "end": 0.62
+        },
+        {
+          "w": "Dia",
+          "t": 0.62,
+          "end": 0.86
+        },
+        {
+          "w": "das",
+          "t": 0.86,
+          "end": 1.08
+        },
+        {
+          "w": "Crianças!",
+          "t": 1.08,
+          "end": 1.84
+        }
+      ],
+      "words_source": "faster-whisper small"
     },
     "vo2": {
-      "file": "assets/audio/voz/vo2-5ef295c18ea0.wav",
-      "sha256": "3862b894e639e14def1cad39a1eabd0479b09dbc343dc81d61b5388c7dcc5a01",
-      "dur_s": 2.74,
-      "t": 3.75,
-      "max_s": 3.3,
+      "file": "assets/audio/voz/vo2-a1795127cd26.wav",
+      "sha256": "934eb4656fc4299dccb78917a753309a9ae91efbda5efb8605b312b312cd446f",
+      "dur_s": 3.994,
+      "t": 2.9125,
+      "max_s": 4.1,
       "scene": "s2",
       "text": "Hoje é dia de brincar, sorrir e se divertir!",
       "say": "Hoje é dia de brincar, sorrir e se divertir!",
-      "source": null,
+      "source": "assets/audio/vo/external/line-02.wav",
       "fits": true,
-      "slack_s": 0.56
+      "slack_s": 0.106,
+      "words": [
+        {
+          "w": "Hoje",
+          "t": 0.0,
+          "end": 0.52
+        },
+        {
+          "w": "é",
+          "t": 0.52,
+          "end": 0.66
+        },
+        {
+          "w": "dia",
+          "t": 0.66,
+          "end": 0.92
+        },
+        {
+          "w": "de",
+          "t": 0.92,
+          "end": 1.08
+        },
+        {
+          "w": "brincar,",
+          "t": 1.08,
+          "end": 2.0
+        },
+        {
+          "w": "sorrir",
+          "t": 2.0,
+          "end": 2.69
+        },
+        {
+          "w": "e",
+          "t": 2.69,
+          "end": 2.805
+        },
+        {
+          "w": "se",
+          "t": 2.805,
+          "end": 3.08
+        },
+        {
+          "w": "divertir!",
+          "t": 3.08,
+          "end": 3.74
+        }
+      ],
+      "words_source": "faster-whisper small"
     },
     "vo3": {
-      "file": "assets/audio/voz/vo3-6a4b04fb77f8.wav",
-      "sha256": "1fe1a1c03fc4eac9a2c0ab3e89d66ea119d6e3ae48888161ff2e2dbb609e729b",
-      "dur_s": 2.756,
-      "t": 7.75,
-      "max_s": 3.0,
+      "file": "assets/audio/voz/vo3-2ebb485941b3.wav",
+      "sha256": "17aec599e721fbdd2254c54d137ba179b435798f9c74fdc24dd5d7e61e0b63ad",
+      "dur_s": 4.057,
+      "t": 7.1512,
+      "max_s": 4.5,
       "scene": "s3",
       "text": "E depois da festa, escova nesses dentinhos!",
       "say": "E depois da festa, escova nesses dentinhos!",
-      "source": null,
+      "source": "assets/audio/vo/external/line-03.wav",
       "fits": true,
-      "slack_s": 0.244
+      "slack_s": 0.443,
+      "words": [
+        {
+          "w": "E",
+          "t": 0.0,
+          "end": 0.42
+        },
+        {
+          "w": "depois",
+          "t": 0.42,
+          "end": 0.94
+        },
+        {
+          "w": "da",
+          "t": 0.94,
+          "end": 1.22
+        },
+        {
+          "w": "festa,",
+          "t": 1.22,
+          "end": 2.08
+        },
+        {
+          "w": "escova",
+          "t": 2.08,
+          "end": 2.74
+        },
+        {
+          "w": "nesses",
+          "t": 2.74,
+          "end": 3.06
+        },
+        {
+          "w": "dentinhos!",
+          "t": 3.06,
+          "end": 3.68
+        }
+      ],
+      "words_source": "faster-whisper small"
     },
     "vo4": {
-      "file": "assets/audio/voz/vo4-654511b0a249.wav",
-      "sha256": "6d1ce5df4d08a2965657b5a1af323d2a39b46c12dd614416e89bf231206c4590",
-      "dur_s": 2.18,
-      "t": 11.4,
-      "max_s": 2.6,
+      "file": "assets/audio/voz/vo4-1984e9261eb0.wav",
+      "sha256": "e0f6f6fafbc576bd9e0f2316b85773cf8d9818004a21eb2e995f473e8ffd57e3",
+      "dur_s": 2.841,
+      "t": 11.9688,
+      "max_s": 3.5,
       "scene": "s4",
       "text": "Com carinho, Lothus Odontologia.",
       "say": "Com carinho, Lótus Odontologia.",
-      "source": null,
+      "source": "assets/audio/vo/external/line-04.wav",
       "fits": true,
-      "slack_s": 0.42
+      "slack_s": 0.659,
+      "words": [
+        {
+          "w": "Com",
+          "t": 0.0,
+          "end": 0.4
+        },
+        {
+          "w": "carinho,",
+          "t": 0.4,
+          "end": 1.28
+        },
+        {
+          "w": "Lothus",
+          "t": 1.28,
+          "end": 1.84
+        },
+        {
+          "w": "Odontologia.",
+          "t": 1.84,
+          "end": 2.5
+        }
+      ],
+      "words_source": "faster-whisper small"
     }
   }
 }

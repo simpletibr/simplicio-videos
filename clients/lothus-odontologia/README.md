@@ -13,4 +13,5 @@ Convenção: `simplicio-video/clientes/NOME_CLIENTE/ANO/CAMPANHA` (ver [AGENTS.m
 
 | Campanha | Pasta | Arquivo | Link | Versão / status |
 |---|---|---|---|---|
-| Dia_Criancas | [2026/Dia_Criancas](https://drive.google.com/drive/folders/1JZmLzOtvLY9vzDlFxRs4WnnWCu-P0YKr) | Lothus - Dia das Criancas 15s - v01.mp4 (a subir) | — | **aguardando render final** (v01 com voz local provisória; final com voz Gemini) |
+| Dia_Criancas | [2026/Dia_Criancas](https://drive.google.com/drive/folders/1JZmLzOtvLY9vzDlFxRs4WnnWCu-P0YKr) | Lothus - Dia das Criancas 16s - v02.mp4 | **(preencher: link do Drive)** | **v02 dinâmica — aguardando aprovação do cliente** (voz Gemini Laomedeia animada, trilha festiva 128 BPM, cortes rápidos na batida) |
+| Dia_Criancas | [2026/Dia_Criancas](https://drive.google.com/drive/folders/1JZmLzOtvLY9vzDlFxRs4WnnWCu-P0YKr) | Lothus - Dia das Criancas 15s - v01.mp4 | — | substituída pela v02 (voz local provisória; feedback: "precisa ser áudio mais animado", "muito mais efeitos") |
