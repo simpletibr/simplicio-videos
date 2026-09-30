@@ -1,0 +1,107 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "tooth-character",
+  "title": "Personagem dente sorridente (SVG)",
+  "description": "Dente com rosto (olhos que piscam, bochechas, sorriso), entra com mola, acena e fica quicando; brilho de estrela opcional e balão de fala opcional. 100% vetorial, sem arte de terceiros.",
+  "status": "pronto",
+  "duration_s": 4.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "x",
+      "type": "number",
+      "label": "Centro x (px)",
+      "default": 540
+    },
+    {
+      "id": "y",
+      "type": "number",
+      "label": "Centro y (px)",
+      "default": 1060
+    },
+    {
+      "id": "scale",
+      "type": "number",
+      "label": "Escala",
+      "default": 1.3
+    },
+    {
+      "id": "body",
+      "type": "color",
+      "label": "Cor do dente",
+      "default": "#ffffff"
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Contorno",
+      "default": "#3d3834"
+    },
+    {
+      "id": "cheek",
+      "type": "color",
+      "label": "Bochechas",
+      "default": "#ffb3b3"
+    },
+    {
+      "id": "accent",
+      "type": "color",
+      "label": "Brilho/estrela",
+      "default": "#ffd23f"
+    },
+    {
+      "id": "t_in",
+      "type": "number",
+      "label": "Entrada (s)",
+      "default": 0.1
+    },
+    {
+      "id": "wave_t",
+      "type": "number",
+      "label": "Aceno começa (s)",
+      "default": 0.7
+    },
+    {
+      "id": "label",
+      "type": "string",
+      "label": "Balão de fala (vazio = sem balão)",
+      "default": "Oi!",
+      "maxLength": 18
+    },
+    {
+      "id": "bg",
+      "type": "string",
+      "label": "Fundo",
+      "default": "#fbf7f2"
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 3
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "personagem",
+  "tags": [
+    "infantil",
+    "odontologia",
+    "mascote",
+    "svg"
+  ],
+  "use_when": "Odontologia/saúde com público infantil: saudação, dica de escovação, datas comemorativas. Não é o logo do cliente.",
+  "voice_sync": "wave_t na saudação; label curto (≤ 18).",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 1.8
+}

@@ -1,0 +1,109 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "kinetic-bounce-title",
+  "title": "Título com letras quicando (infantil)",
+  "description": "Até 3 linhas; cada letra salta da própria linha (pop + pulo + quique bounce.out, sem cruzar outras linhas), achata de leve ao pousar; cores alternadas da paleta; onda suave depois do pouso e saída em pop.",
+  "status": "pronto",
+  "duration_s": 3.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "line1",
+      "type": "string",
+      "label": "Linha 1",
+      "default": "Feliz",
+      "maxLength": 14
+    },
+    {
+      "id": "line2",
+      "type": "string",
+      "label": "Linha 2",
+      "default": "Dia das",
+      "maxLength": 14
+    },
+    {
+      "id": "line3",
+      "type": "string",
+      "label": "Linha 3",
+      "default": "Crianças!",
+      "maxLength": 14
+    },
+    {
+      "id": "colors",
+      "type": "string",
+      "label": "Paleta (hex separados por |)",
+      "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Cor da sombra/contorno",
+      "default": "#3d3834"
+    },
+    {
+      "id": "size",
+      "type": "number",
+      "label": "Tamanho da fonte (px)",
+      "default": 170
+    },
+    {
+      "id": "y",
+      "type": "number",
+      "label": "Topo do bloco de texto (px)",
+      "default": 560
+    },
+    {
+      "id": "t0",
+      "type": "number",
+      "label": "Início (s)",
+      "default": 0.15
+    },
+    {
+      "id": "stagger",
+      "type": "number",
+      "label": "Atraso entre letras (s)",
+      "default": 0.045
+    },
+    {
+      "id": "exit",
+      "type": "boolean",
+      "label": "Sair em pop no fim",
+      "default": true
+    },
+    {
+      "id": "bg",
+      "type": "string",
+      "label": "Fundo (cor CSS ou transparent)",
+      "default": "#fbf7f2"
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 5
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "tipografia",
+  "tags": [
+    "infantil",
+    "quique",
+    "título",
+    "festivo"
+  ],
+  "use_when": "Saudação festiva/infantil (Dia das Crianças, aniversário, datas comemorativas) em marcas acolhedoras.",
+  "voice_sync": "t0 alinhado ao início da fala; a onda cai depois da última letra.",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 2.0
+}

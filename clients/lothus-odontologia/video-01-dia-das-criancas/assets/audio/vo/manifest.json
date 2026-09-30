@@ -1,0 +1,56 @@
+{
+  "provider": "kokoro",
+  "settings": {
+    "model": "kokoro-v1.0 (hexgrad/Kokoro-82M, ONNX via kokoro-onnx)",
+    "voice": "pf_dora",
+    "lang": "pt-br",
+    "speed": 1.0
+  },
+  "processing": "highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,equalizer=f=9000:t=q:w=1:g=1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=140:makeup=2:knee=4,aecho=1.0:1.0:19|31|47:0.09|0.06|0.04",
+  "lines": {
+    "vo1": {
+      "file": "assets/audio/vo/vo1-5eec045d98fc.wav",
+      "t": 0.5,
+      "dur_s": 1.796,
+      "max_s": 2.3,
+      "text": "Feliz Dia das Crianças!",
+      "say": "Feliz Dia das Crianças!",
+      "seed": 0,
+      "asr_score": 1.0,
+      "asr_text": ""
+    },
+    "vo2": {
+      "file": "assets/audio/vo/vo2-9cff4cf7151e.wav",
+      "t": 3.75,
+      "dur_s": 2.74,
+      "max_s": 3.3,
+      "text": "Hoje é dia de brincar, sorrir e se divertir!",
+      "say": "Hoje é dia de brincar, sorrir e se divertir!",
+      "seed": 0,
+      "asr_score": 1.0,
+      "asr_text": ""
+    },
+    "vo3": {
+      "file": "assets/audio/vo/vo3-78ef20f1f6a5.wav",
+      "t": 7.75,
+      "dur_s": 2.756,
+      "max_s": 3.0,
+      "text": "E depois da festa, escova nesses dentinhos!",
+      "say": "E depois da festa, escova nesses dentinhos!",
+      "seed": 0,
+      "asr_score": 1.0,
+      "asr_text": ""
+    },
+    "vo4": {
+      "file": "assets/audio/vo/vo4-0ec18dbfd992.wav",
+      "t": 11.4,
+      "dur_s": 2.18,
+      "max_s": 2.6,
+      "text": "Com carinho, Lothus Odontologia.",
+      "say": "Com carinho, Lótus Odontologia.",
+      "seed": 0,
+      "asr_score": 1.0,
+      "asr_text": ""
+    }
+  }
+}

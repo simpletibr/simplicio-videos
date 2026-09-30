@@ -1,0 +1,22 @@
+{
+  "$schema_note": "Coleta de 30/09/2026 (BRT). Não há site/CSS; 'logo' = aproximação por amostragem do avatar 100x100 do Instagram (confirmar com o arquivo original). 'video_01' = paleta usada no Dia das Crianças (escolha de design, não da marca).",
+  "source": {
+    "logo": "clients/lothus-odontologia/coleta/instagram/profile.jpg (og:image de https://www.instagram.com/lothus_odontologia/)",
+    "fetched_at": "2026-09-30T15:52-03:00"
+  },
+  "logo": {
+    "charcoal": "#3d3834",
+    "line_cream": "#bab5b1",
+    "confirmado": false
+  },
+  "inferido": {
+    "accent_blue": { "hex": "#5aa9e6", "motivo": "💙 da bio do Instagram (F1)", "confirmado": false }
+  },
+  "video_01": {
+    "ink": "#3d3834",
+    "background": "#fbf7f2",
+    "chip": "#2f7fc1",
+    "playful": ["#ff6b6b", "#ffd23f", "#4ecdc4", "#5aa9e6", "#b388eb"],
+    "nota": "Tinta = carvão do logo; creme de fundo; paleta infantil é escolha de design para a data. Chip com texto branco em #2f7fc1 (contraste WCAG ≥ 3:1)."
+  }
+}

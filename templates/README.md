@@ -5,6 +5,7 @@ Um template transforma um intake aprovado em spec **sem LLM**: define a sequênc
 | Template | Setor | Status | Duração | Referência |
 |---|---|---|---|---|
 | [`assistencia-tecnica-games`](assistencia-tecnica-games/) | Assistência técnica / games / eletrônicos | **pronto** | 20 s | `clients/wjr-informatica-games/video-01` |
+| [`saude-odontologia`](saude-odontologia/) | Odontologia (datas comemorativas, institucional leve) | **pronto** | 15 s | `clients/lothus-odontologia/video-01-dia-das-criancas` |
 | [`alimentacao`](alimentacao/) | Restaurante, delivery, confeitaria, café | skeleton | 15 s | — |
 | [`beleza-estetica`](beleza-estetica/) | Salão, barbearia, estética | skeleton | 15 s | — |
 | [`saude-clinica`](saude-clinica/) | Odonto, fisio, psicologia, clínica, pet | skeleton | 20 s | — |

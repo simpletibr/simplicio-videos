@@ -1,0 +1,105 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "brand-lockup-soft",
+  "title": "Assinatura suave da marca (anel + nome + @)",
+  "description": "Anel fino desenhado, nome da marca com espaçamento largo, subtítulo, mensagem em palavras que saltam, chip com @ e cidade; pontos coloridos estouram em volta. Logo opcional dentro do anel.",
+  "status": "pronto",
+  "duration_s": 4.0,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "name",
+      "type": "string",
+      "label": "Nome",
+      "default": "LOTHUS",
+      "maxLength": 16
+    },
+    {
+      "id": "sub",
+      "type": "string",
+      "label": "Subtítulo",
+      "default": "ODONTOLOGIA",
+      "maxLength": 20
+    },
+    {
+      "id": "tagline",
+      "type": "string",
+      "label": "Mensagem",
+      "default": "deseja um Feliz Dia das Crianças!",
+      "maxLength": 44
+    },
+    {
+      "id": "handle",
+      "type": "string",
+      "label": "@ / contato",
+      "default": "@lothus_odontologia",
+      "maxLength": 28
+    },
+    {
+      "id": "city",
+      "type": "string",
+      "label": "Cidade",
+      "default": "Guarulhos · SP",
+      "maxLength": 32
+    },
+    {
+      "id": "logo",
+      "type": "string",
+      "label": "Logo (caminho; vazio = só texto)",
+      "default": ""
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Tinta",
+      "default": "#3d3834"
+    },
+    {
+      "id": "accent",
+      "type": "color",
+      "label": "Destaque (chip, texto branco: use cor com contraste ≥3:1)",
+      "default": "#2f7fc1"
+    },
+    {
+      "id": "colors",
+      "type": "string",
+      "label": "Paleta dos pontos (hex |)",
+      "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"
+    },
+    {
+      "id": "bg",
+      "type": "string",
+      "label": "Fundo",
+      "default": "#fbf7f2"
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 4
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "logo",
+  "tags": [
+    "assinatura",
+    "marca",
+    "encerramento",
+    "suave"
+  ],
+  "use_when": "Encerramento de marcas acolhedoras/saúde (tom calmo). Use o logo real quando houver arquivo em boa resolução; senão, só texto.",
+  "voice_sync": "tagline entra junto da fala de assinatura.",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 3.2
+}

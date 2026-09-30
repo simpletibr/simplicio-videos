@@ -1,0 +1,100 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "toothbrush-sparkle",
+  "title": "Escovinha + espuma + brilho",
+  "description": "Dente grande sorrindo; escova entra e escova (vai e vem) com bolhas de espuma que sobem; escova sai e estrelas de brilho estouram em volta do dente limpo.",
+  "status": "pronto",
+  "duration_s": 3.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "x",
+      "type": "number",
+      "label": "Centro x (px)",
+      "default": 540
+    },
+    {
+      "id": "y",
+      "type": "number",
+      "label": "Centro y (px)",
+      "default": 1080
+    },
+    {
+      "id": "scale",
+      "type": "number",
+      "label": "Escala do dente",
+      "default": 1.25
+    },
+    {
+      "id": "t0",
+      "type": "number",
+      "label": "Escova entra (s)",
+      "default": 0.2
+    },
+    {
+      "id": "strokes",
+      "type": "number",
+      "label": "Vaivéns",
+      "default": 5
+    },
+    {
+      "id": "handle",
+      "type": "color",
+      "label": "Cabo da escova",
+      "default": "#5aa9e6"
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Contorno",
+      "default": "#3d3834"
+    },
+    {
+      "id": "sparkle",
+      "type": "color",
+      "label": "Brilho",
+      "default": "#ffd23f"
+    },
+    {
+      "id": "cheek",
+      "type": "color",
+      "label": "Bochechas",
+      "default": "#ffb3b3"
+    },
+    {
+      "id": "bg",
+      "type": "string",
+      "label": "Fundo",
+      "default": "#fbf7f2"
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 9
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "ilustração",
+  "tags": [
+    "infantil",
+    "odontologia",
+    "escovação",
+    "brilho"
+  ],
+  "use_when": "Dica leve de higiene/escovação (sem promessa clínica), odontopediatria, campanhas infantis.",
+  "voice_sync": "t0 no começo da frase; o brilho cai no fim da frase.",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 2.3
+}

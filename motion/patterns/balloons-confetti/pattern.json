@@ -1,0 +1,94 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "balloons-confetti",
+  "title": "Balões subindo + explosão de confete",
+  "description": "Balões SVG (cores da paleta, semente fixa) sobem balançando; confete explode de um ponto e cai com giro. count=0 deixa só o confete.",
+  "status": "pronto",
+  "duration_s": 3.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "colors",
+      "type": "string",
+      "label": "Paleta (hex |)",
+      "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"
+    },
+    {
+      "id": "count",
+      "type": "number",
+      "label": "Nº de balões",
+      "default": 9
+    },
+    {
+      "id": "rise_s",
+      "type": "number",
+      "label": "Tempo de subida (s)",
+      "default": 3.2
+    },
+    {
+      "id": "t_burst",
+      "type": "number",
+      "label": "Explosão do confete (s)",
+      "default": 0.35
+    },
+    {
+      "id": "burst_x",
+      "type": "number",
+      "label": "Confete: x (px)",
+      "default": 540
+    },
+    {
+      "id": "burst_y",
+      "type": "number",
+      "label": "Confete: y (px)",
+      "default": 820
+    },
+    {
+      "id": "confetti",
+      "type": "number",
+      "label": "Nº de confetes",
+      "default": 70
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Cor do barbante",
+      "default": "#3d3834"
+    },
+    {
+      "id": "bg",
+      "type": "string",
+      "label": "Fundo",
+      "default": "#fbf7f2"
+    },
+    {
+      "id": "seed",
+      "type": "number",
+      "label": "Semente",
+      "default": 11
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "fundo",
+  "tags": [
+    "infantil",
+    "festa",
+    "confete",
+    "balões"
+  ],
+  "use_when": "Abertura/fechamento festivo; datas comemorativas. Camada transparente (bg: transparent) sobre qualquer cena.",
+  "voice_sync": "t_burst na primeira sílaba forte da saudação.",
+  "source": {
+    "kind": "interno",
+    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
+    "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+  },
+  "preview_at": 1.2
+}

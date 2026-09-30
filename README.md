@@ -28,8 +28,8 @@ simplicio-videos/
 
 | O quê | Onde | Hoje |
 |---|---|---|
-| Padrões de motion | [motion/README.md](motion/README.md) | 41 (19 blocos prontos com preview, 1 lib, 2 inline, 19 propostos) |
-| Templates por setor | [templates/README.md](templates/README.md) | 1 pronto (assistência técnica/games) + 6 skeleton |
+| Padrões de motion | [motion/README.md](motion/README.md) | 46 (24 blocos prontos com preview, 1 lib, 2 inline, 19 propostos) |
+| Templates por setor | [templates/README.md](templates/README.md) | 2 prontos (assistência técnica/games, odontologia) + 6 skeleton |
 | Vozes | [voices/README.md](voices/README.md) | Gemini (padrão, via `file`), Chatterbox/Kokoro locais, ElevenLabs/xAI (sem chave) |
 | Intake | [intake/README.md](intake/README.md) | questionário, extração automática, schema, exemplo WJR |
 | Ferramentas opcionais | [tools/README.md](tools/README.md) | video-use (edição: cortar p/ X s, reordenar, aparar footage, legendas, revisão) |
@@ -41,6 +41,9 @@ simplicio-videos/
 | WJR Informática e Games (Guarulhos) | [coleta](clients/wjr-informatica-games/coleta/) | brief, site salvo, fontes, pendências |
 | | [video-01](clients/wjr-informatica-games/video-01/) | Reels 9:16, 20 s, narração pt-BR (Gemini TTS, voz Puck) + trilha/SFX próprios · [preview](clients/wjr-informatica-games/video-01/preview/) · referência do template `assistencia-tecnica-games` |
 | | [video-02-videouse](clients/wjr-informatica-games/video-02-videouse/) | Cutdown 11,5 s do video-01 montado com [video-use](docs/video-use-integracao.md) (EDL + overlay HyperFrames) · [preview](clients/wjr-informatica-games/video-02-videouse/preview/) |
+| | [README + entregas no Drive](clients/wjr-informatica-games/README.md) | links dos MP4 entregues |
+| Lothus Odontologia (Guarulhos) | [coleta](clients/lothus-odontologia/coleta/) · [README + Drive](clients/lothus-odontologia/README.md) | Instagram público + CNES + espelho Google Places; conflitos de endereço/telefone em pendências |
+| | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) | Post 9:16, 15 s, Dia das Crianças, voz provisória local (final Gemini Sulafat) · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) · referência do template `saude-odontologia` |
 
 ## Quick start
 

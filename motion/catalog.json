@@ -1,8 +1,8 @@
 {
   "schema": "simplicio.motion-catalog/v1",
-  "count": 41,
+  "count": 46,
   "by_status": {
-    "pronto": 19,
+    "pronto": 24,
     "lib": 1,
     "inline": 2,
     "proposto": 19
@@ -55,6 +55,34 @@
       "source": "https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/data/odometer-digit-roll.md"
     },
     {
+      "id": "balloons-confetti",
+      "title": "Balões subindo + explosão de confete",
+      "status": "pronto",
+      "category": "fundo",
+      "tags": [
+        "infantil",
+        "festa",
+        "confete",
+        "balões"
+      ],
+      "duration_s": 3.5,
+      "params": [
+        "colors",
+        "count",
+        "rise_s",
+        "t_burst",
+        "burst_x",
+        "burst_y",
+        "confetti",
+        "ink",
+        "bg",
+        "seed"
+      ],
+      "block": "patterns/balloons-confetti/block.html",
+      "preview": "patterns/balloons-confetti/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
       "id": "bg-grid-glow-particles",
       "title": "Fundo: grade em perspectiva + glows + partículas",
       "status": "pronto",
@@ -75,6 +103,35 @@
       "block": "patterns/bg-grid-glow-particles/block.html",
       "preview": "patterns/bg-grid-glow-particles/preview.png",
       "source": "clients/wjr-informatica-games/video-01/index.html (#bg)"
+    },
+    {
+      "id": "toothbrush-sparkle",
+      "title": "Escovinha + espuma + brilho",
+      "status": "pronto",
+      "category": "ilustração",
+      "tags": [
+        "infantil",
+        "odontologia",
+        "escovação",
+        "brilho"
+      ],
+      "duration_s": 3.5,
+      "params": [
+        "x",
+        "y",
+        "scale",
+        "t0",
+        "strokes",
+        "handle",
+        "ink",
+        "sparkle",
+        "cheek",
+        "bg",
+        "seed"
+      ],
+      "block": "patterns/toothbrush-sparkle/block.html",
+      "preview": "patterns/toothbrush-sparkle/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
     },
     {
       "id": "card-3d-pushin-sweep",
@@ -213,6 +270,35 @@
       "source": "clients/wjr-informatica-games/video-01/index.html (SV)"
     },
     {
+      "id": "brand-lockup-soft",
+      "title": "Assinatura suave da marca (anel + nome + @)",
+      "status": "pronto",
+      "category": "logo",
+      "tags": [
+        "assinatura",
+        "marca",
+        "encerramento",
+        "suave"
+      ],
+      "duration_s": 4,
+      "params": [
+        "name",
+        "sub",
+        "tagline",
+        "handle",
+        "city",
+        "logo",
+        "ink",
+        "accent",
+        "colors",
+        "bg",
+        "seed"
+      ],
+      "block": "patterns/brand-lockup-soft/block.html",
+      "preview": "patterns/brand-lockup-soft/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
       "id": "logo-drop-shockwave",
       "title": "Drop de logo: elastic + ondas de choque + partículas",
       "status": "pronto",
@@ -259,6 +345,36 @@
       "source": "https://x.com/Mounnna/status/2103802871934497266"
     },
     {
+      "id": "tooth-character",
+      "title": "Personagem dente sorridente (SVG)",
+      "status": "pronto",
+      "category": "personagem",
+      "tags": [
+        "infantil",
+        "odontologia",
+        "mascote",
+        "svg"
+      ],
+      "duration_s": 4,
+      "params": [
+        "x",
+        "y",
+        "scale",
+        "body",
+        "ink",
+        "cheek",
+        "accent",
+        "t_in",
+        "wave_t",
+        "label",
+        "bg",
+        "seed"
+      ],
+      "block": "patterns/tooth-character/block.html",
+      "preview": "patterns/tooth-character/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
       "id": "process-timeline",
       "title": "Linha do tempo de processo (trilho + passos)",
       "status": "pronto",
@@ -279,6 +395,36 @@
       "block": "patterns/process-timeline/block.html",
       "preview": "patterns/process-timeline/preview.png",
       "source": "clients/wjr-informatica-games/video-01/index.html (S5)"
+    },
+    {
+      "id": "kinetic-bounce-title",
+      "title": "Título com letras quicando (infantil)",
+      "status": "pronto",
+      "category": "tipografia",
+      "tags": [
+        "infantil",
+        "quique",
+        "título",
+        "festivo"
+      ],
+      "duration_s": 3,
+      "params": [
+        "line1",
+        "line2",
+        "line3",
+        "colors",
+        "ink",
+        "size",
+        "y",
+        "t0",
+        "stagger",
+        "exit",
+        "bg",
+        "seed"
+      ],
+      "block": "patterns/kinetic-bounce-title/block.html",
+      "preview": "patterns/kinetic-bounce-title/preview.png",
+      "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
     },
     {
       "id": "kinetic-letters-punch",
