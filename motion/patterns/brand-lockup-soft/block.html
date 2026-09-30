@@ -63,6 +63,9 @@
             root.style.color = V.ink; const nm = $(".nm"), sb = $(".sb"), lg = $(".lg");
             if (V.logo) { lg.src = V.logo; nm.style.display = sb.style.display = "none"; if (!Number(V.logo_round)) lg.style.borderRadius = "0";
               const ls = Number(V.logo_size) || 300; if (ls !== 300) { lg.style.width = lg.style.height = ls + "px"; lg.style.left = (540 - ls / 2) + "px"; lg.style.top = (550 - ls / 2) + "px"; } } else { lg.style.display = "none"; }
+            // text lockup must stay inside the ring (chord ~440 px at the name/sub rows): shrink long names/subs only
+            const fit = (el, text, px, em, maxw) => { const n = String(text).length; if (n * em * px > maxw) el.style.fontSize = Math.floor(maxw / (n * em)) + "px"; };  // em = measured width/char incl. letter-spacing
+            fit(nm, V.name, 84, 0.80, 440); fit(sb, V.sub, 36, 0.98, 420);
             const nch = splitChars(nm, V.name), sch = splitChars(sb, V.sub);
             if (V.tag_font && V.tag_font !== "Fredoka") $(".tg").style.fontFamily = `"${V.tag_font}", sans-serif`;
             $(".tg").style.top = V.tag_y + "px"; $(".chip").style.top = V.chip_y + "px"; $(".ct").style.top = (V.chip_y + 130) + "px";
