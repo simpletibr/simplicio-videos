@@ -14,9 +14,12 @@ dependencies = ["pyyaml>=6", "jsonschema>=4.18"]
 [project.optional-dependencies]
 test = ["pytest>=8"]
 local-tts = ["kokoro-onnx>=0.4", "soundfile>=0.12"]
+mcp = ["mcp>=1.2"]
+remote = ["kaggle>=2.2", "google-colab-cli>=0.7"]
 
 [project.scripts]
 simplicio-video = "simplicio_video.cli:main"
+simplicio-video-mcp = "simplicio_video.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

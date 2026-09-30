@@ -18,11 +18,13 @@ Fluxo completo:
   1. init      gera o esqueleto do contrato a partir de um template de setor
   2. (autor)   preenche os TODO só com fatos de clients/<cliente>/coleta/
   3. validate  JSON Schema + assets existem + soma das durações + cada fala cabe na cena (sem acelerar)
-  4. voice     gera/cacheia as falas (file | local | gemini) e grava timing.lock.json com as durações reais
+  4. voice     gera/cacheia as falas (file | local | gemini API) e grava timing.lock.json com as durações reais
   5. render    contrato -> composição HyperFrames -> frames -> ffmpeg (trilha/SFX/voz, -14 LUFS)
-               backend local (esta máquina) ou colab (bundle + colab/render.ipynb, GPU)
-  6. entrega   suba o MP4 no Drive em drive.caminho (simplicio-video/clientes/NOME/ANO/CAMPANHA)
-               e registre o link em clients/<slug>/README.md (tabela "Entregas no Drive")
+               backends: local | kaggle (GPU T4, CLI kaggle) | colab-cli (CLI oficial do Colab) | colab (bundle manual)
+  6. publish   sobe o MP4 no Drive em drive.caminho/drive.arquivo (rclone, nunca sobrescreve uma versão)
+               e grava o link em clients/<slug>/README.md (tabela "Entregas no Drive")
+  run          tudo de uma vez: voice -> validate --need-lock -> render -> publish (dry-run sem --publish)
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
 Skill para LLMs: skills/simplicio-video/SKILL.md"""
@@ -34,12 +36,18 @@ exemplos:
   simplicio-video validate clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml
   simplicio-video voice clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider local
   simplicio-video render clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml
-  simplicio-video render clients/wjr-informatica-games/video-01/contract.yaml --backend colab
+  simplicio-video render clients/wjr-informatica-games/video-01/contract.yaml --backend kaggle
+  simplicio-video publish clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --dry-run
+  simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini --backend kaggle --publish
 
 ambiente:
   SIMPLICIO_VIDEO_HOME  checkout do plugin (templates/, motion/, schema/); padrão: procura a partir do contrato/cwd
   SIMPLICIO_TTS_PY      python com kokoro-onnx para --provider local
-  GEMINI_API_KEY        só para --provider gemini (nunca commitar)"""
+  GEMINI_API_KEY        --provider gemini (aistudio.google.com/apikey; nunca commitar)
+  KAGGLE_USERNAME, KAGGLE_API_TOKEN (ou ~/.kaggle/access_token)   --backend kaggle
+  SIMPLICIO_COLAB_AUTH  oauth2|adc para --backend colab-cli (padrão do CLI colab)
+  SIMPLICIO_DRIVE_REMOTE  remote rclone do Google Drive para publish (padrão: gdrive)
+credenciais e custos: docs/decisoes/ADR-0003-fluxo-100-script.md"""
 
 
 BACKENDS = ["local", "kaggle", "colab-cli", "colab"]
@@ -116,7 +124,9 @@ def build_parser() -> argparse.ArgumentParser:
                     "providers:\n"
                     "  file        WAVs externos (Gemini no Google AI Studio): voz.providers.file.dir/line-01.wav ... (ordem das falas)\n"
                     "  local       TTS local provisório (Kokoro, voz voz.voice ou voz.providers.local.voice, ex.: pf_dora)\n"
-                    "  gemini      API Gemini TTS (GEMINI_API_KEY obrigatório; sem chave = erro claro); guarda o take em file.dir\n"
+                    "  gemini      API Gemini TTS (GEMINI_API_KEY de aistudio.google.com/apikey; cota grátis serve; Google AI Pro NÃO\n"
+                    "              inclui API). Modelo voz.providers.gemini.model (padrão gemini-3.8-flash-tts), voz, estilo em\n"
+                    "              speech_metadata; api interactions (padrão) ou generate_content. WAV 24 kHz guardado em file.dir\n"
                     "  elevenlabs  stub (gere fora e use file)\n"
                     "  xai         stub (gere fora e use file)",
         epilog="exemplos:\n  simplicio-video voice contract.yaml                    # provider do contrato (voz.provider)\n"
@@ -127,7 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="ignora o cache (com ids: só esses)")
     p.add_argument("only", nargs="*", metavar="FALA_ID", help="ids de fala para refazer com --force (ex.: vo2 vo4)")
 
-    p = sub.add_parser("render", formatter_class=Fmt, help="compila e renderiza (local) ou gera bundle Colab",
+    p = sub.add_parser("render", formatter_class=Fmt, help="compila e renderiza (local | kaggle | colab-cli) ou gera bundle Colab",
         description="Compila contrato + timing.lock.json + template (templates/<id>/composition) + blocos de motion +\n"
                     "assets numa composição HyperFrames (build/simplicio-video/), sintetiza trilha/SFX e mixa a voz\n"
                     f"(engine build.mjs, semente fixa), renderiza os frames ({HYPERFRAMES}) e masteriza com ffmpeg\n"
@@ -156,6 +166,49 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--quality", "-q", choices=["draft", "looks", "delivery"], help="qualidade HyperFrames (padrão: saida.qualidade)")
     p.add_argument("--gpu", action="store_true", help="local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo")
     p.add_argument("--workdir", type=Path, help="pasta da composição compilada (padrão: <contrato>/build/simplicio-video)")
+
+    p = sub.add_parser("publish", formatter_class=Fmt, help="sobe o MP4 no Google Drive (rclone) e grava o link no README do cliente",
+        description="Sobe saida.arquivo (ou --file) para <remote>:drive.caminho/drive.arquivo com rclone (sem navegador) e grava o\n"
+                    "link na tabela \"Entregas no Drive\" de clients/<slug>/README.md. Nunca sobrescreve: mesmo nome com bytes\n"
+                    "diferentes = erro (suba vNN+1); mesmos bytes = idempotente. O link vem do ID do arquivo (rclone lsjson),\n"
+                    "nunca de `rclone link` (não muda compartilhamento).\n"
+                    "Autenticação única: remote rclone tipo drive (padrão gdrive; SIMPLICIO_DRIVE_REMOTE), escopo drive,\n"
+                    f"client_id próprio (docs/decisoes/ADR-0003-fluxo-100-script.md). Schema: {SCHEMA_REL}.",
+        epilog="exemplos:\n  simplicio-video publish contract.yaml --dry-run          # só mostra o destino\n"
+               "  simplicio-video publish contract.yaml                    # sobe e grava o link\n"
+               "  simplicio-video publish contract.yaml --remote gdrive-wesley --file out/outro.mp4")
+    _contract_arg(p)
+    p.add_argument("--file", type=Path, help="MP4 a subir (padrão: saida.arquivo)")
+    p.add_argument("--remote", help="remote rclone do Google Drive (padrão: $SIMPLICIO_DRIVE_REMOTE ou gdrive)")
+    p.add_argument("--dry-run", action="store_true", help="não sobe nada; imprime origem e destino")
+    p.add_argument("--no-readme", action="store_true", help="não altera clients/<slug>/README.md")
+    p.add_argument("--json", action="store_true", help="resultado em JSON")
+
+    p = sub.add_parser("run", formatter_class=Fmt, help="voice -> validate -> render -> publish num comando só",
+        description="Fluxo 100% script: validate -> voice (provider do contrato ou --provider, ex.: gemini) ->\n"
+                    "validate --need-lock -> render (--backend local|kaggle|colab-cli|colab) -> publish.\n"
+                    "Sem --publish o passo final é dry-run (mostra o destino no Drive): subir entrega exige pedido explícito.\n"
+                    f"Schema: {SCHEMA_REL}.",
+        epilog="exemplos:\n  simplicio-video run contract.yaml                                   # voz do contrato, render local, publish dry-run\n"
+               "  simplicio-video run contract.yaml --provider gemini --backend kaggle --publish\n"
+               "  simplicio-video run contract.yaml --backend colab-cli --json")
+    _contract_arg(p)
+    p.add_argument("--provider", "-p", choices=["file", "local", "gemini"], help="sobrepõe voz.provider")
+    p.add_argument("--force-voice", action="store_true", help="regera todas as falas (ignora o cache)")
+    p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local)")
+    p.add_argument("--accelerator", help="ver `render --help` (none = CPU)")
+    p.add_argument("--quality", "-q", choices=["draft", "looks", "delivery"], help="qualidade HyperFrames")
+    p.add_argument("--timeout", type=int, default=3600, help="limite do render remoto em s")
+    p.add_argument("--publish", action="store_true", help="sobe de verdade no Drive (sem isto: dry-run)")
+    p.add_argument("--remote", help="remote rclone do Drive (padrão: gdrive)")
+    p.add_argument("--json", action="store_true", help="resumo em JSON")
+
+    p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
+        description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
+                    "video.publish, video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
+                    f"Contratos seguem {SCHEMA_REL}.",
+        epilog="exemplos:\n  simplicio-video mcp                  # stdio (o runtime lança este processo)\n"
+               "  simplicio-video-mcp                  # mesmo servidor, entrypoint dedicado")
 
     p = sub.add_parser("list", formatter_class=Fmt, help="lista templates, padrões de motion ou providers de voz",
         description="Catálogos do plugin: templates/ (renderizável = tem composição), motion/catalog.json, providers de voz.",
@@ -195,8 +248,27 @@ def main(argv: list[str] | None = None) -> int:
         scaffold.write(out, data, a.force)
         print(f"contrato: {out}\npróximo: preencha os TODO (só fatos de coleta/) e rode `simplicio-video validate {out}`")
         return 0
+    if a.cmd == "mcp":
+        from . import mcp_server
+        mcp_server.main()
+        return 0
+    if a.cmd == "run":
+        from . import pipeline
+        res = pipeline.run_all(a.contrato, provider=a.provider, backend=a.backend, accelerator=a.accelerator, quality=a.quality,
+                               timeout=a.timeout, publish=a.publish, remote=a.remote, force_voice=a.force_voice,
+                               log=(lambda *_: None) if a.json else print)
+        if a.json:
+            print(json.dumps(res, indent=2, ensure_ascii=False, default=str))
+        return 0
     from . import contract as ct
     c = ct.load(a.contrato)
+    if a.cmd == "publish":
+        from . import publish as pub
+        res = pub.publish(c, file=a.file, remote=a.remote, dry_run=a.dry_run, update_readme=not a.no_readme,
+                          log=(lambda *_: None) if a.json else print)
+        if a.json:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+        return 0
     if a.cmd == "validate":
         rep = ct.validate(c, need_lock=a.need_lock)
         if a.json:

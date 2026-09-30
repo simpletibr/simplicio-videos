@@ -2,14 +2,14 @@ import pytest
 
 from conftest import run_cli
 
-SUBS = ["init", "validate", "voice", "render", "list"]
+SUBS = ["init", "validate", "voice", "render", "publish", "run", "mcp", "list"]
 
 
 def test_main_help_lists_the_whole_flow():
     r = run_cli("--help")
     assert r.returncode == 0
     out = r.stdout
-    pos = [out.index(w) for w in ("1. init", "3. validate", "4. voice", "5. render")]
+    pos = [out.index(w) for w in ("1. init", "3. validate", "4. voice", "5. render", "6. publish", "run ")]
     assert pos == sorted(pos)
     for s in SUBS:
         assert f"    {s}" in out
@@ -20,7 +20,11 @@ def test_main_help_lists_the_whole_flow():
     ("init", ["cliente", "campanha", "--template", "--nome", "--drive-nome", "--ano", "--out", "--force"]),
     ("validate", ["CONTRATO.yaml", "--need-lock", "--json", "J-cut", "NUNCA"]),
     ("voice", ["CONTRATO.yaml", "--provider", "--force", "FALA_ID", "file", "local", "gemini", "elevenlabs", "xai", "timing.lock.json"]),
-    ("render", ["CONTRATO.yaml", "--backend", "--out", "--quality", "--gpu", "--workdir", "colab", "render.manifest.json", "-14 LUFS"]),
+    ("render", ["CONTRATO.yaml", "--backend", "--out", "--quality", "--gpu", "--workdir", "colab", "render.manifest.json", "-14 LUFS",
+                "kaggle", "colab-cli", "--accelerator", "--timeout", "KAGGLE_USERNAME"]),
+    ("publish", ["CONTRATO.yaml", "--file", "--remote", "--dry-run", "--no-readme", "rclone", "Entregas no Drive", "vNN+1"]),
+    ("run", ["CONTRATO.yaml", "--provider", "--backend", "--publish", "--accelerator", "dry-run"]),
+    ("mcp", ["video.init", "video.render", "video.publish", "stdio"]),
     ("list", ["templates", "motion", "voices", "--json"]),
 ])
 def test_subcommand_help_is_complete(sub, must):
