@@ -195,3 +195,17 @@ Limites das ferramentas do agente (verificado em 30/09/2026):
   duplicata. Se acontecer por engano, mandar o arquivo novo para a lixeira (`trash_file`) e refazer a edição no id acima.
 - Sem ferramenta de upload de conteúdo para um id existente, o agente prepara o .xlsx editado no box e o Wesley (ou um
   agente com o navegador logado no Drive) faz o passo 3.
+
+## Board Paperclip (projeto "Videos")
+
+- Os processos da venda de vídeos ficam no Paperclip, empresa **SimpleTI** (prefixo `SIM`), projeto **"Videos"**:
+  https://vps.tail532f31.ts.net:8443/SIM/projects/videos/issues. Só abre pelo **Tailscale** do Wesley (VPS `vps.tail532f31.ts.net`).
+- **Um card por tarefa ou lote**, com status real: `done`, `in_progress`, `todo`, `backlog`. Criado em 30/09/2026 com os
+  cards SIM-102 a SIM-130: histórico (repo, CLI, vídeos WJR e Lothus, custos, pilotos, lote 2, planilha) e próximos passos
+  (aprovação e envio dos lotes, follow-up, Pix AbacatePay, KYC, automação da entrega em HD).
+- **Divisão:** planilha `controle-vendas-videos.xlsx` = clientes, valores e balanço; Paperclip = processos. Ao terminar
+  um passo, atualize **os dois**.
+- O Paperclip exige responsável para `in_progress`: esses cards ficam com o Wesley. **Não atribua cards a agentes** nem
+  dispare execuções sem pedido explícito do Wesley.
+- Acesso a partir do box de agentes: via Tailscale (modo userspace) e a API REST do Paperclip, com login aprovado pelo
+  Wesley no navegador. As instruções ficam fora do repo; **nenhuma credencial entra no git**.
