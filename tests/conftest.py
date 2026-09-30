@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -21,6 +22,10 @@ def mini(tmp_path):
     dst = tmp_path / "mini"
     shutil.copytree(FIXTURE, dst, ignore=shutil.ignore_patterns("out", "build", "timing.lock.json", "render.manifest.json", "voz"))
     return dst / "contract.yaml"
+
+
+# hermetic tests: no speech-to-text subprocess (word timings fall back to proportional)
+os.environ.setdefault("SIMPLICIO_STT_PY", "/nonexistent/stt-python")
 
 
 def have_render_tools() -> bool:

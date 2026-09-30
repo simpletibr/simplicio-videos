@@ -6,6 +6,10 @@ Template placeholders (index.template.html):
   {{vars:<bloco>}}      JSON of cenas[].motion[].params for that bloco (HTML-attribute safe)
   {{t:<cena>[+|-off]}}  absolute start of a scene (+/- offset), {{end:<cena>}}, {{dur:<cena>}}
   {{duracao}} {{fps}} {{width}} {{height}}   format values; {{cuts}} = [0, end1, end2, ...]
+  {{bpm}} {{beat}}      trilha.bpm and one beat in seconds (sync visual hits with the music)
+  {{words:<fala id>}}   word start times of that line, seconds from its SCENE start, "|"-joined (timing.lock.json)
+The same placeholders work inside string params of cenas[].motion[].params (a param that is exactly one numeric
+placeholder becomes a number), e.g. times: '{{words:vo1}}', bpm: '{{bpm}}', t_cut: '{{dur:s1}}'.
 """
 from __future__ import annotations
 
@@ -25,13 +29,28 @@ def fmt(x: float) -> str:
     return str(v)
 
 
-def render_template(html: str, c: Contract, blocks: dict) -> str:
+def _subber(c: Contract, blocks: dict | None, lock: dict | None):
     sc = {s["id"]: s for s in c.scenes()}
     f = c.data["formato"]
+    lines = {l["id"]: l for l in c.lines()}
 
     def sub(m: re.Match) -> str:
         kind, arg, off = m.group(1), m.group(2), m.group(3)
+        if kind == "bpm":
+            return fmt(c.data["trilha"]["bpm"])
+        if kind == "beat":
+            return str(round(60.0 / c.data["trilha"]["bpm"], 6))
+        if kind == "words":
+            if arg not in lines:
+                raise SystemExit(f"{{{{words:{arg}}}}}: the contract has no fala '{arg}'")
+            w = ((lock or {}).get("lines", {}).get(arg) or {}).get("words")
+            if not w:
+                raise SystemExit(f"{{{{words:{arg}}}}}: timing.lock.json has no word timings - run `simplicio-video voice <contrato>`")
+            base = lines[arg]["t"] - sc[lines[arg]["scene"]]["_start"] + (float(off) if off else 0.0)
+            return "|".join(str(round(base + x["t"], 3)) for x in w)
         if kind == "vars":
+            if blocks is None:
+                raise SystemExit("{{vars:...}} is only valid in the template")
             if arg not in blocks:
                 raise SystemExit(f"template uses {{{{vars:{arg}}}}} but no cenas[].motion[] has bloco: {arg}")
             return json.dumps(blocks[arg], ensure_ascii=False, separators=(",", ":")).replace("&", "&amp;").replace("'", "&#39;")
@@ -49,7 +68,32 @@ def render_template(html: str, c: Contract, blocks: dict) -> str:
             return "[" + ", ".join(fmt(x) for x in c.cuts()) + "]"
         raise SystemExit(f"unknown template placeholder {m.group(0)}")
 
-    return PH.sub(sub, html)
+    return sub
+
+
+def render_template(html: str, c: Contract, blocks: dict, lock: dict | None = None) -> str:
+    return PH.sub(_subber(c, blocks, lock), html)
+
+
+def resolve_params(blocks: dict, c: Contract, lock: dict | None) -> dict:
+    """Expand placeholders inside string params (numeric when the whole value is one placeholder)."""
+    sub = _subber(c, None, lock)
+    out = {}
+    for bloco, params in blocks.items():
+        res = {}
+        for k, v in params.items():
+            if isinstance(v, str) and "{{" in v:
+                whole = PH.fullmatch(v.strip())
+                v2 = PH.sub(sub, v)
+                if whole and whole.group(1) != "words":
+                    try:
+                        v2 = float(v2) if "." in v2 else int(v2)
+                    except ValueError:
+                        pass
+                v = v2
+            res[k] = v
+        out[bloco] = res
+    return out
 
 
 def template_meta(c: Contract) -> tuple[dict, Path]:
@@ -64,7 +108,7 @@ def build_spec(c: Contract, lock: dict | None) -> dict:
     for s in d["cenas"]:
         variables.update(s.get("textos", {}))
     variables.update(d.get("variaveis", {}))
-    blocks = {m["bloco"]: m.get("params", {}) for s in d["cenas"] for m in s.get("motion", []) if m.get("bloco")}
+    blocks = resolve_params({m["bloco"]: m.get("params", {}) for s in d["cenas"] for m in s.get("motion", []) if m.get("bloco")}, c, lock)
     tr = d["trilha"]
     audio = {"bpm": tr["bpm"], "duration_s": d["formato"]["duracao_s"], "seed": tr["seed"], "music": tr["music"],
              "master": tr["master"], "cues": c.cues()}
@@ -126,7 +170,7 @@ def compile_project(c: Contract, workdir: Path, lock: dict | None) -> dict:
                                      "text": l["text"], "say": m["say"]}
         (vo / "manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     (workdir / "spec.json").write_text(json.dumps(spec, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
-    html = render_template((comp / entry).read_text(encoding="utf8"), c, spec["blocks"])
+    html = render_template((comp / entry).read_text(encoding="utf8"), c, spec["blocks"], lock)
     (workdir / "index.html").write_text(html, encoding="utf8")
     meta = {"id": f"{c.data['cliente']['slug']}-{c.data['campanha']['id'].lower()}",
             "name": f"{c.data['cliente']['nome']} — {c.data['campanha'].get('titulo', c.data['campanha']['id'])}"}

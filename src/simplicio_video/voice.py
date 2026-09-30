@@ -15,7 +15,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import paths
+from . import paths, words as wordsmod
 from .contract import Contract, r4
 
 DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,"
@@ -124,6 +124,9 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
     cache.mkdir(parents=True, exist_ok=True)
     lines = c.lines()
     lock_lines, over = {}, []
+    prev_path = c.dir / "timing.lock.json"
+    prev = json.loads(prev_path.read_text(encoding="utf8")).get("lines", {}) if prev_path.is_file() else {}
+    lang = (v.get("idioma") or "pt-BR").split("-")[0]
     for idx, line in enumerate(lines):
         say = line.get("say", line["texto"])
         src = _file_source(c, S, idx, line) if prov == "file" else None
@@ -154,10 +157,18 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
             status = "rendered"
         dur = round(duration(final), 3)
         rel = os.path.relpath(final, c.dir)
-        lock_lines[line["id"]] = {"file": rel, "sha256": sha256_file(final), "dur_s": dur, "t": line["t"], "max_s": line["max_s"],
+        digest = sha256_file(final)
+        # word timings (kinetic typography): reuse the lock when the take and the text did not change
+        old = prev.get(line["id"], {})
+        if old.get("sha256") == digest and old.get("words") and [w["w"] for w in old["words"]] == line["texto"].split():
+            wl, wsrc = old["words"], old.get("words_source", "lock")
+        else:
+            wl, wsrc = wordsmod.align(final, line["texto"], dur, lang)
+        lock_lines[line["id"]] = {"file": rel, "sha256": digest, "dur_s": dur, "t": line["t"], "max_s": line["max_s"],
                                   "scene": line["scene"], "text": line["texto"], "say": say,
                                   "source": os.path.relpath(src, c.dir) if src else None,
-                                  "fits": dur <= line["max_s"] + 1e-6, "slack_s": r4(line["max_s"] - dur)}
+                                  "fits": dur <= line["max_s"] + 1e-6, "slack_s": r4(line["max_s"] - dur),
+                                  "words": wl, "words_source": wsrc}
         log(f"{line['id']} {status:8s} {dur:.2f}s / {line['max_s']}s  {line['texto']}")
         if dur > line["max_s"] + 1e-6:
             over.append(f"{line['id']}: {dur:.3f}s > max_s {line['max_s']}s")

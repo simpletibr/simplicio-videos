@@ -27,7 +27,8 @@ Preencha o esqueleto (todo `TODO` bloqueia o `validate`):
 - **Falas:** `texto` (copy exata), `say` (pronúncia, ex. "Lótus"), `inicio_s` relativo à cena, `max_s` = leitura natural + folga. `inicio_s + max_s` cabe na cena (+ J-cut ≤ 0,15 s).
 - **SFX:** tempos relativos à cena, nas batidas (120 BPM = 0,5 s).
 - **Voz:** `provider: local` (provisória) e `providers.gemini` com voz + estilo sugeridos; `providers.file.dir` pronto para os WAVs finais.
-- **Trilha:** `seed` fixa, progressão/estilo (`playful` para infantil), master −14 LUFS / TP −1,5.
+- **Trilha:** `seed` fixa, progressão/estilo (`playful` infantil calmo, `festive` infantil animado 120-128 BPM com `music.fills` = tempos dos cortes), master −14 LUFS / TP −1,5. Para cortes na batida, use durações de cena em batidas inteiras (60/bpm). SFX lúdicos extras: `slide`, `tambourine`, `woodblock`.
+- **Palavra a palavra:** `simplicio-video voice` grava em `timing.lock.json` os tempos de cada palavra (faster-whisper via `SIMPLICIO_STT_PY`; sem ele, divisão proporcional às letras). No contrato: `times: '{{words:vo1}}'` no bloco `kinetic-words`.
 - **Marca:** `logo: null` sem arquivo em alta (lockup de texto; nunca recriar logo).
 - **Drive:** ver §6.
 

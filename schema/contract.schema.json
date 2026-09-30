@@ -162,7 +162,7 @@
       "properties": {
         "id": { "type": "string" },
         "t": { "type": "number", "minimum": 0, "description": "seconds from scene start" },
-        "tipo": { "enum": ["hit", "impact", "whoosh", "click", "blip", "riser", "glitch", "shimmer", "pop", "boing", "chime"] },
+        "tipo": { "enum": ["hit", "impact", "whoosh", "click", "blip", "riser", "glitch", "shimmer", "pop", "boing", "chime", "slide", "tambourine", "woodblock"] },
         "args": { "type": "array" },
         "gain_db": { "type": "number" },
         "pan": { "type": "number", "minimum": -1, "maximum": 1 },

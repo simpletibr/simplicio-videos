@@ -3,7 +3,7 @@
 //   -) renders index.html from src/index.template.html: {{vars:<id>}} -> JSON of spec.blocks[<id>] (motion block params)
 //   0) normalizes optional video plates (spec.clips) or writes black stand-ins + <id>_on flags
 //   1) splits spec.json -> build/variables.json (HyperFrames --variables-file)
-//   2) synthesizes an original 120 BPM track + SFX from spec.json "audio" cues, adds the cached VO lines
+//   2) synthesizes an original track (spec.audio.bpm; styles: default/playful/festive) + SFX from spec.json "audio" cues, adds the cached VO lines
 //      (spec.json "voice", rendered by scripts/voice.py) and ducks music/SFX under the voice
 //   3) mixes them (sidechain pump, SFX ducking, fade in/out) -> build/mix.raw.wav
 //   4) loudness-normalizes with ffmpeg loudnorm (2-pass) -> assets/audio/build/mix.wav
@@ -112,7 +112,13 @@ function shimmer(d = 0.7, f = 2637) { // metallic sparkle: inharmonic partials w
 function pop() { const o = len(0.18), bp = biquad("bp"); bp.set(1800, 1.1); let ph = 0; for (let i = 0; i < o.length; i++) { const t = i / SR; ph += TAU * (180 + 520 * Math.exp(-t * 60)) / SR; o[i] = (bp.run(noise()) * Math.exp(-t * 55) * 1.3 + Math.sin(ph) * Math.exp(-t * 30) * 0.8); } return o; }
 function boing(f = 220, d = 0.5) { const o = len(d); let ph = 0; for (let i = 0; i < o.length; i++) { const t = i / SR; const ff = f * (1 + 0.35 * Math.sin(TAU * 11 * t) * Math.exp(-t * 5)) * (1 + 0.6 * Math.exp(-t * 14)); ph += TAU * ff / SR; o[i] = Math.sin(ph) * Math.exp(-t * 5.5) * 0.8 * Math.min(1, t * 600); } return o; }
 function chime(base = 84) { const o = len(1.4); [0, 4, 7, 12].forEach((iv, k) => { const b = bell(midi(base + iv), 1.2); const i0 = Math.round(k * 0.07 * SR); for (let i = 0; i < b.length && i0 + i < o.length; i++) o[i0 + i] += b[i] * 0.35; }); return reverb(o, 0.3); }
-const SFX = { whoosh, impact, hit, click, blip, riser, glitch, shimmer, pop, boing, chime };
+// playful transition extras (festive kids style): slide whistle, tambourine shake, woodblock
+function slide(f0 = 600, f1 = 1500, d = 0.35) { const o = len(d); let ph = 0; for (let i = 0; i < o.length; i++) { const t = i / SR, x = t / d; const f = f0 * Math.pow(f1 / f0, x * x * (3 - 2 * x)) * (1 + 0.012 * Math.sin(TAU * 6 * t)); ph += TAU * f / SR; o[i] = (Math.sin(ph) * 0.8 + Math.sin(2 * ph) * 0.12) * Math.min(1, t * 200) * Math.min(1, (d - t) * 25) * 0.7; } return o; }
+function tambourine(d = 0.3) { const o = len(d), hp = biquad("hp"); hp.set(6000, 0.9); for (let i = 0; i < o.length; i++) { const t = i / SR; const jing = 0.55 + 0.45 * Math.sin(TAU * 38 * t); o[i] = hp.run(noise()) * Math.exp(-t * 12) * jing * 1.3 + Math.sin(TAU * 7040 * t) * Math.exp(-t * 20) * 0.12; } return o; }
+function woodblock(f = 1100) { const o = len(0.12), bp = biquad("bp"); bp.set(f, 6); for (let i = 0; i < o.length; i++) { const t = i / SR; o[i] = (Math.sin(TAU * f * t) * 0.7 + bp.run(noise()) * 0.6) * Math.exp(-t * 45) * Math.min(1, t * 2000); } return o; }
+function snare() { const o = len(0.22), bp = biquad("bp"); bp.set(2200, 0.6); let ph = 0; for (let i = 0; i < o.length; i++) { const t = i / SR; ph += TAU * (190 + 60 * Math.exp(-t * 40)) / SR; o[i] = Math.sin(ph) * Math.exp(-t * 28) * 0.6 + bp.run(noise()) * Math.exp(-t * 16) * 1.1; } return o; }
+
+const SFX = { whoosh, impact, hit, click, blip, riser, glitch, shimmer, pop, boing, chime, slide, tambourine, woodblock };
 
 // ---------- music (arrangement driven by spec.audio.music.sections) ----------
 const prog = audio.music.progression; // array of [rootMidi, [chord midis]] per bar
@@ -135,7 +141,35 @@ if (playful) { // cheerful kids groove: soft kick 1/3, clap 2/4, shaker 8ths, bo
   }
   for (const [beat, note, beats] of audio.music.melody ?? []) add(L, R, beat * BEAT, bell(midi(note), Math.max(0.6, beats * BEAT + 0.4), 1), 0.2, 0);
 }
-for (let b = 0; !playful && b * BEAT < DUR; b++) {
+const festive = audio.music.style === "festive";
+if (festive) { // upbeat party groove (~120-128 BPM): four-on-the-floor soft kick with gentle pump, clap+snare 2/4,
+  // tambourine offbeats, 16th shaker, woodblock syncopation, octave-bouncing bass, marimba 8ths, glockenspiel melody,
+  // snare-roll fills into each scene cut (spec.audio.music.fills = cut times in seconds). All deterministic.
+  const shk = shaker(), snS = snare(), tamS = tambourine(0.22), wbHi = woodblock(1250), wbLo = woodblock(900);
+  const pump = (t, depth) => { const a = Math.round(t * SR), n = Math.round(0.24 * SR); for (let k = 0; k < n && a + k < N; k++) sidechain[a + k] = Math.min(sidechain[a + k], depth + (1 - depth) * Math.min(1, k / n)); };
+  for (let b = 0; b * BEAT < DUR; b++) {
+    const t = b * BEAT; const bar = Math.floor(b / 4); const [root, chord] = prog[bar % prog.length];
+    const groove = inSection(t, "groove"), outro = inSection(t, "outro"), intro = inSection(t, "intro");
+    if (groove) { add(L, R, t, kickS, 0.62); pump(t, 0.72); }
+    if (groove && b % 2 === 1) { add(L, R, t, clapS, 0.42, 0.12); add(L, R, t, snS, 0.22, -0.05); }
+    if (groove || intro) add(L, R, t + BEAT / 2, tamS, 0.16, 0.3);
+    if (groove || intro) for (let h = 0; h < 4; h++) add(L, R, t + h * BEAT / 4, shk, h % 2 ? 0.05 : 0.085, h % 2 ? 0.45 : -0.45);
+    if (groove && (b % 4 === 1 || b % 4 === 3)) add(L, R, t + BEAT * 0.75, b % 4 === 1 ? wbHi : wbLo, 0.11, -0.5);
+    if (groove) [b % 2 ? 7 : 0, 12].forEach((iv, e) => add(L, R, t + e * BEAT / 2, bassNote(midi(root + iv), BEAT * 0.38), e ? 0.28 : 0.42)); // octave bounce
+    if (groove || outro || intro) for (let s = 0; s < 2; s++) { const note = chord[(b * 2 + s) % chord.length] + 12; add(L, R, t + s * BEAT / 2, bell(midi(note), 0.5, 0.7), outro ? 0.13 : 0.17, s ? 0.35 : -0.35); }
+    if (b % 4 === 0) { const p = pad(chord.map(midi), barLen); add(L, R, t, p, 0.05, -0.2); add(L, R, t, p, 0.05, 0.2); }
+  }
+  for (const [beat, note, beats] of audio.music.melody ?? []) { add(L, R, beat * BEAT, bell(midi(note), Math.max(0.6, beats * BEAT + 0.4), 1), 0.22, 0); add(L, R, beat * BEAT, pluck(midi(note - 12), 0.18), 0.07, 0.15); }
+  for (const tf of audio.music.fills ?? []) { // one-beat 16th snare roll (crescendo) + tambourine accent, snapped to the beat nearest the cut
+    const tc = Math.max(BEAT, Math.round(tf / BEAT) * BEAT);
+    for (let k = 0; k < 4; k++) add(L, R, tc - BEAT + k * BEAT / 4, snS, 0.08 + 0.06 * k, k % 2 ? 0.2 : -0.2);
+    add(L, R, tc, tambourine(0.4), 0.22, 0);
+  }
+  const o = audio.music.sections.find((x) => x.name === "outro");
+  if (o) { const [, chord] = prog[Math.floor(o.from / barLen) % prog.length]; add(L, R, o.from, kickS, 0.6); chord.forEach((n, k) => add(L, R, o.from + k * 0.035, bell(midi(n + 12), 1.4, 1), 0.12, (k - 1) * 0.3)); add(L, R, o.from, tambourine(0.6), 0.2, 0); }
+  for (let i = 0; i < N; i++) { L[i] *= sidechain[i] ** 0.6; R[i] *= sidechain[i] ** 0.6; }
+}
+for (let b = 0; !playful && !festive && b * BEAT < DUR; b++) {
   const t = b * BEAT; const bar = Math.floor(b / 4); const [root, chord] = prog[bar % prog.length];
   const intro = inSection(t, "intro"), groove = inSection(t, "groove"), build = inSection(t, "build"), drop = inSection(t, "drop");
   if (intro || groove || drop) { add(L, R, t, kickS, 0.95); for (let k = 0; k < Math.round(0.3 * SR) && Math.round(t * SR) + k < N; k++) sidechain[Math.round(t * SR) + k] = Math.min(sidechain[Math.round(t * SR) + k], 0.45 + 0.55 * Math.min(1, k / (0.3 * SR))); }
@@ -147,7 +181,7 @@ for (let b = 0; !playful && b * BEAT < DUR; b++) {
   if (build) { for (let s = 0; s < 4; s++) add(L, R, t + s * BEAT / 4, clapS, 0.12 + 0.3 * ((t - audio.music.sections.find((x) => x.name === "build").from) / BEAT) / 2, 0); }
   if (b % 4 === 0) { const p = pad(chord.map(midi), barLen); add(L, R, t, p, drop ? 0.2 : 0.13, -0.2); add(L, R, t, p, drop ? 0.2 : 0.13, 0.2); }
 }
-if (!playful) for (let i = 0; i < N; i++) { L[i] *= sidechain[i] ** 0.6; R[i] *= sidechain[i] ** 0.6; }
+if (!playful && !festive) for (let i = 0; i < N; i++) { L[i] *= sidechain[i] ** 0.6; R[i] *= sidechain[i] ** 0.6; }
 
 // ---------- SFX cues + ducking ----------
 const duck = new Float32Array(N).fill(1);
