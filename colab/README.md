@@ -8,8 +8,18 @@ simplicio-video render clients/wjr-informatica-games/video-01/contract.yaml --ba
 ```
 
 1. Abra `colab/render.ipynb` no Colab (Arquivo → Fazer upload de notebook, ou GitHub → `simpletibr/simplicio-videos`, repositório privado).
-2. Ambiente de execução → GPU (T4 gratuita basta) → rode as células; envie o `.colab-bundle.zip` na célula 3.
-3. A célula 5 mostra `setup_s`, `frames_capture_s`, `encode_s`, `master_s`, `total_s`, a GPU e se frames/áudio batem com o render local (`bundle.json → reference_local`).
+2. Ambiente de execução → GPU (T4 gratuita basta) → rode as células na ordem.
+3. Bundle: envie o `.colab-bundle.zip` na célula 4 **ou** rode a célula 3 (opcional), que monta o Drive e usa
+   `BUNDLE = "/content/drive/MyDrive/simplicio-video/colab/<bundle>.zip"` (troque `<bundle>` pelo nome; com um único zip na pasta, ele é escolhido sozinho; uma pasta também vale, pega o zip mais recente).
+4. A célula 6 mostra `setup_s`, `frames_capture_s`, `encode_s`, `master_s`, `total_s`, a GPU, o Chrome e se frames/áudio batem com o render local (`bundle.json → reference_local`).
+
+**Setup (célula 2):** detecta o SO (`/etc/os-release`), instala Node 22 só se faltar, pula o ffmpeg se a imagem já tiver, e instala o
+**chrome-headless-shell fixado pelo HyperFrames 0.8.97** (`CHROME_VERSION`, lido do pacote) no cache do próprio HyperFrames
+(`~/.cache/hyperframes/chrome`) com `npx @puppeteer/browsers install ... --install-deps`, que roda `apt-get satisfy` com o `deb.deps`
+do Chrome (alternativas como `libasound2` | `libasound2t64` resolvidas pelo apt). Se isso falhar, instala lib por lib com fallback
+(`libasound2t64 | libasound2`, `libgtk-3-0t64 | libgtk-3-0`...; no Ubuntu 24.04+ prefere `*t64`), confere `ldd` do Chrome e, se ainda faltar
+algo, para com a lista de `.so` ausentes. Nenhum erro é escondido: `sh()` mostra exit code, stdout e stderr reais; `apt-get update` com
+repositório de terceiros quebrado vira aviso. O render usa exatamente esse Chrome (`HYPERFRAMES_BROWSER_PATH`).
 
 O bundle é a composição já compilada (index.html, blocos, fontes, assets, VO tratada, trilha mixada `mix.wav`, `build/variables.json`) + `render_bundle.sh` (HyperFrames fixado, `--gpu` quando o ffmpeg tem NVENC) + `scripts/master.sh`. O zip é reprodutível (timestamps fixos): mesmo contrato → mesmo sha256.
 
