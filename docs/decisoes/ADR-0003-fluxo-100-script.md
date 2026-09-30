@@ -2,14 +2,16 @@
 
 - **Status:** aceito e implementado no CLI. Voz, Kaggle, colab-cli e Drive foram testados só com mocks, porque nenhuma conta ou chave foi usada. O Colab manual já foi medido de verdade pelo Wesley (seção 3).
 - **Data:** 30/09/2026 (BRT)
-- **Relaciona:** [ADR-0002](ADR-0002-cli-contrato-colab-creditos.md) (CLI, contrato, bundle Colab, créditos)
+- **Relaciona:** [ADR-0002](ADR-0002-cli-contrato-colab-creditos.md) (CLI, contrato, bundle Colab, créditos) · custo por vídeo medido e oficial: [docs/custos.md](../custos.md)
+- **Atualização 30/09/2026 (decisão do Wesley):** o render **local é o padrão**. Colab (`colab-cli`/`colab`) e Kaggle são backends **opcionais**, usados para clientes via créditos.
 
 ## Contexto
 
 Até o ADR-0002 havia três passos manuais: gerar a voz no AI Studio, abrir o notebook do Colab no navegador e subir o MP4 no Drive. A meta agora é um comando só, que um agente consiga rodar sem navegador:
 
 ```bash
-simplicio-video run clients/<slug>/<video>/contract.yaml --provider gemini --backend local|kaggle|colab-cli --publish
+simplicio-video run clients/<slug>/<video>/contract.yaml --provider gemini --publish          # padrão: render local
+simplicio-video run clients/<slug>/<video>/contract.yaml --provider gemini --backend kaggle   # opcional (créditos)
 ```
 
 `run` = validate → voice → validate --need-lock → render → publish. Sem `--publish`, o publish roda em dry-run. O mesmo fluxo está exposto como servidor MCP (`simplicio-video mcp`, tools `video.init|validate|voice|render|publish|run|list`).
@@ -55,7 +57,7 @@ Fonte: [rclone drive](https://rclone.org/drive/).
 ## 2. Decisão
 
 1. **Voz:** Gemini API como padrão (`--provider gemini`), cache por hash de texto+voz+modelo. Com o mesmo lock, o render não chama TTS de novo.
-2. **Render:** `local` continua a referência. `kaggle` e `colab-cli` para rodar grátis sem navegador. Para cobrar crédito de cliente, usar um backend pago por segundo (Modal/RunPod/VM) **com o container travado da seção 5**. O `usage` do manifest já registra backend, GPU, tempos e ambiente.
+2. **Render:** **`local` é o padrão** (decisão do Wesley, 30/09/2026): referência de hash e sem custo (WJR em 76,5 s). `kaggle`, `colab-cli` e `colab` são **opcionais**, para clientes via créditos. Nenhum comando usa backend remoto sem `--backend` explícito. Medidos: Colab A100 = 0,43 unidade (US$ 0,043) por vídeo WJR; Colab T4 grátis = ~1198 s (ver [custos](../custos.md)). Se um backend pago for adotado para créditos, prefira CPU com muitos núcleos por segundo (ex.: Modal) **com o container travado da seção 5**. O `usage` do manifest já registra backend, GPU, tempos e ambiente.
 3. **Drive:** `publish` com rclone. Só roda com pedido explícito (flag `--publish` ou comando `publish`).
 4. **MCP:** `simplicio-video mcp` (stdio), com os mesmos comandos em forma de tools.
 

@@ -20,7 +20,8 @@ Fluxo completo:
   3. validate  JSON Schema + assets existem + soma das durações + cada fala cabe na cena (sem acelerar)
   4. voice     gera/cacheia as falas (file | local | gemini API) e grava timing.lock.json com as durações reais
   5. render    contrato -> composição HyperFrames -> frames -> ffmpeg (trilha/SFX/voz, -14 LUFS)
-               backends: local | kaggle (GPU T4, CLI kaggle) | colab-cli (CLI oficial do Colab) | colab (bundle manual)
+               backend PADRÃO: local (referência de hash, sem custo). Opcionais, para clientes via créditos:
+               kaggle (cota grátis semanal) | colab-cli (CLI oficial do Colab, pago em unidades) | colab (bundle manual)
   6. publish   sobe o MP4 no Drive em drive.caminho/drive.arquivo (rclone, nunca sobrescreve uma versão)
                e grava o link em clients/<slug>/README.md (tabela "Entregas no Drive")
   run          tudo de uma vez: voice -> validate --need-lock -> render -> publish (dry-run sem --publish)
@@ -38,7 +39,7 @@ exemplos:
   simplicio-video render clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml
   simplicio-video render clients/wjr-informatica-games/video-01/contract.yaml --backend kaggle
   simplicio-video publish clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --dry-run
-  simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini --backend kaggle --publish
+  simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini --publish
 
 ambiente:
   SIMPLICIO_VIDEO_HOME  checkout do plugin (templates/, motion/, schema/); padrão: procura a partir do contrato/cwd
@@ -50,7 +51,7 @@ ambiente:
   SIMPLICIO_FFMPEG_DIR  ffmpeg travado no render local (mesmo build em todo backend = mesmos bytes)
   SIMPLICIO_FFMPEG_URL/_SHA256  o mesmo ffmpeg (.tar.xz) baixado e conferido pelos backends remotos
   SV_WORKERS / SV_BROWSER_GPU  workers de captura (auto = núcleos-2) / raster de GPU no Chrome (1 = sem determinismo)
-credenciais e custos: docs/decisoes/ADR-0003-fluxo-100-script.md"""
+custo por vídeo (medido e oficial): docs/custos.md · credenciais: docs/decisoes/ADR-0003-fluxo-100-script.md"""
 
 
 BACKENDS = ["local", "kaggle", "colab-cli", "colab"]
@@ -141,14 +142,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="ignora o cache (com ids: só esses)")
     p.add_argument("only", nargs="*", metavar="FALA_ID", help="ids de fala para refazer com --force (ex.: vo2 vo4)")
 
-    p = sub.add_parser("render", formatter_class=Fmt, help="compila e renderiza (local | kaggle | colab-cli) ou gera bundle Colab",
+    p = sub.add_parser("render", formatter_class=Fmt, help="compila e renderiza (padrão local; kaggle/colab-cli/colab opcionais via créditos)",
         description="Compila contrato + timing.lock.json + template (templates/<id>/composition) + blocos de motion +\n"
                     "assets numa composição HyperFrames (build/simplicio-video/), sintetiza trilha/SFX e mixa a voz\n"
                     f"(engine build.mjs, semente fixa), renderiza os frames ({HYPERFRAMES}) e masteriza com ffmpeg\n"
                     "(loudnorm 2 passes, alvo trilha.master: -14 LUFS / TP -1,5). Grava render.manifest.json ao lado do\n"
                     "contrato: hash do contrato, de cada input compilado, das ferramentas e do vídeo/áudio decodificados.\n"
                     "backends (todos sem navegador, exceto colab):\n"
-                    "  local      renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver). Referência de hash.\n"
+                    "  local      PADRÃO. Renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver).\n"
+                    "             Referência de hash, sem custo (WJR 600 frames: 76,5 s em 8 núcleos).\n"
+                    "  -- opcionais, para clientes via créditos (custo e tempo medidos em docs/custos.md) --\n"
                     "  kaggle     bundle -> dataset privado Kaggle -> kernel (T4, internet) -> poll -> baixa o MP4.\n"
                     "             Precisa do CLI `kaggle`, KAGGLE_USERNAME + token (KAGGLE_API_TOKEN ou ~/.kaggle/access_token)\n"
                     "             e conta com telefone verificado (internet no kernel). --accelerator none = CPU (sem cota de GPU).\n"
@@ -158,12 +161,12 @@ def build_parser() -> argparse.ArgumentParser:
                     "Remotos baixam final.mp4 e gravam o mesmo render.manifest.json (+ usage: backend, GPU, tempos) para créditos.",
         epilog="exemplos:\n  simplicio-video render contract.yaml\n"
                "  simplicio-video render contract.yaml --out /tmp/teste.mp4 --quality draft\n"
-               "  simplicio-video render contract.yaml --backend kaggle                   # GPU T4 grátis (cota semanal)\n"
+               "  simplicio-video render contract.yaml --backend kaggle                   # opcional: T4 grátis (cota semanal)\n"
                "  simplicio-video render contract.yaml --backend kaggle --accelerator none\n"
                "  simplicio-video render contract.yaml --backend colab-cli --accelerator T4\n"
                "  simplicio-video render contract.yaml --backend colab   # -> out/<nome>.colab-bundle.zip")
     _contract_arg(p)
-    p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local)")
+    p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via créditos)")
     p.add_argument("--out", "-o", type=Path, help="MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo")
     p.add_argument("--accelerator", help="kaggle: NvidiaTeslaT4 (padrão) | NvidiaL4 | none; colab-cli: T4 (padrão) | L4 | A100 | none")
     p.add_argument("--timeout", type=int, default=3600, help="kaggle/colab-cli: limite do render remoto em s (padrão 3600)")
@@ -197,12 +200,13 @@ def build_parser() -> argparse.ArgumentParser:
                     "Sem --publish o passo final é dry-run (mostra o destino no Drive): subir entrega exige pedido explícito.\n"
                     f"Schema: {SCHEMA_REL}.",
         epilog="exemplos:\n  simplicio-video run contract.yaml                                   # voz do contrato, render local, publish dry-run\n"
-               "  simplicio-video run contract.yaml --provider gemini --backend kaggle --publish\n"
+               "  simplicio-video run contract.yaml --provider gemini --publish         # local (padrão)\n"
+               "  simplicio-video run contract.yaml --provider gemini --backend kaggle   # opcional (créditos)\n"
                "  simplicio-video run contract.yaml --backend colab-cli --json")
     _contract_arg(p)
     p.add_argument("--provider", "-p", choices=["file", "local", "gemini"], help="sobrepõe voz.provider")
     p.add_argument("--force-voice", action="store_true", help="regera todas as falas (ignora o cache)")
-    p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local)")
+    p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via créditos)")
     p.add_argument("--accelerator", help="ver `render --help` (none = CPU)")
     p.add_argument("--quality", "-q", choices=["draft", "looks", "delivery"], help="qualidade HyperFrames")
     p.add_argument("--timeout", type=int, default=3600, help="limite do render remoto em s")

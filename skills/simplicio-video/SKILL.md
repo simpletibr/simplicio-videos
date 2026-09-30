@@ -1,6 +1,6 @@
 ---
 name: simplicio-video
-description: Use this when a Simplicio Runtime user asks for a short marketing video (Reels/Stories/Shorts, date greeting, institutional, promo) for a real business, or asks to re-render, change the voice, retime or deliver an existing one. You reason about the client facts, pick template/motion/voice/timings and write a simplicio.video-contract/v1 YAML; the deterministic `simplicio-video` CLI validates, generates the voice and renders the MP4 (local, Kaggle, Colab CLI or Colab notebook) and, only when explicitly asked, publishes it to Google Drive. Also available as an MCP server (`simplicio-video mcp`, tools video.*).
+description: Use this when a Simplicio Runtime user asks for a short marketing video (Reels/Stories/Shorts, date greeting, institutional, promo) for a real business, or asks to re-render, change the voice, retime or deliver an existing one. You reason about the client facts, pick template/motion/voice/timings and write a simplicio.video-contract/v1 YAML; the deterministic `simplicio-video` CLI validates, generates the voice and renders the MP4 (locally by default; Kaggle / Colab CLI / Colab notebook only as optional backends for clients paying with credits) and, only when explicitly asked, publishes it to Google Drive. Also available as an MCP server (`simplicio-video mcp`, tools video.*).
 ---
 
 # simplicio-video — contrato primeiro, CLI executa
@@ -30,11 +30,11 @@ simplicio-video validate <contrato.yaml>                  # schema + assets + du
 simplicio-video voice <contrato.yaml> [--provider file|local|gemini]   # -> timing.lock.json
 simplicio-video validate <contrato.yaml> --need-lock      # antes do render
 simplicio-video render <contrato.yaml>                    # local -> saida.arquivo + render.manifest.json
-simplicio-video render <contrato.yaml> --backend kaggle   # remoto, sem navegador (KAGGLE_USERNAME + token)
-simplicio-video render <contrato.yaml> --backend colab-cli  # remoto via Colab CLI oficial (login único)
-simplicio-video render <contrato.yaml> --backend colab    # bundle zip para colab/render.ipynb (manual)
+simplicio-video render <contrato.yaml> --backend kaggle   # OPCIONAL (créditos): remoto, sem navegador (KAGGLE_USERNAME + token)
+simplicio-video render <contrato.yaml> --backend colab-cli  # OPCIONAL (créditos): Colab CLI oficial (login único)
+simplicio-video render <contrato.yaml> --backend colab    # OPCIONAL: bundle zip para colab/render.ipynb (manual)
 simplicio-video publish <contrato.yaml> --dry-run         # mostra destino/link; sem --dry-run SÓ com pedido explícito
-simplicio-video run <contrato.yaml> --provider gemini --backend local [--publish]   # tudo em sequência
+simplicio-video run <contrato.yaml> --provider gemini [--publish]   # tudo em sequência, render local (padrão)
 simplicio-video mcp                                       # mesmas operações como tools MCP (stdio)
 ```
 Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz do repo (Python ≥ 3.10, Node ≥ 22, ffmpeg).
@@ -48,9 +48,10 @@ Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz 
 - [ ] Commit do contrato + `timing.lock.json` + `render.manifest.json` + `assets/audio/voz/` (MP4 fica em `out/`, gitignored).
 
 ## Render: local × remoto
-- **local:** padrão; referência de hash (mesma entrada → mesmo MP4 byte a byte). 8 vCPU renderizam a WJR (600 frames) em ~77 s.
-- **kaggle / colab-cli / colab:** mesmo bundle + `render_bundle.sh`. A captura do Chrome headless é **CPU** (gargalo): Colab grátis = 2 vCPU → 1 worker (WJR 460 s); Kaggle = 4 vCPU → 2 workers. A GPU só entra no encode (NVENC, `--gpu-encode auto|1|0`), que muda os bytes do vídeo.
+- **local:** **padrão** (decisão do Wesley). Use sempre, salvo pedido explícito de backend remoto para um cliente via créditos. Referência de hash (mesma entrada → mesmo MP4 byte a byte). 8 vCPU renderizam a WJR (600 frames) em ~77 s.
+- **kaggle / colab-cli / colab (opcionais, clientes via créditos):** mesmo bundle + `render_bundle.sh`. A captura do Chrome headless é **CPU** (gargalo): Colab grátis = 2 vCPU → 1 worker (WJR 460 s); Kaggle = 4 vCPU → 2 workers. A GPU só entra no encode (NVENC, `--gpu-encode auto|1|0`), que muda os bytes do vídeo.
 - Frames/áudio remotos só batem com o local se o ffmpeg for o mesmo build (`SIMPLICIO_FFMPEG_DIR` local + `SIMPLICIO_FFMPEG_URL`/`SIMPLICIO_FFMPEG_SHA256` no bundle) e com `--gpu-encode 0`. Ver `docs/decisoes/ADR-0003-fluxo-100-script.md`.
+- **Custo por vídeo** (voz + render + Drive, US$/R$, medido/oficial/estimativa): `docs/custos.md`. Voz Gemini API ≈ US$ 0,005 por vídeo WJR; render local US$ 0; Colab A100 ≈ US$ 0,043.
 
 ## Destino no Drive
 Não faça upload sem pedido explícito do usuário para aquele vídeo. Sem pedido: `publish --dry-run` (ou `run` sem `--publish`) e informe o caminho do MP4 e `drive.caminho`. Com pedido: `simplicio-video publish <contrato>` (rclone, remote `gdrive`): nunca sobrescreve (mesmo nome com bytes diferentes = erro, suba vNN+1), é idempotente e grava o link sozinho na tabela **Entregas no Drive** de `clients/<slug>/README.md`.

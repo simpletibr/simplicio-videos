@@ -10,7 +10,7 @@ Regras, mapa e fluxos para qualquer agente (Claude Code, Codex, Grok) trabalhand
 
 LLM (Opus 5.5) **só** cria template/padrão novo; nunca está no caminho do render.
 
-**Entrada oficial: o CLI `simplicio-video`** ([ADR-0002](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md); fluxo 100% script, backends remotos, Drive e MCP: [ADR-0003](docs/decisoes/ADR-0003-fluxo-100-script.md)). O agente raciocina e escreve o **contrato YAML** (`schema/contract.schema.json`); o CLI valida, gera a voz e renderiza. Skill para qualquer LLM no simplicio-runtime: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md). Receita passo a passo: [`docs/receita-video-cliente.md`](docs/receita-video-cliente.md).
+**Entrada oficial: o CLI `simplicio-video`** ([ADR-0002](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md); fluxo 100% script, backends remotos, Drive e MCP: [ADR-0003](docs/decisoes/ADR-0003-fluxo-100-script.md); custo por vídeo: [docs/custos.md](docs/custos.md)). **Render local é o padrão**; Colab/Kaggle são opcionais, só para clientes via créditos e com `--backend` explícito. O agente raciocina e escreve o **contrato YAML** (`schema/contract.schema.json`); o CLI valida, gera a voz e renderiza. Skill para qualquer LLM no simplicio-runtime: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md). Receita passo a passo: [`docs/receita-video-cliente.md`](docs/receita-video-cliente.md).
 
 ### Quickstart do CLI
 ```bash
@@ -21,7 +21,7 @@ simplicio-video validate clients/<slug>/<video>/contract.yaml
 simplicio-video voice    clients/<slug>/<video>/contract.yaml [--provider file|local|gemini]   # gemini = API (GEMINI_API_KEY)
 simplicio-video render   clients/<slug>/<video>/contract.yaml [--backend local|kaggle|colab-cli|colab] [--out x.mp4]
 simplicio-video publish  clients/<slug>/<video>/contract.yaml [--dry-run]    # Drive via rclone; SÓ com pedido explícito
-simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini --backend local [--publish]
+simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini [--publish]   # render local (padrão)
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
 python -m pytest                                   # schema, validate, --help, determinismo (render curto)
@@ -80,7 +80,7 @@ python -m pytest                                   # schema, validate, --help, d
 
 **Render**
 - `simplicio-video render` = compila contrato + lock + template + blocos → `engine/build.mjs` (trilha/SFX/voz) → HyperFrames (`--strict-variables`) → `master.sh` (−14 LUFS, TP ≤ −1,5 dBTP) → `render.manifest.json`. HyperFrames sempre fixado: `npx --yes hyperframes@0.8.97`. Node ≥ 22.
-- Remoto: `--backend kaggle` (4 vCPU) / `colab-cli` (Colab grátis = 2 vCPU) / `colab` (notebook manual) usam o mesmo bundle + `render_bundle.sh`. A captura do Chrome é CPU (gargalo); GPU só no encode (NVENC, `--gpu-encode`, muda os bytes). Frames/áudio só batem com o local com o mesmo ffmpeg (`SIMPLICIO_FFMPEG_DIR` / `SIMPLICIO_FFMPEG_URL`+`_SHA256`). Ver ADR-0003.
+- Remoto (**opcional**, só para clientes via créditos; o padrão é local): `--backend kaggle` (4 vCPU) / `colab-cli` (Colab grátis = 2 vCPU; A100 = 0,43 unidade ≈ US$ 0,043 por vídeo WJR, ver [custos](docs/custos.md)) / `colab` (notebook manual) usam o mesmo bundle + `render_bundle.sh`. A captura do Chrome é CPU (gargalo); GPU só no encode (NVENC, `--gpu-encode`, muda os bytes). Frames/áudio só batem com o local com o mesmo ffmpeg (`SIMPLICIO_FFMPEG_DIR` / `SIMPLICIO_FFMPEG_URL`+`_SHA256`). Ver ADR-0003.
 - Legado WJR: `npm run render` dentro de `clients/wjr-informatica-games/video-01`.
 
 **Determinismo**
