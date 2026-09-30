@@ -367,5 +367,5 @@
    "speaker_id": "speaker_0"
   }
  ],
- "_generator": "faster-whisper small (int8, cpu) via fw_to_scribe.py"
+ "_generator": "faster-whisper small (int8, cpu) via tools/video-use/transcribe_local.py"
 }

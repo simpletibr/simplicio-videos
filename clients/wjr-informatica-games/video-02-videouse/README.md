@@ -15,16 +15,15 @@ Versão curta do [video-01](../video-01/) (Reels 9:16) editada com o **[video-us
 ## Rodar
 
 ```bash
-# pré-requisito: ../video-01/out/video-01.mp4  (cd ../video-01 && npm run render)
-bash run.sh
+bash run.sh   # ~2–3 min na primeira vez (renderiza a fonte); depois usa cache
 ```
 
-`run.sh` clona o video-use fixado em `~/.cache/simplicio/video-use` (não vendorizado), transcreve localmente, renderiza o overlay, aplica o EDL (`render.py --no-loudnorm --no-subtitles --fps 30`), masteriza com o `master.sh` do video-01, gera SRT, filmstrips, preview e mede loudness. Python: o venv do TTS (`SIMPLICIO_TTS_PY`, precisa de faster-whisper, numpy, Pillow).
+`run.sh` usa a ferramenta opcional [`tools/video-use/`](../../../tools/video-use/README.md) (setup fixado no commit, fora do repo). A **fonte** é uma variante do video-01 gerada pelo spec: [`source.variables.json`](source.variables.json) liga `sv_count_on: false`, escondendo o contador "0N / 03" dos serviços (no corte só aparece o 3º serviço). Depois transcreve localmente (cache), renderiza o overlay, aplica o EDL (`render.py --no-loudnorm --no-subtitles --fps 30`), masteriza com o `master.sh` do video-01, gera SRT, filmstrips, preview e mede loudness. Python: o venv do TTS (`SIMPLICIO_TTS_PY`, precisa de faster-whisper, numpy, Pillow).
 
 ## Arquivos
 
-- `scripts/fw_to_scribe.py` — faster-whisper → JSON no formato ElevenLabs Scribe (o que os helpers do video-use leem), com alinhamento ao roteiro (`--script spec.json`). Substitui o `transcribe.py` (que exige `ELEVENLABS_API_KEY`).
-- `scripts/edl_transcript.py` — projeta as palavras na linha do tempo da saída (para o `timeline_view --transcript`).
+- `source.variables.json` — sobrescreve variáveis do video-01 para gerar a fonte do corte (`out/source.mp4`, gitignored).
+- Transcrição e projeção das palavras: `tools/video-use/transcribe_local.py` e `edl_transcript.py` (compartilhados).
 - `overlay/` — composição HyperFrames transparente (barra de progresso + glitch no corte), render MOV ProRes 4444.
 
 ## Por que MOV e não WebM no overlay

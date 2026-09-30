@@ -34,7 +34,8 @@
     {"id":"clip_01_on","type":"boolean","label":"Clip 01 (S2) ativo","default":false},
     {"id":"clip_02_on","type":"boolean","label":"Clip 02 (S3) ativo","default":false},
     {"id":"clip_03_on","type":"boolean","label":"Clip 03 (S4) ativo","default":false},
-    {"id":"clip_04_on","type":"boolean","label":"Clip 04 (S6) ativo","default":false}
+    {"id":"clip_04_on","type":"boolean","label":"Clip 04 (S6) ativo","default":false},
+    {"id":"sv_count_on","type":"boolean","label":"Contador 01/03 dos serviços visível","default":true}
   ]'
 >
   <head>
@@ -377,6 +378,8 @@
         cta: "Volte para o jogo.", primary: "#e50914", secondary: "#1565ff",
       }, (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {});
       const $ = (s) => document.querySelector(s);
+      // cutdowns that skip services 01/02 hide the "0N / 03" counter (video-02: sv_count_on=false)
+      if (V.sv_count_on === false) $("#sv-count").style.visibility = "hidden";
       function splitChars(el, text) { // chars grouped in no-wrap word boxes so lines only break between words
         el.textContent = ""; text.split(" ").forEach((w, i, arr) => { const wb = document.createElement("span"); wb.style.display = "inline-block"; wb.style.whiteSpace = "nowrap";
           [...w].forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.textContent = c; wb.appendChild(s); }); el.appendChild(wb); if (i < arr.length - 1) el.appendChild(document.createTextNode(" ")); });

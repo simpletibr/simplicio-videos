@@ -1,7 +1,7 @@
 {
   "version": 1,
   "sources": {
-    "video-01": "../../video-01/out/video-01.mp4"
+    "video-01": "../out/source.mp4"
   },
   "ranges": [
     {

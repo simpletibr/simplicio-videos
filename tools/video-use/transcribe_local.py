@@ -18,7 +18,7 @@ Word spans are clamped to [t, t + max_s] (the onset is known). Fixes ASR slips l
 "Se o console" / "Whole Effect" and ASR timestamp drift between runs.
 Optional --fixes JSON {"wrong": "right"} for single-word corrections without a script.
 
-Usage: fw_to_scribe.py <media> -o <out.json> [--model small] [--lang pt] [--script spec.json] [--fixes fixes.json]
+Usage: transcribe_local.py <media> -o <out.json> [--model small] [--lang pt] [--script spec.json] [--fixes fixes.json]
 """
 from __future__ import annotations
 
@@ -128,7 +128,7 @@ def main() -> None:
         "language_code": args.lang,
         "text": " ".join(w["text"] for w in words if w["type"] == "word"),
         "words": words,
-        "_generator": f"faster-whisper {args.model} (int8, cpu) via fw_to_scribe.py",
+        "_generator": f"faster-whisper {args.model} (int8, cpu) via tools/video-use/transcribe_local.py",
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

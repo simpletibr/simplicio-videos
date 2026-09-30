@@ -2,7 +2,7 @@
 
 **O que é:** [browser-use/video-use](https://github.com/browser-use/video-use) (MIT, avaliado no commit `b877063`, 23/09/2026) é uma *skill* para Claude Code/Codex/qualquer agente com shell que edita **footage bruto** por conversa: o próprio agente anfitrião lê a transcrição, propõe a estratégia, escreve um EDL (`edl.json`) e os helpers em Python/ffmpeg executam. Não embute LLM; não precisa de chave de modelo.
 
-Prova feita aqui: [`clients/wjr-informatica-games/video-02-videouse/`](../clients/wjr-informatica-games/video-02-videouse/README.md) — cutdown de 11,5 s do video-01 (transcrição local → EDL → overlay HyperFrames → render → autoavaliação), 30/09/2026.
+Uso e setup: [`tools/video-use/`](../tools/video-use/README.md) (ferramenta **opcional**, op `edit` do plugin). Prova feita aqui: [`clients/wjr-informatica-games/video-02-videouse/`](../clients/wjr-informatica-games/video-02-videouse/README.md) — cutdown de 11,5 s do video-01 (transcrição local → EDL → overlay HyperFrames → render → autoavaliação), 30/09/2026.
 
 ## Peças do video-use
 
@@ -37,11 +37,11 @@ footage do cliente (ou render nosso) ──► transcrição palavra a palavra �
 
 | Tema | Decisão | Por quê |
 |---|---|---|
-| Transcrição | `scripts/fw_to_scribe.py`: faster-whisper local → JSON formato Scribe, com **alinhamento ao roteiro** (`--script spec.json`) | Sem chave ElevenLabs. O SKILL.md desaconselha Whisper local (lento, normaliza "éé/hã"); para **narração nossa** isso não importa (texto conhecido, sem hesitação) e o alinhamento corrige erros de ASR ("Se o console" → "Seu console", "Whole Effect" → "Hall Effect") e prende cada palavra na janela conhecida da fala `[t, t + max_s]` — sem isso o faster-whisper variou até ~80 ms entre execuções e pôs "Drift?" antes do corte de 4,0 s (vazava na legenda). Transcrição fica em cache. Para depoimento real de cliente, preferir Scribe (diarização + hesitações = sinal editorial). |
+| Transcrição | `tools/video-use/transcribe_local.py`: faster-whisper local → JSON formato Scribe, com **alinhamento ao roteiro** (`--script spec.json`) | Sem chave ElevenLabs. O SKILL.md desaconselha Whisper local (lento, normaliza "éé/hã"); para **narração nossa** isso não importa (texto conhecido, sem hesitação) e o alinhamento corrige erros de ASR ("Se o console" → "Seu console", "Whole Effect" → "Hall Effect") e prende cada palavra na janela conhecida da fala `[t, t + max_s]` — sem isso o faster-whisper variou até ~80 ms entre execuções e pôs "Drift?" antes do corte de 4,0 s (vazava na legenda). Transcrição fica em cache. Para depoimento real de cliente, preferir Scribe (diarização + hesitações = sinal editorial). |
 | Overlay | **MOV** (ProRes 4444), nunca WebM | Bug encontrado: o `render.py` decodifica WebM com o VP9 nativo do ffmpeg, que descarta o alfa → overlay preto cobrindo tudo. Testado: WebM sobre verde = preto; com `-c:v libvpx-vp9` = ok; MOV = ok. |
 | Loudness | `render.py --no-loudnorm` + nosso `master.sh` | Alvo do repo: −14 LUFS / TP −1,5 dBTP (o do video-use é −1 dBTP). |
 | Legendas | `master.srt` gerado pelo helper, **não queimado** | Nossas composições já têm tipografia cinética; SRT fica como legenda lateral (upload no Instagram/TikTok). Para footage cru, queimar é bom (regra: por último). |
-| Instalação | `run.sh` clona o video-use fixado no commit em `~/.cache/simplicio/video-use` | Não vendorizar; versão fixa = reprodutível. |
+| Instalação | `tools/video-use/setup.sh` clona o video-use fixado no commit em `~/.cache/simplicio/video-use` | Não vendorizar; versão fixa = reprodutível. |
 
 ## O que o video-use acrescentou de fato
 

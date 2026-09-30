@@ -2,7 +2,7 @@
   "schema": "simplicio.plugin/v1",
   "name": "videos",
   "version": "0.1.0",
-  "description": "PROPOSAL / STUB — not installable yet (no binary). simplicio-videos: Simplicio Runtime plugin that turns 'I want a video' into a deterministic pipeline: intake questionnaire (auto-extraction from site/Instagram) -> brief/spec (single source of truth) -> sector template -> HyperFrames composition from the motion pattern library -> TTS voice (gemini/elevenlabs/xai/local/file, cached) -> optional video-use footage edit -> deterministic render + QA. LLM (Opus 5.5) only authors new templates/patterns. See docs/decisoes/ADR-0001-visao-plugin.md and docs/esteira.md.",
+  "description": "PROPOSAL / STUB — not installable yet (no binary). simplicio-videos: Simplicio Runtime plugin that turns 'I want a video' into a deterministic pipeline: intake questionnaire (auto-extraction from site/Instagram) -> brief/spec (single source of truth) -> sector template -> HyperFrames composition from the motion pattern library -> TTS voice (gemini/elevenlabs/xai/local/file, cached) -> optional video-use edit step (only on user request) -> deterministic render + QA. LLM (Opus 5.5) only authors new templates/patterns. See docs/decisoes/ADR-0001-visao-plugin.md and docs/esteira.md.",
   "binary": "bin/simplicio-plugin-videos",
   "protocol": 1,
   "commands": [
@@ -13,25 +13,97 @@
       "args_schema": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["op"],
+        "required": [
+          "op"
+        ],
         "properties": {
           "op": {
             "type": "string",
-            "enum": ["schema", "intake", "brief", "template", "patterns", "voices", "new", "compose", "voice", "edit", "handoff", "check", "render", "batch"],
-            "description": "intake: questionnaire state/validation (intake/intake.schema.json); brief: intake -> brief + spec; template: pick/list sector templates; patterns: list motion library; voices: list providers; new: scaffold video from template; compose: mount motion blocks from spec; voice: generate/cached TTS; edit: video-use EDL for footage; handoff: prompt for Opus 5.5 authoring; check/render/batch: deterministic build."
+            "enum": [
+              "schema",
+              "intake",
+              "brief",
+              "template",
+              "patterns",
+              "voices",
+              "new",
+              "compose",
+              "voice",
+              "edit",
+              "handoff",
+              "check",
+              "render",
+              "batch"
+            ],
+            "description": "intake: questionnaire state/validation (intake/intake.schema.json); brief: intake -> brief + spec; template: pick/list sector templates; patterns: list motion library; voices: list providers; new: scaffold video from template; compose: mount motion blocks from spec; voice: generate/cached TTS; edit (OPTIONAL, only when the user asks for editing help: cut to N seconds, reorder, trim footage, captions, cut review): video-use via tools/video-use (pinned), agent writes edl.json after the user confirms the plan, execution is deterministic; handoff: prompt for Opus 5.5 authoring; check/render/batch: deterministic build."
           },
-          "client": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
-          "site": { "type": "string", "description": "public site URL for intake auto-extraction (op=intake)" },
-          "instagram": { "type": "string", "description": "public Instagram handle/URL for intake auto-extraction (op=intake)" },
-          "intake": { "type": "string", "description": "path to a simplicio.intake/v1 file" },
-          "template": { "type": "string", "description": "sector template id (templates/<id>) or path" },
-          "spec": { "type": "string", "description": "path to a simplicio.video-spec/v1 file (video.json)" },
-          "provider": { "type": "string", "enum": ["file", "gemini", "elevenlabs", "xai", "chatterbox", "kokoro"], "description": "voice provider override (op=voice)" },
-          "force": { "type": "boolean", "description": "regenerate voice ignoring the cache (op=voice)" },
-          "edl": { "type": "string", "description": "video-use EDL json (op=edit)" },
-          "rows": { "type": "string", "description": "JSON rows file for op=batch" },
-          "quality": { "type": "string", "enum": ["draft", "looks", "delivery"] },
-          "out": { "type": "string" }
+          "client": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,64}$"
+          },
+          "site": {
+            "type": "string",
+            "description": "public site URL for intake auto-extraction (op=intake)"
+          },
+          "instagram": {
+            "type": "string",
+            "description": "public Instagram handle/URL for intake auto-extraction (op=intake)"
+          },
+          "intake": {
+            "type": "string",
+            "description": "path to a simplicio.intake/v1 file"
+          },
+          "template": {
+            "type": "string",
+            "description": "sector template id (templates/<id>) or path"
+          },
+          "spec": {
+            "type": "string",
+            "description": "path to a simplicio.video-spec/v1 file (video.json)"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "file",
+              "gemini",
+              "elevenlabs",
+              "xai",
+              "chatterbox",
+              "kokoro"
+            ],
+            "description": "voice provider override (op=voice)"
+          },
+          "force": {
+            "type": "boolean",
+            "description": "regenerate voice ignoring the cache (op=voice)"
+          },
+          "edl": {
+            "type": "string",
+            "description": "video-use EDL json (op=edit); see tools/video-use/README.md"
+          },
+          "rows": {
+            "type": "string",
+            "description": "JSON rows file for op=batch"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "looks",
+              "delivery"
+            ]
+          },
+          "out": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "input video to edit (op=edit): rendered MP4 or client footage"
+          },
+          "target_s": {
+            "type": "number",
+            "description": "target duration in seconds for a cutdown (op=edit)"
+          }
         }
       },
       "examples": [
@@ -41,11 +113,19 @@
         "videos voices",
         "videos new --client wjr-informatica-games --template assistencia-tecnica-games --out clients/wjr-informatica-games/video-02",
         "videos voice --spec clients/wjr-informatica-games/video-01/video.json --provider gemini",
+        "videos edit --source clients/wjr-informatica-games/video-01/out/video-01.mp4 --target_s 11.5 --edl clients/wjr-informatica-games/video-02-videouse/edit/edl.json",
         "videos check --spec clients/wjr-informatica-games/video-01/video.json",
         "videos render --spec clients/wjr-informatica-games/video-01/video.json --quality delivery",
         "videos batch --spec clients/wjr-informatica-games/video-01/video.json --rows rows.json"
       ]
     }
   ],
-  "capabilities": ["repo.write", "net.fetch:public", "external:node", "external:chromium", "external:ffmpeg", "external:python"]
+  "capabilities": [
+    "repo.write",
+    "net.fetch:public",
+    "external:node",
+    "external:chromium",
+    "external:ffmpeg",
+    "external:python"
+  ]
 }

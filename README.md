@@ -16,7 +16,7 @@ simplicio-videos/
 ├── templates/              # 3 um template por setor (template.json + README); schema
 ├── motion/                 # 4 biblioteca de padrões: patterns/<id>/{pattern.json, block.html, preview.png}, catalog.json, lib/, scripts/
 ├── voices/                 # 5 providers de voz (gemini, elevenlabs, xai, local) + pipeline TTS
-│                           # 6 video-use (footage): docs/video-use-integracao.md
+├── tools/                  # 6 opcional: video-use (setup fixado, transcrição local, uso) — edição quando o usuário pede
 ├── schemas/                # 2 video-spec.schema.json (simplicio.video-spec/v1)
 ├── docs/                   # ADRs (decisoes/), esteira, setup, pesquisa — índice em docs/README.md
 └── clients/<cliente>/      # trabalho de cliente
@@ -32,6 +32,7 @@ simplicio-videos/
 | Templates por setor | [templates/README.md](templates/README.md) | 1 pronto (assistência técnica/games) + 6 skeleton |
 | Vozes | [voices/README.md](voices/README.md) | Gemini (padrão, via `file`), Chatterbox/Kokoro locais, ElevenLabs/xAI (sem chave) |
 | Intake | [intake/README.md](intake/README.md) | questionário, extração automática, schema, exemplo WJR |
+| Ferramentas opcionais | [tools/README.md](tools/README.md) | video-use (edição: cortar p/ X s, reordenar, aparar footage, legendas, revisão) |
 
 ## Clientes e vídeos
 
@@ -51,7 +52,7 @@ npm run check         # build (variáveis + áudio + voz) + lint + layout + cont
 npm run render        # out/video-01.mp4 (1080×1920, 30 fps, 20 s, −14 LUFS)
 npm run preview       # preview/video-01-preview-720p.mp4
 ```
-Requer Node ≥ 22 e FFmpeg ([setup](docs/setup.md)). Voz: [tutorial Gemini](voices/gemini.md) · [todas as opções](voices/README.md). Footage/cutdown: [video-use](docs/video-use-integracao.md) (`bash clients/wjr-informatica-games/video-02-videouse/run.sh`). Biblioteca: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`.
+Requer Node ≥ 22 e FFmpeg ([setup](docs/setup.md)). Voz: [tutorial Gemini](voices/gemini.md) · [todas as opções](voices/README.md). Edição opcional: [tools/video-use](tools/video-use/README.md) (exemplo: `bash clients/wjr-informatica-games/video-02-videouse/run.sh`). Biblioteca: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`.
 
 ## Documentação
 
