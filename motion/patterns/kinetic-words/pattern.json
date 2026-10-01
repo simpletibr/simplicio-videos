@@ -2,7 +2,7 @@
   "$schema": "../../pattern.schema.json",
   "id": "kinetic-words",
   "title": "Tipografia cinética palavra a palavra (sincronizada com a fala)",
-  "description": "Cada palavra entra no instante em que é falada (times vindos do timing.lock.json via {{words:<fala>}}), com stretch → squash → assenta; a palavra atual fica maior e as anteriores ficam; o bloco flutua e dá um shake na última palavra. Linhas por |, tamanho ajustado à largura do 9:16.",
+  "description": "Cada palavra entra no instante em que é falada (times vindos do timing.lock.json via {{words:<fala>}}), com stretch → squash → assenta; a palavra atual fica maior e as anteriores ficam; o bloco flutua e dá um shake na última palavra. Linhas por |, tamanho ajustado à largura do 9:16. Modo calm: mesma sincronia palavra a palavra, entrada sóbria (sobe + aparece), sem squash nem tremida.",
   "status": "pronto",
   "duration_s": 4.0,
   "format": {
@@ -66,6 +66,18 @@
       "type": "number",
       "label": "Duração (s) = data-duration do host",
       "default": 4.0
+    },
+    {
+      "id": "mode",
+      "type": "string",
+      "label": "Estilo: bounce (festivo: estica/amassa/treme) | calm (sóbrio: sobe por máscara, sem tremer; institucional/advocacia)",
+      "default": "bounce"
+    },
+    {
+      "id": "font",
+      "type": "string",
+      "label": "Fonte (Fredoka | Inter | Anton)",
+      "default": "Fredoka"
     },
     {
       "id": "seed",

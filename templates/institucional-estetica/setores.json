@@ -1,0 +1,163 @@
+{
+  "_doc": "Modelo institucional (sem data comemorativa) do simplicio-video prospect. O prospect escolhe este template pela coluna 'setor' (templates/prospect-roteamento.json) e usa as regras abaixo só para o subtítulo do lockup e a fala do setor (vo3/lines3). Textos genéricos e informativos: NUNCA preço, promoção, prazo, garantia, promessa de resultado, superlativo ou fato da empresa. campanha.fala4/linhas4 = assinatura falada/escrita da cena 4 ({nome} = nome falado).",
+  "campanha": {
+    "id": "institucional",
+    "campanha_id": "Previa_Institucional",
+    "titulo": "Prévia institucional estética (16 s, venda ativa)",
+    "tagline": "beleza e bem-estar",
+    "arquivo": "Previa Institucional 16s",
+    "vo1": "Hora de cuidar de você!",
+    "vo2": "Beleza e bem-estar começam com cuidado.",
+    "vo4": [
+      "Conheça {nome}.",
+      "Conheça {curto}.",
+      "Conheça {primeiro}."
+    ],
+    "fala4": "Conheça {nome}.",
+    "linhas4": "Conheça|{nome}."
+  },
+  "setores": [
+    {
+      "id": "estetica",
+      "regex": [
+        "estetic",
+        "beleza",
+        "harmoniza",
+        "depila",
+        "\\bspa\\b",
+        "micropig",
+        "sobrancelha",
+        "facial",
+        "corporal",
+        "cilios",
+        "laser"
+      ],
+      "sub": "ESTÉTICA",
+      "nome_setor": [
+        "estetica",
+        "clinica",
+        "espaco",
+        "studio",
+        "estudio",
+        "beleza",
+        "centro",
+        "instituto",
+        "spa",
+        "harmonizacao",
+        "facial",
+        "corporal",
+        "avancada",
+        "e",
+        "&"
+      ],
+      "s2": {
+        "padrao": "line-accent",
+        "params": {
+          "color": "#b5838d",
+          "ink": "#d4a373",
+          "y": 1250,
+          "width": 700,
+          "corners": 0,
+          "top": 150,
+          "bottom": 1000,
+          "glow": 1,
+          "t_in": 0.1,
+          "dur": "{{dur:s2}}",
+          "bpm": 0,
+          "seed": 31
+        }
+      },
+      "s3": {
+        "padrao": "line-accent",
+        "params": {
+          "color": "#b5838d",
+          "ink": "#d4a373",
+          "y": 1020,
+          "width": 620,
+          "corners": 1,
+          "top": 110,
+          "bottom": 860,
+          "glow": 1,
+          "t_in": 0.1,
+          "dur": "{{dur:s3}}",
+          "bpm": 0,
+          "seed": 33
+        }
+      },
+      "vo3": [
+        "Cuidar de si é um gesto de carinho.",
+        "Cuidar de si é carinho."
+      ],
+      "lines3": [
+        "Cuidar de si|é um gesto|de carinho.",
+        "Cuidar de si|é carinho."
+      ],
+      "scrub": false
+    }
+  ],
+  "padrao": {
+    "id": "geral",
+    "regex": [],
+    "sub": "ESTÉTICA",
+    "nome_setor": [
+      "estetica",
+      "clinica",
+      "espaco",
+      "studio",
+      "estudio",
+      "beleza",
+      "centro",
+      "instituto",
+      "spa",
+      "harmonizacao",
+      "facial",
+      "corporal",
+      "avancada",
+      "e",
+      "&"
+    ],
+    "s2": {
+      "padrao": "line-accent",
+      "params": {
+        "color": "#b5838d",
+        "ink": "#d4a373",
+        "y": 1250,
+        "width": 700,
+        "corners": 0,
+        "top": 150,
+        "bottom": 1000,
+        "glow": 1,
+        "t_in": 0.1,
+        "dur": "{{dur:s2}}",
+        "bpm": 0,
+        "seed": 31
+      }
+    },
+    "s3": {
+      "padrao": "line-accent",
+      "params": {
+        "color": "#b5838d",
+        "ink": "#d4a373",
+        "y": 1020,
+        "width": 620,
+        "corners": 1,
+        "top": 110,
+        "bottom": 860,
+        "glow": 1,
+        "t_in": 0.1,
+        "dur": "{{dur:s3}}",
+        "bpm": 0,
+        "seed": 33
+      }
+    },
+    "vo3": [
+      "Cuidar de si é um gesto de carinho.",
+      "Cuidar de si é carinho."
+    ],
+    "lines3": [
+      "Cuidar de si|é um gesto|de carinho.",
+      "Cuidar de si|é carinho."
+    ],
+    "scrub": false
+  }
+}

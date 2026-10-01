@@ -1,0 +1,137 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "institucional-odontologia",
+  "setor": "Odontologia — vídeo institucional (uso fora de datas comemorativas)",
+  "status": "pronto",
+  "nichos": [
+    "odontologia",
+    "clínica odontológica",
+    "consultório odontológico",
+    "ortodontia",
+    "implantes",
+    "odontopediatria (fora da data)"
+  ],
+  "referencia": "clients/lothus-odontologia/video-01-dia-das-criancas (ritmo v02); prospects gerados por simplicio-video prospect",
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 16.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "gancho",
+      "dur_s": 2.8125,
+      "padroes": [
+        "beat-burst",
+        "kinetic-words"
+      ],
+      "campos": [],
+      "fala": "Seu sorriso merece cuidado!"
+    },
+    {
+      "id": "S2",
+      "papel": "mensagem",
+      "dur_s": 4.21875,
+      "padroes": [
+        "beat-burst",
+        "kinetic-words",
+        "tooth-character"
+      ],
+      "campos": [],
+      "fala": "Cuidar da saúde bucal é cuidar de você."
+    },
+    {
+      "id": "S3",
+      "papel": "setor",
+      "dur_s": 4.6875,
+      "padroes": [
+        "kinetic-words",
+        "toothbrush-sparkle"
+      ],
+      "campos": [],
+      "fala": "Consultas regulares mantêm o sorriso saudável."
+    },
+    {
+      "id": "S4",
+      "papel": "marca",
+      "dur_s": 4.28125,
+      "padroes": [
+        "beat-burst",
+        "brand-lockup-soft",
+        "kinetic-words"
+      ],
+      "campos": [
+        "empresa.nome",
+        "empresa.contatos.instagram",
+        "empresa.cidade",
+        "marca.logo"
+      ],
+      "fala": "Conheça {empresa.nome}."
+    }
+  ],
+  "voz": {
+    "tipo": "feminina, animada e calorosa, pt-BR (Laomedeia, a voz da Lothus v02)",
+    "gemini_voz": "Laomedeia",
+    "gemini_voz_alternativa": "Achernar",
+    "estilo": "Voz feminina brasileira animada e calorosa, sorrindo, energia média-alta, acolhedora e confiante, ritmo ágil sem correr, português do Brasil, sem exagero e sem voz infantilizada."
+  },
+  "musica": {
+    "bpm": 128,
+    "mood": "institucional leve (pad, arpejo de sino, baixo; bateria suave 0,6: kick + chimbal), mesma grade de cortes da Lothus v02",
+    "secoes": "groove até 15 s · outro com acorde final"
+  },
+  "paleta_padrao": {
+    "ink": "#2f3b45",
+    "background": "#f5fafd",
+    "institucional": [
+      "#5aa9e6",
+      "#4ecdc4",
+      "#ffd23f",
+      "#8fd3f4",
+      "#7bdcb5"
+    ]
+  },
+  "tom": "Acolhedor, animado e confiante; informativo sobre saúde bucal, sem jargão clínico e sem promessa",
+  "transicoes": [
+    "zoom|flash",
+    "shapes",
+    "whip|flash (6-10 frames, na batida)"
+  ],
+  "cuidados": [
+    "CFO (Res. 196/2019 e Código de Ética Odontológica): sem antes/depois, sem promessa de resultado, sem preço/desconto",
+    "Logo: só o arquivo REAL da empresa (site ou Instagram dela, coluna logo/logo_url do CSV); nunca gerar/recriar; sem arquivo, lockup de texto",
+    "Sem preço, desconto, promoção, prazo, garantia, promessa de resultado ou superlativo (melhor, nº 1, garantido)",
+    "Telefone/endereço/avaliações só se confirmados pela empresa"
+  ],
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": [
+      "s1",
+      "s2",
+      "s3",
+      "s4"
+    ],
+    "blocos": [
+      "bg",
+      "x0",
+      "s1-words",
+      "s1-burst",
+      "x1",
+      "s2-main",
+      "s2-words",
+      "s2-burst",
+      "x2",
+      "s3-main",
+      "s3-words",
+      "x3",
+      "s4-lockup",
+      "s4-words",
+      "s4-burst"
+    ],
+    "_doc": "Modelo institucional do prospect (padrão v2: voz Laomedeia, logo real, ritmo Lothus). s2-main/s3-main via {{padrao:<bloco>}} de setores.json; base do contrato em contract.base.yaml; roteamento por setor em templates/prospect-roteamento.json."
+  }
+}

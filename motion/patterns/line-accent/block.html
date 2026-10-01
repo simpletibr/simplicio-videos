@@ -1,0 +1,79 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/line-accent/block.html — Ornamento de linhas finas (sóbrio)
+  Linha fina que se desenha do centro para fora com um losango no meio, cantoneiras que emolduram o texto, brilho de fundo bem suave e um reflexo que corre pela linha. Sem confete, sem rosto, sem tremida: dá movimento contínuo e elegância a vídeos institucionais (advocacia, estética, clínicas).
+  HyperFrames block (sub-composition), 1080x1920, 4.0s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/line-accent.html and add
+    <div id="..." class="clip" data-composition-id="line-accent" data-composition-src="compositions/line-accent.html"
+         data-start="T" data-duration="4.0" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "line-accent" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="line-accent"].
+  Origin: authored for the institutional prospect templates (odontologia/estética/advocacia, 30/09/2026).
+-->
+<html lang="pt-BR" data-composition-id="line-accent" data-composition-duration="4.0" data-composition-variables='[{"id": "color", "type": "color", "label": "Cor das linhas (ex.: dourado/azul da marca)", "default": "#b08d57"}, {"id": "ink", "type": "color", "label": "Cor do brilho de fundo", "default": "#1f2a44"}, {"id": "y", "type": "number", "label": "Altura da linha central (px)", "default": 1180}, {"id": "width", "type": "number", "label": "Largura da linha central (px)", "default": 620}, {"id": "corners", "type": "number", "label": "Cantoneiras em volta do texto (1 = sim, 0 = não)", "default": 1}, {"id": "top", "type": "number", "label": "Topo da moldura das cantoneiras (px)", "default": 150}, {"id": "bottom", "type": "number", "label": "Base da moldura das cantoneiras (px)", "default": 1000}, {"id": "glow", "type": "number", "label": "Brilho suave de fundo + reflexo na linha (1 = sim, 0 = não)", "default": 1}, {"id": "t_in", "type": "number", "label": "Início do desenho (s)", "default": 0.1}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "bpm", "type": "number", "label": "BPM: o losango respira nas batidas (0 = não)", "default": 0}, {"id": "seed", "type": "number", "label": "Semente", "default": 5}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Ornamento de linhas finas (sóbrio)</title>
+  </head>
+  <body>
+    <template>
+      <div id="line-accent-root" data-composition-id="line-accent" data-duration="4.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          [data-composition-id="line-accent"] { position: absolute; inset: 0; overflow: hidden; background: transparent; }
+          [data-composition-id="line-accent"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="line-accent"] .gl { position: absolute; width: 900px; height: 900px; border-radius: 50%; filter: blur(90px); opacity: 0; }
+          [data-composition-id="line-accent"] .ln { position: absolute; height: 3px; border-radius: 2px; transform-origin: 50% 50%; overflow: hidden; }
+          [data-composition-id="line-accent"] .sh { position: absolute; top: 0; left: 0; width: 120px; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.95), transparent); }
+          [data-composition-id="line-accent"] .dm { position: absolute; width: 20px; height: 20px; transform: rotate(45deg); }
+          [data-composition-id="line-accent"] .cn { position: absolute; width: 80px; height: 80px; border-style: solid; border-width: 0; }
+        </style>
+        <div class="gl"></div><div class="ln"><div class="sh"></div></div><div class="dm"></div>
+        <div class="cn c0"></div><div class="cn c1"></div><div class="cn c2"></div><div class="cn c3"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"color": "#b08d57", "ink": "#1f2a44", "y": 1180, "width": 620, "corners": 1, "top": 150, "bottom": 1000, "glow": 1, "t_in": 0.1, "dur": 4.0, "bpm": 0, "seed": 5};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("line-accent-root");
+            const $ = (s) => root.querySelector(s), $$ = (s) => [...root.querySelectorAll(s)];
+            const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const R = rng(V.seed), tl = gsap.timeline({ paused: true }), T0 = Number(V.t_in) || 0, D = Number(V.dur) || 4;
+            // soft background glow drifting slowly (never static)
+            const gl = $(".gl");
+            if (Number(V.glow)) {
+              const gx = 540 - 450 + (R() - 0.5) * 120, gy = V.y - 450 + (R() - 0.5) * 80;
+              gsap.set(gl, { x: gx, y: gy, background: V.ink });
+              tl.fromTo(gl, { opacity: 0 }, { opacity: 0.08, duration: 0.8, ease: "sine.out" }, T0);
+              tl.fromTo(gl, { x: gx }, { x: gx + 80 * (R() < 0.5 ? -1 : 1), duration: D, ease: "none", immediateRender: false }, 0);
+            } else gl.style.display = "none";
+            // centre line draws from the middle out, diamond pops in the middle
+            const ln = $(".ln"), dm = $(".dm"), W = Number(V.width) || 620;
+            gsap.set(ln, { left: 540 - W / 2, top: V.y - 1.5, width: W, background: V.color });
+            gsap.set(dm, { left: 530, top: V.y - 10, background: V.color });
+            tl.fromTo(ln, { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power3.inOut" }, T0);
+            tl.fromTo(dm, { scale: 0, rotation: 45 }, { scale: 1, rotation: 225, duration: 0.6, ease: "power3.out" }, T0 + 0.25);
+            if (Number(V.glow)) tl.fromTo(".sh", { x: -140 }, { x: W + 20, duration: 1.1, ease: "power2.inOut" }, T0 + 0.8);
+            else $(".sh").style.display = "none";
+            if (Number(V.bpm) > 0) { const B = 60 / Number(V.bpm); for (let u = T0 + 1.0; u < D - 0.2; u += 2 * B) tl.fromTo(dm, { opacity: 0.55 }, { opacity: 1, duration: B, ease: "sine.out", immediateRender: false }, u); }
+            // corner brackets framing the text area
+            const cs = $$(".cn");
+            if (Number(V.corners)) {
+              const pos = [[90, V.top, "3px 0 0 3px"], [910, V.top, "3px 3px 0 0"], [90, V.bottom - 80, "0 0 3px 3px"], [910, V.bottom - 80, "0 3px 3px 0"]];
+              cs.forEach((c, k) => { const [x, y, bw] = pos[k]; gsap.set(c, { left: k % 2 ? x - 80 : x, top: y, borderWidth: bw, borderColor: V.color });
+                tl.fromTo(c, { opacity: 0, scale: 0.6, transformOrigin: k % 2 ? "100% " + (k < 2 ? "0%" : "100%") : "0% " + (k < 2 ? "0%" : "100%") },
+                  { opacity: 0.9, scale: 1, duration: 0.5, ease: "power3.out" }, T0 + 0.1 + k * 0.06); });
+              tl.fromTo(cs, { scale: 1 }, { scale: 1.04, duration: Math.max(0.5, D - T0 - 0.8), ease: "sine.inOut", immediateRender: false }, T0 + 0.7);
+            } else cs.forEach((c) => (c.style.display = "none"));
+            tl.set({}, {}, D);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["line-accent"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

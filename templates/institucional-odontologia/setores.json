@@ -1,0 +1,155 @@
+{
+  "_doc": "Modelo institucional (sem data comemorativa) do simplicio-video prospect. O prospect escolhe este template pela coluna 'setor' (templates/prospect-roteamento.json) e usa as regras abaixo só para o subtítulo do lockup e a fala do setor (vo3/lines3). Textos genéricos e informativos: NUNCA preço, promoção, prazo, garantia, promessa de resultado, superlativo ou fato da empresa. campanha.fala4/linhas4 = assinatura falada/escrita da cena 4 ({nome} = nome falado).",
+  "campanha": {
+    "id": "institucional",
+    "campanha_id": "Previa_Institucional",
+    "titulo": "Prévia institucional odontologia (16 s, venda ativa)",
+    "tagline": "cuidando do seu sorriso",
+    "arquivo": "Previa Institucional 16s",
+    "vo1": "Seu sorriso merece cuidado!",
+    "vo2": "Cuidar da saúde bucal é cuidar de você.",
+    "vo4": [
+      "Conheça {nome}.",
+      "Conheça {curto}.",
+      "Conheça {primeiro}."
+    ],
+    "fala4": "Conheça {nome}.",
+    "linhas4": "Conheça|{nome}."
+  },
+  "setores": [
+    {
+      "id": "odontologia",
+      "regex": [
+        "odonto",
+        "dent",
+        "ortodon",
+        "sorriso",
+        "implant"
+      ],
+      "sub": "ODONTOLOGIA",
+      "nome_setor": [
+        "odontologia",
+        "odontologica",
+        "odontologico",
+        "odonto",
+        "clinica",
+        "dental",
+        "dentista",
+        "consultorio",
+        "oral",
+        "especializada"
+      ],
+      "s2": {
+        "padrao": "tooth-character",
+        "params": {
+          "x": 540,
+          "y": 1290,
+          "scale": 1.3,
+          "body": "#ffffff",
+          "ink": "#2f3b45",
+          "cheek": "#ffb3b3",
+          "accent": "#ffd23f",
+          "t_in": 0.02,
+          "wave_t": 0.5,
+          "label": "Olá!",
+          "dur": "{{dur:s2}}",
+          "bpm": "{{bpm}}",
+          "beat0": 0,
+          "bg": "transparent",
+          "seed": 3
+        }
+      },
+      "s3": {
+        "padrao": "toothbrush-sparkle",
+        "params": {
+          "x": 540,
+          "y": 1270,
+          "scale": 1.25,
+          "t0": 0.2,
+          "strokes": 8,
+          "handle": "#5aa9e6",
+          "ink": "#2f3b45",
+          "sparkle": "#ffd23f",
+          "cheek": "#ffb3b3",
+          "dur": "{{dur:s3}}",
+          "bpm": "{{bpm}}",
+          "bg": "transparent",
+          "seed": 9
+        }
+      },
+      "vo3": [
+        "Consultas regulares mantêm o sorriso saudável.",
+        "Consultas regulares cuidam do sorriso."
+      ],
+      "lines3": [
+        "Consultas regulares|mantêm o sorriso|saudável.",
+        "Consultas regulares|cuidam do|sorriso."
+      ],
+      "scrub": true
+    }
+  ],
+  "padrao": {
+    "id": "geral",
+    "regex": [],
+    "sub": "ODONTOLOGIA",
+    "nome_setor": [
+      "odontologia",
+      "odontologica",
+      "odontologico",
+      "odonto",
+      "clinica",
+      "dental",
+      "dentista",
+      "consultorio",
+      "oral",
+      "especializada"
+    ],
+    "s2": {
+      "padrao": "tooth-character",
+      "params": {
+        "x": 540,
+        "y": 1290,
+        "scale": 1.3,
+        "body": "#ffffff",
+        "ink": "#2f3b45",
+        "cheek": "#ffb3b3",
+        "accent": "#ffd23f",
+        "t_in": 0.02,
+        "wave_t": 0.5,
+        "label": "Olá!",
+        "dur": "{{dur:s2}}",
+        "bpm": "{{bpm}}",
+        "beat0": 0,
+        "bg": "transparent",
+        "seed": 3
+      }
+    },
+    "s3": {
+      "padrao": "toothbrush-sparkle",
+      "params": {
+        "x": 540,
+        "y": 1270,
+        "scale": 1.25,
+        "t0": 0.2,
+        "strokes": 8,
+        "handle": "#5aa9e6",
+        "ink": "#2f3b45",
+        "sparkle": "#ffd23f",
+        "cheek": "#ffb3b3",
+        "dur": "{{dur:s3}}",
+        "bpm": "{{bpm}}",
+        "bg": "transparent",
+        "seed": 9
+      }
+    },
+    "vo3": [
+      "Consultas regulares mantêm o sorriso saudável.",
+      "Consultas regulares cuidam do sorriso."
+    ],
+    "lines3": [
+      "Consultas regulares|mantêm o sorriso|saudável.",
+      "Consultas regulares|cuidam do|sorriso."
+    ],
+    "scrub": true
+  }
+}

@@ -11,7 +11,7 @@
   Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="brand-lockup-soft"].
   Origin: authored for the kids/dental template (Lothus Odontologia, Dia das Criancas 2026).
 -->
-<html lang="pt-BR" data-composition-id="brand-lockup-soft" data-composition-duration="4.0" data-composition-variables='[{"id": "name", "type": "string", "label": "Nome", "default": "LOTHUS", "maxLength": 16}, {"id": "sub", "type": "string", "label": "Subtítulo", "default": "ODONTOLOGIA", "maxLength": 20}, {"id": "tagline", "type": "string", "label": "Mensagem", "default": "deseja um Feliz Dia das Crianças!", "maxLength": 44}, {"id": "handle", "type": "string", "label": "@ / contato", "default": "@lothus_odontologia", "maxLength": 28}, {"id": "city", "type": "string", "label": "Cidade", "default": "Guarulhos · SP", "maxLength": 32}, {"id": "logo", "type": "string", "label": "Logo (caminho; vazio = só texto)", "default": ""}, {"id": "ink", "type": "color", "label": "Tinta", "default": "#3d3834"}, {"id": "accent", "type": "color", "label": "Destaque (chip, texto branco: use cor com contraste ≥3:1)", "default": "#2f7fc1"}, {"id": "colors", "type": "string", "label": "Paleta dos pontos (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "bpm", "type": "number", "label": "BPM: anel/chip pulsam nas batidas (0 = respiração suave)", "default": 0}, {"id": "bg", "type": "string", "label": "Fundo", "default": "#fbf7f2"}, {"id": "seed", "type": "number", "label": "Semente", "default": 4}]'>
+<html lang="pt-BR" data-composition-id="brand-lockup-soft" data-composition-duration="4.0" data-composition-variables='[{"id": "name", "type": "string", "label": "Nome", "default": "LOTHUS", "maxLength": 16}, {"id": "sub", "type": "string", "label": "Subtítulo", "default": "ODONTOLOGIA", "maxLength": 20}, {"id": "tagline", "type": "string", "label": "Mensagem", "default": "deseja um Feliz Dia das Crianças!", "maxLength": 44}, {"id": "handle", "type": "string", "label": "@ / contato", "default": "@lothus_odontologia", "maxLength": 28}, {"id": "city", "type": "string", "label": "Cidade", "default": "Guarulhos · SP", "maxLength": 32}, {"id": "logo", "type": "string", "label": "Logo REAL do cliente (caminho; vazio = só texto; nunca recriar)", "default": ""}, {"id": "logo_round", "type": "number", "label": "Logo em círculo (1 = avatar/selo redondo; 0 = logo largo, sem cortar)", "default": 1}, {"id": "logo_size", "type": "number", "label": "Lado do logo em px, centrado no anel (300 = padrão; até 440 redondo, até 330 largo)", "default": 300}, {"id": "logo_bg", "type": "string", "label": "Fundo do anel atrás do logo (cor; vazio = sem fundo). Use cor escura para logo claro com transparência", "default": ""}, {"id": "ink", "type": "color", "label": "Tinta", "default": "#3d3834"}, {"id": "accent", "type": "color", "label": "Destaque (chip, texto branco: use cor com contraste ≥3:1)", "default": "#2f7fc1"}, {"id": "colors", "type": "string", "label": "Paleta dos pontos (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "bpm", "type": "number", "label": "BPM: anel/chip pulsam nas batidas (0 = respiração suave)", "default": 0}, {"id": "bg", "type": "string", "label": "Fundo", "default": "#fbf7f2"}, {"id": "tag_font", "type": "string", "label": "Fonte da mensagem (Fredoka = lúdica; Inter = sóbria)", "default": "Fredoka"}, {"id": "dots", "type": "number", "label": "Pontos coloridos em volta do anel (0 = nenhum, sóbrio)", "default": 14}, {"id": "tag_y", "type": "number", "label": "Topo da mensagem (px; 900 = padrão)", "default": 900}, {"id": "chip_y", "type": "number", "label": "Topo do chip @ (px; a cidade fica 130 px abaixo). Suba quando houver kinetic-words embaixo", "default": 1240}, {"id": "seed", "type": "number", "label": "Semente", "default": 4}]'>
   <head>
     <meta charset="UTF-8" />
     <title>Assinatura suave da marca (anel + nome + @)</title>
@@ -41,7 +41,7 @@
         <script>
           (() => {
             // ---- params: block defaults < host data-variable-values < CLI --variables ----
-            const DEF = {"name": "LOTHUS", "sub": "ODONTOLOGIA", "tagline": "deseja um Feliz Dia das Crianças!", "handle": "@lothus_odontologia", "city": "Guarulhos · SP", "logo": "", "ink": "#3d3834", "accent": "#2f7fc1", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "dur": 4.0, "bpm": 0, "bg": "#fbf7f2", "seed": 4};
+            const DEF = {"name": "LOTHUS", "sub": "ODONTOLOGIA", "tagline": "deseja um Feliz Dia das Crianças!", "handle": "@lothus_odontologia", "city": "Guarulhos · SP", "logo": "", "logo_round": 1, "logo_size": 300, "logo_bg": "", "ink": "#3d3834", "accent": "#2f7fc1", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "dur": 4.0, "bpm": 0, "bg": "#fbf7f2", "tag_font": "Fredoka", "dots": 14, "tag_y": 900, "chip_y": 1240, "seed": 4};
             const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
             const V = Object.assign({}, DEF, HV);
             const root = document.getElementById("brand-lockup-soft-root");
@@ -59,11 +59,19 @@
             const tl = gsap.timeline({ paused: true });
             const R = rng(V.seed), pal = list(V.colors), C0 = 2 * Math.PI * 240;
             const ring = $(".ring circle"); ring.setAttribute("stroke", V.ink); ring.style.strokeDasharray = C0;
+            if (V.logo && V.logo_bg) { ring.setAttribute("fill", V.logo_bg); ring.setAttribute("fill-opacity", "0"); }  // plate for light logos
             root.style.color = V.ink; const nm = $(".nm"), sb = $(".sb"), lg = $(".lg");
-            if (V.logo) { lg.src = V.logo; nm.style.display = sb.style.display = "none"; } else { lg.style.display = "none"; }
+            if (V.logo) { lg.src = V.logo; nm.style.display = sb.style.display = "none"; if (!Number(V.logo_round)) lg.style.borderRadius = "0";
+              const ls = Number(V.logo_size) || 300; if (ls !== 300) { lg.style.width = lg.style.height = ls + "px"; lg.style.left = (540 - ls / 2) + "px"; lg.style.top = (550 - ls / 2) + "px"; } } else { lg.style.display = "none"; }
+            // text lockup must stay inside the ring (chord ~440 px at the name/sub rows): shrink long names/subs only
+            const fit = (el, text, px, em, maxw) => { const n = String(text).length; if (n * em * px > maxw) el.style.fontSize = Math.floor(maxw / (n * em)) + "px"; };  // em = measured width/char incl. letter-spacing
+            fit(nm, V.name, 84, 0.80, 440); fit(sb, V.sub, 36, 0.98, 420);
             const nch = splitChars(nm, V.name), sch = splitChars(sb, V.sub);
+            if (V.tag_font && V.tag_font !== "Fredoka") $(".tg").style.fontFamily = `"${V.tag_font}", sans-serif`;
+            $(".tg").style.top = V.tag_y + "px"; $(".chip").style.top = V.chip_y + "px"; $(".ct").style.top = (V.chip_y + 130) + "px";
             const tw = splitWords($(".tg"), V.tagline); const chip = $(".chip"); chip.textContent = V.handle; chip.style.background = V.accent; $(".ct").textContent = V.city;
             tl.fromTo(ring, { strokeDashoffset: C0 }, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut" }, 0.1);
+            if (V.logo && V.logo_bg) tl.fromTo(ring, { attr: { "fill-opacity": 0 } }, { attr: { "fill-opacity": 1 }, duration: 0.5, ease: "power2.out" }, 0.1);
             tl.fromTo(lg, { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "back.out(1.8)" }, 0.35);
             tl.fromTo(nch, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.05, ease: "power3.out" }, 0.35);
             tl.fromTo(sch, { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.03, ease: "none" }, 0.7);
@@ -71,9 +79,10 @@
             tl.fromTo(chip, { xPercent: -50, scale: 0 }, { xPercent: -50, scale: 1, duration: 0.5, ease: "back.out(2.5)" }, 1.6);
             tl.fromTo(".ct", { y: 20, opacity: 0 }, { y: 0, opacity: 0.75, duration: 0.4, ease: "power2.out" }, 1.8);
             const dots = $(".dots");
-            for (let i = 0; i < 14; i++) {
+            const ND = Math.max(0, Math.round(Number(V.dots ?? 14)));
+            for (let i = 0; i < ND; i++) {
               const d = document.createElement("div"); d.className = "dot"; const s = 16 + R() * 26; d.style.width = d.style.height = s + "px"; d.style.background = pal[i % pal.length]; dots.appendChild(d);
-              const a = (i / 14) * Math.PI * 2, rr = 300 + R() * 60, x = 540 + Math.cos(a) * rr - s / 2, y = 550 + Math.sin(a) * rr - s / 2;
+              const a = (i / ND) * Math.PI * 2, rr = 300 + R() * 60, x = 540 + Math.cos(a) * rr - s / 2, y = 550 + Math.sin(a) * rr - s / 2;
               tl.fromTo(d, { x: 540, y: 550, scale: 0 }, { x, y, scale: 1, duration: 0.6, ease: "back.out(2)" }, 0.5 + i * 0.03);
               tl.to(d, { y: y - 16, duration: 0.6, yoyo: true, repeat: 3, ease: "sine.inOut" }, 1.2 + i * 0.03);
             }

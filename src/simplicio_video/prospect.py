@@ -1,7 +1,9 @@
 """`simplicio-video prospect <lista.csv>` (alias `batch`): mass sales previews for active selling (venda ativa).
 
 CSV (UTF-8, header; only `nome` is required):
-  nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, nome_falado, fontes
+  nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, nome_falado, fontes, logo (alias logo_url), logo_fonte,
+  oab (law firms: real OAB registration, e.g. "OAB/SP 123.456"), template / campanha (optional per-row override)
+  (`logo` = URL or local path of the company's REAL logo taken by hand from its own site/Instagram; `logo_fonte` = page URL)
 Per row, fully deterministic (no LLM per video):
   1. coleta   public + light: site home page (title/meta/og, theme-color + CSS colours, logo/og:image candidates,
               Instagram/WhatsApp links published by the company), robots.txt respected, 1 request per resource.
@@ -9,18 +11,30 @@ Per row, fully deterministic (no LLM per video):
               instagram.com/robots.txt disallows every generic bot, so today the @ comes from the CSV or the site.
               LGPD: only company data (no people, no personal e-mail/phones; the commercial WhatsApp the company
               publishes is kept as the business contact).
-  2. setor    regex rules of templates/<campanha template>/setores.json (CSV setor first, then site title/description)
-  3. contrato contract.base.yaml + sector texts + real company name/@/city (never price, promotion or invented facts)
-  4. voz      provider local (Kokoro, cost 0) by default; gemini optional (GEMINI_API_KEY). Lines that overflow their
-              slot fall back to the shorter sector/name variants (deterministic list order).
-  5. render --preview  540x960, crf 30, 30 fps, SimpleTI watermark + end card (render.render_preview)
+  2. template templates/prospect-roteamento.json: CSV setor (then site title/description) -> template per --campanha mode
+              (auto: odontologia/kids -> sazonal-dia-das-criancas, advocacia -> institucional-advocacia, estética ->
+              institucional-estetica; institucional: institucional-<setor>). Then the sector rules of that template's
+              setores.json pick the s2/s3 blocks and the sector line. Templates with `exige` (advocacia: oab) are not
+              rendered without that column (status aguardando_<campo>).
+  3. logo     REAL logo only, never generated/recreated: CSV `logo` > site logo (<img> "logo"/apple-touch-icon) >
+              Instagram avatar (only when robots.txt allows). Normalised to coleta/logo.png and placed in the s4 lockup.
+              No real logo = text lockup.
+  4. contrato contract.base.yaml + sector texts + real company name/@/city/logo (never price, promotion or invented facts)
+  5. voz      standard v2: Gemini 3.8 Flash TTS, voice Laomedeia (the Lothus v02 voice; fallback Achernar), animated take (GEMINI_API_KEY). Without a key the AI Studio takes
+              in assets/audio/vo/external/line-01..04.wav are used (provider file); with neither, the row waits
+              (status aguardando_voz + falas-gemini.md with the exact lines). --provider local = Kokoro draft (cost 0).
+              Lines that overflow their slot fall back to the shorter sector/name variants (deterministic list order).
+  6. render --preview  540x960, crf 30, 30 fps, watermark + end card Wesley Simplicio · @wesleysimplicio (render.render_preview)
 Output: <out>/<slug>/{coleta.json, contract.yaml, preview.mp4, result.json} + <out>/lote.csv.
-Idempotent: rows whose preview.mp4 + result.json(status ok) exist are skipped; coleta.json is reused.
+Idempotent: rows whose preview.mp4 + result.json(status ok, same `padrao`) exist are skipped; coleta.json is reused.
+A preview of an older standard is kept as preview.<padrao>.mp4 and redone. --only renders just the chosen rows.
 """
 from __future__ import annotations
 
 import copy
 import csv
+import shutil
+import subprocess
 import html
 import json
 import os
@@ -39,16 +53,26 @@ from pathlib import Path
 import yaml
 
 from . import __version__, paths
+from .layout import endcard_collisions
 
 UA = f"SimplicioVideoBot/{__version__} (+https://simpleti.com.br; previa publica, sem login)"
 TIMEOUT_S = 15
 MAX_HTML = 1_500_000
 MAX_IMG = 2_000_000
 IG_MIN_INTERVAL_S = 6.0
-CAMPANHAS = {"dia-das-criancas": "sazonal-dia-das-criancas"}
+# --campanha modes (templates/prospect-roteamento.json maps sector -> template per mode) + legacy campaign aliases
+CAMPANHAS = {"auto": None, "dia-das-criancas": "sazonal-dia-das-criancas", "institucional": None}
+DEFAULT_CAMPANHA = "auto"
+# Preview standard. v2 (pilot All Prime Odontologia, 30/09/2026): Gemini 3.8 Flash TTS voice Laomedeia (animated take, exactly the Lothus v02 voice; Achernar = fallback),
+# REAL logo from the company's site/Instagram in the lockup, Lothus v02 pacing (128 BPM beat cuts, 6-10 frame fx-transition,
+# confetti, word-by-word kinetic text) and the same festive 128 BPM track. Bump it when the standard changes.
+PADRAO = "v2"
+PADRAO_DESC = "v2: voz Gemini 3.8 Flash TTS Laomedeia animada (a da Lothus v02) + logo real (site/Instagram) + ritmo/confete/palavra a palavra da Lothus v02"
+DEFAULT_PROVIDER = "gemini"
+LOGO_MIN_PX = 64
 REPORT_COLS = ["nome", "slug", "setor", "setor_regra", "cidade", "instagram", "instagram_fonte", "whatsapp", "whatsapp_fonte",
                "site", "site_status", "instagram_status", "titulo_site", "cores", "logo", "fontes", "status", "motivo",
-               "preview", "tempo_s", "tempo_render_s"]
+               "preview", "tempo_s", "tempo_render_s", "logo_fonte", "padrao", "template"]
 
 
 # ------------------------------------------------------------------------------------------------ text helpers
@@ -204,6 +228,7 @@ class Fetcher:
         self._ig_last = 0.0
 
     def get(self, url: str, limit: int = MAX_HTML) -> tuple[int, str, str, bytes]:
+        url = urllib.parse.quote(url, safe=":/?#[]@!$&'()*+,;=%~")  # non-ASCII paths (e.g. "logo-250-×-150.png")
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "pt-BR,pt;q=0.9"})
         try:
             with self.opener(req, timeout=self.timeout) as r:
@@ -387,7 +412,7 @@ def collect_site(url: str, f: Fetcher, dest: Path | None = None) -> dict:
     if dest is not None and logo and f.allowed(logo):  # logo kept for the paid video (never used/recreated in the preview)
         try:
             lst, _, lct, lb = f.get(logo, MAX_IMG)
-            ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/svg+xml": ".svg", "image/webp": ".webp"}.get(lct.split(";")[0].strip())
+            ext = IMG_EXT.get((lct or "").split(";")[0].strip().lower())  # incl. the non-standard image/jpg (Loja Integrada CDN)
             if lst < 400 and ext and lb:
                 dest.mkdir(parents=True, exist_ok=True)
                 (dest / f"logo{ext}").write_bytes(lb)
@@ -427,6 +452,113 @@ def collect_instagram(handle: str, f: Fetcher) -> dict:
     return res
 
 
+IMG_EXT = {"image/png": ".png", "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/webp": ".webp", "image/svg+xml": ".svg",
+           "image/gif": ".gif"}
+
+
+def image_size(p: Path) -> tuple[int, int] | None:
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                              str(p)], check=True, capture_output=True, text=True).stdout.strip().split(",")
+        return int(out[0]), int(out[1])
+    except Exception:  # noqa: BLE001 - not a decodable image
+        return None
+
+
+def store_logo(data: bytes, ext: str, dest: Path) -> dict | None:
+    """Keep the real logo bytes (logo-original.<ext>) and a normalised coleta/logo.png (alpha kept). Never edits the artwork:
+    only format conversion. SVG is kept as is (Chrome renders it). None if it is not a usable image (too small/undecodable)."""
+    if not data:
+        return None
+    dest.mkdir(parents=True, exist_ok=True)
+    if ext == ".svg" or data.lstrip()[:5] in (b"<?xml", b"<svg "):
+        (dest / "logo.svg").write_bytes(data)
+        return {"arquivo": "logo.svg", "largura": None, "altura": None}
+    orig = dest / f"logo-original{ext or '.img'}"
+    orig.write_bytes(data)
+    png = dest / "logo.png"
+    try:
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(orig), "-frames:v", "1", "-pix_fmt", "rgba", str(png)], check=True,
+                       capture_output=True)
+    except Exception:  # noqa: BLE001
+        return None
+    wh = image_size(png)
+    if not wh or (min(wh) < LOGO_MIN_PX and not (max(wh) >= 200 and min(wh) >= 24)):  # wide wordmarks (e.g. 300x27) are fine
+        png.unlink(missing_ok=True)
+        return None
+    return {"arquivo": "logo.png", "largura": wh[0], "altura": wh[1], "claro": logo_is_light(png)}
+
+
+def logo_is_light(png: Path) -> bool:
+    """True for a light (white/cream) logo on a transparent background, invisible on our light scenes -> dark plate behind it."""
+    try:
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(png), "-vf", "scale=64:64", "-f", "rawvideo", "-pix_fmt", "rgba", "-"],
+                             capture_output=True, check=True).stdout
+    except Exception:  # noqa: BLE001
+        return False
+    px = [raw[i:i + 4] for i in range(0, len(raw) - 3, 4)]
+    op = [q for q in px if q[3] > 128]
+    if not op or len(op) > 0.97 * len(px):  # opaque artwork carries its own background
+        return False
+    return sum((0.2126 * q[0] + 0.7152 * q[1] + 0.0722 * q[2]) / 255 for q in op) / len(op) > 0.82
+
+
+def _logo_bytes(src: str, f: Fetcher, robots: bool) -> tuple[bytes, str]:
+    if re.match(r"^https?://", src):
+        if robots and not f.allowed(src):
+            return b"", ""
+        st, _, ct, data = f.get(src, MAX_IMG)
+        if st >= 400:
+            return b"", ""
+        ext = IMG_EXT.get((ct or "").split(";")[0].strip().lower()) or Path(urllib.parse.urlparse(src).path).suffix.lower()
+        return data, ext
+    p = Path(src).expanduser()
+    return (p.read_bytes(), p.suffix.lower()) if p.is_file() else (b"", "")
+
+
+def resolve_logo(row: dict, site: dict, ig: dict, f: Fetcher, dest: Path | None) -> dict:
+    """The company's REAL logo, in this order: CSV `logo` (taken by hand from its own site/Instagram, `logo_fonte` = page),
+    site logo downloaded by collect_site, Instagram avatar (only when robots.txt allowed the profile fetch).
+    Never generated or recreated: without a real file the lockup stays text-only."""
+    res = {"arquivo": None, "origem": None, "url": None, "fonte": None, "largura": None, "altura": None, "status": ""}
+    if dest is None:
+        res["status"] = "sem_pasta"
+        return res
+    tried = []
+    csv_logo = (row.get("logo") or "").strip()
+    if csv_logo:
+        try:
+            data, ext = _logo_bytes(csv_logo, f, robots=False)  # curated by the operator from the company's own page
+            got = store_logo(data, ext, dest)
+        except Exception as e:  # noqa: BLE001
+            got, tried = None, tried + [f"csv: {type(e).__name__}"]
+        if got:
+            return res | got | {"origem": "csv", "url": csv_logo if csv_logo.startswith("http") else None,
+                                "fonte": (row.get("logo_fonte") or "csv").strip(), "status": "ok"}
+        tried.append("csv: arquivo inválido ou pequeno")
+    if site.get("logo_arquivo"):
+        p = dest / site["logo_arquivo"]
+        got = store_logo(p.read_bytes(), p.suffix.lower(), dest) if p.is_file() else None
+        if got:
+            return res | got | {"origem": "site", "url": site.get("logo_url"), "fonte": site.get("final_url") or site.get("url"),
+                                "status": "ok"}
+        tried.append("site: arquivo inválido ou pequeno")
+    elif site.get("logo_url"):
+        tried.append("site: logo não baixado")
+    if ig.get("status") == "ok" and ig.get("avatar_url"):
+        try:
+            data, ext = _logo_bytes(html.unescape(ig["avatar_url"]), f, robots=True)
+            got = store_logo(data, ext, dest)
+        except Exception:  # noqa: BLE001
+            got = None
+        if got:
+            return res | got | {"origem": "instagram", "url": ig["avatar_url"],
+                                "fonte": f"https://www.instagram.com/{ig['handle'].lstrip('@')}/", "status": "ok"}
+        tried.append("instagram: avatar inválido")
+    res["status"] = "nao_encontrado: " + ("; ".join(tried) if tried else "sem logo no site, Instagram não coletado (robots.txt) e sem coluna logo no CSV")
+    return res
+
+
 def collect(row: dict, f: Fetcher, dest: Path | None = None) -> dict:
     site = collect_site(row.get("site", ""), f, dest)
     ig_csv = fmt_handle(row.get("instagram"))
@@ -440,19 +572,51 @@ def collect(row: dict, f: Fetcher, dest: Path | None = None) -> dict:
     on_site = site["whatsapp_links"] + site["whatsapp_texto"]
     wa_src = (("csv (confirmado no site)" if wa_csv in on_site else "csv") if wa_csv
               else (f"site: {where} ({'link wa.me' if site['whatsapp_links'] else 'texto'})" if wa else ""))
+    igc = collect_instagram(ig, f) | {"handle": ig, "fonte": ig_src}
     return {"schema": "simplicio.prospect-coleta/v1", "coletado_em": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "agente": UA,
             "empresa": {"nome": row["nome"].strip(), "cidade": (row.get("cidade") or "").strip(), "setor_csv": (row.get("setor") or "").strip()},
-            "site": site, "instagram": collect_instagram(ig, f) | {"handle": ig, "fonte": ig_src},
+            "site": site, "instagram": igc, "logo": resolve_logo(row, site, igc, f, dest),
             "whatsapp": {"numero": wa, "fonte": wa_src, "no_site": site["whatsapp_links"] + [w for w in site["whatsapp_texto"] if w not in site["whatsapp_links"]]},
             "maps": (row.get("maps") or "").strip() or None, "fontes_csv": (row.get("fontes") or "").strip(),
             "lgpd": "só dados da empresa: sem pessoas, e-mails ou telefones pessoais; WhatsApp = canal comercial publicado pela empresa"}
 
 
 # ------------------------------------------------------------------------------------------------ sector + contract
-def campaign_dir(home: Path, campanha: str) -> Path:
-    if campanha not in CAMPANHAS:
-        raise SystemExit(f"prospect: campanha desconhecida {campanha!r} (disponíveis: {', '.join(CAMPANHAS)})")
-    return home / "templates" / CAMPANHAS[campanha]
+def campaign_dir(home: Path, template: str) -> Path:
+    """Template dir from a template id (institucional-advocacia, ...) or a legacy campaign alias (dia-das-criancas)."""
+    tid = CAMPANHAS.get(template) or template
+    d = home / "templates" / tid
+    if not (d / "setores.json").is_file():
+        raise SystemExit(f"prospect: template desconhecido {template!r} (precisa de templates/<id>/setores.json)")
+    return d
+
+
+def load_routing(home: Path) -> dict:
+    return json.loads((home / "templates" / "prospect-roteamento.json").read_text(encoding="utf8"))
+
+
+def route_template(home: Path, campanha: str, row: dict, site_text: str = "") -> tuple[str, str]:
+    """(template id, rule) for a row. CSV column `template` wins, then CSV `campanha`, then --campanha; the sector comes from the
+    CSV `setor` (then the site title/description) matched against templates/prospect-roteamento.json in order."""
+    forced = (row.get("template") or "").strip()
+    if forced:
+        campaign_dir(home, forced)
+        return CAMPANHAS.get(forced) or forced, "csv:template"
+    mode = (row.get("campanha") or "").strip() or campanha or DEFAULT_CAMPANHA
+    if mode not in CAMPANHAS:
+        raise SystemExit(f"prospect: campanha desconhecida {mode!r} (disponíveis: {', '.join(CAMPANHAS)})")
+    R = load_routing(home)
+    rule, how = R["padrao"], "padrao"
+    for src, txt in (("csv", row.get("setor", "")), ("site", site_text)):
+        t = norm(txt)
+        hit = next(((r, rx) for r in R["regras"] for rx in r["regex"] if t and re.search(rx, t)), None)
+        if hit:
+            rule, how = hit[0], f"{src}:{hit[0]['id']}"
+            break
+    tid = rule.get(mode)
+    if not tid:
+        raise ValueError(f"setor sem template para --campanha {mode} ({how}); use a coluna template ou outra campanha")
+    return tid, f"{mode}:{how}"
 
 
 def load_setores(home: Path, campanha: str) -> dict:
@@ -518,7 +682,7 @@ def _sub_params(params: dict, scene: str) -> dict:
             for k, v in params.items()}
 
 
-def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider: str = "local",
+def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider: str = DEFAULT_PROVIDER,
                    variant: dict | None = None) -> tuple[dict, dict]:
     """Deterministic contract from contract.base.yaml + setores.json + real company data. Returns (contract, meta)."""
     variant = variant or {}
@@ -536,8 +700,21 @@ def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider:
     camp = S["campanha"]
     d["cliente"] = {"slug": slug, "nome": row["nome"].strip(), "drive_nome": drive_name(disp), "coleta": "coleta.json"}
     d["campanha"] = {"id": camp["campanha_id"], "ano": 2026, "titulo": camp["titulo"],
-                     "objetivo": "Prévia com marca d'água SimpleTI para oferecer o vídeo (venda ativa; não publicar)"}
+                     "objetivo": "Prévia com marca d'água Wesley Simplicio (@wesleysimplicio) para oferecer o vídeo (venda ativa; não publicar)"}
     colors = site.get("cores") or []
+    logo = coleta.get("logo") or {}
+    logo_dst, logo_round = None, 1
+    if logo.get("arquivo"):
+        ext = Path(logo["arquivo"]).suffix
+        logo_dst = f"assets/client/logo{ext}"
+        d.setdefault("marca", {})["logo"] = {"arquivo": f"coleta/{logo['arquivo']}", "destino": logo_dst}
+        w, h = logo.get("largura"), logo.get("altura")
+        logo_round = 1 if not (w and h) or 0.8 <= w / h <= 1.25 else 0  # wide logos are never cropped by the circle
+    oab = scrub(row.get("oab") or "", 40)
+    if oab:  # law firms: name + OAB registration in the sign-off (Código de Ética da OAB, art. 44); only a real number from the CSV
+        city = f"{oab} · {city}" if city and len(oab) + len(city) + 3 <= 40 else oab
+    fala4 = camp.get("fala4", "Com carinho, {nome}.")
+    linhas4 = camp.get("linhas4", "Com carinho,|{nome}.")
     i3 = variant.get("vo3", 0)
     i4 = variant.get("vo4", 0)
     names = speak_names(disp, name)
@@ -553,10 +730,12 @@ def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider:
                 m["params"]["lines"] = setor["lines3"][min(i3, len(setor["lines3"]) - 1)]
             elif b == "s4-lockup":
                 lp = m["params"]
-                lp.update(name=name, sub=sub, tagline=camp["tagline"], handle=handle if len(handle) <= 28 else "", city=city[:32],
-                          accent=accent_from(colors, lp["accent"]))
+                lp.update(name=name, sub=sub, tagline=camp["tagline"], handle=handle if len(handle) <= 28 else "", city=city[:40] if oab else city[:32],
+                          accent=accent_from(colors, lp["accent"]), logo=logo_dst or "", logo_round=logo_round,
+                          logo_size=(440 if logo_round else 330) if logo_dst else 300,  # fills the ring, never past it
+                          logo_bg=d["marca"]["paleta"].get("ink", "#3d3834") if logo_dst and logo.get("claro") else "")
             elif b == "s4-words":
-                m["params"]["lines"] = f"Com carinho,|{spoken}."
+                m["params"]["lines"] = linhas4.replace("{nome}", spoken)
         if s["id"] == "s3":
             s["fala"]["texto"] = setor["vo3"][min(i3, len(setor["vo3"]) - 1)]
             s["fala"].pop("say", None)
@@ -564,22 +743,29 @@ def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider:
                 s["sfx"] = [x for x in s.get("sfx", []) if not x["id"].startswith("scrub")]
             s["tela"] = [s["fala"]["texto"] + " (palavra a palavra)"]
         if s["id"] == "s4":
-            s["fala"]["texto"] = f"Com carinho, {spoken}."
+            s["fala"]["texto"] = fala4.replace("{nome}", spoken)
             s["fala"].pop("say", None)
-            s["tela"] = [f"{name} / {sub}", camp["tagline"], handle or "(sem @)", city, f"Com carinho, / {spoken}."]
+            s["tela"] = ([f"logo real ({logo.get('origem')}: {logo.get('fonte')})"] if logo_dst else [f"{name} / {sub}"]) + \
+                [camp["tagline"], handle or "(sem @)", city, linhas4.replace("{nome}", spoken).replace("|", " / ")]
     d["voz"]["provider"] = provider
     d["drive"] = {"caminho": f"simplicio-video/clientes/{d['cliente']['drive_nome']}/2026/{camp['campanha_id']}",
-                  "arquivo": f"{ascii_name(disp) or 'Empresa'} - Previa Dia das Criancas 16s - v01.mp4",
+                  "arquivo": f"{ascii_name(disp) or 'Empresa'} - {camp.get('arquivo', 'Previa Dia das Criancas 16s')} - v{int(PADRAO[1:]):02d}.mp4",
                   "status": "prévia de venda ativa (não publicar)"}
-    meta = {"setor": setor["id"], "regra": regra, "lockup": [name, sub], "fala_nome": spoken, "vo3": d["cenas"][2]["fala"]["texto"],
+    meta = {"template": cdir.name, "setor": setor["id"], "regra": regra, "oab": oab or None, "lockup": [name, sub], "fala_nome": spoken, "vo3": d["cenas"][2]["fala"]["texto"],
+            "padrao": PADRAO, "voz": provider, "logo": ({"origem": logo.get("origem"), "url": logo.get("url"), "fonte": logo.get("fonte")}
+                                                      if logo_dst else None),
             "accent": next(m["params"]["accent"] for m in d["cenas"][3]["motion"] if m.get("bloco") == "s4-lockup")}
+    clash = endcard_collisions(d["cenas"])  # fechamento: palavras nunca por cima do @/cidade (bug All Prime v02)
+    if clash:
+        raise ValueError("layout do fechamento: " + "; ".join(clash))
     return d, meta
 
 
 def write_contract(path: Path, d: dict, row: dict, meta: dict):
     hdr = (f"# simplicio.video-contract/v1 — PRÉVIA de venda ativa gerada por `simplicio-video prospect` (determinístico, sem LLM).\n"
            f"# Empresa: {row['nome'].strip()} · setor {meta['setor']} ({meta['regra']}). Fatos: só coleta.json (nome, @, cidade) + textos\n"
-           f"# genéricos da data em templates/sazonal-dia-das-criancas/setores.json. Sem preço, promoção ou fato inventado.\n")
+           f"# genéricos de templates/{meta.get('template', 'sazonal-dia-das-criancas')}/setores.json. Sem preço, promoção ou fato inventado.\n"
+           f"# Padrão {PADRAO_DESC}. Logo: {(meta.get('logo') or {}).get('fonte') or 'sem logo real -> lockup de texto'}.\n")
     path.write_text(hdr + yaml.safe_dump(d, allow_unicode=True, sort_keys=False, width=140), encoding="utf8")
 
 
@@ -590,6 +776,8 @@ def read_csv(path: Path) -> list[dict]:
         rows = []
         for r in rd:
             r = {norm(k or "").replace(" ", "_"): (v or "").strip() for k, v in r.items()}
+            if not r.get("logo") and r.get("logo_url"):  # batch lists may name the real-logo column logo_url
+                r["logo"] = r["logo_url"]
             if r.get("nome"):
                 rows.append(r)
     if not rows:
@@ -607,45 +795,150 @@ def unique_slugs(rows: list[dict]) -> list[str]:
     return out
 
 
+class AguardandoVoz(Exception):
+    """Standard voice (Gemini Laomedeia) not available yet: no GEMINI_API_KEY and no AI Studio takes in the file dir."""
+
+
+def external_takes(pdir: Path, n: int = 4) -> bool:
+    ext = pdir / "assets" / "audio" / "vo" / "external"
+    return all((ext / f"line-{i:02d}.wav").is_file() for i in range(1, n + 1))
+
+
+def resolve_provider(pdir: Path, provider: str) -> str:
+    """gemini (standard) -> API with GEMINI_API_KEY; else the AI Studio takes already in the file dir (provider file)."""
+    if provider != "gemini" or os.environ.get("GEMINI_API_KEY"):
+        return provider
+    if external_takes(pdir):
+        return "file"
+    raise AguardandoVoz("sem GEMINI_API_KEY e sem as falas do AI Studio em assets/audio/vo/external/line-01..04.wav")
+
+
+def write_lines_sheet(pdir: Path, d: dict):
+    """falas-gemini.md: exact lines to generate in Google AI Studio (voice/style of the standard) when there is no API key."""
+    g = d["voz"]["providers"]["gemini"]
+    alts = [x for x in g.get("alternativas", []) if "indispon" not in x]
+    alt = f" (se indisponível no AI Studio: **{alts[0]}**, mesmo estilo)" if alts else ""
+    rows = "\n".join(f"| `line-{i + 1:02d}.wav` | {s['fala'].get('say', s['fala']['texto'])} | {str(s['fala']['max_s']).replace('.', ',')} s |"
+                     for i, s in enumerate(d["cenas"]))
+    (pdir / "falas-gemini.md").write_text(
+        f"# Falas para o Gemini TTS ({d['cliente']['nome']})\n\nGoogle AI Studio → Generate speech · modelo **{g['model']}** · "
+        f"voz **{g['voice']}**{alt} · estilo:\n\n> {g['estilo']}\n\nUma fala por arquivo, salvas em "
+        f"`assets/audio/vo/external/` desta pasta:\n\n| Arquivo | Fala (texto exato) | Máx. |\n|---|---|---|\n{rows}\n\n"
+        f"Depois rode de novo o mesmo `simplicio-video prospect ... --only {d['cliente']['slug']}` (usa as falas como provider file). "
+        f"Nunca acelerar a voz: fala acima do máximo = gerar leva mais curta.\n", encoding="utf8")
+
+
+def takes_origin(pdir: Path) -> str | None:
+    """Provenance of the AI Studio takes (voice, model, account, date), written by whoever generated them in
+    assets/audio/vo/external/ORIGEM.txt; recorded in the contract and in assets/audio/LICENSES.md."""
+    f = pdir / "assets" / "audio" / "vo" / "external" / "ORIGEM.txt"
+    return " ".join(f.read_text(encoding="utf8").split()) if f.is_file() else None
+
+
+def write_licenses(pdir: Path, d: dict, coleta: dict):
+    """assets/audio/LICENSES.md of the preview (same table as the client projects, e.g. Lothus v02)."""
+    v, tr = d["voz"], d["trilha"]
+    prov = v["provider"]
+    if prov == "file":
+        narr = (v["providers"]["file"].get("origem") or "falas externas", "provider `file`, `assets/audio/vo/external/line-01..04.wav`")
+    elif prov == "gemini":
+        g = v["providers"]["gemini"]
+        narr = (f"Gemini API, modelo {g['model']}, voz {g['voice']}", "gerado pelo CLI com GEMINI_API_KEY")
+    else:
+        loc = v["providers"].get("local", {})
+        narr = (f"Kokoro-82M, voz {loc.get('voice')} (rascunho local)", "kokoro-onnx")
+    terms = ("[Gemini API Additional Terms](https://ai.google.dev/gemini-api/terms): Google não reivindica o conteúdo; sem exclusividade"
+             if prov in ("file", "gemini") else "Pesos Apache-2.0, kokoro-onnx MIT; voz 100% sintética")
+    lg = coleta.get("logo") or {}
+    logo = (f"Logo REAL da empresa: {lg.get('fonte') or lg.get('url')} ({lg.get('origem')})" if lg.get("arquivo") else "sem logo (lockup de texto)")
+    out = pdir / "assets" / "audio" / "LICENSES.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        f"# Licenças — {d['cliente']['nome']} · {d['campanha']['titulo']}\n\n| Elemento | Origem | Licença / uso comercial |\n|---|---|---|\n"
+        f"| Trilha + SFX (gerados) | Síntese procedural própria (`scripts/build.mjs`, estilo `{tr['music']['style']}`, {tr['bpm']} BPM), semente fixa "
+        f"`{tr['seed']}` | Obra original; sem material de terceiros |\n"
+        f"| Narração ({narr[1]}) | {narr[0]} | {terms} |\n"
+        f"| Fontes | {', '.join(d['marca'].get('fontes') or ['Inter'])} (`assets/fonts/`, textos OFL ao lado) | SIL Open Font License 1.1 |\n"
+        f"| Logo | {logo} | Marca de terceiro: só na prévia oferecida à própria empresa, nunca recriada |\n", encoding="utf8")
+
+
+VOICE_REGEN = int(os.environ.get("SIMPLICIO_VOICE_REGEN", "3"))  # new takes per line/variant before shortening
+VOICE_VARIANTS = {"vo3": 1, "vo4": 2}  # last variant index per line (setores.json vo3[0..1], campaign fala4 variants)
+
+
 def _voice_fit(pdir: Path, home: Path, campanha: str, row: dict, coleta: dict, provider: str, log) -> tuple[dict, dict]:
     from . import voice
     from .contract import load
     variant = {"vo3": 0, "vo4": 0}
-    for _ in range(4):
+    try:
+        prov = resolve_provider(pdir, provider)
+    except AguardandoVoz:
         d, meta = build_contract(home, campanha, row, coleta, provider, variant)
+        write_contract(pdir / "contract.yaml", d, row, meta)
+        write_lines_sheet(pdir, d)
+        raise
+    # a take longer than its slot is never sped up: regenerate that line (Gemini takes vary) up to VOICE_REGEN times,
+    # then fall to the next shorter variant of the text (vo3/vo4, fixed order); anything else stops with the reason.
+    regen: dict = {}
+    only = None
+    for _ in range(4 * (VOICE_REGEN + 1)):
+        d, meta = build_contract(home, campanha, row, coleta, prov, variant)
+        if prov == "file" and provider == "gemini":
+            d["voz"]["voice"] = d["voz"]["providers"]["gemini"]["voice"]
+            meta["voz"] = f"file (Gemini {d['voz']['voice']}, falas do AI Studio)"
+            if takes_origin(pdir):
+                d["voz"]["providers"]["file"]["origem"] = takes_origin(pdir)
+            write_lines_sheet(pdir, d)  # keeps the sheet in sync with the standard voice/lines
         write_contract(pdir / "contract.yaml", d, row, meta)
         c = load(pdir / "contract.yaml")
         try:
-            voice.run(c, log=log)
+            voice.run(c, only=only, log=log)
+            if regen:
+                meta["voz_regeneradas"] = {k: v for k, v in regen.items() if v}
             return d, meta
         except voice.VoiceError as e:
             over = re.findall(r"(vo\d):", str(e))
-            if not over or not set(over) <= {"vo3", "vo4"}:
+            if not over or prov == "file":  # fixed takes (AI Studio): a shorter text needs a new take
                 raise
+            only = []
             for v in over:
-                variant[v] += 1
-            if variant["vo3"] > 1 or variant["vo4"] > 2:
-                raise
-            log(f"voz: {', '.join(over)} maior que o slot -> variante mais curta {variant}")
+                key = f"{v}@{variant.get(v, 0)}"
+                if regen.get(key, 0) < VOICE_REGEN:
+                    regen[key] = regen.get(key, 0) + 1
+                    only.append(v)
+                    log(f"voz: {v} maior que o slot -> nova leva ({regen[key]}/{VOICE_REGEN}), sem acelerar")
+                elif v in variant and variant[v] < VOICE_VARIANTS[v]:
+                    variant[v] += 1
+                    only.append(v)
+                    log(f"voz: {v} ainda longa após {VOICE_REGEN} levas -> variante mais curta {variant}")
+                else:
+                    raise voice.VoiceError(f"{v}: fala maior que o slot após {VOICE_REGEN} levas por variante "
+                                           f"(nunca acelera): {str(e).splitlines()[-1].strip()}") from None
     raise SystemExit("voice did not fit")
 
 
-def process(row: dict, slug: str, out: Path, home: Path, f: Fetcher, campanha: str = "dia-das-criancas", provider: str = "local",
+def process(row: dict, slug: str, out: Path, home: Path, f: Fetcher, campanha: str = DEFAULT_CAMPANHA, provider: str = DEFAULT_PROVIDER,
             force: bool = False, recollect: bool = False, render: bool = True, log=print) -> dict:
     pdir = out / slug
     pdir.mkdir(parents=True, exist_ok=True)
     rj = pdir / "result.json"
     prev = pdir / "preview.mp4"
-    if not force and render and prev.is_file() and rj.is_file():
-        old = json.loads(rj.read_text(encoding="utf8"))
-        if old.get("status") == "ok":
-            return old | {"status": "ok", "motivo": "pulado (já existia)", "pulado": True}
+    old = json.loads(rj.read_text(encoding="utf8")) if rj.is_file() else {}
+    # standard of the preview.mp4 on disk (a waiting/erro run keeps it, so an older preview is never overwritten unnoticed)
+    prev_std = old.get("preview_padrao") or (old.get("padrao", "v1") if old.get("status") == "ok" else "v1")
+    if not force and render and prev.is_file() and old.get("status") == "ok" and prev_std == PADRAO:
+        return old | {"status": "ok", "motivo": "pulado (já existia)", "pulado": True}
     t0 = time.time()
-    res: dict = {"nome": row["nome"], "slug": slug, "status": "erro", "motivo": "", "timings_s": {}}
+    res: dict = {"nome": row["nome"], "slug": slug, "status": "erro", "motivo": "", "padrao": PADRAO, "timings_s": {}}
     try:
         cj = pdir / "coleta.json"
         if cj.is_file() and not recollect:
             coleta = json.loads(cj.read_text(encoding="utf8"))
+            lg = coleta.get("logo") or {}
+            csv_logo = (row.get("logo") or "").strip()
+            if "logo" not in coleta or (csv_logo and (lg.get("origem") != "csv" or lg.get("url") not in (csv_logo, None))):
+                coleta["logo"] = resolve_logo(row, coleta["site"], coleta["instagram"], f, pdir / "coleta")  # coleta v1 -> v2
+                cj.write_text(json.dumps(coleta, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
         else:
             coleta = collect(row, f, pdir / "coleta")
             cj.write_text(json.dumps(coleta, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
@@ -654,28 +947,46 @@ def process(row: dict, slug: str, out: Path, home: Path, f: Fetcher, campanha: s
                          "handle": coleta["instagram"]["handle"], "handle_fonte": coleta["instagram"]["fonte"],
                          "whatsapp": coleta["whatsapp"]["numero"], "whatsapp_fonte": coleta["whatsapp"]["fonte"],
                          "titulo": coleta["site"]["titulo"], "cores": coleta["site"]["cores"],
-                         "logo": coleta["site"]["logo_arquivo"] or coleta["site"]["logo_url"]}
-        if not render:
-            d, meta = build_contract(home, campanha, row, coleta, provider)
+                         "logo": (coleta.get("logo") or {}).get("url") or (coleta.get("logo") or {}).get("arquivo") or "",
+                         "logo_fonte": (coleta.get("logo") or {}).get("fonte") or (coleta.get("logo") or {}).get("status", "")}
+        site = coleta["site"]
+        tid, rota = route_template(home, campanha, row, f"{site.get('titulo') or ''} {site.get('descricao') or ''}")
+        res["template"], res["rota"] = tid, rota
+        exige = load_setores(home, tid).get("exige", {})
+        falta = [k for k in exige if not (row.get(k) or "").strip()]
+        if not render or falta:
+            d, meta = build_contract(home, tid, row, coleta, provider)
             write_contract(pdir / "contract.yaml", d, row, meta)
-            res.update(status="contrato", motivo="--so-contrato", meta=meta)
+            write_lines_sheet(pdir, d)  # exact lines for the AI Studio, no voice spend and no render
+            res["meta"] = meta
+            if falta:
+                res.update(status="aguardando_" + "_".join(falta), motivo="; ".join(exige[k] for k in falta)[:300])
+            else:
+                res.update(status="contrato", motivo="--so-contrato")
         else:
             t1 = time.time()
-            d, meta = _voice_fit(pdir, home, campanha, row, coleta, provider, log)
+            d, meta = _voice_fit(pdir, home, tid, row, coleta, provider, log)
             res["meta"] = meta
             res["timings_s"]["voz"] = round(time.time() - t1, 2)
             from . import render as rmod
             from .contract import load
+            if prev.is_file() and prev_std != PADRAO:  # keep the older standard for comparison
+                shutil.move(str(prev), str(pdir / f"preview.{prev_std}.mp4"))
             t2 = time.time()
             man = rmod.render_preview(load(pdir / "contract.yaml"), out=prev, log=log)
             res["timings_s"]["render"] = round(time.time() - t2, 2)
             res["preview"] = {"path": str(prev), "sha256": man["preview"]["sha256"], "duration_s": man["preview"]["duration_s"],
                               "bytes": man["preview"]["bytes"]}
-            res.update(status="ok", motivo="")
+            write_licenses(pdir, d, coleta)
+            res.update(status="ok", motivo="", preview_padrao=PADRAO)
+    except AguardandoVoz as e:
+        res.update(status="aguardando_voz", motivo=f"{e}; falas em {pdir / 'falas-gemini.md'}")
     except BaseException as e:  # noqa: BLE001 - one bad row never stops the batch
         if isinstance(e, KeyboardInterrupt):
             raise
         res["motivo"] = f"{type(e).__name__}: {str(e).strip().splitlines()[0][:240] if str(e).strip() else ''}"
+    if res["status"] != "ok" and prev.is_file():
+        res["preview_padrao"] = prev_std
     res["timings_s"]["total"] = round(time.time() - t0, 2)
     rj.write_text(json.dumps(res, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     return res
@@ -690,24 +1001,38 @@ def report_row(row: dict, res: dict) -> dict:
             "site_status": c.get("site", ""), "instagram_status": c.get("instagram", ""), "titulo_site": c.get("titulo", ""),
             "cores": " ".join(c.get("cores") or []), "logo": c.get("logo") or "", "fontes": row.get("fontes", ""),
             "status": res["status"], "motivo": res.get("motivo", ""), "preview": (res.get("preview") or {}).get("path", ""),
-            "tempo_s": res.get("timings_s", {}).get("total", ""), "tempo_render_s": res.get("timings_s", {}).get("render", "")}
+            "tempo_s": res.get("timings_s", {}).get("total", ""), "tempo_render_s": res.get("timings_s", {}).get("render", ""),
+            "logo_fonte": c.get("logo_fonte", ""), "padrao": res.get("padrao", "v1" if res.get("status") == "ok" else ""),
+            "template": res.get("template") or m.get("template", "")}
 
 
-def run_batch(csv_path: Path, out: Path | None = None, lote: str | None = None, campanha: str = "dia-das-criancas",
-              provider: str = "local", jobs: int = 1, force: bool = False, recollect: bool = False, render: bool = True,
-              limit: int | None = None, fetcher: Fetcher | None = None, log=print) -> dict:
+def run_batch(csv_path: Path, out: Path | None = None, lote: str | None = None, campanha: str = DEFAULT_CAMPANHA,
+              provider: str = DEFAULT_PROVIDER, jobs: int = 1, force: bool = False, recollect: bool = False, render: bool = True,
+              limit: int | None = None, fetcher: Fetcher | None = None, only: list[str] | None = None, log=print) -> dict:
     home = paths.home()
     csv_path = Path(csv_path)
     lote = lote or slugify(csv_path.stem)
     out = Path(out) if out else home / "prospects" / lote
     out.mkdir(parents=True, exist_ok=True)
     rows = read_csv(csv_path)[: limit or None]
+    for r in rows:  # a local logo path in the CSV is relative to the CSV
+        lg = r.get("logo", "")
+        if lg and not re.match(r"^https?://", lg) and not Path(lg).expanduser().is_absolute():
+            r["logo"] = str((csv_path.parent / lg).resolve())
     slugs = unique_slugs(rows)
+    sel = {slugify(x) for x in (only or []) if x.strip()}
+    if sel and not sel & set(slugs):
+        raise SystemExit(f"prospect: --only {', '.join(sorted(sel))} não casa com nenhuma linha (slugs: {', '.join(slugs)})")
     f = fetcher or Fetcher()
     t0 = time.time()
     lk = threading.Lock()
 
     def one(i):
+        if sel and slugs[i] not in sel:  # untouched row: report the result already on disk (read-only)
+            rj = out / slugs[i] / "result.json"
+            old = json.loads(rj.read_text(encoding="utf8")) if rj.is_file() else {"nome": rows[i]["nome"], "slug": slugs[i],
+                                                                                    "status": "nao_processado", "timings_s": {}}
+            return old | {"pulado": True, "motivo": old.get("motivo") or "fora do --only"}
         r = process(rows[i], slugs[i], out, home, f, campanha, provider, force, recollect, render,
                     log=lambda s, n=slugs[i]: log(f"[{n}] {s}"))
         with lk:
@@ -723,11 +1048,17 @@ def run_batch(csv_path: Path, out: Path | None = None, lote: str | None = None, 
         w.writeheader()
         for row, res in zip(rows, results):
             w.writerow(report_row(row, res))
-    done = [r for r in results if r["status"] == "ok" and not r.get("pulado")]
+    done = [r for r in results if r["status"] == "ok" and not r.get("pulado") and r.get("timings_s", {}).get("total")]
     summary = {"lote": lote, "saida": str(out), "relatorio": str(rep), "linhas": len(rows), "ok": sum(r["status"] == "ok" for r in results),
                "pulados": sum(bool(r.get("pulado")) for r in results), "erros": sum(r["status"] == "erro" for r in results),
+               "aguardando_voz": sum(r["status"] == "aguardando_voz" for r in results),
+               "aguardando_dados": sum(r["status"].startswith("aguardando_") and r["status"] != "aguardando_voz" for r in results),
+               "contratos": sum(r["status"] == "contrato" for r in results), "padrao": PADRAO,
+               "templates": {t: sum(r.get("template") == t for r in results) for t in sorted({r.get("template") for r in results if r.get("template")})},
                "tempo_total_s": total, "tempo_medio_previa_s": round(sum(r["timings_s"]["total"] for r in done) / len(done), 2) if done else None,
                "jobs": jobs, "provider": provider, "campanha": campanha}
     (out / "lote.json").write_text(json.dumps({"summary": summary, "results": results}, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
-    log(f"prospect: {summary['ok']}/{summary['linhas']} ok ({summary['pulados']} pulados, {summary['erros']} erros) em {total} s -> {rep}")
+    log(f"prospect: {summary['ok']}/{summary['linhas']} ok ({summary['pulados']} pulados, {summary['erros']} erros, "
+        f"{summary['aguardando_voz']} aguardando voz, {summary['aguardando_dados']} aguardando dados, {summary['contratos']} só contrato; "
+        f"templates {summary['templates']}) em {total} s -> {rep}")
     return summary

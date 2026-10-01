@@ -26,8 +26,8 @@ simplicio-video voice    clients/<slug>/<video>/contract.yaml [--provider file|l
 simplicio-video render   clients/<slug>/<video>/contract.yaml [--backend local|kaggle|colab-cli|colab] [--out x.mp4]
 simplicio-video publish  clients/<slug>/<video>/contract.yaml [--dry-run]    # Drive via rclone; SÓ com pedido explícito
 simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini [--publish]   # render local (padrão)
-simplicio-video render   <contrato.yaml> --preview   # prévia de venda 540x960 com marca d'água SimpleTI
-simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N]   # venda ativa em massa (alias batch), docs/venda-ativa.md
+simplicio-video render   <contrato.yaml> --preview   # prévia de venda 540x960 com marca d'água Wesley Simplicio (@wesleysimplicio)
+simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N] [--only SLUG]   # venda ativa em massa (alias batch; padrão v2: voz Laomedeia animada + logo real), docs/venda-ativa.md
 simplicio-video venda cobrar prospects/<lote>/<slug> --preco 120|80|60   # Pix (AbacatePay); venda webhook serve | entregar | status
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
@@ -65,8 +65,9 @@ python -m pytest                                   # schema, validate, --help, d
 
 **Venda ativa em massa (prévias para oferecer)**
 1. Monte o CSV (`nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes`) com empresas achadas por busca web; registre a fonte de cada @/WhatsApp.
-2. `simplicio-video prospect lista.csv --lote <lote>` → `prospects/<lote>/<slug>/preview.mp4` + `lote.csv` (status, motivo, dados achados, tempo). Retomada idempotente; `--jobs N` para paralelo.
-3. Só dado público e da empresa (LGPD), Instagram sem login (robots.txt do instagram.com proíbe robôs: o @ vem do CSV/site), nunca preço/promoção/fato inventado. **Nada é enviado pelo agente**: o Wesley revisa e envia ([docs/venda-ativa.md](docs/venda-ativa.md)).
+2. O template sai da coluna `setor` (`templates/prospect-roteamento.json`): `--campanha auto` (padrão) = odontologia/infantil no Dia das Crianças, advocacia e estética nos institucionais; `--campanha institucional` = institucional por setor. Advocacia exige `oab`.
+   `simplicio-video prospect lista.csv --lote <lote>` → `prospects/<lote>/<slug>/preview.mp4` + `lote.csv` (status, motivo, dados achados, tempo). Retomada idempotente; `--jobs N` para paralelo.
+3. Padrão v2 (default): voz Gemini 3.8 Flash TTS Laomedeia animada (a da Lothus v02; reserva Achernar), **logo real** (coluna `logo` do CSV tirada do site/Instagram da empresa, ou logo do site) e ritmo da Lothus v02; nunca gerar/recriar logo. Só dado público e da empresa (LGPD), Instagram sem login (robots.txt do instagram.com proíbe robôs: o @ vem do CSV/site), nunca preço/promoção/fato inventado. **Nada é enviado pelo agente**: o Wesley revisa e envia ([docs/venda-ativa.md](docs/venda-ativa.md)).
 
 **Novo vídeo (etapas 3–7) — pelo CLI**
 1. `simplicio-video list templates` → template pelo nicho (renderizável). `simplicio-video init <slug> <Campanha> --template <id>`.

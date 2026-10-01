@@ -76,9 +76,10 @@
     }
   ],
   "voz": {
-    "tipo": "feminina, calorosa, sorridente, pt-BR",
-    "gemini_voz": "Sulafat",
-    "estilo": "Voz feminina brasileira, calorosa e sorridente, como uma dentista querida falando com crianças e com os pais: alegre, acolhedora, natural, ritmo leve e sem pressa, sem exagero infantil."
+    "tipo": "feminina, bem animada, energia alta, pt-BR (padrão v2 das prévias = voz da Lothus v02)",
+    "gemini_voz": "Laomedeia",
+    "gemini_voz_alternativa": "Achernar",
+    "estilo": "Voz feminina brasileira bem animada, de festa infantil: sorrindo, energia alta, vibrante e calorosa, ritmo rápido, português do Brasil, sem gritar e sem voz infantilizada."
   },
   "musica": {
     "bpm": 128,
@@ -104,7 +105,7 @@
     "CFO: sem promessa de resultado, sem antes/depois, sem preço/desconto em publicidade odontológica",
     "Não citar nota/avaliações nem marcas de terceiros (ex.: Invisalign) sem confirmação",
     "Imagem de crianças reais só com autorização do responsável",
-    "Não recriar o logo: sem arquivo em alta, usar lockup de texto",
+    "Logo: só o arquivo REAL da empresa (site ou Instagram dela); nunca gerar/recriar; sem arquivo, lockup de texto",
     "Telefone/endereço só se confirmados pela clínica"
   ],
   "composicao": {
