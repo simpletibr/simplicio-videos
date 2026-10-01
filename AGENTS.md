@@ -2,6 +2,10 @@
 
 Regras, mapa e fluxos para qualquer agente (Claude Code, Codex, Grok) trabalhando neste repositório. Cada vídeo também tem o seu `AGENTS.md` com detalhes da composição.
 
+## Missão e operação de vendas
+
+Este repositório é só a **execução dos scripts e a geração dos vídeos** (CLI `simplicio-video`). A **missão de vendas e o guia de operação** (preços, mensagens aprovadas, funil, planilha de controle, Paperclip, times, estado atual e próximos passos) ficam no Google Drive, em [`simplicio-video/AGENTS.md`](https://drive.google.com/file/d/19Y0BvZw-st_YasMk39vNkbNGd_4pJ4ir/view?usp=drivesdk) (conta wesleybob4). Leia esse guia antes de qualquer trabalho de venda ativa.
+
 ## O que é
 
 **simplicio-videos** é o plugin de vídeo do **Simplicio Runtime (Simplicio MCP)** ([ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md)). Pedido de vídeo → **esteira determinística** ([docs/esteira.md](docs/esteira.md)):
@@ -24,6 +28,7 @@ simplicio-video publish  clients/<slug>/<video>/contract.yaml [--dry-run]    # D
 simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini [--publish]   # render local (padrão)
 simplicio-video render   <contrato.yaml> --preview   # prévia de venda 540x960 com marca d'água Wesley Simplicio (@wesleysimplicio)
 simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N] [--only SLUG]   # venda ativa em massa (alias batch; padrão v2: voz Laomedeia animada + logo real), docs/venda-ativa.md
+simplicio-video venda cobrar prospects/<lote>/<slug> --preco 120|80|60   # Pix (AbacatePay); venda webhook serve | entregar | status
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
 python -m pytest                                   # schema, validate, --help, determinismo (render curto)
@@ -34,7 +39,7 @@ python -m pytest                                   # schema, validate, --help, d
 | Pasta | O quê | Entrada principal |
 |---|---|---|
 | `schema/` | `contract.schema.json` (`simplicio.video-contract/v1`, entrada do CLI) | [receita](docs/receita-video-cliente.md) |
-| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local + bundle, `render.manifest.json`), `remote.py` (Kaggle, Colab CLI), `publish.py` (Drive/rclone), `pipeline.py` (`run`), `prospect.py` (venda ativa: coleta pública, setor → modelo, contrato, lote), `mcp_server.py` (tools `video.*`), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`, `remote_render.py` = script headless dos backends remotos) | `simplicio-video --help` |
+| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local + bundle, `render.manifest.json`), `remote.py` (Kaggle, Colab CLI), `publish.py` (Drive/rclone), `pipeline.py` (`run`), `prospect.py` (venda ativa: coleta pública, setor → modelo, contrato, lote), `venda.py` (cobrança Pix AbacatePay, webhook de pagamento, entrega HD, `venda.json`), `mcp_server.py` (tools `video.*`), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`, `remote_render.py` = script headless dos backends remotos) | `simplicio-video --help` |
 | `skills/simplicio-video/` | `SKILL.md`: como um LLM escolhe template/motion/voz/tempos e escreve o contrato | [SKILL.md](skills/simplicio-video/SKILL.md) |
 | `colab/` | `render.ipynb` (render do bundle na GPU, tempos por etapa) + README | [colab/README.md](colab/README.md) |
 | `tests/` | pytest: schema, validate, voice, compile (WJR byte a byte), `--help`, determinismo de hash (render de 1 s), fixture `fixtures/mini/` | — |
@@ -108,7 +113,7 @@ python -m pytest                                   # schema, validate, --help, d
 - Nome do arquivo: `<CLIENTE> - <descricao> - vNN.mp4` (ex.: `Lothus - Dia das Criancas 15s - v01.mp4`); versão nova = `vNN+1`, nunca sobrescrever.
 - O repositório guarda **os links**, nunca o MP4 final como entrega (`out/` é gitignored; `preview/` só leva a prévia leve 720p).
 - Todo link novo entra na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
-- Upload: `simplicio-video publish` / `run --publish` (rclone, remote `gdrive`; nunca sobrescreve, link pelo ID). O agente **só** roda publish sem `--dry-run` com pedido explícito do Wesley para aquele vídeo.
+- Upload: `simplicio-video publish` / `run --publish` (rclone, remote `gdrive`; nunca sobrescreve, link pelo ID). O agente **só** roda publish sem `--dry-run` com pedido explícito do Wesley para aquele vídeo. **Exceção única**: `simplicio-video venda` — o pagamento Pix confirmado (webhook validado) é a autorização do conselho para o publish automático **daquele** vídeo, e só nesse fluxo (docs/venda-ativa.md).
 
 ## Convenções e travas
 
