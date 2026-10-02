@@ -108,6 +108,25 @@ def tone(freq: float, dur: float, kind: str = "pluck", rng=None) -> np.ndarray:
     if kind == "keys":  # soft electric piano
         x = np.sin(2 * np.pi * freq * t + 0.8 * np.sin(2 * np.pi * freq * t) * np.exp(-t * 6))
         return (x * _env(n, 0.003, 0.7)).astype(np.float32)
+    if kind == "nylon":  # nylon-string guitar: bright attack, upper partials die first
+        x = sum(np.sin(2 * np.pi * freq * h * t) * np.exp(-t * (3 + 5 * h)) / h for h in range(1, 7))
+        return (x * _env(n, 0.002, 0.9) * 0.8).astype(np.float32)
+    if kind == "reed":  # accordion-ish reed with slight vibrato (forró)
+        vib = 1 + 0.004 * np.sin(2 * np.pi * 5.5 * t)
+        x = sum(np.sin(2 * np.pi * freq * h * vib * t) / h ** 1.2 for h in range(1, 8))
+        a = np.minimum(1, t / 0.03) * np.minimum(1, (dur - t) / 0.05)
+        return (x * a * 0.35).astype(np.float32)
+    if kind == "strings":  # slow-attack ensemble
+        vib = 1 + 0.003 * np.sin(2 * np.pi * 5 * t)
+        x = sum(np.sin(2 * np.pi * freq * d * vib * t + k) for k, d in enumerate((1, 1.004, 0.996, 2.0, 0.5)))
+        a = np.minimum(1, t / 0.25) * np.minimum(1, (dur - t) / 0.3)
+        return (x / 5 * a).astype(np.float32)
+    if kind == "brass":  # short stab
+        x = sum(np.sin(2 * np.pi * freq * h * t) / h for h in range(1, 10))
+        return (np.tanh(1.5 * x) * _env(n, 0.01, 0.18) * 0.5).astype(np.float32)
+    if kind == "tom":
+        f = freq * (1 + 0.6 * np.exp(-t * 25))
+        return (np.sin(np.cumsum(2 * np.pi * f / SR)) * np.exp(-t * 6)).astype(np.float32)
     if kind == "bell":
         x = np.sin(2 * np.pi * freq * t) + 0.4 * np.sin(2 * np.pi * freq * 2.76 * t)
         return (x * _env(n, 0.001, 0.5)).astype(np.float32)
@@ -134,10 +153,130 @@ PROGRESSIONS = {
 }
 
 
+STYLES = ("bouncy", "elegant", "disco", "lofi", "samba", "bossa", "house", "cinematic", "hiphop", "tropical",
+          "acoustic", "forro")
+
+PROGRESSIONS.update({
+    "disco": [(41, [57, 60, 64]), (43, [59, 62, 67]), (45, [57, 60, 64]), (40, [55, 59, 64])],      # F G Am Em
+    "lofi": [(50, [57, 60, 65, 69]), (43, [59, 62, 65, 69]), (48, [55, 59, 64, 67]), (45, [55, 60, 64, 67])],  # Dm9 G13 Cmaj7 Am7
+    "samba": [(43, [59, 62, 65]), (48, [55, 60, 64]), (45, [57, 60, 64]), (50, [57, 62, 65])],      # G7 C Am Dm
+    "bossa": [(50, [60, 65, 69]), (43, [59, 65, 69]), (48, [59, 64, 67]), (45, [60, 64, 67])],       # Dm7 G7 Cmaj7 Am7
+    "house": [(45, [60, 64, 69]), (41, [60, 65, 69]), (48, [60, 64, 67]), (43, [62, 67, 71])],
+    "cinematic": [(45, [57, 60, 64]), (41, [57, 60, 65]), (43, [55, 59, 62]), (40, [55, 59, 64])],
+    "hiphop": [(45, [60, 64, 67]), (50, [60, 65, 69]), (40, [59, 62, 67]), (45, [57, 60, 64])],
+    "tropical": [(48, [60, 64, 67]), (43, [59, 62, 67]), (45, [57, 60, 64]), (41, [57, 60, 65])],
+    "acoustic": [(43, [55, 59, 62]), (38, [57, 62, 66]), (40, [55, 59, 64]), (36, [55, 60, 64])],  # G D Em C
+    "forro": [(43, [55, 59, 62]), (48, [55, 60, 64]), (50, [57, 62, 66]), (43, [55, 59, 62])],
+})
+
+
+def _music2(style: str, bpm: float, dur: float, rng, drop_at) -> np.ndarray:
+    """Pattern sequencer for the extra styles (each one a different groove + instrument set)."""
+    n = int(dur * SR) + SR
+    L = np.zeros((n, 2), np.float32)
+    beat = 60.0 / bpm
+    prog = PROGRESSIONS[style]
+    K, C, Hh, Ho = kick(rng, 1.0), clap(rng), hat(rng), hat(rng, True)
+    rim = (tone(1800, 0.03, "bell") * 0.8).astype(np.float32)
+    nb = int(dur / beat) + 2
+    sw = 0.1 if style in ("lofi", "hiphop") else 0.0
+    for b in range(nb):
+        t = b * beat
+        bar, bb = b // 4, b % 4
+        root, chord = prog[bar % len(prog)]
+        brk = drop_at is not None and drop_at - 2 * beat <= t < drop_at
+        def at(x):  # x in beats inside this beat, with swing on the off-16ths
+            return t + (x + (sw if abs((x * 2) % 1 - 0.5) < 1e-6 else 0)) * beat
+        if style == "disco":
+            if not brk: _add(L, t, K, 0.75)
+            if bb % 2 == 1: _add(L, t, C, 0.4)
+            _add(L, at(0.5), Ho, 0.2, 0.3)
+            for s16 in range(2): _add(L, at(s16 * 0.5), tone(midi(root + (12 if s16 else 0)), beat * 0.4, "bass"), 0.32)
+            if bb in (1, 3): [_add(L, at(0.5), tone(midi(m + 12), beat * 0.35, "brass"), 0.05, 0.2) for m in chord]
+            if bb == 0: [_add(L, t, tone(midi(m), beat * 4, "strings"), 0.05, (k - 1) * 0.4) for k, m in enumerate(chord)]
+        elif style == "lofi":
+            if not brk and bb in (0, 2): _add(L, t, kick(rng, 0.5), 0.6)
+            if not brk and bb == 2: _add(L, at(0.75), kick(rng, 0.5), 0.4)
+            if bb % 2 == 1: _add(L, t, C * 0.6, 0.32)
+            for s8 in range(2): _add(L, at(s8 * 0.5), Hh, 0.12, 0.3)
+            if bb == 0: [_add(L, t + k * 0.03, tone(midi(m), beat * 3.8, "keys"), 0.09, (k - 1.5) * 0.3) for k, m in enumerate(chord)]
+            if bb == 0: _add(L, t, tone(midi(root), beat * 2, "bass"), 0.3)
+        elif style == "samba":
+            if not brk: _add(L, t, tone(midi(root - 12 + 12), beat * 0.5, "tom") * (1.0 if bb % 2 else 0.5), 0.55)
+            for s16 in range(4):
+                if (b * 4 + s16) % 16 in (0, 3, 6, 8, 10, 13): _add(L, at(s16 * 0.25), rim, 0.22, 0.4)
+                _add(L, at(s16 * 0.25), Hh * (1.2 if s16 == 0 else 0.7), 0.14, -0.3)
+            if bb in (0, 2): [_add(L, at(0.5 if bb == 2 else 0.25), tone(midi(m + 12), beat * 0.3, "nylon"), 0.08, 0.2) for m in chord]
+            if bb % 2 == 1: _add(L, t, tone(midi(root), beat * 0.6, "bass"), 0.3)
+        elif style == "bossa":
+            if not brk and bb in (0, 2): _add(L, t, kick(rng, 0.4), 0.45)
+            if not brk and bb in (1, 3): _add(L, at(0.5), kick(rng, 0.4), 0.3)
+            pos = (b % 8) * 2
+            for s8 in range(2):
+                if (pos + s8) in (0, 3, 6, 10, 13): _add(L, at(s8 * 0.5), rim, 0.3, 0.3)
+                _add(L, at(s8 * 0.5), Hh, 0.08, -0.4)
+            if bb in (0, 1, 3): [_add(L, at(0.5 if bb else 0.0), tone(midi(m), beat * 0.9, "nylon"), 0.07, -0.1) for m in chord]
+            if bb in (0, 2): _add(L, t, tone(midi(root + (7 if bb == 2 else 0)), beat * 0.9, "bass"), 0.28)
+        elif style == "house":
+            if not brk: _add(L, t, K, 0.8)
+            if bb % 2 == 1: _add(L, t, C, 0.32)
+            _add(L, at(0.5), Ho, 0.22, 0.25)
+            for s16 in range(4): _add(L, at(s16 * 0.25), Hh, 0.08, -0.3)
+            _add(L, at(0.5), tone(midi(root), beat * 0.4, "bass"), 0.34)
+            if bb in (0, 2): [_add(L, at(0.75), tone(midi(m + 12), beat * 0.3, "keys"), 0.07, 0.15) for m in chord]
+        elif style == "cinematic":
+            if not brk and bb == 0: _add(L, t, tone(55, 1.2, "tom"), 0.8)
+            if not brk and bb == 2: _add(L, t, tone(70, 0.9, "tom"), 0.55); _add(L, at(0.5), tone(70, 0.6, "tom"), 0.4)
+            for s8 in range(2): _add(L, at(s8 * 0.5), tone(midi(root + 12 + (12 if (b * 2 + s8) % 4 == 3 else 0)), beat * 0.45, "nylon"), 0.12, 0.2)
+            if bb == 0: [_add(L, t, tone(midi(m), beat * 4.2, "strings"), 0.06, (k - 1) * 0.5) for k, m in enumerate(chord)]
+            if bb == 0: _add(L, t, tone(midi(root - 12), beat * 3.5, "bass"), 0.3)
+        elif style == "hiphop":
+            if not brk and bb == 0: _add(L, t, K, 0.85)
+            if not brk and bb == 2: _add(L, at(0.5), K, 0.7)
+            if bb % 2 == 1: _add(L, t, C, 0.5)
+            for s8 in range(2): _add(L, at(s8 * 0.5), Hh, 0.16 if s8 else 0.2, 0.3)
+            if bb == 0: [_add(L, t, tone(midi(m), beat * 3.5, "keys"), 0.08, (k - 1) * 0.3) for k, m in enumerate(chord)]
+            if bb in (0, 2): _add(L, t, tone(midi(root), beat * 1.2, "bass"), 0.36)
+        elif style == "tropical":
+            if not brk and bb in (0, 2): _add(L, t, K, 0.75)
+            for x in ((0.75,) if bb in (0, 2) else (0.5,)): _add(L, at(x), C * 0.8, 0.36)
+            for s8 in range(2): _add(L, at(s8 * 0.5), Hh, 0.12, 0.3)
+            arp = chord + [chord[1] + 12]
+            for s8 in range(2): _add(L, at(s8 * 0.5 + 0.25 * (bb % 2)), tone(midi(arp[(b * 2 + s8) % 4] + 12), 0.3, "pluck"), 0.12, -0.2)
+            if bb in (0, 2): _add(L, t, tone(midi(root), beat * 0.9, "bass"), 0.34)
+        elif style == "acoustic":
+            if not brk and bb in (0, 2): _add(L, t, kick(rng, 0.5), 0.7)
+            if bb in (1, 3): _add(L, t, C, 0.45)
+            for s16 in range(4): _add(L, at(s16 * 0.25), Hh * 0.8, 0.1, -0.4)
+            arp = [chord[0], chord[1], chord[2], chord[1]]
+            for s8 in range(2): _add(L, at(s8 * 0.5), tone(midi(arp[(b * 2 + s8) % 4]), beat * 1.2, "nylon"), 0.1, 0.2)
+            if bb == 0: _add(L, t, tone(midi(root), beat * 1.5, "bass"), 0.3)
+        elif style == "forro":
+            if not brk: _add(L, t, tone(60, 0.35, "tom"), 0.6 if bb % 2 == 0 else 0.35)
+            if not brk: _add(L, at(0.75), tone(60, 0.25, "tom"), 0.35)
+            for s16 in range(4): _add(L, at(s16 * 0.25), tone(3200, 0.05 if s16 % 2 else 0.18, "bell"), 0.06 if s16 % 2 else 0.1, 0.4)
+            if bb in (0, 2): [_add(L, at(0.5), tone(midi(m + 12), beat * 0.45, "reed"), 0.05, -0.2) for m in chord]
+            _add(L, t, tone(midi(root + (7 if bb % 2 else 0)), beat * 0.5, "bass"), 0.3)
+    if style == "lofi":  # vinyl crackle
+        cr = (rng.random(n) < 0.0009).astype(np.float32) * rng.uniform(-0.6, 0.6, n).astype(np.float32)
+        L += np.stack([cr, cr], 1) * 0.5
+    return L
+
+
 def music(style: str, bpm: float, dur: float, seed: int = 1, drop_at: float | None = None) -> np.ndarray:
     """Stereo float32 bed. bouncy: kick 4/4, claps 2/4, 16th shaker, staccato bass, marimba arpeggio (playful pop);
     elegant: soft kick, rim, warm pad, keys, sparse bells (premium chill). `drop_at`: brief half-bar break (build -> drop)."""
     rng = np.random.default_rng(seed)
+    if style not in STYLES:
+        raise ValueError(f"estilo de trilha desconhecido: {style}")
+    if style not in ("bouncy", "elegant"):
+        L = _music2(style, bpm, dur, rng, drop_at)
+        L = np.tanh(L * 1.2) / 1.2
+        fi, fo = int(0.05 * SR), int(0.6 * SR)
+        L[:fi] *= np.linspace(0, 1, fi)[:, None]
+        end = int(dur * SR)
+        L[end - fo:end] *= np.linspace(1, 0.15, fo)[:, None]
+        return L[:end]
     n = int(dur * SR) + SR
     L = np.zeros((n, 2), np.float32)
     beat = 60.0 / bpm
@@ -187,6 +326,9 @@ def music(style: str, bpm: float, dur: float, seed: int = 1, drop_at: float | No
 
 
 # ---------------------------------------------------------------- SFX (synthesised; no third-party samples)
+SFX_KINDS = ("whoosh", "swish", "pop", "tick", "shimmer", "impact", "clink", "sizzle", "snap", "thud")
+
+
 def sfx(kind: str, seed: int = 0) -> np.ndarray:
     """Synthesised one-shot (no third-party samples), peak-limited to 0.89 so every cue sits under full scale."""
     x = _sfx_raw(kind, seed)
@@ -231,6 +373,32 @@ def _sfx_raw(kind: str, seed: int = 0) -> np.ndarray:
         t = np.arange(n) / SR
         f = 38 + 90 * np.exp(-t * 18)
         return (np.sin(np.cumsum(2 * np.pi * f / SR)) * np.exp(-t * 5) * 0.9).astype(np.float32)
+    if kind == "clink":  # two glass partials, champagne toast
+        n = int(0.5 * SR)
+        t = np.arange(n) / SR
+        x = sum(np.sin(2 * np.pi * f * t) * np.exp(-t * d) * g for f, d, g in ((2637, 9, 0.35), (3951, 12, 0.25), (5274, 16, 0.15)))
+        return (x * 0.9).astype(np.float32)
+    if kind == "sizzle":  # crackling fry: sparse noise bursts
+        n = int(0.45 * SR)
+        t = np.arange(n) / SR
+        x = _noise(n, rng)
+        y = x - _lp_fast(x, 4)
+        cr = (rng.random(n) < 0.004).astype(np.float32)
+        cr = np.convolve(cr, np.exp(-np.arange(200) / 30.0), mode="same")
+        return (y * (0.15 + cr) * np.sin(np.pi * t / 0.45) * 0.8).astype(np.float32)
+    if kind == "snap":  # finger snap / camera shutter
+        n = int(0.07 * SR)
+        t = np.arange(n) / SR
+        x = _noise(n, rng)
+        y = x - _lp_fast(x, 3)
+        return (y * np.exp(-t * 90) * 0.9).astype(np.float32)
+    if kind == "thud":  # stamp / slab landing
+        n = int(0.25 * SR)
+        t = np.arange(n) / SR
+        f = 70 + 160 * np.exp(-t * 40)
+        body = np.sin(np.cumsum(2 * np.pi * f / SR)) * np.exp(-t * 16)
+        x = _noise(n, rng)
+        return ((body * 0.9 + _lp_fast(x, 10) * np.exp(-t * 60) * 0.6)).astype(np.float32)
     raise ValueError(f"sfx desconhecido: {kind}")
 
 

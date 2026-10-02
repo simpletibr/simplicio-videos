@@ -286,12 +286,18 @@ def build_parser() -> argparse.ArgumentParser:
                     "fontes, transições, grade, trilha) vem de <pasta>/broll/concept.yaml; as cenas de <pasta>/broll/plan.yaml.\n"
                     "A voz é a do timing.lock.json (nunca chama TTS). Saída: <pasta>/preview-v2.mp4 (não toca na preview.mp4).",
         epilog="exemplos:\n  simplicio-video broll previas/pet-joy-in-la --qa --sheet qa/piloto-broll-pet-joy-in-la.png\n"
-               "  simplicio-video broll previas/novuu-medspa --check     # só valida plano, licenças e layout")
+               "  simplicio-video broll previas/novuu-medspa --check     # só valida plano, licenças e layout\n"
+               "  simplicio-video broll previas/novuu-medspa --final --qa # FINAL 1080x1920 sem marca d'água -> final/final.mp4")
     p.add_argument("pastas", type=Path, nargs="+", metavar="PASTA", help="pasta da prévia (contract.yaml + timing.lock.json + broll/)")
     p.add_argument("--out", type=Path, help="MP4 de saída (padrão: <pasta>/preview-v2.mp4; só com uma pasta)")
     p.add_argument("--check", action="store_true", help="só valida (plano, licenças, layout) sem renderizar")
     p.add_argument("--qa", action="store_true", help="roda o QA automático depois do render (sincronia, layout, loudness, preço)")
     p.add_argument("--sheet", type=Path, help="folha de QA (20 quadros de 270 px) neste PNG (só com uma pasta)")
+    p.add_argument("--final", action="store_true",
+                   help="vídeo FINAL do mesmo spec: 1080x1920, sem marca d'água/selo/aviso de prévia, cartão final de crédito;\n"
+                        "saída padrão <pasta>/final/final.mp4 (+ final.manifest.json); com --qa confere resolução, LUFS,\n"
+                        "sincronia e ausência de marca d'água (comparação com o render limpo). Zero LLM/TTS. Não sobe nada.")
+    p.add_argument("--sem-cartao", action="store_true", help="com --final: sem o cartão final de crédito")
 
     p = sub.add_parser("publish", formatter_class=Fmt, help="sobe o MP4 no Google Drive (rclone) e grava o link no README do cliente",
         description="Sobe saida.arquivo (ou --file) para <remote>:drive.caminho/drive.arquivo com rclone (sem navegador) e grava o\n"
@@ -453,14 +459,16 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"{pd.name}: " + ("ok" if not errs else "reprovado:\n  " + "\n  ".join(errs)))
                     rc |= bool(errs)
                     continue
-                broll.render(pd, out=out)
+                fin = getattr(a, "final", False)
+                broll.render(pd, out=out, final=fin, end_card=not getattr(a, "sem_cartao", False))
                 if a.qa:
-                    r = broll.qa(pd, mp4=out)
+                    r = broll.qa(pd, mp4=out, final=fin)
                     print(f"{pd.name}: QA {'ok' if r['ok'] else 'REPROVADO'} · {r['lufs']} LUFS · TP {r['tp']} dBTP · "
-                          f"sync máx {r['sync_max_ms']} ms" + ("" if r["ok"] else "\n  " + "\n  ".join(r["avisos"])))
+                          f"sync máx {r['sync_max_ms']} ms · {r['resolucao']} · {r['dur_s']:.2f}s"
+                          + (f" · sem marca d'água: {r['sem_marca_dagua']}" if fin else "") + ("" if r["ok"] else "\n  " + "\n  ".join(r["avisos"])))
                     rc |= not r["ok"]
                 if a.sheet:
-                    broll.qa_sheet(out or pd / "preview-v2.mp4", a.sheet)
+                    broll.qa_sheet(out or (pd / "final" / "final.mp4" if fin else pd / "preview-v2.mp4"), a.sheet)
                     print(f"folha: {a.sheet}")
             except broll.BrollError as e:
                 print(f"{pd.name}: {e}", file=sys.stderr)

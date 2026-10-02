@@ -167,7 +167,8 @@ def _radial(W: int, H: int, cx: float, cy: float) -> np.ndarray:
     return np.sqrt(((x - cx * W) / W) ** 2 * (W / H) ** 2 + ((y - cy * H) / H) ** 2).astype(np.float32)
 
 
-TRANSITIONS = ("cut", "flash", "zoom", "whip", "glitch", "pop", "leak", "blur", "mask", "slide", "dip")
+TRANSITIONS = ("cut", "flash", "zoom", "whip", "glitch", "pop", "leak", "blur", "mask", "slide", "dip",
+               "iris", "stripes", "push", "spin", "split")
 
 
 def transition(kind: str, a: np.ndarray, b: np.ndarray, p: float, seed: int = 0, color=(255, 255, 255),
@@ -265,6 +266,51 @@ def transition(kind: str, a: np.ndarray, b: np.ndarray, p: float, seed: int = 0,
         out = a.copy()
         if dy < H:
             out[dy:] = fb[:H - dy]
+        return out
+    if kind == "iris":  # hard-edged circle opening from a point, with a brand-colour ring at the edge
+        e = ease_in_out(p)
+        r = _radial(W, H, 0.5 + 0.25 * direction * 0.0, 0.42)
+        R = e * 1.3
+        m = (r < R).astype(np.float32)[..., None]
+        ring = ((r >= R) & (r < R + 0.035) & (0.02 < e < 0.98)).astype(np.float32)[..., None]
+        out = a.astype(np.float32) * (1 - m) + b.astype(np.float32) * m
+        out = out * (1 - ring) + np.array(color, np.float32) * ring
+        return out.astype(np.uint8)
+    if kind == "stripes":  # venetian blinds: vertical bars of b grow one after another
+        n = 6
+        out = a.copy()
+        bw = W / n
+        for k in range(n):
+            q = clamp01((p - k * 0.06) / (1 - (n - 1) * 0.06))
+            w = int(round(ease_in_out(q) * bw))
+            x0 = int(round(k * bw)) if direction >= 0 else int(round((n - 1 - k) * bw))
+            if w > 0:
+                out[:, x0:x0 + w] = b[:, x0:x0 + w]
+        return out
+    if kind == "push":  # vertical push: a leaves upwards while b pushes in from below (story-style)
+        e = ease_in_out(p)
+        off = int(round(e * H))
+        f = np.empty_like(a)
+        f[:H - off] = a[off:]
+        f[H - off:] = b[:off]
+        sp = math.sin(p * math.pi)
+        if sp > 0.1:
+            im = Image.fromarray(f).filter(ImageFilter.BoxBlur(int(sp * 3)))
+            f = np.asarray(im)
+        return f
+    if kind == "spin":  # a spins out with a zoom, b spins in (energetic)
+        base, q = (a, p / 0.5) if p < 0.5 else (b, (1 - p) / 0.5)
+        ang = (1 if p < 0.5 else -1) * direction * 25 * q ** 2
+        z = 1 + 0.5 * q ** 2
+        im = Image.fromarray(_zoomed(base, z)).rotate(ang, resample=Image.BILINEAR)
+        return np.asarray(im)
+    if kind == "split":  # b closes in as two halves from top and bottom
+        e = ease_out_cubic(p)
+        out = a.copy()
+        h = int(round(e * H / 2))
+        if h > 0:
+            out[:h] = b[H // 2 - h:H // 2]
+            out[H - h:] = b[H // 2:H // 2 + h]
         return out
     raise ValueError(f"transição desconhecida: {kind}")
 
@@ -404,6 +450,119 @@ def bubbles_layer(W: int, H: int, t: float, n: int, seed: int, color=(255, 255, 
         a = int(150 + 80 * math.sin(t * 3 + ph))
         d.ellipse((cx - R, cy - R, cx + R, cy + R), outline=color + (a,), width=max(2, int(R * 0.09)))
         d.ellipse((cx - R * .55, cy - R * .6, cx - R * .15, cy - R * .25), fill=(255, 255, 255, min(255, a + 40)))
+    return im
+
+
+def sparkles_layer(W: int, H: int, t: float, n: int, seed: int, color=(255, 255, 255)) -> Image.Image:
+    """Twinkling 4-point glints (glitter / nail shine): each one flashes on and off at its own rhythm."""
+    rng = np.random.default_rng(seed)
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    for k in range(n):
+        x, y, ph, sp, r = rng.random(), rng.random(), rng.random() * 6.28, 2 + rng.random() * 3, 0.012 + rng.random() * 0.022
+        y = (y - t * 0.02) % 1.0
+        a = max(0.0, math.sin(t * sp + ph)) ** 3
+        if a < 0.05:
+            continue
+        cx, cy, R = x * W, y * H, r * W * (0.6 + 0.4 * a)
+        c = color + (int(235 * a),)
+        d.polygon([(cx, cy - R), (cx + R * 0.18, cy - R * 0.18), (cx + R, cy), (cx + R * 0.18, cy + R * 0.18),
+                   (cx, cy + R), (cx - R * 0.18, cy + R * 0.18), (cx - R, cy), (cx - R * 0.18, cy - R * 0.18)], fill=c)
+        d.ellipse((cx - R * 0.2, cy - R * 0.2, cx + R * 0.2, cy + R * 0.2), fill=(255, 255, 255, int(255 * a)))
+    return im
+
+
+def confetti_layer(W: int, H: int, t: float, n: int, seed: int, colors=((255, 80, 120), (255, 210, 60), (60, 180, 255))) -> Image.Image:
+    """Falling, tumbling confetti strips in the brand colours."""
+    rng = np.random.default_rng(seed)
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    for k in range(n):
+        x0, sp, ph, w, c = rng.random(), 0.12 + rng.random() * 0.18, rng.random() * 6.28, 0.012 + rng.random() * 0.012, colors[k % len(colors)]
+        y = (rng.random() + t * sp) % 1.15 - 0.08
+        x = x0 + 0.04 * math.sin(t * 1.7 + ph)
+        sw, sh = max(2, int(w * W)), max(2, int(w * W * (0.3 + 0.7 * abs(math.sin(t * 5 + ph)))))
+        piece = Image.new("RGBA", (sw, sh), tuple(c) + (230,))
+        piece = piece.rotate((t * 220 + ph * 57) % 360, expand=True)
+        im.alpha_composite(piece, (int(x * W) % W, max(0, int(y * H))))
+    return im
+
+
+def steam_layer(W: int, H: int, t: float, seed: int, strength: float = 0.25) -> np.ndarray:
+    """Float32 (H, W, 3) soft rising wisps (coffee steam / fresh-baked warmth), screen-blended by the caller."""
+    rng = np.random.default_rng(seed)
+    h, w = H // 6, W // 6
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    acc = np.zeros((h, w), np.float32)
+    for k in range(5):
+        x0, ph, sp = rng.random(), rng.random() * 6.28, 0.05 + rng.random() * 0.05
+        cx = (x0 + 0.08 * np.sin(yy / h * 6 + t * 1.3 + ph)) * w
+        band = np.exp(-((xx - cx) / (w * 0.06)) ** 2)
+        fade = np.clip(1 - ((yy / h + t * sp + ph) % 1.0), 0, 1) ** 1.5
+        acc += band * fade * (0.5 + 0.5 * np.sin(yy / h * 9 - t * 2 + ph))
+    acc = np.clip(acc * strength, 0, 1)
+    im = Image.fromarray((acc * 255).astype(np.uint8)).resize((W, H), Image.BILINEAR).filter(ImageFilter.GaussianBlur(6))
+    a = np.asarray(im).astype(np.float32) / 255.0
+    return np.repeat(a[..., None], 3, axis=2)
+
+
+def film_layer(W: int, H: int, t: float, seed: int, color=(255, 250, 235)) -> Image.Image:
+    """Vintage film: dust specks, a vertical scratch or two, frame-to-frame flicker (RGBA over the frame)."""
+    fi = int(t * 24)
+    rng = np.random.default_rng(seed * 1000 + fi)
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    for _ in range(int(rng.integers(6, 16))):
+        x, y, r = rng.random() * W, rng.random() * H, 0.6 + rng.random() * 2.2
+        d.ellipse((x - r, y - r, x + r, y + r), fill=(30, 25, 20, int(rng.integers(60, 160))))
+    for _ in range(int(rng.integers(0, 3))):
+        x = rng.random() * W
+        d.line((x, 0, x + rng.normal(0, 4), H), fill=color + (int(rng.integers(40, 110)),), width=1)
+    fl = int(abs(rng.normal(0, 10)))
+    d.rectangle((0, 0, W, H), fill=(255, 245, 225, min(28, fl)))
+    return im
+
+
+def rays_layer(W: int, H: int, t: float, seed: int, colors=((255, 236, 190),), strength: float = 0.25) -> np.ndarray:
+    """Float32 sun rays fanning from the top corner, slowly rotating (beach / bright mornings)."""
+    h, w = H // 4, W // 4
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    ang = np.arctan2(yy + h * 0.1, xx - w * 1.05)
+    rays = (0.5 + 0.5 * np.sin(ang * 18 + t * 0.6)) ** 6
+    fall = np.clip(1 - np.hypot(xx - w * 1.05, yy + h * 0.1) / (h * 1.1), 0, 1)
+    g = (rays * fall * strength)[..., None] * (np.array(colors[0], np.float32) / 255.0)
+    im = Image.fromarray((np.clip(g, 0, 1) * 255).astype(np.uint8)).resize((W, H), Image.BILINEAR).filter(ImageFilter.GaussianBlur(3))
+    return np.asarray(im).astype(np.float32) / 255.0
+
+
+def frame_layer(W: int, H: int, t: float, color=(201, 166, 70), inset: float = 0.035) -> Image.Image:
+    """Editorial double frame in the brand colour that draws itself on in 0.8 s, with a glint running round it."""
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    p = ease_out_cubic(t / 0.8)
+    for k, (ins, wd, al) in enumerate(((inset, 2, 230), (inset + 0.012, 1, 150))):
+        x0, y0, x1, y1 = W * ins, H * ins * W / H, W * (1 - ins), H - H * ins * W / H
+        per = 2 * ((x1 - x0) + (y1 - y0))
+        segs = [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))]
+        left = per * p
+        for (a, b) in segs:
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if left <= 0:
+                break
+            q = min(1, left / L)
+            d.line((a[0], a[1], a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q), fill=color + (al,), width=wd)
+            left -= L
+    # glint
+    g = (t * 0.35) % 1.0
+    x0, y0, x1, y1 = W * inset, H * inset * W / H, W * (1 - inset), H - H * inset * W / H
+    per = 2 * ((x1 - x0) + (y1 - y0)); pos = g * per
+    for (a, b) in [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))]:
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if pos <= L:
+            cx, cy = a[0] + (b[0] - a[0]) * pos / L, a[1] + (b[1] - a[1]) * pos / L
+            for r, al in ((10, 60), (5, 140), (2, 255)):
+                d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 250, 230, al))
+            break
+        pos -= L
     return im
 
 

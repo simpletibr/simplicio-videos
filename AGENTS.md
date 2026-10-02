@@ -92,6 +92,18 @@ python -m pytest                                   # schema, validate, --help, d
 - Overlays HyperFrames sempre `--format mov` (WebM perde o alfa no `render.py`); loudness pelo nosso `master.sh` (`--no-loudnorm`).
 - Estratégia de corte confirmada com o usuário antes do EDL; autoavaliação com `timeline_view` no corte antes de mostrar.
 
+**Padrão visual v2 (B-roll) + FINAL — oficial para todos os países** ([spec](docs/specs/visual-v2-broll.md) · [templates/broll](templates/broll/README.md))
+1. Toda prévia nova sai no v2: `broll/concept.yaml` (conceito próprio da empresa; nunca repetir o de outra do lote) +
+   `broll/plan.yaml` (cenas reais sincronizadas com a voz do `timing.lock.json`) + `assets-licencas.csv` + `conceito-visual.md`.
+2. `simplicio-video broll <pasta> --check` → `--qa --sheet <raiz>/qa/v2-<slug>.png` (prévia 540×960 com marca d'água,
+   `preview-v2.mp4`; nunca tocar no `preview.mp4`). QA: -14 LUFS ±1, TP ≤ -1,5 dBTP, sync ≤ 40 ms, cortes 0,35–1,6 s.
+3. **Antes de a prévia ir ao Wesley**: `simplicio-video broll <pasta> --final --qa` (1080×1920, sem marca d'água nem
+   "Low-resolution preview", end card limpo, `llm_calls: 0`) tem que passar e ficar registrado em `<pasta>/FINAL-COMANDO.md`
+   (modelo na spec, seção 7.3). `final/final.mp4` fica só local; não vai ao Drive nem a cliente antes do pagamento.
+4. Pacote do Drive em `<pasta>/drive-pacote/` (FINAL-COMANDO.md, spec/roteiro, áudio, preview-v2.mp4); pasta no Drive
+   `prospects/2026/<INT-...>/<PAÍS>/P0xx-<slug>/`, movida para `clientes/` quando pagar. Subir só com ordem do Wesley.
+5. Zero TTS/LLM no `broll`: `unset GEMINI_API_KEY; export SIMPLICIO_VOICE_REGEN=0`.
+
 **Render**
 - `simplicio-video render` = compila contrato + lock + template + blocos → `engine/build.mjs` (trilha/SFX/voz) → HyperFrames (`--strict-variables`) → `master.sh` (−14 LUFS, TP ≤ −1,5 dBTP) → `render.manifest.json`. HyperFrames sempre fixado: `npx --yes hyperframes@0.8.97`. Node ≥ 22.
 - Remoto (**opcional**, só para clientes via créditos; o padrão é local): `--backend kaggle` (4 vCPU) / `colab-cli` (Colab grátis = 2 vCPU; A100 = 0,43 unidade ≈ US$ 0,043 por vídeo WJR, ver [custos](docs/custos.md)) / `colab` (notebook manual) usam o mesmo bundle + `render_bundle.sh`. A captura do Chrome é CPU (gargalo); GPU só no encode (NVENC, `--gpu-encode`, muda os bytes). Frames/áudio só batem com o local com o mesmo ffmpeg (`SIMPLICIO_FFMPEG_DIR` / `SIMPLICIO_FFMPEG_URL`+`_SHA256`). Ver ADR-0003.

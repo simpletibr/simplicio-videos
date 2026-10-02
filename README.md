@@ -52,6 +52,24 @@ simplicio-videos/
 | Lothus Odontologia (Guarulhos) | [coleta](clients/lothus-odontologia/coleta/) · [README + Drive](clients/lothus-odontologia/README.md) | Instagram público + CNES + espelho Google Places; conflitos de endereço/telefone em pendências |
 | | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) | Post 9:16, 15 s, Dia das Crianças, voz provisória local (final Gemini Sulafat) · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) · referência do template `saude-odontologia` |
 
+## Padrão visual v2 (B-roll) e vídeo FINAL
+
+**Padrão oficial para todos os países** (inclusive o Brasil quando voltar): imagem real do setor sincronizada palavra a
+palavra com a voz aprovada, cortes de ~0,8 s, gancho em 2 s, CTA com a logo real e conceito visual próprio por empresa.
+O visual antigo (`preview.mp4` v1) está obsoleto para clientes. Spec completa: [docs/specs/visual-v2-broll.md](docs/specs/visual-v2-broll.md);
+modelos e exemplos: [templates/broll/](templates/broll/README.md).
+
+```bash
+unset GEMINI_API_KEY; export SIMPLICIO_VOICE_REGEN=0      # 0 TTS: o broll nunca chama TTS nem LLM
+simplicio-video broll <pasta> --check                      # conceito, plano, licenças e layout
+simplicio-video broll <pasta> --qa --sheet qa/v2-<slug>.png   # prévia 540×960 com marca d'água -> preview-v2.mp4
+simplicio-video broll <pasta> --final --qa                 # FINAL 1080×1920 sem marca d'água -> <pasta>/final/final.mp4
+```
+
+Regra (02/10/2026): **nenhuma prévia vai ao Wesley sem o comando do FINAL pronto e testado**, registrado em
+`<pasta>/FINAL-COMANDO.md` (comando, commit, entradas, saída esperada e checagem). O final é determinístico (mesmo spec,
+mesmo sha256) e fica só local até o pagamento.
+
 ## Quick start (CLI)
 
 ```bash

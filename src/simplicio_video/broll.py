@@ -46,6 +46,11 @@ HEALTH_FORBIDDEN = [
 ]
 
 
+PARTICLES = ("bubbles", "leak", "sparkles", "confetti", "steam", "film", "rays", "frame")
+ANIMS = ("pop", "rise", "slam", "drop", "type", "fade")
+PANELS = ("pill", "bar", "box", "none", None)
+
+
 class BrollError(ValueError):
     pass
 
@@ -92,6 +97,7 @@ class Timing:
             return float(base) + off
         except ValueError:
             pass
+        base = re.sub(r"^(vo\d+:.+?)[.,?!;]+((?:\.end)?)$", r"\1\2", base)  # 'vo2:here.' == 'vo2:here' (punctuation of the take)
         m = re.fullmatch(r"(vo\d+)(?:([:#])([^.]+?))?(\.end)?", base)
         if not m or m.group(1) not in self.lines:
             raise BrollError(f"referência de tempo inválida: {ref!r}")
@@ -148,6 +154,17 @@ def load_concept(path: Path) -> dict:
             raise BrollError(f"concept: transição desconhecida {k!r} (use {', '.join(fx.TRANSITIONS)})")
     if not 6 <= int(c["transitions"]["frames"]) <= 10:
         raise BrollError("concept: transitions.frames deve ficar entre 6 e 10")
+    parts = c["overlays"].get("particles") or []
+    for k in ([parts] if isinstance(parts, str) else parts):
+        if k not in PARTICLES:
+            raise BrollError(f"concept: overlays.particles desconhecido {k!r} (use {', '.join(PARTICLES)})")
+    if c["type"].get("anim") not in ANIMS:
+        raise BrollError(f"concept: type.anim desconhecida {c['type'].get('anim')!r} (use {', '.join(ANIMS)})")
+    if c["type"].get("panel") not in PANELS:
+        raise BrollError(f"concept: type.panel desconhecido {c['type'].get('panel')!r} (use {', '.join(str(x) for x in PANELS)})")
+    from .broll_audio import STYLES
+    if c["music"].get("style") not in STYLES:
+        raise BrollError(f"concept: music.style desconhecido {c['music'].get('style')!r} (use {', '.join(STYLES)})")
     return c
 
 
@@ -227,6 +244,7 @@ class Sticker:
     color: str | None = None
     anim: str = "pop"
     count: int = 1
+    image: Path | None = None
 
 
 @dataclass
@@ -306,13 +324,16 @@ def load_plan(pdir: Path, timing: Timing, dur: float, c: dict, plan_path: Path |
     handoff_cards(cards)
     stickers = []
     for k, s in enumerate(P.get("stickers") or []):
-        if not (s.get("emoji") or s.get("icon")):
-            raise BrollError(f"sticker {k}: precisa de emoji ou icon")
+        if not (s.get("emoji") or s.get("icon") or s.get("image")):
+            raise BrollError(f"sticker {k}: precisa de emoji, icon ou image")
+        img = (adir / s["image"]) if s.get("image") else None
+        if img is not None and not img.is_file():
+            raise BrollError(f"sticker {k}: imagem ausente {img}")
         st = timing.resolve(s["at"], dur)
         en = timing.resolve(s["until"], dur) if "until" in s else st + 0.9
         stickers.append(Sticker(i=k, start=st, end=en, x=float(s.get("x", 0.5)), y=float(s.get("y", 0.2)), size=float(s.get("size", 0.16)),
                                 emoji=s.get("emoji"), icon=s.get("icon"), color=s.get("color"), anim=s.get("anim", "pop"),
-                                count=int(s.get("count", 1))))
+                                count=int(s.get("count", 1)), image=img))
     logo = None
     if P.get("logo"):
         L = dict(P["logo"])
@@ -377,7 +398,8 @@ def check_licenses(pdir: Path, plan: Plan) -> list[str]:
     if rows and not need <= set(rows[0]):
         return [f"{f.name}: colunas obrigatórias {sorted(need)}"]
     have = {r["arquivo"].strip() for r in rows if r.get("licenca", "").strip() and r.get("link", "").strip()}
-    used = {s.src.name for s in plan.shots} | ({Path(plan.logo["path"]).name} if plan.logo else set())
+    used = {s.src.name for s in plan.shots} | ({Path(plan.logo["path"]).name} if plan.logo else set()) | \
+        {st.image.name for st in plan.stickers if st.image is not None}
     return [f"asset sem fonte/licença em {f.name}: {u}" for u in sorted(used - have)]
 
 
@@ -500,21 +522,32 @@ def layout_card(c: dict, home: Path, cd: Card, W: int, H: int) -> CardLayout:
     gap_em = float(T["word_gap"])
     nlines = max(t[2] for t in cd.tokens) + 1
     size = int(base)
+    use_emph = spec.get("emph_font") is None and bool(T["fonts"].get("emph"))
+    es_rel = float(T["fonts"]["emph"]["size"]) / float(T["size"]) if use_emph and T["fonts"]["emph"].get("size") else 1.0
+    espec = T["fonts"]["emph"] if use_emph else {}
+    ecase = espec.get("case") or case          # a script emphasis font usually wants case: none even when the base is upper
+    etrack = float(espec.get("tracking", tracking))
+    def _tc(tok):  # (case, tracking) of one token
+        return (ecase, etrack) if (tok[3] and use_emph) else (case, tracking)
     while True:
         font = fx.load_font(fpath, size, var, axes)
+        efit = None
+        if use_emph and any(t[3] for t in cd.tokens):
+            ef, ev, ea = font_path(c, home, "emph")
+            efit = fx.load_font(ef, int(size * es_rel), ev, ea)
         widths = []
         for ln in range(nlines):
-            ws = [fx.text_size(font, _case(t[0], case), tracking)[0] for t in cd.tokens if t[2] == ln]
+            ws = [fx.text_size(efit if (t[3] and efit) else font, _case(t[0], _tc(t)[0]), _tc(t)[1])[0] for t in cd.tokens if t[2] == ln]
             widths.append(sum(ws) + gap_em * size * (len(ws) - 1))
         if max(widths) <= maxw or size <= 18:
             break
         size = int(size * 0.94)
     fill = color(c, spec.get("fill", T["fill"]))
-    emph = color(c, spec.get("emph", T["emph"]))
+    emph = color(c, spec.get("emph", espec.get("fill", T["emph"])))
     sh = color(c, T["shadow"], T["shadow_alpha"]) if T.get("shadow") else None
     stroke = color(c, T["stroke"]) if T.get("stroke") else None
     sw = int(round(float(T.get("stroke_w", 0)) * size))
-    lh = size * (1.0 + float(T["line_gap"])) + (size * 0.36 if (cd.panel or T["panel"]) == "pill" else 0)
+    lh = size * (1.0 + float(T["line_gap"])) + size * {"pill": 0.36, "box": 0.22}.get(cd.panel or T["panel"], 0)
     total_h = lh * nlines
     cy0 = cd.y * H - total_h / 2 + lh / 2
     sprites, lines = [], []
@@ -523,11 +556,11 @@ def layout_card(c: dict, home: Path, cd: Card, W: int, H: int) -> CardLayout:
         spr = []
         for t in toks:
             efont = font
-            if t[3] and spec.get("emph_font") is None and T["fonts"].get("emph"):
+            if t[3] and use_emph:  # emphasis font; its optional `size` is relative to type.size (script fonts run small)
                 ef, ev, ea = font_path(c, home, "emph")
-                efont = fx.load_font(ef, size, ev, ea)
-            im = fx.render_word(_case(t[0], case), efont, emph if t[3] else fill, stroke, sw, sh,
-                                float(T["shadow_blur"]) * size, int(float(T["shadow_dy"]) * size), tracking)
+                efont = fx.load_font(ef, int(size * es_rel), ev, ea)
+            im = fx.render_word(_case(t[0], _tc(t)[0]), efont, emph if t[3] else fill, stroke, sw, sh,
+                                float(T["shadow_blur"]) * size, int(float(T["shadow_dy"]) * size), _tc(t)[1])
             spr.append(im)
         widths = [im.width for im in spr]
         gap = gap_em * size
@@ -558,6 +591,14 @@ def card_alpha_scale(c: dict, cd: Card, t_on: float, t: float, anim: str) -> tup
     if anim == "slam":
         p = fx.clamp01(d / 0.12)
         return min(1, d / 0.04) * a_out, 1.6 - 0.6 * fx.ease_out_cubic(p), 0.0, 0.0
+    if anim == "drop":  # falls from above and bounces once
+        p = fx.clamp01(d / 0.32)
+        y = -0.05 * (1 - p) ** 2 + 0.012 * math.sin(p * math.pi) * (p > 0.6)
+        return min(1, d / 0.06) * a_out, 1.0, y, -4 * (1 - p)
+    if anim == "type":
+        return a_out, 1.0, 0.0, 0.0
+    if anim == "fade":
+        return fx.clamp01(d / 0.25) * a_out, 1.0, 0.0, 0.0
     return a_out, 1.0, 0.0, 0.0
 
 
@@ -597,6 +638,18 @@ def draw_cards(c: dict, layer: Image.Image, layouts: list, t: float, W: int, H: 
                 hw *= p
                 d.rounded_rectangle((cx - hw, cy - hh, cx + hw, cy + hh), radius=hh,
                                     fill=color(c, cols[(cd.i + ln) % len(cols)], float(T["panel_alpha"]) * a))
+        elif panel == "box":  # square block behind each line, wiping in from the left
+            cols = cd.colors or T["panel_colors"]
+            for ln, (x0, y0, x1, y1) in enumerate(L.lines):
+                first = min(s[6][1] for s in L.sprites if s[5] == ln)
+                if t < first:
+                    continue
+                p = fx.ease_out_cubic((t - first) / 0.18)
+                a = min(1, (cd.end - t) / 0.14)
+                pad = L.font_px * 0.28
+                xa, xb = x0 - pad, x1 + pad
+                d.rectangle((xa, y0 - L.font_px * 0.06, xa + (xb - xa) * p, y1 + L.font_px * 0.06),
+                            fill=color(c, cols[(cd.i + ln) % len(cols)], float(T["panel_alpha"]) * a))
         elif panel == "bar":
             for ln, (x0, y0, x1, y1) in enumerate(L.lines):
                 first = min(s[6][1] for s in L.sprites if s[5] == ln)
@@ -612,7 +665,12 @@ def draw_cards(c: dict, layer: Image.Image, layouts: list, t: float, W: int, H: 
             a, s, dy, rot = card_alpha_scale(c, cd, tok[1], t, anim)
             if a <= 0.01:
                 continue
-            if anim == "rise":  # mask reveal from below while rising
+            if anim == "type":  # typewriter: letters appear left to right
+                q = fx.clamp01((t - tok[1]) / max(0.08, 0.035 * len(tok[0])))
+                ww = max(1, int(im.width * q))
+                im2 = im.crop((0, 0, ww, im.height))
+                bb = fx.paste(layer, im2, cx - im.width / 2 + ww / 2, cy, 1.0, a, 0)
+            elif anim == "rise":  # mask reveal from below while rising
                 p = fx.ease_out_cubic((t - tok[1]) / 0.45)
                 hh = max(1, int(im.height * min(1, 0.15 + p)))
                 im2 = im.crop((0, 0, im.width, hh))
@@ -645,6 +703,12 @@ def sticker_state(st: Sticker, t: float) -> tuple[float, float, float, float]:
 
 def sticker_sprite(c: dict, home: Path, st: Sticker, W: int) -> Image.Image:
     px = max(8, int(st.size * W))
+    if st.image is not None:  # brand art (mascot, seal) from the client's site, listed in assets-licencas.csv
+        im = Image.open(st.image).convert("RGBA")
+        bb = im.getbbox()
+        im = im.crop(bb) if bb else im
+        k = px / max(im.width, im.height)
+        return im.resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)
     if st.emoji:
         ef = c["overlays"].get("emoji_font")
         if ef:
@@ -778,9 +842,15 @@ def transitions_for(plan: Plan, c: dict) -> list[tuple[float, str, int]]:
     return out
 
 
-def render(pdir: Path, out: Path | None = None, size: tuple[int, int] = (540, 960), concept_path: Path | None = None,
-           plan_path: Path | None = None, log=print, post: bool = True) -> dict:
+FINAL_SIZE = (1080, 1920)
+
+
+def render(pdir: Path, out: Path | None = None, size: tuple[int, int] | None = None, concept_path: Path | None = None,
+           plan_path: Path | None = None, log=print, post: bool = True, final: bool = False, end_card: bool = True) -> dict:
+    """final=False: watermarked 540x960 preview-v2.mp4 (unchanged). final=True: the SAME spec rendered clean at 1080x1920
+    (no watermark/badge/preview note, credit end card) -> <pasta>/final/final.mp4, work files in broll/out-final/."""
     t_start = time.time()
+    size = size or (FINAL_SIZE if final else (540, 960))
     pdir = Path(pdir).resolve()
     home = paths.home()
     bdir = pdir / "broll"
@@ -802,7 +872,7 @@ def render(pdir: Path, out: Path | None = None, size: tuple[int, int] = (540, 96
         y = float(plan.logo.get("y", 0.4)) * H
         lg_box = (W / 2 - lg_sprite.width / 2, y - lg_sprite.height / 2, W / 2 + lg_sprite.width / 2, y + lg_sprite.height / 2)
     lay_errs = layout_problems(plan, layouts, {k: v.size for k, v in st_sprites.items()}, lg_box, W, H)
-    work = bdir / "out"
+    work = bdir / ("out-final" if final else "out")
     work.mkdir(parents=True, exist_ok=True)
     report = {"schema": "simplicio.broll-layout/v1", "size": [W, H], "cards": [
         {"i": L.card.i, "text": " / ".join(" ".join(t[0] for t in L.card.tokens if t[2] == ln) for ln in range(len(L.lines))),
@@ -816,6 +886,12 @@ def render(pdir: Path, out: Path | None = None, size: tuple[int, int] = (540, 96
     G = c["grade"]
     O = c["overlays"]
     pad = 0.25
+    parts = O.get("particles") or []
+    parts = [parts] if isinstance(parts, str) else list(parts)
+    bad_parts = [x for x in parts if x not in PARTICLES]
+    if bad_parts:
+        raise BrollError(f"overlays.particles desconhecido: {bad_parts} (use {', '.join(PARTICLES)})")
+    pcol = [fx.hex_rgb(c["palette"].get(k, k)) for k in (O.get("colors") or ["accent", "primary", "secondary"])]
     n_frames = int(round(dur * FPS))
     raw_v = work / "broll-video.mp4"
     enc = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS),
@@ -852,13 +928,25 @@ def render(pdir: Path, out: Path | None = None, size: tuple[int, int] = (540, 96
                     base = fx.transition(kind, A, B, (t - (b - half)) / (2 * half), seed=b_idx, color=flash, leak=leakc,
                                          direction=1 if b_idx % 2 else -1)
             f = fx.grade(base, G["sat"], G["contrast"], G["warmth"], G["lift"], G["vignette"], tint, G["tint_amt"])
-            if O.get("particles") == "leak":
+            if "leak" in parts:
                 f = fx.screen(f, fx.leak_layer(W, H, t, seed=7, strength=float(O.get("leak_strength", 0.3))))
+            if "steam" in parts:
+                f = fx.screen(f, fx.steam_layer(W, H, t, seed=5, strength=float(O.get("steam_strength", 0.25))))
+            if "rays" in parts:
+                f = fx.screen(f, fx.rays_layer(W, H, t, seed=3, colors=(pcol[0],), strength=float(O.get("rays_strength", 0.25))))
             if O.get("grain"):
                 f = fx.grain(f, float(O["grain"]), seed=fi)
             layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-            if O.get("particles") == "bubbles":
+            if "film" in parts:
+                layer.alpha_composite(fx.film_layer(W, H, t, seed=13))
+            if "bubbles" in parts:
                 layer.alpha_composite(fx.bubbles_layer(W, H, t, int(O.get("density", 8)), seed=11))
+            if "sparkles" in parts:
+                layer.alpha_composite(fx.sparkles_layer(W, H, t, int(O.get("density", 8)), seed=17, color=pcol[0]))
+            if "frame" in parts:
+                layer.alpha_composite(fx.frame_layer(W, H, t, color=pcol[0]))
+            if "confetti" in parts:
+                layer.alpha_composite(fx.confetti_layer(W, H, t, int(O.get("density", 8)) * 2, seed=19, colors=pcol))
             draw_stickers(c, layer, plan.stickers, st_sprites, t, W, H)
             if plan.logo:
                 draw_logo(c, layer, plan.logo, lg_sprite, t, W, H)
@@ -903,20 +991,24 @@ def render(pdir: Path, out: Path | None = None, size: tuple[int, int] = (540, 96
     full = work / "broll-full.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(raw_v), "-i", str(work / "broll-master.wav"), "-map", "0:v", "-map", "1:a",
                     "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", str(full)], check=True)
-    dst = Path(out) if out else pdir / "preview-v2.mp4"
+    dst = Path(out).resolve() if out else (pdir / "final" / "final.mp4" if final else pdir / "preview-v2.mp4")
     res = {"full": str(full)}
-    if post:
+    if post and final:
+        from . import render as rmod
+        res = rmod.make_final(full, dst, home, log=log, lang=rmod.preview_lang(lang), end_card=end_card, size=size)
+    elif post:
         from . import render as rmod
         res = rmod.make_preview(full, dst, home, log=log, lang=rmod.preview_lang(lang), wm=(contract.get("saida") or {}).get("marca_dagua", "padrao"))
-    man = {"schema": "simplicio.broll-preview/v1", "visual": "broll", "concept": c.get("nome"), "preview": res,
+    man = {"schema": "simplicio.broll-final/v1" if final else "simplicio.broll-preview/v1", "visual": "broll", "modo": "final" if final else "previa",
+           "concept": c.get("nome"), "preview": res, "llm_calls": 0,
            "size_render": [W, H], "duracao_s": dur, "tts_calls": 0,
            "shots": [{"i": s.i, "src": s.src.name, "start": s.start, "end": s.end, "dur": round(s.dur, 3), "in": s.tin,
                       "crop_cx": crops.get(s.i), "zoom": list(s.zoom), "tx_in": next((k for b, k, n in txs if abs(b - s.start) < 1e-6), None),
                       "note": s.note} for s in plan.shots],
-           "cards": report["cards"], "stickers": [{"i": st.i, "emoji": st.emoji, "icon": st.icon, "start": st.start, "end": st.end} for st in plan.stickers],
+           "cards": report["cards"], "stickers": [{"i": st.i, "emoji": st.emoji, "icon": st.icon, "image": st.image.name if st.image else None, "start": st.start, "end": st.end} for st in plan.stickers],
            "transitions": [{"t": b, "kind": k, "frames": n} for b, k, n in txs], "sfx": [{"t": round(a, 3), "kind": b} for a, b, _ in cues],
            "timings_s": {"video": round(t_video - t_start, 1), "total": round(time.time() - t_start, 1)}}
-    (pdir / (dst.stem + ".manifest.json")).write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
+    (dst.parent if final else pdir).joinpath(dst.stem + ".manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     (work / "broll-words.json").write_text(json.dumps(word_trace, ensure_ascii=False) + "\n", encoding="utf8")
     log(f"broll: {dst} · {len(plan.shots)} cortes · {len(plan.cards)} textos · vídeo {t_video - t_start:.0f}s · total {time.time() - t_start:.0f}s")
     return man
@@ -945,13 +1037,14 @@ def check(pdir: Path, size: tuple[int, int] = (540, 960), concept_path: Path | N
     return errs + layout_problems(plan, layouts, sp, box, W, H)
 
 
-def qa(pdir: Path, mp4: Path | None = None, concept_path: Path | None = None) -> dict:
+def qa(pdir: Path, mp4: Path | None = None, concept_path: Path | None = None, final: bool = False) -> dict:
     """Automatic checks on the finished preview-v2: duration, loudness/true peak, voice sync against the timing lock
     (cross-correlation of every take in the final mix), text rules (price/SimpleTI/health), layout report, cut lengths,
     licences. Returns {ok, avisos, ...} and writes broll/out/qa-broll.json."""
     from .intl import check_text
     pdir = Path(pdir).resolve()
-    mp4 = Path(mp4) if mp4 else pdir / "preview-v2.mp4"
+    mp4 = Path(mp4) if mp4 else (pdir / "final" / "final.mp4" if final else pdir / "preview-v2.mp4")
+    work = pdir / "broll" / ("out-final" if final else "out")
     c = load_concept(concept_path or pdir / "broll" / "concept.yaml")
     contract = _load_yaml(pdir / "contract.yaml")
     dur = float(contract["formato"]["duracao_s"])
@@ -968,8 +1061,9 @@ def qa(pdir: Path, mp4: Path | None = None, concept_path: Path | None = None) ->
     wh = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", str(mp4)],
                         capture_output=True, text=True).stdout.strip()
     q["resolucao"] = wh
-    if wh != "540,960":
-        bad(f"resolução {wh}")
+    want = "%d,%d" % FINAL_SIZE if final else "540,960"
+    if wh != want:
+        bad(f"resolução {wh} (esperado {want.replace(',', 'x')})")
     q.update(au.measure(mp4))
     if not -15 <= q["lufs"] <= -13:
         bad(f"loudness {q['lufs']} LUFS")
@@ -984,7 +1078,7 @@ def qa(pdir: Path, mp4: Path | None = None, concept_path: Path | None = None) ->
     errs = check_plan(plan, c) + check_licenses(pdir, plan)
     for e in errs:
         bad(e)
-    lay = json.loads((pdir / "broll" / "out" / "broll-layout.json").read_text())
+    lay = json.loads((work / "broll-layout.json").read_text())
     if lay["problems"]:
         bad(f"layout: {lay['problems'][:3]}")
     q["textos"] = [cd["text"] for cd in lay["cards"]]
@@ -1005,8 +1099,36 @@ def qa(pdir: Path, mp4: Path | None = None, concept_path: Path | None = None) ->
     q["cortes"] = len(plan.shots)
     q["corte_medio_s"] = round(dur / len(plan.shots), 2)
     q["corte_max_s"] = round(max(s.dur for s in plan.shots), 2)
-    (pdir / "broll" / "out" / "qa-broll.json").write_text(json.dumps(q, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
+    if final:
+        q["modo"] = "final"
+        q.update(watermark_check(mp4, work / "broll-full.mp4", dur))
+        if not q["sem_marca_dagua"]:
+            bad(f"marca d'água/selo detectado no final: {q['marca_dagua_diff']}")
+    (work / "qa-broll.json").write_text(json.dumps(q, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     return q
+
+
+def _gray_frame(mp4: Path, t: float, W: int, H: int) -> np.ndarray | None:
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(mp4), "-frames:v", "1", "-vf", f"scale={W}:{H}",
+                          "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True).stdout
+    return np.frombuffer(raw[: W * H], np.uint8).reshape(H, W).astype(np.int16) if len(raw) >= W * H else None
+
+
+def watermark_check(mp4: Path, clean: Path, dur: float, n: int = 12, W: int = 540, H: int = 960) -> dict:
+    """No-watermark proof for a final: every sampled frame (before the end card) must match the clean pre-post render
+    (broll-full.mp4) except for codec noise. The preview's tiled watermark + corner badges leave thousands of pixels off
+    by > 24 levels (measured ~6-15 % of the frame); a clean final stays ~0 %. Also checks the badge corners separately."""
+    worst, corner = 0.0, 0.0
+    for k in range(n):
+        t = 0.5 + k * (dur - 1.0) / max(1, n - 1)
+        a, b = _gray_frame(mp4, t, W, H), _gray_frame(clean, t, W, H)
+        if a is None or b is None:
+            return {"sem_marca_dagua": False, "marca_dagua_diff": f"quadro ilegível em {t:.2f}s"}
+        d = np.abs(a - b) > 24
+        worst = max(worst, float(d.mean()))
+        corner = max(corner, float(d[: H // 16, W // 2:].mean()), float(d[-H // 16:, : W // 2].mean()))
+    ok = worst < 0.01 and corner < 0.02
+    return {"sem_marca_dagua": ok, "marca_dagua_diff": {"pixels_diferentes_max": round(worst, 4), "cantos_max": round(corner, 4)}}
 
 
 def qa_sheet(mp4: Path, out: Path, n: int = 20, width: int = 270, title: str = "") -> Path:

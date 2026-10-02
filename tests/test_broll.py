@@ -98,6 +98,7 @@ def test_time_refs(proj):
     tm = B.Timing.load(proj)
     assert tm.resolve(1.25, 3) == 1.25
     assert tm.resolve("end", 3) == 3
+    assert tm.resolve("vo1:today?", 3) == tm.resolve("vo1:today", 3) and tm.resolve("vo2:tails..end", 3) == tm.resolve("vo2:tails.end", 3)
     assert tm.resolve("end-0.5", 3) == 2.5
     assert tm.resolve("vo1", 3) == pytest.approx(0.2)
     assert tm.resolve("vo1.end", 3) == pytest.approx(1.2)
@@ -264,3 +265,113 @@ def test_render_end_to_end_small(proj):
     assert not any("pup?" in fr["words"] for fr in words if fr["t"] < 0.6)
     m = au.measure(full)
     assert -15.5 <= m["lufs"] <= -12.5 and m["tp"] <= -1.4
+
+
+# ---------------------------------------------------------------- v2 standard: new looks + FINAL mode (02/10/2026)
+def test_all_music_styles_and_sfx_kinds():
+    for style in au.STYLES:
+        m = au.music(style, 110, 2.0, seed=3, drop_at=1.0)
+        assert len(m) == int(2.0 * au.SR) and np.isfinite(m).all() and np.abs(m).max() > 0
+    for k in au.SFX_KINDS:
+        s = au.sfx(k)
+        assert len(s) > 100 and np.abs(s).max() <= 1.0
+
+
+def test_concept_accepts_new_looks_and_rejects_unknown(proj):
+    f = proj / "broll" / "concept.yaml"
+    d = yaml.safe_load(f.read_text())
+    d["overlays"] = {"particles": list(B.PARTICLES), "colors": ["accent", "primary"]}
+    d["type"].update({"anim": "drop", "panel": "box"})
+    d["music"] = {"style": "bossa", "bpm": 96}
+    f.write_text(yaml.safe_dump(d))
+    B.load_concept(f)
+    assert B.check(proj) == []
+    for key, bad in (("overlays", {"particles": ["fireworks"]}), ("type", {**d["type"], "anim": "wobble"}),
+                     ("type", {**d["type"], "panel": "cloud"}), ("music", {"style": "polka", "bpm": 100})):
+        e = dict(d)
+        e[key] = bad
+        f.write_text(yaml.safe_dump(e))
+        with pytest.raises(B.BrollError):
+            B.load_concept(f)
+
+
+def test_overlay_layers_render():
+    for fn in (lambda t: fx.sparkles_layer(90, 160, t, 6, 1), lambda t: fx.confetti_layer(90, 160, t, 6, 1),
+               lambda t: fx.film_layer(90, 160, t, 1), lambda t: fx.frame_layer(90, 160, t)):
+        ims = [fn(t) for t in (0.1, 0.5, 1.0, 2.0)]  # sparkles twinkle: some instant must show something
+        assert all(im.size == (90, 160) for im in ims) and any(im.getbbox() is not None for im in ims)
+    for arr in (fx.steam_layer(90, 160, 0.5, 1), fx.rays_layer(90, 160, 0.5, 1)):
+        assert arr.shape[:2] == (160, 90)
+
+
+def test_image_sticker_needs_file_and_licence(proj):
+    Image.new("RGBA", (120, 120), (255, 200, 0, 255)).save(proj / "broll" / "assets" / "mascot.png")
+    _edit_plan(proj, lambda d: d["stickers"].append({"image": "mascot.png", "at": 1.6, "until": 2.2, "x": 0.8, "y": 0.2, "size": 0.15}))
+    errs = B.check(proj)
+    assert any("mascot.png" in e for e in errs)  # no licence row yet
+    with (proj / "assets-licencas.csv").open("a", newline="") as fh:
+        csv.writer(fh).writerow(["mascot.png", "teste", "https://example.com/m", "teste"])
+    assert B.check(proj) == []
+    _edit_plan(proj, lambda d: d["stickers"][-1].__setitem__("image", "nope.png"))
+    assert any("imagem ausente" in e for e in B.check(proj))
+
+
+def test_final_filter_never_carries_preview_text(tmp_path):
+    from simplicio_video import paths, render as R
+    font = R.preview_font(paths.home())
+    for lang in ("pt", "en", "de", "fr"):
+        fc = R.final_filter(18.0, font, tmp_path, lang=lang)
+        txt = " ".join(p.read_text(encoding="utf8") for p in tmp_path.glob("*.txt")).lower()
+        assert "drawtext" in fc and "rotate" not in fc  # no tiled watermark
+        assert not any(w in (fc.lower() + txt) for w in R.PREVIEW_WORDS)
+        for p in tmp_path.glob("*.txt"):
+            p.unlink()
+    fc = R.final_filter(18.0, font, tmp_path, lang="en", end_card=False)
+    assert "concat" not in fc and "[v]" in fc and "[a]" in fc
+
+
+def test_final_render_is_clean_full_res_and_deterministic(proj):
+    size = (180, 320)
+    m1 = B.render(proj, size=size, final=True, log=lambda *_: None)
+    fin = proj / "final" / "final.mp4"
+    assert fin.is_file() and (proj / "final" / "final.manifest.json").is_file()
+    assert not (proj / "preview-v2.mp4").exists()  # the preview is never touched by --final
+    info = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration",
+                                      "-of", "json", str(fin)], capture_output=True, text=True).stdout)
+    v = next(s for s in info["streams"] if s["codec_type"] == "video")
+    assert (v["width"], v["height"]) == size
+    assert abs(float(info["format"]["duration"]) - (3.0 + 2.5)) < 0.2  # spec duration + credit card
+    assert m1["schema"] == "simplicio.broll-final/v1" and m1["tts_calls"] == 0 and m1["llm_calls"] == 0
+    assert m1["preview"]["watermark"] is None
+    clean = proj / "broll" / "out-final" / "broll-full.mp4"
+    wm = B.watermark_check(fin, clean, 3.0, n=4, W=180, H=320)
+    assert wm["sem_marca_dagua"], wm
+    # the same check flags a watermarked preview of the same render
+    from simplicio_video import paths, render as R
+    prev = proj / "prev-test.mp4"
+    R.make_preview(clean, prev, paths.home(), log=lambda *_: None, lang="en")
+    assert not B.watermark_check(prev, clean, 3.0, n=4, W=180, H=320)["sem_marca_dagua"]
+    # deterministic: same spec -> byte-identical final
+    sha1 = m1["preview"]["sha256"]
+    m2 = B.render(proj, size=size, final=True, log=lambda *_: None)
+    assert m2["preview"]["sha256"] == sha1
+
+
+def test_emphasis_font_keeps_its_own_case_and_size(proj):
+    """Script emphasis fonts must not be upper-cased by an upper base, and the line box must cover them."""
+    from simplicio_video import paths
+    f = proj / "broll" / "concept.yaml"
+    d = yaml.safe_load(f.read_text())
+    _edit_plan(proj, lambda p: p["texts"][1].update({"emph": ["hands"]}))
+    widths = {}
+    for ecase in ("none", "upper"):
+        d["type"].update({"case": "upper", "panel": "box", "fonts": {"emph": {
+            "font": "motion/assets/fonts/broll/GreatVibes-Regular.ttf", "case": ecase, "tracking": 0.0, "size": 0.16, "fill": "accent"}}})
+        f.write_text(yaml.safe_dump(d))
+        c, plan = _plan(proj)
+        L = B.layout_card(c, paths.home(), plan.cards[1], 540, 960)
+        widths[ecase] = {s[6][0]: s[3] for s in L.sprites}
+        x0, _, x1, _ = L.lines[0]
+        for s in L.sprites:
+            assert x0 - 1 <= s[1] - s[3] / 2 and s[1] + s[3] / 2 <= x1 + 1
+    assert widths["none"]["hands,"] < widths["upper"]["hands,"] * 0.85   # script caps are much wider: case was honoured

@@ -510,6 +510,83 @@ def make_preview(src: Path, dst: Path, home: Path, log=print, lang: str = "pt", 
             "marca_dagua": wm, **({"note": note} if note else {})}
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# FINAL (Wesley, 02/10/2026): the same spec rendered clean for delivery -- no watermark, no corner badge, no "preview" note,
+# 1080x1920, crf 18, AAC 192k, with a final credit card (title + @handle, no "low-resolution" line). Deterministic: ffmpeg
+# with bitexact flags and a fixed thread count; never calls an LLM or TTS. Finals stay local until the client pays.
+FINAL = {"width": 1080, "height": 1920, "fps": 30, "crf": 18, "end_card_s": 2.5, "audio_kbps": 192}
+FINAL_I18N = {
+    "pt": {"end_title": "Vídeo feito por Wesley Simplicio", "end_url": "@wesleysimplicio"},
+    "en": {"end_title": "Video by Wesley Simplicio", "end_url": "@wesleysimplicio"},
+    "de": {"end_title": "Video von Wesley Simplicio", "end_url": "@wesleysimplicio"},
+    "fr": {"end_title": "Vidéo réalisée par Wesley Simplicio", "end_url": "@wesleysimplicio"},
+}
+# words that must never appear on a final (checked by broll.qa_final on the filter itself and, optionally, by OCR)
+PREVIEW_WORDS = ("prévia", "preview", "vorschau", "aperçu", "baixa resolução", "low-resolution", "niedriger", "basse résolution")
+
+
+def final_filter(dur_s: float, font: Path, tmp: Path, lang: str = "pt", end_card: bool = True,
+                 size: tuple[int, int] | None = None) -> str:
+    """filter_complex for a clean final: [0] full-res render -> scale, fps; optional credit end card. Labels [v] [a]."""
+    W, H = size or (FINAL["width"], FINAL["height"])
+    fps = FINAL["fps"]
+    k = W / 540.0
+    T = FINAL_I18N[preview_lang(lang)]
+    def tf(name: str, text: str) -> str:
+        f = tmp / f"{name}.txt"
+        f.write_text(text, encoding="utf8")
+        return str(f).replace("\\", "/").replace(":", "\\:")
+    ff = str(font).replace(":", "\\:")
+    main = f"[0:v]scale={W}:{H}:flags=lanczos,fps={fps},setsar=1,format=yuv420p[mv];"
+    audio_main = (f"[0:a]aresample=192000,alimiter=limit=0.794:attack=1:release=50:level=false,aresample=48000,"
+                  f"aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=out:st={max(dur_s - 0.4, 0):.3f}:d=0.4[ma];")
+    if not end_card:
+        return main.replace("[mv];", "[v];") + audio_main.replace("[ma];", "[a]")
+    e = FINAL["end_card_s"]
+    maxw = W - 2 * PREVIEW_MARGIN * k
+    l1, s1 = fit_text(font, T["end_title"], round(34 * k), maxw, min_size=round(14 * k))
+    l2, s2 = fit_text(font, T["end_url"], round(44 * k), maxw, min_size=round(14 * k), max_lines=1)
+    draws = []
+    for i, ln in enumerate(l1):
+        y = f"h/2-{round(70 * k)}-{round((len(l1) - 1 - i) * s1 * 1.2)}"
+        draws.append(f"drawtext=fontfile='{ff}':textfile='{tf(f'end1_{i}', ln)}':x=(w-tw)/2:y={y}:fontsize={s1}:fontcolor=white,")
+    draws.append(f"drawtext=fontfile='{ff}':textfile='{tf('end2', l2[0])}':x=(w-tw)/2:y=h/2:fontsize={s2}:fontcolor=0x4fa3ff,")
+    end = (f"color=c=0x0b0b10:s={W}x{H}:r={fps}:d={e},format=yuv420p," + "".join(draws) + "fade=t=in:st=0:d=0.35[ev];")
+    audio = (audio_main + f"anullsrc=r=48000:cl=stereo,atrim=duration={e},aformat=sample_fmts=fltp:channel_layouts=stereo[ea];"
+             f"[mv][ma][ev][ea]concat=n=2:v=1:a=1[v][a]")
+    return main + end + audio
+
+
+def make_final(src: Path, dst: Path, home: Path, log=print, lang: str = "pt", end_card: bool = True,
+               size: tuple[int, int] | None = None) -> dict:
+    """Full-res clean render -> final MP4 (no watermark/badge/preview note). Returns {path, sha256, duration_s, ...}."""
+    import tempfile
+    W, H = size or (FINAL["width"], FINAL["height"])
+    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(src)],
+                               capture_output=True, text=True, env=paths.node_env()).stdout.strip())
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as td:
+        fc = final_filter(dur, preview_font(home), Path(td), lang=lang, end_card=end_card, size=(W, H))
+        bad = [w for w in PREVIEW_WORDS if w in fc.lower()]
+        txt = " ".join(p.read_text(encoding="utf8") for p in Path(td).glob("*.txt")).lower()
+        bad += [w for w in PREVIEW_WORDS if w in txt]
+        if bad:
+            raise SystemExit(f"final: texto de prévia no filtro final: {bad}")
+        cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src), "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
+               "-c:v", "libx264", "-preset", "medium", "-crf", str(FINAL["crf"]), "-pix_fmt", "yuv420p", "-r", str(FINAL["fps"]),
+               "-threads", "4", "-c:a", "aac", "-b:a", f"{FINAL['audio_kbps']}k", "-ar", "48000", "-movflags", "+faststart",
+               "-map_metadata", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact", str(dst)]
+        log(f"$ ffmpeg (FINAL {W}x{H} crf {FINAL['crf']}, sem marca d'água, cartão final de crédito={end_card}) -> {dst}")
+        p = subprocess.run(cmd, cwd=dst.parent, env=paths.node_env(), capture_output=True, text=True)
+        if p.returncode != 0:
+            raise SystemExit(f"final: ffmpeg failed ({p.returncode})\n{(p.stderr or '')[-3000:]}")
+    out_dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(dst)],
+                                   capture_output=True, text=True, env=paths.node_env()).stdout.strip())
+    return {"path": str(dst), "sha256": sha256_file(dst), "duration_s": round(out_dur, 3), "bytes": dst.stat().st_size,
+            "size": [W, H], "watermark": None, "end_card": FINAL_I18N[preview_lang(lang)] if end_card else None,
+            "lang": preview_lang(lang)}
+
+
 def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = None, log=print, note: str | None = None) -> dict:
     """`render --preview`: draft local render (no delivery manifest) -> make_preview. Writes preview.manifest.json.
     The watermark/end-card language follows voz.idioma (pt-BR default; en/de/fr for the international previews)."""
