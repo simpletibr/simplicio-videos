@@ -154,7 +154,7 @@ PROGRESSIONS = {
 
 
 STYLES = ("bouncy", "elegant", "disco", "lofi", "samba", "bossa", "house", "cinematic", "hiphop", "tropical",
-          "acoustic", "forro")
+          "acoustic", "forro", "funk", "axe")  # funk/axe (02/10): estilos pt animados extras, para 12+ empresas sem repetir
 
 PROGRESSIONS.update({
     "disco": [(41, [57, 60, 64]), (43, [59, 62, 67]), (45, [57, 60, 64]), (40, [55, 59, 64])],      # F G Am Em
@@ -167,6 +167,8 @@ PROGRESSIONS.update({
     "tropical": [(48, [60, 64, 67]), (43, [59, 62, 67]), (45, [57, 60, 64]), (41, [57, 60, 65])],
     "acoustic": [(43, [55, 59, 62]), (38, [57, 62, 66]), (40, [55, 59, 64]), (36, [55, 60, 64])],  # G D Em C
     "forro": [(43, [55, 59, 62]), (48, [55, 60, 64]), (50, [57, 62, 66]), (43, [55, 59, 62])],
+    "funk": [(45, [57, 60, 64]), (45, [57, 60, 64]), (41, [57, 60, 65]), (43, [55, 59, 62])],      # Am Am F G
+    "axe": [(50, [62, 66, 69]), (43, [62, 67, 71]), (45, [61, 64, 69]), (50, [62, 66, 69])],       # D G A D
 })
 
 
@@ -257,6 +259,31 @@ def _music2(style: str, bpm: float, dur: float, rng, drop_at) -> np.ndarray:
             for s16 in range(4): _add(L, at(s16 * 0.25), tone(3200, 0.05 if s16 % 2 else 0.18, "bell"), 0.06 if s16 % 2 else 0.1, 0.4)
             if bb in (0, 2): [_add(L, at(0.5), tone(midi(m + 12), beat * 0.45, "reed"), 0.05, -0.2) for m in chord]
             _add(L, t, tone(midi(root + (7 if bb % 2 else 0)), beat * 0.5, "bass"), 0.3)
+        elif style == "funk":  # funk brasileiro (tamborzão): bumbo 3-3-2, palma no 2 e 4, atabaque, 808 e "ay" de metais
+            for s16 in range(4):
+                st = bb * 4 + s16
+                if not brk and st in (0, 3, 6, 8, 11, 14): _add(L, at(s16 * 0.25), K, 0.8 if st in (0, 8) else 0.6)
+                if not brk and st in (2, 10): _add(L, at(s16 * 0.25), tone(95, 0.22, "tom"), 0.42, -0.25)
+                if st in (7, 15): _add(L, at(s16 * 0.25), tone(140, 0.12, "tom"), 0.22, 0.3)
+                if st % 2 == 0: _add(L, at(s16 * 0.25), Hh, 0.06 if st % 4 == 0 else 0.1, 0.35)
+                if st in (3, 11): _add(L, at(s16 * 0.25), tone(2600, 0.05, "bell"), 0.05, -0.35)
+            if bb in (1, 3): _add(L, t, C, 0.55)
+            if not brk and bb in (0, 2): _add(L, t, tone(midi(root - 12), beat * (1.4 if bb == 0 else 0.9), "bass"), 0.42)
+            if bar % 2 == 1 and bb in (1, 3): [_add(L, at(0.75), tone(midi(m + 12), 0.16, "brass"), 0.06, (k - 1) * 0.3) for k, m in enumerate(chord)]
+        elif style == "axe":  # axé / samba-reggae: surdo no 2 e 4, timbal na clave, palmas, metais e guitarra no contratempo
+            if not brk and bb in (1, 3): _add(L, t, tone(50, 0.5, "tom"), 0.75)
+            if not brk and bb in (0, 2): _add(L, at(0.5), tone(72, 0.3, "tom"), 0.4, 0.15)
+            if not brk and bb in (0, 2): _add(L, t, K * 0.6, 0.5)
+            for s16 in range(4):
+                st = bb * 4 + s16
+                if st in (0, 3, 6, 10, 12): _add(L, at(s16 * 0.25), tone(330, 0.1, "tom"), 0.25, 0.35)
+                _add(L, at(s16 * 0.25), Hh, 0.07 if s16 % 2 else 0.1, -0.35)
+            if bb in (1, 3): _add(L, t, C * 0.7, 0.3)
+            [_add(L, at(0.5), tone(midi(m + 12), 0.15, "pluck"), 0.045, 0.25) for m in chord]
+            if (bar % 2 == 0 and bb == 1) or (bar % 2 == 1 and bb == 3): [_add(L, at(0.5), tone(midi(m + 12), 0.2, "brass"), 0.055, (k - 1) * 0.35) for k, m in enumerate(chord)]
+            if bb == 0: _add(L, t, tone(midi(root), beat * 0.8, "bass"), 0.32)
+            if bb == 2: _add(L, at(0.5), tone(midi(root + 7), beat * 0.6, "bass"), 0.28)
+            if bb == 3: _add(L, at(0.5), tone(midi(root + 12), beat * 0.4, "bass"), 0.2)
     if style == "lofi":  # vinyl crackle
         cr = (rng.random(n) < 0.0009).astype(np.float32) * rng.uniform(-0.6, 0.6, n).astype(np.float32)
         L += np.stack([cr, cr], 1) * 0.5

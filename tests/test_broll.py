@@ -426,3 +426,74 @@ def test_render_pt_com_voz_nova_usa_trilha_animada(proj):
     f.write_text(yaml.safe_dump(d))
     with pytest.raises(B.BrollError):
         B.load_concept(f)
+
+
+# ---------------------------------------------------------------- estilos funk e axé (02/10): novos, distintos, sem mexer nos 12
+OLD_STYLE_HASHES = {  # sha256[:16] do PCM int16 de au.music(style, 118, 3.0, seed=11, drop_at=1.5, lift=L), gerado no commit d42b4e7
+    0.0: {"bouncy": "324cf2875c19322c", "elegant": "1ee7e27d53d4b374", "disco": "c09fbd19aaf183ec", "lofi": "f36a729ab6a62a10",
+          "samba": "0e0447c2f7d6ecb3", "bossa": "3e34d7d7324a6290", "house": "8edccd40a7ac1e6c", "cinematic": "d5fe73512e8a4242",
+          "hiphop": "21a3872376de29ed", "tropical": "e351acb1e6bab200", "acoustic": "b5c35a86cee77b10", "forro": "178d507449b079ca"},
+    1.0: {"bouncy": "276ddec1f773518c", "elegant": "1b94dfc353b18722", "disco": "8c3749ef36c99df9", "lofi": "de1ce363b4d30ce1",
+          "samba": "780cbc106d56f605", "bossa": "1ded2453bb87a7a8", "house": "3aeeb56951ee686e", "cinematic": "40df24b4859be11c",
+          "hiphop": "0d11ea19a21629e9", "tropical": "881129ba03ac4e40", "acoustic": "15750c29129d6c7e", "forro": "009f109ad01fafed"},
+}
+
+
+def _pcm_hash(x):
+    import hashlib
+    return hashlib.sha256((np.clip(x, -1, 1) * 32767).round().astype(np.int16).tobytes()).hexdigest()[:16]
+
+
+def _groove(x, bpm):  # padrão de ataques em 16 avos (normalizado)
+    m = x.mean(1)
+    hop = int(au.SR * 0.005)
+    env = np.add.reduceat(np.abs(m), np.arange(0, len(m), hop))
+    on = np.maximum(0, np.diff(env, prepend=env[0]))
+    t = np.arange(len(on)) * hop / au.SR
+    g = np.zeros(16)
+    for k, v in zip(((t / (60 / bpm / 4)).round().astype(int)) % 16, on):
+        g[k] += v
+    return g / np.linalg.norm(g)
+
+
+@pytest.mark.parametrize("lift", [0.0, 1.0])
+def test_os_12_estilos_antigos_mantem_o_hash(lift):
+    got = {s: _pcm_hash(au.music(s, 118, 3.0, seed=11, drop_at=1.5, lift=lift)) for s in OLD_STYLE_HASHES[lift]}
+    assert got == OLD_STYLE_HASHES[lift]
+
+
+def test_funk_e_axe_renderizam_e_sao_deterministicos():
+    assert {"funk", "axe"} <= set(au.STYLES) and len(au.STYLES) == len(set(au.STYLES)) == 14
+    for style, bpm in (("funk", 130), ("axe", 126)):
+        for lift in (0.0, 1.0):
+            m = au.music(style, bpm, 3.0, seed=7, drop_at=1.5, lift=lift)
+            assert m.shape == (int(3.0 * au.SR), 2) and np.isfinite(m).all()
+            assert 0.05 < np.abs(m).max() <= 1.0 and float(np.sqrt((m ** 2).mean())) > 0.01
+            assert np.array_equal(m, au.music(style, bpm, 3.0, seed=7, drop_at=1.5, lift=lift))
+
+
+def test_funk_e_axe_nao_colidem_com_os_outros():
+    beds = {s: au.music(s, 128, 4.0, seed=5) for s in au.STYLES}
+    hashes = {s: _pcm_hash(b) for s, b in beds.items()}
+    assert len(set(hashes.values())) == len(au.STYLES)  # 14 trilhas diferentes
+    G = {s: _groove(b, 128) for s, b in beds.items()}
+    for new in ("funk", "axe"):
+        for other in au.STYLES:
+            if other != new:
+                assert not np.array_equal(beds[new], beds[other])
+                assert float(G[new] @ G[other]) < 0.97, (new, other)  # groove próprio, não cópia de outro estilo
+    assert au.PROGRESSIONS["funk"] != au.PROGRESSIONS["axe"]
+
+
+def test_estilo_de_trilha_desconhecido_da_erro_visivel(proj):
+    with pytest.raises(ValueError, match="estilo de trilha desconhecido: polka"):
+        au.music("polka", 120, 1.0)
+    f = proj / "broll" / "concept.yaml"
+    d = yaml.safe_load(f.read_text())
+    d["music"] = {"style": "funky", "bpm": 130}
+    f.write_text(yaml.safe_dump(d))
+    with pytest.raises(B.BrollError, match=r"music\.style desconhecido 'funky'.*funk.*axe"):
+        B.load_concept(f)
+    d["music"] = {"style": "axe", "bpm": 126}
+    f.write_text(yaml.safe_dump(d))
+    assert B.load_concept(f)["music"]["style"] == "axe"
