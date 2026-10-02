@@ -341,10 +341,10 @@ def build_contract(f: dict, h: Path | None = None) -> tuple[dict, dict]:
 
 def voice_key(d: dict, lid: str) -> str:
     """Same cache key as voice.run(provider='gemini') -> assets/audio/voz/<id>-<key>.wav (reuse across companies)."""
-    from .voice import DEFAULT_CHAIN, GEMINI_MODEL
+    from .voice import DEFAULT_CHAIN, GEMINI_MODEL, resolve_estilo
     v = d["voz"]
     P = (v.get("providers") or {}).get("gemini", {})
-    S = {"model": P.get("model", GEMINI_MODEL), "voice": P.get("voice") or v.get("voice"), "estilo": P.get("estilo") or v.get("estilo", "")}
+    S = {"model": P.get("model", GEMINI_MODEL), "voice": P.get("voice") or v.get("voice"), "estilo": resolve_estilo(v, P)}
     chain = v.get("processamento", DEFAULT_CHAIN)
     line = next(s["fala"] for s in d["cenas"] if s["fala"]["id"] == lid)
     say = line.get("say", line["texto"])

@@ -20,6 +20,7 @@ Como o intake escolhe: pergunta B6/B7 do [questionário](../intake/questionario.
 - `npm run voice` corta silêncio, trata (EQ/compressor/sala), converte para 48 kHz mono e **nunca acelera**: frase maior que `max_s` = erro → reajustar tempos ou texto (ver [gemini.md → Reajustar os tempos](gemini.md#reajustar-os-tempos-quando-as-frases-mudam-de-duração)).
 - Depois de gerar: faster-whisper confere cada frase (texto reconhecido vai para o manifest) e dá os timestamps por palavra usados nas batidas (`"@t"`) e na legenda (`motion/patterns/caption-word-highlight`).
 - Registrar provider, modelo, voz, conta, data e termos em `assets/audio/LICENSES.md` do vídeo.
+- **Português sempre mais animado que inglês** (regra do Wesley, 02/10/2026): contrato pt sem `estilo` usa o estilo enérgico padrão (`PT_BR_ESTILO_PADRAO`) e o broll liga a trilha pt animada. Ver [gemini.md → Estilo padrão em português](gemini.md#estilo-padrão-em-português-regra-permanente-do-wesley-02102026).
 - Não clonar voz de pessoa real sem autorização escrita dela. Chaves só no ambiente/`.env` (gitignored).
 
 Detalhes técnicos do pipeline de voz (manifest, hash, sementes, tratamento, mixagem/ducking): [narracao-tts.md](narracao-tts.md).

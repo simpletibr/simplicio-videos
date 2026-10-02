@@ -70,6 +70,7 @@ def norm_word(w: str) -> str:
 @dataclass
 class Timing:
     lines: dict  # id -> {"t", "dur_s", "words": [(word, t_abs, end_abs)], "file"}
+    voz_pt_animada: bool = False  # timing.lock gravado com a voz enérgica pt (liga o preset de trilha pt)
 
     @classmethod
     def load(cls, pdir: Path) -> "Timing":
@@ -81,7 +82,7 @@ class Timing:
             words = [(w["w"], round(v["t"] + w["t"], 3), round(v["t"] + w.get("end", w["t"] + 0.2), 3)) for w in v.get("words", [])]
             out[lid] = {"t": float(v["t"]), "dur_s": float(v["dur_s"]), "end": round(v["t"] + v["dur_s"], 3), "words": words,
                         "file": pdir / v["file"], "text": v.get("text", "")}
-        return cls(out)
+        return cls(out, bool(lock.get("voz_pt_animada")))
 
     def resolve(self, ref, dur: float) -> float:
         """Number, 'end', 'vo1', 'vo1.end', 'vo1:grooming' (onset), 'vo1:grooming.end', 'vo1#3' (0-based word index), each with
@@ -137,6 +138,33 @@ DEFAULT_CONCEPT = {
 }
 
 
+# Regra permanente do Wesley (2026-10-02): vídeo em português sempre mais animado que o em inglês. Preset de trilha pt:
+# estilos calmos viram um parente animado, BPM entra na faixa 124-135, camada extra de percussão/brilho (lift), trilha
+# +1 dB e ducking no máx. 8 dB. Liga sozinho quando o timing.lock traz voz_pt_animada (voz enérgica pt gravada pelo
+# `voice` com o estilo novo), então voz e trilha mudam juntas e prévias antigas re-renderizam idênticas. concept
+# music.pt_animado: true força (só pt), false desliga. Inglês e demais idiomas: trilha do concept sem mudança.
+PT_MUSIC_PRESET = {"bpm_min": 124, "bpm_max": 135, "lift": 1.0, "db_boost": 1.0, "duck_db_max": 8.0,
+                   "style_map": {"elegant": "bouncy", "lofi": "tropical", "bossa": "samba", "cinematic": "house"}}
+
+
+def music_for(M: dict, lang: str, voz_pt_animada: bool = False) -> dict:
+    """Trilha efetiva do render: o concept, ou o preset pt animado aplicado por cima (ver PT_MUSIC_PRESET)."""
+    flag = M.get("pt_animado", "auto")
+    on = str(lang or "").lower().startswith("pt") and (flag is True or (flag == "auto" and voz_pt_animada))
+    out = {k: v for k, v in M.items() if k != "pt_animado"}
+    out["lift"] = 0.0
+    if not on:
+        return out
+    P = PT_MUSIC_PRESET
+    out["style"] = P["style_map"].get(M["style"], M["style"])
+    out["bpm"] = float(min(P["bpm_max"], max(P["bpm_min"], float(M["bpm"]))))
+    out["db"] = float(M["db"]) + P["db_boost"]
+    out["duck_db"] = min(float(M["duck_db"]), P["duck_db_max"])
+    out["lift"] = P["lift"]
+    out["preset"] = "pt-animado"
+    return out
+
+
 def _merge(a: dict, b: dict) -> dict:
     out = dict(a)
     for k, v in (b or {}).items():
@@ -165,6 +193,8 @@ def load_concept(path: Path) -> dict:
     from .broll_audio import STYLES
     if c["music"].get("style") not in STYLES:
         raise BrollError(f"concept: music.style desconhecido {c['music'].get('style')!r} (use {', '.join(STYLES)})")
+    if c["music"].get("pt_animado", "auto") not in ("auto", True, False):
+        raise BrollError("concept: music.pt_animado deve ser auto, true ou false")
     return c
 
 
@@ -963,10 +993,10 @@ def render(pdir: Path, out: Path | None = None, size: tuple[int, int] | None = N
         raise BrollError("ffmpeg (vídeo) falhou")
     t_video = time.time()
     # ---------------- audio
-    M = c["music"]
+    M = music_for(c["music"], lang, timing.voz_pt_animada)
     S = c["sfx"]
     drop = timing.resolve(M["drop_at"], dur) if M.get("drop_at") is not None else None
-    bed = au.music(M["style"], float(M["bpm"]), dur, seed=int(M.get("seed", 3)), drop_at=drop)
+    bed = au.music(M["style"], float(M["bpm"]), dur, seed=int(M.get("seed", 3)), drop_at=drop, lift=float(M["lift"]))
     cues = []
     if S.get("hook"):
         cues.append((0.0, S["hook"], 4.0))
@@ -1002,6 +1032,7 @@ def render(pdir: Path, out: Path | None = None, size: tuple[int, int] | None = N
     man = {"schema": "simplicio.broll-final/v1" if final else "simplicio.broll-preview/v1", "visual": "broll", "modo": "final" if final else "previa",
            "concept": c.get("nome"), "preview": res, "llm_calls": 0,
            "size_render": [W, H], "duracao_s": dur, "tts_calls": 0,
+           "music": {k: M.get(k) for k in ("style", "bpm", "db", "duck_db", "lift", "preset") if M.get(k) is not None},
            "shots": [{"i": s.i, "src": s.src.name, "start": s.start, "end": s.end, "dur": round(s.dur, 3), "in": s.tin,
                       "crop_cx": crops.get(s.i), "zoom": list(s.zoom), "tx_in": next((k for b, k, n in txs if abs(b - s.start) < 1e-6), None),
                       "note": s.note} for s in plan.shots],

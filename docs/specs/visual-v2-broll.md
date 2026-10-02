@@ -57,10 +57,31 @@ previas/<slug>/
 | `transitions` | `default[]` (ciclo), `frames` (6–10), `flash`, `leak` | `cut flash zoom whip glitch pop leak blur mask slide dip iris stripes push spin split` |
 | `grade` | `sat`, `contrast`, `warmth`, `lift`, `vignette`, `tint`, `tint_amt` | cor do conceito |
 | `overlays` | `particles` (string ou lista: `bubbles leak sparkles confetti steam film rays frame`), `density`, `grain`, `leak_strength`, `steam_strength`, `rays_strength`, `colors[]` (chaves da paleta), `emoji_font` | `emoji_font` obrigatório se houver sticker emoji (`motion/assets/fonts/broll/NotoColorEmoji.ttf`) |
-| `music` | `style` (`bouncy elegant disco lofi samba bossa house cinematic hiphop tropical acoustic forro`), `bpm`, `db`, `duck_db`, `drop_at` (ref. de tempo), `seed` | trilha sintetizada pelo motor (sem amostras de terceiros) |
+| `music` | `style` (`bouncy elegant disco lofi samba bossa house cinematic hiphop tropical acoustic forro`), `bpm`, `db`, `duck_db`, `drop_at` (ref. de tempo), `seed`, `pt_animado` (`auto` padrão, `true`, `false`) | trilha sintetizada pelo motor (sem amostras de terceiros); em vídeo pt o preset animado (3.1) entra por cima |
 | `sfx` | `cut` (string ou `{tipo_de_transição: som, default: som}`), `sticker`, `card`, `hook`, `logo`, `db` | sons: `whoosh swish pop tick shimmer impact clink sizzle snap thud` |
 | `logo` | `plate` (`round arch none`), `plate_color`, `size`, `anim` (`pop reveal`) | logo branca → placa escura; logo preta → placa clara |
 | `setor` | `saude` ou vazio | `saude` liga as guardas de saúde |
+
+### 3.1 Português sempre mais animado (regra permanente do Wesley, 02/10/2026)
+
+Todo vídeo pt-BR (Brasil e INT-2-BR) sai **mais animado que o equivalente em inglês**: voz com bem mais energia e trilha
+mais pra cima. Inglês e demais idiomas ficam como estão.
+
+- **Voz:** `voz.idioma` `pt-*` sem `estilo` → `PT_BR_ESTILO_PADRAO` em `speech_metadata.style`:
+  "Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar". Estilos pt próprios começam com esse texto (+ o público, ex.: INT-2-BR EUA em `paises.json`). Detalhes em
+  [`voices/gemini.md`](../../voices/gemini.md#estilo-padrão-em-português-regra-permanente-do-wesley-02102026).
+- **Trilha (`PT_MUSIC_PRESET`, `broll.py`):** quando o `timing.lock.json` tem `voz_pt_animada: true` (gravado pelo
+  `voice` com a voz enérgica) e o contrato é pt, o render aplica por cima do `music` do concept: BPM na faixa **124–135**,
+  estilos calmos trocados por um parente animado (`elegant→bouncy`, `lofi→tropical`, `bossa→samba`, `cinematic→house`),
+  camada extra **`lift`** (shaker em 16 avos, palmas no 2 e 4, open hat e brilho de pluck/sino no contratempo), trilha
+  +1 dB e ducking de no máximo 8 dB. O `seed`, o `drop_at` e os SFX continuam os do concept. O manifest registra
+  `music.preset: pt-animado`.
+- **Por que depende do lock:** voz e trilha mudam juntas. Uma prévia com a voz antiga re-renderiza bit a bit igual, sem
+  trilha nova por baixo de voz calma. `music.pt_animado: true` força o preset (só em pt) e `false` desliga (exceção só com
+  OK do Wesley).
+- **Regravar uma prévia pt já feita:** backup do áudio antigo como `*.v1-calmo` → `simplicio-video voice <contrato>
+  --provider gemini` (1 requisição por fala) → re-render v2 `--qa --sheet` → `--final --qa` → `FINAL-COMANDO.md` atualizado.
+  As refs `voN:palavra` do `plan.yaml` acompanham o novo `timing.lock`. Tempos numéricos fixos precisam de revisão.
 
 ## 4. `broll/plan.yaml`
 

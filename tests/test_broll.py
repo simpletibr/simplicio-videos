@@ -375,3 +375,54 @@ def test_emphasis_font_keeps_its_own_case_and_size(proj):
         for s in L.sprites:
             assert x0 - 1 <= s[1] - s[3] / 2 and s[1] + s[3] / 2 <= x1 + 1
     assert widths["none"]["hands,"] < widths["upper"]["hands,"] * 0.85   # script caps are much wider: case was honoured
+
+
+# ---------------------------------------------------------------- regra 2026-10-02: pt sempre mais animado (trilha)
+def test_music_lift_zero_e_bit_identico_e_lift_traz_brilho():
+    for style in ("bouncy", "elegant", "samba", "acoustic"):
+        a = au.music(style, 128, 2.0, seed=5, drop_at=1.0)
+        assert np.array_equal(a, au.music(style, 128, 2.0, seed=5, drop_at=1.0, lift=0.0))
+        b = au.music(style, 128, 2.0, seed=5, drop_at=1.0, lift=1.0)
+        assert np.isfinite(b).all() and not np.array_equal(a, b)
+        assert np.array_equal(b, au.music(style, 128, 2.0, seed=5, drop_at=1.0, lift=1.0))  # determinístico
+
+        def hf(x):  # energia acima de ~5 kHz (percussão/brilho)
+            m = x.mean(1) if x.ndim == 2 else x
+            sp = np.abs(np.fft.rfft(m)) ** 2
+            f = np.fft.rfftfreq(len(m), 1 / au.SR)
+            return sp[f > 5000].sum() / sp.sum()
+        assert hf(b) > hf(a), style
+
+
+def test_music_for_preset_pt_so_com_voz_nova_e_ingles_igual():
+    M = {"style": "bossa", "bpm": 96, "db": -11.5, "duck_db": 8.0, "drop_at": 7.12, "seed": 77}
+    en = B.music_for(M, "en-US", True)
+    assert {k: en[k] for k in M} == M and en["lift"] == 0.0 and "preset" not in en
+    old = B.music_for(M, "pt-BR", False)  # voz antiga (lock sem voz_pt_animada): prévia re-renderiza igual
+    assert {k: old[k] for k in M} == M and old["lift"] == 0.0
+    pt = B.music_for(M, "pt-BR", True)
+    assert pt["preset"] == "pt-animado" and pt["style"] == "samba" and 124 <= pt["bpm"] <= 135
+    assert pt["lift"] == 1.0 and pt["db"] == -10.5 and pt["duck_db"] <= 8.0 and pt["seed"] == 77
+    fast = B.music_for({**M, "style": "house", "bpm": 150}, "pt-BR", True)
+    assert fast["style"] == "house" and fast["bpm"] == 135
+    assert B.music_for({**M, "pt_animado": False}, "pt-BR", True)["lift"] == 0.0
+    assert B.music_for({**M, "pt_animado": True}, "pt-BR", False)["preset"] == "pt-animado"
+    assert B.music_for({**M, "pt_animado": True}, "en-US", True)["lift"] == 0.0
+
+
+def test_render_pt_com_voz_nova_usa_trilha_animada(proj):
+    lock = json.loads((proj / "timing.lock.json").read_text())
+    lock["voz_pt_animada"] = True
+    (proj / "timing.lock.json").write_text(json.dumps(lock))
+    (proj / "contract.yaml").write_text(yaml.safe_dump({"formato": {"duracao_s": 3}, "voz": {"idioma": "pt-BR"}}))
+    f = proj / "broll" / "concept.yaml"
+    d = yaml.safe_load(f.read_text())
+    d["music"] = {"style": "bossa", "bpm": 96}
+    f.write_text(yaml.safe_dump(d))
+    B.render(proj, size=(180, 320), post=False, log=lambda *_: None)
+    man = json.loads((proj / "preview-v2.manifest.json").read_text())
+    assert man["music"]["preset"] == "pt-animado" and man["music"]["style"] == "samba" and 124 <= man["music"]["bpm"] <= 135
+    d["music"]["pt_animado"] = "talvez"
+    f.write_text(yaml.safe_dump(d))
+    with pytest.raises(B.BrollError):
+        B.load_concept(f)

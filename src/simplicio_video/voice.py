@@ -29,6 +29,11 @@ TRIM = ("silenceremove=start_periods=1:start_threshold=-55dB:start_silence=0.06,
 # air, never speech, and never time-stretches. Takes that already fit keep TRIM (bit-identical to before).
 TRIM_TIGHT = ("silenceremove=start_periods=1:start_threshold=-42dB:start_silence=0.04,areverse,"
               "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.08,areverse")
+# Regra permanente do Wesley (2026-10-02): vídeo em português SEMPRE mais animado que o em inglês. Contract pt-* sem
+# `estilo` usa este estilo enérgico (vai em speech_metadata.style); inglês e demais idiomas ficam como estão. Estilos
+# pt próprios (ex.: INT-2-BR EUA em templates/internacional-dor/paises.json) começam com este texto + o público.
+PT_BR_ESTILO_PADRAO = ("Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio "
+                       "de varejo, sem gritar")
 GEMINI_MODEL = "gemini-3.8-flash-tts"   # cheaper: gemini-3.8-flash-lite-tts (same schema)
 GEMINI_SR = 24000
 PROVIDERS = {
@@ -60,6 +65,25 @@ def sha256_file(p: Path) -> str:
     return h.hexdigest()
 
 
+def is_pt(idioma: str | None) -> bool:
+    return str(idioma or "").lower().startswith("pt")
+
+
+def resolve_estilo(v: dict, P: dict | None = None) -> str:
+    """Estilo de voz efetivo: providers.<p>.estilo > voz.estilo > PT_BR_ESTILO_PADRAO (só idioma pt-*) > ''."""
+    est = (P or {}).get("estilo") or v.get("estilo") or ""
+    if not est and is_pt(v.get("idioma")):
+        est = PT_BR_ESTILO_PADRAO
+    return est
+
+
+def pt_animado(v: dict) -> bool:
+    """True quando o contract é pt-* e o estilo Gemini efetivo é o enérgico (padrão ou derivado dele). O broll usa isso
+    (gravado no timing.lock como voz_pt_animada) para ligar a trilha animada pt junto com a voz nova."""
+    P = (v.get("providers") or {}).get("gemini", {})
+    return is_pt(v.get("idioma")) and PT_BR_ESTILO_PADRAO.lower() in resolve_estilo(v, P).lower()
+
+
 def settings_for(c: Contract, prov: str) -> dict:
     v = c.data["voz"]
     P = (v.get("providers") or {}).get(prov, {})
@@ -70,7 +94,7 @@ def settings_for(c: Contract, prov: str) -> dict:
         return {"engine": P.get("engine", "kokoro"), "voice": voice, "speed": P.get("speed", 1.0), "lang": P.get("lang", "pt-br")}
     if prov == "gemini":
         voice = P.get("voice") or (v.get("voice") if v["provider"] == "gemini" else None) or "Sulafat"
-        S = {"model": P.get("model", GEMINI_MODEL), "voice": voice, "estilo": P.get("estilo") or v.get("estilo", "")}
+        S = {"model": P.get("model", GEMINI_MODEL), "voice": voice, "estilo": resolve_estilo(v, P)}
         if P.get("api", "interactions") != "interactions":  # keep the default cache key identical to v0.2
             S["api"] = P["api"]
         return S
@@ -99,7 +123,7 @@ def _local(S: dict, text: str, dst: Path) -> None:
 
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
-# SIMPLICIO_GEMINI_BASE: only for dry runs against a local mock (scripts/mock_gemini_tts.py); never a real key there.
+# SIMPLICIO_GEMINI_BASE: only for dry runs against a local mock (python -m simplicio_video.mock_gemini); never a real key there.
 GEMINI_RETRY = (429, 500, 502, 503, 504)
 
 
@@ -161,7 +185,10 @@ def to_wav(data: bytes, mime: str = "") -> bytes:
                                  b"data", len(data)) + data
 
 
-def _gemini(S: dict, text: str, dst: Path, retries: int = 4) -> dict:
+_LAST_REQ: list = []  # monotonic time of the last Gemini request in this process (SIMPLICIO_GEMINI_PAUSE_S)
+
+
+def _gemini(S: dict, text: str, dst: Path, retries: int | None = None) -> dict:
     """Generate one line with the Gemini TTS API and write a WAV (24 kHz mono 16-bit) to dst. Returns request info."""
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
@@ -170,11 +197,17 @@ def _gemini(S: dict, text: str, dst: Path, retries: int = 4) -> dict:
                          "Studio and use --provider file (assets/audio/vo/external/line-NN.wav).")
     import time
     import urllib.error
+    if retries is None:  # SIMPLICIO_GEMINI_RETRIES: cada nova tentativa é mais uma requisição (cota diária)
+        retries = int(os.environ.get("SIMPLICIO_GEMINI_RETRIES", "4"))
+    pause = float(os.environ.get("SIMPLICIO_GEMINI_PAUSE_S", "0") or 0)  # spacing between requests (per-minute limit)
+    if pause > 0 and _LAST_REQ:
+        time.sleep(max(0.0, pause - (time.monotonic() - _LAST_REQ[0])))
     url, body = gemini_request(S, text)
     data = json.dumps(body).encode()
     for attempt in range(retries + 1):
         req = urllib.request.Request(url, data=data, method="POST",
                                      headers={"x-goog-api-key": key, "Content-Type": "application/json"})
+        _LAST_REQ[:] = [time.monotonic()]
         try:
             with urllib.request.urlopen(req, timeout=180) as r:
                 res = json.loads(r.read())
@@ -281,6 +314,8 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
             over.append(f"{line['id']}: {dur:.3f}s > max_s {line['max_s']}s")
     lock = {"schema": "simplicio.timing-lock/v1", "provider": prov, "settings": S, "processing": chain,
             "cache_dir": v.get("cache_dir", "assets/audio/voz"), "lines": lock_lines}
+    if pt_animado(v):  # broll: trilha animada pt acompanha a voz enérgica (regra 2026-10-02)
+        lock["voz_pt_animada"] = True
     if prov in ("gemini", "elevenlabs", "xai"):  # metering for credits (ADR-0002): only lines synthesized in this run
         lock["usage"] = {"tts_chars_this_run": tts_chars}
     (c.dir / "timing.lock.json").write_text(json.dumps(lock, indent=2, ensure_ascii=False) + "\n", encoding="utf8")

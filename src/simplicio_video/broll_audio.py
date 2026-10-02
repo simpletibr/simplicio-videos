@@ -263,14 +263,42 @@ def _music2(style: str, bpm: float, dur: float, rng, drop_at) -> np.ndarray:
     return L
 
 
-def music(style: str, bpm: float, dur: float, seed: int = 1, drop_at: float | None = None) -> np.ndarray:
+def _lift_layer(L: np.ndarray, style: str, bpm: float, dur: float, seed: int, drop_at, amount: float) -> None:
+    """Camada "pra cima" da trilha pt (regra 2026-10-02): shaker em 16 avos com acento, palmas no 2 e 4, open hat no
+    contratempo e brilho (pluck/sino uma oitava acima do acorde) no contratempo. RNG próprio: com amount=0 a trilha
+    fica bit a bit igual à de antes."""
+    if amount <= 0:
+        return
+    rng = np.random.default_rng(seed + 7919)
+    beat = 60.0 / bpm
+    prog = PROGRESSIONS[style]
+    C, Hh, Ho = clap(rng), hat(rng), hat(rng, True)
+    for b in range(int(dur / beat) + 2):
+        t = b * beat
+        bb = b % 4
+        _, chord = prog[(b // 4) % len(prog)]
+        brk = drop_at is not None and drop_at - 2 * beat <= t < drop_at
+        for s16 in range(4):
+            _add(L, t + s16 * beat / 4, Hh, (0.13 if s16 % 2 == 0 else 0.08) * amount, 0.45 if s16 % 2 else -0.45)
+        if not brk and bb in (1, 3):
+            _add(L, t, C, 0.24 * amount, -0.1)
+        _add(L, t + beat / 2, Ho, 0.1 * amount, 0.3)
+        note = chord[(b * 2 + 1) % len(chord)] + 24
+        _add(L, t + beat * 0.5, tone(midi(note), 0.22, "pluck"), 0.06 * amount, 0.35 if b % 2 else -0.35)
+        if bb == 3:
+            _add(L, t + beat * 0.75, tone(midi(chord[-1] + 24), 0.5, "bell"), 0.035 * amount, 0.2)
+
+
+def music(style: str, bpm: float, dur: float, seed: int = 1, drop_at: float | None = None, lift: float = 0.0) -> np.ndarray:
     """Stereo float32 bed. bouncy: kick 4/4, claps 2/4, 16th shaker, staccato bass, marimba arpeggio (playful pop);
-    elegant: soft kick, rim, warm pad, keys, sparse bells (premium chill). `drop_at`: brief half-bar break (build -> drop)."""
+    elegant: soft kick, rim, warm pad, keys, sparse bells (premium chill). `drop_at`: brief half-bar break (build -> drop).
+    `lift` (0..1): camada extra de percussão e brilho (preset pt animado); 0 = trilha idêntica à de antes."""
     rng = np.random.default_rng(seed)
     if style not in STYLES:
         raise ValueError(f"estilo de trilha desconhecido: {style}")
     if style not in ("bouncy", "elegant"):
         L = _music2(style, bpm, dur, rng, drop_at)
+        _lift_layer(L, style, bpm, dur, seed, drop_at, lift)
         L = np.tanh(L * 1.2) / 1.2
         fi, fo = int(0.05 * SR), int(0.6 * SR)
         L[:fi] *= np.linspace(0, 1, fi)[:, None]
@@ -316,6 +344,7 @@ def music(style: str, bpm: float, dur: float, seed: int = 1, drop_at: float | No
             arp = chord + [chord[0] + 12]
             for s in range(2):
                 _add(L, t + s * beat / 2, tone(midi(arp[(b * 2 + s) % len(arp)] + 12), 0.4, "pluck"), 0.11, (s - 0.5) * 0.5)
+    _lift_layer(L, style, bpm, dur, seed, drop_at, lift)
     # gentle bus glue: soft clip + fade in/out
     L = np.tanh(L * 1.2) / 1.2
     fi, fo = int(0.05 * SR), int(0.6 * SR)

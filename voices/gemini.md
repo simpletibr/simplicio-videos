@@ -66,6 +66,29 @@ simplicio-video run <contrato.yaml> --provider gemini       # voz + validate + r
 
 A fala vai **literal** no texto, o estilo vai em `speech_metadata.style` e a resposta é WAV 24 kHz. Os WAVs ficam no diretório do provider `file`, então `--provider file` reproduz a mesma voz sem rede. O cache é por hash de texto+voz+modelo+estilo: rodar de novo não chama a API (use `--force` para regerar). Em 429/5xx o CLI tenta de novo respeitando `Retry-After`. O lock registra `usage.tts_chars_this_run`.
 
+## Estilo padrão em português (regra permanente do Wesley, 02/10/2026)
+
+**Vídeo em português é sempre mais animado que o em inglês**: narração com bem mais energia (locutor animado, ritmo
+acelerado, sorriso na voz) e trilha mais pra cima. Vale para todo vídeo pt-BR (Brasil e INT-2-BR no exterior).
+
+- Estilo padrão (`PT_BR_ESTILO_PADRAO` em `src/simplicio_video/voice.py`), aplicado sozinho quando `voz.idioma` começa
+  com `pt` e o contrato não define `estilo` (nem em `voz.providers.gemini`):
+  > Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar
+- Estilo próprio de um público pt **começa com esse texto** e acrescenta o público. Ex. INT-2-BR EUA
+  (`templates/internacional-dor/paises.json → idiomas.pt-BR.estilo_por_pais.us`):
+  > Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar; sotaque brasileiro natural, falando com brasileiros que moram nos EUA, como quem anuncia com orgulho um negócio da comunidade.
+- Estilo explícito no contrato manda. Um estilo pt calmo (sem o texto padrão) só com OK do Wesley.
+- Inglês e outros idiomas: nada muda.
+- O estilo vai em `speech_metadata.style` e entra na chave de cache. Mudar o estilo regera a fala, e cada fala é
+  **1 requisição TTS** (cota grátis de 100 por dia). O mock (`python -m simplicio_video.mock_gemini --log ...`) registra o
+  `style` de cada requisição, para conferir num dry-run sem gastar cota.
+- O `voice` grava `"voz_pt_animada": true` no `timing.lock.json` quando a voz pt sai com o estilo enérgico. Com isso o
+  `broll` liga a **trilha pt animada** (`PT_MUSIC_PRESET` em `broll.py`: BPM 124–135, estilos calmos trocados por um
+  parente animado, camada extra de percussão e brilho, +1 dB; ver `docs/specs/visual-v2-broll.md`, seção 3.1).
+- No AI Studio (rota manual), cole o mesmo texto no campo *Style instructions*.
+- `SIMPLICIO_GEMINI_RETRIES` (padrão 4) limita as novas tentativas em 429/5xx, porque cada uma é mais uma requisição.
+- `SIMPLICIO_GEMINI_PAUSE_S` (padrão 0) espaça as requisições do mesmo processo (ex.: 7 s ≈ até 8 por minuto).
+
 ## Rota antiga pelo script do projeto npm (WJR) — **não testada**
 
 Precisa de uma chave da Gemini API (AI Studio → *Get API key*). **Não foi testada** nesta máquina (sem chave). Formato da chamada conferido na [documentação oficial de TTS](https://ai.google.dev/gemini-api/docs/speech-generation) em 30/09/2026: Interactions API, modelos `gemini-3.8-flash-tts` (padrão) e `gemini-3.8-flash-lite-tts` (mais barato), 30 vozes prontas (Puck = *Upbeat*, Kore = *Firm*, Charon = *Informative*, Sulafat = *Warm*, Achird = *Friendly*…) + biblioteca estendida (`GET /v1beta/voices`) + *voice design*.

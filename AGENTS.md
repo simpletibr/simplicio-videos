@@ -103,6 +103,10 @@ python -m pytest                                   # schema, validate, --help, d
 4. Pacote do Drive em `<pasta>/drive-pacote/` (FINAL-COMANDO.md, spec/roteiro, áudio, preview-v2.mp4); pasta no Drive
    `prospects/2026/<INT-...>/<PAÍS>/P0xx-<slug>/`, movida para `clientes/` quando pagar. Subir só com ordem do Wesley.
 5. Zero TTS/LLM no `broll`: `unset GEMINI_API_KEY; export SIMPLICIO_VOICE_REGEN=0`.
+6. **Português sempre mais animado que inglês** (regra do Wesley, 02/10/2026; vale para Brasil e INT-2-BR): voz pt com o
+   estilo enérgico padrão `PT_BR_ESTILO_PADRAO` (`voice.py`; aplicado quando `voz.idioma` é `pt-*` e o contrato não tem
+   `estilo`; estilos pt próprios começam com ele) e trilha pt animada no broll (`PT_MUSIC_PRESET`: BPM 124–135, percussão
+   e brilho), ligada pelo `voz_pt_animada` do `timing.lock.json`. Inglês não muda. Spec: `docs/specs/visual-v2-broll.md` §3.1.
 
 **Render**
 - `simplicio-video render` = compila contrato + lock + template + blocos → `engine/build.mjs` (trilha/SFX/voz) → HyperFrames (`--strict-variables`) → `master.sh` (−14 LUFS, TP ≤ −1,5 dBTP) → `render.manifest.json`. HyperFrames sempre fixado: `npx --yes hyperframes@0.8.97`. Node ≥ 22.

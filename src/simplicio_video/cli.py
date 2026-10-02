@@ -140,7 +140,9 @@ def build_parser() -> argparse.ArgumentParser:
                     "  local       TTS local provisório (Kokoro, voz voz.voice ou voz.providers.local.voice, ex.: pf_dora)\n"
                     "  gemini      API Gemini TTS (GEMINI_API_KEY de aistudio.google.com/apikey; cota grátis serve; Google AI Pro NÃO\n"
                     "              inclui API). Modelo voz.providers.gemini.model (padrão gemini-3.8-flash-tts), voz, estilo em\n"
-                    "              speech_metadata; api interactions (padrão) ou generate_content. WAV 24 kHz guardado em file.dir\n"
+                    "              speech_metadata (idioma pt-* sem estilo = PT_BR_ESTILO_PADRAO, locutor animado; regra 02/10/2026);\n"
+                    "              api interactions (padrão) ou generate_content. WAV 24 kHz guardado em file.dir.\n"
+                    "              SIMPLICIO_GEMINI_RETRIES (padrão 4) = novas tentativas em 429/5xx (cada uma gasta cota)\n"
                     "  elevenlabs  stub (gere fora e use file)\n"
                     "  xai         stub (gere fora e use file)",
         epilog="exemplos:\n  simplicio-video voice contract.yaml                    # provider do contrato (voz.provider)\n"

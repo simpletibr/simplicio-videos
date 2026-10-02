@@ -228,7 +228,9 @@ PT = ["Saudade do pastel de feira?", "Aqui na Flórida é difícil achar.", "No 
 def test_pt_br_video_in_a_foreign_country(tmp_path):
     f = _ficha("us", lines=PT, idioma="pt-BR", lote="INT-2-BR", toque_br=True)
     d, meta = intl.build_contract(f)
-    assert d["voz"]["idioma"] == "pt-BR" and d["voz"]["voice"] == "Laomedeia" and "Brazilians who live in the US" in d["voz"]["estilo"]
+    assert d["voz"]["idioma"] == "pt-BR" and d["voz"]["voice"] == "Laomedeia" and "brasileiros que moram nos EUA" in d["voz"]["estilo"]
+    from simplicio_video.voice import PT_BR_ESTILO_PADRAO
+    assert d["voz"]["estilo"].startswith(PT_BR_ESTILO_PADRAO)  # regra 2026-10-02: pt sempre mais animado
     assert R.preview_texts(R.preview_lang(d["voz"]["idioma"]))["watermark"].startswith("Prévia • Wesley Simplicio")
     assert d["drive"]["caminho"].endswith("/2026/Preview_INT2BR") and "Preview INT-2-BR" in d["drive"]["arquivo"]
     bg = [m for m in d["cenas"][0]["motion"] if m["padrao"] == "bg-parallax"][0]["params"]

@@ -664,14 +664,14 @@
           "Aoede",
           "Kore"
         ],
-        "estilo": "Brazilian Portuguese speaker (natural Brazilian accent), warm and close like a Brazilian friend who lives abroad and recommends a place to the community; conversational, smiling, clear; never an announcer or hard-sell tone."
+        "estilo": "Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar; sotaque brasileiro natural, falando com a comunidade brasileira que mora fora do Brasil."
       },
       "estilo_por_pais": {
-        "us": "Brazilian Portuguese speaker (natural Brazilian accent) talking to Brazilians who live in the US; upbeat, warm and direct, energetic but friendly, like a Brazilian neighbour recommending a local business; conversational pace, smile in the voice; no announcer tone.",
-        "ae": "Brazilian Portuguese speaker (natural Brazilian accent) talking to Brazilians who live in Dubai; warm, refined and calm, softly confident, slightly slower with elegant pauses; premium, never pushy.",
-        "de": "Brazilian Portuguese speaker (natural Brazilian accent) talking to Brazilians who live in Germany; warm but calm and precise, trustworthy, measured pace; no exaggeration.",
-        "ch-de": "Brazilian Portuguese speaker (natural Brazilian accent) talking to Brazilians who live in Switzerland; warm, calm and precise, trustworthy and understated; measured pace.",
-        "ch-fr": "Brazilian Portuguese speaker (natural Brazilian accent) talking to Brazilians who live in Switzerland (Lausanne area); warm, elegant and calm, gentle pace; understated, never pushy."
+        "us": "Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar; sotaque brasileiro natural, falando com brasileiros que moram nos EUA, como quem anuncia com orgulho um negócio da comunidade.",
+        "ae": "Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar; sotaque brasileiro natural, falando com brasileiros que moram em Dubai; energia alta com acabamento premium e elegante.",
+        "de": "Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar; sotaque brasileiro natural, falando com brasileiros que moram na Alemanha; energia alta com dicção clara e confiável.",
+        "ch-de": "Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar; sotaque brasileiro natural, falando com brasileiros que moram na Suíça; energia alta com dicção clara e confiável.",
+        "ch-fr": "Locutor brasileiro animado, muita energia, ritmo acelerado, sorriso na voz, entusiasmo de anúncio de varejo, sem gritar; sotaque brasileiro natural, falando com brasileiros que moram na Suíça (região de Lausanne); energia alta, elegante e clara."
       }
     },
     "de-DE": {
