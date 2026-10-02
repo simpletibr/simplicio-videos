@@ -31,6 +31,8 @@ simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N] [--only S
 simplicio-video venda cobrar prospects/<lote>/<slug> --preco 120|80|60   # Pix (AbacatePay); venda webhook serve | entregar | status
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
+simplicio-video ugc list [--json]                   # UGC (gerativo, fora do render): lista os 10 personagens do pack
+simplicio-video ugc prompt <personagem> --app "<APP>" [--fala "texto"] [--duracao 7] [--json]   # monta o prompt Seedance 2.5; --todos no lugar do personagem = os 10 com falas de exemplo
 python -m pytest                                   # schema, validate, --help, determinismo (render curto)
 ```
 
@@ -49,6 +51,7 @@ python -m pytest                                   # schema, validate, --help, d
 | `motion/` | Etapa 4: biblioteca — `patterns/<id>/` (`pattern.json`, `block.html`, `preview.png`), `catalog.json` (gerado), `lib/retime.js`, `assets/` (fontes OFL, placeholders), `scripts/` (`preview.sh`, `catalog.mjs`), `pattern.schema.json` | [motion/README.md](motion/README.md) |
 | `voices/` | Etapa 5: providers (`gemini.md` = tutorial, `elevenlabs.md`, `xai.md`, `local.md`), `narracao-tts.md` (pipeline, cache, tratamento) | [voices/README.md](voices/README.md) |
 | `tools/` | Ferramentas **opcionais** com versão fixada: `video-use/` (etapa 6 — `setup.sh`, `transcribe_local.py`, `edl_transcript.py`, README com quando usar × HyperFrames direto) | [tools/README.md](tools/README.md) |
+| `ugc/` | **Trilha UGC (gerativa, fora do `render`)**: `pack.json` (10 personagens, `simplicio.ugc-pack/v1`) + `pack.schema.json`, `prompts/` (5 prompts: elenco, imagem, fullbody, roteiros, Seedance). O CLI `ugc list\|prompt` só monta/valida o prompt; imagem e vídeo são gerados à mão. [ADR-0004](docs/decisoes/ADR-0004-ugc-generativo.md) | [ugc/README.md](ugc/README.md) |
 | `docs/` | `decisoes/` (ADRs), `esteira.md`, setup, pipeline determinístico, plugin, pesquisa | [docs/README.md](docs/README.md) |
 | `prospects/` | **Venda ativa** (fora do git, exceto `exemplo-dia-criancas.csv`): `<lote>/<slug>/{coleta.json, contract.yaml, preview.mp4, result.json}` + `<lote>/lote.csv` | [docs/venda-ativa.md](docs/venda-ativa.md) |
 | `clients/<cliente>/coleta/` | **Fatos** do cliente: `brief.md`, `fontes.md` (com data), `pendencias.md`, site salvo, `colors.json`, checklist | — |
@@ -74,6 +77,12 @@ python -m pytest                                   # schema, validate, --help, d
 2. Escreva o contrato (copy só da coleta; cenas, blocos + params, falas com `max_s`, SFX relativos à cena, voz, trilha, drive). Ver [SKILL.md](skills/simplicio-video/SKILL.md).
 3. `validate` → `voice` → `validate --need-lock` → `render` (ou `run`, que faz tudo; `--backend kaggle|colab-cli` renderiza remoto sem navegador). Confira `render.manifest.json` (loudness), STT e a prévia.
 4. Os projetos npm da WJR (`video-01`, `video-02-videouse`) ficam como referência; o `video-01` também tem `contract.yaml` (render idêntico).
+
+**Vídeo UGC (gerativo)** ([ugc/README.md](ugc/README.md) · [ADR-0004](docs/decisoes/ADR-0004-ugc-generativo.md))
+1. Fatos e público vêm de `clients/<slug>/coleta/`; sem fato confirmado, sem fala ("Só fatos reais"). Fora da esteira: sem contrato, template, motion nem `render`, e fora da regra de determinismo.
+2. Elenco, prompt de imagem e roteiros (passos 1, 2, 4) são prompts de LLM em `ugc/prompts/01` a `04`; imagens (passo 3) e clipes (passo 6) são gerativos e manuais (ChatGPT, Higgsfield, Krea).
+3. `simplicio-video ugc list` → `ugc prompt <personagem> --app "<APP>" --fala "<fala de coleta/>"` monta o prompt Seedance 2.5 (passo 5) e avisa se a fala foge de ~3,5 palavras/s (22–28 palavras em 7 s). Renderize 1 clipe por personagem, confira rosto e voz e só então use o áudio como referência de voz nos outros.
+4. Travas: personagem sintético (nunca rosto ou voz de pessoa real sem autorização); sem depoimento fabricado apresentado como cliente real; rótulo de IA da plataforma e CONAR; imagens e MP4 em `out/ugc/<slug>/` e no Drive, nunca no git; chaves só no ambiente; gerar em plataforma paga só com pedido explícito do Wesley.
 
 **Voz / narração** ([voices/](voices/README.md))
 - `gemini`: API do Gemini TTS pelo CLI (`GEMINI_API_KEY`, `gemini-3.8-flash-tts`, Interactions API; cache no lock). `file`: WAVs externos em `assets/audio/vo/external/line-NN.wav` (ex.: AI Studio manual, [voices/gemini.md](voices/gemini.md)).

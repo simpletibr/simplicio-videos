@@ -19,6 +19,11 @@ Estrelas conferidas via GitHub API em 30/09/2026.
 - [wesleysimplicio/PiAPI-Skills](https://github.com/wesleysimplicio/PiAPI-Skills) — skills PiAPI (Kling, Hailuo, Luma, Veo 3, Seedance, Faceswap).
 - [wesleysimplicio/WaveSpeedAI-Skills](https://github.com/wesleysimplicio/WaveSpeedAI-Skills) — skills WaveSpeedAI (700+ modelos).
 
+### UGC com IA (fonte da trilha `ugc/`)
+Coletado em 02/10/2026. Números de custo e resultado são alegação do autor, não medidos aqui.
+- [@sleepclip, "How I Make 100 AI UGC Videos for $0 with Opus 5.5 (Full Course)"](https://x.com/sleepclip/status/2105574125745922166) — artigo do X de 01/10/2026. Pipeline de 7 passos com os prompts: Opus 5.5 escolhe o elenco, escreve prompts de imagem, roteiros e o esqueleto Seedance; GPT Image 2.5 gera headshot e fullbody; Seedance 2.5 (Higgsfield) ou Krea renderiza. O fim do texto é oferta comercial do autor, fora do método. Base da trilha [`ugc/`](../ugc/README.md) ([ADR-0004](decisoes/ADR-0004-ugc-generativo.md)).
+- [10 AI UGC CHARACTER PACK (Notion)](https://app.notion.com/p/10-AI-UGC-CHARACTER-PACK-3eaa9e04517680b4a5eacc4c6143cdaf) — pack do mesmo autor: 10 personagens com prompt Seedance pronto (falas de exemplo em inglês). O autor o chama de "open to use"; o texto coletado não traz licença formal. Só o texto foi convertido em [`ugc/pack.json`](../ugc/pack.json); as imagens não foram copiadas.
+
 ### Editores
 - [OpenCut-app/OpenCut](https://github.com/OpenCut-app/OpenCut) — ⭐91k · MIT. Alternativa open-source ao CapCut.
 - [openvideodev/react-video-editor](https://github.com/openvideodev/react-video-editor) — ⭐1.8k. Editor web baseado em Remotion.

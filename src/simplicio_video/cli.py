@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, paths, venda
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, paths, ugc, venda
 
 SCHEMA_REL = "schema/contract.schema.json"
 
@@ -29,6 +29,8 @@ Fluxo completo:
                prévia 540x960 com marca d'água Wesley Simplicio + lote.csv (docs/venda-ativa.md)
   venda        depois da prévia aprovada: cobrança Pix (AbacatePay) -> webhook de pagamento -> render HD -> publish
                (subcomandos cobrar | webhook serve | entregar | status; docs/venda-ativa.md)
+  ugc          trilha UGC (gerativa, fora do render): lista o elenco do pack e monta o prompt Seedance 2.5 de cada personagem
+               (subcomandos list | prompt; ugc/README.md)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
@@ -47,6 +49,8 @@ exemplos:
   simplicio-video prospect prospects/exemplo-dia-criancas.csv --lote dia-criancas --jobs 1
   simplicio-video venda cobrar prospects/dia-criancas/<slug> --preco 120   # Pix; o Wesley envia ao cliente
   simplicio-video render contract.yaml --preview          # 540x960, marca d'água Wesley Simplicio (prévia de venda)
+  simplicio-video ugc list
+  simplicio-video ugc prompt gym-girl --app "FitApp" --fala "<fala de coleta/, 22-28 palavras>"
 
 ambiente:
   SIMPLICIO_VIDEO_HOME  checkout do plugin (templates/, motion/, schema/); padrão: procura a partir do contrato/cwd
@@ -334,6 +338,36 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video venda status\n  simplicio-video venda status dia-criancas")
     vp.add_argument("lote", nargs="?", help="nome do lote (padrão: todos)")
 
+    p = sub.add_parser("ugc", formatter_class=Fmt, help="trilha UGC: elenco do pack e prompt Seedance 2.5 (geração fica fora do CLI)",
+        description="Parte determinística da trilha UGC (ugc/README.md, ADR-0004). Imagens, vozes e clipes são gerados por modelos externos\n"
+                    "(GPT Image, Seedance 2.5, Krea) e NÃO passam pelo render. O CLI só lista o elenco (ugc/pack.json, schema em ugc/pack.schema.json) e monta o prompt\n"
+                    "Seedance do personagem a partir do esqueleto fixo. As falas do pack são EXEMPLOS de formato: para cliente real a\n"
+                    "fala vem de clients/<slug>/coleta/ (só fatos reais) e entra por --fala.\n"
+                    "  list     id, nome, palavra de entrega e nº de palavras da fala de cada personagem\n"
+                    "  prompt   prompt Seedance de um PERSONAGEM (ou --todos); avisa se a fala foge de ~3,5 palavras/s (22-28 p/ 7 s)",
+        epilog="exemplos:\n  simplicio-video ugc list --json\n  simplicio-video ugc prompt gym-girl --app \"FitApp\"\n"
+               "  simplicio-video ugc prompt journaling-girl --app \"Calma\" --fala \"<fala de coleta/>\" --duracao 7\n"
+               "  simplicio-video ugc prompt --todos --app \"FitApp\" --json")
+    us = p.add_subparsers(dest="ucmd", metavar="SUBCOMANDO", required=True)
+    up = us.add_parser("list", formatter_class=Fmt, help="lista os personagens do pack",
+        description="Lista ugc/pack.json: id (usado no prompt), nome, palavra de entrega e nº de palavras da fala de exemplo.",
+        epilog="exemplos:\n  simplicio-video ugc list\n  simplicio-video ugc list --json")
+    up.add_argument("--json", action="store_true", help="saída em JSON")
+    up = us.add_parser("prompt", formatter_class=Fmt, help="monta o prompt Seedance 2.5 de um personagem (ou de todos)",
+        description="Preenche o esqueleto Seedance do artigo (byte a byte) com local, entrega, fala e reação do personagem.\n"
+                    "Com um PERSONAGEM imprime só o prompt (pronto para pipe); com --todos, um bloco '### id' por personagem.\n"
+                    "Avisos de contagem de palavras vão para stderr e não mudam o código de saída.",
+        epilog="exemplos:\n  simplicio-video ugc prompt gym-girl --app \"FitApp\"\n"
+               "  simplicio-video ugc prompt gym-girl --app \"FitApp\" --fala \"<fala de coleta/>\" --duracao 7\n"
+               "  simplicio-video ugc prompt --todos --app \"FitApp\" --json")
+    up.add_argument("personagem", nargs="?", metavar="PERSONAGEM", help="id do pack (ver `simplicio-video ugc list`)")
+    up.add_argument("--todos", action="store_true", help="todos os personagens, com as falas de exemplo do pack")
+    up.add_argument("--app", required=True, help="nome do app/marca que o personagem está segurando aberto no celular")
+    up.add_argument("--fala", help="fala do personagem (substitui o exemplo do pack; sem aspas; só com PERSONAGEM)")
+    up.add_argument("--duracao", type=float, default=ugc.DEFAULT_DURATION_S, metavar="S",
+                    help="duração do clipe em segundos, define a faixa de palavras (padrão: %(default)g)")
+    up.add_argument("--json", action="store_true", help="saída em JSON")
+
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
                     "video.publish, video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
@@ -347,6 +381,39 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("what", choices=["templates", "motion", "voices"], help="catálogo a listar")
     p.add_argument("--json", action="store_true", help="saída em JSON")
     return ap
+
+
+def _ugc(ap: argparse.ArgumentParser, a) -> int:
+    try:
+        pack = ugc.load_pack()
+        if a.ucmd == "list":
+            rows = [{"id": c["id"], "nome": c["nome"], "entrega": c["entrega"], "palavras": ugc.word_count(c["fala"])}
+                    for c in pack["personagens"]]
+            if a.json:
+                print(json.dumps(rows, indent=2, ensure_ascii=False))
+            else:
+                for r in rows:
+                    print(f"{r['id']:28s} {r['entrega']:12s} {r['palavras']:>3} palavras  {r['nome']}")
+            return 0
+        if a.todos == bool(a.personagem):
+            ap.error("ugc prompt: informe PERSONAGEM ou --todos (um dos dois)")
+        if a.todos and a.fala is not None:
+            ap.error("ugc prompt: --fala só vale com PERSONAGEM")
+        chars = pack["personagens"] if a.todos else [ugc.find(pack, a.personagem)]
+        res = [ugc.build_prompt(c, a.app, fala=a.fala, duration_s=a.duracao) for c in chars]
+    except ugc.UgcError as e:
+        print(f"ugc: {e}", file=sys.stderr)
+        return 2
+    for r in res:
+        for w in r["avisos"]:
+            print(f"aviso  {r['id']}: {w}", file=sys.stderr)
+    if a.json:
+        print(json.dumps(res, indent=2, ensure_ascii=False))
+    elif a.todos:
+        print("\n\n".join(f"### {r['id']}\n{r['prompt']}" for r in res))
+    else:
+        print(res[0]["prompt"])
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -405,6 +472,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"venda: {e}", file=sys.stderr)
             return 1
         return 0
+    if a.cmd == "ugc":
+        return _ugc(ap, a)
     if a.cmd == "mcp":
         from . import mcp_server
         mcp_server.main()
