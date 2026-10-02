@@ -36,7 +36,7 @@
           [data-composition-id="brand-lockup-soft"] .dot { position: absolute; left: 0; top: 0; border-radius: 50%; }
         </style>
         <svg class="ring" viewBox="0 0 500 500"><circle cx="250" cy="250" r="240" fill="none" stroke-width="6" stroke-linecap="round" transform="rotate(-90 250 250)"/></svg>
-        <img class="lg" alt="" /><div class="nm"></div><div class="sb"></div><div class="tg"></div><div class="chip"></div><div class="ct"></div><div class="dots"></div>
+        <div class="dots"></div><img class="lg" alt="" /><div class="nm"></div><div class="sb"></div><div class="tg"></div><div class="chip"></div><div class="ct"></div>
         <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
         <script>
           (() => {
@@ -68,27 +68,38 @@
             fit(nm, V.name, 84, 0.80, 440); fit(sb, V.sub, 36, 0.98, 420);
             const nch = splitChars(nm, V.name), sch = splitChars(sb, V.sub);
             if (V.tag_font && V.tag_font !== "Fredoka") $(".tg").style.fontFamily = `"${V.tag_font}", sans-serif`;
-            $(".tg").style.top = V.tag_y + "px"; $(".chip").style.top = V.chip_y + "px"; $(".ct").style.top = (V.chip_y + 130) + "px";
             const tw = splitWords($(".tg"), V.tagline); const chip = $(".chip"); chip.textContent = V.handle; chip.style.background = V.accent; $(".ct").textContent = V.city;
+            const hasChip = String(V.handle || "").trim() !== "";  // no @ -> no pill at all (never an empty brown pill)
+            if (!hasChip) chip.style.display = "none";
+            // chip and city follow the real height of the message block (1, 2 or 3 lines), never a fixed y over its last line;
+            // re-run once the web fonts are in (the first pass may measure the fallback font)
+            const place = () => { const tg = $(".tg"); tg.style.top = V.tag_y + "px";
+              const bottom = Number(V.tag_y) + (String(V.tagline).trim() ? tg.offsetHeight : 0);
+              const chipTop = Math.max(Number(V.chip_y), Math.ceil(bottom + 36));
+              chip.style.top = chipTop + "px";
+              $(".ct").style.top = (hasChip ? chipTop + 130 : Math.max(Number(V.chip_y) + 20, Math.ceil(bottom + 36))) + "px";
+              root.dataset.tagBottom = String(Math.round(bottom)); };
+            place(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
             tl.fromTo(ring, { strokeDashoffset: C0 }, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut" }, 0.1);
             if (V.logo && V.logo_bg) tl.fromTo(ring, { attr: { "fill-opacity": 0 } }, { attr: { "fill-opacity": 1 }, duration: 0.5, ease: "power2.out" }, 0.1);
             tl.fromTo(lg, { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "back.out(1.8)" }, 0.35);
             tl.fromTo(nch, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.05, ease: "power3.out" }, 0.35);
             tl.fromTo(sch, { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.03, ease: "none" }, 0.7);
             tl.fromTo(tw, { yPercent: 110 }, { yPercent: 0, duration: 0.45, stagger: 0.07, ease: "back.out(2)" }, 1.0);
-            tl.fromTo(chip, { xPercent: -50, scale: 0 }, { xPercent: -50, scale: 1, duration: 0.5, ease: "back.out(2.5)" }, 1.6);
+            if (hasChip) tl.fromTo(chip, { xPercent: -50, scale: 0 }, { xPercent: -50, scale: 1, duration: 0.5, ease: "back.out(2.5)" }, 1.6);
             tl.fromTo(".ct", { y: 20, opacity: 0 }, { y: 0, opacity: 0.75, duration: 0.4, ease: "power2.out" }, 1.8);
             const dots = $(".dots");
             const ND = Math.max(0, Math.round(Number(V.dots ?? 14)));
             for (let i = 0; i < ND; i++) {
               const d = document.createElement("div"); d.className = "dot"; const s = 16 + R() * 26; d.style.width = d.style.height = s + "px"; d.style.background = pal[i % pal.length]; dots.appendChild(d);
-              const a = (i / ND) * Math.PI * 2, rr = 300 + R() * 60, x = 540 + Math.cos(a) * rr - s / 2, y = 550 + Math.sin(a) * rr - s / 2;
+              const a = (i / ND) * Math.PI * 2, sn = Math.sin(a), lim = sn > 0.05 ? (Number(V.tag_y) - 40 - 550 - 16 - s / 2) / sn : 1e9;  // dots stay above the message (16 = float)
+              const rr = Math.min(300 + R() * 60, Math.max(250, lim)), x = 540 + Math.cos(a) * rr - s / 2, y = 550 + sn * rr - s / 2;
               tl.fromTo(d, { x: 540, y: 550, scale: 0 }, { x, y, scale: 1, duration: 0.6, ease: "back.out(2)" }, 0.5 + i * 0.03);
               tl.to(d, { y: y - 16, duration: 0.6, yoyo: true, repeat: 3, ease: "sine.inOut" }, 1.2 + i * 0.03);
             }
             if (V.bpm > 0) { const B = 60 / V.bpm, rg = root.querySelector(".ring");
               for (let u = 1.2; u < V.dur - 0.2; u += B) { tl.fromTo(rg, { scale: 1.06 }, { scale: 1, duration: B * 0.8, ease: "power2.out", immediateRender: false }, u);
-                tl.fromTo(chip, { scale: 1.08 }, { scale: 1, duration: B * 0.8, ease: "power2.out", immediateRender: false }, u + 0.4 > 1.6 ? u : 1.6); }
+                if (hasChip) tl.fromTo(chip, { scale: 1.08 }, { scale: 1, duration: B * 0.8, ease: "power2.out", immediateRender: false }, u + 0.4 > 1.6 ? u : 1.6); }
             } else tl.to(root.querySelector(".ring"), { scale: 1.03, duration: 1.4, ease: "sine.inOut", yoyo: true, repeat: 1 }, 1.2);
             tl.set({}, {}, V.dur);
             tl.seek(0);

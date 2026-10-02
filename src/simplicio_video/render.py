@@ -170,7 +170,8 @@ def prepare(c: Contract, workdir: Path, log) -> tuple[dict, dict]:
 
 def layout_guard(wd: Path, log=print) -> list[dict]:
     """Before the (slow) capture: every kinetic text block measured in headless Chrome. Logs the assembled text of each
-    scene and the smallest word gap; stops the render if two words touch or text leaves the frame. SV_LAYOUT_GUARD=0 skips."""
+    scene and the smallest word gap; stops the render if two words touch, text leaves the frame, or any element (pill,
+    shape, logo, confetti) is painted over text in any scene. SV_LAYOUT_GUARD=0 skips."""
     from . import kinetic_layout as layout
     blk = wd / "compositions" / "kinetic-words.html"
     if os.environ.get("SV_LAYOUT_GUARD") == "0" or not blk.is_file():
@@ -182,8 +183,12 @@ def layout_guard(wd: Path, log=print) -> list[dict]:
         return []
     for r in res:
         log(f"layout {r['id']} @ {r['start']:.2f}s: \"{' / '.join(r['text'])}\" · fonte {r['fs']:.0f}px · menor espaço {r['min_gap_em']} em")
+    sres, sprobs = layout.check_scenes(wd)  # any element (pill, shape, logo, confetti) over text, or text over text
+    log(f"layout cenas: {len(sres)} cenas, {len(sprobs)} problema(s) de sobreposição")
+    probs += sprobs
     (wd / "out").mkdir(exist_ok=True)
     (wd / "out" / "layout.json").write_text(json.dumps(res, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
+    (wd / "out" / "layout-cenas.json").write_text(json.dumps(sres, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     if probs:
         raise SystemExit("layout guard:\n  " + "\n  ".join(probs))
     return res

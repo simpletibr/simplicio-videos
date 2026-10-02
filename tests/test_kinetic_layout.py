@@ -95,3 +95,57 @@ def test_decorations_sit_below_every_text_layer_in_the_intl_template():
     for sc in ("s2", "s4"):
         text_layers = [track[f"{sc}-words"], track["s2-main" if sc == "s2" else "s4-lockup"]]
         assert track[f"{sc}-burst"] < min(text_layers)
+
+
+# ---- sign-off lockup (Wesley 02/10, P076): no empty pill; pill/city follow the real height of the message ----
+LOCKUP = HOME / "motion" / "patterns" / "brand-lockup-soft" / "block.html"
+LK = {"name": "JASMINE", "sub": "FAHRNI", "tag_y": 880, "chip_y": 1120, "city": "Liebefeld · Bern", "ink": "#1d1d1f",
+      "accent": "#7d6a5a", "colors": "#7d6a5a|#e3e3e3", "bg": "transparent", "seed": 4, "dur": 4.6, "bpm": 0,
+      "tag_font": "Inter", "dots": 0, "logo": ""}
+
+
+def _scene(i, blocks, measure=()):
+    return {"id": f"c{i}", "t0": 0.0, "t1": 4.4, "step": 1 / 15, "measure": list(measure),
+            "blocks": [{"id": b[0], "comp": b[1], "src": str(b[2]), "vars": b[3], "start": 0.0, "dur": 4.6, "track": b[4]} for b in blocks]}
+
+
+def _probe_scenes(jobs):
+    try:
+        layout.tools()
+    except layout.LayoutUnavailable as e:
+        pytest.skip(str(e))
+    return layout.probe_scenes(FONTS, jobs)
+
+
+M = (".chip", ".ct", ".tg")
+
+
+def test_lockup_without_handle_draws_no_pill_and_three_lines_push_the_city_down():
+    tag3 = "Braut · Haarverlängerung · Styling"
+    res = _probe_scenes([_scene(0, [("lk", "brand-lockup-soft", LOCKUP, {**LK, "tagline": tag3, "handle": ""}, 2)], M),
+                         _scene(1, [("lk", "brand-lockup-soft", LOCKUP, {**LK, "tagline": tag3, "handle": "@jasminefahrni"}, 2)], M),
+                         _scene(2, [("lk", "brand-lockup-soft", LOCKUP, {**LK, "tagline": "Hundesalon · Katze", "handle": "@petwash"}, 2)], M)])
+    no_handle, handle3, handle1 = (r["measure"] for r in res)
+    assert no_handle[".chip"]["shown"] is False                       # (a) no @ -> no pill
+    assert no_handle[".ct"]["top"] >= no_handle[".tg"]["bottom"] + 30  # city under the 3rd line
+    assert handle3[".chip"]["shown"] and handle3[".chip"]["top"] >= handle3[".tg"]["bottom"] + 30  # (b) pill follows 3 lines
+    assert handle3[".ct"]["top"] >= handle3[".chip"]["bottom"]
+    assert handle1[".chip"]["top"] == 1120                             # short message: pill stays at chip_y
+    assert all(r["hits"] == [] for r in res)
+
+
+def test_scene_guard_catches_any_shape_over_text():
+    old = Path(__file__).parent / "fixtures" / "lockup_pill_bug.html"  # pre-fix behaviour: empty pill at fixed chip_y
+    burst = HOME / "motion" / "patterns" / "beat-burst" / "block.html"
+    kw = {**US, "lines": "Pet Joy offers|low-stress grooming", "times": "0.1|0.3|0.5|0.8|1.1", "size": 112, "dur": 4.6, "exit": 0}
+    res = _probe_scenes([
+        _scene(0, [("lk", "brand-lockup-soft", old, {**LK, "tagline": "Braut · Haarverlängerung · Styling", "handle": ""}, 2)]),
+        _scene(1, [("w", "kinetic-words", BLOCK, kw, 3),
+                   ("b", "beat-burst", burst, {"bpm": 120, "beat0": 0.2, "every": 1, "count": 4, "points": "540,880", "size": 1.4,
+                                               "colors": "#7d6a5a|#7d6a5a", "dur": 4.6}, 4)]),
+        _scene(2, [("b", "beat-burst", burst, {"bpm": 120, "beat0": 0.2, "every": 1, "count": 4, "points": "540,880", "size": 1.4,
+                                               "colors": "#7d6a5a|#7d6a5a", "dur": 4.6}, 1), ("w", "kinetic-words", BLOCK, kw, 3)])])
+    pill, over, under = res
+    assert any("chip (vazia)" in h["what"] and "Styling" in h["what"] for h in pill["hits"])  # the P076 bug
+    assert any(h["what"].startswith("forma b:") for h in over["hits"])                      # confetti above the words
+    assert not any(h["what"].startswith("forma") for h in under["hits"])                    # same confetti below: fine

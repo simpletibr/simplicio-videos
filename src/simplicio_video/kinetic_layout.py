@@ -89,3 +89,56 @@ def check_project(project: Path, block: Path | None = None, step: float = 1 / 30
     for j, r in zip(jobs, res):
         r["start"] = j["start"]
     return res, problems(res)
+
+
+# ---- whole-scene guard: no element (pill, shape, logo, confetti) painted over text, no text over other text ----
+SKIP_SCENE_IDS = ("bg", "x")  # full-frame background and the 6-10 frame cut transitions
+
+
+def scene_jobs(project: Path, step: float = 1 / 15, repo_blocks: bool = False) -> list[dict]:
+    s = (project / "index.html").read_text(encoding="utf8")
+    clips = []
+    for m in re.finditer(r"<div\b[^>]*>", s):
+        tag = m.group(0)
+        g = {k: re.search(rf'{k}="([^"]*)"', tag) for k in ("id", "data-composition-id", "data-composition-src", "data-start", "data-duration", "data-track-index")}
+        vv = re.search(r"data-variable-values='([^']*)'", tag)
+        if not all(g.values()) or not vv:
+            continue
+        cid = g["id"].group(1)
+        if cid == "bg" or re.fullmatch(r"x\d+", cid):
+            continue
+        v = json.loads(html.unescape(vv.group(1)))
+        dur = float(g["data-duration"].group(1))
+        v.setdefault("dur", dur)
+        comp = g["data-composition-id"].group(1)
+        src = paths.home() / "motion" / "patterns" / comp / "block.html" if repo_blocks else project / g["data-composition-src"].group(1)
+        clips.append({"id": cid, "comp": comp, "src": str(src),
+                      "vars": v, "start": float(g["data-start"].group(1)), "dur": dur, "track": int(g["data-track-index"].group(1))})
+    scenes: dict[str, list] = {}
+    for c in clips:
+        scenes.setdefault(c["id"].split("-")[0], []).append(c)
+    return [{"id": k, "blocks": v, "t0": min(b["start"] for b in v), "t1": max(b["start"] + b["dur"] for b in v) - 0.02, "step": step}
+            for k, v in scenes.items()]
+
+
+def probe_scenes(assets_root: Path, jobs: list[dict]) -> list[dict]:
+    env = {**paths.node_env(), **tools()}
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(jobs, f)
+    try:
+        p = subprocess.run(["node", str(ENGINE / "scene_probe.mjs"), str(assets_root), f.name], capture_output=True, text=True, env=env, timeout=900)
+    finally:
+        os.unlink(f.name)
+    if p.returncode != 0:
+        raise RuntimeError(f"scene probe failed: {p.stderr[-1500:]}")
+    return json.loads(p.stdout)
+
+
+def scene_problems(res: list[dict]) -> list[str]:
+    return [f"{r['id']}: {h['what']} (a partir de t={h['t']} s, {h['n']} quadros)" for r in res for h in r["hits"]]
+
+
+def check_scenes(project: Path, step: float = 1 / 15, repo_blocks: bool = False) -> tuple[list[dict], list[str]]:
+    """Every scene of a built project (or, repo_blocks=True, the same variables on the repo's current blocks)."""
+    res = probe_scenes(project, scene_jobs(project, step, repo_blocks))
+    return res, scene_problems(res)
