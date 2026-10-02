@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simplicio-video"
-version = "0.2.0"
+version = "0.3.0"
 description = "Simplicio Runtime video plugin: deterministic contract (YAML) -> HyperFrames -> MP4 CLI"
 readme = "README.md"
 requires-python = ">=3.10"
