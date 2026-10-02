@@ -1,0 +1,136 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "internacional-dor",
+  "setor": "Internacional — prévia com gancho de dor real (estilo WJR) para pequenos negócios fora do Brasil (EN/DE/FR)",
+  "status": "pronto",
+  "nichos": [
+    "med spa / estética",
+    "salão (cabelo, unhas, cílios)",
+    "barbearia",
+    "banho e tosa",
+    "padaria / café",
+    "restaurante / catering",
+    "maquiagem de noivas"
+  ],
+  "referencia": "WJR (gancho de dor) + padrão animado v03 (Lothus/All Prime); estilo por país em paises.json",
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 17.0,
+  "cenas": [
+    {
+      "id": "S1",
+      "papel": "dor",
+      "dur_s": 2.8125,
+      "padroes": [
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "Gancho: a dor real do cliente do setor (do dossiê)"
+    },
+    {
+      "id": "S2",
+      "papel": "detalhe",
+      "dur_s": 4.21875,
+      "padroes": [
+        "beat-burst",
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "O detalhe da dor ou uma 2ª dor real"
+    },
+    {
+      "id": "S3",
+      "papel": "solucao",
+      "dur_s": 4.6875,
+      "padroes": [
+        "kinetic-words",
+        "line-accent"
+      ],
+      "campos": [],
+      "fala": "A empresa como quem resolve (só fatos do site/dossiê)"
+    },
+    {
+      "id": "S4",
+      "papel": "marca",
+      "dur_s": 4.28125,
+      "padroes": [
+        "beat-burst",
+        "brand-lockup-soft",
+        "kinetic-words"
+      ],
+      "campos": [
+        "empresa.nome",
+        "empresa.contatos.instagram",
+        "empresa.cidade",
+        "marca.logo"
+      ],
+      "fala": "Lockup com logo real + nome + chamada"
+    }
+  ],
+  "voz": {
+    "tipo": "por país (paises.json): EN-US Laomedeia, EN-SG Erinome, EN-AE Despina, DE/CH-DE Kore, FR-CH Aoede",
+    "gemini_voz": "Laomedeia",
+    "gemini_voz_alternativa": "Achernar",
+    "estilo": "prompt de estilo por país em paises.json"
+  },
+  "musica": {
+    "bpm": "por país (96-120)",
+    "mood": "EUA pop energético (default); demais institucional com bateria 0,15-0,5",
+    "secoes": "groove até o fim - 1 s · outro"
+  },
+  "paleta_padrao": {
+    "ink": "#4a3b3b",
+    "background": "#fdf8f5",
+    "institucional": [
+      "#e8b4b8",
+      "#d4a373",
+      "#f1d6c8",
+      "#b5838d",
+      "#e9c46a"
+    ]
+  },
+  "tom": "Nativo do país; abre com a dor, mostra a empresa como solução; sem exagero publicitário",
+  "transicoes": [
+    "flash|zoom suave (flash_max 0,5, 6-10 frames)"
+  ],
+  "cuidados": [
+    "PREÇO NUNCA APARECE (nem moeda, desconto, 'free/gratis/gratuit', financiamento)",
+    "Sem promessa de resultado, garantia ou superlativo; saúde/estética: sem antes/depois, sem 'cura', sem resultado garantido (FTC/FDA, HSA/ASAS, HWG/UWG, LCD)",
+    "Só dados reais do dossiê (dor + fonte); logo REAL ou lockup de texto, nunca recriado",
+    "Marca d'água e end card de Wesley Simplicio no idioma do vídeo; nada de SimpleTI"
+  ],
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": [
+      "s1",
+      "s2",
+      "s3",
+      "s4"
+    ],
+    "blocos": [
+      "bg",
+      "x0",
+      "s1-accent",
+      "s1-words",
+      "x1",
+      "s2-main",
+      "s2-words",
+      "s2-burst",
+      "x2",
+      "s3-main",
+      "s3-words",
+      "x3",
+      "s4-lockup",
+      "s4-words",
+      "s4-burst"
+    ],
+    "_doc": "Composição do institucional-estetica com estilo por país: s2-main/s3-main via {{padrao:...}}; contrato gerado por simplicio-video intl (src/simplicio_video/intl.py) a partir de contract.base.yaml + paises.json + ficha da empresa."
+  }
+}

@@ -27,6 +27,8 @@ Fluxo completo:
   run          tudo de uma vez: voice -> validate --need-lock -> render -> publish (dry-run sem --publish)
   prospect     venda ativa em massa (alias batch): lista.csv -> coleta pública + logo real -> contrato por setor -> voz Laomedeia ->
                prévia 540x960 com marca d'água Wesley Simplicio + lote.csv (docs/venda-ativa.md)
+  intl         prévias internacionais (INT): ficha com a dor real do setor -> contrato no idioma/estilo do país (EN/DE/FR) ->
+               falas.csv para o Gemini + preview-mudo.mp4 opcional (marca d'água Preview/Vorschau/Aperçu)
   venda        depois da prévia aprovada: cobrança Pix (AbacatePay) -> webhook de pagamento -> render HD -> publish
                (subcomandos cobrar | webhook serve | entregar | status; docs/venda-ativa.md)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
@@ -248,6 +250,29 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limite", type=int, help="processa só as N primeiras linhas")
     p.add_argument("--json", action="store_true", help="resumo em JSON")
 
+    p = sub.add_parser("intl", formatter_class=Fmt,
+        help="prévias internacionais (INT): ficha por empresa -> roteiro com dor real -> contrato no idioma e estilo do país",
+        description="Prévias internacionais no estilo WJR (abre com a dor real do cliente do setor, tirada do dossiê, e mostra a\n"
+                    "empresa como quem resolve), no padrão animado v03, template internacional-dor. Uma ficha YAML por empresa\n"
+                    "(p, slug, nome, pais, falas vo1..vo4 com texto/tela/say, dor + fonte, logo real, tagline, @, cidade).\n"
+                    "País (templates/internacional-dor/paises.json): us, sg, ae (EN), de, ch-de (DE), ch-fr (FR) -> paleta, fonte e\n"
+                    "modo das palavras, BPM e grade de cenas, trilha, voz Gemini sugerida e prompt de estilo. Marca d'água e end card\n"
+                    "de Wesley Simplicio no idioma do vídeo (Preview / Vorschau / Aperçu). Nunca preço (moeda, desconto, grátis),\n"
+                    "garantia, superlativo ou antes/depois: a ficha com isso falha. Falas iguais (mesma voz, estilo e texto) entre\n"
+                    "empresas viram uma chamada TTS só (falas-todas.csv: tts_necessaria / reusa_de).\n"
+                    "Saída: <out>/<slug>/{contract.yaml, roteiro.md, falas.csv, briefing-visual.md, result.json} + falas-todas.csv.",
+        epilog="exemplos:\n  simplicio-video intl /workspace/prospects-int1/fichas --out /workspace/prospects-int1/previas\n"
+               "  simplicio-video intl fichas/ --out previas --mudo        # + preview-mudo.mp4 (sem voz, zero TTS)\n"
+               "  simplicio-video intl fichas/ --out previas --render      # voz Gemini + preview.mp4 (quando a cota liberar)")
+    p.add_argument("fichas", type=Path, nargs="+", metavar="FICHA", help="arquivos .yaml ou pastas com uma ficha por empresa")
+    p.add_argument("--out", "-o", type=Path, required=True, help="pasta de saída (uma subpasta por empresa)")
+    p.add_argument("--only", "--so", action="append", metavar="SLUG", help="só estas empresas (repetível ou separado por vírgula)")
+    p.add_argument("--mudo", action="store_true", help="renderiza preview-mudo.mp4 (layout sem voz, áudio provisório; zero TTS)")
+    p.add_argument("--render", action="store_true", help="gera a voz (--provider) e a preview.mp4 final")
+    p.add_argument("--provider", "-p", choices=["gemini", "file"], default="gemini",
+                   help="voz do --render: gemini (API, GEMINI_API_KEY) ou file (falas do AI Studio em assets/audio/vo/external)")
+    p.add_argument("--json", action="store_true", help="resumo em JSON")
+
     p = sub.add_parser("publish", formatter_class=Fmt, help="sobe o MP4 no Google Drive (rclone) e grava o link no README do cliente",
         description="Sobe saida.arquivo (ou --file) para <remote>:drive.caminho/drive.arquivo com rclone (sem navegador) e grava o\n"
                     "link na tabela \"Entregas no Drive\" de clients/<slug>/README.md. Nunca sobrescreve: mesmo nome com bytes\n"
@@ -388,6 +413,13 @@ def main(argv: list[str] | None = None) -> int:
         if a.json:
             print(json.dumps(res, indent=2, ensure_ascii=False))
         return 0 if res["erros"] == 0 else 1
+    if a.cmd == "intl":
+        from . import intl
+        res = intl.run(a.fichas, a.out, only=a.only, mudo=a.mudo, render=a.render, provider=a.provider,
+                       log=(lambda *_: None) if a.json else print)
+        if a.json:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+        return 1 if any(r.get("status", "").startswith("erro") for r in res["resultados"]) else 0
     if a.cmd == "venda":
         try:
             if a.vcmd == "cobrar":

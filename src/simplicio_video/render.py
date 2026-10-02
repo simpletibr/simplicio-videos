@@ -276,6 +276,27 @@ def render_colab(c: Contract, out: Path | None = None, quality: str | None = Non
 PREVIEW = {"width": 540, "height": 960, "fps": 30, "crf": 30, "end_card_s": 2.5,
            "watermark": "Prévia • Wesley Simplicio • @wesleysimplicio", "badge": "PRÉVIA · @wesleysimplicio",
            "end_title": "Vídeo feito por Wesley Simplicio", "end_url": "@wesleysimplicio", "end_note": "Prévia em baixa resolução"}
+# Same branding in the language of the video (INT-1, 01/10/2026): the language comes from voz.idioma (en-US, de-CH, fr-CH...).
+PREVIEW_I18N = {
+    "pt": {k: PREVIEW[k] for k in ("watermark", "badge", "end_title", "end_url", "end_note")},
+    "en": {"watermark": "Preview • Wesley Simplicio • @wesleysimplicio", "badge": "PREVIEW · @wesleysimplicio",
+           "end_title": "Video by Wesley Simplicio", "end_url": "@wesleysimplicio", "end_note": "Low-resolution preview"},
+    "de": {"watermark": "Vorschau • Wesley Simplicio • @wesleysimplicio", "badge": "VORSCHAU · @wesleysimplicio",
+           "end_title": "Video von Wesley Simplicio", "end_url": "@wesleysimplicio", "end_note": "Vorschau in niedriger Auflösung"},
+    "fr": {"watermark": "Aperçu • Wesley Simplicio • @wesleysimplicio", "badge": "APERÇU · @wesleysimplicio",
+           "end_title": "Vidéo réalisée par Wesley Simplicio", "end_url": "@wesleysimplicio", "end_note": "Aperçu en basse résolution"},
+}
+
+
+def preview_lang(idioma: str | None) -> str:
+    """'en-US' -> 'en'; unknown or empty -> 'pt' (the Brazilian default)."""
+    lang = (idioma or "pt").split("-")[0].split("_")[0].lower()
+    return lang if lang in PREVIEW_I18N else "pt"
+
+
+def preview_texts(lang: str = "pt") -> dict:
+    """PREVIEW spec with the watermark/badge/end-card texts in `lang` (pt, en, de, fr)."""
+    return {**PREVIEW, **PREVIEW_I18N[preview_lang(lang)]}
 
 
 def preview_font(home: Path) -> Path:
@@ -298,9 +319,10 @@ def preview_logo(home: Path) -> Path | None:
     return None
 
 
-def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False) -> str:
-    """filter_complex for: [0] draft render, [1] logo (optional). Output labels [v] [a]."""
-    P = PREVIEW
+def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, lang: str = "pt", note: str | None = None) -> str:
+    """filter_complex for: [0] draft render, [1] logo (optional). Output labels [v] [a].
+    lang = language of the watermark/badge/end card; note = extra top-centre label (e.g. provisional audio), never on finals."""
+    P = preview_texts(lang)
     W, H, fps = P["width"], P["height"], P["fps"]
     def tf(name: str, text: str) -> str:
         f = tmp / f"{name}.txt"
@@ -324,6 +346,10 @@ def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False) -> s
             f"box=1:boxcolor=black@0.45:boxborderw=8,"
             f"drawtext=fontfile='{ff}':textfile='{badge}':x=18:y=h-th-22:fontsize=18:fontcolor=white@0.85:"
             f"box=1:boxcolor=black@0.45:boxborderw=8")
+    if note:
+        nt = tf("note", note)
+        main += (f",drawtext=fontfile='{ff}':textfile='{nt}':x=(w-tw)/2:y=64:fontsize=20:fontcolor=white:"
+                 f"box=1:boxcolor=0xc0392b@0.85:boxborderw=10")
     if logo:
         main += f"[m1];[1:v]scale=90:-1,format=rgba,colorchannelmixer=aa=0.55[lg];[m1][lg]overlay=x=18:y=18"
     main += "[mv];"
@@ -341,15 +367,16 @@ def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False) -> s
     return main + end + audio
 
 
-def make_preview(src: Path, dst: Path, home: Path, log=print) -> dict:
-    """Draft render -> watermarked 540x960 preview (+ end card). Returns {path, sha256, duration_s, bytes}."""
+def make_preview(src: Path, dst: Path, home: Path, log=print, lang: str = "pt", note: str | None = None) -> dict:
+    """Draft render -> watermarked 540x960 preview (+ end card). Returns {path, sha256, duration_s, bytes}.
+    lang picks the watermark/end-card language (pt default); note adds a top label (provisional/mute layout checks)."""
     import tempfile
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(src)],
                                capture_output=True, text=True, env=paths.node_env()).stdout.strip())
     logo = preview_logo(home)
     dst.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
-        fc = preview_filter(dur, preview_font(home), Path(td), logo=bool(logo))
+        fc = preview_filter(dur, preview_font(home), Path(td), logo=bool(logo), lang=lang, note=note)
         cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)] + (["-i", str(logo)] if logo else []) + [
             "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium",
             "-crf", str(PREVIEW["crf"]), "-pix_fmt", "yuv420p", "-r", str(PREVIEW["fps"]), "-threads", "4",
@@ -362,21 +389,24 @@ def make_preview(src: Path, dst: Path, home: Path, log=print) -> dict:
     out_dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(dst)],
                                    capture_output=True, text=True, env=paths.node_env()).stdout.strip())
     return {"path": str(dst), "sha256": sha256_file(dst), "duration_s": round(out_dur, 3), "bytes": dst.stat().st_size,
-            "watermark": PREVIEW["watermark"], "logo": str(logo) if logo else None}
+            "watermark": preview_texts(lang)["watermark"], "lang": preview_lang(lang), "logo": str(logo) if logo else None,
+            **({"note": note} if note else {})}
 
 
-def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = None, log=print) -> dict:
-    """`render --preview`: draft local render (no delivery manifest) -> make_preview. Writes preview.manifest.json."""
+def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = None, log=print, note: str | None = None) -> dict:
+    """`render --preview`: draft local render (no delivery manifest) -> make_preview. Writes preview.manifest.json.
+    The watermark/end-card language follows voz.idioma (pt-BR default; en/de/fr for the international previews)."""
     t0 = time.time()
     raw = c.dir / "out" / "draft-full.mp4"
     info = render_local(c, out=raw, quality="draft", workdir=workdir, log=log, manifest=False)
     t1 = time.time()
     s = c.data["saida"]["arquivo"]
     dst = (out or c.rel(str(Path(s).with_name(Path(s).stem + "-previa.mp4")))).resolve()
-    res = make_preview(raw, dst, c.home, log=log)
+    lang = preview_lang((c.data.get("voz") or {}).get("idioma"))
+    res = make_preview(raw, dst, c.home, log=log, lang=lang, note=note)
     t2 = time.time()
     man = {"schema": "simplicio.preview-manifest/v1", "contract_sha256": c.sha256(), "inputs_sha256": info["inputs_sha256"],
-           "preview": {**res, "path": os.path.relpath(dst, c.dir)}, "spec": {k: v for k, v in PREVIEW.items()},
+           "preview": {**res, "path": os.path.relpath(dst, c.dir)}, "spec": dict(preview_texts(lang)),
            "timings_s": {**info["timings_s"], "render_total": round(t1 - t0, 2), "preview_post": round(t2 - t1, 2),
                          "total": round(t2 - t0, 2)}}
     (c.dir / "preview.manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")

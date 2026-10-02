@@ -2,7 +2,7 @@ import pytest
 
 from conftest import run_cli
 
-SUBS = ["init", "validate", "voice", "render", "publish", "run", "venda", "mcp", "list"]
+SUBS = ["init", "validate", "voice", "render", "publish", "run", "intl", "venda", "mcp", "list"]
 
 
 def test_main_help_lists_the_whole_flow():

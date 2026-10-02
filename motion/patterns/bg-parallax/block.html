@@ -11,7 +11,7 @@
   Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="bg-parallax"].
   Origin: authored for the kids/dental template v2 (Lothus Odontologia, Dia das Criancas 2026, fast/beat-synced cut).
 -->
-<html lang="pt-BR" data-composition-id="bg-parallax" data-composition-duration="16.0" data-composition-variables='[{"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "base", "type": "string", "label": "Cor de fundo", "default": "#fbf7f2"}, {"id": "ink", "type": "color", "label": "Contorno das formas", "default": "#3d3834"}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 16.0}, {"id": "speed", "type": "number", "label": "Velocidade base (px/s)", "default": 60}, {"id": "zoom", "type": "number", "label": "Zoom contínuo (0,06 = 6 %)", "default": 0.06}, {"id": "bpm", "type": "number", "label": "BPM para o pulso (0 = sem pulso)", "default": 0}, {"id": "shapes", "type": "number", "label": "Formas na camada média", "default": 18}, {"id": "dots", "type": "number", "label": "Pontinhos na camada da frente", "default": 26}, {"id": "seed", "type": "number", "label": "Semente", "default": 7}]'>
+<html lang="pt-BR" data-composition-id="bg-parallax" data-composition-duration="16.0" data-composition-variables='[{"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "base", "type": "string", "label": "Cor de fundo", "default": "#fbf7f2"}, {"id": "center", "type": "string", "label": "Cor do centro do gradiente (#ffffff = padrão claro; use escura em tema escuro)", "default": "#ffffff"}, {"id": "ink", "type": "color", "label": "Contorno das formas", "default": "#3d3834"}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 16.0}, {"id": "speed", "type": "number", "label": "Velocidade base (px/s)", "default": 60}, {"id": "zoom", "type": "number", "label": "Zoom contínuo (0,06 = 6 %)", "default": 0.06}, {"id": "bpm", "type": "number", "label": "BPM para o pulso (0 = sem pulso)", "default": 0}, {"id": "shapes", "type": "number", "label": "Formas na camada média", "default": 18}, {"id": "dots", "type": "number", "label": "Pontinhos na camada da frente", "default": 26}, {"id": "seed", "type": "number", "label": "Semente", "default": 7}]'>
   <head>
     <meta charset="UTF-8" />
     <title>Fundo em movimento (parallax de formas + zoom contínuo)</title>
@@ -37,7 +37,7 @@
         <script>
           (() => {
             // ---- params: block defaults < host data-variable-values < CLI --variables ----
-            const DEF = {"colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "base": "#fbf7f2", "ink": "#3d3834", "dur": 16.0, "speed": 60, "zoom": 0.06, "bpm": 0, "shapes": 18, "dots": 26, "seed": 7};
+            const DEF = {"colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "base": "#fbf7f2", "center": "#ffffff", "ink": "#3d3834", "dur": 16.0, "speed": 60, "zoom": 0.06, "bpm": 0, "shapes": 18, "dots": 26, "seed": 7};
             const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
             const V = Object.assign({}, DEF, HV);
             const root = document.getElementById("bg-parallax-root");
@@ -54,7 +54,7 @@
             const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
             const tl = gsap.timeline({ paused: true });
             const R = rng(V.seed), pal = list(V.colors), H = 1920, NS = "http://www.w3.org/2000/svg";
-            $(".base").style.background = `radial-gradient(90% 60% at 50% 40%, #ffffff 0%, ${V.base} 55%, ${V.base} 100%)`;
+            $(".base").style.background = `radial-gradient(90% 60% at 50% 40%, ${V.center || "#ffffff"} 0%, ${V.base} 55%, ${V.base} 100%)`;
             const drift = (el, speed, x0, y0, rot) => { // moves up by speed*dur, starting spread so the screen is always populated
               const dist = speed * V.dur;
               tl.fromTo(el, { x: x0, y: y0, rotation: 0 }, { x: x0 + (R() - 0.5) * 160, y: y0 - dist, rotation: rot, duration: V.dur, ease: "none" }, 0);

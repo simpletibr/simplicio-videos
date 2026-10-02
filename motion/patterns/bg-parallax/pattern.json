@@ -24,6 +24,12 @@
       "default": "#fbf7f2"
     },
     {
+      "id": "center",
+      "type": "string",
+      "label": "Cor do centro do gradiente (#ffffff = padrão claro; use escura em tema escuro)",
+      "default": "#ffffff"
+    },
+    {
       "id": "ink",
       "type": "color",
       "label": "Contorno das formas",
