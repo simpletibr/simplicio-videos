@@ -11,6 +11,7 @@ Você (LLM) **raciocina e escreve o contrato**; o CLI **executa**. Nunca edite H
 - Pedido de vídeo curto para um negócio real (post de data comemorativa, institucional, oferta, CTA para WhatsApp).
 - Trocar a voz provisória pela final (WAVs do Gemini), mudar texto/tempo, renderizar de novo, gerar bundle para o Colab.
 - **Venda ativa em massa** (lista de empresas → prévias com marca d'água para o Wesley oferecer): `simplicio-video prospect <lista.csv>` (alias `batch`), sem LLM por vídeo; ver `docs/venda-ativa.md`.
+- **Vídeos UGC em volume** (selfie vertical de ~7 s, personagem sintético falando do app): ver a seção **UGC (gerativo)** abaixo; fora do contrato e do `render`.
 - **Não** use para edição de footage bruto (cortar/legendar gravações): isso é `tools/video-use/` (etapa opcional).
 
 ## Como raciocinar (antes de escrever)
@@ -102,4 +103,11 @@ Contratos completos: `clients/lothus-odontologia/video-01-dia-das-criancas/contr
 - Instagram: nunca com login nem scraping; o `robots.txt` do instagram.com proíbe robôs, então o @ vem do CSV ou do link no site.
 - LGPD: só dados da empresa (WhatsApp comercial publicado por ela); nada de pessoas, e-mails ou telefones pessoais.
 - Saída fora do git (`prospects/*`); **nunca envie nada**: o Wesley revisa `lote.csv` e envia (script em `docs/venda-ativa.md`).
+
+## UGC (gerativo)
+- **Quando usar:** pedido de vídeos curtos "estilo UGC" (selfie vertical de ~7 s, personagem sintético falando do app ou produto), em volume. Trilha **gerativa, fora do contrato e do `render`**: `ugc/README.md`; decisão em `docs/decisoes/ADR-0004-ugc-generativo.md`. Vídeo de cliente com motion e voz TTS continua sendo contrato + `render`.
+- **O CLI só monta o prompt:** `simplicio-video ugc list [--json]` e `simplicio-video ugc prompt <personagem> --app "<APP>" [--fala "texto"] [--duracao 7] [--json]` (`--todos` no lugar do personagem = os 10 com as falas de exemplo). Monta o esqueleto Seedance 2.5 do artigo, byte a byte, e avisa se a fala foge de ~3,5 palavras/s (22–28 palavras para 7 s). Não chama LLM nem API de geração.
+- **Texto e mídia:** elenco, prompt de imagem e roteiros (passos 1, 2, 4, 7) são prompts em `ugc/prompts/`; imagens e clipes (passos 3 e 6) são manuais (ChatGPT, Higgsfield, Krea). Gerar em plataforma paga (inclusive pelo MCP do Higgsfield) só com pedido explícito; gasta crédito.
+- **A fala vem de `clients/<slug>/coleta/`** e entra por `--fala`. As falas do pack são exemplos de formato (namoro, treino, diário, finanças): nunca as publique para cliente real.
+- **Guardrails:** personagem sintético, nunca rosto ou voz de pessoa real sem autorização; depoimento fabricado ("uso há 40 dias", "economizei R$ 400") apresentado como cliente real é publicidade enganosa: só fato confirmado em `coleta/` ou encenação clara; rótulo de IA da plataforma (TikTok, Instagram, YouTube) e CONAR; imagens e MP4 em `out/ugc/<slug>/` e no Drive, nunca no git; chaves só no ambiente.
 

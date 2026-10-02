@@ -2,7 +2,7 @@
 
 **Plugin de vídeo do Simplicio Runtime (Simplicio MCP).** Quando um usuário do Simplicio pede um vídeo, o plugin roda uma **esteira determinística**: questionário de intake (com extração automática de site/Instagram) → brief/spec → template do setor → composição com a biblioteca de padrões de motion (HyperFrames) → voz TTS (Gemini, ElevenLabs, xAI ou local, com cache) → edição de footage com video-use (opcional) → render determinístico. LLM (Opus 5.5) só cria templates e padrões novos.
 
-Decisões: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · [ADR-0002 (CLI + contrato + Colab + créditos)](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md) · [ADR-0003 (fluxo 100% script; render local padrão, Colab/Kaggle opcionais)](docs/decisoes/ADR-0003-fluxo-100-script.md) · **Custos por vídeo:** [docs/custos.md](docs/custos.md) · **Venda ativa em massa:** [docs/venda-ativa.md](docs/venda-ativa.md) (`simplicio-video prospect`) · Receita: [docs/receita-video-cliente.md](docs/receita-video-cliente.md) · Manifest: [`plugin.json`](plugin.json) · Skill: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md)
+Decisões: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · [ADR-0002 (CLI + contrato + Colab + créditos)](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md) · [ADR-0003 (fluxo 100% script; render local padrão, Colab/Kaggle opcionais)](docs/decisoes/ADR-0003-fluxo-100-script.md) · [ADR-0004 (UGC generativo fora do render determinístico; CLI só monta o prompt)](docs/decisoes/ADR-0004-ugc-generativo.md) · **Custos por vídeo:** [docs/custos.md](docs/custos.md) · **Venda ativa em massa:** [docs/venda-ativa.md](docs/venda-ativa.md) (`simplicio-video prospect`) · Receita: [docs/receita-video-cliente.md](docs/receita-video-cliente.md) · Manifest: [`plugin.json`](plugin.json) · Skill: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md)
 
 **Entrada: o CLI `simplicio-video`.** O agente escreve o contrato YAML ([`schema/contract.schema.json`](schema/contract.schema.json)); o CLI valida, gera a voz e renderiza de forma determinística (local ou Colab GPU).
 
@@ -23,6 +23,7 @@ simplicio-videos/
 ├── motion/                 # 4 biblioteca de padrões: patterns/<id>/{pattern.json, block.html, preview.png}, catalog.json, lib/, scripts/
 ├── voices/                 # 5 providers de voz (gemini, elevenlabs, xai, local) + pipeline TTS
 ├── tools/                  # 6 opcional: video-use (setup fixado, transcrição local, uso) — edição quando o usuário pede
+├── ugc/                    # trilha UGC gerativa (fora do render): pack.json (10 personagens), prompts/ (5), CLI `ugc list|prompt`
 ├── schemas/                # 2 video-spec.schema.json (simplicio.video-spec/v1)
 ├── docs/                   # ADRs (decisoes/), esteira, setup, pesquisa — índice em docs/README.md
 └── clients/<cliente>/      # trabalho de cliente
@@ -40,6 +41,7 @@ simplicio-videos/
 | Vozes | [voices/README.md](voices/README.md) | Gemini (padrão, via `file`), Chatterbox/Kokoro locais, ElevenLabs/xAI (sem chave) |
 | Intake | [intake/README.md](intake/README.md) | questionário, extração automática, schema, exemplo WJR |
 | Ferramentas opcionais | [tools/README.md](tools/README.md) | video-use (edição: cortar p/ X s, reordenar, aparar footage, legendas, revisão) |
+| UGC (gerativo) | [ugc/README.md](ugc/README.md) | 10 personagens + 5 prompts |
 
 ## Clientes e vídeos
 

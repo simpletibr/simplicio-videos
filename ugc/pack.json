@@ -1,0 +1,102 @@
+{
+  "schema": "simplicio.ugc-pack/v1",
+  "fonte": {
+    "pack": "10 AI UGC CHARACTER PACK",
+    "autor": "@sleepclip",
+    "pack_url": "https://app.notion.com/p/10-AI-UGC-CHARACTER-PACK-3eaa9e04517680b4a5eacc4c6143cdaf",
+    "artigo_url": "https://x.com/sleepclip/status/2105574125745922166",
+    "coletado_em": "2026-10-02"
+  },
+  "personagens": [
+    {
+      "id": "casual-dater-guy",
+      "nome": "the casual dater guy",
+      "genero": "m",
+      "local": "sitting on the edge of an unmade bed in a small apartment bedroom, evening lamp light",
+      "entrega": "amused",
+      "fala": "she left me on read for two days, i put her last text in here, and now she's asking what i'm doing saturday.",
+      "reacao": "shakes his head with a small laugh, then looks back at camera"
+    },
+    {
+      "id": "back-on-the-apps-girl",
+      "nome": "the back on the apps girl",
+      "genero": "f",
+      "local": "curled up on a couch under a throw blanket, soft late afternoon window light",
+      "entrega": "tired",
+      "fala": "back on the apps after two years and every guy opens with hey. this is the only thing keeping me from deleting everything.",
+      "reacao": "sighs, then looks back at camera with a small smirk"
+    },
+    {
+      "id": "funny-wingman",
+      "nome": "the funny wingman",
+      "genero": "m",
+      "local": "sitting in the driver's seat of a parked car, seatbelt on, daylight through the windshield",
+      "entrega": "laughing",
+      "fala": "my boy asked me to text his match for him. i'm not doing that. i'm sending him this app instead. same energy, less work.",
+      "reacao": "laughs, then looks back at camera"
+    },
+    {
+      "id": "gym-girl",
+      "nome": "the gym girl",
+      "genero": "f",
+      "local": "standing on a commercial gym floor between sets, racks blurred behind her, overhead gym lighting",
+      "entrega": "breathless",
+      "fala": "i stopped guessing my workouts three months ago. this thing tells me exactly what to hit and i haven't missed a week since.",
+      "reacao": "wipes her forehead with the back of her hand, then looks back at camera"
+    },
+    {
+      "id": "gym-guy",
+      "nome": "the gym guy",
+      "genero": "m",
+      "local": "standing in a home garage gym with a cheap bench behind him, single ceiling bulb",
+      "entrega": "embarrassed",
+      "fala": "i couldn't do one pushup in january. i'm not saying i'm jacked now, but i did twelve this morning and this app is why.",
+      "reacao": "gives a small proud nod, then looks back at camera"
+    },
+    {
+      "id": "dad-getting-back-in-shape",
+      "nome": "the dad getting back in shape",
+      "genero": "m",
+      "local": "standing on a suburban sidewalk after a run, houses behind him, early morning overcast light",
+      "entrega": "winded",
+      "fala": "forty two, two kids, zero free time. fifteen minutes a morning with this and i just ran my first 5k without stopping.",
+      "reacao": "catches his breath, then looks back at camera with a tired grin"
+    },
+    {
+      "id": "quitting-phone-guy",
+      "nome": "the quitting-phone guy",
+      "genero": "m",
+      "local": "sitting at a messy desk late at night, monitor glow and a warm desk lamp",
+      "entrega": "honest",
+      "fala": "my screen time was nine hours a day. i put this on my phone two weeks ago and it's under three now. i feel weird.",
+      "reacao": "rubs his eyes, then looks back at camera"
+    },
+    {
+      "id": "journaling-girl",
+      "nome": "the journaling girl",
+      "genero": "f",
+      "local": "sitting by a window with an open notebook and a coffee mug on the sill, soft morning daylight",
+      "entrega": "calm",
+      "fala": "i tried journaling for years and quit every time. this asks me three questions every morning and somehow i haven't skipped a day in forty.",
+      "reacao": "smiles softly, then looks back at camera"
+    },
+    {
+      "id": "student-grinding-exams",
+      "nome": "the student grinding exams",
+      "genero": "f",
+      "local": "sitting in a library study carrel with stacked textbooks, fluorescent overhead light",
+      "entrega": "exhausted",
+      "fala": "finals in four days and i was panicking. this made me a study plan in two minutes and i've actually stuck to it. don't tell my roommate.",
+      "reacao": "lets out a tired laugh, then looks back at camera"
+    },
+    {
+      "id": "budgeting-girl",
+      "nome": "the budgeting girl",
+      "genero": "f",
+      "local": "sitting at a kitchen table with a laptop and a pile of receipts, warm pendant light overhead",
+      "entrega": "confident",
+      "fala": "i had no idea where my money went every month. this showed me i spent four hundred dollars on food delivery. i cried a little.",
+      "reacao": "raises her eyebrows, then looks back at camera with a knowing smile"
+    }
+  ]
+}
