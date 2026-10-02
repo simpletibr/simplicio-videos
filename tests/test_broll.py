@@ -437,6 +437,8 @@ OLD_STYLE_HASHES = {  # sha256[:16] do PCM int16 de au.music(style, 118, 3.0, se
           "samba": "780cbc106d56f605", "bossa": "1ded2453bb87a7a8", "house": "3aeeb56951ee686e", "cinematic": "40df24b4859be11c",
           "hiphop": "0d11ea19a21629e9", "tropical": "881129ba03ac4e40", "acoustic": "15750c29129d6c7e", "forro": "009f109ad01fafed"},
 }
+FUNK_AXE_HASHES = {0.0: {"funk": "cfd10cb818090af8", "axe": "59a72e568f8b6e8a"},   # travados no commit d99aa21 (Singapura veio
+                   1.0: {"funk": "10ab0c8de8f1a309", "axe": "0090a201fdaaa9d6"}}   # depois e só acrescenta estilos)
 
 
 def _pcm_hash(x):
@@ -463,7 +465,7 @@ def test_os_12_estilos_antigos_mantem_o_hash(lift):
 
 
 def test_funk_e_axe_renderizam_e_sao_deterministicos():
-    assert {"funk", "axe"} <= set(au.STYLES) and len(au.STYLES) == len(set(au.STYLES)) == 14
+    assert {"funk", "axe"} <= set(au.STYLES) and len(au.STYLES) == len(set(au.STYLES)) >= 14
     for style, bpm in (("funk", 130), ("axe", 126)):
         for lift in (0.0, 1.0):
             m = au.music(style, bpm, 3.0, seed=7, drop_at=1.5, lift=lift)
@@ -475,7 +477,7 @@ def test_funk_e_axe_renderizam_e_sao_deterministicos():
 def test_funk_e_axe_nao_colidem_com_os_outros():
     beds = {s: au.music(s, 128, 4.0, seed=5) for s in au.STYLES}
     hashes = {s: _pcm_hash(b) for s, b in beds.items()}
-    assert len(set(hashes.values())) == len(au.STYLES)  # 14 trilhas diferentes
+    assert len(set(hashes.values())) == len(au.STYLES)  # todas as trilhas diferentes
     G = {s: _groove(b, 128) for s, b in beds.items()}
     for new in ("funk", "axe"):
         for other in au.STYLES:
@@ -497,3 +499,44 @@ def test_estilo_de_trilha_desconhecido_da_erro_visivel(proj):
     d["music"] = {"style": "axe", "bpm": 126}
     f.write_text(yaml.safe_dump(d))
     assert B.load_concept(f)["music"]["style"] == "axe"
+
+
+# ---------------------------------------------------------------- estilos de Singapura (02/10): citypop, trap, pizzicato
+NEW_SG = (("citypop", 108), ("trap", 140), ("pizzicato", 112))
+
+
+@pytest.mark.parametrize("lift", [0.0, 1.0])
+def test_os_14_estilos_anteriores_mantem_o_hash(lift):
+    old = {**OLD_STYLE_HASHES[lift], **FUNK_AXE_HASHES[lift]}
+    assert {s: _pcm_hash(au.music(s, 118, 3.0, seed=11, drop_at=1.5, lift=lift)) for s in old} == old
+
+
+def test_estilos_de_singapura_renderizam_e_sao_deterministicos():
+    assert au.STYLES[:14] == ("bouncy", "elegant", "disco", "lofi", "samba", "bossa", "house", "cinematic", "hiphop", "tropical",
+                              "acoustic", "forro", "funk", "axe")  # só acréscimo, ordem dos antigos intacta
+    assert au.STYLES[14:] == ("citypop", "trap", "pizzicato") and len(set(au.STYLES)) == 17
+    for style, bpm in NEW_SG:
+        assert style in au.PROGRESSIONS
+        for lift in (0.0, 1.0):
+            m = au.music(style, bpm, 3.0, seed=7, drop_at=1.5, lift=lift)
+            assert m.shape == (int(3.0 * au.SR), 2) and np.isfinite(m).all()
+            assert 0.1 < np.abs(m).max() <= 1.0 and float(np.sqrt((m ** 2).mean())) > 0.03
+            assert np.array_equal(m, au.music(style, bpm, 3.0, seed=7, drop_at=1.5, lift=lift))
+
+
+def test_estilos_de_singapura_nao_colidem_com_nenhum_outro():
+    beds = {s: au.music(s, 128, 4.0, seed=5) for s in au.STYLES}
+    assert len({_pcm_hash(b) for b in beds.values()}) == len(au.STYLES)
+    G = {s: _groove(b, 128) for s, b in beds.items()}
+    for new, _ in NEW_SG:
+        for other in au.STYLES:
+            if other != new:
+                assert float(G[new] @ G[other]) < 0.96, (new, other)
+
+
+def test_novos_timbres_sao_so_acrescimo():
+    for kind in ("pizz", "harp", "glock", "sub808", "saw"):
+        x = au.tone(220.0, 0.3, kind)
+        assert len(x) == int(0.3 * au.SR) and np.isfinite(x).all() and np.abs(x).max() > 0.05
+    with pytest.raises(ValueError):
+        au.tone(220.0, 0.3, "theremin")

@@ -57,7 +57,7 @@ previas/<slug>/
 | `transitions` | `default[]` (ciclo), `frames` (6–10), `flash`, `leak` | `cut flash zoom whip glitch pop leak blur mask slide dip iris stripes push spin split` |
 | `grade` | `sat`, `contrast`, `warmth`, `lift`, `vignette`, `tint`, `tint_amt` | cor do conceito |
 | `overlays` | `particles` (string ou lista: `bubbles leak sparkles confetti steam film rays frame`), `density`, `grain`, `leak_strength`, `steam_strength`, `rays_strength`, `colors[]` (chaves da paleta), `emoji_font` | `emoji_font` obrigatório se houver sticker emoji (`motion/assets/fonts/broll/NotoColorEmoji.ttf`) |
-| `music` | `style` (14: `bouncy elegant disco lofi samba bossa house cinematic hiphop tropical acoustic forro funk axe`; ver 3.2), `bpm`, `db`, `duck_db`, `drop_at` (ref. de tempo: prefira a palavra falada, ex. `vo3:No`, que acompanha a voz), `seed`, `pt_animado` (`auto` padrão, `true`, `false`) | trilha sintetizada pelo motor (sem amostras de terceiros); em vídeo pt o preset animado (3.1) entra por cima |
+| `music` | `style` (17: `bouncy elegant disco lofi samba bossa house cinematic hiphop tropical acoustic forro funk axe citypop trap pizzicato`; ver 3.2), `bpm`, `db`, `duck_db`, `drop_at` (ref. de tempo: prefira a palavra falada, ex. `vo3:No`, que acompanha a voz), `seed`, `pt_animado` (`auto` padrão, `true`, `false`) | trilha sintetizada pelo motor (sem amostras de terceiros); em vídeo pt o preset animado (3.1) entra por cima |
 | `sfx` | `cut` (string ou `{tipo_de_transição: som, default: som}`), `sticker`, `card`, `hook`, `logo`, `db` | sons: `whoosh swish pop tick shimmer impact clink sizzle snap thud` |
 | `logo` | `plate` (`round arch none`), `plate_color`, `size`, `anim` (`pop reveal`) | logo branca → placa escura; logo preta → placa clara |
 | `setor` | `saude` ou vazio | `saude` liga as guardas de saúde |
@@ -104,9 +104,17 @@ parênteses; em pt, o preset 3.1 leva o BPM para 124–135.
 | `forro` (120–132) | zabumba (tom), triângulo (sino), sanfona (reed) | padaria/comida nordestina |
 | **`funk`** (126–134, novo 02/10) | funk brasileiro / tamborzão: bumbo 3-3-2, palma no 2 e 4, atabaque, 808 (baixo), "ay" de metais | mudança, serviços, energia urbana (P082 Evident, 130) |
 | **`axe`** (122–130, novo 02/10) | axé / samba-reggae: surdo no 2 e 4, timbal na clave, palmas, guitarra no contratempo, metais, baixo em quintas | salão, beleza, festa brasileira (P079 Salão Brasileiro, 126) |
+| **`citypop`** (100–112, novo 02/10) | city pop asiático dos anos 80: kick no 1 e no "e" do 3, caixa gated no 2 e 4, open hat no contratempo, baixo slap em oitavas, piano elétrico com 7ª, synth brass, sino | skincare/estúdio boutique, cidade asiática (P066 Creature of Habit, 108) |
+| **`trap`** (136–144, novo 02/10) | trap half-time: palma só no 3º tempo, bumbo sincopado, 808 longo com queda de pitch, hats com rolos de fusas, sino escuro em tercina | barbearia, streetwear (P067 Kings Barber, 140) |
+| **`pizzicato`** (104–116, novo 02/10) | cordas em pizzicato num galope de 16 avos, harpa em arpejo, glockenspiel, estalo de dedos, pad de cordas | noivas, eventos, delicado e alegre (P068 TangYong, 112) |
 
 - `funk` e `axe` entraram como ramos novos do sequenciador: os 12 estilos antigos saem **bit a bit iguais** (hash
   travado em `tests/test_broll.py::test_os_12_estilos_antigos_mantem_o_hash`, com e sem `lift`).
+- `citypop`, `trap` e `pizzicato` (Singapura, 02/10) entraram do mesmo jeito, com timbres novos (`pizz harp glock sub808
+  saw`) só por acréscimo. Os 14 anteriores têm hash travado (`test_os_14_estilos_anteriores_mantem_o_hash`) e cada estilo
+  novo tem groove próprio (correlação de ataques < 0,96 contra todos os outros).
+- **Novo estilo = só acréscimo:** ramo novo no `_music2`, entrada nova em `PROGRESSIONS` e no fim de `STYLES`, hash dos
+  anteriores travado no teste, groove distinto e doc nesta tabela.
 - Estilo desconhecido no concept = erro visível no `--check`/`load_concept` (`music.style desconhecido 'x' (use …)`).
 - Conferir que um lote não repete trilha: `/home/box/.local/share/simplicio-video/venv/bin/python
   /workspace/broll-lote2/trilhas12.py` (sai com erro se houver estilo repetido; mostra também os grooves mais parecidos).

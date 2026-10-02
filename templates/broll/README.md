@@ -22,7 +22,7 @@ Regras verificadas antes de renderizar (`simplicio-video broll <pasta> --check`)
 - cada asset e a logo com fonte, link e licença no `assets-licencas.csv`;
 - layout: tudo na área segura, palavras sem colar, sticker/logo nunca cobrindo texto, texto nunca sobre texto.
 
-Trilha (`music.style` no concept, uma por empresa sem repetir no lote): `bouncy elegant disco lofi samba bossa house cinematic hiphop tropical acoustic forro funk axe` (`funk` = tamborzão, `axe` = samba-reggae, ambos novos em 02/10). Tabela e BPM sugeridos na [spec §3.2](../../docs/specs/visual-v2-broll.md); em pt, o preset animado da §3.1 entra por cima. `drop_at` de preferência na palavra falada (`vo3:No`), para acompanhar a voz.
+Trilha (`music.style` no concept, uma por empresa sem repetir no lote): `bouncy elegant disco lofi samba bossa house cinematic hiphop tropical acoustic forro funk axe citypop trap pizzicato` (`funk` = tamborzão, `axe` = samba-reggae, `citypop`, `trap` half-time e `pizzicato` de cordas, novos em 02/10). Tabela e BPM sugeridos na [spec §3.2](../../docs/specs/visual-v2-broll.md); em pt, o preset animado da §3.1 entra por cima. `drop_at` de preferência na palavra falada (`vo3:No`), para acompanhar a voz.
 
 Referências de tempo: `1.25`, `end`, `end-0.5`, `vo2`, `vo2.end`, `vo2:trust`, `vo2:trust.end`, `vo2#1` (índice 0-based), com `+/-offset`.
 

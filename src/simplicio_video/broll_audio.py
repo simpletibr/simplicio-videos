@@ -130,6 +130,23 @@ def tone(freq: float, dur: float, kind: str = "pluck", rng=None) -> np.ndarray:
     if kind == "bell":
         x = np.sin(2 * np.pi * freq * t) + 0.4 * np.sin(2 * np.pi * freq * 2.76 * t)
         return (x * _env(n, 0.001, 0.5)).astype(np.float32)
+    if kind == "pizz":  # pizzicato string: bright pluck, upper partials die fast, short body
+        x = sum(np.sin(2 * np.pi * freq * h * t) * np.exp(-t * (14 + 7 * h)) / h for h in range(1, 6))
+        return (x * _env(n, 0.003, 0.3) * 0.9).astype(np.float32)
+    if kind == "harp":  # harp: long, bright, gentle attack
+        x = sum(np.sin(2 * np.pi * freq * h * t) * np.exp(-t * (1.2 + 1.8 * h)) / h ** 0.8 for h in range(1, 8))
+        return (x * _env(n, 0.004, 1.6) * 0.5).astype(np.float32)
+    if kind == "glock":  # glockenspiel: pure, inharmonic shimmer
+        x = np.sin(2 * np.pi * freq * t) + 0.3 * np.sin(2 * np.pi * freq * 3.9 * t) * np.exp(-t * 9)
+        return (x * _env(n, 0.001, 0.9)).astype(np.float32)
+    if kind == "sub808":  # 808 sub: short pitch drop, long saturated tail
+        f = freq * (1 + 0.45 * np.exp(-t * 35))
+        x = np.tanh(2.2 * np.sin(np.cumsum(2 * np.pi * f / SR)))
+        return (x * np.exp(-t * 1.6) * np.minimum(1, t / 0.004)).astype(np.float32)
+    if kind == "saw":  # soft detuned saw (city-pop synth / pad)
+        x = sum(np.sin(2 * np.pi * freq * d * h * t) / h for h in range(1, 11) for d in (0.997, 1.003)) / 2
+        a = np.minimum(1, t / 0.02) * np.minimum(1, (dur - t) / 0.08)
+        return (x * a * 0.35).astype(np.float32)
     raise ValueError(kind)
 
 
@@ -154,7 +171,8 @@ PROGRESSIONS = {
 
 
 STYLES = ("bouncy", "elegant", "disco", "lofi", "samba", "bossa", "house", "cinematic", "hiphop", "tropical",
-          "acoustic", "forro", "funk", "axe")  # funk/axe (02/10): estilos pt animados extras, para 12+ empresas sem repetir
+          "acoustic", "forro", "funk", "axe",  # funk/axe (02/10): estilos pt animados extras, para 12+ empresas sem repetir
+          "citypop", "trap", "pizzicato")  # 02/10 (Singapura): city pop, trap half-time, pizzicato de cordas
 
 PROGRESSIONS.update({
     "disco": [(41, [57, 60, 64]), (43, [59, 62, 67]), (45, [57, 60, 64]), (40, [55, 59, 64])],      # F G Am Em
@@ -169,6 +187,9 @@ PROGRESSIONS.update({
     "forro": [(43, [55, 59, 62]), (48, [55, 60, 64]), (50, [57, 62, 66]), (43, [55, 59, 62])],
     "funk": [(45, [57, 60, 64]), (45, [57, 60, 64]), (41, [57, 60, 65]), (43, [55, 59, 62])],      # Am Am F G
     "axe": [(50, [62, 66, 69]), (43, [62, 67, 71]), (45, [61, 64, 69]), (50, [62, 66, 69])],       # D G A D
+    "citypop": [(41, [57, 60, 64, 65]), (40, [56, 59, 62, 64]), (45, [55, 60, 64, 67]), (43, [58, 62, 65, 67])],  # Fmaj7 E7 Am7 Gm7
+    "trap": [(48, [60, 63, 67]), (44, [60, 63, 68]), (46, [58, 62, 65]), (43, [59, 62, 67])],        # Cm Ab Bb G
+    "pizzicato": [(48, [60, 64, 67]), (43, [59, 62, 67]), (45, [57, 60, 64]), (41, [57, 60, 65])],   # C G Am F
 })
 
 
@@ -284,6 +305,44 @@ def _music2(style: str, bpm: float, dur: float, rng, drop_at) -> np.ndarray:
             if bb == 0: _add(L, t, tone(midi(root), beat * 0.8, "bass"), 0.32)
             if bb == 2: _add(L, at(0.5), tone(midi(root + 7), beat * 0.6, "bass"), 0.28)
             if bb == 3: _add(L, at(0.5), tone(midi(root + 12), beat * 0.4, "bass"), 0.2)
+        elif style == "citypop":  # city pop (Tóquio/Singapura anos 80): kick 1 e 3, caixa gated no 2 e 4, hats 16 avos,
+            # baixo slap em oitavas sincopado, piano elétrico com acordes de 7ª no contratempo, synth brass e sino
+            if not brk and bb == 0: _add(L, t, kick(rng, 0.8), 0.7)
+            if not brk and bb == 2: _add(L, at(0.5), kick(rng, 0.7), 0.55)
+            if bb in (1, 3): _add(L, t, C, 0.42, 0.05); _add(L, t, tone(190, 0.12, "tom"), 0.18)
+            for s16 in range(4): _add(L, at(s16 * 0.25), Hh, 0.05 if s16 % 2 else 0.035, 0.3)
+            _add(L, at(0.5), Ho * 0.7, 0.09, -0.25)
+            for x, o in ((0.0, 0), (0.25, 12), (0.75, 7)) if bb % 2 == 0 else ((0.5, 0), (0.75, 12)):
+                if not brk or x: _add(L, at(x), tone(midi(root + o), beat * 0.2, "bass"), 0.26 if o else 0.34)
+            if bb in (0, 2): [_add(L, at(0.5), tone(midi(m), beat * 0.45, "keys"), 0.07, (k - 1.5) * 0.25) for k, m in enumerate(chord)]
+            if bb == 3 and bar % 2 == 1: [_add(L, at(0.5), tone(midi(m + 12), 0.22, "saw"), 0.035, (k - 1.5) * 0.3) for k, m in enumerate(chord)]
+            if bb == 0: [_add(L, t, tone(midi(m), beat * 3.9, "saw"), 0.012, (k - 1.5) * 0.4) for k, m in enumerate(chord)]
+            if bb == 1 and bar % 2 == 0: _add(L, at(0.5), tone(midi(chord[-1] + 24), 0.6, "bell"), 0.04, 0.4)
+        elif style == "trap":  # trap half-time: caixa/palma só no 3º tempo, bumbo sincopado, 808 longo com queda de pitch,
+            # hats em colcheias com rolos de fusas no fim de cada 2 compassos, sino escuro em tercina
+            if not brk and bb == 0: _add(L, t, K, 0.85); _add(L, t, tone(midi(root - 24), beat * 1.8, "sub808"), 0.42)
+            if not brk and bb == 1: _add(L, at(0.75), K, 0.55)
+            if not brk and bb == 3: _add(L, at(0.5), K, 0.6); _add(L, at(0.5), tone(midi(root - 24 + (3 if bar % 2 else 0)), beat * 0.9, "sub808"), 0.36)
+            if bb == 2: _add(L, t, C, 0.6); _add(L, t, Ho * 0.6, 0.12, -0.2)
+            roll = bar % 2 == 1 and bb == 3
+            for k in range(8 if roll else 2): _add(L, at(k / (8 if roll else 2)), Hh, (0.07 + 0.01 * k) if roll else (0.14 if k == 0 else 0.1), 0.35)
+            if bb in (0, 2): [_add(L, at(x), tone(midi(chord[(b + j) % 3] + 24), 0.35, "bell"), 0.045, -0.3) for j, x in enumerate((0.0, 1 / 3, 2 / 3))]
+            if bb == 0 and bar % 2 == 0: [_add(L, t, tone(midi(m), beat * 7.5, "strings"), 0.03, (k - 1) * 0.5) for k, m in enumerate(chord)]
+        elif style == "pizzicato":  # pizzicato de cordas (noivas, delicado e pra cima): ostinato galopante de pizz em
+            # 16 avos, harpa em arpejo ascendente, glockenspiel no contratempo, tímpano suave no 1, estalo no 4, pad de cordas
+            if not brk and bb == 0: _add(L, t, kick(rng, 0.4), 0.38)
+            if bb in (1, 3): _add(L, t, C * 0.5, 0.2, 0.15)  # estalo de dedos
+            arp = [root + 12, chord[0], chord[1], chord[2], chord[1] + 12, chord[2]]
+            for s16 in range(4):
+                st = bb * 4 + s16
+                if st in (0, 2, 3, 6, 8, 10, 11, 14):
+                    _add(L, at(s16 * 0.25), tone(midi(arp[st % len(arp)]), 0.28, "pizz"), 0.34 if st % 4 == 0 else 0.25, (st % 3 - 1) * 0.3)
+            if bb in (0, 2): _add(L, t, tone(midi(root), beat * 0.7, "pizz"), 0.3)
+            if bb == 1 and bar % 2 == 0: [_add(L, at(0.5 + j * 0.125), tone(midi(m + 12), 1.4, "harp"), 0.08, 0.3) for j, m in enumerate(chord + [chord[0] + 12])]
+            if bb in (1, 3): _add(L, at(0.5), tone(midi(chord[(bar + bb) % 3] + 24), 0.8, "glock"), 0.07, 0.35)
+            if bb == 0: [_add(L, t, tone(midi(m), beat * 4.1, "strings"), 0.045, (k - 1) * 0.5) for k, m in enumerate(chord)]
+    if style == "pizzicato":  # orchestral bed is sparse: bring it to the level of the other styles
+        L *= 1.7
     if style == "lofi":  # vinyl crackle
         cr = (rng.random(n) < 0.0009).astype(np.float32) * rng.uniform(-0.6, 0.6, n).astype(np.float32)
         L += np.stack([cr, cr], 1) * 0.5
