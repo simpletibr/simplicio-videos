@@ -49,6 +49,12 @@ FORBIDDEN = [
     (r"\b(?:best|#1|number one|nummer eins|beste[nrs]?|meilleur\w*|perfect results?|cure[sd]?|heil(?:t|en|ung)|gu[ée]ri\w*)\b", "superlativo/promessa"),
     (r"\b(?:before\s*(?:&|and)\s*after|vorher\s*(?:/|-|und)?\s*nachher|avant\s*/?\s*apr[eè]s)\b", "antes/depois"),
     (r"\d+\s*%|\b\d+\s*(?:percent|prozent|pour\s*cent)\b|\b(?:off|sparen|économisez)\b", "percentual/desconto"),
+    (r"r\$|\b(?:pre[cç]os?|barat\w*|desconto\w*|promo[cç]\w*|oferta\w*|cupo[mn]\w*|parcel\w*|financia\w*)\b", "preço/promoção (pt)"),
+    (r"\b(?:gr[aá]tis|gratuit[oa]s?|de gra[cç]a|brinde\w*)\b", "grátis (pt)"),
+    (r"\b(?:garant\w*)\b", "garantia (pt)"),
+    (r"\b(?:o melhor|a melhor|os melhores|as melhores|n[ºo°]\s*1|perfeit[oa]s?|resultado garantido|cura[rs]?|imperd[ií]ve\w*)\b", "superlativo/promessa (pt)"),
+    (r"\bantes\s*(?:e|/|&)\s*depois\b", "antes/depois (pt)"),
+    (r"\b(?:[uú]ltimas? vagas?|s[oó] hoje)\b", "falsa escassez (pt)"),
     (r"simple\s*ti|simpleti", "SimpleTI"),
 ]
 
@@ -64,6 +70,17 @@ def home() -> Path:
 def load_paises(h: Path | None = None) -> dict:
     h = h or home()
     return json.loads((h / "templates" / TEMPLATE / "paises.json").read_text(encoding="utf8"))["paises"]
+
+
+def load_idiomas(h: Path | None = None) -> dict:
+    h = h or home()
+    return json.loads((h / "templates" / TEMPLATE / "paises.json").read_text(encoding="utf8")).get("idiomas", {})
+
+
+# Safe text zone (1080x1920): scene text is centred around these y values, ~25-65 % of the height, clear of the
+# watermark badges (top/bottom corners) and the mute-preview label. S4 keeps the sign-off layout of the template.
+CY = (880, 860, 900)
+LEAD_S = 0.22
 
 
 def check_text(text: str) -> list[str]:
@@ -100,6 +117,43 @@ def readable(accent: str, bg: str, min_ratio: float = 3.0) -> str:
     return c
 
 
+def lighten(c: str, f: float) -> str:
+    return "#" + "".join(f"{max(0, min(255, round((x + (1 - x) * f) * 255))):02x}" for x in _hex(c))
+
+
+def text_on(c: str, bg: str, min_ratio: float = 4.5) -> str:
+    """Darken (light bg) or lighten (dark bg) a text colour until it reaches min_ratio against bg."""
+    k, dark_bg = 0, luminance(bg) < 0.4
+    while contrast(c, bg) < min_ratio and k < 30:
+        c, k = (lighten(c, 0.08) if dark_bg else darken(c, 0.07)), k + 1
+    return c
+
+
+def panel_color(accent: str, min_ratio: float = 5.0) -> str:
+    """Brand colour, darkened until white text on it passes min_ratio (energetic panel, solid readable words)."""
+    c, k = accent, 0
+    while (contrast(c, "#ffffff") < min_ratio or contrast(c, "#ffe08a") < 4.5) and k < 30:  # white words + a warm highlight both read
+        c, k = darken(c, 0.07), k + 1
+    return c
+
+
+def style_for(f: dict, paises: dict, idiomas: dict | None = None) -> dict:
+    """Country look (paises[pais]) + video language: f['idioma'] overrides the country language (e.g. pt-BR for
+    Brazilians abroad), bringing that language's voice, prompt and speech rate (idiomas.json section)."""
+    P = copy.deepcopy(paises[f["pais"]])
+    lang = f.get("idioma") or P["idioma"]
+    if lang != P["idioma"]:
+        I = (idiomas or {}).get(lang)
+        if not I:
+            raise FichaError(f"{f.get('slug')}: idioma {lang!r} sem voz configurada (paises.json -> idiomas)")
+        V = copy.deepcopy(I["voz"])
+        V["estilo"] = (I.get("estilo_por_pais") or {}).get(f["pais"], V["estilo"])
+        P.update(idioma=lang, voz=V, chars_s=I.get("chars_s", P["chars_s"]))
+    if f.get("toque_br"):
+        P["formas"] = list(P["formas"]) + ["#009c3b", "#ffcc29"]  # a touch of Brazil in the background shapes only
+    return P
+
+
 def grid(P: dict) -> list[float]:
     beat = 60.0 / P["bpm"]
     return [r4(b * beat) for b in P["beats"]]
@@ -125,7 +179,8 @@ def build_contract(f: dict, h: Path | None = None) -> tuple[dict, dict]:
     paises = load_paises(h)
     if f.get("pais") not in paises:
         raise FichaError(f"{f.get('slug')}: país desconhecido {f.get('pais')!r} (paises.json: {', '.join(paises)})")
-    P = paises[f["pais"]]
+    P = style_for(f, paises, load_idiomas(h))
+    lote = str(f.get("lote") or "INT-1")
     base = yaml.safe_load((h / "templates" / TEMPLATE / "contract.base.yaml").read_text(encoding="utf8"))
     d = copy.deepcopy(base)
     probs: list[str] = []
@@ -135,11 +190,12 @@ def build_contract(f: dict, h: Path | None = None) -> tuple[dict, dict]:
             probs.append(f"falta a fala {lid}")
     if probs:
         raise FichaError(f"{f.get('slug')}: " + "; ".join(probs))
-    accent = readable(f.get("accent") or P["texto"][-1], P["base"], 3.0 if luminance(P["base"]) > 0.5 else 1.0)
+    fallback = next(c for c in list(P["texto"])[::-1] + list(P["formas"]) if c.startswith("#") and c.lower() != "#ffffff")
+    accent = readable(f.get("accent") or fallback, P["base"], 3.0 if luminance(P["base"]) > 0.5 else 1.0)
     durs = grid(P)
     total = r4(sum(durs))
     d["cliente"] = {"slug": f["slug"], "nome": f["nome"], "drive_nome": f["drive_nome"], "coleta": "coleta.json"}
-    d["campanha"] = {"id": "Preview_INT1", "ano": 2026, "titulo": f"INT-1 {P['nome']} — pain-hook preview ({P['idioma']})",
+    d["campanha"] = {"id": "Preview_" + re.sub(r"[^A-Za-z0-9]", "", lote), "ano": 2026, "titulo": f"{lote} {P['nome']} — pain-hook preview ({P['idioma']})",
                      "objetivo": "Prévia com marca d'água Wesley Simplicio (@wesleysimplicio) no idioma do vídeo, para oferecer o vídeo (venda ativa; não publicar)"}
     d["formato"]["duracao_s"] = total
     d["marca"]["paleta"] = {"ink": P["ink"], "line_cream": P["formas"][-1] if "{" not in P["formas"][-1] else "#e6e6e6",
@@ -152,14 +208,34 @@ def build_contract(f: dict, h: Path | None = None) -> tuple[dict, dict]:
         d["marca"]["logo"] = {"arquivo": f"coleta/logo{ext}", "destino": logo_dst}
         w, hh = f.get("logo_px") or (0, 0)
         logo_round = 1 if not (w and hh) or 0.8 <= w / hh <= 1.25 else 0
-        logo_size = 440 if logo_round else 330
+        if f.get("logo_round") is not None:  # e.g. a square logo with text in the corners must not be cropped round
+            logo_round = int(bool(f["logo_round"]))
+        # wide logos as large as the ring plate allows (half-diagonal <= 235 px), never cropped
+        logo_size = 440 if logo_round else int(min(460, 470 / (1 + (hh / w) ** 2) ** 0.5 if (w and hh) else 330))
+        if w and hh and max(w, hh) <= 200:  # tiny source (e.g. 100x100 Instagram avatar): at most 3x upscale
+            logo_size = min(logo_size, 3 * max(w, hh))
         if f.get("logo_claro") and P["lockup"].get("placa_logo_claro"):
             logo_bg = P["lockup"]["placa_logo_claro"]
         elif not f.get("logo_claro") and P["lockup"].get("placa_logo_escuro"):
             logo_bg = P["lockup"]["placa_logo_escuro"]
     else:
         d["marca"]["logo"] = None
-    texto_cores = "|".join(_sub(P["texto"], accent))
+    painel = panel_color(accent) if P.get("painel") else ""
+    if painel:  # solid white words on a brand-colour panel; one highlight tint per line that still reads on the panel
+        tint = lighten(accent, 0.78)
+        tint = next(c for c in (tint, "#ffe08a", "#ffffff") if contrast(c, painel) >= 4.5)
+        cores = [c.replace("{tint}", tint) for c in _sub(P["texto"], accent)]
+    else:  # words straight on the background: every colour must reach 4.5:1 against it
+        cores = [text_on(c, P["base"]) for c in _sub(P["texto"], accent)]
+    texto_cores = "|".join(cores)
+    w0, h0 = (f.get("logo_px") or (0, 0)) if logo_dst else (0, 0)
+    s3_logo_h = (210 if logo_round or not (w0 and h0) else int(max(120, min(210, 560 * h0 / w0)))) if logo_dst else 0
+    if logo_dst and w0 and h0 and max(w0, h0) <= 200:
+        s3_logo_h = min(s3_logo_h, 3 * h0)
+    if logo_dst and painel:  # plate on the brand panel: white for dark logos, dark for light (white) logos
+        s3_logo_bg = (P["lockup"].get("placa_logo_claro") or "#151515") if f.get("logo_claro") else "#ffffff"
+    else:
+        s3_logo_bg = logo_bg if logo_dst else ""
     formas = "|".join(_sub(P["formas"], accent))
     beat = 60.0 / P["bpm"]
     t0 = 0.0
@@ -190,11 +266,16 @@ def build_contract(f: dict, h: Path | None = None) -> tuple[dict, dict]:
                          flash_max=P["transicao"]["flash_max"], colors=formas)
             elif m["padrao"] == "line-accent":
                 p.update(color=_sub(P["linha"], accent), ink=_sub(P["linha"], accent), glow=P["linha_glow"])
+                if i < 3:  # frame the centred text block (safe zone), not the old top position
+                    p.update(top=CY[i] - 430, bottom=CY[i] + 430, y=CY[i] + 480, corners=0 if painel else p.get("corners", 1))
             elif m["padrao"] == "beat-burst":
                 p.update(stars=P["estrelas"], size=P["burst_size"], colors=formas, ink=P["ink"],
                          count=p.get("count", 1) if P["estrelas"] else 0)
             elif m["padrao"] == "kinetic-words":
-                p.update(lines=tela, colors=texto_cores, ink=P["ink"], size=P["tamanhos"][i], font=P["fonte"], mode=P["modo"])
+                p.update(lines=tela, colors=texto_cores, ink=P["ink"], size=P["tamanhos"][i], font=P["fonte"], mode=P["modo"],
+                         stroke=0, panel=painel, panel_alpha=0.94, weight=P.get("peso", 0), lead=LEAD_S, cy=CY[i] if i < 3 else 0)
+                if i == 2 and logo_dst:  # the company appears with its real logo in the solution scene, not only in the sign-off
+                    p.update(logo=logo_dst, logo_h=s3_logo_h, logo_w=560, logo_bg=s3_logo_bg)
             elif m["padrao"] == "brand-lockup-soft":
                 name, sub = (f.get("lockup") or [f["nome"].upper()[:16], ""])[:2]
                 tagline, handle, city = f.get("tagline", ""), f.get("handle", ""), f.get("cidade_label", "")
@@ -239,9 +320,9 @@ def build_contract(f: dict, h: Path | None = None) -> tuple[dict, dict]:
     v["providers"]["gemini"] = {"model": "gemini-3.8-flash-tts", "voice": V["voice"], "alternativas": V["alternativas"], "estilo": V["estilo"]}
     v["providers"]["file"]["origem"] = f"Gemini 3.8 Flash TTS, voz {V['voice']} ({P['idioma']}), uma fala por arquivo line-01..04.wav"
     d["drive"] = {"caminho": f"simplicio-video/clientes/{f['drive_nome']}/{d['campanha']['ano']}/{d['campanha']['id']}",
-                  "arquivo": f"{ascii_name(f.get('nome_arquivo') or f['nome'])} - Preview INT-1 - v03.mp4",
+                  "arquivo": f"{ascii_name(f.get('nome_arquivo') or f['nome'])} - Preview {lote} - v03.mp4",
                   "status": "prévia de venda ativa (não publicar)"}
-    d["saida"] = {"arquivo": "out/preview-full.mp4", "qualidade": "draft"}
+    d["saida"] = {"arquivo": "out/preview-full.mp4", "qualidade": "draft", "marca_dagua": "sutil"}
     # guards
     texts = [s["fala"]["texto"] for s in d["cenas"]] + [s["fala"].get("say", "") for s in d["cenas"]] + \
         [falas[l].get("tela", "") for l in LINE_IDS] + [f.get("tagline", ""), f.get("cidade_label", ""), " ".join(f.get("lockup") or [])]
@@ -254,7 +335,7 @@ def build_contract(f: dict, h: Path | None = None) -> tuple[dict, dict]:
         raise FichaError(f"{f.get('slug')}: " + "; ".join(dict.fromkeys(probs)))
     meta = {"p": f.get("p"), "slug": f["slug"], "pais": f["pais"], "idioma": P["idioma"], "voz": V["voice"], "duracao_s": total,
             "logo": "real" if logo_dst else "lockup de texto", "accent": accent, "grade": durs, "bpm": P["bpm"],
-            "chip_handle": len(f.get("handle", "")) <= 28}
+            "chip_handle": len(f.get("handle", "")) <= 28, "painel": painel, "texto_cores": texto_cores, "lote": lote}
     return d, meta
 
 
@@ -319,7 +400,7 @@ def write_csv(path: Path, rows: list[dict]):
 
 def roteiro_md(f: dict, d: dict, P: dict, meta: dict) -> str:
     dor = f.get("dor") or {}
-    L = [f"# {f.get('p', '')} — {f['nome']} · roteiro INT-1 ({P['nome']}, {P['idioma']})", "",
+    L = [f"# {f.get('p', '')} — {f['nome']} · roteiro {f.get('lote') or 'INT-1'} ({P['nome']}, {P['idioma']})", "",
          f"- **Setor:** {f.get('setor', '')}  |  **Cidade:** {f.get('cidade', '')}  |  **Canal da chamada:** {f.get('cta', '')}",
          f"- **Estilo:** WJR — abre com a dor real do cliente do setor e mostra {f['nome']} como quem resolve. ~{meta['duracao_s']} s, {P['bpm']} BPM, grade {meta['grade']} s.",
          f"- **Dor escolhida:** {dor.get('escolhida', '')}",
@@ -356,13 +437,17 @@ def briefing_md(f: dict, d: dict, P: dict, meta: dict) -> str:
          f"- **Formato:** prévia 540×960 (render 1080×1920 → prévia), {meta['duracao_s']} s + end card 2,5 s; cortes na batida ({P['bpm']} BPM), "
          f"transições {P['transicao']['kind']} de {P['transicao']['frames']} frames.",
          f"- **Paleta:** fundo {P['base']} (centro {P['centro']}), tinta {P['ink']}, destaque da marca {meta['accent']}, formas {', '.join(_sub(P['formas'], meta['accent']))}.",
-         f"- **Texto palavra a palavra:** fonte {P['fonte']}, modo {P['modo']}, tamanhos S1–S4 {P['tamanhos']} px.",
+         f"- **Texto palavra a palavra:** fonte {P['fonte']}" + (f" {P['peso']}" if P.get('peso') else "") + f", modo {P['modo']}, tamanhos S1–S4 {P['tamanhos']} px; "
+         f"cores {meta.get('texto_cores', '')}" + (f" sobre painel {meta['painel']} (sombra suave, sem contorno)" if meta.get('painel') else " direto no fundo (contraste ≥ 4,5:1, sem contorno)") + ".",
+         f"- **Layout:** S1–S3 com o bloco de texto centrado na zona segura (y≈{CY[0]}/{CY[1]}/{CY[2]} de 1920, 25–65% da altura), palavra antecipada {LEAD_S}s para já estar legível no corte; "
+         + ("logo real também na S3, acima do texto, e no fechamento (S4)." if meta['logo'] == 'real' else "lockup de texto no fechamento (S4).") +
+         " Marca d'água sutil (5 faixas, opacidade baixa).",
          f"- **Fundo:** bg-parallax com {P['shapes']} formas e {P['dots']} pontos, velocidade {P['speed']}; estrelas no beat: {P['estrelas']}.",
          f"- **Trilha:** estilo {P['trilha']['style']}" + (f", bateria {P['trilha']['drums']}" if P['trilha']['style'] == 'institucional' else ", pop com kick e palmas") +
          f", {P['bpm']} BPM, master -14 LUFS.",
          f"- **Voz (quando liberar):** Gemini 3.8 Flash TTS, {P['voz']['voice']} (alternativas {', '.join(P['voz']['alternativas'])}). Prompt: \"{P['voz']['estilo']}\"",
          f"- **Logo:** {'REAL — ' + str(f.get('logo_fonte', '')) if meta['logo'] == 'real' else 'sem logo real: lockup de texto ' + lk['name'] + ' / ' + lk['sub']}"
-         + (f" (placa {lk['logo_bg']} atrás do logo)" if lk.get("logo_bg") else "") + f"; {'redondo' if lk['logo_round'] else 'largo, sem corte'}, {lk['logo_size']} px no anel.",
+         + (f" (placa {lk['logo_bg']} atrás do logo)" if lk.get("logo_bg") else "") + f"; {'redondo' if lk['logo_round'] else 'largo, sem corte'}, {lk['logo_size']} px no fechamento.",
          f"- **Assinatura S4:** tagline \"{lk['tagline']}\", chip {lk['handle']}, cidade \"{lk['city']}\", chip na cor {lk['accent']}.",
          f"- **Marca d'água:** \"{T['watermark']}\" + selo \"{T['badge']}\"; end card \"{T['end_title']}\" / {T['end_url']} / \"{T['end_note']}\". Sem SimpleTI.",
          "", "## Cenas"]
@@ -480,6 +565,7 @@ def run(fichas_in: list[Path], out: Path, only: list[str] | None = None, mudo: b
         provider: str = "gemini", log=print) -> dict:
     h = home()
     paises = load_paises(h)
+    idiomas = load_idiomas(h)
     fichas = load_fichas(fichas_in)
     sel = {x.strip() for o in (only or []) for x in o.split(",") if x.strip()}
     out.mkdir(parents=True, exist_ok=True)
@@ -493,7 +579,7 @@ def run(fichas_in: list[Path], out: Path, only: list[str] | None = None, mudo: b
             res.append({"slug": f.get("slug"), "p": f.get("p"), "status": "erro", "motivo": str(e)})
             log(f"erro {e}")
             continue
-        P = paises[f["pais"]]
+        P = style_for(f, paises, idiomas)
         rows = falas_rows(f, d, P, first)
         allrows += rows
         built.append((f, d, P, meta, rows))

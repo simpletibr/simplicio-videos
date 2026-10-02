@@ -168,3 +168,90 @@ def test_intl_help():
     assert r.returncode == 0, r.stderr
     for m in ("FICHA", "--out", "--mudo", "--render", "--provider", "Vorschau", "exemplos:", "simplicio-video intl"):
         assert m in r.stdout
+
+
+# ---- layout v2 (Wesley 02/10: readable US text, centred safe zone, subtle watermark, logo in S3) + pt-BR (INT-2-BR) ----
+
+def _kw(d, i):
+    return [m for m in d["cenas"][i]["motion"] if m["padrao"] == "kinetic-words"][0]["params"]
+
+
+def test_kinetic_words_declares_the_new_options():
+    import re as _re
+    html = (ROOT / "motion/patterns/kinetic-words/block.html").read_text(encoding="utf8")
+    decl = json.loads(_re.search(r"data-composition-variables='(\[.*?\])'", html).group(1))
+    pj = json.loads((ROOT / "motion/patterns/kinetic-words/pattern.json").read_text(encoding="utf8"))
+    for k in ("cy", "stroke", "panel", "panel_alpha", "weight", "lead", "logo", "logo_h", "logo_w", "logo_bg"):
+        assert k in {v["id"] for v in decl} and k in {v["id"] for v in pj["params"]}
+    # defaults keep the Brazilian v03 look: stroke on, no panel, no centring, no lead
+    D = {v["id"]: v["default"] for v in decl}
+    assert D["stroke"] == 1 and D["panel"] == "" and D["cy"] == 0 and D["lead"] == 0
+
+
+def test_subtle_watermark_has_fewer_lighter_rows(tmp_path):
+    font = R.preview_font(ROOT)
+    a = R.preview_filter(10.0, font, tmp_path, lang="en")
+    (tmp_path / "s").mkdir()
+    b = R.preview_filter(10.0, font, tmp_path / "s", lang="en", wm="sutil")
+    assert a.count("textfile=") - b.count("textfile=") == 5
+    assert "colorchannelmixer=aa=0.2[wm]" in a and "colorchannelmixer=aa=0.11[wm]" in b
+
+
+def test_us_text_is_solid_on_a_panel_and_centred(tmp_path):
+    d, meta = intl.build_contract(_ficha("us", logo=_png(tmp_path / "l.png", 600, 200), logo_px=[600, 200]))
+    for i in range(3):
+        k = _kw(d, i)
+        assert k["stroke"] == 0 and k["font"] == "Inter" and k["panel"] and k["lead"] > 0
+        assert 0.25 * 1920 <= k["cy"] <= 0.65 * 1920
+        assert intl.contrast("#ffffff", k["panel"]) >= 5.0
+    assert _kw(d, 2)["logo"] == "assets/client/logo.png" and _kw(d, 2)["logo_bg"] == "#ffffff"
+    lock = [m for m in d["cenas"][3]["motion"] if m["padrao"] == "brand-lockup-soft"][0]["params"]
+    assert lock["logo"] and lock["logo_size"] >= 400
+    assert d["saida"]["marca_dagua"] == "sutil"
+
+
+@pytest.mark.parametrize("pais", sorted(PAISES))
+def test_text_reads_on_every_country_background(pais):
+    d, _ = intl.build_contract(_ficha(pais))
+    P = PAISES[pais]
+    for i in range(3):
+        k = _kw(d, i)
+        bg = k["panel"] or P["base"]
+        for c in k["colors"].split("|"):
+            assert intl.contrast(c, bg) >= 4.5, (pais, c, bg)
+        assert 0.25 * 1920 <= k["cy"] <= 0.65 * 1920
+
+
+PT = ["Saudade do pastel de feira?", "Aqui na Flórida é difícil achar.", "No Demo Studio, sai na hora, crocante.", "Demo Studio, Pompano Beach."]
+
+
+def test_pt_br_video_in_a_foreign_country(tmp_path):
+    f = _ficha("us", lines=PT, idioma="pt-BR", lote="INT-2-BR", toque_br=True)
+    d, meta = intl.build_contract(f)
+    assert d["voz"]["idioma"] == "pt-BR" and d["voz"]["voice"] == "Laomedeia" and "Brazilians who live in the US" in d["voz"]["estilo"]
+    assert R.preview_texts(R.preview_lang(d["voz"]["idioma"]))["watermark"].startswith("Prévia • Wesley Simplicio")
+    assert d["drive"]["caminho"].endswith("/2026/Preview_INT2BR") and "Preview INT-2-BR" in d["drive"]["arquivo"]
+    bg = [m for m in d["cenas"][0]["motion"] if m["padrao"] == "bg-parallax"][0]["params"]
+    assert "#009c3b" in bg["colors"]
+    path = intl.write_contract(tmp_path / "x", f, d)
+    assert ct.validate(ct.load(path)).errors == []
+
+
+def test_run_uses_ficha_language_in_falas_csv(tmp_path):
+    fd = tmp_path / "fichas"
+    fd.mkdir()
+    f = _ficha("us", slug="pt-us", lines=PT, idioma="pt-BR", lote="INT-2-BR")
+    (fd / "pt-us.yaml").write_text(yaml.safe_dump(f, allow_unicode=True), encoding="utf8")
+    intl.run([fd], tmp_path / "out", log=lambda *a: None)
+    rows = list(csv.DictReader((tmp_path / "out" / "falas-todas.csv").open(encoding="utf8")))
+    assert {r["idioma"] for r in rows} == {"pt-BR"} and {r["voz_gemini"] for r in rows} == {"Laomedeia"}
+
+
+@pytest.mark.parametrize("text", ["Só R$ 50", "Avaliação grátis", "O melhor salão de Orlando", "Resultado garantido", "Últimas vagas", "Antes e depois"])
+def test_pt_guards(text):
+    assert intl.check_text(text), text
+
+
+def test_unknown_language_fails_clearly():
+    with pytest.raises(intl.FichaError, match="idioma"):
+        intl.build_contract(_ficha("us", idioma="es-MX"))

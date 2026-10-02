@@ -2,7 +2,7 @@
   "$schema": "../../pattern.schema.json",
   "id": "kinetic-words",
   "title": "Tipografia cinética palavra a palavra (sincronizada com a fala)",
-  "description": "Cada palavra entra no instante em que é falada (times vindos do timing.lock.json via {{words:<fala>}}), com stretch → squash → assenta; a palavra atual fica maior e as anteriores ficam; o bloco flutua e dá um shake na última palavra. Linhas por |, tamanho ajustado à largura do 9:16. Modo calm: mesma sincronia palavra a palavra, entrada sóbria (sobe + aparece), sem squash nem tremida.",
+  "description": "Cada palavra entra no instante em que é falada (times vindos do timing.lock.json via {{words:<fala>}}), com stretch → squash → assenta; a palavra atual fica maior e as anteriores ficam; o bloco flutua e dá um shake na última palavra. Linhas por |, tamanho ajustado à largura do 9:16. Modo calm: mesma sincronia palavra a palavra, entrada sóbria (sobe + aparece), sem squash nem tremida. Opcional: cy centraliza o bloco na vertical (zona segura), stroke=0 troca o contorno por texto sólido com sombra suave, panel põe um painel de contraste atrás das palavras, lead antecipa a palavra para ela já estar legível no corte, logo mostra o logo real acima do texto.",
   "status": "pronto",
   "duration_s": 4.0,
   "format": {
@@ -84,6 +84,66 @@
       "type": "number",
       "label": "Semente",
       "default": 21
+    },
+    {
+      "id": "cy",
+      "type": "number",
+      "label": "Centro vertical do bloco (px; 0 = usa y como topo)",
+      "default": 0
+    },
+    {
+      "id": "stroke",
+      "type": "number",
+      "label": "Contorno no modo bounce (1 = contorno + sombra dura; 0 = texto sólido com sombra suave)",
+      "default": 1
+    },
+    {
+      "id": "panel",
+      "type": "string",
+      "label": "Painel atrás do texto (hex; vazio = sem painel)",
+      "default": ""
+    },
+    {
+      "id": "panel_alpha",
+      "type": "number",
+      "label": "Opacidade do painel (0-1)",
+      "default": 0.92
+    },
+    {
+      "id": "weight",
+      "type": "number",
+      "label": "Peso da fonte (0 = padrão do modo)",
+      "default": 0
+    },
+    {
+      "id": "lead",
+      "type": "number",
+      "label": "Antecipação da palavra (s antes da fala; legível já no corte)",
+      "default": 0
+    },
+    {
+      "id": "logo",
+      "type": "string",
+      "label": "Logo acima do texto (caminho do asset; vazio = sem logo)",
+      "default": ""
+    },
+    {
+      "id": "logo_h",
+      "type": "number",
+      "label": "Altura máx. do logo (px)",
+      "default": 170
+    },
+    {
+      "id": "logo_w",
+      "type": "number",
+      "label": "Largura máx. do logo (px)",
+      "default": 560
+    },
+    {
+      "id": "logo_bg",
+      "type": "string",
+      "label": "Placa atrás do logo (hex; vazio = sem placa)",
+      "default": ""
     }
   ],
   "files": {

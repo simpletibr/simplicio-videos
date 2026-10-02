@@ -11,7 +11,7 @@
   Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="kinetic-words"].
   Origin: authored for the kids/dental template v2 (Lothus Odontologia, Dia das Criancas 2026, fast/beat-synced cut).
 -->
-<html lang="pt-BR" data-composition-id="kinetic-words" data-composition-duration="4.0" data-composition-variables='[{"id": "lines", "type": "string", "label": "Linhas (| quebra linha; as palavras seguem a ordem da fala)", "default": "Feliz|Dia das|Crianças!", "maxLength": 80}, {"id": "times", "type": "string", "label": "Início de cada palavra (s no bloco, |)", "default": "0.2|0.5|0.7|0.9", "maxLength": 200}, {"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "ink", "type": "color", "label": "Contorno/sombra", "default": "#3d3834"}, {"id": "size", "type": "number", "label": "Tamanho máx. da fonte (px)", "default": 160}, {"id": "y", "type": "number", "label": "Topo do bloco (px)", "default": 300}, {"id": "maxw", "type": "number", "label": "Largura útil (px)", "default": 980}, {"id": "exit", "type": "number", "label": "Saída em pop (s antes do fim do bloco; 0 = sem saída)", "default": 0.18}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "mode", "type": "string", "label": "Estilo: bounce (festivo: estica/amassa/treme) | calm (sóbrio: sobe por máscara, sem tremer; institucional/advocacia)", "default": "bounce"}, {"id": "font", "type": "string", "label": "Fonte (Fredoka | Inter | Anton)", "default": "Fredoka"}, {"id": "seed", "type": "number", "label": "Semente", "default": 21}]'>
+<html lang="pt-BR" data-composition-id="kinetic-words" data-composition-duration="4.0" data-composition-variables='[{"id": "lines", "type": "string", "label": "Linhas (| quebra linha; as palavras seguem a ordem da fala)", "default": "Feliz|Dia das|Crianças!", "maxLength": 80}, {"id": "times", "type": "string", "label": "Início de cada palavra (s no bloco, |)", "default": "0.2|0.5|0.7|0.9", "maxLength": 200}, {"id": "colors", "type": "string", "label": "Paleta (hex |)", "default": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb"}, {"id": "ink", "type": "color", "label": "Contorno/sombra", "default": "#3d3834"}, {"id": "size", "type": "number", "label": "Tamanho máx. da fonte (px)", "default": 160}, {"id": "y", "type": "number", "label": "Topo do bloco (px)", "default": 300}, {"id": "maxw", "type": "number", "label": "Largura útil (px)", "default": 980}, {"id": "exit", "type": "number", "label": "Saída em pop (s antes do fim do bloco; 0 = sem saída)", "default": 0.18}, {"id": "dur", "type": "number", "label": "Duração (s) = data-duration do host", "default": 4.0}, {"id": "mode", "type": "string", "label": "Estilo: bounce (festivo: estica/amassa/treme) | calm (sóbrio: sobe por máscara, sem tremer; institucional/advocacia)", "default": "bounce"}, {"id": "font", "type": "string", "label": "Fonte (Fredoka | Inter | Anton)", "default": "Fredoka"}, {"id": "seed", "type": "number", "label": "Semente", "default": 21}, {"id": "cy", "type": "number", "label": "Centro vertical do bloco (px; 0 = usa y como topo)", "default": 0}, {"id": "stroke", "type": "number", "label": "Contorno no modo bounce (1 = contorno + sombra dura; 0 = texto sólido com sombra suave)", "default": 1}, {"id": "panel", "type": "string", "label": "Painel atrás do texto (hex; vazio = sem painel)", "default": ""}, {"id": "panel_alpha", "type": "number", "label": "Opacidade do painel (0-1)", "default": 0.92}, {"id": "weight", "type": "number", "label": "Peso da fonte (0 = padrão do modo)", "default": 0}, {"id": "lead", "type": "number", "label": "Antecipação da palavra (s antes da fala; legível já no corte)", "default": 0}, {"id": "logo", "type": "string", "label": "Logo acima do texto (caminho do asset; vazio = sem logo)", "default": ""}, {"id": "logo_h", "type": "number", "label": "Altura máx. do logo (px)", "default": 170}, {"id": "logo_w", "type": "number", "label": "Largura máx. do logo (px)", "default": 560}, {"id": "logo_bg", "type": "string", "label": "Placa atrás do logo (hex; vazio = sem placa)", "default": ""}]'>
   <head>
     <meta charset="UTF-8" />
     <title>Tipografia cinética palavra a palavra (sincronizada com a fala)</title>
@@ -28,14 +28,16 @@
           [data-composition-id="kinetic-words"] .anton { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: 0.95; }
           [data-composition-id="kinetic-words"] .kw { position: absolute; left: 30px; right: 30px; text-align: center; font-family: "Fredoka", sans-serif; font-weight: 700; line-height: 1.12; }
           [data-composition-id="kinetic-words"] .ln { display: block; white-space: nowrap; }
+          [data-composition-id="kinetic-words"] .pn { display: inline-block; border-radius: 0.28em; }
+          [data-composition-id="kinetic-words"] .kl { display: block; margin: 0 auto 0.32em; object-fit: contain; }
           [data-composition-id="kinetic-words"] .w { display: inline-block; margin: 0 0.2em; will-change: transform; paint-order: stroke fill; }
         </style>
-        <div class="kw"></div>
+        <div class="kw"><div class="pn"></div></div>
         <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
         <script>
           (() => {
             // ---- params: block defaults < host data-variable-values < CLI --variables ----
-            const DEF = {"lines": "Feliz|Dia das|Crianças!", "times": "0.2|0.5|0.7|0.9", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "ink": "#3d3834", "size": 160, "y": 300, "maxw": 980, "exit": 0.18, "dur": 4.0, "mode": "bounce", "font": "Fredoka", "seed": 21};
+            const DEF = {"lines": "Feliz|Dia das|Crianças!", "times": "0.2|0.5|0.7|0.9", "colors": "#ff6b6b|#ffd23f|#4ecdc4|#5aa9e6|#b388eb", "ink": "#3d3834", "size": 160, "y": 300, "maxw": 980, "exit": 0.18, "dur": 4.0, "mode": "bounce", "font": "Fredoka", "seed": 21, "cy": 0, "stroke": 1, "panel": "", "panel_alpha": 0.92, "weight": 0, "lead": 0, "logo": "", "logo_h": 170, "logo_w": 560, "logo_bg": ""};
             const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
             const V = Object.assign({}, DEF, HV);
             const root = document.getElementById("kinetic-words-root");
@@ -51,27 +53,40 @@
             const RGB = (px) => `${px}px 0 0 ${V.primary}, ${-px}px 0 0 ${V.secondary}`;
             const list = (s) => String(s).split("|").map((x) => x.trim()).filter(Boolean);
             const tl = gsap.timeline({ paused: true });
-            const R = rng(V.seed), pal = list(V.colors), box = $(".kw"), rows = String(V.lines).split("|");
-            const em = Math.max(...rows.map((r) => r.trim().length * 0.56 + r.trim().split(/\s+/).length * 0.4)), fs = Math.min(V.size, Math.floor(V.maxw / em)); // width heuristic in em (Fredoka 700)
+            const R = rng(V.seed), pal = list(V.colors), box = $(".kw"), pn = $(".pn"), rows = String(V.lines).split("|");
+            const padE = V.panel ? 0.9 : 0;  // panel padding (em, both sides) eats into the usable width
+            const em = Math.max(...rows.map((r) => r.trim().length * 0.56 + r.trim().split(/\s+/).length * 0.4)) + padE, fs = Math.min(V.size, Math.floor(V.maxw / em)); // width heuristic in em (Fredoka 700)
             box.style.top = V.y + "px"; box.style.fontSize = fs + "px";
+            if (V.panel) { const a = Math.round(Math.max(0, Math.min(1, Number(V.panel_alpha))) * 255).toString(16).padStart(2, "0");
+              pn.style.background = V.panel + a; pn.style.padding = "0.3em 0.45em 0.36em"; pn.style.boxShadow = `0 ${Math.round(fs * 0.12)}px ${Math.round(fs * 0.4)}px rgba(0,0,0,0.18)`; }
+            let lgEl = null;
+            if (V.logo) { lgEl = document.createElement("img"); lgEl.className = "kl"; lgEl.src = V.logo; lgEl.style.maxHeight = V.logo_h + "px"; lgEl.style.maxWidth = V.logo_w + "px"; lgEl.style.height = V.logo_h + "px";
+              if (V.logo_bg) { lgEl.style.background = V.logo_bg; lgEl.style.padding = "18px 26px"; lgEl.style.borderRadius = "22px"; lgEl.style.boxSizing = "content-box"; lgEl.style.height = (V.logo_h - 36) + "px"; }
+              pn.appendChild(lgEl); }
             const words = [];
-            rows.forEach((r) => { const ln = document.createElement("span"); ln.className = "ln"; box.appendChild(ln);
+            rows.forEach((r) => { const ln = document.createElement("span"); ln.className = "ln"; pn.appendChild(ln);
               r.trim().split(/\s+/).forEach((w) => { const s = document.createElement("span"); s.className = "w"; s.textContent = w; ln.appendChild(s); words.push(s); }); });
             const T = list(V.times).map(Number);
             const last = T.length ? T[T.length - 1] : 0.2;
             words.forEach((w, i) => { if (T[i] === undefined) T[i] = last + (i - T.length + 1) * 0.22; });
             const calm = V.mode === "calm";
             if (V.font && V.font !== "Fredoka") box.style.fontFamily = `"${V.font}", sans-serif`;
+            if (Number(V.cy) > 0) { const lh = (V.font === "Anton" ? 0.95 : 1.12) * fs, ph = V.panel ? 0.66 * fs : 0, lgh = lgEl ? Number(V.logo_h) + 0.32 * fs : 0;
+              box.style.top = Math.round(Number(V.cy) - (rows.length * lh + ph + lgh) / 2) + "px"; }
+            const LEAD = Math.max(0, Number(V.lead) || 0);
+            for (let i = 0; i < T.length; i++) T[i] = Math.max(0.04, T[i] - LEAD);  // text leads the voice a touch: readable right at the cut
+            if (Number(V.weight) > 0) box.style.fontWeight = String(V.weight);
             if (calm) { // sober: same word timing, no stretch/squash/shake; words rise in and stay, soft float, fade out
-              box.style.fontWeight = "700"; box.style.letterSpacing = "-0.01em";
+              box.style.fontWeight = Number(V.weight) > 0 ? String(V.weight) : "700"; box.style.letterSpacing = "-0.01em";
               words.forEach((w, i) => { w.style.color = pal[i % pal.length]; w.style.textShadow = `0 ${Math.round(fs * 0.04)}px ${Math.round(fs * 0.12)}px ${V.ink}22`;
                 tl.fromTo(w, { y: fs * 0.35, opacity: 0 }, { y: 0, opacity: 1, duration: 0.2, ease: "power3.out" }, Math.max(0, T[i] - 0.04)); });
               tl.fromTo(box, { y: 0 }, { y: -6, duration: Math.max(0.5, V.dur / 2), yoyo: true, repeat: 1, ease: "sine.inOut" }, 0);
               if (V.exit > 0) tl.to(words, { opacity: 0, y: -fs * 0.15, duration: 0.14, ease: "power2.in" }, V.dur - V.exit);
             } else {
             words.forEach((w, i) => {
-              w.style.color = pal[i % pal.length]; w.style.webkitTextStroke = `${Math.max(3, Math.round(fs / 26))}px ${V.ink}`;
-              w.style.textShadow = `0 ${Math.round(fs * 0.07)}px 0 ${V.ink}33`;
+              w.style.color = pal[i % pal.length];
+              if (Number(V.stroke)) { w.style.webkitTextStroke = `${Math.max(3, Math.round(fs / 26))}px ${V.ink}`; w.style.textShadow = `0 ${Math.round(fs * 0.07)}px 0 ${V.ink}33`; }
+              else w.style.textShadow = `0 ${Math.round(fs * 0.03)}px ${Math.round(fs * 0.14)}px rgba(0,0,0,0.28)`;  // solid, soft shadow, no double outline
               const t = Math.max(0, T[i] - 0.04), rot = (R() - 0.5) * 12, nxt = i + 1 < words.length ? T[i + 1] : t + 0.5;
               // stretch in -> squash on landing -> settle; the current word stays a bit bigger until the next one lands
               tl.fromTo(w, { scaleX: 0.3, scaleY: 1.7, y: -fs * 0.6, rotation: rot, opacity: 0, transformOrigin: "50% 100%" },

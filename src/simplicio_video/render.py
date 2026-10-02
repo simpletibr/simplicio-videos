@@ -319,7 +319,14 @@ def preview_logo(home: Path) -> Path | None:
     return None
 
 
-def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, lang: str = "pt", note: str | None = None) -> str:
+WATERMARK_STYLES = {  # rows, spacing (px on the 1000x1000 canvas), font size, alpha
+    "padrao": {"rows": 10, "step": 100, "size": 30, "alpha": 0.2, "border": 2},
+    "sutil": {"rows": 5, "step": 200, "size": 26, "alpha": 0.11, "border": 1},
+}
+
+
+def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, lang: str = "pt", note: str | None = None,
+                   wm: str = "padrao") -> str:
     """filter_complex for: [0] draft render, [1] logo (optional). Output labels [v] [a].
     lang = language of the watermark/badge/end card; note = extra top-centre label (e.g. provisional audio), never on finals."""
     P = preview_texts(lang)
@@ -329,19 +336,20 @@ def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, lang
         f.write_text(text, encoding="utf8")
         return str(f).replace("\\", "/").replace(":", "\\:")
     ff = str(font).replace(":", "\\:")
-    row = tf("wm", ("   " + P["watermark"]) * 3)
+    S = WATERMARK_STYLES.get(wm, WATERMARK_STYLES["padrao"])
+    row = tf("wm", ("   " + P["watermark"]) * (3 if wm == "padrao" else 2))
     # diagonal tiled rows on a transparent 1000x1000 canvas, rotated -30° and centred over the 540x960 frame
     rows = []
-    for i in range(10):
-        y = 30 + i * 100
+    for i in range(S["rows"]):
+        y = 30 + i * S["step"] + (0 if wm == "padrao" else 60)
         x = -((i * 137) % 260)
-        rows.append(f"drawtext=fontfile='{ff}':textfile='{row}':x={x}:y={y}:fontsize=30:fontcolor=white:"
-                    f"borderw=2:bordercolor=black")
-    wm = (f"color=c=black@0.0:s=1000x1000:r={fps}:d={dur_s:.3f},format=rgba," + ",".join(rows) +
-          ",rotate=-30*PI/180:c=none:ow=1000:oh=1000,colorchannelmixer=aa=0.2[wm]")
+        rows.append(f"drawtext=fontfile='{ff}':textfile='{row}':x={x}:y={y}:fontsize={S['size']}:fontcolor=white:"
+                    f"borderw={S['border']}:bordercolor=black")
+    wmf = (f"color=c=black@0.0:s=1000x1000:r={fps}:d={dur_s:.3f},format=rgba," + ",".join(rows) +
+           f",rotate=-30*PI/180:c=none:ow=1000:oh=1000,colorchannelmixer=aa={S['alpha']}[wm]")
     badge = tf("badge", P["badge"])
     main = (f"[0:v]scale={W}:{H}:flags=lanczos,fps={fps},setsar=1,format=yuv420p[m0];"
-            f"{wm};[m0][wm]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1,"
+            f"{wmf};[m0][wm]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1,"
             f"drawtext=fontfile='{ff}':textfile='{badge}':x=w-tw-18:y=18:fontsize=18:fontcolor=white@0.85:"
             f"box=1:boxcolor=black@0.45:boxborderw=8,"
             f"drawtext=fontfile='{ff}':textfile='{badge}':x=18:y=h-th-22:fontsize=18:fontcolor=white@0.85:"
@@ -367,7 +375,7 @@ def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, lang
     return main + end + audio
 
 
-def make_preview(src: Path, dst: Path, home: Path, log=print, lang: str = "pt", note: str | None = None) -> dict:
+def make_preview(src: Path, dst: Path, home: Path, log=print, lang: str = "pt", note: str | None = None, wm: str = "padrao") -> dict:
     """Draft render -> watermarked 540x960 preview (+ end card). Returns {path, sha256, duration_s, bytes}.
     lang picks the watermark/end-card language (pt default); note adds a top label (provisional/mute layout checks)."""
     import tempfile
@@ -376,7 +384,7 @@ def make_preview(src: Path, dst: Path, home: Path, log=print, lang: str = "pt", 
     logo = preview_logo(home)
     dst.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
-        fc = preview_filter(dur, preview_font(home), Path(td), logo=bool(logo), lang=lang, note=note)
+        fc = preview_filter(dur, preview_font(home), Path(td), logo=bool(logo), lang=lang, note=note, wm=wm)
         cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)] + (["-i", str(logo)] if logo else []) + [
             "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium",
             "-crf", str(PREVIEW["crf"]), "-pix_fmt", "yuv420p", "-r", str(PREVIEW["fps"]), "-threads", "4",
@@ -390,7 +398,7 @@ def make_preview(src: Path, dst: Path, home: Path, log=print, lang: str = "pt", 
                                    capture_output=True, text=True, env=paths.node_env()).stdout.strip())
     return {"path": str(dst), "sha256": sha256_file(dst), "duration_s": round(out_dur, 3), "bytes": dst.stat().st_size,
             "watermark": preview_texts(lang)["watermark"], "lang": preview_lang(lang), "logo": str(logo) if logo else None,
-            **({"note": note} if note else {})}
+            "marca_dagua": wm, **({"note": note} if note else {})}
 
 
 def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = None, log=print, note: str | None = None) -> dict:
@@ -403,7 +411,7 @@ def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = 
     s = c.data["saida"]["arquivo"]
     dst = (out or c.rel(str(Path(s).with_name(Path(s).stem + "-previa.mp4")))).resolve()
     lang = preview_lang((c.data.get("voz") or {}).get("idioma"))
-    res = make_preview(raw, dst, c.home, log=log, lang=lang, note=note)
+    res = make_preview(raw, dst, c.home, log=log, lang=lang, note=note, wm=(c.data.get("saida") or {}).get("marca_dagua", "padrao"))
     t2 = time.time()
     man = {"schema": "simplicio.preview-manifest/v1", "contract_sha256": c.sha256(), "inputs_sha256": info["inputs_sha256"],
            "preview": {**res, "path": os.path.relpath(dst, c.dir)}, "spec": dict(preview_texts(lang)),
