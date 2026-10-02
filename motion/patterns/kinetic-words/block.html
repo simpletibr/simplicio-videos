@@ -83,22 +83,27 @@
               tl.fromTo(box, { y: 0 }, { y: -6, duration: Math.max(0.5, V.dur / 2), yoyo: true, repeat: 1, ease: "sine.inOut" }, 0);
               if (V.exit > 0) tl.to(words, { opacity: 0, y: -fs * 0.15, duration: 0.14, ease: "power2.in" }, V.dur - V.exit);
             } else {
+            // Horizontal growth is capped per word so a neighbour never covers the 0.4em gap: each side may take at most
+            // 0.07em (two neighbours animating at once still leave >= 0.26em). Width estimated from the glyph count
+            // (deterministic; fonts may not be ready when the timeline is built).
+            const cw = V.font === "Anton" ? 0.48 : V.font === "Inter" ? 0.64 : 0.58;
+            const capX = (w) => 1 + 0.14 / Math.max(0.5, [...w.textContent].length * cw);
             words.forEach((w, i) => {
               w.style.color = pal[i % pal.length];
               if (Number(V.stroke)) { w.style.webkitTextStroke = `${Math.max(3, Math.round(fs / 26))}px ${V.ink}`; w.style.textShadow = `0 ${Math.round(fs * 0.07)}px 0 ${V.ink}33`; }
               else w.style.textShadow = `0 ${Math.round(fs * 0.03)}px ${Math.round(fs * 0.14)}px rgba(0,0,0,0.28)`;  // solid, soft shadow, no double outline
-              const t = Math.max(0, T[i] - 0.04), rot = (R() - 0.5) * 12, nxt = i + 1 < words.length ? T[i + 1] : t + 0.5;
+              const t = Math.max(0, T[i] - 0.04), rot = (R() - 0.5) * 8, nxt = i + 1 < words.length ? T[i + 1] : t + 0.5, cx = capX(w);
               // stretch in -> squash on landing -> settle; the current word stays a bit bigger until the next one lands
               tl.fromTo(w, { scaleX: 0.3, scaleY: 1.7, y: -fs * 0.6, rotation: rot, opacity: 0, transformOrigin: "50% 100%" },
-                { scaleX: 1.14, scaleY: 1.14, y: 0, opacity: 1, duration: 0.12, ease: "power3.out" }, t);
-              tl.to(w, { scaleX: 1.26, scaleY: 0.84, duration: 0.06, ease: "power2.out" }, t + 0.12);
-              tl.to(w, { scaleX: 1.08, scaleY: 1.08, rotation: rot * 0.4, duration: 0.22, ease: "elastic.out(1,0.45)" }, t + 0.18);
+                { scaleX: Math.min(1.14, cx), scaleY: 1.14, y: 0, opacity: 1, duration: 0.12, ease: "power3.out" }, t);
+              tl.to(w, { scaleX: Math.min(1.26, cx), scaleY: 0.84, duration: 0.06, ease: "power2.out" }, t + 0.12);
+              tl.to(w, { scaleX: Math.min(1.08, cx), scaleY: 1.08, rotation: rot * 0.3, duration: 0.22, ease: "elastic.out(1,0.45)" }, t + 0.18);
               tl.to(w, { scaleX: 1, scaleY: 1, duration: 0.16, ease: "power2.out" }, Math.max(t + 0.4, nxt - 0.02));
             });
             const lastT = T[words.length - 1] ?? 0.2;
             tl.to(box, { x: 14, duration: 0.04, yoyo: true, repeat: 5, ease: "none" }, lastT + 0.14);
             tl.fromTo(box, { y: 0 }, { y: -18, duration: Math.max(0.5, V.dur / 3), yoyo: true, repeat: 2, ease: "sine.inOut" }, 0);
-            if (V.exit > 0) words.forEach((w, i) => tl.to(w, { scale: 0, rotation: (R() - 0.5) * 40, duration: 0.14, ease: "back.in(2.5)" }, V.dur - V.exit + (i % 6) * 0.012));
+            if (V.exit > 0) words.forEach((w, i) => tl.to(w, { scaleX: 0, scaleY: 0, rotation: (R() - 0.5) * 10, duration: 0.14, ease: "power3.in" }, V.dur - V.exit + (i % 6) * 0.012));
             }
             tl.set({}, {}, V.dur);
             tl.seek(0);

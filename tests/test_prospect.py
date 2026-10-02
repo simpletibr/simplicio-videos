@@ -205,7 +205,7 @@ def test_preview_filter_has_watermark_and_end_card(tmp_path):
     fc = render.preview_filter(16.0, render.preview_font(ROOT), tmp_path)
     assert "scale=540:960" in fc and "rotate=-30*PI/180" in fc and "concat=n=2:v=1:a=1" in fc
     assert (tmp_path / "wm.txt").read_text().count("Prévia • Wesley Simplicio • @wesleysimplicio") == 3
-    assert (tmp_path / "end1.txt").read_text() == "Vídeo feito por Wesley Simplicio" and (tmp_path / "end2.txt").read_text() == "@wesleysimplicio"
+    assert " ".join(x.read_text() for x in sorted(tmp_path.glob("end1_*.txt"))) == "Vídeo feito por Wesley Simplicio" and (tmp_path / "end2.txt").read_text() == "@wesleysimplicio"
     assert (tmp_path / "badge.txt").read_text() == "PRÉVIA · @wesleysimplicio"
     assert render.PREVIEW["crf"] >= 28 and render.PREVIEW["fps"] == 30
 

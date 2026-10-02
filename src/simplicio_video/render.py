@@ -168,11 +168,33 @@ def prepare(c: Contract, workdir: Path, log) -> tuple[dict, dict]:
     return {"inputs_sha256": inputs_sha, "files": files, "compile_build_s": round(time.time() - t0, 2)}, lock or {}
 
 
+def layout_guard(wd: Path, log=print) -> list[dict]:
+    """Before the (slow) capture: every kinetic text block measured in headless Chrome. Logs the assembled text of each
+    scene and the smallest word gap; stops the render if two words touch or text leaves the frame. SV_LAYOUT_GUARD=0 skips."""
+    from . import kinetic_layout as layout
+    blk = wd / "compositions" / "kinetic-words.html"
+    if os.environ.get("SV_LAYOUT_GUARD") == "0" or not blk.is_file():
+        return []
+    try:
+        res, probs = layout.check_project(wd, block=blk)
+    except layout.LayoutUnavailable as e:
+        log(f"warning: layout guard skipped ({e})")
+        return []
+    for r in res:
+        log(f"layout {r['id']} @ {r['start']:.2f}s: \"{' / '.join(r['text'])}\" · fonte {r['fs']:.0f}px · menor espaço {r['min_gap_em']} em")
+    (wd / "out").mkdir(exist_ok=True)
+    (wd / "out" / "layout.json").write_text(json.dumps(res, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
+    if probs:
+        raise SystemExit("layout guard:\n  " + "\n  ".join(probs))
+    return res
+
+
 def render_local(c: Contract, out: Path | None = None, quality: str | None = None, workdir: Path | None = None,
                  gpu: bool = False, log=print, manifest: bool = True) -> dict:
     wd = workdir or (c.dir / "build" / "simplicio-video")
     q = quality or c.data["saida"].get("qualidade", "delivery")
     info, lock = prepare(c, wd, log)
+    layout_guard(wd, log)
     dst = (out or c.rel(c.data["saida"]["arquivo"])).resolve()
     dst.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -325,6 +347,78 @@ WATERMARK_STYLES = {  # rows, spacing (px on the 1000x1000 canvas), font size, a
 }
 
 
+
+# ---- text fitting for the ffmpeg drawtext layers (end card, badge, note): never let a long language run off-screen ----
+_ADV_CACHE: dict = {}
+
+
+def _font_advances(font: Path) -> tuple[int, dict, list]:
+    """(unitsPerEm, {codepoint: glyph}, advances) read straight from the TTF (head/hhea/hmtx/cmap 4|12; default instance)."""
+    import struct
+    key = str(font)
+    if key in _ADV_CACHE:
+        return _ADV_CACHE[key]
+    b = Path(font).read_bytes()
+    n = struct.unpack(">H", b[4:6])[0]
+    tab = {b[12 + 16 * i:16 + 16 * i].decode("latin1"): struct.unpack(">II", b[20 + 16 * i:28 + 16 * i]) for i in range(n)}
+    upem = struct.unpack(">H", b[tab["head"][0] + 18:tab["head"][0] + 20])[0]
+    nh = struct.unpack(">H", b[tab["hhea"][0] + 34:tab["hhea"][0] + 36])[0]
+    adv = [struct.unpack(">H", b[tab["hmtx"][0] + 4 * i:tab["hmtx"][0] + 4 * i + 2])[0] for i in range(nh)]
+    cm, o = {}, tab["cmap"][0]
+    subs = [struct.unpack(">HHI", b[o + 4 + 8 * i:o + 12 + 8 * i]) for i in range(struct.unpack(">H", b[o + 2:o + 4])[0])]
+    for pid, eid, off in sorted(subs, key=lambda x: (x[0] != 3, x[1] != 10)):
+        t = o + off
+        fmt = struct.unpack(">H", b[t:t + 2])[0]
+        if fmt == 12:
+            for g in range(struct.unpack(">I", b[t + 12:t + 16])[0]):
+                a, z, gid = struct.unpack(">III", b[t + 16 + 12 * g:t + 28 + 12 * g])
+                for cp in range(a, z + 1):
+                    cm.setdefault(cp, gid + cp - a)
+            break
+        if fmt == 4:
+            seg = struct.unpack(">H", b[t + 6:t + 8])[0] // 2
+            ends = struct.unpack(f">{seg}H", b[t + 14:t + 14 + 2 * seg])
+            starts = struct.unpack(f">{seg}H", b[t + 16 + 2 * seg:t + 16 + 4 * seg])
+            deltas = struct.unpack(f">{seg}h", b[t + 16 + 4 * seg:t + 16 + 6 * seg])
+            ro = t + 16 + 6 * seg
+            ranges = struct.unpack(f">{seg}H", b[ro:ro + 2 * seg])
+            for k in range(seg):
+                for cp in range(starts[k], min(ends[k], 0xFFFE) + 1):
+                    if ranges[k] == 0:
+                        gid = (cp + deltas[k]) & 0xFFFF
+                    else:
+                        gi = ro + 2 * k + ranges[k] + 2 * (cp - starts[k])
+                        gid = struct.unpack(">H", b[gi:gi + 2])[0]
+                        gid = (gid + deltas[k]) & 0xFFFF if gid else 0
+                    cm.setdefault(cp, gid)
+            break
+    _ADV_CACHE[key] = (upem, cm, adv)
+    return _ADV_CACHE[key]
+
+
+def text_width(font: Path, text: str, size: float) -> float:
+    upem, cm, adv = _font_advances(font)
+    return sum(adv[min(cm.get(ord(c), 0), len(adv) - 1)] for c in text) * size / upem
+
+
+def fit_text(font: Path, text: str, size: int, maxw: float, min_size: int = 14, max_lines: int = 2) -> tuple[list[str], int]:
+    """Lines + font size so every line fits in maxw: one line if it fits, else the most balanced 2-line split, else a
+    smaller size. 3% safety for kerning/hinting. Raises if even min_size does not fit (layout guard)."""
+    fits = lambda ls, sz: max(text_width(font, x, sz) for x in ls) * 1.03 <= maxw
+    words = text.split()
+    for sz in range(size, min_size - 1, -1):
+        if fits([text], sz):
+            return [text], sz
+        if max_lines >= 2 and len(words) > 1:
+            best = min(([" ".join(words[:k]), " ".join(words[k:])] for k in range(1, len(words))),
+                       key=lambda ls: max(text_width(font, x, sz) for x in ls))
+            if fits(best, sz) and sz >= int(size * 0.8):
+                return best, sz
+    raise SystemExit(f"preview layout: \"{text}\" does not fit {maxw:.0f}px even at {min_size}px")
+
+
+PREVIEW_MARGIN = 40  # px each side on the 540-wide preview
+
 def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, lang: str = "pt", note: str | None = None,
                    wm: str = "padrao") -> str:
     """filter_complex for: [0] draft render, [1] logo (optional). Output labels [v] [a].
@@ -355,18 +449,26 @@ def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, lang
             f"drawtext=fontfile='{ff}':textfile='{badge}':x=18:y=h-th-22:fontsize=18:fontcolor=white@0.85:"
             f"box=1:boxcolor=black@0.45:boxborderw=8")
     if note:
-        nt = tf("note", note)
-        main += (f",drawtext=fontfile='{ff}':textfile='{nt}':x=(w-tw)/2:y=64:fontsize=20:fontcolor=white:"
+        (nl,), ns = fit_text(font, note, 20, W - 2 * PREVIEW_MARGIN, max_lines=1)
+        nt = tf("note", nl)
+        main += (f",drawtext=fontfile='{ff}':textfile='{nt}':x=(w-tw)/2:y=64:fontsize={ns}:fontcolor=white:"
                  f"box=1:boxcolor=0xc0392b@0.85:boxborderw=10")
     if logo:
         main += f"[m1];[1:v]scale=90:-1,format=rgba,colorchannelmixer=aa=0.55[lg];[m1][lg]overlay=x=18:y=18"
     main += "[mv];"
-    t1, t2, t3 = tf("end1", P["end_title"]), tf("end2", P["end_url"]), tf("end3", P["end_note"])
     e = P["end_card_s"]
-    end = (f"color=c=0x0b0b10:s={W}x{H}:r={fps}:d={e},format=yuv420p,"
-           f"drawtext=fontfile='{ff}':textfile='{t1}':x=(w-tw)/2:y=h/2-70:fontsize=34:fontcolor=white,"
-           f"drawtext=fontfile='{ff}':textfile='{t2}':x=(w-tw)/2:y=h/2:fontsize=44:fontcolor=0x4fa3ff,"
-           f"drawtext=fontfile='{ff}':textfile='{t3}':x=(w-tw)/2:y=h/2+80:fontsize=20:fontcolor=white@0.6,"
+    maxw = W - 2 * PREVIEW_MARGIN
+    l1, s1 = fit_text(font, P["end_title"], 34, maxw)
+    l2, s2 = fit_text(font, P["end_url"], 44, maxw, max_lines=1)
+    l3, s3 = fit_text(font, P["end_note"], 20, maxw)
+    draws = []
+    for k, ln in enumerate(l1):  # title block grows upwards when it wraps
+        y = f"h/2-70-{round((len(l1) - 1 - k) * s1 * 1.2)}"
+        draws.append(f"drawtext=fontfile='{ff}':textfile='{tf(f'end1_{k}', ln)}':x=(w-tw)/2:y={y}:fontsize={s1}:fontcolor=white,")
+    draws.append(f"drawtext=fontfile='{ff}':textfile='{tf('end2', l2[0])}':x=(w-tw)/2:y=h/2:fontsize={s2}:fontcolor=0x4fa3ff,")
+    for k, ln in enumerate(l3):
+        draws.append(f"drawtext=fontfile='{ff}':textfile='{tf(f'end3_{k}', ln)}':x=(w-tw)/2:y=h/2+80+{round(k * s3 * 1.3)}:fontsize={s3}:fontcolor=white@0.6,")
+    end = (f"color=c=0x0b0b10:s={W}x{H}:r={fps}:d={e},format=yuv420p," + "".join(draws) +
            f"fade=t=in:st=0:d=0.35[ev];")
     # oversampled limiter at -2 dBFS: the 96k AAC re-encode overshoots the master's sample-peak limiter (measured +0.4 dBTP)
     audio = (f"[0:a]aresample=192000,alimiter=limit=0.794:attack=1:release=50:level=false,aresample=48000,"

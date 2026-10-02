@@ -287,8 +287,10 @@ def test_preview_watermark_and_end_card_have_no_simpleti(tmp_path):
     from simplicio_video import render
     assert render.PREVIEW["watermark"] == "Prévia • Wesley Simplicio • @wesleysimplicio"
     render.preview_filter(16.0, render.preview_font(ROOT), tmp_path)
-    for f in ("wm", "badge", "end1", "end2", "end3"):
-        assert not OLD_BRAND.search((tmp_path / f"{f}.txt").read_text()), f
+    files = sorted(tmp_path.glob("*.txt"))
+    assert {f.stem.split("_")[0] for f in files} >= {"wm", "badge", "end1", "end2", "end3"}
+    for f in files:
+        assert not OLD_BRAND.search(f.read_text()), f.name
     assert "@wesleysimplicio" in (tmp_path / "end2.txt").read_text()
     assert all(not OLD_BRAND.search(str(v)) for v in render.PREVIEW.values())
 

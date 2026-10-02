@@ -59,7 +59,7 @@ def test_preview_filter_uses_language_and_optional_note(tmp_path):
     font = R.preview_font(ROOT)
     f = R.preview_filter(10.0, font, tmp_path, lang="de", note="SEM VOZ")
     assert (tmp_path / "wm.txt").read_text(encoding="utf8").strip().startswith("Vorschau • Wesley Simplicio")
-    assert (tmp_path / "end1.txt").read_text(encoding="utf8") == "Video von Wesley Simplicio"
+    assert " ".join(x.read_text(encoding="utf8") for x in sorted(tmp_path.glob("end1_*.txt"))) == "Video von Wesley Simplicio"
     assert (tmp_path / "note.txt").read_text(encoding="utf8") == "SEM VOZ" and "0xc0392b" in f
     (tmp_path / "en").mkdir()
     g = R.preview_filter(10.0, font, tmp_path / "en", lang="en")
@@ -273,5 +273,5 @@ def test_voice_error_does_not_stop_the_batch(tmp_path, monkeypatch):
 
 
 def test_preview_audio_has_oversampled_limiter(tmp_path):
-    fc = R.preview_filter(10.0, "font.ttf", tmp_path, lang="en")
+    fc = R.preview_filter(10.0, R.preview_font(ROOT), tmp_path, lang="en")
     assert "aresample=192000,alimiter=limit=0.794" in fc
