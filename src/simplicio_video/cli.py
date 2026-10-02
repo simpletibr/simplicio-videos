@@ -271,7 +271,27 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--render", action="store_true", help="gera a voz (--provider) e a preview.mp4 final")
     p.add_argument("--provider", "-p", choices=["gemini", "file"], default="gemini",
                    help="voz do --render: gemini (API, GEMINI_API_KEY) ou file (falas do AI Studio em assets/audio/vo/external)")
+    p.add_argument("--visual", choices=["motion", "broll"], default="motion",
+                   help="motion: padrão animado v03 (contrato/roteiro/voz). broll: re-renderiza só o visual em B-roll\n"
+                        "sincronizado (broll/concept.yaml + broll/plan.yaml) sobre a voz final já travada no timing.lock.json;\n"
+                        "zero TTS, não reescreve contrato nem roteiro; saída <slug>/preview-v2.mp4")
     p.add_argument("--json", action="store_true", help="resumo em JSON")
+
+    p = sub.add_parser("broll", formatter_class=Fmt,
+        help="visual B-roll sincronizado palavra a palavra sobre a voz final (zero TTS) -> preview-v2.mp4",
+        description="Re-renderiza uma prévia pronta no modo B-roll: cada fala ganha cenas reais (site/Instagram do cliente ou\n"
+                    "B-roll grátis com licença comercial, listados em <pasta>/assets-licencas.csv), cortes de 0,35-1,6 s,\n"
+                    "transições de 6-10 frames, tipografia cinética que entra no instante de cada palavra, stickers/ícones,\n"
+                    "música e SFX sintetizados e mix em -14 LUFS / pico -1,5 dBTP. O conceito visual da empresa (paleta,\n"
+                    "fontes, transições, grade, trilha) vem de <pasta>/broll/concept.yaml; as cenas de <pasta>/broll/plan.yaml.\n"
+                    "A voz é a do timing.lock.json (nunca chama TTS). Saída: <pasta>/preview-v2.mp4 (não toca na preview.mp4).",
+        epilog="exemplos:\n  simplicio-video broll previas/pet-joy-in-la --qa --sheet qa/piloto-broll-pet-joy-in-la.png\n"
+               "  simplicio-video broll previas/novuu-medspa --check     # só valida plano, licenças e layout")
+    p.add_argument("pastas", type=Path, nargs="+", metavar="PASTA", help="pasta da prévia (contract.yaml + timing.lock.json + broll/)")
+    p.add_argument("--out", type=Path, help="MP4 de saída (padrão: <pasta>/preview-v2.mp4; só com uma pasta)")
+    p.add_argument("--check", action="store_true", help="só valida (plano, licenças, layout) sem renderizar")
+    p.add_argument("--qa", action="store_true", help="roda o QA automático depois do render (sincronia, layout, loudness, preço)")
+    p.add_argument("--sheet", type=Path, help="folha de QA (20 quadros de 270 px) neste PNG (só com uma pasta)")
 
     p = sub.add_parser("publish", formatter_class=Fmt, help="sobe o MP4 no Google Drive (rclone) e grava o link no README do cliente",
         description="Sobe saida.arquivo (ou --file) para <remote>:drive.caminho/drive.arquivo com rclone (sem navegador) e grava o\n"
@@ -413,6 +433,39 @@ def main(argv: list[str] | None = None) -> int:
         if a.json:
             print(json.dumps(res, indent=2, ensure_ascii=False))
         return 0 if res["erros"] == 0 else 1
+    if a.cmd == "broll" or (a.cmd == "intl" and getattr(a, "visual", "motion") == "broll"):
+        from . import broll
+        if a.cmd == "intl":
+            from . import intl
+            only = {x for o in (a.only or []) for x in o.split(",")}
+            pastas = [a.out / f["slug"] for f in intl.load_fichas(a.fichas) if not only or f["slug"] in only]
+            a.check, a.qa, a.sheet, out = False, True, None, None
+        else:
+            pastas, out = a.pastas, a.out
+            if (out or a.sheet) and len(pastas) > 1:
+                print("broll: --out/--sheet só com uma pasta", file=sys.stderr)
+                return 2
+        rc = 0
+        for pd in pastas:
+            try:
+                if a.check:
+                    errs = broll.check(pd)
+                    print(f"{pd.name}: " + ("ok" if not errs else "reprovado:\n  " + "\n  ".join(errs)))
+                    rc |= bool(errs)
+                    continue
+                broll.render(pd, out=out)
+                if a.qa:
+                    r = broll.qa(pd, mp4=out)
+                    print(f"{pd.name}: QA {'ok' if r['ok'] else 'REPROVADO'} · {r['lufs']} LUFS · TP {r['tp']} dBTP · "
+                          f"sync máx {r['sync_max_ms']} ms" + ("" if r["ok"] else "\n  " + "\n  ".join(r["avisos"])))
+                    rc |= not r["ok"]
+                if a.sheet:
+                    broll.qa_sheet(out or pd / "preview-v2.mp4", a.sheet)
+                    print(f"folha: {a.sheet}")
+            except broll.BrollError as e:
+                print(f"{pd.name}: {e}", file=sys.stderr)
+                rc = 1
+        return rc
     if a.cmd == "intl":
         from . import intl
         res = intl.run(a.fichas, a.out, only=a.only, mudo=a.mudo, render=a.render, provider=a.provider,

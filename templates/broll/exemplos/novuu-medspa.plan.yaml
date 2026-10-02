@@ -1,0 +1,41 @@
+# P061 Nōvuu Medspa — B-roll sincronizado à voz final (timing.lock.json). 0 TTS.
+# Regras de saúde: sem antes/depois, sem agulhas/seringas, sem promessa de resultado, sem marcas registradas.
+hook: {kind: "macro de pele + tipografia elegante"}
+shots:
+  - {src: mixkit-51183.mp4, until: "vo1:of", in: 2.0, zoom: [1.18, 1.32], note: "Afraid — macro de pele, algodão no rosto (gancho)"}
+  - {src: mixkit-33462.mp4, until: 1.50, in: 6.0, tx: blur, zoom: [1.0, 1.1], note: "of looking — mulher frustrada ao se ver no espelho"}
+  - {src: mixkit-4573.mp4,  until: 2.30, in: 4.0, tx: mask, zoom: [1.04, 1.16], note: "overdone? — mulher se olhando no espelho"}
+  - {src: mixkit-25575.mp4, until: "vo2:tired", in: 3.0, note: "Or — mulher frustrada no computador"}
+  - {src: mixkit-47496.mp4, until: "vo2:never", in: 2.0, note: "tired of — pensando demais"}
+  - {src: mixkit-39790.mp4, until: "vo2:real", in: 3.0, note: "never getting — preocupada ao telefone"}
+  - {src: site-consultation-tablet.jpg, until: 5.58, zoom: [1.0, 1.22], pan: [[-0.02, 0], [0.02, 0]], note: "real answers — consulta com tablet (site)"}
+  - {src: site-office-reception.jpg, until: 6.40, zoom: [1.22, 1.02], note: "recepção da clínica (site)"}
+  - {src: site-reception-logo-wall.jpg, until: "vo3:enhances", zoom: [1.0, 1.25], note: "Nōvuu — parede com a logo na recepção (site)"}
+  - {src: mixkit-52141.mp4, until: "vo3:natural", in: 1.5, note: "enhances your — tratamento facial em spa"}
+  - {src: site-facial-device.jpg, until: "vo3:beauty", zoom: [1.06, 1.24], note: "natural — aparelho facial suave (site, sem agulha)"}
+  - {src: mixkit-46044.mp4, until: "vo3:never", in: 2.0, note: "beauty — creme no rosto, sorrindo"}
+  - {src: site-client-mirror-smile.jpg, until: 10.72, zoom: [1.24, 1.04], note: "never overdone — cliente sorrindo no espelho (site; não é antes/depois)"}
+  - {src: mixkit-52157.mp4, until: 11.50, in: 3.0, note: "massagem facial"}
+  - {src: site-brow-mapping.jpg, until: vo4, zoom: [1.0, 1.24], note: "design de sobrancelha (site)"}
+  - {src: site-waiting-nook.jpg, until: "vo4:Medspa", dim: 0.45, blur: 2, zoom: [1.02, 1.18], note: "Nōvuu Medspa — sala de espera sob a logo (site)"}
+  - {src: mixkit-52152.mp4, until: "vo4:Call", in: 3.0, dim: 0.45, blur: 2, note: "creme suave na testa, sob a logo"}
+  - {src: mixkit-49933.mp4, until: "vo4:to", in: 2.0, dim: 0.35, note: "Call or text — mulher alegre ao telefone"}
+  - {src: mixkit-51125.mp4, until: 15.38, in: 1.5, dim: 0.35, note: "to book — digitando no celular"}
+  - {src: site-office-reception.jpg, until: 16.20, dim: 0.45, blur: 5, zoom: [1.1, 1.25], note: "CTA — recepção desfocada"}
+  - {src: site-waiting-nook.jpg, hold: true, dim: 0.45, blur: 5, zoom: [1.12, 1.24], note: "CTA — sala de espera desfocada"}
+texts:
+  - {text: "Afraid of", sync: vo1, until: 0.84, y: 0.66, size: 1.15}
+  - {text: "looking / overdone?", sync: vo1, until: 2.28, y: 0.66, size: 1.1, emph: [overdone]}
+  - {text: "Or tired of", sync: vo2, until: 4.06, y: 0.66}
+  - {text: "never getting / real answers?", sync: vo2, until: 6.15, y: 0.66, emph: [real, answers]}
+  - {text: "Nōvuu", sync: vo3, until: 7.74, y: 0.62, size: 1.6}
+  - {text: "enhances your / natural beauty,", sync: vo3, until: 9.84, y: 0.66, emph: [natural, beauty]}
+  - {text: "never / overdone.", sync: vo3, until: 11.40, y: 0.66, size: 1.1, emph: [overdone]}
+  - {text: "Call or text / to book.", sync: vo4, until: end, font: cta, y: 0.63}
+stickers:
+  - {icon: sparkle, at: vo3, until: "vo3:enhances", x: 0.80, y: 0.18, size: 0.09, anim: float}
+  - {icon: leaf, at: "vo3:natural", until: "vo3:never", x: 0.20, y: 0.18, size: 0.09, anim: float}
+  - {icon: sparkle, at: "vo3:never", until: 11.40, x: 0.80, y: 0.18, size: 0.08, anim: float}
+  - {icon: phone, at: "vo4:Call", until: end, x: 0.40, y: 0.79, size: 0.09, anim: float}
+  - {icon: chat, at: "vo4:text", until: end, x: 0.60, y: 0.79, size: 0.09, anim: float}
+logo: {file: logo-novuu-beige.png, at: vo4, until: end, y: 0.35, size: 0.66, plate: none, anim: reveal}

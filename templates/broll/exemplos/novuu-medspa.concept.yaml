@@ -1,0 +1,53 @@
+# Conceito visual próprio da Nōvuu Medspa — "Quiet Luxury"
+# Paleta e tipografia do próprio site (verde profundo, bege da logo, taupe; Cormorant Garamond + Jost).
+nome: "Nōvuu · Quiet Luxury"
+palette:
+  primary: "#2e403a"     # verde profundo do site
+  secondary: "#e9e0d6"   # bege da logo
+  accent: "#e9e0d6"      # ícones finos em bege
+  ink: "#2e403a"         # scrim em verde da marca (não preto)
+  light: "#faf9f9"       # off-white do site
+  taupe: "#5e5649"
+  olive: "#585946"
+type:
+  font: motion/assets/fonts/broll/CormorantGaramond.ttf
+  variation: Medium
+  size: 0.14
+  case: none
+  tracking: 0.01
+  anim: rise
+  fill: light
+  emph: secondary
+  stroke: null
+  shadow: "#000000"
+  shadow_alpha: 0.45
+  shadow_blur: 0.08
+  shadow_dy: 0.02
+  panel: none
+  line_gap: 0.04
+  word_gap: 0.26
+  scrim: 0.62
+  fonts:
+    emph: {font: motion/assets/fonts/broll/CormorantGaramond-Italic.ttf, variation: Medium Italic}
+    cta: {font: motion/assets/fonts/broll/Jost.ttf, variation: Light, case: upper, tracking: 0.3, size: 0.074, fill: light}
+rhythm: {bpm: 110}
+transitions:
+  default: [leak, blur, mask, slide, zoom, blur]
+  frames: 9
+  flash: "#faf9f9"
+  leak: "#ffd9b0"
+grade: {sat: 0.84, contrast: 0.97, warmth: 0.05, lift: 0.035, vignette: 0.28, tint: "#e9e0d6", tint_amt: 0.05}
+overlays:
+  particles: leak
+  leak_strength: 0.22
+  grain: 0.03
+music: {style: elegant, bpm: 110, db: -11.0, duck_db: 8.0, drop_at: 7.12, seed: 9}
+sfx:
+  cut: {default: whoosh}
+  sticker: null
+  card: null
+  hook: shimmer
+  logo: shimmer
+  db: -19.0
+logo: {plate: none, size: 0.66, anim: reveal}
+setor: saude

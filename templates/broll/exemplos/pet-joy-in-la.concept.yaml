@@ -1,0 +1,50 @@
+# Conceito visual próprio da Pet Joy in LA — "Bubble Pop"
+# Paleta tirada da logo (teal) e do site (amarelo-manteiga dos botões/fundos).
+nome: "Pet Joy · Bubble Pop"
+palette:
+  primary: "#5dbda9"     # teal da logo / site
+  secondary: "#fffb89"   # amarelo-manteiga do site
+  accent: "#2f9e8f"      # teal escuro (chip do briefing) — ícones
+  ink: "#111111"
+  light: "#ffffff"
+type:
+  font: motion/assets/fonts/Fredoka.ttf
+  variation: Bold
+  size: 0.125
+  case: upper
+  tracking: 0.01
+  anim: pop
+  fill: ink
+  emph: "#1d6f63"
+  shadow: "#000000"
+  shadow_alpha: 0.25
+  shadow_blur: 0.04
+  shadow_dy: 0.03
+  panel: pill
+  panel_colors: [secondary, primary]
+  panel_alpha: 0.96
+  line_gap: 0.16
+  word_gap: 0.26
+  fonts:
+    cta: {font: motion/assets/fonts/Fredoka.ttf, variation: SemiBold, case: none, size: 0.095, fill: ink}
+rhythm: {bpm: 124}
+transitions:
+  default: [pop, whip, zoom, whip, pop, zoom]
+  frames: 7
+  flash: "#fffb89"
+grade: {sat: 1.18, contrast: 1.06, warmth: 0.05, lift: 0.0, vignette: 0.12}
+overlays:
+  particles: bubbles
+  density: 9
+  grain: 0.0
+  emoji_font: motion/assets/fonts/broll/NotoColorEmoji.ttf
+music: {style: bouncy, bpm: 124, db: -10.0, duck_db: 9.0, drop_at: 2.1, seed: 5}
+sfx:
+  cut: {default: swish, pop: pop, whip: swish, zoom: whoosh, glitch: tick}
+  sticker: pop
+  card: null
+  hook: impact
+  logo: shimmer
+  db: -16.0
+logo: {plate: round, plate_color: light, size: 0.62, anim: pop}
+setor: pet
