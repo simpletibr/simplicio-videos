@@ -599,7 +599,7 @@ def run(fichas_in: list[Path], out: Path, only: list[str] | None = None, mudo: b
             if render:
                 r["preview"] = str(render_final(out, pdir, d, provider=provider, log=log))
                 r["status"] = "preview_pronta"
-        except Exception as e:  # one company never stops the batch
+        except (Exception, SystemExit) as e:  # one company never stops the batch (VoiceError is a SystemExit)
             r.update(status="erro_render", motivo=f"{type(e).__name__}: {str(e)[:500]}")
             log(f"[{f['slug']}] erro {r['motivo']}")
         (pdir / "result.json").write_text(json.dumps(r, indent=2, ensure_ascii=False) + "\n", encoding="utf8")

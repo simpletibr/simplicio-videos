@@ -368,7 +368,9 @@ def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, lang
            f"drawtext=fontfile='{ff}':textfile='{t2}':x=(w-tw)/2:y=h/2:fontsize=44:fontcolor=0x4fa3ff,"
            f"drawtext=fontfile='{ff}':textfile='{t3}':x=(w-tw)/2:y=h/2+80:fontsize=20:fontcolor=white@0.6,"
            f"fade=t=in:st=0:d=0.35[ev];")
-    audio = (f"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"
+    # oversampled limiter at -2 dBFS: the 96k AAC re-encode overshoots the master's sample-peak limiter (measured +0.4 dBTP)
+    audio = (f"[0:a]aresample=192000,alimiter=limit=0.794:attack=1:release=50:level=false,aresample=48000,"
+             f"aformat=sample_fmts=fltp:channel_layouts=stereo,"
              f"afade=t=out:st={max(dur_s - 0.4, 0):.3f}:d=0.4[ma];"
              f"anullsrc=r=48000:cl=stereo,atrim=duration={e},aformat=sample_fmts=fltp:channel_layouts=stereo[ea];"
              f"[mv][ma][ev][ea]concat=n=2:v=1:a=1[v][a]")

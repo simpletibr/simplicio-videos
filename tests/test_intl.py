@@ -255,3 +255,23 @@ def test_pt_guards(text):
 def test_unknown_language_fails_clearly():
     with pytest.raises(intl.FichaError, match="idioma"):
         intl.build_contract(_ficha("us", idioma="es-MX"))
+
+
+def test_voice_error_does_not_stop_the_batch(tmp_path, monkeypatch):
+    from simplicio_video import voice
+    fd = tmp_path / "fichas"
+    fd.mkdir()
+    for s in ("a-us", "b-us"):
+        f = _ficha("us", slug=s)
+        (fd / f"{s}.yaml").write_text(yaml.safe_dump(f, allow_unicode=True), encoding="utf8")
+
+    def boom(*a, **k):
+        raise voice.VoiceError("lines longer than their slot")
+    monkeypatch.setattr(intl, "render_mudo", boom)
+    res = intl.run([fd], tmp_path / "out", mudo=True, log=lambda *a: None)
+    assert [r["status"] for r in res["resultados"]] == ["erro_render", "erro_render"]
+
+
+def test_preview_audio_has_oversampled_limiter(tmp_path):
+    fc = R.preview_filter(10.0, "font.ttf", tmp_path, lang="en")
+    assert "aresample=192000,alimiter=limit=0.794" in fc
