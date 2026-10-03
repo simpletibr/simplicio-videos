@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, paths, ugc, venda
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, paths, ugc, venda
 
 SCHEMA_REL = "schema/contract.schema.json"
 
@@ -368,6 +368,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="duração do clipe em segundos, define a faixa de palavras (padrão: %(default)g)")
     up.add_argument("--json", action="store_true", help="saída em JSON")
 
+    p = sub.add_parser("clone", formatter_class=Fmt, help="trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA",
+        description="Invoca o Hypit AI (https://github.com/hypit-ai/hypit) para clonar vídeos de referência e gerar fluxos de trabalho completos.",
+        epilog="exemplos:\n  simplicio-video clone --help\n  simplicio-video clone video.mp4")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao CLI do Hypit AI")
+
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
                     "video.publish, video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
@@ -474,6 +479,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "ugc":
         return _ugc(ap, a)
+    if a.cmd == "clone":
+        try:
+            return clone.run_hypit(a.args)
+        except clone.CloneError as e:
+            print(f"clone: {e}", file=sys.stderr)
+            return 1
     if a.cmd == "mcp":
         from . import mcp_server
         mcp_server.main()

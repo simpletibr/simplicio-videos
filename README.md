@@ -60,6 +60,7 @@ simplicio-videos/
 gh repo clone simpletibr/simplicio-videos && cd simplicio-videos
 pip install -e .                      # comando simplicio-video (Python >= 3.10); render: Node >= 22 + ffmpeg
 simplicio-video --help                # fluxo init -> validate -> voice -> render
+simplicio-video clone --help          # clonagem de vídeos com agentes de IA via Hypit AI (https://github.com/hypit-ai/hypit)
 cd clients/lothus-odontologia/video-01-dia-das-criancas
 simplicio-video validate contract.yaml
 simplicio-video voice contract.yaml   # voz provisória local (Kokoro) ou --provider file (WAVs do Gemini)
