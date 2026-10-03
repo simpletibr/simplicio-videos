@@ -72,6 +72,8 @@ Testes: `python -m pytest`. Voz: [tutorial Gemini](voices/gemini.md) · [todas a
 
 Índice em [`docs/README.md`](docs/README.md). Curadoria de ferramentas de vídeo/motion (com estrelas e licenças): [`docs/recursos.md`](docs/recursos.md).
 
+Referência externa: [Skillry — vídeos virais feitos com Claude Opus 5.5](https://skillry.dev/ai-videos/opus-5-5) (originais ao lado de remakes ao vivo, com o prompt exato de cada criador).
+
 ### Referências principais
 
 - [HyperFrames](https://github.com/heygen-com/hyperframes) — render HTML/GSAP → MP4 (base do repo).
