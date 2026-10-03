@@ -73,10 +73,11 @@ python -m pytest                                   # schema, validate, --help, d
 3. Padrão v2 (default): voz Gemini 3.8 Flash TTS Laomedeia animada (a da Lothus v02; reserva Achernar), **logo real** (coluna `logo` do CSV tirada do site/Instagram da empresa, ou logo do site) e ritmo da Lothus v02; nunca gerar/recriar logo. Só dado público e da empresa (LGPD), Instagram sem login (robots.txt do instagram.com proíbe robôs: o @ vem do CSV/site), nunca preço/promoção/fato inventado. **Nada é enviado pelo agente**: o Wesley revisa e envia ([docs/venda-ativa.md](docs/venda-ativa.md)).
 
 **Novo vídeo (etapas 3–7) — pelo CLI**
-1. `simplicio-video list templates` → template pelo nicho (renderizável). `simplicio-video init <slug> <Campanha> --template <id>`.
-2. Escreva o contrato (copy só da coleta; cenas, blocos + params, falas com `max_s`, SFX relativos à cena, voz, trilha, drive). Ver [SKILL.md](skills/simplicio-video/SKILL.md).
-3. `validate` → `voice` → `validate --need-lock` → `render` (ou `run`, que faz tudo; `--backend kaggle|colab-cli` renderiza remoto sem navegador). Confira `render.manifest.json` (loudness), STT e a prévia.
-4. Os projetos npm da WJR (`video-01`, `video-02-videouse`) ficam como referência; o `video-01` também tem `contract.yaml` (render idêntico).
+1. **Referência (antes de escrever):** busque 2–3 vídeos parecidos (nicho, formato, duração) em [Skillry — Opus 5.5](https://skillry.dev/ai-videos/opus-5-5) (original ao lado do remake, com o prompt do criador) e, se precisar, na web; anote o que serve de estrutura (gancho, ritmo, nº de cenas, tipo de transição) em `clients/<slug>/coleta/referencias.md` com URL + data. Referência inspira **forma**; **fatos, textos e marca só da coleta**. Não copie prompt, roteiro ou imagem de terceiros (direitos autorais) e não use no vídeo nada que a referência afirme sobre o cliente.
+2. `simplicio-video list templates` → template pelo nicho (renderizável). `simplicio-video init <slug> <Campanha> --template <id>`.
+3. Escreva o contrato (copy só da coleta; cenas, blocos + params, falas com `max_s`, SFX relativos à cena, voz, trilha, drive). Ver [SKILL.md](skills/simplicio-video/SKILL.md).
+4. `validate` → `voice` → `validate --need-lock` → `render` (ou `run`, que faz tudo; `--backend kaggle|colab-cli` renderiza remoto sem navegador). Confira `render.manifest.json` (loudness), STT e a prévia.
+5. Os projetos npm da WJR (`video-01`, `video-02-videouse`) ficam como referência; o `video-01` também tem `contract.yaml` (render idêntico).
 
 **Vídeo UGC (gerativo)** ([ugc/README.md](ugc/README.md) · [ADR-0004](docs/decisoes/ADR-0004-ugc-generativo.md))
 1. Fatos e público vêm de `clients/<slug>/coleta/`; sem fato confirmado, sem fala ("Só fatos reais"). Fora da esteira: sem contrato, template, motion nem `render`, e fora da regra de determinismo.
