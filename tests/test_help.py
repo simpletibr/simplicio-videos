@@ -2,7 +2,7 @@ import pytest
 
 from conftest import run_cli
 
-SUBS = ["init", "validate", "voice", "render", "publish", "run", "venda", "ugc", "mcp", "list"]
+SUBS = ["init", "validate", "voice", "render", "publish", "run", "venda", "ugc", "clone", "montage", "mcp", "list"]
 
 
 def test_main_help_lists_the_whole_flow():
@@ -26,6 +26,8 @@ def test_main_help_lists_the_whole_flow():
     ("run", ["CONTRATO.yaml", "--provider", "--backend", "--publish", "--accelerator", "dry-run"]),
     ("venda", ["cobrar", "webhook", "entregar", "status", "--preco", "ABACATEPAY_API_KEY", "cobranca_criada", "erro_entrega"]),
     ("ugc", ["list", "prompt", "--app", "--fala", "--duracao", "--todos", "Seedance", "coleta/", "22-28", "ugc/pack.schema.json"]),
+    ("clone", ["Hypit AI", "argumentos repassados"]),
+    ("montage", ["OpenMontage", "argumentos repassados"]),
     ("mcp", ["video.init", "video.render", "video.publish", "stdio"]),
     ("list", ["templates", "motion", "voices", "--json"]),
 ])
@@ -35,10 +37,11 @@ def test_subcommand_help_is_complete(sub, must):
     for m in must:
         assert m in r.stdout, f"{sub} --help missing {m!r}"
     assert "exemplos:" in r.stdout and "simplicio-video " + sub in r.stdout
-    if sub in ("venda", "ugc"):
+    if sub in ("venda", "ugc", "clone", "montage"):
         return
     if sub != "list":
         assert "schema/contract.schema.json" in r.stdout
+
 
 
 @pytest.mark.parametrize("args,must", [

@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, paths, ugc, venda
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, montage, paths, ugc, venda
 
 SCHEMA_REL = "schema/contract.schema.json"
 
@@ -31,6 +31,8 @@ Fluxo completo:
                (subcomandos cobrar | webhook serve | entregar | status; docs/venda-ativa.md)
   ugc          trilha UGC (gerativa, fora do render): lista o elenco do pack e monta o prompt Seedance 2.5 de cada personagem
                (subcomandos list | prompt; ugc/README.md)
+  clone        trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA (https://github.com/hypit-ai/hypit)
+  montage      trilha Montage (OpenMontage): produção de vídeo com agentes de IA (https://github.com/calesthio/OpenMontage)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
@@ -373,6 +375,11 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video clone --help\n  simplicio-video clone video.mp4")
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao CLI do Hypit AI")
 
+    p = sub.add_parser("montage", formatter_class=Fmt, help="trilha Montage (OpenMontage): produção de vídeo com agentes de IA",
+        description="Invoca o OpenMontage (https://github.com/calesthio/OpenMontage) para pipelines e agentes de produção de vídeo (Backlot, Remotion, HyperFrames).",
+        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao OpenMontage")
+
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
                     "video.publish, video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
@@ -423,10 +430,32 @@ def _ugc(ap: argparse.ArgumentParser, a) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
+    args_list = sys.argv[1:] if argv is None else argv
+    if args_list and args_list[0] in ("clone", "montage"):
+        if any(h in args_list for h in ("-h", "--help")):
+            ap.parse_args(args_list[:1] + ["--help"])
+            return 0
+        cmd = args_list[0]
+        sub_args = args_list[1:]
+        if cmd == "clone":
+            try:
+                return clone.run_hypit(sub_args)
+            except clone.CloneError as e:
+                print(f"clone: {e}", file=sys.stderr)
+                return 1
+        if cmd == "montage":
+            try:
+                return montage.run_montage(sub_args)
+            except montage.MontageError as e:
+                print(f"montage: {e}", file=sys.stderr)
+                return 1
+
     a = ap.parse_args(argv)
     if not a.cmd:
         ap.print_help()
         return 0
+
+
     if a.cmd == "list":
         from . import catalog
         h = paths.home()
@@ -485,6 +514,13 @@ def main(argv: list[str] | None = None) -> int:
         except clone.CloneError as e:
             print(f"clone: {e}", file=sys.stderr)
             return 1
+    if a.cmd == "montage":
+        try:
+            return montage.run_montage(a.args)
+        except montage.MontageError as e:
+            print(f"montage: {e}", file=sys.stderr)
+            return 1
+
     if a.cmd == "mcp":
         from . import mcp_server
         mcp_server.main()

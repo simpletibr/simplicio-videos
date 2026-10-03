@@ -20,6 +20,9 @@ remote = ["kaggle>=2.2", "google-colab-cli>=0.7"]
 [project.scripts]
 simplicio-video = "simplicio_video.cli:main"
 simplicio-video-mcp = "simplicio_video.mcp_server:main"
+clone = "simplicio_video.clone:main"
+montage = "simplicio_video.montage:main"
+
 
 [tool.setuptools.packages.find]
 where = ["src"]

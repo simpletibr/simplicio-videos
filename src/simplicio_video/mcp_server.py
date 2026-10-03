@@ -103,6 +103,18 @@ def video_list(what: str = "templates") -> dict:
     return {"ok": True, "items": rows}
 
 
+def video_clone(args: str = "") -> dict:
+    from . import clone
+    argv = args.split() if isinstance(args, str) else list(args)
+    return _capture(clone.run_hypit, argv)
+
+
+def video_montage(args: str = "") -> dict:
+    from . import montage
+    argv = args.split() if isinstance(args, str) else list(args)
+    return _capture(montage.run_montage, argv)
+
+
 TOOLS = [
     ("video.init", video_init, "Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts)."),
     ("video.validate", video_validate, "Validate a contract: JSON Schema, assets, scene durations, every line fits (need_lock before render)."),
@@ -112,7 +124,10 @@ TOOLS = [
                                      "Dry-run unless publish=true (only when the user explicitly asked)."),
     ("video.run", video_run, "voice -> validate -> render -> publish in one call (publish dry-run unless publish=true)."),
     ("video.list", video_list, "List templates, motion patterns or voice providers (what = templates|motion|voices)."),
+    ("video.clone", video_clone, "Clone videos using Hypit AI (https://github.com/hypit-ai/hypit)."),
+    ("video.montage", video_montage, "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage)."),
 ]
+
 
 
 def build_server():

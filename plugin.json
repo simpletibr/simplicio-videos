@@ -299,6 +299,26 @@
       }
     },
     {
+      "verb": "video.montage",
+      "description": "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage). Invokes OpenMontage pipelines, backlot board, and tools.",
+      "argv": [
+        "simplicio-video",
+        "montage",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "Arguments passed to OpenMontage"
+          }
+        }
+      }
+    },
+
+    {
       "verb": "videos",
       "description": "Run the simplicio-videos pipeline steps (proposal): intake, brief, template, compose, voice, edit, check, render, batch; plus catalog lookups for motion patterns, templates and voice providers.",
       "mcp_tool": "plugin_videos",
@@ -450,7 +470,9 @@
       "video.publish",
       "video.run",
       "video.list",
-      "video.clone"
+      "video.clone",
+      "video.montage"
     ]
   }
 }
+

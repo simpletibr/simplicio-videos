@@ -61,6 +61,7 @@ gh repo clone simpletibr/simplicio-videos && cd simplicio-videos
 pip install -e .                      # comando simplicio-video (Python >= 3.10); render: Node >= 22 + ffmpeg
 simplicio-video --help                # fluxo init -> validate -> voice -> render
 simplicio-video clone --help          # clonagem de vídeos com agentes de IA via Hypit AI (https://github.com/hypit-ai/hypit)
+simplicio-video montage --help        # produção de vídeos com agentes de IA via OpenMontage (https://github.com/calesthio/OpenMontage)
 cd clients/lothus-odontologia/video-01-dia-das-criancas
 simplicio-video validate contract.yaml
 simplicio-video voice contract.yaml   # voz provisória local (Kokoro) ou --provider file (WAVs do Gemini)
@@ -78,6 +79,9 @@ Referência externa: [Skillry — vídeos virais feitos com Claude Opus 5.5](htt
 ### Referências principais
 
 - [HyperFrames](https://github.com/heygen-com/hyperframes) — render HTML/GSAP → MP4 (base do repo).
+- [Hypit AI](https://github.com/hypit-ai/hypit) — clonagem de vídeos e geração de workflows com agentes de IA.
+- [OpenMontage](https://github.com/calesthio/OpenMontage) — plataforma agêntica de produção de vídeos (Backlot, Remotion, HyperFrames).
 - [video-use](https://github.com/browser-use/video-use) — edição agêntica de footage (etapa 6; [avaliação](docs/video-use-integracao.md)).
 - [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) e [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) — receitas e prompts destilados em `motion/`.
 - [motion-video-kit](https://github.com/echris6/motion-video-kit) (MIT) — skill `business-motion-film` para comerciais de negócios reais: loop de crítica independente ("Gauntlet"), gramática de motion (6 regras + catálogo de mecanismos a partir de 28 launch films), barra de qualidade medida (tempo congelado, loudness, contraste, cor da marca) e scripts ffmpeg. Fonte de 5 padrões `proposto` em `motion/`.
+
