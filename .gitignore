@@ -21,3 +21,7 @@ __pycache__/
 # venda ativa (simplicio-video prospect): prévias, coletas e relatórios ficam fora do git; só o CSV de exemplo entra
 prospects/*
 !prospects/exemplo-dia-criancas.csv
+
+# estado local do simplicio-loop/runtime
+.simplicio/
+.orchestrator/
