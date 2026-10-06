@@ -15,7 +15,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import paths, words as wordsmod
+from . import paths, voice_clone, words as wordsmod
 from .contract import Contract, r4
 
 DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,"
@@ -35,6 +35,9 @@ PROVIDERS = {
     "file": "WAV/MP3 per line generated elsewhere (Gemini in Google AI Studio). Default dir assets/audio/vo/external, line-01.wav ...",
     "local": "Provisional local TTS: Kokoro-82M (Apache-2.0) via kokoro-onnx; needs SIMPLICIO_TTS_PY with kokoro_onnx + models in ~/.local/share/simplicio-tts",
     "gemini": "Gemini TTS API (GEMINI_API_KEY from aistudio.google.com/apikey; free tier ok): model/voice/estilo from the contract, WAV 24 kHz kept in the file dir so provider=file reproduces it",
+    "voxcpm": "VoxCPM2 (Apache-2.0): voice design (control) or cloning from reference_audio via the `voxcpm` CLI; fixed seed",
+    "openvoice": "OpenVoice V2 (MIT): Kokoro base take converted to the reference_audio speaker (needs OPENVOICE_PY + checkpoints_v2)",
+    "voicestudio": "VoiceStudio (AGPL-3.0, used over local HTTP only): OpenAI-compatible /v1/audio/speech at VOICESTUDIO_URL (default http://localhost:3900); voice = profile id",
     "elevenlabs": "stub in v0.2 (generate elsewhere, then use provider=file)",
     "xai": "stub in v0.2 (generate elsewhere, then use provider=file)",
 }
@@ -74,7 +77,34 @@ def settings_for(c: Contract, prov: str) -> dict:
         if P.get("api", "interactions") != "interactions":  # keep the default cache key identical to v0.2
             S["api"] = P["api"]
         return S
+    if prov == "voxcpm":
+        return {"control": P.get("control", ""), "reference_audio": P.get("reference_audio", ""), "reference_text": P.get("reference_text", ""),
+                "seed": P.get("seed", 42)}
+    if prov == "openvoice":
+        return {"reference_audio": P.get("reference_audio", ""), "base": settings_for(c, "local")}
+    if prov == "voicestudio":
+        return {"model": P.get("model", "omnivoice"), "voice": P.get("voice") or (v.get("voice") if v["provider"] == "voicestudio" else None) or "default"}
     return dict(P)
+
+
+# generative providers keep the raw take; gemini keeps the historical dir, the others a per-provider subdir
+GENERATIVE = ("gemini", "voxcpm", "openvoice", "voicestudio")
+
+
+def keep_path(fdir: Path, prov: str, idx: int) -> Path:
+    return (fdir if prov == "gemini" else fdir / prov) / f"line-{idx + 1:02d}.wav"
+
+
+def _generate(c: Contract, prov: str, S: dict, text: str, dst: Path, ref: Path | None) -> dict | None:
+    if prov == "gemini":
+        return _gemini(S, text, dst)
+    if prov == "voxcpm":
+        voice_clone.voxcpm(S, text, dst, ref)
+    elif prov == "openvoice":
+        voice_clone.openvoice(S, text, dst, ref, lambda t, p: _local(S["base"], t, p))
+    else:
+        voice_clone.voicestudio(S, text, dst)
+    return None
 
 
 # ---------------- providers (write a raw take to dst) ----------------
@@ -217,7 +247,10 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
         gen = None
         say = line.get("say", line["texto"])
         src = _file_source(c, S, idx, line) if prov == "file" else None
-        ident = [prov, S, chain, say] + ([sha256_file(src)] if src else [])
+        ref = c.rel(S["reference_audio"]) if S.get("reference_audio") else None
+        if ref is not None and not ref.is_file():
+            raise VoiceError(f"provider={prov}: reference_audio not found: {S['reference_audio']}")
+        ident = [prov, S, chain, say] + ([sha256_file(src)] if src else []) + ([sha256_file(ref)] if ref else [])
         h = hashlib.sha256(json.dumps(ident, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:12]
         final = cache / f"{line['id']}-{h}.wav"
         if final.is_file() and not force and not (only and line["id"] in only):
@@ -229,9 +262,9 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
                     sh("ffmpeg", "-y", "-v", "error", "-i", str(src), "-ac", "1", "-ar", "48000", str(raw))
                 elif prov == "local":
                     _local(S, say, raw)
-                else:  # gemini: keep the raw take next to the AI Studio files so provider=file reproduces it
-                    keep = fdir / f"line-{idx + 1:02d}.wav"
-                    gen = _gemini(S, say, keep)
+                else:  # generative: keep the raw take (gemini next to the AI Studio files) so the run is reproducible
+                    keep = keep_path(fdir, prov, idx)
+                    gen = _generate(c, prov, S, say, keep, ref)
                     tts_chars += len(say)
                     sh("ffmpeg", "-y", "-v", "error", "-i", str(keep), "-ac", "1", "-ar", "48000", str(raw))
                 sh("ffmpeg", "-y", "-v", "error", "-i", str(raw), "-af", TRIM, str(cut))
@@ -243,7 +276,7 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
             status = "rendered"
         dur = round(duration(final), 3)
         trim = "normal"
-        take = src if prov == "file" else (fdir / f"line-{idx + 1:02d}.wav" if prov == "gemini" else None)
+        take = src if prov == "file" else (keep_path(fdir, prov, idx) if prov in GENERATIVE else None)
         if dur > line["max_s"] + 1e-6 and take is not None and take.is_file():
             ht = hashlib.sha256(json.dumps(ident + ["trim-tight"], ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:12]
             tight = cache / f"{line['id']}-{ht}.wav"
@@ -269,7 +302,7 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
         lock_lines[line["id"]] = {"file": rel, "sha256": digest, "dur_s": dur, "t": line["t"], "max_s": line["max_s"],
                                   "scene": line["scene"], "text": line["texto"], "say": say,
                                   "source": os.path.relpath(src, c.dir) if src else (
-                                      os.path.relpath(fdir / f"line-{idx + 1:02d}.wav", c.dir) if prov == "gemini" else None),
+                                      os.path.relpath(keep_path(fdir, prov, idx), c.dir) if prov in GENERATIVE else None),
                                   "fits": dur <= line["max_s"] + 1e-6, "slack_s": r4(line["max_s"] - dur),
                                   "words": wl, "words_source": wsrc}
         if trim != "normal":

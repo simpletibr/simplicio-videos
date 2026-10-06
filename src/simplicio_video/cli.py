@@ -154,7 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video voice contract.yaml --provider file    # depois de baixar line-01..NN.wav do AI Studio\n"
                "  simplicio-video voice contract.yaml --force vo2        # refaz só a vo2")
     _contract_arg(p)
-    p.add_argument("--provider", "-p", choices=["file", "local", "gemini", "elevenlabs", "xai"], help="sobrepõe voz.provider")
+    p.add_argument("--provider", "-p", choices=["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "elevenlabs", "xai"], help="override voz.provider")
     p.add_argument("--force", action="store_true", help="ignora o cache (com ids: só esses)")
     p.add_argument("only", nargs="*", metavar="FALA_ID", help="ids de fala para refazer com --force (ex.: vo2 vo4)")
 
@@ -284,7 +284,7 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video run contract.yaml --provider gemini --backend kaggle   # opcional (créditos)\n"
                "  simplicio-video run contract.yaml --backend colab-cli --json")
     _contract_arg(p)
-    p.add_argument("--provider", "-p", choices=["file", "local", "gemini"], help="sobrepõe voz.provider")
+    p.add_argument("--provider", "-p", choices=["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio"], help="override voz.provider")
     p.add_argument("--force-voice", action="store_true", help="regera todas as falas (ignora o cache)")
     p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via créditos)")
     p.add_argument("--accelerator", help="ver `render --help` (none = CPU)")

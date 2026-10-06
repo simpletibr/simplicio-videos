@@ -86,7 +86,7 @@
       "type": "object", "additionalProperties": false, "required": ["provider"],
       "properties": {
         "habilitada": { "type": "boolean", "default": true },
-        "provider": { "enum": ["file", "local", "gemini", "elevenlabs", "xai"] },
+        "provider": { "enum": ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "elevenlabs", "xai"] },
         "voice": { "type": "string", "description": "voice name for the active provider (e.g. pf_dora for local/kokoro, Sulafat for gemini)" },
         "estilo": { "type": "string", "description": "delivery style instruction (Gemini speech_metadata style)" },
         "idioma": { "type": "string", "default": "pt-BR" },
@@ -102,6 +102,9 @@
             "file": { "type": "object", "properties": { "dir": { "type": "string" }, "padroes": { "type": "array", "items": { "type": "string" } }, "origem": { "type": "string" } } },
             "local": { "type": "object", "properties": { "engine": { "enum": ["kokoro"] }, "voice": { "type": "string" }, "speed": { "type": "number" }, "lang": { "type": "string" } } },
             "gemini": { "type": "object", "properties": { "model": { "type": "string", "description": "gemini-3.8-flash-tts (default) or gemini-3.8-flash-lite-tts (cheaper, same schema)" }, "voice": { "type": "string" }, "alternativas": { "type": "array", "items": { "type": "string" } }, "estilo": { "type": "string" }, "api": { "enum": ["interactions", "generate_content"], "default": "interactions", "description": "Gemini Interactions API (default) or generateContent with responseModalities AUDIO" } } },
+            "voxcpm": { "type": "object", "additionalProperties": false, "properties": { "control": { "type": "string", "description": "voice-design / style description, e.g. 'Young female voice, warm and gentle'" }, "reference_audio": { "type": "string", "description": "clean clip of an authorized speaker (relative to the contract); enables cloning" }, "reference_text": { "type": "string", "description": "exact transcript of reference_audio (ultimate cloning)" }, "seed": { "type": "integer", "default": 42 } } },
+            "openvoice": { "type": "object", "additionalProperties": false, "properties": { "reference_audio": { "type": "string", "description": "clean 10-30 s clip of an authorized speaker (relative to the contract)" } } },
+            "voicestudio": { "type": "object", "additionalProperties": false, "properties": { "model": { "type": "string", "default": "omnivoice" }, "voice": { "type": "string", "description": "voice-profile id from GET /v1/audio/voices" } } },
             "elevenlabs": { "type": "object" },
             "xai": { "type": "object" }
           }
