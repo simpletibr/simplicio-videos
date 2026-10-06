@@ -565,7 +565,5 @@ saida:
   preview: preview/video-01-preview-720p.mp4
 drive:
   caminho: simplicio-video/clientes/WJR_Informatica_Games/2026/Video_Institucional
-  pasta_url: https://drive.google.com/drive/folders/1G6jHadSdWx8YRqgKjHTfKq1MqXdStH4G
   arquivo: WJR - video 20s voz Gemini - v01.mp4
-  link: https://drive.google.com/file/d/1PFOPvT1nQiai7qC4qDeh40v49stBhoSk/view
   status: aprovada internamente (enviada antes da convenção de nomes como "WJR - video 20s (voz Gemini).mp4")

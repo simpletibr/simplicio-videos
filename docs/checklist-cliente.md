@@ -1,6 +1,5 @@
 # Checklist — o que pedir a qualquer cliente (template)
 
-> Versão preenchida da WJR: [`clients/wjr-informatica-games/coleta/checklist-cliente.md`](../clients/wjr-informatica-games/coleta/checklist-cliente.md).
 > Para cliente novo: copie para `clients/<cliente>/coleta/checklist-cliente.md` e adicione uma coluna de status.
 
 ## Marca
