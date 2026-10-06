@@ -29,7 +29,7 @@ Every external tool is a **track** with one CLI command, one MCP verb (`plugin.j
 | [VoxCPM2](https://github.com/OpenBMB/VoxCPM) | Apache-2.0 | Voice design from a text description, or cloning from a short reference clip (30 languages, 48 kHz) | `voxcpm` | `pip install voxcpm`, `VOXCPM_BIN` | [voices/voxcpm.md](voices/voxcpm.md) |
 | [OpenVoice V2](https://github.com/myshell-ai/OpenVoice) | MIT | Voice cloning: converts a base take (Kokoro) to the reference speaker's timbre | `openvoice` | `OPENVOICE_PY`, `OPENVOICE_CHECKPOINTS` | [voices/openvoice.md](voices/openvoice.md) |
 | [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (HTTP only, never vendored) | Local ElevenLabs alternative: your cloned voice profiles through an OpenAI-compatible API | `voicestudio` | `VOICESTUDIO_URL` (default `http://localhost:3900`) | [voices/voicestudio.md](voices/voicestudio.md) |
-| [Real Oficial](https://api.realoficial.com.br/mcp) | cloud MCP | Scheduling and low-cost image/video generation (tools not live yet; connection ready) | — (MCP) | `simplicio-video realoficial config` | [docs/recursos.md](docs/recursos.md) |
+| [Real Oficial](https://api.realoficial.com.br/mcp) | cloud MCP | Social scheduling/publishing, AI image/video, cuts (49 MCP tools, OAuth; see docs/realoficial.md) | — (MCP) | `simplicio-video realoficial config` | [docs/realoficial.md](docs/realoficial.md) |
 
 All voice providers go through the same pipeline: raw take kept per provider → silence trim → contract ffmpeg chain → 48 kHz mono → `timing.lock.json`. A take longer than its slot is an error; audio is **never time-stretched**. Cloned voices need the **written authorization of the speaker**; see [voices/README.md](voices/README.md).
 
