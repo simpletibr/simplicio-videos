@@ -99,3 +99,16 @@ def test_mcp_tools_include_clone_and_montage():
     tool_names = [name for name, fn, desc in mcp_server.TOOLS]
     assert "video.clone" in tool_names
     assert "video.montage" in tool_names
+
+
+def test_realoficial_config_is_mcp_remote(capsys):
+    from simplicio_video import realoficial
+    assert realoficial.run_realoficial(["config"]) == 0
+    cfg = __import__("json").loads(capsys.readouterr().out)
+    assert cfg["mcpServers"]["realoficial"]["args"] == ["-y", "mcp-remote", "https://api.realoficial.com.br/mcp"]
+
+
+def test_opencut_dispatch_and_missing(monkeypatch):
+    from simplicio_video import opencut
+    monkeypatch.setattr(opencut, "find_opencut_dir", lambda: None)
+    assert cli.main(["opencut", "dev"]) == 1

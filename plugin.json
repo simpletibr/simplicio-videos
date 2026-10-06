@@ -317,7 +317,6 @@
         }
       }
     },
-
     {
       "verb": "videos",
       "description": "Run the simplicio-videos pipeline steps (proposal): intake, brief, template, compose, voice, edit, check, render, batch; plus catalog lookups for motion patterns, templates and voice providers.",
@@ -430,6 +429,63 @@
         "videos render --spec clients/wjr-informatica-games/video-01/video.json --quality delivery",
         "videos batch --spec clients/wjr-informatica-games/video-01/video.json --rows rows.json"
       ]
+    },
+    {
+      "verb": "video.opencut",
+      "description": "OpenCut open-source editor (https://github.com/OpenCut-app/OpenCut): clone, dev, where.",
+      "argv": [
+        "simplicio-video",
+        "opencut",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "clone [dir] | dev | where"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.realoficial",
+      "description": "Real Oficial MCP (https://api.realoficial.com.br/mcp): config/check; scheduling and low-cost image/video generation coming soon.",
+      "argv": [
+        "simplicio-video",
+        "realoficial",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "config | check"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.edit",
+      "description": "video-use EDL editing over any MP4 from HyperFrames/OpenMontage/OpenCut: setup, transcribe, pack, render, verify.",
+      "argv": [
+        "simplicio-video",
+        "edit",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "setup | transcribe | pack | render | verify + args"
+          }
+        }
+      }
     }
   ],
   "capabilities": [
@@ -471,8 +527,10 @@
       "video.run",
       "video.list",
       "video.clone",
-      "video.montage"
+      "video.montage",
+      "video.opencut",
+      "video.realoficial",
+      "video.edit"
     ]
   }
 }
-

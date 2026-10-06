@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, montage, paths, ugc, venda
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths, realoficial, ugc, venda
 
 SCHEMA_REL = "schema/contract.schema.json"
 
@@ -33,6 +33,9 @@ Fluxo completo:
                (subcomandos list | prompt; ugc/README.md)
   clone        trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA (https://github.com/hypit-ai/hypit)
   montage      trilha Montage (OpenMontage): produção de vídeo com agentes de IA (https://github.com/calesthio/OpenMontage)
+  edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
+  opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
+  realoficial  MCP Real Oficial (agendamento, imagem e vídeo baratos; em breve): https://api.realoficial.com.br/mcp
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/publish/run/list
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
@@ -380,6 +383,21 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000")
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao OpenMontage")
 
+    p = sub.add_parser("edit", formatter_class=Fmt, help="edição por EDL com video-use sobre qualquer MP4",
+        description="Encadeia tools/video-use (https://github.com/browser-use/video-use): setup, transcribe, pack, render, verify. A decisão de corte fica no edl.json versionado.",
+        epilog="exemplos:\n  simplicio-video edit setup\n  simplicio-video edit render edit/edl.json -o out/final.raw.mp4")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="setup | transcribe | pack | render | verify")
+
+    p = sub.add_parser("opencut", formatter_class=Fmt, help="editor OpenCut (open-source) para acabamento manual",
+        description="Clona e sobe o OpenCut (https://github.com/OpenCut-app/OpenCut, MIT; usa o opencut-classic até o rewrite ter API).",
+        epilog="exemplos:\n  simplicio-video opencut clone\n  simplicio-video opencut dev")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | dev | where")
+
+    p = sub.add_parser("realoficial", formatter_class=Fmt, help="MCP Real Oficial (agendamento, imagem, vídeo)",
+        description="Config do MCP remoto https://api.realoficial.com.br/mcp (via npx mcp-remote). Ferramentas ainda não publicadas.",
+        epilog="exemplos:\n  simplicio-video realoficial config\n  simplicio-video realoficial check")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="config | check")
+
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
                     "video.publish, video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
@@ -431,7 +449,7 @@ def _ugc(ap: argparse.ArgumentParser, a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "realoficial", "edit"):
         if any(h in args_list for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
@@ -448,6 +466,24 @@ def main(argv: list[str] | None = None) -> int:
                 return montage.run_montage(sub_args)
             except montage.MontageError as e:
                 print(f"montage: {e}", file=sys.stderr)
+                return 1
+        if cmd == "edit":
+            try:
+                return edit.run_edit(sub_args)
+            except edit.EditError as e:
+                print(f"edit: {e}", file=sys.stderr)
+                return 1
+        if cmd == "opencut":
+            try:
+                return opencut.run_opencut(sub_args)
+            except opencut.OpenCutError as e:
+                print(f"opencut: {e}", file=sys.stderr)
+                return 1
+        if cmd == "realoficial":
+            try:
+                return realoficial.run_realoficial(sub_args)
+            except realoficial.RealOficialError as e:
+                print(f"realoficial: {e}", file=sys.stderr)
                 return 1
 
     a = ap.parse_args(argv)
