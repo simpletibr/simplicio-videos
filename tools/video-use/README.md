@@ -15,6 +15,18 @@
 
 Regra da esteira: video-use só entra **quando o usuário pede ajuda de edição** ou há footage real. É o op opcional `edit` do [`plugin.json`](../../plugin.json).
 
+## Qualquer motor de render (HyperFrames, OpenMontage, OpenCut)
+
+O video-use trabalha sobre **arquivos de vídeo** (MP4/MOV), então não importa quem os produziu:
+
+| Origem | Como entra no video-use |
+|---|---|
+| HyperFrames (`simplicio-video render`) | MP4 final como fonte do EDL; blocos de `motion/` em MOV com alfa viram `overlays[]` |
+| OpenMontage (`simplicio-video montage`) | exporte/renderize o projeto para MP4 e use como fonte; o EDL corta/reordena/legenda |
+| OpenCut (`simplicio-video opencut`) | exporte do editor para MP4 e use como fonte (ou o contrário: o MP4 do video-use vai para a timeline do OpenCut para acabamento manual) |
+
+Fluxo único: `fonte.mp4` → transcrição → `edl.json` → `render.py` → `master.sh`. Só o EDL (versionado) é decisão do agente; o resto é ffmpeg determinístico.
+
 ## Setup
 
 ```bash

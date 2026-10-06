@@ -1,87 +1,113 @@
 # simplicio-videos
 
-**Plugin de vídeo do Simplicio Runtime (Simplicio MCP).** Quando um usuário do Simplicio pede um vídeo, o plugin roda uma **esteira determinística**: questionário de intake (com extração automática de site/Instagram) → brief/spec → template do setor → composição com a biblioteca de padrões de motion (HyperFrames) → voz TTS (Gemini, ElevenLabs, xAI ou local, com cache) → edição de footage com video-use (opcional) → render determinístico. LLM (Opus 5.5) só cria templates e padrões novos.
+**Video plugin for Simplicio Runtime (Simplicio MCP): a deterministic video machine driven by agents.** A user asks for a video; the plugin runs a **deterministic pipeline**: intake questionnaire (with automatic site/Instagram extraction) → brief/spec → sector template → composition from the motion pattern library (HyperFrames) → TTS voice (Gemini, local, cloned voices; cached) → optional footage editing (video-use) → deterministic render. The LLM only decides things (contract, EDL) and creates new templates/patterns; it is never in the render path.
 
-Decisões: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · [ADR-0002 (CLI + contrato + Colab + créditos)](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md) · [ADR-0003 (fluxo 100% script; render local padrão, Colab/Kaggle opcionais)](docs/decisoes/ADR-0003-fluxo-100-script.md) · [ADR-0004 (UGC generativo fora do render determinístico; CLI só monta o prompt)](docs/decisoes/ADR-0004-ugc-generativo.md) · **Custos por vídeo:** [docs/custos.md](docs/custos.md) · **Venda ativa em massa:** [docs/venda-ativa.md](docs/venda-ativa.md) (`simplicio-video prospect`) · Receita: [docs/receita-video-cliente.md](docs/receita-video-cliente.md) · Manifest: [`plugin.json`](plugin.json) · Skill: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md)
+Decisions: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · [ADR-0002 (CLI + contract + Colab + credits)](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md) · [ADR-0003 (100% script flow; local render by default)](docs/decisoes/ADR-0003-fluxo-100-script.md) · [ADR-0004 (generative UGC outside the deterministic render)](docs/decisoes/ADR-0004-ugc-generativo.md) · Costs: [docs/custos.md](docs/custos.md) · Outbound sales: [docs/venda-ativa.md](docs/venda-ativa.md) · Manifest: [`plugin.json`](plugin.json) · Skill: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md)
 
-**Entrada: o CLI `simplicio-video`.** O agente escreve o contrato YAML ([`schema/contract.schema.json`](schema/contract.schema.json)); o CLI valida, gera a voz e renderiza de forma determinística (local ou Colab GPU).
+**Entry point: the `simplicio-video` CLI.** The agent writes the YAML contract ([`schema/contract.schema.json`](schema/contract.schema.json)); the CLI validates it, generates the voice and renders deterministically (local or Colab GPU). Agents (Claude Code, Codex, Grok): start at [`AGENTS.md`](AGENTS.md).
 
-> Agentes (Claude Code, Codex, Grok): comecem por [`AGENTS.md`](AGENTS.md).
+## Apps
 
-## Mapa do repositório
+Every external tool is a **track** with one CLI command, one MCP verb (`plugin.json`) and one doc. Install and run them yourself; nothing is vendored. All of it is optional except HyperFrames and ffmpeg.
+
+### Video apps
+
+| App | License | Role | CLI command | MCP verb | Doc |
+|---|---|---|---|---|---|
+| [HyperFrames](https://github.com/heygen-com/hyperframes) | Apache-2.0 | Deterministic HTML/GSAP → MP4 render (core) | `simplicio-video render contract.yaml` | `video.render` | [motion/README.md](motion/README.md) |
+| [video-use](https://github.com/browser-use/video-use) | MIT | EDL editing of any MP4 (cuts, reorder, subtitles, review) | `simplicio-video edit setup\|transcribe\|pack\|render\|verify` | `video.edit` | [tools/video-use](tools/video-use/README.md) |
+| [OpenMontage](https://github.com/calesthio/OpenMontage) | see repo | Agentic production pipelines (Backlot, Remotion, HyperFrames) | `simplicio-video montage [clone\|open\|serve\|demo]` | `video.montage` | [docs/recursos.md](docs/recursos.md) |
+| [OpenCut](https://github.com/OpenCut-app/OpenCut) | MIT | Open-source editor for manual finishing (uses `opencut-classic` until the rewrite has an API) | `simplicio-video opencut clone\|dev\|where` | `video.opencut` | [docs/recursos.md](docs/recursos.md) |
+| [Hypit AI](https://github.com/hypit-ai/hypit) | see repo | Clone viral videos into agent workflows | `simplicio-video clone [args]` | `video.clone` | [docs/recursos.md](docs/recursos.md) |
+
+### Audio apps
+
+| App | License | Role | Provider (`voz.provider` / `--provider`) | Setup | Doc |
+|---|---|---|---|---|---|
+| Gemini TTS | cloud API | Default narration | `gemini` (or `file` for AI Studio WAVs) | `GEMINI_API_KEY` | [voices/gemini.md](voices/gemini.md) |
+| Kokoro-82M | Apache-2.0 | Free local draft voice (pt-BR ok) | `local` | `SIMPLICIO_TTS_PY` | [voices/local.md](voices/local.md) |
+| [VoxCPM2](https://github.com/OpenBMB/VoxCPM) | Apache-2.0 | Voice design from a text description, or cloning from a short reference clip (30 languages, 48 kHz) | `voxcpm` | `pip install voxcpm`, `VOXCPM_BIN` | [voices/voxcpm.md](voices/voxcpm.md) |
+| [OpenVoice V2](https://github.com/myshell-ai/OpenVoice) | MIT | Voice cloning: converts a base take (Kokoro) to the reference speaker's timbre | `openvoice` | `OPENVOICE_PY`, `OPENVOICE_CHECKPOINTS` | [voices/openvoice.md](voices/openvoice.md) |
+| [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (HTTP only, never vendored) | Local ElevenLabs alternative: your cloned voice profiles through an OpenAI-compatible API | `voicestudio` | `VOICESTUDIO_URL` (default `http://localhost:3900`) | [voices/voicestudio.md](voices/voicestudio.md) |
+| [Real Oficial](https://api.realoficial.com.br/mcp) | cloud MCP | Scheduling and low-cost image/video generation (tools not live yet; connection ready) | — (MCP) | `simplicio-video realoficial config` | [docs/recursos.md](docs/recursos.md) |
+
+All voice providers go through the same pipeline: raw take kept per provider → silence trim → contract ffmpeg chain → 48 kHz mono → `timing.lock.json`. A take longer than its slot is an error; audio is **never time-stretched**. Cloned voices need the **written authorization of the speaker**; see [voices/README.md](voices/README.md).
+
+## Repository map
 
 ```
 simplicio-videos/
-├── AGENTS.md / CLAUDE.md   # regras + mapa + fluxos para agentes (CLAUDE.md → AGENTS.md)
-├── plugin.json             # simplicio.plugin/v1 — entrypoint simplicio-video (comandos video.*) + skill
-├── pyproject.toml          # pacote Python do CLI (src/simplicio_video/), testes em tests/
-├── schema/                 # contract.schema.json (contrato do CLI)
-├── skills/simplicio-video/ # SKILL.md para LLMs no simplicio-runtime
-├── colab/                  # render.ipynb (GPU) para bundles --backend colab
-├── intake/                 # 1 questionário, extração automática site/IG, intake.schema.json, exemplos/
-├── templates/              # 3 um template por setor (template.json + README); schema
-├── motion/                 # 4 biblioteca de padrões: patterns/<id>/{pattern.json, block.html, preview.png}, catalog.json, lib/, scripts/
-├── voices/                 # 5 providers de voz (gemini, elevenlabs, xai, local) + pipeline TTS
-├── tools/                  # 6 opcional: video-use (setup fixado, transcrição local, uso) — edição quando o usuário pede
-├── ugc/                    # trilha UGC gerativa (fora do render): pack.json (10 personagens), prompts/ (5), CLI `ugc list|prompt`
-├── schemas/                # 2 video-spec.schema.json (simplicio.video-spec/v1)
-├── docs/                   # ADRs (decisoes/), esteira, setup, pesquisa — índice em docs/README.md
-└── clients/<cliente>/      # trabalho de cliente
-    ├── coleta/             #   fatos com fonte e data (brief, fontes, site salvo, cores, pendências)
-    ├── <video>/contract.yaml #  vídeo pelo CLI (contrato, timing.lock.json, render.manifest.json, voz, preview/)
-    └── video-NN/           #   legado: projeto HyperFrames autocontido (spec.json, index.html, scripts/, assets/, preview/)
+├── AGENTS.md / CLAUDE.md   # rules + map + flows for agents (CLAUDE.md → AGENTS.md)
+├── plugin.json             # simplicio.plugin/v1 — entrypoint simplicio-video (video.* verbs) + skill
+├── pyproject.toml          # Python package of the CLI (src/simplicio_video/), tests in tests/
+├── schema/                 # contract.schema.json (CLI contract)
+├── skills/simplicio-video/ # SKILL.md for LLMs in simplicio-runtime
+├── colab/                  # render.ipynb (GPU) for --backend colab bundles
+├── intake/                 # questionnaire, site/IG extraction, intake.schema.json, examples/
+├── templates/              # one template per sector (template.json + README)
+├── motion/                 # motion pattern library: patterns/<id>/, catalog.json, lib/, scripts/
+├── voices/                 # voice providers + TTS pipeline (see Audio apps)
+├── tools/                  # optional pinned tools (video-use)
+├── ugc/                    # generative UGC track (outside the render): pack.json, prompts/
+├── schemas/                # video-spec.schema.json (simplicio.video-spec/v1)
+├── docs/                   # ADRs, pipeline, setup, research — index in docs/README.md
+└── clients/<client>/       # client work: coleta/ (sourced facts), <video>/contract.yaml, video-NN/ (legacy)
 ```
 
-## Catálogos
+## Catalogs
 
-| O quê | Onde | Hoje |
+| What | Where | Today |
 |---|---|---|
-| Padrões de motion | [motion/README.md](motion/README.md) | 46 (24 blocos prontos com preview, 1 lib, 2 inline, 19 propostos) |
-| Templates por setor | [templates/README.md](templates/README.md) | 2 prontos (assistência técnica/games, odontologia) + 6 skeleton |
-| Vozes | [voices/README.md](voices/README.md) | Gemini (padrão, via `file`), Chatterbox/Kokoro locais, ElevenLabs/xAI (sem chave) |
-| Intake | [intake/README.md](intake/README.md) | questionário, extração automática, schema, exemplo WJR |
-| Ferramentas opcionais | [tools/README.md](tools/README.md) | video-use (edição: cortar p/ X s, reordenar, aparar footage, legendas, revisão) |
-| UGC (gerativo) | [ugc/README.md](ugc/README.md) | 10 personagens + 5 prompts |
+| Motion patterns | [motion/README.md](motion/README.md) | 46 (24 ready blocks with preview, 1 lib, 2 inline, 19 proposed) |
+| Sector templates | [templates/README.md](templates/README.md) | 2 ready (repair/games, dentistry) + 6 skeleton |
+| Voices | [voices/README.md](voices/README.md) | Gemini (default), Kokoro, VoxCPM2, OpenVoice V2, VoiceStudio |
+| Intake | [intake/README.md](intake/README.md) | questionnaire, auto extraction, schema, WJR example |
+| Optional tools | [tools/README.md](tools/README.md) | video-use |
+| UGC (generative) | [ugc/README.md](ugc/README.md) | 10 characters + 5 prompts |
 
-## Clientes e vídeos
+## Clients and videos
 
-| Cliente | Vídeo | O que é |
+| Client | Video | What |
 |---|---|---|
-| WJR Informática e Games (Guarulhos) | [coleta](clients/wjr-informatica-games/coleta/) | brief, site salvo, fontes, pendências |
-| | [video-01](clients/wjr-informatica-games/video-01/) | Reels 9:16, 20 s, narração pt-BR (Gemini TTS, voz Puck) + trilha/SFX próprios · [preview](clients/wjr-informatica-games/video-01/preview/) · referência do template `assistencia-tecnica-games` |
-| | [video-02-videouse](clients/wjr-informatica-games/video-02-videouse/) | Cutdown 11,5 s do video-01 montado com [video-use](docs/video-use-integracao.md) (EDL + overlay HyperFrames) · [preview](clients/wjr-informatica-games/video-02-videouse/preview/) |
-| | [README + entregas no Drive](clients/wjr-informatica-games/README.md) | links dos MP4 entregues |
-| Lothus Odontologia (Guarulhos) | [coleta](clients/lothus-odontologia/coleta/) · [README + Drive](clients/lothus-odontologia/README.md) | Instagram público + CNES + espelho Google Places; conflitos de endereço/telefone em pendências |
-| | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) | Post 9:16, 15 s, Dia das Crianças, voz provisória local (final Gemini Sulafat) · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) · referência do template `saude-odontologia` |
+| WJR Informática e Games (Guarulhos) | [coleta](clients/wjr-informatica-games/coleta/) | brief, saved site, sources, open items |
+| | [video-01](clients/wjr-informatica-games/video-01/) | 9:16 Reels, 20 s, pt-BR narration (Gemini TTS, voice Puck) + own music/SFX · [preview](clients/wjr-informatica-games/video-01/preview/) · reference for template `assistencia-tecnica-games` |
+| | [video-02-videouse](clients/wjr-informatica-games/video-02-videouse/) | 11.5 s cutdown of video-01 built with [video-use](docs/video-use-integracao.md) (EDL + HyperFrames overlay) · [preview](clients/wjr-informatica-games/video-02-videouse/preview/) |
+| | [README + Drive deliveries](clients/wjr-informatica-games/README.md) | links to delivered MP4s |
+| Lothus Odontologia (Guarulhos) | [coleta](clients/lothus-odontologia/coleta/) · [README + Drive](clients/lothus-odontologia/README.md) | public Instagram + CNES + Google Places mirror; address/phone conflicts listed as open items |
+| | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) | 9:16 post, 15 s, Children's Day, provisional local voice · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) · reference for template `saude-odontologia` |
 
 ## Quick start (CLI)
 
 ```bash
 gh repo clone simpletibr/simplicio-videos && cd simplicio-videos
-pip install -e .                      # comando simplicio-video (Python >= 3.10); render: Node >= 22 + ffmpeg
-simplicio-video --help                # fluxo init -> validate -> voice -> render
-simplicio-video clone --help          # clonagem de vídeos com agentes de IA via Hypit AI (https://github.com/hypit-ai/hypit)
-simplicio-video montage --help        # produção de vídeos com agentes de IA via OpenMontage (https://github.com/calesthio/OpenMontage)
+pip install -e .                      # `simplicio-video` command (Python >= 3.10); render needs Node >= 22 + ffmpeg
+simplicio-video --help                # flow: init -> validate -> voice -> render
 cd clients/lothus-odontologia/video-01-dia-das-criancas
 simplicio-video validate contract.yaml
-simplicio-video voice contract.yaml   # voz provisória local (Kokoro) ou --provider file (WAVs do Gemini)
+simplicio-video voice contract.yaml   # provisional local voice (Kokoro) or --provider file|gemini|voxcpm|openvoice|voicestudio
 simplicio-video render contract.yaml  # out/lothus-dia-criancas.mp4 + render.manifest.json
-simplicio-video render contract.yaml --backend colab   # bundle para colab/render.ipynb (GPU)
+simplicio-video render contract.yaml --backend colab   # bundle for colab/render.ipynb (GPU)
 ```
-Testes: `python -m pytest`. Voz: [tutorial Gemini](voices/gemini.md) · [todas as opções](voices/README.md). Edição opcional: [tools/video-use](tools/video-use/README.md). Biblioteca: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`. Legado WJR (npm): `cd clients/wjr-informatica-games/video-01 && npm run render`.
 
-## Documentação
+Cloned voice in the contract (VoxCPM2 example):
 
-Índice em [`docs/README.md`](docs/README.md). Curadoria de ferramentas de vídeo/motion (com estrelas e licenças): [`docs/recursos.md`](docs/recursos.md).
+```yaml
+voz:
+  provider: voxcpm
+  providers:
+    voxcpm:
+      reference_audio: assets/audio/ref/speaker.wav   # authorized speaker, clean 10-30 s
+      reference_text: "Exact transcript of the clip."  # optional: ultimate cloning
+      control: "warm, slightly faster"                 # optional style
+      seed: 42
+```
 
-Referência externa: [Skillry — vídeos virais feitos com Claude Opus 5.5](https://skillry.dev/ai-videos/opus-5-5) (originais ao lado de remakes ao vivo, com o prompt exato de cada criador).
+Tests: `PYTHONPATH=src python -m pytest`. Library previews: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`. Legacy WJR (npm): `cd clients/wjr-informatica-games/video-01 && npm run render`.
 
-### Referências principais
+## Documentation
 
-- [HyperFrames](https://github.com/heygen-com/hyperframes) — render HTML/GSAP → MP4 (base do repo).
-- [Hypit AI](https://github.com/hypit-ai/hypit) — clonagem de vídeos e geração de workflows com agentes de IA.
-- [OpenMontage](https://github.com/calesthio/OpenMontage) — plataforma agêntica de produção de vídeos (Backlot, Remotion, HyperFrames).
-- [video-use](https://github.com/browser-use/video-use) — edição agêntica de footage (etapa 6; [avaliação](docs/video-use-integracao.md)).
-- [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) e [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) — receitas e prompts destilados em `motion/`.
-- [motion-video-kit](https://github.com/echris6/motion-video-kit) (MIT) — skill `business-motion-film` para comerciais de negócios reais: loop de crítica independente ("Gauntlet"), gramática de motion (6 regras + catálogo de mecanismos a partir de 28 launch films), barra de qualidade medida (tempo congelado, loudness, contraste, cor da marca) e scripts ffmpeg. Fonte de 5 padrões `proposto` em `motion/`.
+Index in [`docs/README.md`](docs/README.md). Curated video/motion tools (stars and licenses): [`docs/recursos.md`](docs/recursos.md). External reference: [Skillry — viral videos made with Claude Opus 5.5](https://skillry.dev/ai-videos/opus-5-5).
 
+Also built on [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft), [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) (recipes distilled into `motion/`) and [motion-video-kit](https://github.com/echris6/motion-video-kit) (MIT; source of 5 `proposed` patterns).
+
+> Language policy: new documentation, CLI help and code comments are written in English. Older docs under `docs/`, `intake/`, `templates/` and client folders are still Portuguese and are translated as they are touched.

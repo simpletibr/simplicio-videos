@@ -45,3 +45,12 @@ Textos conferidos via API pública do fxtwitter em 30/09/2026.
 - [@letipfvr](https://x.com/letipfvr/status/2100412405645734103) — comentário em PT sobre os conteúdos de Astra.
 - [@Sayajiiinz](https://x.com/Sayajiiinz/status/2100336121137754476) — guia em PT: assunto, ângulo, embalagem (hooks/thumbnail), retenção, análise; edição, motion, transições, produção com IA.
 - [@shanyanggm](https://x.com/shanyanggm/status/2098941338297458746) — lista de projetos open-source gratuitos, inclui HyperFrames e MoneyPrinterTurbo.
+
+## Agent integrations (status)
+
+- **Hypit AI**: `simplicio-video clone` (integrated).
+- **OpenMontage**: `simplicio-video montage` (integrated).
+- **OpenCut**: `simplicio-video opencut clone|dev|where`. Open-source editor (MIT) for manual finishing; uses `opencut-classic` until the rewrite ships its Editor API/MCP/headless mode. Outside the deterministic render.
+- **video-use**: `simplicio-video edit setup|transcribe|pack|render|verify` over any MP4 from HyperFrames, OpenMontage or OpenCut.
+- **Real Oficial**: `simplicio-video realoficial config|check`. Remote MCP `https://api.realoficial.com.br/mcp` via `npx mcp-remote` (scheduling and low-cost image/video generation; the tools do not exist yet, the connection is ready).
+- **Voices**: VoxCPM2, OpenVoice V2 and VoiceStudio as `voz.provider` values; see [voices/README.md](../voices/README.md).

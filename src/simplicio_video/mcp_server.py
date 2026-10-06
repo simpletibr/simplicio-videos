@@ -115,6 +115,18 @@ def video_montage(args: str = "") -> dict:
     return _capture(montage.run_montage, argv)
 
 
+def video_opencut(args: str = "") -> dict:
+    from . import opencut
+    argv = args.split() if isinstance(args, str) else list(args)
+    return _capture(opencut.run_opencut, argv)
+
+
+def video_edit(args: str = "") -> dict:
+    from . import edit
+    argv = args.split() if isinstance(args, str) else list(args)
+    return _capture(edit.run_edit, argv)
+
+
 TOOLS = [
     ("video.init", video_init, "Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts)."),
     ("video.validate", video_validate, "Validate a contract: JSON Schema, assets, scene durations, every line fits (need_lock before render)."),
@@ -126,6 +138,8 @@ TOOLS = [
     ("video.list", video_list, "List templates, motion patterns or voice providers (what = templates|motion|voices)."),
     ("video.clone", video_clone, "Clone videos using Hypit AI (https://github.com/hypit-ai/hypit)."),
     ("video.montage", video_montage, "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage)."),
+    ("video.edit", video_edit, "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify)."),
+    ("video.opencut", video_opencut, "OpenCut editor (clone|dev|where) for manual finishing (https://github.com/OpenCut-app/OpenCut)."),
 ]
 
 
