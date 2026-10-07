@@ -10,6 +10,7 @@ generated:         # never hand-edited; regenerate with `make regen`
   - "schemas/factory/*.json"
   - "docs/reference/**"
   - "web/shared/src/generated/**"
+  - "web/package-lock.json"
 
 issues:
   # ---------------------------------------------------------------- wave 0
@@ -76,6 +77,7 @@ issues:
       - "web/tsconfig.base.json"
       - "web/eslint.config.*"
       - "web/vitest.workspace.*"
+      - "web/playwright.config.*"
       - "web/shared/**"
       - "web/app/package.json"
       - "web/factory3d/package.json"
