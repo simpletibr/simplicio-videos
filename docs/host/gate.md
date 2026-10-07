@@ -25,6 +25,14 @@ Numa cópia limpa: `python3 -m venv .venv && .venv/bin/pip install -e '.[test]' 
 
 `make check` descobre a issue e a base sozinho: a issue vem do nome do branch (`feat/31-gate`, `loop/issue-31`) e a base é `origin/main`. Para forçar: `ISSUE=31 BASE=origin/main make check`. Sem issue ou sem base, as checagens de ownership e TDD são puladas com um aviso.
 
+As checagens também rodam sozinhas:
+
+```bash
+scripts/check_ownership.py 31 --base origin/main   # só paths da issue (0 ok, 1 fora do escopo, 2 erro de uso)
+scripts/check_tdd.py --base origin/main            # testes primeiro (aceita --labels tdd-exempt ou PR_LABELS)
+scripts/check.sh --help                            # variáveis do gate
+```
+
 As trilhas estendem o gate sem editar o `Makefile`: criam `mk/<trilha>.mk` com `CHECKS += alvo`, `REGEN += alvo` ou `CHECKS_WEB += alvo` e definem o alvo.
 
 ## O que é verificado

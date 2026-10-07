@@ -48,7 +48,7 @@ if [ -n "$base" ] && mb="$(git merge-base "$base" HEAD 2>/dev/null)"; then
   changed=()
   while IFS= read -r -d '' f; do
     [ -f "$f" ] && changed+=("$f")
-  done < <(git diff --name-only --diff-filter=d -z "$mb" -- '*.py')
+  done < <(git diff --name-only --diff-filter=d -z "$mb" -- '*.py'; git ls-files --others --exclude-standard -z -- '*.py')
   if [ "${#changed[@]}" -gt 0 ]; then
     "$py" -m ruff check --no-cache "${changed[@]}"
   fi

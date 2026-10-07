@@ -7,7 +7,7 @@ labels: ""
 
 > **M? Nome do milestone · track · size S/M/L** · parallel-safe · depends on: none ou #N
 >
-> Spec: [architecture](docs/factory/README.md) · [parallel work](docs/factory/parallel-work.md) · entrada desta issue em [`ownership.yaml`](docs/factory/ownership.yaml).
+> Spec: [architecture](https://github.com/simpletibr/simplicio-videos/blob/main/docs/factory/README.md) · [parallel work](https://github.com/simpletibr/simplicio-videos/blob/main/docs/factory/parallel-work.md) · entrada desta issue em [`ownership.yaml`](https://github.com/simpletibr/simplicio-videos/blob/main/docs/factory/ownership.yaml).
 
 ## Goal
 <!-- Uma frase: o que passa a ser verdade quando esta issue fechar. -->
@@ -45,4 +45,4 @@ labels: ""
 -
 
 ## Definition of done
-Red-first commit · `make check` green · loop e2e green · every command has help with examples · zero LLM tokens on the default path · docs and generated references updated · independent review (`reviewed` label) · `Closes #N`. See [parallel-work.md](docs/factory/parallel-work.md).
+Red-first commit · `make check` green · loop e2e green · every command has help with examples · zero LLM tokens on the default path · docs and generated references updated · independent review (`reviewed` label) · `Closes #N`. See [parallel-work.md](https://github.com/simpletibr/simplicio-videos/blob/main/docs/factory/parallel-work.md).

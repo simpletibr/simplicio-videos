@@ -6,6 +6,8 @@
 #   make check-web   checagens do workspace web
 #   make hooks       core.hooksPath=.githooks (o pre-push roda `make check`)
 #   make regen       regenera os arquivos gerados
+#   ISSUE=31 BASE=origin/main make check    força a issue e a base do ownership e do TDD
+#   PR_LABELS=tdd-exempt make check         PR só de docs: dispensa a checagem de TDD
 
 SHELL   := /bin/bash
 VENV    ?= .venv
@@ -26,7 +28,7 @@ CHECKS_WEB :=
 .PHONY: help setup check check-full check-web hooks regen gate
 
 help:
-	@grep '^#   make' Makefile
+	@sed -n '3,/^$$/p' Makefile
 
 gate:
 	@scripts/check.sh
