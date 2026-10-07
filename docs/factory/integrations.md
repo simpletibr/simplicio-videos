@@ -6,7 +6,7 @@ Every integration is a plugin ([plugins.md](plugins.md)). **Only Real Oficial is
 
 1. **Our plugins call APIs directly; they never go through a model.** MCP servers are for external agents (Claude, GPT, Hermes Agent, OpenClaw) that drive the conveyor with their own tokens. This keeps the default path at zero LLM tokens.
 2. **REST and webhooks first** for headless loops; an official MCP is a bonus for assisted setup and exploration. Interactive OAuth (HubSpot, Real Oficial) needs a human to log in once.
-3. **Bring your own account:** each user connects their own credentials; we never hold other people's keys.
+3. **Bring your own account:** each user connects their own credentials; the self-hosted product never sends them to us. (A paid hosted version, if it comes, needs its own custody model.)
 4. **Respect data terms.** Several vendors restrict AI use or caching of their data (see below); the plugin manifest states which.
 5. **Paid generation is optional per item** and always goes estimate → budget reservation → confirm token.
 6. A new Protocol (commerce, CRM, attribution, analytics) is added by the first plugin of its kind, with a contract suite.

@@ -2,17 +2,17 @@
 
 Status: **specification**. Nothing here is implemented yet; each issue in [parallel-work.md](parallel-work.md) implements one part against these contracts. If code and spec disagree, fix the spec in the same PR.
 
-Reading order: [roadmap.md](roadmap.md) (what ships when) → [monetization.md](monetization.md) (free, proprietary, sponsored) → [ads.md](ads.md) (rentable ad spaces, dynamic prices) → [design-review.md](design-review.md) (why) → this file → [plugins.md](plugins.md) → [contracts.md](contracts.md) → [themes.md](themes.md) → [integrations.md](integrations.md) → [risks-and-policies.md](risks-and-policies.md) → [parallel-work.md](parallel-work.md) → your issue.
+Reading order: [roadmap.md](roadmap.md) (what ships when) → [blueprint.md](blueprint.md) (the plan of 2026-10-07: agency first, three views, phases) → [monetization.md](monetization.md) (free, public code, partnership and sponsors) → [ads.md](ads.md) (rentable spaces for the public window, later) → [design-review.md](design-review.md) (why) → this file → [plugins.md](plugins.md) → [contracts.md](contracts.md) → [themes.md](themes.md) → [integrations.md](integrations.md) → [risks-and-policies.md](risks-and-policies.md) → [parallel-work.md](parallel-work.md) → your issue.
 
 ## What we are building
 
-A self-hosted, local-first **conveyor** that turns a website into a never-ending content loop: understand the brand, pick hooks, make videos with the deterministic engine we already have, get a human to approve, schedule and post through Real Oficial, measure, and start the next cycle with what was learned. A panel shows the conveyor as a themed 2D factory with one character per stage. One developer clones the repo, installs, runs one daemon, and everything stays on their machine.
+A self-hosted, local-first **conveyor** that turns a website into a never-ending content loop: understand the brand, pick hooks, make videos with the deterministic engine we already have, get a human to approve, schedule and post through Real Oficial, measure, and start the next cycle with what was learned. A panel shows the conveyor as a themed 3D factory (with a 2D fallback) with one character per stage. One developer clones the repo, installs, runs one daemon, and everything stays on their machine.
 
 **Everything is a plugin except the core, and the core is video generation** ([plugins.md](plugins.md)).
 
 ## Non-goals
 
-- Not a SaaS: single tenant, single host, no billing, no multi-user accounts. The product is **free to use and not open source**; revenue is advertising on the site ([monetization.md](monetization.md)). We build on open-source tools, we do not publish ours.
+- Not a SaaS in the MVP: single host, no billing, no multi-user accounts. The product is **free to use** and its code is going public (license to confirm in #70); revenue comes from a partnership with the default publisher, direct sponsorships and, as a complement, site ads ([monetization.md](monetization.md)). A paid hosted version may come later.
 - No new way of generating videos: the engine is enough. Paid generators are optional steps of one item.
 - No account warming or managed accounts, no scraping of social platforms for trends, no browser automation of posting.
 - No autonomy beyond the policy; the default never publishes by itself.
@@ -148,7 +148,7 @@ mk/*.mk                        # one Makefile fragment per track
 |---|---|---|---|
 | Plugin boundary | Core = video engine + plugin host. Host services (store, policy, security, runner) are not plugins | They enforce the gates; a plugin must not be able to remove them | never for gates |
 | Packaging | Engine and host registry in `simplicio_video`; SDK, host services and first-party plugins in `simplicio_factory`; heavy dependencies in extras | The engine must install and render with no factory | The factory needs its own release cadence |
-| License | Proprietary, free to use. Dependencies must permit proprietary distribution; AGPL tools stay external services | Owner decision, see monetization.md | — |
+| License | Free to use; code going public under FSL or AGPL (to confirm in #70). Dependencies must be compatible; AGPL tools stay external services | Owner decision of 2026-10-07, see monetization.md | When #70 is decided |
 | State | Artifacts are files in the workspace; coordination is one SQLite database in WAL mode | Files alone cannot give atomic multi-writer coordination; SQLite is stdlib and zero-ops | More than one host writes a workspace |
 | Event bus | No broker: events are rows; consumers poll `EventLog.read/wait` | Simplest thing that works for one host | Multi-host |
 | Sync Protocols | Synchronous; the server runs them in a threadpool | Engine and CLI are sync | Profiling shows a bottleneck |

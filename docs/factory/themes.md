@@ -36,7 +36,7 @@ flowchart LR
   "schema": "simplicio.theme/v1",
   "id": "br", "name": "Brazil", "version": "0.1.0",
   "languages": ["pt-BR", "en"], "default_language": "pt-BR",
-  "license": {"spdx": "LicenseRef-Proprietary-FreeUse", "art_origin": "original", "attribution": "...", "notes": ""},
+  "license": {"spdx": "LicenseRef-Official-FreeUse", "art_origin": "original", "attribution": "...", "notes": "official art license follows #70"},
   "palette": {"wall": "#fff3d6", "roof": "#2a62c9", "trim": "#ffd23f", "belt": "#2a2a2a", "line": "#ffd23f", "gate": "#e5483b", "ink": "#10243a"},
   "scene": {
     "sky": {"day": ["#8fd8ff", "#d9f3ff"], "night": ["#050b20", "#1b2a5c"]},
@@ -112,7 +112,7 @@ Each stage has a character. A theme gives it a name, a model look (colors) and a
 
 - Settings → **Scenario** lists installed themes; the choice is stored in the workspace (`settings.theme`) and per browser (`localStorage`) so phones and desktops can differ.
 - A custom theme is a folder: `simplicio-video theme new <id>` scaffolds it with the minimal valid files, `theme validate` checks it, drop it in `<workspace>/themes/<id>/` (or `theme install <path|git-url>`). No Python, no build step.
-- Themes can be shared as folders or git repositories; the gallery on the site (post-MVP) lists only themes whose license lets us host and show them. **Official themes are project-owned and proprietary (free to use inside the product); third-party themes keep their authors' licenses.**
+- Themes can be shared as folders or git repositories; the gallery on the site (post-MVP) lists only themes whose license lets us host and show them. **Official themes are project-owned (free to use inside the product); whether their art follows the public code license is decided in #70. Third-party themes keep their authors' licenses.**
 
 ## Languages
 

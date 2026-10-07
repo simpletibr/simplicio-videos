@@ -8,6 +8,7 @@ const Snd={ctx:null,on:true,master:null,bus:null,key:'',tod:'day',wx:'clear',buf
       const mk=(type)=>{const n=this.ctx.sampleRate*3,b=this.ctx.createBuffer(1,n,this.ctx.sampleRate),d=b.getChannelData(0);let l=0,b0=0,b1=0,b2=0;for(let i=0;i<n;i++){const w=Math.random()*2-1;if(type==='white')d[i]=w;else if(type==='brown'){l=(l+.02*w)/1.02;d[i]=l*3.5}else{b0=.99765*b0+w*.0990460;b1=.96300*b1+w*.2965164;b2=.57000*b2+w*1.0526913;d[i]=(b0+b1+b2+w*.1848)*.18}}return b};this.buf={white:mk('white'),pink:mk('pink'),brown:mk('brown')}}
     if(this.ctx.state==='suspended')this.ctx.resume();this.master.gain.setTargetAtTime(.7,this.ctx.currentTime,.1);if(this.key){const k=this.key;this.key='';this.scene(k)}}catch(e){}},
   toggle(){this.on=!this.on;try{localStorage.setItem('sv.snd',this.on?'1':'0')}catch(e){}if(this.on)this.unlock();else this.silence();return this.on},
+  pause(){if(!this.ctx)return;this.stopBus(this.bus);this.bus=null;if(this.rainBus){this.stopBus(this.rainBus);this.rainBus=null}this.key=''},
   silence(){if(!this.ctx)return;this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.08);this.stopBus(this.bus);this.bus=null;this.key=''},
   ok(){return this.on&&this.ctx&&this.ctx.state!=='closed'},
   /* ---------- building blocks ---------- */

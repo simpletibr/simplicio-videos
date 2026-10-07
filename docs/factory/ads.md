@@ -1,6 +1,8 @@
 # Ad spaces and the ad market
 
-The product is free to use and funded by ad placements (see [README](README.md), decision of 2026-10-06). The factory scene is where those placements live: every house, balloon and billboard in the world is a **space anyone can rent for a few hours**, for the whole world, one country or one region, at a price that moves with supply and demand, like an ad auction.
+> **Status after the 2026-10-07 decision** ([monetization.md](monetization.md)): ads are a **complement**, not the funding source. Direct sponsorships at a fixed monthly price come first. The **local panel carries no ads**; the rentable spaces described here live in the **public view-only window** of a factory and in the theme gallery, and vacant spaces in the local panel show the user's own content. The prototype still shows the spaces in the local scene to illustrate the idea.
+
+The factory scene can carry placements: every house, balloon and billboard in the world is a **space anyone can rent for a few hours**, for the whole world, one country or one region, at a price that moves with supply and demand, like an ad auction.
 
 This page is the spec. A clickable version exists in the [prototype](prototype/README.md) (the **Ads** page and the spaces in the scene); its numbers are invented and no money moves.
 

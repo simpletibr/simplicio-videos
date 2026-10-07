@@ -6,7 +6,7 @@ A clickable prototype of the MVP panel. It exists so the owner and the people wh
 
 ## Open it
 
-`index.html` is one self-contained file (plain HTML, CSS and JS; no build step). It loads Three.js `0.160.0` from cdnjs and two Google Fonts, so it needs internet. Serve the folder and open it:
+`index.html` is one self-contained file (plain HTML, CSS and JS; no build step). It loads Three.js `0.160.0` from cdnjs and three Google Font families, so it needs internet. Serve the folder and open it:
 
 ```bash
 python3 -m http.server -d docs/factory/prototype 8765   # then open http://localhost:8765/index.html
@@ -86,4 +86,4 @@ python3 docs/factory/prototype/src/build.py
 
 ## Licenses
 
-Three.js is MIT. The fonts are open-licensed (OFL). All art in the prototype is original and generated in code.
+Three.js is MIT. The fonts are open-licensed (OFL). All art in the prototype is original: houses, props and robots are generated in code; the Brazil theme's characters, plaza, heroes, video backgrounds and scenery paintings were generated with GPT Image 2 ([src/art/LICENSE.md](src/art/LICENSE.md)).

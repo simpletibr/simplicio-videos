@@ -1,10 +1,10 @@
 # simplicio-videos
 
-**A free, self-hosted content conveyor built on a deterministic video engine.** Give it a website; it understands the brand, picks hooks, makes videos with the engine below, waits for your approval, posts through Real Oficial, reads the results and starts the next cycle. A themed 2D factory shows every step. Everything except video generation is a plugin, the default path spends **zero LLM tokens**, and paid AI media is optional per item.
+**A free, self-hosted content conveyor built on a deterministic video engine.** Give it a website; it understands the brand, picks hooks, makes videos with the engine below, waits for your approval, posts through Real Oficial, reads the results and starts the next cycle. A themed 3D factory (with a 2D fallback) shows every step. Everything except video generation is a plugin, the default path spends **zero LLM tokens**, and paid AI media is optional per item.
 
 > **Status.** Available today: the deterministic video engine and its CLI (`simplicio-video`). In progress: the conveyor, plugin system, panel and themes, shipping as the **MVP v0.4.0** (one theme, videos working, posting through Real Oficial). Anything below marked *MVP* or *later* is a plan, tracked in [epic #14](https://github.com/simpletibr/simplicio-videos/issues/14) and specified in [`docs/factory/`](docs/factory/README.md).
 
-**Free to use, not open source.** The product is free under a proprietary license and is funded by sponsor placements on the website; the MVP contains no ads and the panel will never run third-party ad scripts ([business model](docs/factory/monetization.md)). The plan for the sponsor placements is a set of rentable spaces inside the factory scenery, priced by the hour per world, country or region from supply and demand ([ad spaces](docs/factory/ads.md)). It is built on open-source tools, each used under its own license ([matrix](docs/factory/monetization.md#tool-license-matrix-checked-2026-10-06-against-each-repository)).
+**Free to use, code going public.** The product is free. Its code will be published under a source-available or open license (to confirm in [#70](https://github.com/simpletibr/simplicio-videos/issues/70)); until then the repository is private. It is funded by a partnership with the default publisher, direct sponsorships on the site and gallery, and, as a complement, site ads that do not track. The local panel carries no ads and never runs third-party scripts; generated videos never carry our ads ([business model](docs/factory/monetization.md), [ad spaces for the public window](docs/factory/ads.md)). It is built on open-source tools, each used under its own license ([matrix](docs/factory/monetization.md#tool-license-matrix-checked-2026-10-06-against-each-repository)).
 
 ## The conveyor
 
@@ -241,7 +241,7 @@ flowchart LR
   M1 --> M3["M3 v0.6: plan, library, cast, compliance, paid media"]
   M1 --> M4["M4 v0.7: plugins and integrations"]
   M1 --> M5["M5 v0.8: more themes and languages"]
-  M1 --> M6["M6 v0.9: public site with sponsor placements"]
+  M1 --> M6["M6 v0.9: public site, public window, sponsorships"]
 ```
 
 Every release has every shipped stage working end to end, the loop test green with each stage real, `doctor` green on a fresh clone, and an honest list of known limits. Plan, order and open decisions: [roadmap](docs/factory/roadmap.md), [design review](docs/factory/design-review.md).
@@ -297,4 +297,4 @@ Tests today: `PYTHONPATH=src python -m pytest`. Library previews: `bash motion/s
 
 ## License
 
-Proprietary, free to use. All rights reserved; a full EULA is part of [#70](https://github.com/simpletibr/simplicio-videos/issues/70). Third-party tools keep their own licenses ([matrix](docs/factory/monetization.md#tool-license-matrix-checked-2026-10-06-against-each-repository)).
+Free to use. All rights reserved for now, while the repository is private; the code is going public under a license chosen in [#70](https://github.com/simpletibr/simplicio-videos/issues/70) (recommended: FSL, or AGPL). Third-party tools keep their own licenses ([matrix](docs/factory/monetization.md#tool-license-matrix-checked-2026-10-06-against-each-repository)).

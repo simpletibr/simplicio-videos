@@ -56,11 +56,11 @@ Tokens are minted only by a **human session** (panel login code printed in the t
 
 ## Sponsorship and advertising
 
-The product is free and funded by advertising ([monetization.md](monetization.md)). Rules: no advertiser script, iframe or third-party tag in the panel origin; sponsor cards are static data from a signed, reviewed feed, rendered natively, labeled "Sponsored", with an opt-out; no behavioral tracking and no telemetry by default; no ads inside generated videos. These are enforced by the sponsors plugin's tests (#69) and the panel's CSP.
+The product is free; it is funded by a partnership with the default publisher, direct sponsorships and, as a complement, site ads ([monetization.md](monetization.md), decision of 2026-10-07). The local panel carries no ads. Rules for every sponsored surface: no advertiser script, iframe or third-party tag in the panel origin; sponsor content is static data from a signed, reviewed feed, rendered natively, labeled "Sponsored"; no behavioral tracking and no telemetry by default; no ads inside generated videos. These are enforced by the sponsors plugin's tests (#69) and the panel's CSP.
 
-## Licensing for a proprietary product
+## Licensing for public code
 
-Imported dependencies must permit proprietary distribution (MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0 at file level). AGPL tools (OpenMontage, VoiceStudio, Postiz) are only ever separate programs or services. Hypit may only be the user's own install, never bundled. ffmpeg and Chrome are installed by the user's system, not redistributed. The scan in #46 gates this.
+The code is going public under FSL or AGPL (to confirm in #70). Imported dependencies must be compatible with that choice (MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0 at file level are fine for both). AGPL tools (OpenMontage, VoiceStudio, Postiz) are only ever separate programs or services. Hypit may only be the user's own install, never bundled. ffmpeg and Chrome are installed by the user's system, not redistributed. The scan in #46 gates this.
 
 ## Plugins
 
@@ -107,4 +107,4 @@ Imported dependencies must be permissive (MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.
 
 ## Out of scope
 
-Multi-user accounts and billing, hosted SaaS, managed or warmed social accounts, platform scraping, browser automation of posting, autonomous purchases, any change to the render determinism guarantees.
+Multi-user accounts and billing, a hosted SaaS (a paid hosted version is a later product with its own threat model, not part of this one), managed or warmed social accounts, platform scraping, browser automation of posting, autonomous purchases, any change to the render determinism guarantees.

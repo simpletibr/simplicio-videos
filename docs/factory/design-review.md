@@ -35,7 +35,7 @@ The direction is sound and differentiated: a **deterministic** video engine that
 | 15 | Merge-conflict hotspots | `cli.py` (618 lines), hand-written `plugin.json` (536), hard-coded test lists | Registry-generated manifest, per-plugin directories, Makefile fragments, machine-checked ownership | #32, #31 |
 | 16 | `main` is not green today | 3 tests fail without `/projetos/ai/OpenMontage`; 2 render tests need the network; generic `clone`/`montage` console scripts | Fix, test taxonomy, block network in unit tests | #31 |
 | 17 | **Ads in a tool that holds publishing powers** | An ad network script in the panel could hijack a session that can publish and spend; tracking breaks the local-first promise | Native static sponsor cards from a signed, reviewed feed; no third-party scripts in the panel origin; no behavioral tracking; no telemetry by default; "Sponsored" labels; opt-out | monetization.md, [ads.md](ads.md), #69 |
-| 18 | **Licenses of what we embed or invoke** | Proprietary distribution cannot include AGPL code; Hypit forbids commercial redistribution and multi-tenant use | License matrix; AGPL tools (OpenMontage, VoiceStudio, Postiz) external only; Hypit user-installed only; no prebuilt Docker image until reviewed | monetization.md, #46 |
+| 18 | **Licenses of what we embed or invoke** | Whatever license #70 picks for the public code, it cannot absorb AGPL code into the core, and the vendored or CDN-loaded GSAP (GreenSock standard license) needs a read; Hypit forbids commercial redistribution and multi-tenant use | License matrix; AGPL tools (OpenMontage, VoiceStudio, Postiz) external only; Hypit user-installed only; no prebuilt Docker image until reviewed | monetization.md, #46 |
 
 ## What we had not considered (and where it landed)
 
@@ -65,9 +65,9 @@ The direction is sound and differentiated: a **deterministic** video engine that
 1. **Real Oficial upload.** Ask them for an MCP tool or REST endpoint that accepts our MP4 and creates a publishable clip (the `media:write` scope already exists). Until then the MVP posts through the export bundle plus the features that work. Also: open `docs.realoficial.com.br` and check whether the REST API already has it (a bot check blocks automated reading).
 2. **MVP theme and the 15 languages.** `br` is proposed as the first theme; the list of 15 languages is a proposal in [themes.md](themes.md#languages).
 3. **Franchise themes.** Minions, Chaves and Game of Thrones cannot be shipped; original genre themes can. Confirm.
-4. **Distribution of a free, proprietary product.** Decided: free, not open source, funded by ad placements ([monetization.md](monetization.md)). Open: a private repo cannot be cloned by users. Choose a public repository under a source-available proprietary license, or private source with signed release archives on the site. Also confirm that generated videos never carry our ads.
-4b. **Which "site" carries the ads.** Recommended start: the public website (landing, docs, theme gallery, integration directory); in-panel sponsor cards later, native and opt-out only; never ad scripts in the panel.
-5. **Tenancy.** Single tenant, single host, no billing. Confirm.
+4. **Distribution.** Decided on 2026-10-07: free, code going public (FSL or AGPL, to confirm in #70), funded by a partnership with the default publisher, direct sponsorships and, as a complement, site ads ([monetization.md](monetization.md)). Before going public: clean the history (item 7), read the generated art's terms. Generated videos never carry our ads.
+4b. **Which "site" carries the ads.** Decided on 2026-10-07: the public website, gallery and docs (direct sponsorships first), and later the public view-only window of a factory. The local panel carries no ads.
+5. **Tenancy.** Single host and no billing in the MVP; one workspace can hold several brands (the owner's clients, see [blueprint.md](blueprint.md)). A paid hosted version may come later.
 6. **Sales operations code** (`prospect.py`, `venda.py`, Pix billing) lives in this package. Keep, or move out so the product engine stays generic.
 7. **History.** Client folders were removed from the tree but remain in git history, and the example videos still show client contacts on screen.
 8. **Unknown names.** "dots" and "muse" were mentioned as target clients; we support any MCP, OpenAPI, function-calling or shell client.

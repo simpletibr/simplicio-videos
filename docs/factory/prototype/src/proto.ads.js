@@ -84,7 +84,7 @@ const ADS={ver:0,viewer:null,sel:null,bookings:[],mine:0,
     // always marked as an ad
     const tg=Math.max(14,Math.min(w,h)*.085);g.font=`700 ${tg}px "Instrument Sans",system-ui,sans-serif`;g.textAlign='left';g.textBaseline='top';const lab=b?t('ads.tag'):t('ads.space');const tw=g.measureText(lab).width+tg*.9;
     g.fillStyle='rgba(15,34,51,.78)';g.fillRect(0,0,tw,tg*1.5);g.fillStyle='#fff';g.fillText(lab,tg*.45,tg*.22);g.restore()},
-  thumb(slotId,w,h){const c=document.createElement('canvas');c.width=w;c.height=h;this.paint(c.getContext('2d'),w,h,slotId);return c.toDataURL('image/webp',.8)},
+  thumb(slotId,w,h){const b=this.adFor(slotId),key=[slotId,w,h,S.lang,b?b.id:Math.round(this.quoteHour(this.slot(slotId),this.vnode(),this.hNow()).price*2)].join('|');this._th=this._th||new Map();if(this._th.has(key))return this._th.get(key);if(this._th.size>400)this._th.clear();const c=document.createElement('canvas');c.width=w;c.height=h;this.paint(c.getContext('2d'),w,h,slotId);const u=c.toDataURL('image/webp',.8);this._th.set(key,u);return u},
   /* ---------- the page ---------- */
   st(){return S.ads||(S.ads={reach:'country',country:S.lang==='pt-BR'?'BR':'US',region:'XX',off:1,hours:4,mode:'now',bid:1,brand:'',line:'',pal:0,sort:'price'})},
   target(){const a=this.st();return a.reach==='world'?'world':a.reach==='country'?a.country:a.country+'/'+a.region},

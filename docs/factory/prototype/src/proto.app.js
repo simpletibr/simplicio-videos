@@ -7,7 +7,7 @@ const TABS_MOBILE=['factory','inbox','review','publish','more'];
 const S={device:Q.get('device')||'desktop',theme:TH[Q.get('theme')]?Q.get('theme'):'br',
   lang:Q.get('lang')?(Q.get('lang')==='en'?'en':'pt-BR'):((navigator.language||'en').toLowerCase().startsWith('pt')?'pt-BR':'en'),
   rtl:Q.get('rtl')==='1',page:PAGES.concat(['login']).includes(Q.get('page'))?Q.get('page'):'factory',tab:Q.get('tab')||'appearance',
-  view:Q.get('view')||(ART.chars.brander?'3d-sprites':'3d'),auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:false,canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
+  view:Q.get('view')||(ART.chars.brander?'3d-sprites':'3d'),auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:(()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}})(),canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
   queue:[],pubq:[],fails:[],events:[],rv:0,stale:false,otp:'',loginErr:false,done:0,idea:{n:5,adding:false},route:'det',
   doc:{running:false,ran:false},upd:false,clean:false,hold:null,studio:{rendered:false,rendering:false},logged:Q.get('page')?true:false,
   tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',stab:Q.get('stab')||(Q.get('panel')==='1'?(Q.get('ptab')==='chat'?'bots':'details'):'follow'),snap:Q.get('snap')||(Q.get('panel')==='1'?'half':'peek'),bot:Q.get('bot')||'gatekeeper',track:null,sel:STAGES.includes(Q.get('sel'))?Q.get('sel'):null,world:Q.get('world')==='1',panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
@@ -270,8 +270,8 @@ function updateFeed(){const f=$('#feed');if(f)f.innerHTML=S.events.slice(0,7).ma
 function updateDock(){const d=$('#dock');if(!d)return;const q=S.queue[0],p=S.pubq[0];
   if(!q&&!p){d.hidden=true;return}const it=q||p,rev=!!q,more=S.queue.length+S.pubq.length-1;
   d.hidden=false;d.innerHTML=`<div class="t"><span class="thumb" style="background:${posterBg(it.n)}"></span><div style="min-width:0"><b>${esc(it.hook)}</b><span>${rev?t('dock.review'):t('dock.publish')}${more>0?' · +'+more:''}</span></div></div>
-  ${rev?`<div class="row"><button class="btn primary sm" data-act="dockapprove">${t('review.approve')}</button><button class="btn sm" data-go="review">${t('dock.open')}</button><button class="btn sm danger" data-act="dockdiscard">${t('review.discard')}</button></div>`
-  :`<div class="row" style="flex-wrap:nowrap"><button class="btn primary hold" id="holdBtn" style="flex:1"><i></i><span>${ico('lock','width="15" height="15"')} ${t('pub.hold')}</span></button><button class="btn sm" data-go="publish">${t('dock.open')}</button></div>`}`;bindHold()}
+  ${rev?`<div class="row"><button class="btn primary sm" data-go="review">${t('dock.check')}</button><button class="btn sm danger" data-act="dockdiscard">${t('review.discard')}</button></div>`
+  :`<div class="row" style="flex-wrap:nowrap"><button class="btn primary hold" id="holdBtn" style="flex:1" ${S.canUpload?'':'disabled'} title="${S.canUpload?'':esc(t('pub.hold.off'))}"><i></i><span>${ico('lock','width="15" height="15"')} ${t('pub.hold')}</span></button><button class="btn sm" data-go="publish">${S.canUpload?t('dock.open'):t('pub.export')}</button></div>`}`;bindHold()}
 function bindReview(){const ck=[$('#ck1'),$('#ck2'),$('#ck3')],b=$('#btnApprove');if(!b)return;const f=()=>{b.disabled=S.stale||!ck.every(c=>c&&c.checked)};ck.forEach(c=>c&&c.addEventListener('change',f));f()}
 function bindHold(){const b=$('#holdBtn');if(!b||b.disabled)return;let tm=null;const start=e=>{if(e.type==='keydown'&&e.key!=='Enter'&&e.key!==' ')return;if(tm)return;b.classList.add('go');tm=setTimeout(()=>{b.classList.remove('go');tm=null;const p=S.pubq[0];if(p)confirmPost(p)},1150)};const stop=()=>{if(tm){clearTimeout(tm);tm=null}b.classList.remove('go')};
   b.addEventListener('pointerdown',start);['pointerup','pointerleave','pointercancel','blur'].forEach(ev=>b.addEventListener(ev,stop));b.addEventListener('keydown',start);b.addEventListener('keyup',stop)}
@@ -289,7 +289,6 @@ document.addEventListener('click',e=>{
   else if(act==='resetview'){if(Scene.resetView)Scene.resetView()}
   else if(act==='retry'||act==='skip'){S.fails=S.fails.filter(f=>f.id!==a.dataset.id);refresh('gate');renderPage()}
   else if(act==='login'){const v=($('#otp').value||'').replace(/\D/g,'');if(v.length===6&&v!=='000000'){S.loginErr=false;S.logged=true;go('factory')}else{S.loginErr=true;S.otp=$('#otp').value;renderPage()}}
-  else if(act==='dockapprove'){if(S.queue[0])approve(S.queue[0])}
   else if(act==='dockdiscard'){if(S.queue[0])discard(S.queue[0])}
   else if(act==='approve'){const q=S.queue[S.rv];if(q&&!S.stale){approve(q);toast(t('toast.approved'))}}
   else if(act==='changes'){const q=S.queue[S.rv];if(q)discard(q,'changes')}

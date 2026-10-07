@@ -45,4 +45,6 @@ Object.assign(D,{
 'ads.x3':['Lead time: ×{k} (a little cheaper when the hour is close and still empty, or far away).','Antecedência: ×{k} (um pouco mais barato quando a hora está perto e ainda vazia, ou longe).'],'ads.x4':['A country or the world is the sum of its free regions with a volume discount. With a bid, the winner pays the second-highest bid plus one cent, never less than the floor.','Um país ou o mundo é a soma das regiões livres, com desconto por volume. No lance, quem vence paga o segundo maior lance mais um centavo, nunca menos que o piso.'],
 'ads.formula':['price = floor × (1 + 2.2·rented^1.5 + 1.6·interest²) × lead time','preço = piso × (1 + 2,2·alugado^1,5 + 1,6·interesse²) × antecedência'],
 'ads.here':['YOUR AD HERE','SEU ANÚNCIO AQUI'],'ads.from':['from {p} / hour','a partir de {p} / hora'],'ads.tag':['Ad','Anúncio'],'ads.space':['Ad space','Espaço de anúncio']
+,
+'dock.check':['Review and approve','Revisar e aprovar']
 });

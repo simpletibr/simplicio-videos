@@ -1,6 +1,6 @@
 # Image brief: richer art for the Brazil theme (GPT Image 2 through Real Oficial)
 
-**Status (2026-10-07): generated.** All 16 images below and the seven scenery paintings at the end were made with `gpt-image-2` through Real Oficial (connector with `media:write`), at **0 credits**: they fell inside the plan's 50 included images per month (about 34 left, resets 2026-11-02). The prototype uses them (`src/art/pack.py` packs them). The prompts below are the ones used, except that the poster prompts were shortened to one scene each and the hero prompts name the soft 3D clay look. Raw files stay local (`src/art/raw/`, git-ignored); the committed result is the small WebP set in `src/art/webp/` and `src/proto.art.data.js`.
+**Status (2026-10-07): generated.** All 16 images below and the seven scenery paintings at the end were made with `gpt-image-2` through Real Oficial (connector with `media:write`), at **0 credits**: they fell inside the plan's 50 included images per month (23 used, 27 left, resets 2026-11-02). The prototype uses them (`src/art/pack.py` packs them). The prompts below are the ones used, except that the poster prompts were shortened to one scene each and the hero prompts name the soft 3D clay look. Raw files stay local (`src/art/raw/`, git-ignored); the committed result is the small WebP set in `src/art/webp/` and `src/proto.art.data.js`.
 
 ## What the catalog says (read on 2026-10-07; prices change, always quote first)
 

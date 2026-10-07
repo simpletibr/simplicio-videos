@@ -1039,6 +1039,8 @@ Object.assign(D,{
 'ads.x3':['Lead time: ×{k} (a little cheaper when the hour is close and still empty, or far away).','Antecedência: ×{k} (um pouco mais barato quando a hora está perto e ainda vazia, ou longe).'],'ads.x4':['A country or the world is the sum of its free regions with a volume discount. With a bid, the winner pays the second-highest bid plus one cent, never less than the floor.','Um país ou o mundo é a soma das regiões livres, com desconto por volume. No lance, quem vence paga o segundo maior lance mais um centavo, nunca menos que o piso.'],
 'ads.formula':['price = floor × (1 + 2.2·rented^1.5 + 1.6·interest²) × lead time','preço = piso × (1 + 2,2·alugado^1,5 + 1,6·interesse²) × antecedência'],
 'ads.here':['YOUR AD HERE','SEU ANÚNCIO AQUI'],'ads.from':['from {p} / hour','a partir de {p} / hora'],'ads.tag':['Ad','Anúncio'],'ads.space':['Ad space','Espaço de anúncio']
+,
+'dock.check':['Review and approve','Revisar e aprovar']
 });
 
 /* ===== 3D factory (Three.js, procedural low-poly, theme-driven).
@@ -1176,7 +1178,7 @@ const SceneThree={host:null,hidden:false,variant:'3d',charPos:{},R:null,scn:null
  mount(h){if(!THREE_OK())return;this.host=h;h.dataset.mode='3d';GATES.review.at=GATE_AT.review;GATES.publish.at=GATE_AT.publish;const slot=$('.slot',h);this.canvas=document.createElement('canvas');this.canvas.className='three';slot.appendChild(this.canvas);
   this.R=new THREE.WebGLRenderer({canvas:this.canvas,antialias:!Q.get('lowfx'),alpha:false,powerPreference:'high-performance'});this.R.setPixelRatio(Math.min(window.devicePixelRatio||1,2));this.R.shadowMap.enabled=true;this.R.shadowMap.type=THREE.PCFSoftShadowMap;this.R.autoClear=false;
   this.cv.fa=null;this.cv.hd=null;this.cv.wm=S.world?1:0;this.build();this.size();this.ro=('ResizeObserver' in window)?new ResizeObserver(()=>this.size()):null;if(this.ro)this.ro.observe(slot);this.bindPointer()},
- unmount(){if(this.keyH){window.removeEventListener('keydown',this.keyH);this.keyH=null}if(this.ro)this.ro.disconnect();this.ro=null;if(this.scn){this.scn.traverse(o=>{if(o.geometry)o.geometry.dispose();const m=o.material;if(m){(Array.isArray(m)?m:[m]).forEach(x=>{if(x.map)x.map.dispose();x.dispose()})}})}
+ unmount(){if(typeof Snd!=='undefined')Snd.pause();if(this.keyH){window.removeEventListener('keydown',this.keyH);this.keyH=null}if(this.ro)this.ro.disconnect();this.ro=null;if(this.scn){this.scn.traverse(o=>{if(o.geometry)o.geometry.dispose();const m=o.material;if(m){(Array.isArray(m)?m:[m]).forEach(x=>{if(x.map)x.map.dispose();x.dispose()})}})}
   if(this.bgTex){this.bgTex.dispose();this.bgTex=null}if(this.R){this.R.dispose();this.R.forceContextLoss&&this.R.forceContextLoss()}this.R=null;this.scn=null;this.items.clear();this.agents={};this.bubs.forEach(b=>b.el.remove());this.bubs=[];this.anims=[];this.host=null;this.kiosks=[];this.canvas=null},
  build(){const th=TCUR(),p=th.p,ex=TH3[th.id],style=S.view==='3d-sprites'?'sprite':'model';
   this.anims=[];this.items.clear();this.agents={};this.kiosks=[];this.glow=[];this.halos=[];this.rings={};this.posters={};this.th=th;this.ex=ex;this.dark=['ru','dragons'].includes(th.id);this.lastFocus=null;this.nightLights=[];this.acts=[];this.glow2=[];this.adObjs=[];this.ptr={x:0,y:0};
@@ -1754,6 +1756,7 @@ const Snd={ctx:null,on:true,master:null,bus:null,key:'',tod:'day',wx:'clear',buf
       const mk=(type)=>{const n=this.ctx.sampleRate*3,b=this.ctx.createBuffer(1,n,this.ctx.sampleRate),d=b.getChannelData(0);let l=0,b0=0,b1=0,b2=0;for(let i=0;i<n;i++){const w=Math.random()*2-1;if(type==='white')d[i]=w;else if(type==='brown'){l=(l+.02*w)/1.02;d[i]=l*3.5}else{b0=.99765*b0+w*.0990460;b1=.96300*b1+w*.2965164;b2=.57000*b2+w*1.0526913;d[i]=(b0+b1+b2+w*.1848)*.18}}return b};this.buf={white:mk('white'),pink:mk('pink'),brown:mk('brown')}}
     if(this.ctx.state==='suspended')this.ctx.resume();this.master.gain.setTargetAtTime(.7,this.ctx.currentTime,.1);if(this.key){const k=this.key;this.key='';this.scene(k)}}catch(e){}},
   toggle(){this.on=!this.on;try{localStorage.setItem('sv.snd',this.on?'1':'0')}catch(e){}if(this.on)this.unlock();else this.silence();return this.on},
+  pause(){if(!this.ctx)return;this.stopBus(this.bus);this.bus=null;if(this.rainBus){this.stopBus(this.rainBus);this.rainBus=null}this.key=''},
   silence(){if(!this.ctx)return;this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.08);this.stopBus(this.bus);this.bus=null;this.key=''},
   ok(){return this.on&&this.ctx&&this.ctx.state!=='closed'},
   /* ---------- building blocks ---------- */
@@ -1887,7 +1890,7 @@ const ADS={ver:0,viewer:null,sel:null,bookings:[],mine:0,
     // always marked as an ad
     const tg=Math.max(14,Math.min(w,h)*.085);g.font=`700 ${tg}px "Instrument Sans",system-ui,sans-serif`;g.textAlign='left';g.textBaseline='top';const lab=b?t('ads.tag'):t('ads.space');const tw=g.measureText(lab).width+tg*.9;
     g.fillStyle='rgba(15,34,51,.78)';g.fillRect(0,0,tw,tg*1.5);g.fillStyle='#fff';g.fillText(lab,tg*.45,tg*.22);g.restore()},
-  thumb(slotId,w,h){const c=document.createElement('canvas');c.width=w;c.height=h;this.paint(c.getContext('2d'),w,h,slotId);return c.toDataURL('image/webp',.8)},
+  thumb(slotId,w,h){const b=this.adFor(slotId),key=[slotId,w,h,S.lang,b?b.id:Math.round(this.quoteHour(this.slot(slotId),this.vnode(),this.hNow()).price*2)].join('|');this._th=this._th||new Map();if(this._th.has(key))return this._th.get(key);if(this._th.size>400)this._th.clear();const c=document.createElement('canvas');c.width=w;c.height=h;this.paint(c.getContext('2d'),w,h,slotId);const u=c.toDataURL('image/webp',.8);this._th.set(key,u);return u},
   /* ---------- the page ---------- */
   st(){return S.ads||(S.ads={reach:'country',country:S.lang==='pt-BR'?'BR':'US',region:'XX',off:1,hours:4,mode:'now',bid:1,brand:'',line:'',pal:0,sort:'price'})},
   target(){const a=this.st();return a.reach==='world'?'world':a.reach==='country'?a.country:a.country+'/'+a.region},
@@ -2217,7 +2220,7 @@ const TABS_MOBILE=['factory','inbox','review','publish','more'];
 const S={device:Q.get('device')||'desktop',theme:TH[Q.get('theme')]?Q.get('theme'):'br',
   lang:Q.get('lang')?(Q.get('lang')==='en'?'en':'pt-BR'):((navigator.language||'en').toLowerCase().startsWith('pt')?'pt-BR':'en'),
   rtl:Q.get('rtl')==='1',page:PAGES.concat(['login']).includes(Q.get('page'))?Q.get('page'):'factory',tab:Q.get('tab')||'appearance',
-  view:Q.get('view')||(ART.chars.brander?'3d-sprites':'3d'),auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:false,canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
+  view:Q.get('view')||(ART.chars.brander?'3d-sprites':'3d'),auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:(()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}})(),canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
   queue:[],pubq:[],fails:[],events:[],rv:0,stale:false,otp:'',loginErr:false,done:0,idea:{n:5,adding:false},route:'det',
   doc:{running:false,ran:false},upd:false,clean:false,hold:null,studio:{rendered:false,rendering:false},logged:Q.get('page')?true:false,
   tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',stab:Q.get('stab')||(Q.get('panel')==='1'?(Q.get('ptab')==='chat'?'bots':'details'):'follow'),snap:Q.get('snap')||(Q.get('panel')==='1'?'half':'peek'),bot:Q.get('bot')||'gatekeeper',track:null,sel:STAGES.includes(Q.get('sel'))?Q.get('sel'):null,world:Q.get('world')==='1',panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
@@ -2480,8 +2483,8 @@ function updateFeed(){const f=$('#feed');if(f)f.innerHTML=S.events.slice(0,7).ma
 function updateDock(){const d=$('#dock');if(!d)return;const q=S.queue[0],p=S.pubq[0];
   if(!q&&!p){d.hidden=true;return}const it=q||p,rev=!!q,more=S.queue.length+S.pubq.length-1;
   d.hidden=false;d.innerHTML=`<div class="t"><span class="thumb" style="background:${posterBg(it.n)}"></span><div style="min-width:0"><b>${esc(it.hook)}</b><span>${rev?t('dock.review'):t('dock.publish')}${more>0?' · +'+more:''}</span></div></div>
-  ${rev?`<div class="row"><button class="btn primary sm" data-act="dockapprove">${t('review.approve')}</button><button class="btn sm" data-go="review">${t('dock.open')}</button><button class="btn sm danger" data-act="dockdiscard">${t('review.discard')}</button></div>`
-  :`<div class="row" style="flex-wrap:nowrap"><button class="btn primary hold" id="holdBtn" style="flex:1"><i></i><span>${ico('lock','width="15" height="15"')} ${t('pub.hold')}</span></button><button class="btn sm" data-go="publish">${t('dock.open')}</button></div>`}`;bindHold()}
+  ${rev?`<div class="row"><button class="btn primary sm" data-go="review">${t('dock.check')}</button><button class="btn sm danger" data-act="dockdiscard">${t('review.discard')}</button></div>`
+  :`<div class="row" style="flex-wrap:nowrap"><button class="btn primary hold" id="holdBtn" style="flex:1" ${S.canUpload?'':'disabled'} title="${S.canUpload?'':esc(t('pub.hold.off'))}"><i></i><span>${ico('lock','width="15" height="15"')} ${t('pub.hold')}</span></button><button class="btn sm" data-go="publish">${S.canUpload?t('dock.open'):t('pub.export')}</button></div>`}`;bindHold()}
 function bindReview(){const ck=[$('#ck1'),$('#ck2'),$('#ck3')],b=$('#btnApprove');if(!b)return;const f=()=>{b.disabled=S.stale||!ck.every(c=>c&&c.checked)};ck.forEach(c=>c&&c.addEventListener('change',f));f()}
 function bindHold(){const b=$('#holdBtn');if(!b||b.disabled)return;let tm=null;const start=e=>{if(e.type==='keydown'&&e.key!=='Enter'&&e.key!==' ')return;if(tm)return;b.classList.add('go');tm=setTimeout(()=>{b.classList.remove('go');tm=null;const p=S.pubq[0];if(p)confirmPost(p)},1150)};const stop=()=>{if(tm){clearTimeout(tm);tm=null}b.classList.remove('go')};
   b.addEventListener('pointerdown',start);['pointerup','pointerleave','pointercancel','blur'].forEach(ev=>b.addEventListener(ev,stop));b.addEventListener('keydown',start);b.addEventListener('keyup',stop)}
@@ -2499,7 +2502,6 @@ document.addEventListener('click',e=>{
   else if(act==='resetview'){if(Scene.resetView)Scene.resetView()}
   else if(act==='retry'||act==='skip'){S.fails=S.fails.filter(f=>f.id!==a.dataset.id);refresh('gate');renderPage()}
   else if(act==='login'){const v=($('#otp').value||'').replace(/\D/g,'');if(v.length===6&&v!=='000000'){S.loginErr=false;S.logged=true;go('factory')}else{S.loginErr=true;S.otp=$('#otp').value;renderPage()}}
-  else if(act==='dockapprove'){if(S.queue[0])approve(S.queue[0])}
   else if(act==='dockdiscard'){if(S.queue[0])discard(S.queue[0])}
   else if(act==='approve'){const q=S.queue[S.rv];if(q&&!S.stale){approve(q);toast(t('toast.approved'))}}
   else if(act==='changes'){const q=S.queue[S.rv];if(q)discard(q,'changes')}
