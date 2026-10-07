@@ -1,0 +1,33 @@
+<div class="page">
+  <header class="proto">
+    <div class="ttl"><h1 id="pTitle"></h1><span class="sub" id="pSub"></span></div>
+    <div class="ctl">
+      <label class="l"><span id="lblScreen"></span><select id="screenSel"></select></label>
+      <label class="l"><span id="lblTheme"></span><select id="themeSel"></select></label>
+      <label class="l"><span id="lblView"></span><select id="viewSel"></select></label>
+      <div class="seg" id="devSeg" role="group" aria-label="Device"><button data-d="desktop" aria-pressed="true">Desktop</button><button data-d="phone" aria-pressed="false">Phone</button></div>
+      <div class="seg" id="langSeg" role="group" aria-label="Language"><button data-l="en" aria-pressed="false">EN</button><button data-l="pt-BR" aria-pressed="false">PT-BR</button></div>
+      <label class="tick"><input type="checkbox" id="autoChk"><span id="lblAuto"></span></label>
+      <label class="tick"><input type="checkbox" id="rtlChk"><span id="lblRtl"></span></label>
+      <label class="tick"><input type="checkbox" id="upChk"><span id="lblUp"></span></label>
+    </div>
+  </header>
+  <div class="stage">
+    <div class="frame" id="frame" data-device="desktop">
+      <div class="app" id="app">
+        <aside class="rail" id="rail"></aside>
+        <div class="shell">
+          <header class="topbar">
+            <div class="logo" id="topLogo"><svg width="24" height="24" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="14" width="26" height="9" rx="4.5" fill="var(--accent)"/><circle cx="8" cy="18.5" r="1.6" fill="var(--accent-ink)"/><circle cx="14" cy="18.5" r="1.6" fill="var(--accent-ink)"/><circle cx="20" cy="18.5" r="1.6" fill="var(--accent-ink)"/><rect x="5" y="5" width="8" height="7" rx="2" fill="var(--fg)"/><rect x="16" y="8" width="7" height="4" rx="1.5" fill="var(--fg)" opacity=".55"/></svg></div>
+            <h2 id="ttl"></h2>
+            <button class="glass need" id="needTop" data-go="inbox" hidden></button>
+          </header>
+          <main class="main" id="main"></main>
+          <nav class="tabs" id="tabs"></nav>
+        </div>
+        <div id="sheetHost"></div>
+      </div>
+    </div>
+  </div>
+  <section class="notes"><p id="n1"></p><p id="n2"></p><p id="n3"></p></section>
+</div>

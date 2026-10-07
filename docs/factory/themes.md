@@ -1,6 +1,6 @@
 # Themes, characters and languages
 
-A **theme** changes how the factory *looks and speaks* in the panel: the scenery, the belt, the stations and one 2D character per stage. It never changes behavior and never touches the generated videos. A theme is **data only** (no code runs), so anyone can make one.
+A **theme** changes how the factory *looks and speaks* in the panel: the 3D scenery, the belt, the stations and one character per stage. It never changes behavior, never touches the generated videos and never changes the interface color. A theme is **data only** (no code runs), so anyone can make one.
 
 Status: MVP ships **one** theme (`br`) in **two** languages (`en`, `pt-BR`). The format below is built for 15 themes and 15 languages; the rest arrive as data packs after the MVP (see [roadmap.md](roadmap.md)).
 
@@ -8,8 +8,8 @@ Status: MVP ships **one** theme (`br`) in **two** languages (`en`, `pt-BR`). The
 
 ```
 themes/<id>/
-  theme.json          # schema simplicio.theme/v1
-  assets/*.svg        # scenery layers, belt, station props, one character sprite per role, item sprites
+  theme.json          # schema simplicio.theme/v1: palette, sky, ground, props, characters, items
+  assets/             # plaza pattern, character sprites, 2D fallback art (SVG, PNG or WebP)
   locales/<lang>.json # character names, taglines, bubble phrases for this theme (per language)
   LICENSE.md          # who made the art, under which license (required)
 ```
@@ -18,12 +18,12 @@ themes/<id>/
 flowchart LR
   subgraph Theme["theme (data)"]
     P[palette + fonts]
-    S[scene: layers, belt path, station slots]
+    S["scene: sky, ground, props, buildings"]
     C["characters: one per stage role"]
-    I["item sprites: state colors, gold, cracked"]
+    I["items: state colors, gold, cracked"]
   end
   E["event stream (stage.*, gate.*, publish.*, ...)"] --> M["mapping: event kind to animation + bubble phrase key"]
-  M --> R["scene renderer (SVG in the MVP, Three.js later)"]
+  M --> R["scene renderer: Three.js (3D) with an SVG 2D fallback"]
   Theme --> R
   L["locale catalogs (en, pt-BR, ...)"] --> R
   R --> UI["panel: phone and desktop"]
@@ -37,33 +37,47 @@ flowchart LR
   "id": "br", "name": "Brazil", "version": "0.1.0",
   "languages": ["pt-BR", "en"], "default_language": "pt-BR",
   "license": {"spdx": "LicenseRef-Proprietary-FreeUse", "art_origin": "original", "attribution": "...", "notes": ""},
-  "palette": {"bg": "#0b3d2e", "belt": "#2a2a2a", "accent": "#ffd500", "text": "#ffffff"},
-  "fonts": [{"family": "Inter", "src": "assets/fonts/Inter.woff2", "license": "OFL-1.1"}],
+  "palette": {"wall": "#fff3d6", "roof": "#2a62c9", "trim": "#ffd23f", "belt": "#2a2a2a", "line": "#ffd23f", "gate": "#e5483b", "ink": "#10243a"},
   "scene": {
-    "landscape": {
-      "viewBox": [1280, 720],
-      "layers": [{"id": "sky", "asset": "assets/sky.svg", "parallax": 0.1}, {"id": "ground", "asset": "assets/ground.svg"}],
-      "belt": {"path": "M80 600 C 400 520, 880 680, 1200 600 S 1200 200, 640 200 S 80 200, 80 600 Z", "speed": 1.0},
-      "stations": [{"stage": "brand", "x": 160, "y": 560, "asset": "assets/station-brand.svg", "label_key": "station.brand"}]
-    },
-    "portrait": {"viewBox": [720, 1280], "layers": [], "belt": {"path": "...", "speed": 1.0}, "stations": []}
+    "sky": {"day": ["#8fd8ff", "#d9f3ff"], "night": ["#050b20", "#1b2a5c"]},
+    "ground": {"color": "#58b977"},
+    "plaza": {"pattern": "assets/plaza.svg", "tile_size": 2.1},
+    "props": [
+      {"kind": "palm", "at": [-13, -8], "scale": 1.1},
+      {"kind": "bunting", "from": [-11, -8.6], "to": [11, -8.6], "colors": ["#ffd23f", "#25a050", "#2a62c9", "#ffffff"]},
+      {"kind": "sun", "at": [-15, 10, -19], "color": "#ffe27a"}
+    ],
+    "fallback_2d": {
+      "landscape": {"viewBox": [1280, 780], "layers": ["assets/2d-landscape.svg"]},
+      "portrait": {"viewBox": [720, 1200], "layers": ["assets/2d-portrait.svg"]}
+    }
   },
-  "characters": [{"stage": "brand", "role": "brander", "name_key": "char.brander.name", "asset": "assets/char-brander.svg", "bubble_anchor": [0.5, 0.0]}],
-  "items": {"states": {"idea": "#9aa0a6", "rendered": "#4285f4", "approved": "#34a853", "published": "#fbbc04", "failed": "#ea4335"}, "outlier_asset": "assets/item-gold.svg", "failed_asset": "assets/item-cracked.svg"}
+  "characters": [{"stage": "brand", "role": "brander", "name_key": "char.brander.name", "model": {"body": "#25a050", "head": "#ffe9a8", "accent": "#2a62c9"}, "sprite": "assets/char-brander.svg"}],
+  "items": {"states": {"idea": "#9aa3a0", "drafted": "#6a5acd", "rendered": "#3b82f6", "in_review": "#f0a81c", "approved": "#22a35a", "published": "#facc15", "failed": "#7a1f1f"}}
 }
 ```
 
 Rules (validated by `simplicio-video theme validate <dir>`, tested by the `ThemeContract` suite):
 
-- Assets are local SVG/WOFF2 only: no scripts, no `<foreignObject>`, no external references, size caps; the validator sanitizes and rejects.
+- Assets are local SVG, PNG, WebP or WOFF2 only: no scripts, no `<foreignObject>`, no external references. SVG is sanitized; raster images are size-capped and re-encoded.
+- `props` come from a **built-in catalog** (palm, tree, blossom tree, lamp, lantern, banner, torch, bunting, dome, castle, torii, gear, cloud, mountain, rainbow, sun, moon, snow, petals) parameterized by the theme, or from a `sprite` billboard of your own image. No theme code runs. Custom 3D models (glTF) are post-MVP and will go through the same validator.
 - Every `*_key` resolves in every declared language, or the theme does not validate for that language.
 - `license` and `art_origin` (`original`, `licensed`, `ai-generated`) are mandatory; `ai-generated` themes record the tool in `notes`.
-- A scene has a `landscape` and a `portrait` variant (desktop and phone); coordinates are in each variant's `viewBox`, so the scene scales without distortion and only the layout around it changes.
-- The scene spec is renderer-neutral: the MVP renderer draws it with SVG and CSS animations; a Three.js renderer can load the same sprites later for isometric or 3D scenery without changing any theme.
+- Every theme declares a **day** and a **night** sky; the renderer derives lights, fog, window glow and lamps from them.
+- The scene is 3D. `fallback_2d` has a `landscape` and a `portrait` variant (coordinates in each `viewBox`) for devices without WebGL and for people who pick the flat view, so they still get the same factory.
+- The scene spec is renderer-neutral: the Three.js renderer is the default and the SVG renderer is the fallback. Both read the same theme.
+
+## Day and night
+
+The scene has two lighting states. At night the sky and fog change, windows and street lamps glow, and 2D sprites are dimmed. The default follows the system color scheme; a button over the scene switches it, and the choice is remembered per browser. Night never changes behavior.
+
+## Interface color
+
+Themes restyle the scene only. The interface keeps one **system color, light blue**, in light and dark mode, so buttons, links, focus rings and the menu look the same under every theme. A theme cannot change it.
 
 ## Characters: one per stage, localized
 
-Each stage has a character. A theme gives it a name, a sprite and the phrases it says. The **bubble text is not written by an LLM**: it is a template per event kind in the locale catalogs (`events.agent.handoff`, `events.gate.opened`, `events.publish.published`, ...), filled with ids and numbers. That keeps the experience alive in every language at **zero token cost**. Free-text messages that real agents write (post-MVP) are shown as written, next to the template.
+Each stage has a character. A theme gives it a name, a model look (colors) and a 2D sprite, and the phrases it says. The **bubble text is not written by an LLM**: it is a template per event kind in the locale catalogs (`events.agent.handoff`, `events.gate.opened`, `events.publish.published`, ...), filled with ids and numbers. That keeps the experience alive in every language at **zero token cost**. Free-text messages that real agents write (post-MVP) are shown as written, next to the template.
 
 | Stage | Role (character) | Typical bubble (en) |
 |---|---|---|
@@ -120,4 +134,4 @@ Country themes use positive, recognizable motifs (architecture, patterns, landma
 
 ## MVP theme scope
 
-`themes/br` + `locales/en`, `locales/pt-BR`: one scene (belt loop with 7 stations used by the MVP loop: brand, ideas, make, review, publish, metrics, report/evolve), 8 characters in flat vector SVG, item sprites (states, gold, cracked), bubble templates for every event kind the MVP emits, `theme validate` green, rendered at 375 px and 1440 px.
+`themes/br` + `locales/en`, `locales/pt-BR`: one 3D scene (belt loop with 7 stations used by the MVP loop: brand, ideas, make, review, publish, metrics, report/evolve) with day and night, 8 characters (procedural models, plus 2D sprites for the sprite view), item posters (state colors, gold, cracked), a 2D fallback, bubble templates for every event kind the MVP emits, `theme validate` green, rendered at 375 px and 1440 px. See the [clickable prototype](prototype/README.md).

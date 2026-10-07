@@ -98,12 +98,12 @@ simplicio-video plugin check <path>        # runs the contract suite for its kin
 
 ## Themes and languages
 
-A **theme** changes how the factory looks and speaks, never how it behaves: scenery, a belt, stations and one 2D character per stage. It is data only (SVG and JSON), so anyone can make one. Bubbles are templates per event kind in the language catalogs, so the characters "talk" in every language at zero token cost.
+A **theme** changes how the factory looks and speaks, never how it behaves: a 3D scene (sky, ground, props), a belt, stations and one character per stage. It is data only (JSON plus SVG or PNG sprites; no code runs), so anyone can make one. The interface keeps one system color, light blue, under every theme. Bubbles are templates per event kind in the language catalogs, so the characters "talk" in every language at zero token cost.
 
 ```mermaid
 flowchart LR
   E["events: stage, gate, publish, ..."] --> M["mapping: event kind to animation + phrase key"]
-  T["theme: palette, scene, stations, characters"] --> R["scene renderer: SVG now, Three.js later"]
+  T["theme: palette, scene, stations, characters"] --> R["scene renderer: Three.js (3D), SVG 2D fallback"]
   M --> R
   L["language catalogs"] --> R
   R --> UI["panel on phone and desktop"]
@@ -111,20 +111,32 @@ flowchart LR
 
 ```
 themes/<id>/
-  theme.json            # scene (landscape + portrait), stations, characters, palette, license
-  assets/*.svg          # original art only
+  theme.json            # scene (sky, ground, props), characters, palette, license
+  assets/               # SVG or PNG sprites, original art only
   locales/<lang>.json   # names and bubble phrases for this theme
 simplicio-video theme new <id> | validate <dir> | install <path|url> | use <id>
 ```
 
 | | Plan |
 |---|---|
-| **MVP** | one theme (`br`, original flat-vector art) in `pt-BR` and `en` |
+| **MVP** | one theme (`br`, original art) in `pt-BR` and `en`, in 3D with day and night |
 | **Languages (proposed 15, one country theme each)** | pt-BR, en-US, es-MX, zh-CN, ru-RU, fr-FR, de-DE, it-IT, ja-JP, ko-KR, hi-IN, ar-SA (right-to-left), tr-TR, id-ID, pl-PL |
 | **Genre themes** | original dragons and fantasy realms, a courtyard sitcom, tiny factory mascots, and more |
 | **Your own theme** | a folder dropped in your workspace; validated for safe SVG, complete translations and a license |
 
 **We ship only original art.** Protected franchises (Minions, Chaves, Game of Thrones and similar) cannot be committed or distributed here, even as "inspired by"; a private theme is the user's own responsibility. Country themes use positive cultural motifs and get a native review. Details: [themes.md](docs/factory/themes.md).
+
+## What the panel looks like
+
+The factory is a living 3D scene with the numbers floating over it: KPI cards, the station you picked, a stepper that follows one video, the queue, and callouts on the buildings that need you. These are shots of a **clickable prototype with sample data** (the product is not built yet). [Open it and read how](docs/factory/prototype/README.md).
+
+![The factory by day](docs/factory/prototype/screens/factory-day.jpg)
+
+| Night | Phone |
+|---|---|
+| ![The factory by night](docs/factory/prototype/screens/factory-night.jpg) | ![The factory on a phone](docs/factory/prototype/screens/factory-phone.jpg) |
+
+![Nine themes in 3D](docs/factory/prototype/screens/themes-3d.jpg)
 
 ## Commands
 
@@ -224,7 +236,7 @@ flowchart LR
   M1 --> M2["M2 v0.5: agents and learning, optional"]
   M1 --> M3["M3 v0.6: plan, library, cast, compliance, paid media"]
   M1 --> M4["M4 v0.7: plugins and integrations"]
-  M1 --> M5["M5 v0.8: Three.js, more themes and languages"]
+  M1 --> M5["M5 v0.8: more themes and languages"]
   M1 --> M6["M6 v0.9: public site with sponsor placements"]
 ```
 

@@ -32,7 +32,7 @@ flowchart LR
 | Core engine (exists) and plugin host, `doctor`, `install`, `update`, `plugin` | LangGraph, CrewAI, A2A, Langfuse |
 | Store, policy (minimal), security (minimal), simple loop runner | Library, cast, plan, compliance plugin, evals |
 | Plugins: brand, ideas, studio, review, publish (+ export), realoficial, metrics | Paid media plugins, Postiz, other publishers |
-| Panel: Inbox, Brand, Review, Publish, Activity; 2D SVG factory scene; theme engine; theme `br`; `en` + `pt-BR` | Three.js renderer, 14 more themes, 13 more languages |
+| Panel: Inbox, Brand, Review, Publish, Activity; 3D digital-twin factory scene (day and night) with a 2D fallback; theme engine; theme `br`; `en` + `pt-BR` | 14 more themes, 13 more languages, glTF models |
 | Offline demo and the end-to-end flow test | Integrations (Stripe, HubSpot, GA, ...) |
 
 **Hard dependency, decided first:** Real Oficial's MCP has no tool to upload a local MP4 as far as its published tool list shows, and its REST docs (`docs.realoficial.com.br`) are behind a browser check we could not read. Issue #19 starts with that spike. The MVP's "posting" criterion is met in one of two ways: (a) Real Oficial exposes an upload or create-from-file path (MCP tool or REST) that we use; (b) until it does, the export bundle plus the Real Oficial features that do work (captions, scheduling of their clips, analytics) ship, and the gap is stated plainly in the release notes. We will ask Real Oficial for (a) in parallel.
@@ -46,7 +46,7 @@ flowchart LR
 | M2 Agents and learning | v0.5 | LangGraph, CrewAI, A2A, Langfuse, lessons and experiments, evals, MCP over HTTP and notifications. Optional and token-budgeted |
 | M3 Content depth | v0.6 | Plan, library, cast, compliance plugin, Real Oficial media (optional paid), Postiz, game rules |
 | M4 Plugins and integrations | v0.7 | Social and ads, payments, checkout, CRM, attribution, analytics, VSL, agent runtimes, AI media tools |
-| M5 Themes and languages | v0.8 | Three.js renderer, 14 more themes, 13 more languages |
+| M5 Themes and languages | v0.8 | 14 more themes, 13 more languages, optional glTF models and AI-made sprites |
 | M6 Site and sponsorship | v0.9 | Public site with sponsor placements, signed sponsor cards, legal terms ([monetization.md](monetization.md)) |
 
 ### Release policy (every release)

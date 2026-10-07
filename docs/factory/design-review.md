@@ -28,7 +28,7 @@ The direction is sound and differentiated: a **deterministic** video engine that
 | 8 | Young framework stack (CrewAI, LangGraph, A2A, Langfuse) | Heavy installs, CrewAI `<3.14`, A2A SDK moved 0.3 → 1.0 | Moved out of the MVP; each returns later as an optional plugin behind a Protocol with a spike and kill criteria | #25–#27, #30 |
 | 9 | Gamification can reward the wrong thing | Paying XP for volume produces spam and bans | Reward quality and learning; cap volume XP; no punishments; the Needs-you inbox is always visible | later: #42; #23 |
 | 10 | **Franchise IP in themes** | Minions, Chaves, Game of Thrones are protected: shipping them risks takedown or worse | Ship only original art with a recorded license; private user themes allowed but never committed; look-alike trade dress excluded | themes.md, #53, #54 |
-| 11 | **Three.js is more than a 2D belt needs** | WebGL adds asset pipeline, mobile cost, context loss, little value for 2D sprites | MVP renders the scene as SVG behind a renderer interface; Three.js becomes a drop-in renderer later for isometric/3D scenery | #28, #56 |
+| 11 | **3D costs more than a 2D belt** (decided in favor of 3D by the owner on 2026-10-06) | WebGL adds mobile cost and context loss; models would add an asset pipeline | Procedural low-poly geometry (no model files), a frame and triangle budget, a context-loss handler, `prefers-reduced-motion`, and a 2D SVG fallback behind the same renderer interface | #28, #56 |
 | 12 | 15 languages × 15 themes is a content and review problem | Machine drafts of 13 locales ship errors; RTL and CJK change layout | MVP: `en` + `pt-BR`; catalogs complete-by-test; native review before `stable`; RTL tested separately | #55, #58 |
 | 13 | Concurrent writers on files | Panel, agents, CLI and loop write at once | Files for artifacts, SQLite WAL for coordination, atomic writes, single daemon lock | #35 |
 | 14 | Self-improvement without evidence | Reflection on tiny samples teaches superstitions; self-edited prompts drift | Later (M2): lessons start as hypotheses, minimum sample sizes, humans approve activation and every prompt/policy change | #29, #45 |
@@ -77,7 +77,7 @@ The direction is sound and differentiated: a **deterministic** video engine that
 - **CrewAI** (M2): install larger than 2 GB or slower than 5 minutes, or it blocks Python 3.12 on macOS arm64 or Linux → ship only a plain tool-loop runner behind the same `AgentRunner` Protocol.
 - **A2A SDK** (M2): if in-process transport needs HTTP, keep A2A at the external boundary only.
 - **Langfuse** (M2): if it needs more than `docker compose` and ~2 GB RAM, keep the local JSONL tracer as the default.
-- **Scene renderer**: if the SVG scene stays under 30 fps on a mid-range phone with 200 items after coalescing, ship the static-sprite belt with the same event mapping.
+- **Scene renderer**: if the 3D scene stays under 30 fps on a mid-range phone with 200 items after coalescing, switch phones to the 2D fallback (or the static-sprite belt) with the same event mapping.
 - **Real Oficial** (MVP): if posting our file is impossible and Real Oficial gives no date, the MVP ships with export plus the working features and says so.
 
 ## What we deliberately do not copy from Fastlane

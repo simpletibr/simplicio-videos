@@ -220,6 +220,7 @@ issues:
     adr: 14
     owns:
       - "web/app/**"
+      - "docs/factory/prototype/**"
       - "docs/plugins/panel.md"
       - "docs/decisoes/ADR-0014-*.md"
   28:

@@ -1,0 +1,28 @@
+/* ===== catalog, part 2: the digital-twin HUD (KPIs, stepper, queue, station panel, pins, tools) ===== */
+Object.assign(D,{
+'hint.3d':['Drag to look around · tap a building for details','Arraste para olhar em volta · toque num prédio para ver detalhes'],
+'state.scheduled':['Scheduled','Agendado'],'state.measured':['Measured','Medido'],'state.archived':['Archived','Arquivado'],
+'tw.live':['Live','Ao vivo'],
+'kpi.flight':['In flight','Em andamento'],'kpi.flight.sub':['of {m} max','de {m} no máx.'],
+'kpi.need':['Needs you','Precisa de você'],'kpi.need.sub':['review {r} · publish {p}','revisão {r} · publicação {p}'],'kpi.need.fail':[' · failed {f}',' · falhas {f}'],
+'kpi.posted':['Posted','Postados'],'kpi.posted.sub':['limit {m} per day','limite {m} por dia'],
+'kpi.tokens':['Tokens used','Tokens usados'],'kpi.tokens.sub':['free path · 0 credits','caminho grátis · 0 créditos'],
+'tool.zin':['Zoom in','Aproximar'],'tool.zout':['Zoom out','Afastar'],'tool.rotl':['Rotate left','Girar à esquerda'],'tool.rotr':['Rotate right','Girar à direita'],
+'tool.reset':['Reset view','Restaurar visão'],'tool.day':['Switch to day','Mudar para dia'],'tool.night':['Switch to night','Mudar para noite'],'tool.panel':['Station details','Detalhes da estação'],
+'st.idle':['Waiting for the next video…','Esperando o próximo vídeo…'],'st.following':['Following','Acompanhando'],'st.waitshort':['waiting','esperando'],'st.workshort':['working','rodando'],'st.wait':['waiting for you','esperando você'],'st.work':['working…','trabalhando…'],'st.at':['at {s}','em {s}'],
+'q.live':['Live','Ao vivo'],'q.need':['Needs you','Precisa de você'],'q.done':['Posted','Postados'],
+'q.empty.live':['Nothing running right now.','Nada rodando agora.'],'q.empty.need':['Nothing needs you. Nice.','Nada precisa de você. Boa.'],'q.empty.done':['No posts yet in this session.','Nenhuma postagem nesta sessão.'],
+'q.review':['Review','Revisão'],'q.publish':['Confirm post','Confirmar postagem'],'q.failed':['Failed','Falhou'],'q.waited':['waiting {w}','esperando {w}'],
+'pn.close':['Close','Fechar'],'pn.follow':['Follow the video','Seguir o vídeo'],'pn.pinned':['Pinned','Fixado'],'pn.following':['Following the video','Seguindo o vídeo'],'pn.open':['Open {page}','Abrir {page}'],
+'pn.s.idle':['Idle','Livre'],'pn.s.work':['Working','Trabalhando'],'pn.s.wait':['Waiting for you','Esperando você'],'pn.s.ok':['Ready','Pronto'],
+'pn.facts':['Facts verified','Fatos verificados'],'pn.claims':['Claim rules','Regras de claims'],'pn.active':['{n} active','{n} ativas'],'pn.voice':['Brand voice','Voz da marca'],'pn.voice.v':['warm · direct','calorosa · direta'],
+'pn.hooks':['Hooks ready','Ganchos prontos'],'pn.guard':['Guardrail pass','Passou nas travas'],'pn.hints':['Hints applied','Dicas aplicadas'],
+'pn.render':['Render progress','Progresso do render'],'pn.template':['Template','Modelo'],'pn.format':['Format','Formato'],'pn.cost':['Tokens · credits','Tokens · créditos'],
+'pn.waiting':['Waiting for you','Esperando você'],'pn.checklist':['Checklist','Checklist'],'pn.oldest':['Oldest wait','Espera mais antiga'],
+'pn.toconfirm':['To confirm','Para confirmar'],'pn.today':['Posts today','Posts hoje'],'pn.provider':['Provider','Provedor'],'pn.provider.v':['Real Oficial · healthy','Real Oficial · saudável'],
+'pn.upload':['Upload','Upload'],'pn.upload.on':['ready','pronto'],'pn.upload.off':['not enabled','não habilitado'],
+'pn.views':['Views, 3 days','Views, 3 dias'],'pn.lift':['Vs. baseline','Vs. média'],'pn.pull':['Last pull','Última coleta'],'pn.pull.v':['3 min ago','há 3 min'],
+'pn.cycle':['Cycle','Ciclo'],'pn.family':['Best family','Melhor família'],'pn.hintsgen':['Hints generated','Dicas geradas'],
+'pin.review':['{n} waiting for you','{n} esperando você'],'pin.publish':['{n} to confirm','{n} para confirmar'],'pin.fail':['{n} failed','{n} falharam'],
+'min':['min','min']
+});
