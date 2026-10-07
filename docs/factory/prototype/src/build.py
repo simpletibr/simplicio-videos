@@ -4,7 +4,7 @@ import sys, os
 d = os.path.dirname(os.path.abspath(__file__))
 rd = lambda n: open(os.path.join(d, n), encoding='utf8').read()
 css, body = rd('proto.css'), rd('proto.body.html')
-js = '\n'.join(rd(n) for n in ('proto.art.js', 'proto.i18n.js', 'proto.i18n2.js', 'proto.three.js', 'proto.twin.js', 'proto.app.js'))
+js = '\n'.join(rd(n) for n in ('proto.art.data.js', 'proto.art.js', 'proto.i18n.js', 'proto.i18n2.js', 'proto.three.js', 'proto.twin.js', 'proto.app.js'))
 three = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>'
 fonts = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">')

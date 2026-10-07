@@ -481,3 +481,7 @@ canvas.three:active{cursor:grabbing}
 /* documentation shots: ?hud=0 hides every overlay and shows the bare scene */
 .twin[data-hud="0"] .hud,.twin[data-hud="0"] .stepper,.twin[data-hud="0"] .qtable{display:none}
 .twin[data-layout="compact"] .panel{max-height:54%}.twin[data-layout="compact"] .pmode{display:none}.twin[data-layout="compact"] .pr:nth-of-type(4){display:none}
+
+/* generated art */
+.tcard .mini img{width:100%;aspect-ratio:1280/780;object-fit:cover;display:block}
+.loginhero{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:16px;box-shadow:var(--shadow);display:block}

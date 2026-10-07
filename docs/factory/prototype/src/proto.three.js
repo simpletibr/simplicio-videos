@@ -27,6 +27,7 @@ const cn=(r,h,c,x,y,z,sg)=>at(new THREE.Mesh(new THREE.ConeGeometry(r,h,sg||8),L
 const hull=(m,ink,k)=>{const o=new THREE.Mesh(m.geometry,new THREE.MeshBasicMaterial({color:ink,side:THREE.BackSide}));o.scale.setScalar(1+((k||1.06)-1)*.55);m.add(o);return m};
 const ctex=(w,h,fn)=>{const c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t};
 function svgTex(svg,w,h){const c=document.createElement('canvas');c.width=w;c.height=h;const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const im=new Image();im.onload=()=>{c.getContext('2d').drawImage(im,0,0,w,h);t.needsUpdate=true};im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);return t}
+function rasterTex(src,w,h){const c=document.createElement('canvas');c.width=w;c.height=h;const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const im=new Image();im.onload=()=>{c.getContext('2d').drawImage(im,0,0,w,h);t.needsUpdate=true};im.src=src;return t}
 function labelTex(text,size){return ctex(512,96,(g,w,h)=>{g.font=`800 ${size||50}px "Bricolage Grotesque","Avenir Next",system-ui,sans-serif`;g.textAlign='center';g.textBaseline='middle';g.lineJoin='round';g.lineWidth=11;g.strokeStyle='rgba(8,20,14,.85)';g.strokeText(text,w/2,h/2+3);g.fillStyle='#fff';g.fillText(text,w/2,h/2+3)})}
 const sprite=(tex,sx,sy,x,y,z)=>{const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));s.scale.set(sx,sy,1);s.position.set(x||0,y||0,z||0);return s};
 const gradTex=(top,bot)=>ctex(8,256,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,top);gr.addColorStop(1,bot);g.fillStyle=gr;g.fillRect(0,0,w,h)});
@@ -98,8 +99,10 @@ function agent3(role,th,style){
   const p=th.p,ink=p.ink,g=new THREE.Group(),A={g,role,mode:'home',t:0,ph:Math.random()*6,face:0,workDur:1.1,style,limbs:{}};
   g.add(blob(.5));
   if(style==='sprite'){
+    const art=th.id==='br'&&ART.chars[role];
+    if(art){const hh=2.5,s=sprite(rasterTex(art.src,art.w,art.h),hh*art.w/art.h,hh,0,hh/2+.04,0);g.add(s);A.sprite=s;A.sy=hh/2+.04;return A}
     const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="220" height="300" viewBox="-46 -122 92 128">${charSVG(role,th)}</svg>`;
-    const s=sprite(svgTex(svg,220,300),1.7,2.3,0,1.2,0);g.add(s);A.sprite=s;return A}
+    const s=sprite(svgTex(svg,220,300),1.7,2.3,0,1.2,0);g.add(s);A.sprite=s;A.sy=1.2;return A}
   const bodyC=p.body,dark=shade(bodyC,-.25),legG=new THREE.CylinderGeometry(.1,.1,.36,8);legG.translate(0,-.18,0);
   const legL=at(new THREE.Mesh(legG,LM(dark)),-.15,.38,0),legR=at(new THREE.Mesh(legG,LM(dark)),.15,.38,0);
   const torso=hull(bx(.58,.56,.4,bodyC,0,.66,0),ink,1.07);
@@ -141,7 +144,7 @@ const SceneThree={host:null,hidden:false,variant:'3d',charPos:{},R:null,scn:null
   const ground=new THREE.Mesh(new THREE.CircleGeometry(60,40),LM(ex.ground));ground.rotation.x=-Math.PI/2;world.add(ground);flat.push(ground);
   // plaza
   const sh=new THREE.Shape(),ax=W3.A+2.0,bz=W3.B+2.0,r=W3.R+2.0;sh.moveTo(-ax+r,-bz);sh.lineTo(ax-r,-bz);sh.absarc(ax-r,-bz+r,r,-Math.PI/2,0,false);sh.lineTo(ax,bz-r);sh.absarc(ax-r,bz-r,r,0,Math.PI/2,false);sh.lineTo(-ax+r,bz);sh.absarc(-ax+r,bz-r,r,Math.PI/2,Math.PI,false);sh.lineTo(-ax,-bz+r);sh.absarc(-ax+r,-bz+r,r,Math.PI,Math.PI*1.5,false);
-  const pt=ctex(256,256,ex.plaza);pt.wrapS=pt.wrapT=THREE.RepeatWrapping;pt.repeat.set(1/2.1,1/2.1);const plaza=new THREE.Mesh(new THREE.ShapeGeometry(sh,24),new THREE.MeshLambertMaterial({map:pt}));plaza.rotation.x=-Math.PI/2;plaza.position.y=.01;world.add(plaza);flat.push(plaza);
+  const pt=ctex(512,512,ex.plaza);pt.wrapS=pt.wrapT=THREE.RepeatWrapping;if(th.id==='br'&&ART.plaza){const im=new Image();im.onload=()=>{pt.image.getContext('2d').drawImage(im,0,0,512,512);pt.needsUpdate=true};im.src=ART.plaza}pt.repeat.set(1/2.1,1/2.1);const plaza=new THREE.Mesh(new THREE.ShapeGeometry(sh,24),new THREE.MeshLambertMaterial({map:pt}));plaza.rotation.x=-Math.PI/2;plaza.position.y=.01;world.add(plaza);flat.push(plaza);
   // belt
   const N=this.N=Math.ceil(PATH3.L/.2),pos=[],uv=[],idx=[],pos2=[],pos3=[];for(let i=0;i<=N;i++){const s=PATH3.L*i/N,q=pt3(s),nx=-q.dz,nz=q.dx,w=W3.BW/2;pos.push(q.x+nx*w,.12,q.z+nz*w,q.x-nx*w,.12,q.z-nz*w);pos2.push(q.x+nx*(w+.16),.06,q.z+nz*(w+.16),q.x-nx*(w+.16),.06,q.z-nz*(w+.16));pos3.push(q.x+nx*.17,.15,q.z+nz*.17,q.x-nx*.17,.15,q.z-nz*.17);uv.push(s,0,s,1);if(i<N){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}}
   const mk=(P,U,mat)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));if(U)g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));g.setIndex(idx);g.computeVertexNormals();return new THREE.Mesh(g,mat)};
@@ -196,7 +199,12 @@ const SceneThree={host:null,hidden:false,variant:'3d',charPos:{},R:null,scn:null
   this.applyTod();this.bars()},
  haloTex(){return this._halo||(this._halo=ctex(64,64,(g,w,h)=>{const gr=g.createRadialGradient(w/2,h/2,1,w/2,h/2,w/2);gr.addColorStop(0,'rgba(255,226,150,.95)');gr.addColorStop(.35,'rgba(255,214,120,.35)');gr.addColorStop(1,'rgba(255,214,120,0)');g.fillStyle=gr;g.fillRect(0,0,w,h)}))},
  pinTex(){return this._pin||(this._pin=ctex(64,80,(g,w,h)=>{g.fillStyle='#2f8fe8';g.strokeStyle='#fff';g.lineWidth=5;g.beginPath();g.moveTo(w/2,h-5);g.bezierCurveTo(w*.02,h*.52,w*.08,7,w/2,7);g.bezierCurveTo(w*.92,7,w*.98,h*.52,w/2,h-5);g.closePath();g.fill();g.stroke();g.fillStyle='#fff';g.beginPath();g.arc(w/2,h*.38,w*.15,0,7);g.fill()}))},
- posterTex(n){const k=((n||1)%5);return this.posters[k]||(this.posters[k]=ctex(64,84,(g,w,h)=>{const gr=GRADS[k],L=g.createLinearGradient(0,0,w*.6,h);L.addColorStop(0,gr[0]);L.addColorStop(1,gr[1]);g.fillStyle=L;g.fillRect(0,0,w,h);g.fillStyle='rgba(255,255,255,.92)';g.fillRect(8,10,w-16,5);g.fillRect(8,19,w*.55,5);g.fillStyle='rgba(0,0,0,.38)';g.beginPath();g.arc(w/2,h*.6,12,0,7);g.fill();g.fillStyle='#fff';g.beginPath();g.moveTo(w/2-4,h*.6-6.5);g.lineTo(w/2+7,h*.6);g.lineTo(w/2-4,h*.6+6.5);g.fill();g.fillStyle='rgba(255,255,255,.9)';g.fillRect(8,h-12,w-16,3)}))},
+ posterTex(n){const k=((n||1)%5);if(this.posters[k])return this.posters[k];
+  const paint=(g,w,h,im)=>{if(im){const r=Math.max(w/im.width,h/im.height);g.drawImage(im,(w-im.width*r)/2,(h-im.height*r)/2,im.width*r,im.height*r);g.fillStyle='rgba(0,0,0,.18)';g.fillRect(0,0,w,h)}else{const gr=GRADS[k],L=g.createLinearGradient(0,0,w*.6,h);L.addColorStop(0,gr[0]);L.addColorStop(1,gr[1]);g.fillStyle=L;g.fillRect(0,0,w,h)}
+   g.fillStyle='rgba(255,255,255,.92)';g.fillRect(8,10,w-16,5);g.fillRect(8,19,w*.55,5);g.fillStyle='rgba(0,0,0,.38)';g.beginPath();g.arc(w/2,h*.6,12,0,7);g.fill();g.fillStyle='#fff';g.beginPath();g.moveTo(w/2-4,h*.6-6.5);g.lineTo(w/2+7,h*.6);g.lineTo(w/2-4,h*.6+6.5);g.fill();g.fillStyle='rgba(255,255,255,.9)';g.fillRect(8,h-12,w-16,3)};
+  const tex=ctex(64,84,(g,w,h)=>paint(g,w,h,null));
+  if(ART.posters[k]){const im=new Image();im.onload=()=>{paint(tex.image.getContext('2d'),64,84,im);tex.needsUpdate=true};im.src=ART.posters[k]}
+  return this.posters[k]=tex},
  applyTod(){if(!this.scn)return;const th=this.th,p=th.p,ex=this.ex,n=S.tod==='night',dk=this.dark;
   const top=n?'#050b20':p.sky1,bot=n?mixHex(p.sky2,'#1a2a5c',.72):p.sky2;
   if(this.bgTex)this.bgTex.dispose();this.bgTex=gradTex(top,bot);this.scn.background=this.bgTex;this.scn.fog.color.set(bot);
@@ -276,7 +284,7 @@ const SceneThree={host:null,hidden:false,variant:'3d',charPos:{},R:null,scn:null
   if(walking){const sp=2.3*dt,k=Math.min(1,sp/d);a.g.position.x+=(target.x-a.g.position.x)*k;a.g.position.z+=(target.z-a.g.position.z)*k;const ang=Math.atan2(target.x-a.g.position.x,target.z-a.g.position.z);let da=ang-a.g.rotation.y;da=Math.atan2(Math.sin(da),Math.cos(da));a.g.rotation.y+=da*Math.min(1,dt*10);a.ph+=dt*9}
   else{let da=this.faceTo(a)-a.g.rotation.y;da=Math.atan2(Math.sin(da),Math.cos(da));a.g.rotation.y+=da*Math.min(1,dt*6);
    if(a.mode==='work'||a.mode==='bounce'){a.t+=dt;if(a.t>a.workDur){a.mode=(a.mode==='bounce')?'home':'home';a.t=0}}}
-  if(a.sprite){a.sprite.position.y=1.2+(walking?Math.abs(Math.sin(a.ph))*.14:Math.sin(T*2+a.ph)*.02);a.sprite.material.rotation=walking?Math.sin(a.ph)*.07:0;return}
+  if(a.sprite){a.sprite.position.y=(a.sy||1.2)+(walking?Math.abs(Math.sin(a.ph))*.14:Math.sin(T*2+a.ph)*.02);a.sprite.material.rotation=walking?Math.sin(a.ph)*.07:0;return}
   const sw=walking?Math.sin(a.ph):0,work=!walking&&(a.mode==='work'||a.mode==='bounce');
   L.legL.rotation.x=sw*.75;L.legR.rotation.x=-sw*.75;L.armL.rotation.x=-sw*.6;L.armR.rotation.x=work?-1.5+Math.sin(T*10)*.55:sw*.6;
   if(a.mode==='guard'&&!walking){L.armR.rotation.x=-.2;L.armL.rotation.x=0}

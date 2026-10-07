@@ -123,6 +123,8 @@ const THEME_ORDER=['br','us','cn','ru','jp','dragons','realms','courtyard','tiny
 
 /* ---------- characters ---------- */
 function charSVG(role,th){
+  const art=th.id==='br'&&ART.chars[role];
+  if(art){const h=118,w=h*art.w/art.h;return `<g class="char"><image href="${art.src}" x="${-w/2}" y="${-h-2}" width="${w}" height="${h}"/></g>`}
   const p=th.p,ink=p.ink,body=p.body,head=p.head,dark=shade(body,-.25);let acc='',top='';
   const ant=`<line x1="0" y1="-80" x2="0" y2="-88" stroke="${ink}" stroke-width="2"/><circle cx="0" cy="-90" r="3.4" fill="${p.accent}" stroke="${ink}" stroke-width="1.4"/>`;
   if(role==='brander'){acc=`<g><path d="M24 -26L38 -50" stroke="${ink}" stroke-width="3" stroke-linecap="round"/><ellipse cx="39.5" cy="-53" rx="4.5" ry="6" fill="${p.accent}" stroke="${ink}" stroke-width="1.6" transform="rotate(25 39.5 -53)"/></g><circle cx="-22" cy="-24" r="7" fill="${p.accent}" stroke="${ink}" stroke-width="1.6"/>`;top=ant}

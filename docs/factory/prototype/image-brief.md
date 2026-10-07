@@ -1,44 +1,55 @@
 # Image brief: richer art for the Brazil theme (GPT Image 2 through Real Oficial)
 
-**Status: not generated yet.** The owner asked on 2026-10-06 to use Real Oficial's MCP with GPT Image 2 for more elaborate images. The MCP was registered at user scope but this session could not load it, so nothing was generated. This file is the ready-to-run brief.
+**Status (2026-10-07): the pipeline is ready, no image is generated yet.** The owner asked to use Real Oficial's MCP with GPT Image 2 to improve the graphics and characters. The MCP is connected, but the connection was authorized with read permissions only (`projects:read`, `account:read`). `ro_estimate_image` and `ro_confirm_spend` both need **`media:write`**, so image generation is refused until the owner re-authorizes (`/mcp`, then `realoficial`, then Re-authenticate, and tick `media:write` on Real Oficial's screen; publishing, purchase, projects and renders are not needed).
 
-## Before you run it
+## What the catalog says (read on 2026-10-07; prices change, always quote first)
 
-1. The MCP must be loaded in the session. It is registered as `realoficial` (HTTP, `https://api.realoficial.com.br/mcp`). If your session does not list its tools, start a new session in this folder; if it says it needs authentication, sign in with `/mcp` (the sign-in is the owner's).
-2. Its scopes include `social:publish` and `billing:purchase`. **Use only the image-generation tools** (renders and media). Never publish, schedule, connect accounts or buy credits.
-3. Show the cost per image first. Generate **one** character, review it, and only then generate the rest. Stop at 14 images or at the credit limit the owner gives, whichever comes first. Record what was spent.
-4. Output goes to `docs/factory/prototype/src/art/` as WebP (character sprites with a transparent background, at most 60 KB each after re-encoding). Do not commit PNGs larger than that.
+- Model `gpt-image-2`: 5 credits per image, 3 in economy mode (delivered within 24 hours). The plan includes **50 images per month** (0 used, resets 2026-11-02), used before credits.
+- Up to 4 images per request. Aspect ratios: 1:1, 16:9, 9:16, 4:5, 5:4, 4:3, 3:4, 3:2, 2:3. No transparent background option, so characters are generated on flat white and cut out locally.
+- Workspace: "Espaço pessoal" (owner). Daily budget of this connection: 300 credits.
 
-## Shared style (put this at the start of every prompt)
+## Rules
 
-> Original character design for a friendly factory-worker robot mascot. Soft 3D clay render look, rounded shapes, big simple eyes, a small antenna with a colored bulb, clean studio lighting, subtle outline, front three-quarter view, centered, plain light background, no text, no logos, no letters, not based on any existing character or franchise. Palette: leaf green #25a050 body, cream #ffe9a8 face, sun yellow #ffd23f and azulejo blue #2a62c9 accents.
+1. **Image tools only** (`ro_estimate_image`, `ro_confirm_spend`, `ro_list_media`, `ro_whoami`, `ro_list_media_models`). Never publish, schedule, connect accounts, buy credits or touch projects and renders.
+2. Every image is **quote, then confirm**: `ro_estimate_image` returns a price and `quote_id`; show the price to the owner and call `ro_confirm_spend` only after they say yes in the conversation. Ask once for a cap that covers the batch (this brief proposes 24 images and, if they are charged, at most 120 credits) and stay inside it.
+3. Generate **one** character first (Brush), review it with the owner, then the rest. Use `enhance_prompt: false` so the shared style stays identical across images.
+4. Media links in tool results expire within an hour and are personal: download them to disk, never paste them anywhere.
+5. Raw files go to `src/art/raw/` (git-ignored); only the small WebP files and the generated `src/proto.art.data.js` are committed.
+
+## Shared style (start every character prompt with this)
+
+> Original character design for a friendly factory-worker robot mascot. Soft 3D clay render look, rounded shapes, big simple eyes, a small antenna with a colored bulb, clean studio lighting, subtle outline, front three-quarter view, full body, centered, plain flat white background, no floor, no ground shadow, no text, no logos, no letters, not based on any existing character or franchise. Palette: leaf green #25a050 body, cream #ffe9a8 face, sun yellow #ffd23f and azulejo blue #2a62c9 accents.
 
 ## Assets
 
-| # | Asset | Size | Prompt (after the shared style) |
+| # | File in `src/art/raw/` | Aspect | Prompt (after the shared style for characters) |
 |---|---|---|---|
-| 1 | Brush (Brander) | 768×1152 | holding a paintbrush with a color palette on the other arm, tiny paint dots on the suit |
-| 2 | Spark (Ideator) | 768×1152 | a glowing lightbulb floating above the head, notepad in hand |
-| 3 | Clapper (Director) | 768×1152 | holding a film clapperboard, a small camera strap across the chest |
-| 4 | Gate (Gatekeeper) | 768×1152 | yellow hard hat, holding a round red stop-sign paddle, reflective vest |
-| 5 | Post (Poster) | 768×1152 | holding a megaphone, a paper plane circling one shoulder |
-| 6 | Lens (Analyst) | 768×1152 | holding a large magnifying glass, a tiny bar chart badge on the chest |
-| 7 | Mirror (Reflector) | 768×1152 | holding a round hand mirror, a calm thoughtful expression |
-| 8 | Sprout (Evolver) | 768×1152 | a small green sprout growing from the top of the head, watering can in hand |
-| 9 | Plaza tile | 1024×1024, seamless | Original Brazilian azulejo tile pattern, blue and white, flat top-down view, no perspective, no text, repeats seamlessly in both directions |
-| 10 | Hero, day | 1600×900 | Isometric illustration of an original toy factory conveyor loop with seven small kiosks, palm trees and colorful bunting, bright daylight, friendly robot workers walking along the belt; no text |
-| 11 | Hero, night | 1600×900 | Same scene at night, warm lit windows and street lamps, deep blue sky |
+| 1 | `char-brander` | 2:3 | The robot is named Brush, the brand painter: holds a paintbrush and a small color palette, tiny paint dots on its suit |
+| 2 | `char-ideator` | 2:3 | Spark, the idea maker: a glowing lightbulb floating above the head, a notepad in hand |
+| 3 | `char-director` | 2:3 | Clapper, the director: holds a film clapperboard, a small camera strap across the chest |
+| 4 | `char-gatekeeper` | 2:3 | Gate, the quality gatekeeper: yellow hard hat, a round red stop-sign paddle, reflective vest |
+| 5 | `char-poster` | 2:3 | Post, the publisher: holds a megaphone, a paper plane circling one shoulder |
+| 6 | `char-analyst` | 2:3 | Lens, the analyst: a large magnifying glass, a tiny bar chart badge on the chest |
+| 7 | `char-reflector` | 2:3 | Mirror, the reflector: a round hand mirror, a calm thoughtful expression |
+| 8 | `char-evolver` | 2:3 | Sprout, the evolver: a small green sprout growing from the top of the head, a watering can in hand |
+| 9 | `plaza` | 1:1 | Original Brazilian azulejo tile pattern, blue and white, flat top-down view, no perspective, no text, repeats seamlessly in both directions |
+| 10 | `hero-day` | 16:9 | Isometric illustration of an original toy factory conveyor loop with seven small kiosks, palm trees and colorful bunting, bright daylight, friendly robot workers walking along the belt, no text |
+| 11 | `hero-night` | 16:9 | The same scene at night, warm lit windows and street lamps, deep blue sky, no text |
+| 12-16 | `poster-1` to `poster-5` | 9:16 | Vertical video background, warm photographic still life, no text, no logos, no people: (1) a hand grinder and coffee beans on a wooden table, (2) an espresso shot pouring into a white cup, (3) a small kraft shipping box of coffee bags on a doorstep, (4) a kettle pouring water over a pour-over dripper, (5) a sunlit morning table with a mug and a notebook |
 
-Keep the eight characters consistent: generate Brush first, then pass it as the reference image (if the tool supports it) or repeat the same style block verbatim.
+## Wiring (already done)
 
-## How to wire them in the prototype
+`python3 docs/factory/prototype/src/art/pack.py` cuts out the white background of the characters, trims and re-encodes them, makes the plaza tile seamless, resizes the rest, writes WebP files to `src/art/webp/` and the data URIs to `src/proto.art.data.js`; then `python3 docs/factory/prototype/src/build.py` rebuilds `index.html`. The prototype uses the art when it exists and falls back to its own drawings when it does not:
 
-- Character sprites: the `3d-sprites` view builds each agent from an SVG texture in `agent3()` (`src/proto.three.js`, `sprite` branch) and the 2D fallback draws `charSVG()` (`src/proto.art.js`). Load each WebP as a `THREE.Texture` (or embed it as a data URI so `index.html` stays a single file) and keep the SVG as the fallback when a file is missing.
-- Plaza tile: `TH3.br.plaza` draws the pattern on a canvas; replace it with the generated tile as a repeating texture.
-- Hero images: Settings → Appearance cards and the login page.
+- characters: the `3D with 2D art` view and the 2D fallback (and the theme card), brazil theme only;
+- plaza: the azulejo texture under the belt;
+- heroes: the login page and the Brazil scenario card (night one follows day and night);
+- posters: Review, Studio and Publish previews, thumbnails, the dock and the 3D video cards.
+
+The pipeline was tested with stand-in images made from the prototype's own drawings.
 
 ## Licensing and rules
 
-- Record on every asset: tool (GPT Image 2 via Real Oficial), date, prompt, and the provider's terms for commercial use and ownership. **Read Real Oficial's terms before anything generated here ships in the product**; until then the images are `art_origin: ai-generated` and the theme is `experimental`.
+- Record on every asset: tool (GPT Image 2 via Real Oficial), date, prompt and the provider's terms for commercial use and ownership. **Read Real Oficial's terms before anything generated here ships in the product**; until then the images are `art_origin: ai-generated` and the theme is `experimental`.
 - Characters stay original. No look-alikes of any franchise, no real people, no brand logos.
 - Nothing generated is committed without the owner reviewing it.

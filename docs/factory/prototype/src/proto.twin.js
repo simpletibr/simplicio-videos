@@ -19,7 +19,7 @@ const ICON_OF=k=>k==='make'?'studio':k;
 const curStation=it=>it.c<.5?0:Math.max(1,Math.min(7,Math.round(it.c)));
 const mmss=s=>{s=Math.max(0,Math.floor(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
 const fmtWait=s=>s<60?Math.max(1,Math.round(s))+'s':Math.round(s/60)+' '+t('min');
-const gradOf=n=>{const g=GRADS[(n||1)%5];return `linear-gradient(160deg,${g[0]},${g[1]})`};
+const gradOf=n=>posterBg(n);
 const todDefault=()=>{try{const v=Q.get('tod')||localStorage.getItem('sv.tod');if(v==='day'||v==='night')return v}catch(e){}
   const m=document.documentElement.dataset.theme;if(m==='dark')return 'night';if(m==='light')return 'day';return matchMedia('(prefers-color-scheme: dark)').matches?'night':'day'};
 

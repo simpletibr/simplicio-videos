@@ -56,7 +56,7 @@ Handy for screenshots: `warm=14` runs the simulation for 14 seconds before the f
 
 ## Richer art (next)
 
-The owner asked for more elaborate images generated with GPT Image 2 through Real Oficial's MCP. Nothing is generated yet; [image-brief.md](image-brief.md) holds the prompts, sizes, budget rules and how to wire the results in.
+The owner asked for more elaborate images generated with GPT Image 2 through Real Oficial's MCP. The prototype already knows how to use them: drop the raw images in `src/art/raw/`, run `python3 src/art/pack.py` and rebuild. Nothing is generated yet (the MCP connection still needs the `media:write` permission); [image-brief.md](image-brief.md) holds the prompts, sizes, budget rules and the status.
 
 ## Rebuild
 
