@@ -2,7 +2,7 @@
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const Q=new URLSearchParams(location.search);
-const PAGES=['factory','inbox','brand','ideas','studio','review','publish','activity','settings'];
+const PAGES=['factory','inbox','brand','ideas','studio','review','publish','activity','ads','settings'];
 const TABS_MOBILE=['factory','inbox','review','publish','more'];
 const S={device:Q.get('device')||'desktop',theme:TH[Q.get('theme')]?Q.get('theme'):'br',
   lang:Q.get('lang')?(Q.get('lang')==='en'?'en':'pt-BR'):((navigator.language||'en').toLowerCase().startsWith('pt')?'pt-BR':'en'),
@@ -10,7 +10,7 @@ const S={device:Q.get('device')||'desktop',theme:TH[Q.get('theme')]?Q.get('theme
   view:Q.get('view')||(ART.chars.brander?'3d-sprites':'3d'),auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:false,canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
   queue:[],pubq:[],fails:[],events:[],rv:0,stale:false,otp:'',loginErr:false,done:0,idea:{n:5,adding:false},route:'det',
   doc:{running:false,ran:false},upd:false,clean:false,hold:null,studio:{rendered:false,rendering:false},logged:Q.get('page')?true:false,
-  tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',stab:Q.get('stab')||(Q.get('panel')==='1'?(Q.get('ptab')==='chat'?'bots':'details'):'follow'),snap:Q.get('snap')||(Q.get('panel')==='1'?'half':'peek'),bot:Q.get('bot')||'gatekeeper',track:null,sel:null,panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
+  tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',stab:Q.get('stab')||(Q.get('panel')==='1'?(Q.get('ptab')==='chat'?'bots':'details'):'follow'),snap:Q.get('snap')||(Q.get('panel')==='1'?'half':'peek'),bot:Q.get('bot')||'gatekeeper',track:null,sel:STAGES.includes(Q.get('sel'))?Q.get('sel'):null,world:Q.get('world')==='1',panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
 const RAILK='sv.rail';try{S.rail=Q.get('rail')?Q.get('rail')==='min':localStorage.getItem(RAILK)==='1'}catch(e){S.rail=Q.get('rail')==='min'}
 const lk=()=>S.lang==='pt-BR'?1:0;
 function t(k,p){const e=D[k];if(!e){if(!t.w[k]){t.w[k]=1;console.warn('missing i18n',k)}return k}let s=e[lk()];if(p)s=s.replace(/\{(\w+)\}/g,(m,n)=>p[n]!==undefined?p[n]:m);return s}t.w={};
@@ -44,7 +44,7 @@ const SC={brand:'#2a62c9',ideas:'#e0a21a',make:'#7b5cd6',review:'#e5483b',publis
 let EVN=0;
 const STAGE_OF={'brand.checked':'brand','ideas.generated':'ideas','make.started':'make','make.rendered':'make','item.failed':'make','gate.review':'review','review.approved':'review','review.discarded':'review','review.changes':'review','publish.previewed':'publish','gate.publish':'publish','publish.published':'publish','metrics.ingested':'metrics','report.generated':'report','hints.generated':'report'};
 function phrase(ev){return t('ev.'+ev.kind,ev.data)}
-function emit(kind,data){const ev={id:++EVN,ts:new Date(),kind,data:data||{},stage:STAGE_OF[kind]||null};S.events.unshift(ev);if(S.events.length>120)S.events.pop();bubbleFor(ev);Chat.fromEvent(ev);refresh('events');return ev}
+function emit(kind,data){const ev={id:++EVN,ts:new Date(),kind,data:data||{},stage:STAGE_OF[kind]||null};S.events.unshift(ev);if(S.events.length>120)S.events.pop();bubbleFor(ev);if(typeof Snd!=='undefined')Snd.event(kind);Chat.fromEvent(ev);refresh('events');return ev}
 function bubbleFor(ev){if(!Scene.host||!ev.stage||Scene.hidden)return;Scene.bubble(ev)}
 
 /* ---------- simulation (canonical progress: 0..8, station k sits at k) ---------- */
@@ -97,7 +97,7 @@ function failItem(){const it=SIM.items.filter(i=>!i.dead&&i.c>.5&&i.mode!=='wait
 /* ---------- scene ---------- */
 const SceneSVG={host:null,svg:null,variant:null,path:null,len:{},charPos:{},ro:null,hidden:false,els:new Map(),
   pick(){return $('#frame').clientWidth>=880?'landscape':'portrait'},
-  mount(h){this.host=h;h.dataset.mode='svg';this.build();this.ro=('ResizeObserver' in window)?new ResizeObserver(()=>{if(this.pick()!==this.variant)this.build();this.layout()}):null;if(this.ro)this.ro.observe($('#frame'))},
+  mount(h){this.host=h;h.dataset.mode='svg';GATES.review.at=4-.34;GATES.publish.at=5-.34;this.build();this.ro=('ResizeObserver' in window)?new ResizeObserver(()=>{if(this.pick()!==this.variant)this.build();this.layout()}):null;if(this.ro)this.ro.observe($('#frame'))},
   unmount(){if(this.ro)this.ro.disconnect();this.host=null;this.svg=null;this.els.clear()},
   build(){this.variant=this.pick();const th=TCUR(),slot=$('.slot',this.host);slot.innerHTML=sceneSVG(th,this.variant,{uid:'m'});this.svg=slot.firstChild;
     this.host.style.setProperty('--scene-bg',th.p.sky1);this.path=$('#beltPath',this.svg);this.els.clear();
@@ -232,6 +232,7 @@ ${S.canUpload?'':`<p style="font-size:12px;color:var(--warn);margin-top:8px">${t
 P.activity=()=>`${head('activity')}<div class="card"><div class="chips" style="margin-bottom:10px">${['all','stage','gate','publish','error'].map((f,i)=>`<span class="chip ${i===0?'acc':''}">${t('flt.'+f)}</span>`).join('')}</div><div id="actList">${S.events.map(evRow).join('')||empty('act.empty')}</div></div>`;
 
 const tabs=['appearance','policy','plugins','health','updates','workspace'];
+P.ads=()=>ADS.page();
 P.settings=()=>{let b='';
   if(S.tab==='appearance')b=`<div class="stack"><div class="card"><h4>${t('set.scenario')} <small>${t('set.scenario.p')}</small></h4><div class="themes">${THEME_ORDER.map(id=>{const th=TH[id];return `<button class="tcard" data-act="theme" data-id="${id}" aria-pressed="${S.theme===id}"><span class="mini">${id==='br'&&heroImg()?`<img src="${heroImg()}" alt="">`:sceneSVG(th,'landscape',{mini:true,uid:'g'+id})}</span><b>${th.name[LG()]} <span class="chip ${th.status==='mvp'?'good':''}">${t(th.status==='mvp'?'theme.mvp':'theme.concept')}</span></b><small>${th.tag[LG()]}</small></button>`}).join('')}</div>
 <p style="margin-top:12px;font-size:12.5px;color:var(--muted)">${t('theme.ip')}</p></div>
@@ -252,7 +253,7 @@ P.settings=()=>{let b='';
 /* ---------- shell, routing, refresh ---------- */
 function rail(){return PAGES.map(k=>`<button class="nav" title="${t('nav.'+k)}" aria-label="${t('nav.'+k)}" data-go="${k}" aria-current="${S.page===k?'page':'false'}">${ico(k==='inbox'?'inbox':k)}<span>${t('nav.'+k)}</span>${k==='inbox'&&needCount()?`<span class="badge">${needCount()}</span>`:''}</button>`).join('')}
 function tabbar(){return TABS_MOBILE.map(k=>{const cur=k==='more'?(!TABS_MOBILE.includes(S.page)&&S.page!=='login'):S.page===k;return `<button class="tab" data-go="${k}" aria-current="${cur?'page':'false'}">${ico(k==='inbox'?'inbox':k)}<span>${t('nav.'+k)}</span>${k==='inbox'&&needCount()?`<span class="dot">${needCount()}</span>`:''}</button>`}).join('')}
-function sheet(){return `<div class="sheet" data-act="closesheet"><div class="sheet-in">${['brand','ideas','studio','activity','settings'].map(k=>`<button data-go="${k}" aria-current="${S.page===k?'page':'false'}">${ico(k)}${t('nav.'+k)}</button>`).join('')}</div></div>`}
+function sheet(){return `<div class="sheet" data-act="closesheet"><div class="sheet-in">${['brand','ideas','studio','activity','ads','settings'].map(k=>`<button data-go="${k}" aria-current="${S.page===k?'page':'false'}">${ico(k)}${t('nav.'+k)}</button>`).join('')}</div></div>`}
 function applyTheme(){const th=TCUR(),a=$('#app');a.dir=S.rtl?'rtl':'ltr';$('#frame').dataset.device=S.device;$('#frame').dataset.full=S.full?'1':'0';document.documentElement.lang=S.lang;a.classList.toggle('reduce',S.reduce)}
 function renderShell(){const logged=S.page!=='login';$('#app').dataset.rail=S.rail?'min':'full';
   $('#rail').innerHTML=logged?`<div class="railhead"><div class="logo">${LOGO}<span>Simplicio</span></div><button class="railtoggle" data-act="rail" aria-expanded="${!S.rail}" aria-label="${t(S.rail?'rail.expand':'rail.collapse')}" title="${t(S.rail?'rail.expand':'rail.collapse')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button></div>${rail()}<div class="spacer"></div><div class="foot"><div><b>Acme Coffee</b> · ${TCUR().name[LG()]}</div><div class="mono">v0.4.0 MVP</div></div>`:'';
@@ -309,8 +310,14 @@ document.addEventListener('click',e=>{
   else if(act==='clean'){S.clean=true;renderPage()}
   else if(act==='slot'){toast(t('toast.slot'))}
   else if(act==='export'){toast(t('toast.export'))}
+  else if(/^ad(buy|set|cancel|card)$/.test(act))ADS.act(act,a);
+  else if(act==='snd'){Snd.toggle();Twin.update(true)}
   else Twin.act(act,a);
 });
+document.addEventListener('change',e=>{const a=e.target.closest&&e.target.closest('[data-act=adsel]');if(a)ADS.act('adsel',a)});
+document.addEventListener('input',e=>{const a=e.target.closest&&e.target.closest('[data-act=adin]');if(a){ADS.st()[a.dataset.k]=a.value}});
+{const un=()=>{Snd.unlock();if(Snd.ctx&&Snd.ctx.state==='running'){document.removeEventListener('pointerdown',un);document.removeEventListener('keydown',un)}};Snd.load();document.addEventListener('pointerdown',un);document.addEventListener('keydown',un)}
+setInterval(()=>{if(S.page==='ads')ADS.live()},4000);
 document.addEventListener('submit',e=>{if(e.target.id==='chatForm'){e.preventDefault();const i=document.getElementById('chatIn');Chat.send(i.value);i.value=''}});
 document.addEventListener('change',e=>{const el=e.target;
   if(el.id==='ul'){S.lang=el.value;applyTheme();renderPage();$('#langSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.l===S.lang))}

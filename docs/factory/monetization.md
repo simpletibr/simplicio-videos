@@ -2,6 +2,8 @@
 
 Owner decision (2026-10-06): the product is **free to use and not open source**. Revenue comes from **selling placements to advertisers on the site**. This file records what that implies. Items marked *to confirm* are open.
 
+> **Update 2026-10-07.** The owner asked for ad spaces inside the factory scenery that anyone can rent for a few hours, for the world, a country or a region, priced by supply and demand like an ad auction. The guardrails below stand; the "flat fee" in guardrail 3 is replaced by hourly supply-and-demand prices for those spaces. Spec: [ads.md](ads.md). Clickable prototype: the Ads page and the spaces in the scene ([prototype](prototype/README.md)). The MVP still ships no ad code.
+
 ## What was decided
 
 - Free to use. No billing and no paywalled features in the product.

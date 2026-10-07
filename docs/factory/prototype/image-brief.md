@@ -1,6 +1,6 @@
 # Image brief: richer art for the Brazil theme (GPT Image 2 through Real Oficial)
 
-**Status (2026-10-07): generated.** All 16 images were made with `gpt-image-2` through Real Oficial (connector with `media:write`), at **0 credits**: they fell inside the plan's 50 included images per month (about 34 left, resets 2026-11-02). The prototype uses them (`src/art/pack.py` packs them). The prompts below are the ones used, except that the poster prompts were shortened to one scene each and the hero prompts name the soft 3D clay look. Raw files stay local (`src/art/raw/`, git-ignored); the committed result is the small WebP set in `src/art/webp/` and `src/proto.art.data.js`.
+**Status (2026-10-07): generated.** All 16 images below and the seven scenery paintings at the end were made with `gpt-image-2` through Real Oficial (connector with `media:write`), at **0 credits**: they fell inside the plan's 50 included images per month (about 34 left, resets 2026-11-02). The prototype uses them (`src/art/pack.py` packs them). The prompts below are the ones used, except that the poster prompts were shortened to one scene each and the hero prompts name the soft 3D clay look. Raw files stay local (`src/art/raw/`, git-ignored); the committed result is the small WebP set in `src/art/webp/` and `src/proto.art.data.js`.
 
 ## What the catalog says (read on 2026-10-07; prices change, always quote first)
 
@@ -53,3 +53,21 @@ The pipeline was tested with stand-in images made from the prototype's own drawi
 - Record on every asset: tool (GPT Image 2 via Real Oficial), date, prompt and the provider's terms for commercial use and ownership. **Read Real Oficial's terms before anything generated here ships in the product**; until then the images are `art_origin: ai-generated` and the theme is `experimental`.
 - Characters stay original. No look-alikes of any franchise, no real people, no brand logos.
 - Nothing generated is committed without the owner reviewing it.
+
+## Scenery per house (2026-10-07, generated)
+
+One 16:9 painting behind each house, so every house you reach is a different, surprising world: beautiful, strange, exaggerated, simple, natural, with water in most of them. Made with `gpt-image-2` at 0 credits, `enhance_prompt: false`, one image per prompt. Raw files `scene-<stage>.png` (1088×608) stay local; the packed WebP (1024×572) is committed. The lower third of each painting is deliberately open (flat ground) because the house and the belt stand there; the prototype draws the painting as a flat back layer behind the 3D scene, melts its own terrain into the painting and hides the seam with a hedge of clay props.
+
+Shared style: *wide storybook diorama panorama, soft 3D clay toy look, rounded shapes, rich saturated color, gentle depth haze; original design, no text, no letters, no logos, no people, not based on any franchise; keep the lower third calm and open because a small building will stand in front.*
+
+| File | Mood | Prompt (after the shared style) |
+|---|---|---|
+| `scene-brand` | calm, colorful | A calm valley of painter's colors: a turquoise waterfall pours into a clear pond where rainbow paint swirls drift on the water, giant paintbrush-shaped trees with bristle-tuft leaves, rolling hills shaped like color palettes, tiny paper lanterns hung in the branches, soft morning light |
+| `scene-ideas` | dreamy, weird | Surreal floating islands at pink and amber twilight: trees whose fruit are softly glowing lightbulbs, small waterfalls spilling off the island edges into a sea of clouds, tiny lantern-fish drifting through the air, giant lamp-shaped flowers and mushroom lanterns |
+| `scene-make` | busy, warm | A whimsical industrial valley at warm dawn: a giant wooden waterwheel turned by a river, copper tanks and pastel pipes shaped like flutes puffing rainbow steam, a long arched conveyor bridge, a waterfall feeding the wheel, exaggerated scale, tidy |
+| `scene-review` | still, precise | A misty canyon with a perfectly still mirror lake: a huge red-and-white striped arch gateway reflected in the water, a tall striped lighthouse on a rock, stepping stones crossing the lake, reeds and floating lanterns, symmetrical, a touch surreal |
+| `scene-publish` | festive, big sky | A festive seaside harbor at golden hour: dozens of colorful hot-air balloons and paper-plane kites rising over a sparkling sea, small sailboats with bright pennants, a candy-striped lighthouse, bunting across the bay |
+| `scene-metrics` | awe, night | A starry mountain-top plateau at night: a mirror lake reflecting the milky way, a giant telescope-shaped rock, glowing jellyfish-like constellations drifting in the sky, fireflies over the water, snow-capped peaks |
+| `scene-report` | cozy, simple | A cozy autumn meadow in golden light: a winding river feeding a quiet pond with ducks, a small waterfall, an old windmill, haystacks, one enormous ancient tree hung with glowing lanterns, flocks of geese |
+
+Wiring: `src/art/pack.py` reads `scene-<stage>` and writes `ART.scenes`; `SceneThree` (`proto.three.js`) draws them in a back layer and `proto.scenery.js` builds the props, water, particles and tappable things around each house. Only the Brazil theme has them. The same terms apply as for the other generated art: read Real Oficial's terms on commercial use before any of it ships in the product.

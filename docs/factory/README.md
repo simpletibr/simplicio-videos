@@ -2,7 +2,7 @@
 
 Status: **specification**. Nothing here is implemented yet; each issue in [parallel-work.md](parallel-work.md) implements one part against these contracts. If code and spec disagree, fix the spec in the same PR.
 
-Reading order: [roadmap.md](roadmap.md) (what ships when) → [monetization.md](monetization.md) (free, proprietary, sponsored) → [design-review.md](design-review.md) (why) → this file → [plugins.md](plugins.md) → [contracts.md](contracts.md) → [themes.md](themes.md) → [integrations.md](integrations.md) → [risks-and-policies.md](risks-and-policies.md) → [parallel-work.md](parallel-work.md) → your issue.
+Reading order: [roadmap.md](roadmap.md) (what ships when) → [monetization.md](monetization.md) (free, proprietary, sponsored) → [ads.md](ads.md) (rentable ad spaces, dynamic prices) → [design-review.md](design-review.md) (why) → this file → [plugins.md](plugins.md) → [contracts.md](contracts.md) → [themes.md](themes.md) → [integrations.md](integrations.md) → [risks-and-policies.md](risks-and-policies.md) → [parallel-work.md](parallel-work.md) → your issue.
 
 ## What we are building
 

@@ -13,7 +13,8 @@ Object.assign(ICON,{
   eye:'<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>',
   bolt:'<path d="M13 2.5L5 13.5h6.2L10.5 21.5 19 10.5h-6.2z"/>',
   up:'<path d="M6 15l6-6 6 6"/>',down:'<path d="M6 9l6 6 6-6"/>',
-  pin:'<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/>'});
+  pin:'<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',chevl:'<path d="M15 5l-7 7 7 7"/>',chevr:'<path d="M9 5l7 7-7 7"/>',home:'<path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/>'});
 
 const PAGE_OF={brand:'brand',ideas:'ideas',make:'studio',review:'review',publish:'publish',metrics:'activity',report:'activity'};
 const ICON_OF=k=>k==='make'?'studio':k;
@@ -31,7 +32,7 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
   sel(){if(S.sel)return S.sel;const it=this.tracked();return it?STAGES[Math.max(0,curStation(it)-1)]:'review'},
   step(it,k){if(!it)return 'todo';if(it.c>=8)return 'done';const cs=curStation(it);return k<cs?'done':k>cs?'todo':(it.mode==='wait'?'wait':'cur')},
   compact(){return !this.root||this.root.dataset.layout==='compact'},
-  panelOpen(){if(this.compact())return S.stab==='bots'||S.stab==='details';return S.panel===undefined?true:S.panel},
+  panelOpen(){if(S.world)return false;if(this.compact())return S.stab==='bots'||S.stab==='details';return S.panel===undefined?true:S.panel},
   stabsHTML(){const u=BOT_ROLES.reduce((a,r)=>a+(Chat.unread[r]||0),0),need=S.queue.length+S.pubq.length+S.fails.length,b=(v,l,n)=>`<button role="tab" data-act="stab" data-v="${v}" aria-selected="${S.stab===v}">${l}${n?`<i class="ud">${n}</i>`:''}</button>`;return b('follow',t('sh.follow'),0)+b('queue',t('sh.queue'),need)+b('bots',t('pn.tab.chat'),u)+b('details',t('pn.tab.details'),0)},
   setSnap(v){S.snap=v;if(this.root)this.root.dataset.snap=v;if(this.els.sheet)this.els.sheet.dataset.snap=v;this.safeKey='';this.measure()},
   kpis(){const need=needCount();return [
@@ -59,8 +60,8 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
 
   /* ---------- markup ---------- */
   html(){const lay=this.layoutFor();
-    return `<div class="scene-col"><div class="twin" id="twin" data-layout="${lay}" data-tod="${S.tod}" data-hud="${Q.get('hud')==='0'?0:1}"><div class="twstage"><div class="scene-wrap" id="sceneWrap"><div class="slot"></div>
-      <div class="hud"><div class="hud-tl" id="twTL"><div class="ctl" id="twCtl"></div><div class="kpis" id="twKpis"></div><div class="hint only3d">${t('hint.3d')}</div></div><div class="pins" id="twPins"></div></div></div>
+    return `<div class="scene-col"><div class="twin" id="twin" data-view="${S.world?'world':'house'}" data-layout="${lay}" data-tod="${S.tod}" data-hud="${Q.get('hud')==='0'?0:1}"><div class="twstage"><div class="scene-wrap" id="sceneWrap"><div class="slot"></div>
+      <div class="hud"><div class="hud-tl" id="twTL"><div class="ctl" id="twCtl"></div><div class="kpis" id="twKpis"></div><div class="hint only3d" id="twHint">${t(S.world?'hint.world':'hint.3d')}</div></div><div class="pins" id="twPins"></div><div class="hnav" id="twNav"></div></div></div>
       <div class="dsheet" id="twSheet" data-snap="${S.snap}" data-stab="${S.stab}"><div class="grab" id="twGrab" role="button" tabindex="0" aria-label="${t('sh.grab')}"><i></i></div><nav class="stabs" id="twStabs" role="tablist"></nav><section class="stepper hud-card" id="twStepper"></section><aside class="panel hud-card" id="twPanel"></aside><section class="qtable hud-card" id="twTable"></section></div></div>
       <div class="dock" id="dock" hidden></div></div></div>
       <div class="legend-row">${[['idea','state.idea'],['rendered','state.rendered'],['in_review','state.in_review'],['approved','state.approved'],['published','state.published']].map(([k,l])=>`<span><i style="background:${STATECOL[k]}"></i>${t(l)}</span>`).join('')}<span><i style="background:#7a1f1f"></i>${t('state.failed')}</span></div>`},
@@ -69,7 +70,12 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     return `<span class="glass live"><i class="led ${led}"></i><span>${t('loop.'+S.loop)}</span><em class="mono" id="twClock">${mmss(SIM.time)}</em></span>
     <button class="glass ib" data-act="pause" aria-label="${run?t('loop.pause'):t('loop.resume')}">${ico(run?'pause':'play','width="14" height="14"')}<span>${run?t('loop.pause'):t('loop.resume')}</span></button>
     <button class="glass ib" data-act="stop" aria-label="${t('loop.stop')}">${ico('stop','width="13" height="13"')}<span>${t('loop.stop')}</span></button>
-    <span class="tools" role="toolbar"><button class="tbtn only3d wide" data-act="zoomin" aria-label="${t('tool.zin')}" title="${t('tool.zin')}">${ico('plus')}</button><button class="tbtn only3d wide" data-act="zoomout" aria-label="${t('tool.zout')}" title="${t('tool.zout')}">${ico('minus')}</button><button class="tbtn only3d wide" data-act="rotl" aria-label="${t('tool.rotl')}" title="${t('tool.rotl')}">${ico('rotl')}</button><button class="tbtn only3d wide" data-act="rotr" aria-label="${t('tool.rotr')}" title="${t('tool.rotr')}">${ico('rotr')}</button><button class="tbtn only3d wide" data-act="tiltup" aria-label="${t('tool.tiltup')}" title="${t('tool.tiltup')}">${ico('up')}</button><button class="tbtn only3d wide" data-act="tiltdown" aria-label="${t('tool.tiltdown')}" title="${t('tool.tiltdown')}">${ico('down')}</button><button class="tbtn only3d" data-act="resetview" aria-label="${t('tool.reset')}" title="${t('tool.reset')}">${ico('target')}</button><button class="tbtn only3d" data-act="tod" aria-label="${night?t('tool.day'):t('tool.night')}" title="${night?t('tool.day'):t('tool.night')}">${ico(night?'sun':'moon')}</button><button class="tbtn only3d" data-act="wx" aria-label="${t('tool.wx')}: ${t('wx.'+(S.wx||'clear'))}" title="${t('tool.wx')}: ${t('wx.'+(S.wx||'clear'))}">${ico('cloud')}</button><button class="tbtn" data-act="chat" aria-pressed="${open&&S.ptab==='chat'}" aria-label="${t('tool.chat')}" title="${t('tool.chat')}">${ico('chat')}</button><button class="tbtn" data-act="panel" aria-pressed="${open}" aria-label="${t('tool.panel')}" title="${t('tool.panel')}">${ico('panel')}</button></span>`},
+    <button class="glass ib keep only3d" data-act="world" aria-pressed="${!!S.world}" aria-label="${S.world?t('tool.house'):t('tool.world')}">${ico(S.world?'home':'globe','width="14" height="14"')}<span>${S.world?t('tool.house'):t('tool.world')}</span></button>
+    <span class="tools" role="toolbar"><button class="tbtn only3d wide" data-act="zoomin" aria-label="${t('tool.zin')}" title="${t('tool.zin')}">${ico('plus')}</button><button class="tbtn only3d wide" data-act="zoomout" aria-label="${t('tool.zout')}" title="${t('tool.zout')}">${ico('minus')}</button><button class="tbtn only3d wide wonly" data-act="rotl" aria-label="${t('tool.rotl')}" title="${t('tool.rotl')}">${ico('rotl')}</button><button class="tbtn only3d wide wonly" data-act="rotr" aria-label="${t('tool.rotr')}" title="${t('tool.rotr')}">${ico('rotr')}</button><button class="tbtn only3d wide wonly" data-act="tiltup" aria-label="${t('tool.tiltup')}" title="${t('tool.tiltup')}">${ico('up')}</button><button class="tbtn only3d wide wonly" data-act="tiltdown" aria-label="${t('tool.tiltdown')}" title="${t('tool.tiltdown')}">${ico('down')}</button><button class="tbtn only3d" data-act="resetview" aria-label="${t('tool.reset')}" title="${t('tool.reset')}">${ico('target')}</button><button class="tbtn only3d" data-act="tod" aria-label="${night?t('tool.day'):t('tool.night')}" title="${night?t('tool.day'):t('tool.night')}">${ico(night?'sun':'moon')}</button><button class="tbtn only3d" data-act="wx" aria-label="${t('tool.wx')}: ${t('wx.'+(S.wx||'clear'))}" title="${t('tool.wx')}: ${t('wx.'+(S.wx||'clear'))}">${ico('cloud')}</button><button class="tbtn" data-act="snd" aria-pressed="${Snd.on}" aria-label="${Snd.on?t('tool.sndoff'):t('tool.sndon')}" title="${Snd.on?t('tool.sndoff'):t('tool.sndon')}">${ico(Snd.on?'vol':'mute')}</button><button class="tbtn honly" data-act="chat" aria-pressed="${open&&S.ptab==='chat'}" aria-label="${t('tool.chat')}" title="${t('tool.chat')}">${ico('chat')}</button><button class="tbtn honly" data-act="panel" aria-pressed="${open}" aria-label="${t('tool.panel')}" title="${t('tool.panel')}">${ico('panel')}</button></span>`},
+  navHTML(){const k=this.sel(),i=STAGES.indexOf(k),pinned=!!S.sel;
+    if(S.world)return `<div class="wcap hud-card">${ico('globe','width="16" height="16"')}<span>${t('world.note')}</span><button class="btn sm primary" data-act="world">${ico('home','width="14" height="14"')}${t('tool.house')}</button></div>`;
+    return `<button class="hnb prev" data-act="prevhouse" aria-label="${t('nav.prev')}" title="${t('nav.prev')}">${ico('chevl')}</button><button class="hnb next" data-act="nexthouse" aria-label="${t('nav.next')}" title="${t('nav.next')}">${ico('chevr')}</button>
+      <div class="hcap hud-card" style="--sc:${SC[k]}"><span class="hn">${i+1}/${STAGES.length}</span><div class="hx"><b>${t('station.'+k)}</b><small>${t('bld.'+BLD_OF[k])}</small></div>${pinned?`<button class="tbtn sm" data-act="pfollow" aria-label="${t('pn.follow')}" title="${t('pn.follow')}">${ico('eye')}</button>`:`<em>${t('pn.following')}</em>`}</div>`},
   kpisHTML(){return `<div class="strip hud-card">${this.kpis().map(k=>`<div class="st ${k.warn?'warn':''}" title="${esc(k.s)}"><b>${k.v}</b><small>${k.l}</small></div>`).join('')}</div>`},
   stepperHTML(){const it=this.tracked(),cs=it?curStation(it):0,k0=STAGES[Math.max(0,cs-1)],cap=it?`${t('station.'+k0)} · ${it.mode==='wait'?t('st.wait'):it.c>=8?t('pn.s.ok'):t('st.work')}`:t('st.idle');
     const steps=STAGES.map((k,i)=>{const s=this.step(it,i+1),tm=it&&it.times&&it.times[i+1],sub=s==='done'?(tm?fmtT(tm):'✓'):s==='wait'?t('st.waitshort'):s==='cur'?t('st.workshort'):'—';
@@ -95,7 +101,7 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
 
   /* ---------- lifecycle ---------- */
   mount(){this.root=$('#twin');if(!this.root)return;const $$$=id=>document.getElementById(id);
-    this.els={tl:$$$('twTL'),ctl:$$$('twCtl'),kpis:$$$('twKpis'),panel:$$$('twPanel'),pins:$$$('twPins'),stepper:$$$('twStepper'),table:$$$('twTable'),sheet:$$$('twSheet'),stabs:$$$('twStabs'),grab:$$$('twGrab')};
+    this.els={tl:$$$('twTL'),ctl:$$$('twCtl'),kpis:$$$('twKpis'),panel:$$$('twPanel'),pins:$$$('twPins'),stepper:$$$('twStepper'),table:$$$('twTable'),sheet:$$$('twSheet'),stabs:$$$('twStabs'),grab:$$$('twGrab'),nav:$$$('twNav')};
     this.sig='';this.stepKey='';this.sec=-1;this.safeKey='';this.relayout();this.update(true);this.bindSheet();
     if('ResizeObserver' in window){this.ro=new ResizeObserver(()=>{if(this.raf)return;this.raf=requestAnimationFrame(()=>{this.raf=0;this.relayout();this.measure()})});[document.getElementById('frame'),this.els.tl,this.els.stepper,this.els.table,this.els.panel].forEach(n=>n&&this.ro.observe(n))}},
   bindSheet(){const E=this.els,g=E.grab,sh=E.sheet,order=['peek','half','full'];if(!g)return;let y0=null,moved=0;
@@ -109,11 +115,11 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
   relayout(){if(!this.root)return;const lay=this.layoutFor();if(this.root.dataset.layout!==lay){this.root.dataset.layout=lay;this.sig='';this.update(true)}},
   update(force){if(!this.root)return;const it=this.tracked(),k=this.sel(),
       mk=k==='make'&&it&&it.mode==='dwell'&&curStation(it)===3?Math.floor(SIM.time*4):0,
-      sig=JSON.stringify([this.live().map(i=>[i.id,curStation(i),i.state,i.mode]),S.queue.map(q=>q.id),S.pubq.map(p=>p.id),S.fails.length,S.done,S.posted.length,S.track,S.sel,this.panelOpen(),S.tab3,S.tod,S.wx,S.ptab,S.bot,S.stab,S.snap,S.loop,S.lang,S.canUpload,this.compact(),SIM.cycle]);
+      sig=JSON.stringify([this.live().map(i=>[i.id,curStation(i),i.state,i.mode]),S.queue.map(q=>q.id),S.pubq.map(p=>p.id),S.fails.length,S.done,S.posted.length,S.track,S.sel,this.panelOpen(),S.tab3,S.tod,S.wx,S.ptab,S.bot,S.stab,S.snap,S.loop,S.lang,S.canUpload,this.compact(),SIM.cycle,S.world,k]);
     const E=this.els;
     if(!force&&sig===this.sig){if(mk!==this.mk&&S.ptab!=='chat'){this.mk=mk;E.panel.innerHTML=this.panelHTML()}return}
     this.sig=sig;this.mk=mk;
-    E.stabs.innerHTML=this.stabsHTML();E.sheet.dataset.stab=S.stab;E.sheet.dataset.snap=S.snap;this.root.dataset.snap=S.snap;E.ctl.innerHTML=this.ctlHTML();E.kpis.innerHTML=this.kpisHTML();E.stepper.innerHTML=this.stepperHTML();E.table.innerHTML=this.tableHTML();
+    E.stabs.innerHTML=this.stabsHTML();E.sheet.dataset.stab=S.stab;E.sheet.dataset.snap=S.snap;this.root.dataset.snap=S.snap;E.ctl.innerHTML=this.ctlHTML();this.root.dataset.view=S.world?'world':'house';const hn=document.getElementById('twHint');if(hn)hn.textContent=t(S.world?'hint.world':'hint.3d');if(E.nav)E.nav.innerHTML=this.navHTML();E.kpis.innerHTML=this.kpisHTML();E.stepper.innerHTML=this.stepperHTML();E.table.innerHTML=this.tableHTML();
     const ps=S.ptab==='chat'?JSON.stringify(['c',S.bot,S.lang,this.panelOpen()]):null;if(S.ptab!=='chat'||ps!==this.ps||!document.getElementById('chat')){E.panel.innerHTML=this.panelHTML();if(S.ptab==='chat')Chat.mount()}this.ps=ps;E.panel.classList.toggle('open',this.panelOpen());this.renderPins();this.root.dataset.tod=S.tod;this.tick(0);this.measure()},
   renderPins(){const E=this.els;if(!E.pins)return;const list=[];
     if(S.queue.length)list.push(['review',S.queue[0],t('pin.review',{n:S.queue.length}),'amber']);
@@ -129,21 +135,31 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     this.placePins();
     if(Scene.setFx)Scene.setFx({track:it?it.id:null,sel:this.sel(),pin:S.sel,need:{review:S.queue.length>0,publish:S.pubq.length>0}})},
   placePins(){const E=this.els;if(!E.pins||!Scene.anchor||!Scene.project)return;const s=Scene.safe||{l:0,t:0,r:0,b:0},W=Scene.host?Scene.host.clientWidth:0;
-    for(const el of E.pins.children){const a=Scene.anchor(el.dataset.pin);if(!a)continue;const p=Scene.project(a);el.hidden=!p.vis;if(!p.vis)continue;const hw=(el.offsetWidth||150)/2+4;
+    const focus=this.sel();let n=0;
+    for(const el of E.pins.children){const pk=el.dataset.pin,edge=!S.world&&pk!==focus&&Scene.variant==='3d';el.classList.toggle('edge',edge);
+      if(edge&&this.compact()){el.hidden=true;continue}
+      if(edge){const hw=(el.offsetWidth||150)/2+4,hh=el.offsetHeight||44;el.hidden=false;el.style.left=Math.max(s.l+hw,W-s.r-hw)+'px';el.style.top=(s.t+hh+14+n*(hh+14))+'px';n++;continue}
+      const a=Scene.anchor(pk);if(!a)continue;const p=Scene.project(a);el.hidden=!p.vis;if(!p.vis)continue;const hw=(el.offsetWidth||150)/2+4;
       el.style.left=Math.max(s.l+hw,Math.min(W-s.r-hw,p.x))+'px';el.style.top=Math.max(s.t+(el.offsetHeight||44)+16,p.y)+'px'}},
   measure(){const w=document.getElementById('sceneWrap'),E=this.els;if(!w||!Scene.setSafe||!E.tl)return;const wr=w.getBoundingClientRect();if(!wr.width)return;
     const rel=el=>{const r=el.getBoundingClientRect();return{l:r.left-wr.left,t:r.top-wr.top,r:r.right-wr.left,b:r.bottom-wr.top}},over=this.root.dataset.layout==='overlay',open=this.panelOpen();
     if(this.root.dataset.hud==='0'){const k0='0';if(this.safeKey!==k0){this.safeKey=k0;Scene.setSafe({l:0,t:0,r:0,b:0})}return}
-    let T=rel(E.tl).b+8,B=10,L=10,R=10;
+    let T=(over?rel(E.ctl).b:rel(E.tl).b)+8,B=10,L=10,R=10;
     const side=r=>(r.l+r.r)/2<wr.width/2?'l':'r',inset=r=>side(r)==='l'?{L:r.r+8}:{R:wr.width-r.l+8};
     if(over){const tb=rel(E.table),st=rel(E.stepper);w.style.setProperty('--tbl-h',Math.round(tb.b-tb.t)+'px');B=wr.height-st.t+8;
       if(open){const i=inset(tb);if(i.L)L=i.L;if(i.R)R=i.R}else B=wr.height-Math.min(st.t,tb.t)+8}
     else{const sh=rel(E.sheet);B=wr.height-sh.t+8;R=64;this.root.style.setProperty('--sheet-h',Math.round(sh.b-sh.t)+'px');const dk=document.getElementById('dock');if(dk&&!dk.hidden&&S.snap==='peek'){const d=rel(dk);if(d.b>0)B=Math.max(B,wr.height-d.t+8)}}
-    const k=[T,B,L,R].map(Math.round).join(',');if(k===this.safeKey)return;this.safeKey=k;Scene.setSafe({l:L,t:T,r:R,b:B})},
+    const k=[T,B,L,R].map(Math.round).join(',');if(k===this.safeKey)return;this.safeKey=k;w.style.setProperty('--sl',Math.round(L)+'px');w.style.setProperty('--st',Math.round(T)+'px');w.style.setProperty('--sr',Math.round(R)+'px');w.style.setProperty('--sb',Math.round(B)+'px');Scene.setSafe({l:L,t:T,r:R,b:B})},
 
   /* ---------- actions ---------- */
-  select(k){S.sel=k;S.panel=true;if(this.compact()){S.stab='details';S.ptab='details';if(S.snap==='peek')S.snap='half'}this.update(true)},
+  go(k){S.sel=k;S.world=false;this.update(true)},
+  hstep(d){const i=STAGES.indexOf(this.sel());this.go(STAGES[(i+d+STAGES.length)%STAGES.length])},
+  world(on){S.world=on===undefined?!S.world:!!on;if(S.world&&this.compact()){S.snap='peek';S.stab='follow'}this.update(true)},
+  select(k){S.sel=k;S.world=false;S.panel=true;if(this.compact()){S.stab='details';S.ptab='details';if(S.snap==='peek')S.snap='half'}this.update(true)},
   act(a,el){
+    if(a==='world'){this.world();return true}
+    if(a==='prevhouse'){this.hstep(-1);return true}
+    if(a==='nexthouse'){this.hstep(1);return true}
     if(a==='zoomin'){Scene.zoomBy&&Scene.zoomBy(1/1.18);return true}
     if(a==='zoomout'){Scene.zoomBy&&Scene.zoomBy(1.18);return true}
     if(a==='rotl'){Scene.rotateBy&&Scene.rotateBy(-.3);return true}

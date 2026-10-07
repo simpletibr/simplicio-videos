@@ -4,7 +4,7 @@
 
 > **Status.** Available today: the deterministic video engine and its CLI (`simplicio-video`). In progress: the conveyor, plugin system, panel and themes, shipping as the **MVP v0.4.0** (one theme, videos working, posting through Real Oficial). Anything below marked *MVP* or *later* is a plan, tracked in [epic #14](https://github.com/simpletibr/simplicio-videos/issues/14) and specified in [`docs/factory/`](docs/factory/README.md).
 
-**Free to use, not open source.** The product is free under a proprietary license and is funded by sponsor placements on the website; the MVP contains no ads and the panel will never run third-party ad scripts ([business model](docs/factory/monetization.md)). It is built on open-source tools, each used under its own license ([matrix](docs/factory/monetization.md#tool-license-matrix-checked-2026-10-06-against-each-repository)).
+**Free to use, not open source.** The product is free under a proprietary license and is funded by sponsor placements on the website; the MVP contains no ads and the panel will never run third-party ad scripts ([business model](docs/factory/monetization.md)). The plan for the sponsor placements is a set of rentable spaces inside the factory scenery, priced by the hour per world, country or region from supply and demand ([ad spaces](docs/factory/ads.md)). It is built on open-source tools, each used under its own license ([matrix](docs/factory/monetization.md#tool-license-matrix-checked-2026-10-06-against-each-repository)).
 
 ## The conveyor
 
@@ -128,13 +128,17 @@ simplicio-video theme new <id> | validate <dir> | install <path|url> | use <id>
 
 ## What the panel looks like
 
-The factory is a small 3D town (a house, a shop, a factory, a garage, a market, an observatory and a barn, one per stage, with the belt running through it) that you can walk around, with weather, birds, boats and a chat with each robot. The numbers float over it: KPI cards, the station you picked, a stepper that follows one video, the queue, and callouts on the buildings that need you. These are shots of a **clickable prototype with sample data** (the product is not built yet). [Open it and read how](docs/factory/prototype/README.md).
+The factory is a ring of seven houses (a workshop, an idea shop, a factory, a garage, a market, an observatory and a barn, one per stage), far apart, each inside its own painted world, with a round belt in front. You see one house at a time, like a cutaway with no front wall, a robot walking from room to room; arrows or a swipe take you to the next house, and **See the world** lifts you over the whole ring, look-only. Scenery moves, makes sound and answers taps, and each house has rentable ad spaces. The numbers float over it: KPI cards, the station you picked, a stepper that follows one video, the queue, and callouts on the houses that need you. These are shots of a **clickable prototype with sample data** (the product is not built yet). [Open it and read how](docs/factory/prototype/README.md).
 
 ![The factory by day](docs/factory/prototype/screens/factory-day.jpg)
 
 | Night | Phone |
 |---|---|
 | ![The factory by night](docs/factory/prototype/screens/factory-night.jpg) | ![The factory on a phone](docs/factory/prototype/screens/factory-phone.jpg) |
+
+![Seven houses, seven worlds](docs/factory/prototype/screens/houses.jpg)
+
+![The world from above](docs/factory/prototype/screens/factory-world.jpg)
 
 ![Nine themes in 3D](docs/factory/prototype/screens/themes-3d.jpg)
 
