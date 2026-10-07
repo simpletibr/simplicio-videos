@@ -1,4 +1,4 @@
-"""Probe run by tests/test_scripts/test_socket_guard.py in a nested pytest (the name is not collected by default)."""
+"""Probe run by test_socket_guard.py in a nested pytest (the name is not collected by default)."""
 import socket
 
 import pytest

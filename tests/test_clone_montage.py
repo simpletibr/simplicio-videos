@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -148,7 +146,7 @@ def test_opencut_dispatch_and_missing(monkeypatch):
 # ------------------------------------------------------------------ default checkout dir ($SIMPLICIO_VIDEO_DATA/tools/openmontage)
 
 def _no_overrides(monkeypatch):
-    for var in ("OPENMONTAGE_DIR", "SIMPLICIO_OPENMONTAGE_DIR", "SIMPLICIO_TOOLS_DIR", "SIMPLICIO_VIDEO_DATA"):
+    for var in ("OPENMONTAGE_DIR", "SIMPLICIO_OPENMONTAGE_DIR", "SIMPLICIO_TOOLS_DIR", "SIMPLICIO_VIDEO_DATA", "SIMPLICIO_OFFLINE"):
         monkeypatch.delenv(var, raising=False)
 
 

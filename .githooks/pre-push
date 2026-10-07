@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# pre-push: roda o gate local antes de qualquer push (make hooks liga este diretório).
+# Para pular em emergência: git push --no-verify (o land.sh roda o gate de novo no pouso).
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+echo "pre-push: make check"
+exec make check

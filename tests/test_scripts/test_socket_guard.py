@@ -10,7 +10,7 @@ from gitfixture import ROOT
 
 import conftest
 
-PROBE = ROOT / "tests" / "fixtures" / "socket_guard" / "probe_socket.py"
+PROBE = ROOT / "tests" / "test_scripts" / "probe_socket.py"
 
 
 def nested(*args):
@@ -27,18 +27,18 @@ def test_a_unit_test_that_opens_a_socket_fails_under_the_guard():
 
 def test_render_tests_are_allowed_to_open_sockets():
     out = nested().stdout
-    assert "PASSED" in out and "PASSED tests/fixtures/socket_guard/probe_socket.py::test_render_may_open_a_socket" in out, out
+    assert "PASSED" in out and "PASSED tests/test_scripts/probe_socket.py::test_render_may_open_a_socket" in out, out
 
 
 def test_unix_socketpairs_stay_available_for_asyncio():
-    assert "PASSED tests/fixtures/socket_guard/probe_socket.py::test_unit_may_use_a_unix_socketpair" in nested().stdout
+    assert "PASSED tests/test_scripts/probe_socket.py::test_unit_may_use_a_unix_socketpair" in nested().stdout
 
 
 def test_unmarked_tests_count_as_unit_tests():
     r = nested("-m", "unit")
     assert "1 deselected" in r.stdout, r.stdout
     assert "test_unit_may_use_a_unix_socketpair" in r.stdout
-    assert "PASSED tests/fixtures/socket_guard/probe_socket.py::test_render_may_open_a_socket" not in r.stdout
+    assert "PASSED tests/test_scripts/probe_socket.py::test_render_may_open_a_socket" not in r.stdout
 
 
 # ------------------------------------------------------------------ subprocess tests are offline too
