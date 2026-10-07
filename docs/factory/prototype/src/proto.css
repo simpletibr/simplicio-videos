@@ -555,3 +555,67 @@ canvas.three:active{cursor:grabbing}
 .twin[data-layout="compact"] .strip .st:nth-child(4){display:none}
 .twin[data-layout="compact"] .kpis{width:100%}
 .twin[data-layout="compact"] .hud-tl{inset-inline-end:10px;max-width:none}
+
+/* ================= app mode: on a phone the factory is the screen, everything else is a bottom sheet ================= */
+.dsheet{display:contents}
+.dsheet .grab,.dsheet .stabs{display:none}
+.twin[data-layout="compact"]{display:block;position:relative;height:100%}
+.main[data-page="factory"]:has(.twin[data-layout="compact"]){padding:0;overflow:hidden}
+.main[data-page="factory"]:has(.twin[data-layout="compact"]) .under,.main[data-page="factory"]:has(.twin[data-layout="compact"]) .legend-row,.main[data-page="factory"]:has(.twin[data-layout="compact"]) .scene-col{margin:0}
+.main[data-page="factory"]:has(.twin[data-layout="compact"]) .under,.main[data-page="factory"]:has(.twin[data-layout="compact"]) .legend-row{display:none}
+.main[data-page="factory"] .scene-col:has(.twin[data-layout="compact"]){height:100%}
+.twin[data-layout="compact"] .twstage{display:block;height:100%}
+.twin[data-layout="compact"] .scene-wrap{height:100%;border-radius:0;border:0}
+.twin[data-layout="compact"] .scene-wrap .slot{height:100%;max-height:none;aspect-ratio:auto}
+.twin[data-layout="compact"] .scene-wrap[data-mode="svg"] .slot{display:grid;place-items:center}
+.twin[data-layout="compact"] .scene-wrap[data-mode="svg"] svg.scene{height:100%;width:100%}
+.twin[data-layout="compact"] .hud-tl{inset-inline:10px;top:8px}
+.twin[data-layout="compact"] .tools{position:fixed;position:absolute;inset-inline-end:10px;top:104px;flex-direction:column;gap:8px;margin:0;z-index:4}
+.twin[data-layout="compact"] .hud-tl{overflow:visible}
+.twin[data-layout="compact"] .ctl{flex-wrap:nowrap}
+.twin[data-layout="compact"] .ctl .tools{position:absolute}
+.twin[data-layout="compact"] .tbtn{width:42px;height:42px;border-radius:12px}
+.twin[data-layout="compact"] .tbtn[data-act="panel"]{display:none}
+.twin[data-layout="compact"] .dock{position:absolute;inset-inline:10px;bottom:calc(var(--sheet-h,110px) + 10px);margin:0;z-index:6}
+.twin[data-layout="compact"] .dsheet{display:flex;flex-direction:column;position:absolute;inset-inline:0;bottom:0;z-index:7;background:var(--hud-bg);color:var(--hud-ink);border-radius:18px 18px 0 0;border:1px solid var(--hud-line);border-bottom:0;box-shadow:0 -10px 30px rgba(8,22,44,.28);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);transition:height .25s ease,transform .2s ease;touch-action:none;overflow:hidden}
+.twin[data-layout="compact"] .dsheet[data-snap="peek"]{height:auto;max-height:46%}
+.twin[data-layout="compact"] .dsheet[data-snap="half"]{height:54%}
+.twin[data-layout="compact"] .dsheet[data-snap="full"]{height:90%}
+.twin[data-layout="compact"] .dsheet .grab{display:grid;place-items:center;height:22px;cursor:grab;flex:none}
+.twin[data-layout="compact"] .dsheet .grab i{width:38px;height:4px;border-radius:2px;background:rgba(15,34,51,.25)}
+.twin[data-layout="compact"] .dsheet .stabs{display:flex;gap:2px;padding:0 10px;flex:none;border-bottom:1px solid var(--hud-line)}
+.stabs [role=tab]{all:unset;cursor:pointer;flex:1;min-height:42px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:700 12.5px var(--font-body);color:var(--hud-muted);border-bottom:2px solid transparent}
+.stabs [role=tab][aria-selected="true"]{color:var(--hud-ink);border-bottom-color:var(--accent)}
+.twin[data-layout="compact"] .dsheet>.stepper,.twin[data-layout="compact"] .dsheet>.qtable,.twin[data-layout="compact"] .dsheet>.panel{display:none;position:static;width:auto;max-height:none;inset:auto;box-shadow:none;border:0;border-radius:0;background:none;overflow:auto;flex:1;min-height:0;touch-action:pan-y;margin:0;padding:10px 14px 14px}
+.twin[data-layout="compact"] .dsheet[data-stab="follow"]>.stepper,.twin[data-layout="compact"] .dsheet[data-stab="queue"]>.qtable,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel,.twin[data-layout="compact"] .dsheet[data-stab="details"]>.panel{display:block}
+.twin[data-layout="compact"] .dsheet[data-snap="peek"]>.qtable,.twin[data-layout="compact"] .dsheet[data-snap="peek"]>.panel{display:none}
+.twin[data-layout="compact"] .dsheet>.stepper{display:grid}
+.twin[data-layout="compact"] .dsheet:not([data-stab="follow"])>.stepper{display:none}
+.twin[data-layout="compact"] .panel .ptabs{display:none}
+.twin[data-layout="compact"] .msgs{height:auto;min-height:120px;max-height:36vh}
+.twin[data-layout="compact"] .dsheet[data-snap="full"] .msgs{max-height:48vh}
+.twin[data-layout="compact"] .qc{min-height:34px}
+.twin[data-layout="compact"] .composer input{height:42px}.twin[data-layout="compact"] .composer .send{width:42px;height:42px}
+.twin[data-layout="compact"] .qrow{padding:8px 6px}
+.twin[data-layout="compact"] .stepper .th+.ti small{display:inline}
+.twin[data-layout="compact"] .stepper,.twin[data-layout="compact"] .qtable{color:var(--hud-ink)}
+.twin[data-layout="compact"] .steps b,.twin[data-layout="compact"] .steps small{display:none}
+.twin[data-layout="compact"] .steps li.cur b,.twin[data-layout="compact"] .steps li.wait b{display:none}
+.frame{-webkit-tap-highlight-color:transparent}
+.tab,.tbtn,.glass,.qc,.stabs button,.nav{touch-action:manipulation;-webkit-user-select:none;user-select:none}
+/* a real phone: the app is the page, no device frame, no prototype bar */
+@media (max-width:520px){
+  body{overscroll-behavior:none}
+  .page{padding:0;max-width:none}
+  .proto,.notes{display:none}
+  .stage{display:block}
+  .frame,.frame[data-device="phone"]{width:100%;height:100dvh;min-height:0;border:0;border-radius:0;box-shadow:none}
+}
+
+.app{grid-template-rows:minmax(0,1fr)}#sheetHost{display:contents}
+
+.twin[data-layout="compact"][data-snap="half"] .dock,.twin[data-layout="compact"][data-snap="full"] .dock{display:none}
+.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel{display:flex;flex-direction:column;overflow:hidden}
+.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .chat{flex:1;min-height:0;display:flex;flex-direction:column}
+.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .msgs{flex:1;min-height:0;max-height:none;height:auto}
+.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .bots,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .bhead,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .qchips,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .composer{flex:none}

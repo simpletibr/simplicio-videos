@@ -20,7 +20,7 @@ const Chat={log:{},unread:{},typing:false,
   push(r,who,text,chips){const l=this.log[r]||(this.log[r]=[]);l.push({who,text,chips,ts:new Date()});if(l.length>80)l.shift();if(who==='bot'&&!(Twin.panelOpen()&&S.ptab==='chat'&&S.bot===r))this.unread[r]=(this.unread[r]||0)+1;this.refresh()},
   fromEvent(ev){if(!ev.stage)return;const r=STAGE_ROLE[ev.stage];this.push(r,'bot',phrase(ev))},
   seed(){S.events.slice().reverse().forEach(ev=>{if(ev.stage){const r=STAGE_ROLE[ev.stage],l=this.log[r]||(this.log[r]=[]);l.push({who:'bot',text:phrase(ev),ts:ev.ts})}})},
-  open(r){S.bot=r;S.ptab='chat';S.panel=true;this.unread[r]=0;this.greet(r);Twin.update(true)},
+  open(r){S.bot=r;S.ptab='chat';S.panel=true;if(Twin.compact()){S.stab='bots';if(S.snap==='peek')S.snap='half'}this.unread[r]=0;this.greet(r);Twin.update(true)},
   greet(r){const l=this.log[r]||(this.log[r]=[]);if(!l.some(m=>m.who==='sys'))l.unshift({who:'sys',text:t('bot.hi',{name:this.name(r),job:t('bot.'+r+'.job')}),ts:new Date()})},
   chipsFor(){return [t('chip.status'),t('chip.need'),t('chip.show'),t('chip.follow'),t('chip.open'),t('chip.rain'),t('chip.snow'),t('chip.desert'),t('chip.sun'),t('chip.night'),t('chip.fly')]},
   html(){const r=S.bot,st=Twin.statusOf(ROLE_STAGE[r]);this.greet(r);

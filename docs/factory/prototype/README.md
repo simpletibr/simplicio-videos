@@ -16,6 +16,7 @@ Use a local server rather than opening the file from disk: some browsers restric
 
 ## What to try
 
+- **A phone app, not a squeezed website.** On a phone the scene is the whole screen. One bottom sheet (drag it, or tap the handle: peek, half, full) holds Following, Queue, Bots and Details; the Approve / Open / Discard card floats above it; the tab bar stays at the bottom; round buttons on the right reset the view and switch day, night, weather and chat. Open the artifact on a phone and the device frame and prototype bar disappear.
 - **Factory as a small town.** Each stage is its own kind of building: a workshop house (brand), an idea shop (ideas), a video factory with smoking chimneys (make), an inspection garage (review), a launch market (publish), an observatory (metrics) and a learning barn (report). The lamps on each roof are its rooms: they light up as the followed video moves through the sub-steps inside (the side panel lists them under "Inside this building"). The belt runs through all of it.
 - **Move anywhere.** Drag to rotate and tilt, right-drag or Shift-drag to pan, wheel or pinch to zoom from the whole town down to a single robot, WASD or the arrow keys to walk, Q and E to rotate, R to reset. The toolbar has the same controls, plus day and night and weather.
 - **Bots.** Click a robot, or open the Bots tab, to chat with it (Brush, Spark, Clapper, Gate, Post, Lens, Mirror, Sprout). Ask for its status, what needs you, to show where it works, to follow it around, to open its page, or change the world: rain, snow, desert, fog, sun, day, night, fly. Replies are templates, so no tokens are spent.
@@ -32,9 +33,9 @@ Use a local server rather than opening the file from disk: some browsers restric
 |---|---|
 | Factory by day and night | [day](screens/factory-day.jpg) · [night](screens/factory-night.jpg) · [Portuguese](screens/factory-pt-br.jpg) |
 | Station details and the rooms inside | [make](screens/factory-details.jpg) |
-| Chatting with a bot | [desktop](screens/factory-chat.jpg) · [phone](screens/factory-phone-chat.jpg) |
+| Chatting with a bot | [desktop](screens/factory-chat.jpg) |
 | Weather | [snow](screens/factory-snow.jpg) · [desert](screens/factory-desert.jpg) |
-| Factory on a phone | [day](screens/factory-phone.jpg) |
+| Factory as a phone app (full-screen scene, bottom sheet) | [following](screens/factory-phone.jpg) · [bots](screens/factory-phone-chat.jpg) · [details](screens/factory-phone-details.jpg) · [queue](screens/factory-phone-queue.jpg) |
 | Nine themes in 3D | [montage](screens/themes-3d.jpg) |
 | Login, Needs you, Brand, Ideas, Studio | [login](screens/login.jpg) · [inbox](screens/inbox.jpg) · [brand](screens/brand.jpg) · [ideas](screens/ideas.jpg) · [studio](screens/studio.jpg) |
 | Review, Publish (desktop and phone) | [review](screens/review.jpg) · [publish](screens/publish.jpg) · [review phone](screens/review-phone.jpg) · [publish phone](screens/publish-phone.jpg) |

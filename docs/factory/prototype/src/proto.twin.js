@@ -31,7 +31,9 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
   sel(){if(S.sel)return S.sel;const it=this.tracked();return it?STAGES[Math.max(0,curStation(it)-1)]:'review'},
   step(it,k){if(!it)return 'todo';if(it.c>=8)return 'done';const cs=curStation(it);return k<cs?'done':k>cs?'todo':(it.mode==='wait'?'wait':'cur')},
   compact(){return !this.root||this.root.dataset.layout==='compact'},
-  panelOpen(){return S.panel===undefined?!this.compact():S.panel},
+  panelOpen(){if(this.compact())return S.stab==='bots'||S.stab==='details';return S.panel===undefined?true:S.panel},
+  stabsHTML(){const u=BOT_ROLES.reduce((a,r)=>a+(Chat.unread[r]||0),0),need=S.queue.length+S.pubq.length+S.fails.length,b=(v,l,n)=>`<button role="tab" data-act="stab" data-v="${v}" aria-selected="${S.stab===v}">${l}${n?`<i class="ud">${n}</i>`:''}</button>`;return b('follow',t('sh.follow'),0)+b('queue',t('sh.queue'),need)+b('bots',t('pn.tab.chat'),u)+b('details',t('pn.tab.details'),0)},
+  setSnap(v){S.snap=v;if(this.root)this.root.dataset.snap=v;if(this.els.sheet)this.els.sheet.dataset.snap=v;this.safeKey='';this.measure()},
   kpis(){const need=needCount();return [
     {ic:'factory',c:'#2a62c9',l:t('kpi.flight'),v:this.live().length,s:t('kpi.flight.sub',{m:10})},
     {ic:'inbox',c:'#d98a00',l:t('kpi.need'),v:need,s:t('kpi.need.sub',{r:S.queue.length,p:S.pubq.length})+(S.fails.length?t('kpi.need.fail',{f:S.fails.length}):''),warn:need>0},
@@ -58,8 +60,8 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
   /* ---------- markup ---------- */
   html(){const lay=this.layoutFor();
     return `<div class="scene-col"><div class="twin" id="twin" data-layout="${lay}" data-tod="${S.tod}" data-hud="${Q.get('hud')==='0'?0:1}"><div class="twstage"><div class="scene-wrap" id="sceneWrap"><div class="slot"></div>
-      <div class="hud"><div class="hud-tl" id="twTL"><div class="ctl" id="twCtl"></div><div class="kpis" id="twKpis"></div><div class="hint only3d">${t('hint.3d')}</div></div><div class="pins" id="twPins"></div><aside class="panel hud-card" id="twPanel"></aside></div></div>
-      <section class="stepper hud-card" id="twStepper"></section><section class="qtable hud-card" id="twTable"></section></div>
+      <div class="hud"><div class="hud-tl" id="twTL"><div class="ctl" id="twCtl"></div><div class="kpis" id="twKpis"></div><div class="hint only3d">${t('hint.3d')}</div></div><div class="pins" id="twPins"></div></div></div>
+      <div class="dsheet" id="twSheet" data-snap="${S.snap}" data-stab="${S.stab}"><div class="grab" id="twGrab" role="button" tabindex="0" aria-label="${t('sh.grab')}"><i></i></div><nav class="stabs" id="twStabs" role="tablist"></nav><section class="stepper hud-card" id="twStepper"></section><aside class="panel hud-card" id="twPanel"></aside><section class="qtable hud-card" id="twTable"></section></div></div>
       <div class="dock" id="dock" hidden></div></div></div>
       <div class="legend-row">${[['idea','state.idea'],['rendered','state.rendered'],['in_review','state.in_review'],['approved','state.approved'],['published','state.published']].map(([k,l])=>`<span><i style="background:${STATECOL[k]}"></i>${t(l)}</span>`).join('')}<span><i style="background:#7a1f1f"></i>${t('state.failed')}</span></div>`},
   layoutFor(){const f=$('#frame');return (S.view==='2d'||!THREE_OK()||(f&&f.clientWidth<880))?'compact':'overlay'},
@@ -93,18 +95,25 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
 
   /* ---------- lifecycle ---------- */
   mount(){this.root=$('#twin');if(!this.root)return;const $$$=id=>document.getElementById(id);
-    this.els={tl:$$$('twTL'),ctl:$$$('twCtl'),kpis:$$$('twKpis'),panel:$$$('twPanel'),pins:$$$('twPins'),stepper:$$$('twStepper'),table:$$$('twTable')};
-    this.sig='';this.stepKey='';this.sec=-1;this.safeKey='';this.relayout();this.update(true);
+    this.els={tl:$$$('twTL'),ctl:$$$('twCtl'),kpis:$$$('twKpis'),panel:$$$('twPanel'),pins:$$$('twPins'),stepper:$$$('twStepper'),table:$$$('twTable'),sheet:$$$('twSheet'),stabs:$$$('twStabs'),grab:$$$('twGrab')};
+    this.sig='';this.stepKey='';this.sec=-1;this.safeKey='';this.relayout();this.update(true);this.bindSheet();
     if('ResizeObserver' in window){this.ro=new ResizeObserver(()=>{if(this.raf)return;this.raf=requestAnimationFrame(()=>{this.raf=0;this.relayout();this.measure()})});[document.getElementById('frame'),this.els.tl,this.els.stepper,this.els.table,this.els.panel].forEach(n=>n&&this.ro.observe(n))}},
+  bindSheet(){const E=this.els,g=E.grab,sh=E.sheet,order=['peek','half','full'];if(!g)return;let y0=null,moved=0;
+    const next=d=>{const i=Math.max(0,Math.min(2,order.indexOf(S.snap)+d));if(order[i]==='peek')S.stab=S.stab==='follow'?S.stab:S.stab;S.snap=order[i];if(S.snap!=='peek'&&S.stab==='follow'&&this.compact())S.stab='queue';this.update(true)};
+    const down=e=>{y0=e.clientY;moved=0;sh.style.transition='none';g.setPointerCapture&&g.setPointerCapture(e.pointerId)};
+    const move=e=>{if(y0===null)return;const dy=e.clientY-y0;moved=Math.max(moved,Math.abs(dy));sh.style.transform=`translateY(${Math.max(0,dy)}px)`};
+    const up=e=>{if(y0===null)return;const dy=e.clientY-y0;y0=null;sh.style.transition='';sh.style.transform='';if(moved<6)next(S.snap==='peek'?1:S.snap==='half'?1:-2);else if(dy<-30)next(1);else if(dy>30)next(-1)};
+    g.addEventListener('pointerdown',down);g.addEventListener('pointermove',move);g.addEventListener('pointerup',up);g.addEventListener('pointercancel',up);
+    g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();next(S.snap==='full'?-2:1)}else if(e.key==='ArrowUp')next(1);else if(e.key==='ArrowDown')next(-1)})},
   unmount(){if(this.ro)this.ro.disconnect();this.ro=null;this.root=null;this.els={};this.sig=''},
   relayout(){if(!this.root)return;const lay=this.layoutFor();if(this.root.dataset.layout!==lay){this.root.dataset.layout=lay;this.sig='';this.update(true)}},
   update(force){if(!this.root)return;const it=this.tracked(),k=this.sel(),
       mk=k==='make'&&it&&it.mode==='dwell'&&curStation(it)===3?Math.floor(SIM.time*4):0,
-      sig=JSON.stringify([this.live().map(i=>[i.id,curStation(i),i.state,i.mode]),S.queue.map(q=>q.id),S.pubq.map(p=>p.id),S.fails.length,S.done,S.posted.length,S.track,S.sel,this.panelOpen(),S.tab3,S.tod,S.wx,S.ptab,S.bot,S.loop,S.lang,S.canUpload,this.compact(),SIM.cycle]);
+      sig=JSON.stringify([this.live().map(i=>[i.id,curStation(i),i.state,i.mode]),S.queue.map(q=>q.id),S.pubq.map(p=>p.id),S.fails.length,S.done,S.posted.length,S.track,S.sel,this.panelOpen(),S.tab3,S.tod,S.wx,S.ptab,S.bot,S.stab,S.snap,S.loop,S.lang,S.canUpload,this.compact(),SIM.cycle]);
     const E=this.els;
     if(!force&&sig===this.sig){if(mk!==this.mk&&S.ptab!=='chat'){this.mk=mk;E.panel.innerHTML=this.panelHTML()}return}
     this.sig=sig;this.mk=mk;
-    E.ctl.innerHTML=this.ctlHTML();E.kpis.innerHTML=this.kpisHTML();E.stepper.innerHTML=this.stepperHTML();E.table.innerHTML=this.tableHTML();
+    E.stabs.innerHTML=this.stabsHTML();E.sheet.dataset.stab=S.stab;E.sheet.dataset.snap=S.snap;this.root.dataset.snap=S.snap;E.ctl.innerHTML=this.ctlHTML();E.kpis.innerHTML=this.kpisHTML();E.stepper.innerHTML=this.stepperHTML();E.table.innerHTML=this.tableHTML();
     const ps=S.ptab==='chat'?JSON.stringify(['c',S.bot,S.lang,this.panelOpen()]):null;if(S.ptab!=='chat'||ps!==this.ps||!document.getElementById('chat')){E.panel.innerHTML=this.panelHTML();if(S.ptab==='chat')Chat.mount()}this.ps=ps;E.panel.classList.toggle('open',this.panelOpen());this.renderPins();this.root.dataset.tod=S.tod;this.tick(0);this.measure()},
   renderPins(){const E=this.els;if(!E.pins)return;const list=[];
     if(S.queue.length)list.push(['review',S.queue[0],t('pin.review',{n:S.queue.length}),'amber']);
@@ -129,11 +138,11 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     const side=r=>(r.l+r.r)/2<wr.width/2?'l':'r',inset=r=>side(r)==='l'?{L:r.r+8}:{R:wr.width-r.l+8};
     if(over){const tb=rel(E.table),st=rel(E.stepper);w.style.setProperty('--tbl-h',Math.round(tb.b-tb.t)+'px');B=wr.height-st.t+8;
       if(open){const i=inset(tb);if(i.L)L=i.L;if(i.R)R=i.R}else B=wr.height-Math.min(st.t,tb.t)+8}
-    else if(open){B=wr.height-rel(E.panel).t+8}
+    else{const sh=rel(E.sheet);B=wr.height-sh.t+8;R=64;this.root.style.setProperty('--sheet-h',Math.round(sh.b-sh.t)+'px');const dk=document.getElementById('dock');if(dk&&!dk.hidden&&S.snap==='peek'){const d=rel(dk);if(d.b>0)B=Math.max(B,wr.height-d.t+8)}}
     const k=[T,B,L,R].map(Math.round).join(',');if(k===this.safeKey)return;this.safeKey=k;Scene.setSafe({l:L,t:T,r:R,b:B})},
 
   /* ---------- actions ---------- */
-  select(k){S.sel=k;S.panel=true;this.update(true)},
+  select(k){S.sel=k;S.panel=true;if(this.compact()){S.stab='details';S.ptab='details';if(S.snap==='peek')S.snap='half'}this.update(true)},
   act(a,el){
     if(a==='zoomin'){Scene.zoomBy&&Scene.zoomBy(1/1.18);return true}
     if(a==='zoomout'){Scene.zoomBy&&Scene.zoomBy(1.18);return true}
@@ -142,9 +151,10 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     if(a==='tiltup'){Scene.tiltBy&&Scene.tiltBy(-.2);return true}
     if(a==='tiltdown'){Scene.tiltBy&&Scene.tiltBy(.2);return true}
     if(a==='tod'){S.tod=S.tod==='night'?'day':'night';try{localStorage.setItem('sv.tod',S.tod)}catch(e){}Scene.applyTod&&Scene.applyTod();this.update(true);return true}
-    if(a==='panel'){S.panel=!this.panelOpen();this.update(true);return true}
+    if(a==='panel'){if(this.compact()){S.snap='peek';S.stab='follow'}else S.panel=!this.panelOpen();this.update(true);return true}
+    if(a==='stab'){S.stab=el.dataset.v;if(S.stab==='bots'){S.ptab='chat';Chat.unread[S.bot]=0;Chat.greet(S.bot)}else if(S.stab==='details')S.ptab='details';if(S.snap==='peek'&&S.stab!=='follow')S.snap='half';this.update(true);return true}
     if(a==='wx'){const i=WX_ORDER.indexOf(S.wx||'clear');S.wx=WX_ORDER[(i+1)%WX_ORDER.length];Scene.applyTod&&Scene.applyTod();this.update(true);return true}
-    if(a==='chat'){if(this.panelOpen()&&S.ptab==='chat')S.panel=false;else{S.ptab='chat';S.panel=true;Chat.unread[S.bot]=0;Chat.greet(S.bot)}this.update(true);return true}
+    if(a==='chat'){if(this.compact()){if(S.stab==='bots'&&S.snap!=='peek'){S.snap='peek';S.stab='follow'}else{S.stab='bots';S.ptab='chat';S.snap='half';Chat.unread[S.bot]=0;Chat.greet(S.bot)}}else if(this.panelOpen()&&S.ptab==='chat')S.panel=false;else{S.ptab='chat';S.panel=true;Chat.unread[S.bot]=0;Chat.greet(S.bot)}this.update(true);return true}
     if(a==='ptab'){S.ptab=el.dataset.v;if(S.ptab==='chat'){Chat.unread[S.bot]=0;Chat.greet(S.bot)}this.update(true);return true}
     if(a==='bot'){S.bot=el.dataset.r;Chat.unread[S.bot]=0;Chat.greet(S.bot);this.update(true);return true}
     if(a==='chip'){Chat.send(el.dataset.t);return true}

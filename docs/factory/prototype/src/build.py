@@ -9,7 +9,7 @@ three = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/th
 fonts = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">')
 title = '<title>Simplicio Panel Prototype</title>'
-full = (f'<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+full = (f'<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="theme-color" content="#58b4ff">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="mobile-web-app-capable" content="yes">\n'
         f'{title}\n{fonts}\n<style>\n{css}\n</style>\n</head>\n<body>\n{body}\n{three}\n<script>\n{js}\n</script>\n</body>\n</html>\n')
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(d, '..', 'index.html')
 open(out, 'w', encoding='utf8').write(full)

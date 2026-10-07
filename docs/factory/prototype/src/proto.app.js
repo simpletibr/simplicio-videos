@@ -10,7 +10,7 @@ const S={device:Q.get('device')||'desktop',theme:TH[Q.get('theme')]?Q.get('theme
   view:Q.get('view')||(ART.chars.brander?'3d-sprites':'3d'),auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:false,canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
   queue:[],pubq:[],fails:[],events:[],rv:0,stale:false,otp:'',loginErr:false,done:0,idea:{n:5,adding:false},route:'det',
   doc:{running:false,ran:false},upd:false,clean:false,hold:null,studio:{rendered:false,rendering:false},logged:Q.get('page')?true:false,
-  tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',bot:Q.get('bot')||'gatekeeper',track:null,sel:null,panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
+  tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',stab:Q.get('stab')||(Q.get('panel')==='1'?(Q.get('ptab')==='chat'?'bots':'details'):'follow'),snap:Q.get('snap')||(Q.get('panel')==='1'?'half':'peek'),bot:Q.get('bot')||'gatekeeper',track:null,sel:null,panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
 const RAILK='sv.rail';try{S.rail=Q.get('rail')?Q.get('rail')==='min':localStorage.getItem(RAILK)==='1'}catch(e){S.rail=Q.get('rail')==='min'}
 const lk=()=>S.lang==='pt-BR'?1:0;
 function t(k,p){const e=D[k];if(!e){if(!t.w[k]){t.w[k]=1;console.warn('missing i18n',k)}return k}let s=e[lk()];if(p)s=s.replace(/\{(\w+)\}/g,(m,n)=>p[n]!==undefined?p[n]:m);return s}t.w={};
@@ -260,7 +260,7 @@ function renderShell(){const logged=S.page!=='login';$('#app').dataset.rail=S.ra
   $('#ttl').textContent=t('nav.'+(S.page==='login'?'factory':S.page));$('#topLogo').style.display=logged?'':'';
   const nb=$('#needTop');nb.hidden=!logged||!needCount();nb.textContent=needCount()+' · '+t('nav.inbox');
   $('#sheetHost').innerHTML=S.more?sheet():''}
-function renderPage(){Twin.unmount();SceneSVG.hidden=SceneThree.hidden=true;SceneSVG.unmount();SceneThree.unmount();const main=$('#main');if(S.page==='factory'){pickScene();main.innerHTML=P.factory();Scene.hidden=false;Scene.mount($('#sceneWrap'));Twin.mount();updateDock();updateFeed()}else{main.innerHTML=(P[S.page]||P.factory)();if(S.page==='review')bindReview();if(S.page==='publish')bindHold()}main.scrollTop=0;renderShell()}
+function renderPage(){Twin.unmount();$('#main').dataset.page=S.page;SceneSVG.hidden=SceneThree.hidden=true;SceneSVG.unmount();SceneThree.unmount();const main=$('#main');if(S.page==='factory'){pickScene();main.innerHTML=P.factory();Scene.hidden=false;Scene.mount($('#sceneWrap'));Twin.mount();updateDock();updateFeed()}else{main.innerHTML=(P[S.page]||P.factory)();if(S.page==='review')bindReview();if(S.page==='publish')bindHold()}main.scrollTop=0;renderShell()}
 function go(p,tab){S.page=p;S.more=false;if(tab)S.tab=tab;$('#screenSel').value=p;renderPage()}
 function refresh(why){renderShell();if(S.page==='factory'){updateDock();updateFeed();Twin.update();if(Scene.host&&Scene.bars){Scene.bars();Scene.relabelBin&&Scene.relabelBin()}}
   else if(why==='gate'&&['inbox','review','publish'].includes(S.page)&&!(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&$('#main').contains(document.activeElement))){const y=$('#main').scrollTop;$('#main').innerHTML=P[S.page]();if(S.page==='review')bindReview();if(S.page==='publish')bindHold();$('#main').scrollTop=y}

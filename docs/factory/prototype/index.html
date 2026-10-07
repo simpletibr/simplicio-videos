@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#58b4ff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Simplicio Panel Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -566,6 +569,70 @@ canvas.three:active{cursor:grabbing}
 .twin[data-layout="compact"] .kpis{width:100%}
 .twin[data-layout="compact"] .hud-tl{inset-inline-end:10px;max-width:none}
 
+/* ================= app mode: on a phone the factory is the screen, everything else is a bottom sheet ================= */
+.dsheet{display:contents}
+.dsheet .grab,.dsheet .stabs{display:none}
+.twin[data-layout="compact"]{display:block;position:relative;height:100%}
+.main[data-page="factory"]:has(.twin[data-layout="compact"]){padding:0;overflow:hidden}
+.main[data-page="factory"]:has(.twin[data-layout="compact"]) .under,.main[data-page="factory"]:has(.twin[data-layout="compact"]) .legend-row,.main[data-page="factory"]:has(.twin[data-layout="compact"]) .scene-col{margin:0}
+.main[data-page="factory"]:has(.twin[data-layout="compact"]) .under,.main[data-page="factory"]:has(.twin[data-layout="compact"]) .legend-row{display:none}
+.main[data-page="factory"] .scene-col:has(.twin[data-layout="compact"]){height:100%}
+.twin[data-layout="compact"] .twstage{display:block;height:100%}
+.twin[data-layout="compact"] .scene-wrap{height:100%;border-radius:0;border:0}
+.twin[data-layout="compact"] .scene-wrap .slot{height:100%;max-height:none;aspect-ratio:auto}
+.twin[data-layout="compact"] .scene-wrap[data-mode="svg"] .slot{display:grid;place-items:center}
+.twin[data-layout="compact"] .scene-wrap[data-mode="svg"] svg.scene{height:100%;width:100%}
+.twin[data-layout="compact"] .hud-tl{inset-inline:10px;top:8px}
+.twin[data-layout="compact"] .tools{position:fixed;position:absolute;inset-inline-end:10px;top:104px;flex-direction:column;gap:8px;margin:0;z-index:4}
+.twin[data-layout="compact"] .hud-tl{overflow:visible}
+.twin[data-layout="compact"] .ctl{flex-wrap:nowrap}
+.twin[data-layout="compact"] .ctl .tools{position:absolute}
+.twin[data-layout="compact"] .tbtn{width:42px;height:42px;border-radius:12px}
+.twin[data-layout="compact"] .tbtn[data-act="panel"]{display:none}
+.twin[data-layout="compact"] .dock{position:absolute;inset-inline:10px;bottom:calc(var(--sheet-h,110px) + 10px);margin:0;z-index:6}
+.twin[data-layout="compact"] .dsheet{display:flex;flex-direction:column;position:absolute;inset-inline:0;bottom:0;z-index:7;background:var(--hud-bg);color:var(--hud-ink);border-radius:18px 18px 0 0;border:1px solid var(--hud-line);border-bottom:0;box-shadow:0 -10px 30px rgba(8,22,44,.28);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);transition:height .25s ease,transform .2s ease;touch-action:none;overflow:hidden}
+.twin[data-layout="compact"] .dsheet[data-snap="peek"]{height:auto;max-height:46%}
+.twin[data-layout="compact"] .dsheet[data-snap="half"]{height:54%}
+.twin[data-layout="compact"] .dsheet[data-snap="full"]{height:90%}
+.twin[data-layout="compact"] .dsheet .grab{display:grid;place-items:center;height:22px;cursor:grab;flex:none}
+.twin[data-layout="compact"] .dsheet .grab i{width:38px;height:4px;border-radius:2px;background:rgba(15,34,51,.25)}
+.twin[data-layout="compact"] .dsheet .stabs{display:flex;gap:2px;padding:0 10px;flex:none;border-bottom:1px solid var(--hud-line)}
+.stabs [role=tab]{all:unset;cursor:pointer;flex:1;min-height:42px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:700 12.5px var(--font-body);color:var(--hud-muted);border-bottom:2px solid transparent}
+.stabs [role=tab][aria-selected="true"]{color:var(--hud-ink);border-bottom-color:var(--accent)}
+.twin[data-layout="compact"] .dsheet>.stepper,.twin[data-layout="compact"] .dsheet>.qtable,.twin[data-layout="compact"] .dsheet>.panel{display:none;position:static;width:auto;max-height:none;inset:auto;box-shadow:none;border:0;border-radius:0;background:none;overflow:auto;flex:1;min-height:0;touch-action:pan-y;margin:0;padding:10px 14px 14px}
+.twin[data-layout="compact"] .dsheet[data-stab="follow"]>.stepper,.twin[data-layout="compact"] .dsheet[data-stab="queue"]>.qtable,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel,.twin[data-layout="compact"] .dsheet[data-stab="details"]>.panel{display:block}
+.twin[data-layout="compact"] .dsheet[data-snap="peek"]>.qtable,.twin[data-layout="compact"] .dsheet[data-snap="peek"]>.panel{display:none}
+.twin[data-layout="compact"] .dsheet>.stepper{display:grid}
+.twin[data-layout="compact"] .dsheet:not([data-stab="follow"])>.stepper{display:none}
+.twin[data-layout="compact"] .panel .ptabs{display:none}
+.twin[data-layout="compact"] .msgs{height:auto;min-height:120px;max-height:36vh}
+.twin[data-layout="compact"] .dsheet[data-snap="full"] .msgs{max-height:48vh}
+.twin[data-layout="compact"] .qc{min-height:34px}
+.twin[data-layout="compact"] .composer input{height:42px}.twin[data-layout="compact"] .composer .send{width:42px;height:42px}
+.twin[data-layout="compact"] .qrow{padding:8px 6px}
+.twin[data-layout="compact"] .stepper .th+.ti small{display:inline}
+.twin[data-layout="compact"] .stepper,.twin[data-layout="compact"] .qtable{color:var(--hud-ink)}
+.twin[data-layout="compact"] .steps b,.twin[data-layout="compact"] .steps small{display:none}
+.twin[data-layout="compact"] .steps li.cur b,.twin[data-layout="compact"] .steps li.wait b{display:none}
+.frame{-webkit-tap-highlight-color:transparent}
+.tab,.tbtn,.glass,.qc,.stabs button,.nav{touch-action:manipulation;-webkit-user-select:none;user-select:none}
+/* a real phone: the app is the page, no device frame, no prototype bar */
+@media (max-width:520px){
+  body{overscroll-behavior:none}
+  .page{padding:0;max-width:none}
+  .proto,.notes{display:none}
+  .stage{display:block}
+  .frame,.frame[data-device="phone"]{width:100%;height:100dvh;min-height:0;border:0;border-radius:0;box-shadow:none}
+}
+
+.app{grid-template-rows:minmax(0,1fr)}#sheetHost{display:contents}
+
+.twin[data-layout="compact"][data-snap="half"] .dock,.twin[data-layout="compact"][data-snap="full"] .dock{display:none}
+.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel{display:flex;flex-direction:column;overflow:hidden}
+.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .chat{flex:1;min-height:0;display:flex;flex-direction:column}
+.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .msgs{flex:1;min-height:0;max-height:none;height:auto}
+.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .bots,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .bhead,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .qchips,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .composer{flex:none}
+
 </style>
 </head>
 <body>
@@ -892,7 +959,7 @@ Object.assign(D,{
 'pn.views':['Views, 3 days','Views, 3 dias'],'pn.lift':['Vs. baseline','Vs. média'],'pn.pull':['Last pull','Última coleta'],'pn.pull.v':['3 min ago','há 3 min'],
 'pn.cycle':['Cycle','Ciclo'],'pn.family':['Best family','Melhor família'],'pn.hintsgen':['Hints generated','Dicas geradas'],
 'pin.review':['{n} waiting for you','{n} esperando você'],'pin.publish':['{n} to confirm','{n} para confirmar'],'pin.fail':['{n} failed','{n} falharam'],
-'min':['min','min'],'pn.tab.details':['Details','Detalhes'],'pn.tab.chat':['Bots','Bots'],'tool.chat':['Bots','Bots'],'tool.wx':['Weather','Clima'],'wx.clear':['Sun','Sol'],'wx.rain':['Rain','Chuva'],'wx.snow':['Snow','Neve'],'wx.desert':['Desert','Deserto'],'wx.fog':['Fog','Neblina'],'chat.ph':['Say something to {name}…','Fale com {name}…'],'chat.send':['Send','Enviar'],'chat.free':['Templates · 0 tokens','Modelos · 0 tokens'],'chat.note':['In the product these can be real agents. Here the replies are templates, so no tokens are spent.','No produto podem ser agentes de verdade. Aqui as respostas são modelos, então não gasta tokens.'],'chip.status':['Status','Status'],'chip.need':['What needs you?','O que precisa de mim?'],'chip.show':['Show me','Mostre onde'],'chip.follow':['Follow me','Me acompanhe'],'chip.open':['Open page','Abrir página'],'chip.rain':['Rain','Chuva'],'chip.snow':['Snow','Neve'],'chip.desert':['Desert','Deserto'],'chip.sun':['Sun','Sol'],'chip.night':['Night','Noite'],'chip.fly':['Fly','Voar'],'bot.hi':['Hi, I am {name}. {job}','Oi, eu sou {name}. {job}'],'bot.brander.job':['I read your site and keep the brand facts honest: every claim needs a source.','Eu leio o seu site e mantenho os fatos da marca honestos: toda afirmação precisa de fonte.'],'bot.ideator.job':['I draft hooks and rank them by what worked before.','Eu crio ganchos e ordeno pelo que funcionou antes.'],'bot.director.job':['I turn a hook into a video: script, voice, scenes and render, with no tokens.','Eu transformo um gancho em vídeo: roteiro, voz, cenas e render, sem gastar tokens.'],'bot.gatekeeper.job':['I hold every video at the gate until you approve it.','Eu seguro cada vídeo no portão até você aprovar.'],'bot.poster.job':['I prepare the post and wait for your hold-to-confirm. I never post alone.','Eu preparo a postagem e espero o seu segurar-para-confirmar. Nunca posto sozinho.'],'bot.analyst.job':['I pull the numbers after posting and compare them with your average.','Eu busco os números depois de postar e comparo com a sua média.'],'bot.reflector.job':['I look for patterns in what worked and what did not.','Eu procuro padrões no que funcionou e no que não funcionou.'],'bot.evolver.job':['I turn patterns into hints for the next cycle.','Eu transformo padrões em dicas para o próximo ciclo.'],'bot.st.brander':['{v} of {t} facts are verified. Nothing is claimed without a source.','{v} de {t} fatos estão verificados. Nada é afirmado sem fonte.'],'bot.st.ideator':['5 hooks are ready and all passed the guardrails.','5 ganchos prontos e todos passaram nas travas.'],'bot.st.director':['Rendering: {p}%. Template brand-promo, 9:16, 15 s, 0 tokens.','Renderizando: {p}%. Modelo brand-promo, 9:16, 15 s, 0 tokens.'],'bot.st.director.idle':['Idle for now. The next video starts soon.','Livre por enquanto. O próximo vídeo começa em breve.'],'bot.st.gatekeeper':['{n} video(s) are waiting for you at the gate.','{n} vídeo(s) esperando você no portão.'],'bot.st.gatekeeper.none':['The gate is open. Nothing is waiting.','O portão está aberto. Nada esperando.'],'bot.st.poster':['{n} post(s) wait for your confirmation. {d} of 3 posted today.','{n} postagem(ns) esperando a sua confirmação. {d} de 3 postadas hoje.'],'bot.st.analyst':['Last pull: 4.1k views in 3 days, +38% vs your average.','Última coleta: 4,1k views em 3 dias, +38% sobre a sua média.'],'bot.st.reflector':['Cycle {c}. Best family so far: {f}.','Ciclo {c}. Melhor família até agora: {f}.'],'bot.st.evolver':['I applied 3 of 5 hints in this cycle.','Apliquei 3 de 5 dicas neste ciclo.'],'bot.r.need':['{n} thing(s) need you: {r} to review, {p} to confirm{f}.','{n} coisa(s) precisam de você: {r} para revisar, {p} para confirmar{f}.'],'bot.r.noneed':['Nothing needs you right now.','Nada precisa de você agora.'],'bot.r.help':['Ask for my status, what needs you, to show or follow me, to open my page, or change the world: rain, snow, desert, sun, fog, night, day, fly.','Peça meu status, o que precisa de você, para mostrar ou me acompanhar, abrir minha página, ou mude o mundo: chuva, neve, deserto, sol, neblina, noite, dia, voar.'],'bot.r.focus':['Here is my place: {b}.','Este é o meu lugar: {b}.'],'bot.r.open':['Opening {page}…','Abrindo {page}…'],'bot.r.follow':['Walking with you. Drag the view to stop.','Andando com você. Arraste a visão para parar.'],'bot.r.stop':['Okay, I stopped.','Certo, parei.'],'bot.r.fly':['Taking you up for a bird\'s-eye view.','Subindo para você ver de cima.'],'bot.r.wx.rain':['Rain on the way. Watch the plaza.','Chuva chegando. Olhe a praça.'],'bot.r.wx.snow':['Snow! The belt keeps running.','Neve! A esteira continua rodando.'],'bot.r.wx.desert':['Desert mode: sand, cacti and dust.','Modo deserto: areia, cactos e poeira.'],'bot.r.wx.fog':['A foggy morning.','Uma manhã de neblina.'],'bot.r.wx.clear':['Sunny again.','Sol de novo.'],'bot.r.tod.day':['Good morning, factory.','Bom dia, fábrica.'],'bot.r.tod.night':['Night shift: lamps and windows are on.','Turno da noite: postes e janelas acesos.'],'bot.r.fallback':['I did not get that. {job} Try: status, what needs me, show me, follow me, rain, snow, desert, night.','Não entendi. {job} Tente: status, o que precisa de mim, mostre onde, me acompanhe, chuva, neve, deserto, noite.'],'pn.inside':['Inside this building','Dentro deste prédio'],'bld.house':['Workshop house','Casa-oficina'],'bld.lab':['Idea shop','Loja de ideias'],'bld.factory':['Video factory','Fábrica de vídeo'],'bld.garage':['Inspection garage','Garagem de inspeção'],'bld.market':['Launch market','Mercado de lançamento'],'bld.observatory':['Observatory','Observatório'],'bld.barn':['Learning barn','Estábulo de aprendizado'],'sub.brand.0':['Read the site','Ler o site'],'sub.brand.1':['Extract facts','Extrair fatos'],'sub.brand.2':['Verify sources','Conferir fontes'],'sub.brand.3':['Save profile','Salvar perfil'],'sub.ideas.0':['Draft hooks','Criar ganchos'],'sub.ideas.1':['Check guardrails','Checar travas'],'sub.ideas.2':['Rank by results','Ordenar por resultado'],'sub.ideas.3':['Pick one','Escolher um'],'sub.make.0':['Write script','Escrever roteiro'],'sub.make.1':['Record voice','Gravar voz'],'sub.make.2':['Compose scenes','Montar cenas'],'sub.make.3':['Render','Renderizar'],'sub.make.4':['Quality check','Checar qualidade'],'sub.review.0':['Read the checklist','Ler o checklist'],'sub.review.1':['Match the hash','Conferir o hash'],'sub.review.2':['Decide','Decidir'],'sub.publish.0':['Dry run','Simulação'],'sub.publish.1':['Pick accounts','Escolher contas'],'sub.publish.2':['Hold to confirm','Segurar para confirmar'],'sub.publish.3':['Post','Postar'],'sub.metrics.0':['Pull numbers','Coletar números'],'sub.metrics.1':['Compare','Comparar'],'sub.metrics.2':['Score','Pontuar'],'sub.report.0':['Summarize','Resumir'],'sub.report.1':['Find the pattern','Achar o padrão'],'sub.report.2':['Write hints','Escrever dicas']
+'min':['min','min'],'sh.follow':['Following','Seguindo'],'sh.queue':['Queue','Fila'],'sh.grab':['Drag to resize the panel','Arraste para redimensionar o painel'],'pn.tab.details':['Details','Detalhes'],'pn.tab.chat':['Bots','Bots'],'tool.chat':['Bots','Bots'],'tool.wx':['Weather','Clima'],'wx.clear':['Sun','Sol'],'wx.rain':['Rain','Chuva'],'wx.snow':['Snow','Neve'],'wx.desert':['Desert','Deserto'],'wx.fog':['Fog','Neblina'],'chat.ph':['Say something to {name}…','Fale com {name}…'],'chat.send':['Send','Enviar'],'chat.free':['Templates · 0 tokens','Modelos · 0 tokens'],'chat.note':['In the product these can be real agents. Here the replies are templates, so no tokens are spent.','No produto podem ser agentes de verdade. Aqui as respostas são modelos, então não gasta tokens.'],'chip.status':['Status','Status'],'chip.need':['What needs you?','O que precisa de mim?'],'chip.show':['Show me','Mostre onde'],'chip.follow':['Follow me','Me acompanhe'],'chip.open':['Open page','Abrir página'],'chip.rain':['Rain','Chuva'],'chip.snow':['Snow','Neve'],'chip.desert':['Desert','Deserto'],'chip.sun':['Sun','Sol'],'chip.night':['Night','Noite'],'chip.fly':['Fly','Voar'],'bot.hi':['Hi, I am {name}. {job}','Oi, eu sou {name}. {job}'],'bot.brander.job':['I read your site and keep the brand facts honest: every claim needs a source.','Eu leio o seu site e mantenho os fatos da marca honestos: toda afirmação precisa de fonte.'],'bot.ideator.job':['I draft hooks and rank them by what worked before.','Eu crio ganchos e ordeno pelo que funcionou antes.'],'bot.director.job':['I turn a hook into a video: script, voice, scenes and render, with no tokens.','Eu transformo um gancho em vídeo: roteiro, voz, cenas e render, sem gastar tokens.'],'bot.gatekeeper.job':['I hold every video at the gate until you approve it.','Eu seguro cada vídeo no portão até você aprovar.'],'bot.poster.job':['I prepare the post and wait for your hold-to-confirm. I never post alone.','Eu preparo a postagem e espero o seu segurar-para-confirmar. Nunca posto sozinho.'],'bot.analyst.job':['I pull the numbers after posting and compare them with your average.','Eu busco os números depois de postar e comparo com a sua média.'],'bot.reflector.job':['I look for patterns in what worked and what did not.','Eu procuro padrões no que funcionou e no que não funcionou.'],'bot.evolver.job':['I turn patterns into hints for the next cycle.','Eu transformo padrões em dicas para o próximo ciclo.'],'bot.st.brander':['{v} of {t} facts are verified. Nothing is claimed without a source.','{v} de {t} fatos estão verificados. Nada é afirmado sem fonte.'],'bot.st.ideator':['5 hooks are ready and all passed the guardrails.','5 ganchos prontos e todos passaram nas travas.'],'bot.st.director':['Rendering: {p}%. Template brand-promo, 9:16, 15 s, 0 tokens.','Renderizando: {p}%. Modelo brand-promo, 9:16, 15 s, 0 tokens.'],'bot.st.director.idle':['Idle for now. The next video starts soon.','Livre por enquanto. O próximo vídeo começa em breve.'],'bot.st.gatekeeper':['{n} video(s) are waiting for you at the gate.','{n} vídeo(s) esperando você no portão.'],'bot.st.gatekeeper.none':['The gate is open. Nothing is waiting.','O portão está aberto. Nada esperando.'],'bot.st.poster':['{n} post(s) wait for your confirmation. {d} of 3 posted today.','{n} postagem(ns) esperando a sua confirmação. {d} de 3 postadas hoje.'],'bot.st.analyst':['Last pull: 4.1k views in 3 days, +38% vs your average.','Última coleta: 4,1k views em 3 dias, +38% sobre a sua média.'],'bot.st.reflector':['Cycle {c}. Best family so far: {f}.','Ciclo {c}. Melhor família até agora: {f}.'],'bot.st.evolver':['I applied 3 of 5 hints in this cycle.','Apliquei 3 de 5 dicas neste ciclo.'],'bot.r.need':['{n} thing(s) need you: {r} to review, {p} to confirm{f}.','{n} coisa(s) precisam de você: {r} para revisar, {p} para confirmar{f}.'],'bot.r.noneed':['Nothing needs you right now.','Nada precisa de você agora.'],'bot.r.help':['Ask for my status, what needs you, to show or follow me, to open my page, or change the world: rain, snow, desert, sun, fog, night, day, fly.','Peça meu status, o que precisa de você, para mostrar ou me acompanhar, abrir minha página, ou mude o mundo: chuva, neve, deserto, sol, neblina, noite, dia, voar.'],'bot.r.focus':['Here is my place: {b}.','Este é o meu lugar: {b}.'],'bot.r.open':['Opening {page}…','Abrindo {page}…'],'bot.r.follow':['Walking with you. Drag the view to stop.','Andando com você. Arraste a visão para parar.'],'bot.r.stop':['Okay, I stopped.','Certo, parei.'],'bot.r.fly':['Taking you up for a bird\'s-eye view.','Subindo para você ver de cima.'],'bot.r.wx.rain':['Rain on the way. Watch the plaza.','Chuva chegando. Olhe a praça.'],'bot.r.wx.snow':['Snow! The belt keeps running.','Neve! A esteira continua rodando.'],'bot.r.wx.desert':['Desert mode: sand, cacti and dust.','Modo deserto: areia, cactos e poeira.'],'bot.r.wx.fog':['A foggy morning.','Uma manhã de neblina.'],'bot.r.wx.clear':['Sunny again.','Sol de novo.'],'bot.r.tod.day':['Good morning, factory.','Bom dia, fábrica.'],'bot.r.tod.night':['Night shift: lamps and windows are on.','Turno da noite: postes e janelas acesos.'],'bot.r.fallback':['I did not get that. {job} Try: status, what needs me, show me, follow me, rain, snow, desert, night.','Não entendi. {job} Tente: status, o que precisa de mim, mostre onde, me acompanhe, chuva, neve, deserto, noite.'],'pn.inside':['Inside this building','Dentro deste prédio'],'bld.house':['Workshop house','Casa-oficina'],'bld.lab':['Idea shop','Loja de ideias'],'bld.factory':['Video factory','Fábrica de vídeo'],'bld.garage':['Inspection garage','Garagem de inspeção'],'bld.market':['Launch market','Mercado de lançamento'],'bld.observatory':['Observatory','Observatório'],'bld.barn':['Learning barn','Estábulo de aprendizado'],'sub.brand.0':['Read the site','Ler o site'],'sub.brand.1':['Extract facts','Extrair fatos'],'sub.brand.2':['Verify sources','Conferir fontes'],'sub.brand.3':['Save profile','Salvar perfil'],'sub.ideas.0':['Draft hooks','Criar ganchos'],'sub.ideas.1':['Check guardrails','Checar travas'],'sub.ideas.2':['Rank by results','Ordenar por resultado'],'sub.ideas.3':['Pick one','Escolher um'],'sub.make.0':['Write script','Escrever roteiro'],'sub.make.1':['Record voice','Gravar voz'],'sub.make.2':['Compose scenes','Montar cenas'],'sub.make.3':['Render','Renderizar'],'sub.make.4':['Quality check','Checar qualidade'],'sub.review.0':['Read the checklist','Ler o checklist'],'sub.review.1':['Match the hash','Conferir o hash'],'sub.review.2':['Decide','Decidir'],'sub.publish.0':['Dry run','Simulação'],'sub.publish.1':['Pick accounts','Escolher contas'],'sub.publish.2':['Hold to confirm','Segurar para confirmar'],'sub.publish.3':['Post','Postar'],'sub.metrics.0':['Pull numbers','Coletar números'],'sub.metrics.1':['Compare','Comparar'],'sub.metrics.2':['Score','Pontuar'],'sub.report.0':['Summarize','Resumir'],'sub.report.1':['Find the pattern','Achar o padrão'],'sub.report.2':['Write hints','Escrever dicas']
 });
 
 /* ===== 3D factory (Three.js, procedural low-poly, theme-driven). Agents walk, the belt runs, gates open. ===== */
@@ -1380,7 +1447,9 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
   sel(){if(S.sel)return S.sel;const it=this.tracked();return it?STAGES[Math.max(0,curStation(it)-1)]:'review'},
   step(it,k){if(!it)return 'todo';if(it.c>=8)return 'done';const cs=curStation(it);return k<cs?'done':k>cs?'todo':(it.mode==='wait'?'wait':'cur')},
   compact(){return !this.root||this.root.dataset.layout==='compact'},
-  panelOpen(){return S.panel===undefined?!this.compact():S.panel},
+  panelOpen(){if(this.compact())return S.stab==='bots'||S.stab==='details';return S.panel===undefined?true:S.panel},
+  stabsHTML(){const u=BOT_ROLES.reduce((a,r)=>a+(Chat.unread[r]||0),0),need=S.queue.length+S.pubq.length+S.fails.length,b=(v,l,n)=>`<button role="tab" data-act="stab" data-v="${v}" aria-selected="${S.stab===v}">${l}${n?`<i class="ud">${n}</i>`:''}</button>`;return b('follow',t('sh.follow'),0)+b('queue',t('sh.queue'),need)+b('bots',t('pn.tab.chat'),u)+b('details',t('pn.tab.details'),0)},
+  setSnap(v){S.snap=v;if(this.root)this.root.dataset.snap=v;if(this.els.sheet)this.els.sheet.dataset.snap=v;this.safeKey='';this.measure()},
   kpis(){const need=needCount();return [
     {ic:'factory',c:'#2a62c9',l:t('kpi.flight'),v:this.live().length,s:t('kpi.flight.sub',{m:10})},
     {ic:'inbox',c:'#d98a00',l:t('kpi.need'),v:need,s:t('kpi.need.sub',{r:S.queue.length,p:S.pubq.length})+(S.fails.length?t('kpi.need.fail',{f:S.fails.length}):''),warn:need>0},
@@ -1407,8 +1476,8 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
   /* ---------- markup ---------- */
   html(){const lay=this.layoutFor();
     return `<div class="scene-col"><div class="twin" id="twin" data-layout="${lay}" data-tod="${S.tod}" data-hud="${Q.get('hud')==='0'?0:1}"><div class="twstage"><div class="scene-wrap" id="sceneWrap"><div class="slot"></div>
-      <div class="hud"><div class="hud-tl" id="twTL"><div class="ctl" id="twCtl"></div><div class="kpis" id="twKpis"></div><div class="hint only3d">${t('hint.3d')}</div></div><div class="pins" id="twPins"></div><aside class="panel hud-card" id="twPanel"></aside></div></div>
-      <section class="stepper hud-card" id="twStepper"></section><section class="qtable hud-card" id="twTable"></section></div>
+      <div class="hud"><div class="hud-tl" id="twTL"><div class="ctl" id="twCtl"></div><div class="kpis" id="twKpis"></div><div class="hint only3d">${t('hint.3d')}</div></div><div class="pins" id="twPins"></div></div></div>
+      <div class="dsheet" id="twSheet" data-snap="${S.snap}" data-stab="${S.stab}"><div class="grab" id="twGrab" role="button" tabindex="0" aria-label="${t('sh.grab')}"><i></i></div><nav class="stabs" id="twStabs" role="tablist"></nav><section class="stepper hud-card" id="twStepper"></section><aside class="panel hud-card" id="twPanel"></aside><section class="qtable hud-card" id="twTable"></section></div></div>
       <div class="dock" id="dock" hidden></div></div></div>
       <div class="legend-row">${[['idea','state.idea'],['rendered','state.rendered'],['in_review','state.in_review'],['approved','state.approved'],['published','state.published']].map(([k,l])=>`<span><i style="background:${STATECOL[k]}"></i>${t(l)}</span>`).join('')}<span><i style="background:#7a1f1f"></i>${t('state.failed')}</span></div>`},
   layoutFor(){const f=$('#frame');return (S.view==='2d'||!THREE_OK()||(f&&f.clientWidth<880))?'compact':'overlay'},
@@ -1442,18 +1511,25 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
 
   /* ---------- lifecycle ---------- */
   mount(){this.root=$('#twin');if(!this.root)return;const $$$=id=>document.getElementById(id);
-    this.els={tl:$$$('twTL'),ctl:$$$('twCtl'),kpis:$$$('twKpis'),panel:$$$('twPanel'),pins:$$$('twPins'),stepper:$$$('twStepper'),table:$$$('twTable')};
-    this.sig='';this.stepKey='';this.sec=-1;this.safeKey='';this.relayout();this.update(true);
+    this.els={tl:$$$('twTL'),ctl:$$$('twCtl'),kpis:$$$('twKpis'),panel:$$$('twPanel'),pins:$$$('twPins'),stepper:$$$('twStepper'),table:$$$('twTable'),sheet:$$$('twSheet'),stabs:$$$('twStabs'),grab:$$$('twGrab')};
+    this.sig='';this.stepKey='';this.sec=-1;this.safeKey='';this.relayout();this.update(true);this.bindSheet();
     if('ResizeObserver' in window){this.ro=new ResizeObserver(()=>{if(this.raf)return;this.raf=requestAnimationFrame(()=>{this.raf=0;this.relayout();this.measure()})});[document.getElementById('frame'),this.els.tl,this.els.stepper,this.els.table,this.els.panel].forEach(n=>n&&this.ro.observe(n))}},
+  bindSheet(){const E=this.els,g=E.grab,sh=E.sheet,order=['peek','half','full'];if(!g)return;let y0=null,moved=0;
+    const next=d=>{const i=Math.max(0,Math.min(2,order.indexOf(S.snap)+d));if(order[i]==='peek')S.stab=S.stab==='follow'?S.stab:S.stab;S.snap=order[i];if(S.snap!=='peek'&&S.stab==='follow'&&this.compact())S.stab='queue';this.update(true)};
+    const down=e=>{y0=e.clientY;moved=0;sh.style.transition='none';g.setPointerCapture&&g.setPointerCapture(e.pointerId)};
+    const move=e=>{if(y0===null)return;const dy=e.clientY-y0;moved=Math.max(moved,Math.abs(dy));sh.style.transform=`translateY(${Math.max(0,dy)}px)`};
+    const up=e=>{if(y0===null)return;const dy=e.clientY-y0;y0=null;sh.style.transition='';sh.style.transform='';if(moved<6)next(S.snap==='peek'?1:S.snap==='half'?1:-2);else if(dy<-30)next(1);else if(dy>30)next(-1)};
+    g.addEventListener('pointerdown',down);g.addEventListener('pointermove',move);g.addEventListener('pointerup',up);g.addEventListener('pointercancel',up);
+    g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();next(S.snap==='full'?-2:1)}else if(e.key==='ArrowUp')next(1);else if(e.key==='ArrowDown')next(-1)})},
   unmount(){if(this.ro)this.ro.disconnect();this.ro=null;this.root=null;this.els={};this.sig=''},
   relayout(){if(!this.root)return;const lay=this.layoutFor();if(this.root.dataset.layout!==lay){this.root.dataset.layout=lay;this.sig='';this.update(true)}},
   update(force){if(!this.root)return;const it=this.tracked(),k=this.sel(),
       mk=k==='make'&&it&&it.mode==='dwell'&&curStation(it)===3?Math.floor(SIM.time*4):0,
-      sig=JSON.stringify([this.live().map(i=>[i.id,curStation(i),i.state,i.mode]),S.queue.map(q=>q.id),S.pubq.map(p=>p.id),S.fails.length,S.done,S.posted.length,S.track,S.sel,this.panelOpen(),S.tab3,S.tod,S.wx,S.ptab,S.bot,S.loop,S.lang,S.canUpload,this.compact(),SIM.cycle]);
+      sig=JSON.stringify([this.live().map(i=>[i.id,curStation(i),i.state,i.mode]),S.queue.map(q=>q.id),S.pubq.map(p=>p.id),S.fails.length,S.done,S.posted.length,S.track,S.sel,this.panelOpen(),S.tab3,S.tod,S.wx,S.ptab,S.bot,S.stab,S.snap,S.loop,S.lang,S.canUpload,this.compact(),SIM.cycle]);
     const E=this.els;
     if(!force&&sig===this.sig){if(mk!==this.mk&&S.ptab!=='chat'){this.mk=mk;E.panel.innerHTML=this.panelHTML()}return}
     this.sig=sig;this.mk=mk;
-    E.ctl.innerHTML=this.ctlHTML();E.kpis.innerHTML=this.kpisHTML();E.stepper.innerHTML=this.stepperHTML();E.table.innerHTML=this.tableHTML();
+    E.stabs.innerHTML=this.stabsHTML();E.sheet.dataset.stab=S.stab;E.sheet.dataset.snap=S.snap;this.root.dataset.snap=S.snap;E.ctl.innerHTML=this.ctlHTML();E.kpis.innerHTML=this.kpisHTML();E.stepper.innerHTML=this.stepperHTML();E.table.innerHTML=this.tableHTML();
     const ps=S.ptab==='chat'?JSON.stringify(['c',S.bot,S.lang,this.panelOpen()]):null;if(S.ptab!=='chat'||ps!==this.ps||!document.getElementById('chat')){E.panel.innerHTML=this.panelHTML();if(S.ptab==='chat')Chat.mount()}this.ps=ps;E.panel.classList.toggle('open',this.panelOpen());this.renderPins();this.root.dataset.tod=S.tod;this.tick(0);this.measure()},
   renderPins(){const E=this.els;if(!E.pins)return;const list=[];
     if(S.queue.length)list.push(['review',S.queue[0],t('pin.review',{n:S.queue.length}),'amber']);
@@ -1478,11 +1554,11 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     const side=r=>(r.l+r.r)/2<wr.width/2?'l':'r',inset=r=>side(r)==='l'?{L:r.r+8}:{R:wr.width-r.l+8};
     if(over){const tb=rel(E.table),st=rel(E.stepper);w.style.setProperty('--tbl-h',Math.round(tb.b-tb.t)+'px');B=wr.height-st.t+8;
       if(open){const i=inset(tb);if(i.L)L=i.L;if(i.R)R=i.R}else B=wr.height-Math.min(st.t,tb.t)+8}
-    else if(open){B=wr.height-rel(E.panel).t+8}
+    else{const sh=rel(E.sheet);B=wr.height-sh.t+8;R=64;this.root.style.setProperty('--sheet-h',Math.round(sh.b-sh.t)+'px');const dk=document.getElementById('dock');if(dk&&!dk.hidden&&S.snap==='peek'){const d=rel(dk);if(d.b>0)B=Math.max(B,wr.height-d.t+8)}}
     const k=[T,B,L,R].map(Math.round).join(',');if(k===this.safeKey)return;this.safeKey=k;Scene.setSafe({l:L,t:T,r:R,b:B})},
 
   /* ---------- actions ---------- */
-  select(k){S.sel=k;S.panel=true;this.update(true)},
+  select(k){S.sel=k;S.panel=true;if(this.compact()){S.stab='details';S.ptab='details';if(S.snap==='peek')S.snap='half'}this.update(true)},
   act(a,el){
     if(a==='zoomin'){Scene.zoomBy&&Scene.zoomBy(1/1.18);return true}
     if(a==='zoomout'){Scene.zoomBy&&Scene.zoomBy(1.18);return true}
@@ -1491,9 +1567,10 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     if(a==='tiltup'){Scene.tiltBy&&Scene.tiltBy(-.2);return true}
     if(a==='tiltdown'){Scene.tiltBy&&Scene.tiltBy(.2);return true}
     if(a==='tod'){S.tod=S.tod==='night'?'day':'night';try{localStorage.setItem('sv.tod',S.tod)}catch(e){}Scene.applyTod&&Scene.applyTod();this.update(true);return true}
-    if(a==='panel'){S.panel=!this.panelOpen();this.update(true);return true}
+    if(a==='panel'){if(this.compact()){S.snap='peek';S.stab='follow'}else S.panel=!this.panelOpen();this.update(true);return true}
+    if(a==='stab'){S.stab=el.dataset.v;if(S.stab==='bots'){S.ptab='chat';Chat.unread[S.bot]=0;Chat.greet(S.bot)}else if(S.stab==='details')S.ptab='details';if(S.snap==='peek'&&S.stab!=='follow')S.snap='half';this.update(true);return true}
     if(a==='wx'){const i=WX_ORDER.indexOf(S.wx||'clear');S.wx=WX_ORDER[(i+1)%WX_ORDER.length];Scene.applyTod&&Scene.applyTod();this.update(true);return true}
-    if(a==='chat'){if(this.panelOpen()&&S.ptab==='chat')S.panel=false;else{S.ptab='chat';S.panel=true;Chat.unread[S.bot]=0;Chat.greet(S.bot)}this.update(true);return true}
+    if(a==='chat'){if(this.compact()){if(S.stab==='bots'&&S.snap!=='peek'){S.snap='peek';S.stab='follow'}else{S.stab='bots';S.ptab='chat';S.snap='half';Chat.unread[S.bot]=0;Chat.greet(S.bot)}}else if(this.panelOpen()&&S.ptab==='chat')S.panel=false;else{S.ptab='chat';S.panel=true;Chat.unread[S.bot]=0;Chat.greet(S.bot)}this.update(true);return true}
     if(a==='ptab'){S.ptab=el.dataset.v;if(S.ptab==='chat'){Chat.unread[S.bot]=0;Chat.greet(S.bot)}this.update(true);return true}
     if(a==='bot'){S.bot=el.dataset.r;Chat.unread[S.bot]=0;Chat.greet(S.bot);this.update(true);return true}
     if(a==='chip'){Chat.send(el.dataset.t);return true}
@@ -1527,7 +1604,7 @@ const Chat={log:{},unread:{},typing:false,
   push(r,who,text,chips){const l=this.log[r]||(this.log[r]=[]);l.push({who,text,chips,ts:new Date()});if(l.length>80)l.shift();if(who==='bot'&&!(Twin.panelOpen()&&S.ptab==='chat'&&S.bot===r))this.unread[r]=(this.unread[r]||0)+1;this.refresh()},
   fromEvent(ev){if(!ev.stage)return;const r=STAGE_ROLE[ev.stage];this.push(r,'bot',phrase(ev))},
   seed(){S.events.slice().reverse().forEach(ev=>{if(ev.stage){const r=STAGE_ROLE[ev.stage],l=this.log[r]||(this.log[r]=[]);l.push({who:'bot',text:phrase(ev),ts:ev.ts})}})},
-  open(r){S.bot=r;S.ptab='chat';S.panel=true;this.unread[r]=0;this.greet(r);Twin.update(true)},
+  open(r){S.bot=r;S.ptab='chat';S.panel=true;if(Twin.compact()){S.stab='bots';if(S.snap==='peek')S.snap='half'}this.unread[r]=0;this.greet(r);Twin.update(true)},
   greet(r){const l=this.log[r]||(this.log[r]=[]);if(!l.some(m=>m.who==='sys'))l.unshift({who:'sys',text:t('bot.hi',{name:this.name(r),job:t('bot.'+r+'.job')}),ts:new Date()})},
   chipsFor(){return [t('chip.status'),t('chip.need'),t('chip.show'),t('chip.follow'),t('chip.open'),t('chip.rain'),t('chip.snow'),t('chip.desert'),t('chip.sun'),t('chip.night'),t('chip.fly')]},
   html(){const r=S.bot,st=Twin.statusOf(ROLE_STAGE[r]);this.greet(r);
@@ -1580,7 +1657,7 @@ const S={device:Q.get('device')||'desktop',theme:TH[Q.get('theme')]?Q.get('theme
   view:Q.get('view')||(ART.chars.brander?'3d-sprites':'3d'),auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:false,canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
   queue:[],pubq:[],fails:[],events:[],rv:0,stale:false,otp:'',loginErr:false,done:0,idea:{n:5,adding:false},route:'det',
   doc:{running:false,ran:false},upd:false,clean:false,hold:null,studio:{rendered:false,rendering:false},logged:Q.get('page')?true:false,
-  tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',bot:Q.get('bot')||'gatekeeper',track:null,sel:null,panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
+  tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',stab:Q.get('stab')||(Q.get('panel')==='1'?(Q.get('ptab')==='chat'?'bots':'details'):'follow'),snap:Q.get('snap')||(Q.get('panel')==='1'?'half':'peek'),bot:Q.get('bot')||'gatekeeper',track:null,sel:null,panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
 const RAILK='sv.rail';try{S.rail=Q.get('rail')?Q.get('rail')==='min':localStorage.getItem(RAILK)==='1'}catch(e){S.rail=Q.get('rail')==='min'}
 const lk=()=>S.lang==='pt-BR'?1:0;
 function t(k,p){const e=D[k];if(!e){if(!t.w[k]){t.w[k]=1;console.warn('missing i18n',k)}return k}let s=e[lk()];if(p)s=s.replace(/\{(\w+)\}/g,(m,n)=>p[n]!==undefined?p[n]:m);return s}t.w={};
@@ -1830,7 +1907,7 @@ function renderShell(){const logged=S.page!=='login';$('#app').dataset.rail=S.ra
   $('#ttl').textContent=t('nav.'+(S.page==='login'?'factory':S.page));$('#topLogo').style.display=logged?'':'';
   const nb=$('#needTop');nb.hidden=!logged||!needCount();nb.textContent=needCount()+' · '+t('nav.inbox');
   $('#sheetHost').innerHTML=S.more?sheet():''}
-function renderPage(){Twin.unmount();SceneSVG.hidden=SceneThree.hidden=true;SceneSVG.unmount();SceneThree.unmount();const main=$('#main');if(S.page==='factory'){pickScene();main.innerHTML=P.factory();Scene.hidden=false;Scene.mount($('#sceneWrap'));Twin.mount();updateDock();updateFeed()}else{main.innerHTML=(P[S.page]||P.factory)();if(S.page==='review')bindReview();if(S.page==='publish')bindHold()}main.scrollTop=0;renderShell()}
+function renderPage(){Twin.unmount();$('#main').dataset.page=S.page;SceneSVG.hidden=SceneThree.hidden=true;SceneSVG.unmount();SceneThree.unmount();const main=$('#main');if(S.page==='factory'){pickScene();main.innerHTML=P.factory();Scene.hidden=false;Scene.mount($('#sceneWrap'));Twin.mount();updateDock();updateFeed()}else{main.innerHTML=(P[S.page]||P.factory)();if(S.page==='review')bindReview();if(S.page==='publish')bindHold()}main.scrollTop=0;renderShell()}
 function go(p,tab){S.page=p;S.more=false;if(tab)S.tab=tab;$('#screenSel').value=p;renderPage()}
 function refresh(why){renderShell();if(S.page==='factory'){updateDock();updateFeed();Twin.update();if(Scene.host&&Scene.bars){Scene.bars();Scene.relabelBin&&Scene.relabelBin()}}
   else if(why==='gate'&&['inbox','review','publish'].includes(S.page)&&!(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&$('#main').contains(document.activeElement))){const y=$('#main').scrollTop;$('#main').innerHTML=P[S.page]();if(S.page==='review')bindReview();if(S.page==='publish')bindHold();$('#main').scrollTop=y}
