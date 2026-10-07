@@ -54,6 +54,10 @@ Use a local server rather than opening the file from disk: some browsers restric
 
 Handy for screenshots: `warm=14` runs the simulation for 14 seconds before the first frame, `hud=0` hides every overlay and shows the bare scene, `lowfx=1` lowers shadow quality for software renderers.
 
+## Richer art (next)
+
+The owner asked for more elaborate images generated with GPT Image 2 through Real Oficial's MCP. Nothing is generated yet; [image-brief.md](image-brief.md) holds the prompts, sizes, budget rules and how to wire the results in.
+
 ## Rebuild
 
 `index.html` is generated from the files in [`src/`](src/) (CSS, markup, art, message catalogs, the 3D scene, the HUD and the app). After editing them run:
