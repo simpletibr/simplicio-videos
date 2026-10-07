@@ -619,3 +619,4 @@ canvas.three:active{cursor:grabbing}
 .twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .chat{flex:1;min-height:0;display:flex;flex-direction:column}
 .twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .msgs{flex:1;min-height:0;max-height:none;height:auto}
 .twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .bots,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .bhead,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .qchips,.twin[data-layout="compact"] .dsheet[data-stab="bots"]>.panel .composer{flex:none}
+.twin[data-hud="0"] .dsheet{display:none!important}
