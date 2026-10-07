@@ -5,66 +5,37 @@ Invokes OpenMontage production capabilities (backlot, pipelines, tools).
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from . import paths
+from . import tools
 
 
 class MontageError(Exception):
     pass
 
 
-OPENMONTAGE_REPO = "https://github.com/calesthio/OpenMontage"
+OPENMONTAGE_REPO = tools.get("openmontage").source
 
 
 def find_openmontage_dir() -> Path | None:
-    """Locate OpenMontage checkout directory from env or known locations."""
-    env_dir = os.environ.get("OPENMONTAGE_DIR") or os.environ.get("SIMPLICIO_OPENMONTAGE_DIR")
-    if env_dir:
-        p = Path(env_dir).expanduser().resolve()
-        if p.is_dir():
-            return p
-
-    candidates = [
-        Path("/projetos/ai/OpenMontage"),
-        Path("/projetos/ai/openmontage"),
-        paths.home() / "tools" / "openmontage",
-        Path.home() / ".openmontage",
-        Path.cwd() / "OpenMontage",
-    ]
-    for c in candidates:
-        if c.is_dir() and (c / "backlot").is_dir():
-            return c
-        if c.is_dir() and (c / ".git").is_dir():
-            return c
-    return None
+    """The pinned OpenMontage checkout ($OPENMONTAGE_DIR or $SIMPLICIO_TOOLS_DIR/openmontage), or None."""
+    return tools.find("openmontage")
 
 
 def clone_openmontage(target_dir: Path | None = None) -> Path:
-    """Clone OpenMontage repository into target directory."""
-    git_bin = shutil.which("git")
-    if not git_bin:
-        raise MontageError("Git não encontrado no PATH para clonar o OpenMontage.")
-
-    dst = target_dir or Path("/projetos/ai/OpenMontage")
-    dst = dst.expanduser().resolve()
-    if dst.is_dir() and (dst / "backlot").is_dir():
-        return dst
-
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [git_bin, "clone", "--depth", "1", OPENMONTAGE_REPO, str(dst)]
-    print(f"Clonando OpenMontage em {dst}...")
-    res = subprocess.call(cmd)
-    if res != 0 or not dst.is_dir():
-        raise MontageError(f"Falha ao clonar OpenMontage de {OPENMONTAGE_REPO} para {dst}.")
-    return dst
+    """Install OpenMontage at its pinned commit (target_dir overrides the location)."""
+    if target_dir is not None:
+        os.environ["OPENMONTAGE_DIR"] = str(Path(target_dir).expanduser())
+    try:
+        return Path(tools.install("openmontage"))
+    except tools.ToolError as e:
+        raise MontageError(str(e)) from None
 
 
 def ensure_openmontage_dir(target_dir: Path | None = None) -> Path:
-    """Find or auto-clone OpenMontage."""
+    """Find or install OpenMontage."""
     d = find_openmontage_dir()
     if d is not None:
         return d

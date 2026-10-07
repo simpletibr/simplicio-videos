@@ -4,10 +4,11 @@ Invokes Hypit AI agent capabilities to clone videos into complete workflows.
 """
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from . import tools
 
 
 class CloneError(Exception):
@@ -18,14 +19,11 @@ HYPIT_REPO = "https://github.com/hypit-ai/hypit"
 
 
 def find_hypit_bin() -> list[str]:
-    """Find local hypit executable or fallback to npx @hypit/hypit."""
-    hypit = shutil.which("hypit")
-    if hypit:
-        return [hypit]
-    npx = shutil.which("npx")
-    if npx:
-        return [npx, "--yes", "@hypit/hypit"]
-    raise CloneError("Nem `hypit` nem `npx` foram encontrados no PATH. Instale o Hypit AI (https://github.com/hypit-ai/hypit).")
+    """A local `hypit` binary, else npx at the pinned version (tools.TOOLS['hypit'])."""
+    try:
+        return tools.npm_command("hypit")
+    except tools.ToolError:
+        raise CloneError("Nem `hypit` nem `npx` foram encontrados no PATH. Instale o Hypit AI (https://github.com/hypit-ai/hypit).") from None
 
 
 def run_hypit(args: list[str], cwd: Path | None = None) -> int:

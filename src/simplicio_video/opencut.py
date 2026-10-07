@@ -11,9 +11,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import paths
+from . import tools
 
-OPENCUT_REPO = "https://github.com/OpenCut-app/opencut-classic"
+OPENCUT_REPO = tools.get("opencut").source
 
 
 class OpenCutError(Exception):
@@ -21,26 +21,16 @@ class OpenCutError(Exception):
 
 
 def find_opencut_dir() -> Path | None:
-    env_dir = os.environ.get("OPENCUT_DIR") or os.environ.get("SIMPLICIO_OPENCUT_DIR")
-    candidates = [Path(env_dir).expanduser()] if env_dir else []
-    candidates += [paths.home() / "tools" / "opencut", Path.home() / ".opencut", Path.cwd() / "opencut"]
-    for c in candidates:
-        if c.is_dir() and (c / "package.json").is_file():
-            return c.resolve()
-    return None
+    return tools.find("opencut")
 
 
 def clone_opencut(target: Path | None = None) -> Path:
-    git = shutil.which("git")
-    if not git:
-        raise OpenCutError("git não encontrado no PATH.")
-    dst = (target or paths.home() / "tools" / "opencut").expanduser().resolve()
-    if (dst / "package.json").is_file():
-        return dst
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    if subprocess.call([git, "clone", "--depth", "1", OPENCUT_REPO, str(dst)]) != 0:
-        raise OpenCutError(f"falha ao clonar {OPENCUT_REPO}")
-    return dst
+    if target is not None:
+        os.environ["OPENCUT_DIR"] = str(Path(target).expanduser())
+    try:
+        return Path(tools.install("opencut"))
+    except tools.ToolError as e:
+        raise OpenCutError(str(e)) from None
 
 
 def run_opencut(args: list[str]) -> int:
