@@ -1,112 +1,284 @@
 # simplicio-videos
 
-**Video plugin for Simplicio Runtime (Simplicio MCP): a deterministic video machine driven by agents.** A user asks for a video; the plugin runs a **deterministic pipeline**: intake questionnaire (with automatic site/Instagram extraction) → brief/spec → sector template → composition from the motion pattern library (HyperFrames) → TTS voice (Gemini, local, cloned voices; cached) → optional footage editing (video-use) → deterministic render. The LLM only decides things (contract, EDL) and creates new templates/patterns; it is never in the render path.
+**A free, self-hosted content conveyor built on a deterministic video engine.** Give it a website; it understands the brand, picks hooks, makes videos with the engine below, waits for your approval, posts through Real Oficial, reads the results and starts the next cycle. A themed 2D factory shows every step. Everything except video generation is a plugin, the default path spends **zero LLM tokens**, and paid AI media is optional per item.
 
-Decisions: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · [ADR-0002 (CLI + contract + Colab + credits)](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md) · [ADR-0003 (100% script flow; local render by default)](docs/decisoes/ADR-0003-fluxo-100-script.md) · [ADR-0004 (generative UGC outside the deterministic render)](docs/decisoes/ADR-0004-ugc-generativo.md) · Costs: [docs/custos.md](docs/custos.md) · Outbound sales: [docs/venda-ativa.md](docs/venda-ativa.md) · Manifest: [`plugin.json`](plugin.json) · Skill: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md)
+> **Status.** Available today: the deterministic video engine and its CLI (`simplicio-video`). In progress: the conveyor, plugin system, panel and themes, shipping as the **MVP v0.4.0** (one theme, videos working, posting through Real Oficial). Anything below marked *MVP* or *later* is a plan, tracked in [epic #14](https://github.com/simpletibr/simplicio-videos/issues/14) and specified in [`docs/factory/`](docs/factory/README.md).
 
-**Entry point: the `simplicio-video` CLI.** The agent writes the YAML contract ([`schema/contract.schema.json`](schema/contract.schema.json)); the CLI validates it, generates the voice and renders deterministically (local or Colab GPU). Agents (Claude Code, Codex, Grok): start at [`AGENTS.md`](AGENTS.md).
+**Free to use, not open source.** The product is free under a proprietary license and is funded by sponsor placements on the website; the MVP contains no ads and the panel will never run third-party ad scripts ([business model](docs/factory/monetization.md)). It is built on open-source tools, each used under its own license ([matrix](docs/factory/monetization.md#tool-license-matrix-checked-2026-10-06-against-each-repository)).
 
-## Apps
+## The conveyor
 
-Every external tool is a **track** with one CLI command, one MCP verb (`plugin.json`) and one doc. Install and run them yourself; nothing is vendored. All of it is optional except HyperFrames and ffmpeg.
+```mermaid
+flowchart LR
+  brand["brand: read the site"] --> ideas["ideas: hooks by rules"] --> make["make: deterministic render"] --> review{{"review: you approve"}}
+  review --> schedule["schedule: dry-run"] --> confirm{{"confirm: you, with a token"}}
+  confirm --> publish["publish via Real Oficial"] --> metrics["metrics"] --> report["report + hints"] --> ideas
+```
 
-### Video apps
+It never ends: after publishing, results come back, a report and hints shape the next ideas, and the loop starts again. Two gates are always yours: **approving a video** and **confirming a post**. Nothing publishes, spends credits or buys anything by itself.
 
-| App | License | Role | CLI command | MCP verb | Doc |
-|---|---|---|---|---|---|
-| [HyperFrames](https://github.com/heygen-com/hyperframes) | Apache-2.0 | Deterministic HTML/GSAP → MP4 render (core) | `simplicio-video render contract.yaml` | `video.render` | [motion/README.md](motion/README.md) |
-| [video-use](https://github.com/browser-use/video-use) | MIT | EDL editing of any MP4 (cuts, reorder, subtitles, review) | `simplicio-video edit setup\|transcribe\|pack\|render\|verify` | `video.edit` | [tools/video-use](tools/video-use/README.md) |
-| [OpenMontage](https://github.com/calesthio/OpenMontage) | see repo | Agentic production pipelines (Backlot, Remotion, HyperFrames) | `simplicio-video montage [clone\|open\|serve\|demo]` | `video.montage` | [docs/recursos.md](docs/recursos.md) |
-| [OpenCut](https://github.com/OpenCut-app/OpenCut) | MIT | Open-source editor for manual finishing (uses `opencut-classic` until the rewrite has an API) | `simplicio-video opencut clone\|dev\|where` | `video.opencut` | [docs/recursos.md](docs/recursos.md) |
-| [Hypit AI](https://github.com/hypit-ai/hypit) | see repo | Clone viral videos into agent workflows | `simplicio-video clone [args]` | `video.clone` | [docs/recursos.md](docs/recursos.md) |
+### What a first run looks like (MVP)
 
-### Audio apps
+```mermaid
+sequenceDiagram
+  actor Dev as You
+  participant UI as Panel (theme + language)
+  participant D as Daemon (simplicio-video up)
+  participant S as Stage plugins
+  participant E as Video engine
+  participant RO as Real Oficial
+  Dev->>UI: brand from a URL
+  UI->>D: create brand
+  D->>S: brand + ideas (parse and rules, 0 tokens)
+  Dev->>UI: pick an idea
+  D->>S: make
+  S->>E: contract.yaml to render
+  E-->>S: preview.mp4 + content hash
+  S-->>UI: Needs you: review
+  Dev->>UI: approve (checklist)
+  Dev->>UI: confirm the post
+  D->>RO: preview, then confirm with a human token
+  RO-->>D: published / scheduled
+  D->>S: metrics, report, hints
+  S-->>UI: next cycle ready
+```
 
-| App | License | Role | Provider (`voz.provider` / `--provider`) | Setup | Doc |
-|---|---|---|---|---|---|
-| Gemini TTS | cloud API | Default narration | `gemini` (or `file` for AI Studio WAVs) | `GEMINI_API_KEY` | [voices/gemini.md](voices/gemini.md) |
-| Kokoro-82M | Apache-2.0 | Free local draft voice (pt-BR ok) | `local` | `SIMPLICIO_TTS_PY` | [voices/local.md](voices/local.md) |
-| [VoxCPM2](https://github.com/OpenBMB/VoxCPM) | Apache-2.0 | Voice design from a text description, or cloning from a short reference clip (30 languages, 48 kHz) | `voxcpm` | `pip install voxcpm`, `VOXCPM_BIN` | [voices/voxcpm.md](voices/voxcpm.md) |
-| [OpenVoice V2](https://github.com/myshell-ai/OpenVoice) | MIT | Voice cloning: converts a base take (Kokoro) to the reference speaker's timbre | `openvoice` | `OPENVOICE_PY`, `OPENVOICE_CHECKPOINTS` | [voices/openvoice.md](voices/openvoice.md) |
-| [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (HTTP only, never vendored) | Local ElevenLabs alternative: your cloned voice profiles through an OpenAI-compatible API | `voicestudio` | `VOICESTUDIO_URL` (default `http://localhost:3900`) | [voices/voicestudio.md](voices/voicestudio.md) |
-| [Real Oficial](https://api.realoficial.com.br/mcp) | cloud MCP | Social scheduling/publishing, AI image/video, cuts (49 MCP tools, OAuth; see docs/realoficial.md) | — (MCP) | `simplicio-video realoficial config` | [docs/realoficial.md](docs/realoficial.md) |
+## Token economy
 
-All voice providers go through the same pipeline: raw take kept per provider → silence trim → contract ffmpeg chain → 48 kHz mono → `timing.lock.json`. A take longer than its slot is an error; audio is **never time-stretched**. Cloned voices need the **written authorization of the speaker**; see [voices/README.md](voices/README.md).
+| Where an LLM would be tempting | What we do instead |
+|---|---|
+| Reading a website | Parse HTML; every fact keeps its source |
+| Writing hooks | Templates filled from brand facts, ranked by past results; you or an external agent can add ideas |
+| Composing the video | Deterministic `Draft → contract.yaml` over existing templates and motion patterns |
+| Render, captions, music, voice | The engine: HyperFrames, ffmpeg, Kokoro, video-use |
+| Translating the panel and the characters' bubbles | Message catalogs in 15 languages, free |
+| Reports and next ideas | Rules over metrics, with minimum sample sizes |
+| Captions, translation, dubbing, covers | Delegated to Real Oficial's own AI |
+
+An LLM is an optional plugin for judgment only, always behind a token budget; a test fails the default loop if it calls a model. External agents (Claude, GPT, Hermes Agent, OpenClaw) can drive the conveyor over MCP with their own tokens, using coarse commands and `loop wait` instead of polling.
+
+### Per item: free by default, paid only if chosen
+
+```mermaid
+flowchart LR
+  D["Draft (rules)"] --> C["contract.yaml"]
+  C --> R["deterministic render: free"]
+  R --> P["preview"]
+  O["optional for this item: caption, cover, translate/dub, AI media (paid)"] -.->|"estimate, budget, human token; assets with provenance"| C
+```
+
+## Plugins: everything but the video engine
+
+```mermaid
+flowchart TB
+  subgraph PL["Plugins (installed, enabled, replaced)"]
+    direction LR
+    ST["stages: brand, ideas, studio, review, publish, metrics"]
+    PUB["publishers: Real Oficial, export"]
+    SRF["surfaces: server, panel, factory scene"]
+    DATA["data: themes, languages"]
+    NEXT["later: agents, orchestrators, media, integrations"]
+  end
+  SVC["host services (not plugins): workspace, store, policy = the gates, security, simple loop runner"]
+  subgraph CORE["Core"]
+    direction LR
+    HOST["plugin host: loads and manages plugins; doctor, install, update"]
+    ENG["video engine: contract, voice, render, edit"]
+  end
+  PL --> SVC --> CORE
+```
+
+The host services are deliberately **not** plugins: they enforce the human gates, so no plugin can remove them. Plugins declare their permissions in a manifest, are enabled per workspace, and are tested with shared contract suites. Spec: [plugins.md](docs/factory/plugins.md).
+
+```
+simplicio-video plugin list | info | install | enable | disable | update | uninstall | doctor
+simplicio-video plugin new <kind> <id>     # scaffolds a plugin with a failing contract test first
+simplicio-video plugin check <path>        # runs the contract suite for its kind
+```
+
+## Themes and languages
+
+A **theme** changes how the factory looks and speaks, never how it behaves: scenery, a belt, stations and one 2D character per stage. It is data only (SVG and JSON), so anyone can make one. Bubbles are templates per event kind in the language catalogs, so the characters "talk" in every language at zero token cost.
+
+```mermaid
+flowchart LR
+  E["events: stage, gate, publish, ..."] --> M["mapping: event kind to animation + phrase key"]
+  T["theme: palette, scene, stations, characters"] --> R["scene renderer: SVG now, Three.js later"]
+  M --> R
+  L["language catalogs"] --> R
+  R --> UI["panel on phone and desktop"]
+```
+
+```
+themes/<id>/
+  theme.json            # scene (landscape + portrait), stations, characters, palette, license
+  assets/*.svg          # original art only
+  locales/<lang>.json   # names and bubble phrases for this theme
+simplicio-video theme new <id> | validate <dir> | install <path|url> | use <id>
+```
+
+| | Plan |
+|---|---|
+| **MVP** | one theme (`br`, original flat-vector art) in `pt-BR` and `en` |
+| **Languages (proposed 15, one country theme each)** | pt-BR, en-US, es-MX, zh-CN, ru-RU, fr-FR, de-DE, it-IT, ja-JP, ko-KR, hi-IN, ar-SA (right-to-left), tr-TR, id-ID, pl-PL |
+| **Genre themes** | original dragons and fantasy realms, a courtyard sitcom, tiny factory mascots, and more |
+| **Your own theme** | a folder dropped in your workspace; validated for safe SVG, complete translations and a license |
+
+**We ship only original art.** Protected franchises (Minions, Chaves, Game of Thrones and similar) cannot be committed or distributed here, even as "inspired by"; a private theme is the user's own responsibility. Country themes use positive cultural motifs and get a native review. Details: [themes.md](docs/factory/themes.md).
+
+## Commands
+
+Every command has `--help` with a description and examples, and the generated reference (`docs/reference/`, MVP) is built from the same data. *today* = available now, *MVP* = v0.4.0, *later* = after the MVP.
+
+| Group | Commands | When |
+|---|---|---|
+| Video engine | `init` `validate` `voice` `render` `publish` `run` `list` | today |
+| Editing and tools | `edit` `opencut` `montage` `clone` `ugc` | today |
+| Providers | `realoficial config`, `mcp` | today |
+| Sales operations | `prospect` `venda` | today |
+| Health and lifecycle | `doctor` `install` `update` `setup` | MVP |
+| Plugins and themes | `plugin …` `theme …` | MVP |
+| Workspace | `workspace` `clean` `usage` `policy` | MVP |
+| The conveyor | `brand` `ideas` `make` `review` `schedule` `metrics` `loop` `demo` `up` | MVP |
+| Depth | `plan` `library` `cast` `compliance` `learn` `eval` `agent` `game` | later |
+
+```bash
+simplicio-video doctor          # checks Python, Node, ffmpeg, disk, ports, plugins, workspace; prints the exact fix for each problem
+simplicio-video install         # idempotent install of the environment (what install.sh calls)
+simplicio-video update          # fetch, show the changelog, fast-forward, reinstall, rebuild the panel, run doctor, print how to roll back
+simplicio-video up              # one local daemon: panel, API and loop scheduler on 127.0.0.1 (Tailscale or VPN optional)
+simplicio-video loop wait --until gate    # block until you are needed (no polling, no tokens)
+```
+
+## Quick start
+
+**Today (video engine):**
+
+```bash
+gh repo clone simpletibr/simplicio-videos && cd simplicio-videos
+pip install -e .                      # `simplicio-video` command (Python >= 3.10); render needs Node >= 22 + ffmpeg
+simplicio-video --help
+cd clients/lothus-odontologia/video-01-dia-das-criancas
+simplicio-video validate contract.yaml
+simplicio-video voice contract.yaml   # provisional local voice (Kokoro) or --provider file|gemini|voxcpm|openvoice|voicestudio
+simplicio-video render contract.yaml  # out/lothus-dia-criancas.mp4 + render.manifest.json
+```
+
+**v0.4.0 (MVP), planned:**
+
+```bash
+git clone <repo> && cd simplicio-videos && ./install.sh
+simplicio-video doctor && simplicio-video setup
+simplicio-video up                    # open the panel, choose the theme and language
+simplicio-video demo                  # offline walkthrough with a fictional brand, no keys
+```
+
+## Apps we build on
+
+Optional tools are never vendored: you install them, we invoke them. Licenses were checked against each repository on 2026-10-06.
+
+### Video
+
+| App | License | Role | Command | Doc |
+|---|---|---|---|---|
+| [HyperFrames](https://github.com/heygen-com/hyperframes) | Apache-2.0 | Deterministic HTML/GSAP → MP4 render (core) | `render` | [motion](motion/README.md) |
+| [video-use](https://github.com/browser-use/video-use) | MIT | EDL editing of any MP4 | `edit setup\|transcribe\|pack\|render\|verify` | [tools/video-use](tools/video-use/README.md) |
+| [OpenCut](https://github.com/OpenCut-app/OpenCut) | MIT | Editor for manual finishing | `opencut clone\|dev\|where` | [recursos](docs/recursos.md) |
+| [OpenMontage](https://github.com/calesthio/OpenMontage) | **AGPL-3.0** | Agentic production pipelines, run as a separate program from the user's own checkout | `montage …` | [recursos](docs/recursos.md) |
+| [Hypit AI](https://github.com/hypit-ai/hypit) | modified Apache-2.0 (no commercial redistribution, no multi-tenant use) | Clone viral videos; the user's own install only | `clone …` | [recursos](docs/recursos.md) |
+
+### Audio
+
+| App | License | Role | Provider | Doc |
+|---|---|---|---|---|
+| Gemini TTS | cloud API | Default narration | `gemini` or `file` | [gemini](voices/gemini.md) |
+| Kokoro | Apache-2.0 model, MIT `kokoro-onnx` | Free local draft voice (pt-BR ok) | `local` | [local](voices/local.md) |
+| [VoxCPM2](https://github.com/OpenBMB/VoxCPM) | Apache-2.0 | Voice design or cloning (30 languages, 48 kHz) | `voxcpm` | [voxcpm](voices/voxcpm.md) |
+| [OpenVoice V2](https://github.com/myshell-ai/OpenVoice) | MIT | Voice cloning on a Kokoro base | `openvoice` | [openvoice](voices/openvoice.md) |
+| [VoiceStudio](https://github.com/debpalash/VoiceStudio) | **AGPL-3.0** | Cloned voice profiles over its local API; HTTP only | `voicestudio` | [voicestudio](voices/voicestudio.md) |
+
+All voice providers share one pipeline: raw take kept per provider → silence trim → contract ffmpeg chain → 48 kHz mono → `timing.lock.json`. A take longer than its slot is an error; audio is **never time-stretched**. Cloned voices need the speaker's written authorization ([voices](voices/README.md)).
+
+## Integrations
+
+Real Oficial is the default provider (publishing, scheduling, analytics; captions optional) and the only integration in the MVP. The rest are plugins planned after it, each starting with a spike; facts were checked on 2026-10-06. Full catalog and findings: [integrations.md](docs/factory/integrations.md).
+
+| Category | Services | Plan |
+|---|---|---|
+| Publishing, scheduling, analytics, media | **Real Oficial** (MCP, OAuth) | MVP; media later |
+| Social and ads | Meta, Google (YouTube, GA4, Ads), TikTok | M4 (platforms gate public posting behind audits; Real Oficial holds them) |
+| Payments | Stripe, PayPal, AbacatePay | M4 (REST and webhooks) |
+| Checkout | CartPanda, Kirvano | M4 (after capturing a live payload) |
+| CRM | HubSpot | M4 |
+| Attribution | RedTrack (Utmify skipped for v1) | M4 |
+| Analytics and market intelligence | Microsoft Clarity, Google Analytics, Semrush, Similarweb | M4 |
+| VSL player | Vturb | M4 |
+| Agent runtimes (external clients over MCP) | Hermes Agent, OpenClaw | M4 recipes |
+| Paid AI media (optional per item) | TopView, Higgsfield, Real Oficial media | M3/M4 |
+
+## Roadmap
+
+```mermaid
+flowchart LR
+  M0["M0 foundation: gate, plugin host, kernel, skeleton on fakes"] --> M1["M1 MVP v0.4: one theme, videos, Real Oficial posting"]
+  M1 --> M2["M2 v0.5: agents and learning, optional"]
+  M1 --> M3["M3 v0.6: plan, library, cast, compliance, paid media"]
+  M1 --> M4["M4 v0.7: plugins and integrations"]
+  M1 --> M5["M5 v0.8: Three.js, more themes and languages"]
+  M1 --> M6["M6 v0.9: public site with sponsor placements"]
+```
+
+Every release has every shipped stage working end to end, the loop test green with each stage real, `doctor` green on a fresh clone, and an honest list of known limits. Plan, order and open decisions: [roadmap](docs/factory/roadmap.md), [design review](docs/factory/design-review.md).
+
+## How we build it
+
+Test first (contract suites, flow tests, an end-to-end loop test that runs on fakes from day one), one directory per issue so many can run in parallel, a local gate (`make check`, no GitHub Actions) and a serialized landing script, independent review before merge. Start at [parallel-work.md](docs/factory/parallel-work.md) and [`AGENTS.md`](AGENTS.md).
 
 ## Repository map
 
 ```
 simplicio-videos/
-├── AGENTS.md / CLAUDE.md   # rules + map + flows for agents (CLAUDE.md → AGENTS.md)
-├── plugin.json             # simplicio.plugin/v1 — entrypoint simplicio-video (video.* verbs) + skill
-├── pyproject.toml          # Python package of the CLI (src/simplicio_video/), tests in tests/
-├── schema/                 # contract.schema.json (CLI contract)
-├── skills/simplicio-video/ # SKILL.md for LLMs in simplicio-runtime
-├── colab/                  # render.ipynb (GPU) for --backend colab bundles
-├── intake/                 # questionnaire, site/IG extraction, intake.schema.json, examples/
-├── templates/              # one template per sector (template.json + README)
-├── motion/                 # motion pattern library: patterns/<id>/, catalog.json, lib/, scripts/
-├── voices/                 # voice providers + TTS pipeline (see Audio apps)
-├── tools/                  # optional pinned tools (video-use)
-├── ugc/                    # generative UGC track (outside the render): pack.json, prompts/
-├── schemas/                # video-spec.schema.json (simplicio.video-spec/v1)
-├── docs/                   # ADRs, pipeline, setup, research — index in docs/README.md
-└── clients/<client>/       # example videos only: <video>/contract.yaml, preview/, assets
+├── src/simplicio_video/    # core: video engine, registry, plugin host, core commands
+├── src/simplicio_factory/  # (MVP) SDK, host services, first-party plugins
+├── themes/  locales/       # (MVP) data-only plugins
+├── web/                    # (MVP) panel, factory scene, i18n
+├── schema/ schemas/        # engine contract and factory JSON Schemas
+├── templates/ motion/ voices/ tools/ ugc/ intake/ colab/ skills/
+├── docs/factory/           # the specification (start here)
+├── docs/                   # ADRs, pipeline, setup, research; index in docs/README.md
+├── clients/                # example videos only
+├── plugin.json             # how this package presents itself to Simplicio Runtime (generated from the registry)
+└── AGENTS.md / CLAUDE.md   # rules and flows for agents
 ```
 
-## Catalogs
-
-| What | Where | Today |
-|---|---|---|
-| Motion patterns | [motion/README.md](motion/README.md) | 46 (24 ready blocks with preview, 1 lib, 2 inline, 19 proposed) |
-| Sector templates | [templates/README.md](templates/README.md) | 2 ready (repair/games, dentistry) + 6 skeleton |
-| Voices | [voices/README.md](voices/README.md) | Gemini (default), Kokoro, VoxCPM2, OpenVoice V2, VoiceStudio |
-| Intake | [intake/README.md](intake/README.md) | questionnaire, auto extraction, schema, WJR example |
-| Optional tools | [tools/README.md](tools/README.md) | video-use |
-| UGC (generative) | [ugc/README.md](ugc/README.md) | 10 characters + 5 prompts |
+`plugin.json` is the manifest for **Simplicio Runtime**; the plugins described above extend `simplicio-video` itself.
 
 ## Example videos
 
-Rendered examples only. Client facts (`coleta/`: briefs, sources, contacts, Drive links) are not kept in the repo and are gitignored.
+Rendered examples only; client facts are not kept in the repo.
 
 | Example | Folder | What |
 |---|---|---|
-| Repair shop / games, 9:16 Reels, 20 s | [video-01](clients/wjr-informatica-games/video-01/) · [preview](clients/wjr-informatica-games/video-01/preview/) | pt-BR narration (Gemini TTS) + own music/SFX; reference for template `assistencia-tecnica-games` |
+| Repair shop / games, 9:16 Reels, 20 s | [video-01](clients/wjr-informatica-games/video-01/) · [preview](clients/wjr-informatica-games/video-01/preview/) | pt-BR narration (Gemini TTS) + own music and SFX; reference for template `assistencia-tecnica-games` |
 | Cutdown 11.5 s of the above | [video-02-videouse](clients/wjr-informatica-games/video-02-videouse/) · [preview](clients/wjr-informatica-games/video-02-videouse/preview/) | built with [video-use](docs/video-use-integracao.md) (EDL + HyperFrames overlay) |
-| Dentistry, 9:16 post, 15 s, Children's Day | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) | reference for template `saude-odontologia` |
+| Dentistry, 9:16 post, 15 s | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) | reference for template `saude-odontologia` |
 
-## Quick start (CLI)
+## Catalogs and documentation
 
-```bash
-gh repo clone simpletibr/simplicio-videos && cd simplicio-videos
-pip install -e .                      # `simplicio-video` command (Python >= 3.10); render needs Node >= 22 + ffmpeg
-simplicio-video --help                # flow: init -> validate -> voice -> render
-cd clients/lothus-odontologia/video-01-dia-das-criancas
-simplicio-video validate contract.yaml
-simplicio-video voice contract.yaml   # provisional local voice (Kokoro) or --provider file|gemini|voxcpm|openvoice|voicestudio
-simplicio-video render contract.yaml  # out/lothus-dia-criancas.mp4 + render.manifest.json
-simplicio-video render contract.yaml --backend colab   # bundle for colab/render.ipynb (GPU)
-```
+| What | Where |
+|---|---|
+| Factory specification | [docs/factory/](docs/factory/README.md): [roadmap](docs/factory/roadmap.md), [plugins](docs/factory/plugins.md), [contracts](docs/factory/contracts.md), [themes](docs/factory/themes.md), [integrations](docs/factory/integrations.md), [business model](docs/factory/monetization.md), [risks and policies](docs/factory/risks-and-policies.md), [ownership](docs/factory/ownership.yaml) |
+| Motion patterns (46) | [motion/README.md](motion/README.md) |
+| Sector templates (2 ready, 6 skeleton) | [templates/README.md](templates/README.md) |
+| Voices | [voices/README.md](voices/README.md) |
+| Intake | [intake/README.md](intake/README.md) |
+| Real Oficial MCP map | [docs/realoficial.md](docs/realoficial.md) |
+| Older decisions (Portuguese) | [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) … [ADR-0004](docs/decisoes/ADR-0004-ugc-generativo.md); index in [docs/README.md](docs/README.md) |
 
-Cloned voice in the contract (VoxCPM2 example):
+Tests today: `PYTHONPATH=src python -m pytest`. Library previews: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`.
 
-```yaml
-voz:
-  provider: voxcpm
-  providers:
-    voxcpm:
-      reference_audio: assets/audio/ref/speaker.wav   # authorized speaker, clean 10-30 s
-      reference_text: "Exact transcript of the clip."  # optional: ultimate cloning
-      control: "warm, slightly faster"                 # optional style
-      seed: 42
-```
+> Language policy: new documentation, CLI help and code comments are English. Older docs under `docs/`, `intake/`, `templates/` and client folders are still Portuguese and are translated as they are touched.
 
-Tests: `PYTHONPATH=src python -m pytest`. Library previews: `bash motion/scripts/preview.sh && node motion/scripts/catalog.mjs`. Legacy WJR (npm): `cd clients/wjr-informatica-games/video-01 && npm run render`.
+## License
 
-## Documentation
-
-Index in [`docs/README.md`](docs/README.md). Curated video/motion tools (stars and licenses): [`docs/recursos.md`](docs/recursos.md). External reference: [Skillry — viral videos made with Claude Opus 5.5](https://skillry.dev/ai-videos/opus-5-5).
-
-Also built on [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft), [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) (recipes distilled into `motion/`) and [motion-video-kit](https://github.com/echris6/motion-video-kit) (MIT; source of 5 `proposed` patterns).
-
-> Language policy: new documentation, CLI help and code comments are written in English. Older docs under `docs/`, `intake/`, `templates/` and client folders are still Portuguese and are translated as they are touched.
+Proprietary, free to use. All rights reserved; a full EULA is part of [#70](https://github.com/simpletibr/simplicio-videos/issues/70). Third-party tools keep their own licenses ([matrix](docs/factory/monetization.md#tool-license-matrix-checked-2026-10-06-against-each-repository)).

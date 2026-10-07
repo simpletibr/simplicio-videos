@@ -28,7 +28,7 @@ Tokens are minted only by a **human session** (panel login code printed in the t
 
 ## Budgets, caps and kill switch
 
-- Hard daily caps per brand: LLM USD and tokens, media credits, renders, posts per platform; `max_in_flight_items`; quiet hours in the brand timezone.
+- Hard daily caps per brand: LLM tokens and USD, media credits, renders, posts per platform; `max_in_flight_items`; quiet hours in the brand timezone. **MVP defaults: `llm_tokens: 0` and `media_credits: 0`**: nothing that costs tokens or credits runs until the owner raises a cap.
 - Every costly call goes through `reserve → commit/release`; two concurrent reservations cannot exceed a cap.
 - 80% emits `budget.warning`; a cap emits `budget.exceeded` and **pauses the loop**.
 - Kill switch: a `STOP` file in the workspace, or `simplicio-video loop stop`, is checked between nodes and **before every external side effect**.
@@ -49,6 +49,26 @@ Tokens are minted only by a **human session** (panel login code printed in the t
 | Self-modifying agents | Agents can only create proposals; applying needs a human, an eval report and a confirm token | #29, #45 |
 | Supply chain | Pinned heavy dependencies, license scan, no AGPL import, optional extras | #46 |
 | Disk exhaustion from logs, crash dumps, renders | Retention and size caps, `doctor`, `clean` | #35 |
+| Malicious or buggy third-party plugin | Manifest permissions shown at install; `can_publish`/`can_spend` enforced by the Guard and tokens; `network` allowlist enforced for SDK fetches; lazy loading so a broken plugin never breaks `--help`, `doctor` or the core render. A plugin still runs with the user's privileges: install only what you trust | #32 |
+| Malicious theme (SVG with script or external references) | Themes are data only; the validator sanitizes SVG (no scripts, `foreignObject` or external refs), caps sizes, rejects on any violation; the panel renders themes in a CSP with no inline script | #53 |
+| Forged webhooks from commerce or tracking tools (later) | Verify the provider's signature on every webhook; reject replays; store only ids and amounts | integrations |
+| Sensitive commerce or CRM data (later) | Never store card data; keep the minimum (order id, amount, UTM, hashed contact); redact in events and logs; retention as in this file | integrations |
+
+## Sponsorship and advertising
+
+The product is free and funded by advertising ([monetization.md](monetization.md)). Rules: no advertiser script, iframe or third-party tag in the panel origin; sponsor cards are static data from a signed, reviewed feed, rendered natively, labeled "Sponsored", with an opt-out; no behavioral tracking and no telemetry by default; no ads inside generated videos. These are enforced by the sponsors plugin's tests (#69) and the panel's CSP.
+
+## Licensing for a proprietary product
+
+Imported dependencies must permit proprietary distribution (MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0 at file level). AGPL tools (OpenMontage, VoiceStudio, Postiz) are only ever separate programs or services. Hypit may only be the user's own install, never bundled. ffmpeg and Chrome are installed by the user's system, not redistributed. The scan in #46 gates this.
+
+## Plugins
+
+Plugins declare `permissions` in their manifest (network hosts, secrets, `can_publish`, `can_spend`, `reads_untrusted_content`). They are shown at install and enabled per workspace. First-party plugins pass the same gate as the core. The host services (store, policy, security, runner) are deliberately **not** plugins, so no plugin can disable a gate. See [plugins.md](plugins.md#honest-limits-of-permissions).
+
+## Themes and intellectual property
+
+Themes are data-only and validated. We ship **only original art** with a recorded license; protected franchises (names, characters, look-alike trade dress) are never committed to this repository, even "inspired by". Private user themes are the user's responsibility and must not be added to the repo. Country themes avoid caricature and political symbols and get a native review before `stable`. Details: [themes.md](themes.md#genre-themes-the-fun-ones).
 
 ## Prompt-injection rules for agent code
 
