@@ -451,7 +451,7 @@
     },
     {
       "verb": "video.realoficial",
-      "description": "Real Oficial MCP (https://api.realoficial.com.br/mcp): config/check; scheduling and low-cost image/video generation coming soon.",
+      "description": "Real Oficial MCP (https://api.realoficial.com.br/mcp): config/check; OAuth MCP with 49 tools (social scheduling, AI media, cuts), see docs/realoficial.md.",
       "argv": [
         "simplicio-video",
         "realoficial",

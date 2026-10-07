@@ -1,7 +1,7 @@
-"""Real Oficial track: MCP remoto (https://api.realoficial.com.br/mcp) for scheduling and low-cost image/video generation.
+"""Real Oficial track: MCP remoto (https://api.realoficial.com.br/mcp) for scheduling/publishing and AI image/video generation.
 
-The service does not expose those tools yet; this track only wires the MCP server so agents can use it as soon
-as it ships. Generated media never enters the deterministic `render` unless it is a contract asset file.
+This track wires the MCP server (OAuth login in the client; 49 tools, see docs/realoficial.md). Generated media never
+enters the deterministic `render` unless it is copied in as a contract asset file.
 """
 from __future__ import annotations
 
@@ -29,6 +29,6 @@ def run_realoficial(args: list[str]) -> int:
     if first == "check":
         if not shutil.which("npx"):
             raise RealOficialError("npx não encontrado no PATH (necessário para mcp-remote).")
-        print(f"ok: npx presente; MCP em {REALOFICIAL_MCP_URL} (agendamento, imagem e vídeo: em breve)")
+        print(f"ok: npx presente; MCP em {REALOFICIAL_MCP_URL} (OAuth login in your MCP client; tools: docs/realoficial.md)")
         return 0
     raise RealOficialError(f"subcomando desconhecido: {first} (config|check)")
