@@ -25,3 +25,6 @@ prospects/*
 # estado local do simplicio-loop/runtime
 .simplicio/
 .orchestrator/
+
+# client facts never enter the repo (briefs, sources, contacts, saved sites)
+clients/*/coleta/

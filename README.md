@@ -51,7 +51,7 @@ simplicio-videos/
 ├── ugc/                    # generative UGC track (outside the render): pack.json, prompts/
 ├── schemas/                # video-spec.schema.json (simplicio.video-spec/v1)
 ├── docs/                   # ADRs, pipeline, setup, research — index in docs/README.md
-└── clients/<client>/       # client work: coleta/ (sourced facts), <video>/contract.yaml, video-NN/ (legacy)
+└── clients/<client>/       # example videos only: <video>/contract.yaml, preview/, assets
 ```
 
 ## Catalogs
@@ -65,16 +65,15 @@ simplicio-videos/
 | Optional tools | [tools/README.md](tools/README.md) | video-use |
 | UGC (generative) | [ugc/README.md](ugc/README.md) | 10 characters + 5 prompts |
 
-## Clients and videos
+## Example videos
 
-| Client | Video | What |
+Rendered examples only. Client facts (`coleta/`: briefs, sources, contacts, Drive links) are not kept in the repo and are gitignored.
+
+| Example | Folder | What |
 |---|---|---|
-| WJR Informática e Games (Guarulhos) | [coleta](clients/wjr-informatica-games/coleta/) | brief, saved site, sources, open items |
-| | [video-01](clients/wjr-informatica-games/video-01/) | 9:16 Reels, 20 s, pt-BR narration (Gemini TTS, voice Puck) + own music/SFX · [preview](clients/wjr-informatica-games/video-01/preview/) · reference for template `assistencia-tecnica-games` |
-| | [video-02-videouse](clients/wjr-informatica-games/video-02-videouse/) | 11.5 s cutdown of video-01 built with [video-use](docs/video-use-integracao.md) (EDL + HyperFrames overlay) · [preview](clients/wjr-informatica-games/video-02-videouse/preview/) |
-| | [README + Drive deliveries](clients/wjr-informatica-games/README.md) | links to delivered MP4s |
-| Lothus Odontologia (Guarulhos) | [coleta](clients/lothus-odontologia/coleta/) · [README + Drive](clients/lothus-odontologia/README.md) | public Instagram + CNES + Google Places mirror; address/phone conflicts listed as open items |
-| | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) | 9:16 post, 15 s, Children's Day, provisional local voice · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) · reference for template `saude-odontologia` |
+| Repair shop / games, 9:16 Reels, 20 s | [video-01](clients/wjr-informatica-games/video-01/) · [preview](clients/wjr-informatica-games/video-01/preview/) | pt-BR narration (Gemini TTS) + own music/SFX; reference for template `assistencia-tecnica-games` |
+| Cutdown 11.5 s of the above | [video-02-videouse](clients/wjr-informatica-games/video-02-videouse/) · [preview](clients/wjr-informatica-games/video-02-videouse/preview/) | built with [video-use](docs/video-use-integracao.md) (EDL + HyperFrames overlay) |
+| Dentistry, 9:16 post, 15 s, Children's Day | [video-01-dia-das-criancas](clients/lothus-odontologia/video-01-dia-das-criancas/) · [preview](clients/lothus-odontologia/video-01-dia-das-criancas/preview/) | reference for template `saude-odontologia` |
 
 ## Quick start (CLI)
 
