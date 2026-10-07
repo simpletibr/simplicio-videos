@@ -16,10 +16,13 @@ Use a local server rather than opening the file from disk: some browsers restric
 
 ## What to try
 
-- **Factory**: agents walk to their stations, the belt runs, the Quality Gate barrier closes when a video waits for you. Click a building or a step in the stepper to see that station in the side panel. Click a video on the belt, or a row in the queue, to follow it (blue ribbon and pin). Drag, wheel or pinch to move the camera. Use the toolbar to zoom, rotate, reset, switch day and night, or hide the panel.
+- **Factory as a small town.** Each stage is its own kind of building: a workshop house (brand), an idea shop (ideas), a video factory with smoking chimneys (make), an inspection garage (review), a launch market (publish), an observatory (metrics) and a learning barn (report). The lamps on each roof are its rooms: they light up as the followed video moves through the sub-steps inside (the side panel lists them under "Inside this building"). The belt runs through all of it.
+- **Move anywhere.** Drag to rotate and tilt, right-drag or Shift-drag to pan, wheel or pinch to zoom from the whole town down to a single robot, WASD or the arrow keys to walk, Q and E to rotate, R to reset. The toolbar has the same controls, plus day and night and weather.
+- **Bots.** Click a robot, or open the Bots tab, to chat with it (Brush, Spark, Clapper, Gate, Post, Lens, Mirror, Sprout). Ask for its status, what needs you, to show where it works, to follow it around, to open its page, or change the world: rain, snow, desert, fog, sun, day, night, fly. Replies are templates, so no tokens are spent.
+- **A living world.** Weather (sun, rain, snow, desert, fog), drifting clouds, birds, a plane with a contrail, a lake with boats and jumping fish (pan left to find it), fireflies at night.
 - **Approve** the amber item at the Quality Gate, then **hold** the button on the Publish step to confirm a post. Posting is a deliberate gesture on purpose.
 - **Scenario** (top bar or Settings → Appearance): nine themes. Only Brazil is in the MVP; the others show that the same format carries very different looks.
-- **View**: `3D with models` (procedural low-poly agents), `3D with 2D art` (the 2D characters standing in the 3D world) and `2D flat (fallback)` for devices without WebGL.
+- **View**: `3D with 2D art` (default when the generated characters exist), `3D with models` (procedural low-poly agents) and `2D flat (fallback)` for devices without WebGL.
 - **Device** and **language** (English, Portuguese), **RTL preview**, and the collapsible side menu.
 - **Demo autopilot** approves and confirms on its own so you can watch the whole loop. That switch exists only in this prototype.
 
@@ -27,9 +30,11 @@ Use a local server rather than opening the file from disk: some browsers restric
 
 | Screen | Shot |
 |---|---|
-| Factory, day / night / 2D art in 3D | [day](screens/factory-day.jpg) · [night](screens/factory-night.jpg) · [sprites](screens/factory-sprites.jpg) |
-| Factory on a phone | [day](screens/factory-phone.jpg) · [night, details open](screens/factory-phone-night.jpg) |
-| Factory in Portuguese and right-to-left | [pt-BR](screens/factory-pt-br.jpg) · [RTL](screens/factory-rtl.jpg) |
+| Factory by day and night | [day](screens/factory-day.jpg) · [night](screens/factory-night.jpg) · [Portuguese](screens/factory-pt-br.jpg) |
+| Station details and the rooms inside | [make](screens/factory-details.jpg) |
+| Chatting with a bot | [desktop](screens/factory-chat.jpg) · [phone](screens/factory-phone-chat.jpg) |
+| Weather | [snow](screens/factory-snow.jpg) · [desert](screens/factory-desert.jpg) |
+| Factory on a phone | [day](screens/factory-phone.jpg) |
 | Nine themes in 3D | [montage](screens/themes-3d.jpg) |
 | Login, Needs you, Brand, Ideas, Studio | [login](screens/login.jpg) · [inbox](screens/inbox.jpg) · [brand](screens/brand.jpg) · [ideas](screens/ideas.jpg) · [studio](screens/studio.jpg) |
 | Review, Publish (desktop and phone) | [review](screens/review.jpg) · [publish](screens/publish.jpg) · [review phone](screens/review-phone.jpg) · [publish phone](screens/publish-phone.jpg) |
@@ -39,7 +44,7 @@ Use a local server rather than opening the file from disk: some browsers restric
 
 - Not the product. Pages, fields and states follow the spec in [`docs/factory`](../README.md); the numbers are examples.
 - Not secure or multi-user. In the product only a human session can approve a video or confirm a post.
-- Not final art. The Brazil theme is original procedural geometry; the other eight are concepts.
+- Not final art. The Brazil theme uses original procedural buildings plus characters, plaza tile, heroes and video backgrounds generated with GPT Image 2 (see [src/art/LICENSE.md](src/art/LICENSE.md)); the other eight themes are concepts.
 
 ## Design notes the prototype settles
 
@@ -52,11 +57,11 @@ Use a local server rather than opening the file from disk: some browsers restric
 
 `page` (`login`, `factory`, `inbox`, `brand`, `ideas`, `studio`, `review`, `publish`, `activity`, `settings`), `lang` (`en`, `pt-BR`), `theme` (`br`, `us`, `cn`, `ru`, `jp`, `dragons`, `realms`, `courtyard`, `tiny`), `view` (`3d`, `3d-sprites`, `2d`), `tod` (`day`, `night`), `scheme` (`light`, `dark`), `device` (`desktop`, `phone`), `rail` (`min`), `panel` (`1`, `0`), `auto=1`, `rtl=1`, `upload=1`, `tab` (Settings tab).
 
-Handy for screenshots: `warm=14` runs the simulation for 14 seconds before the first frame, `hud=0` hides every overlay and shows the bare scene, `lowfx=1` lowers shadow quality for software renderers.
+Handy for screenshots: `warm=14` runs the simulation for 14 seconds before the first frame, `hud=0` hides every overlay and shows the bare scene, `wx` (`clear`, `rain`, `snow`, `desert`, `fog`) sets the weather, `ptab=chat` and `bot=<role>` open a chat, `lowfx=1` lowers shadow quality for software renderers.
 
-## Richer art (next)
+## Generated art
 
-The owner asked for more elaborate images generated with GPT Image 2 through Real Oficial's MCP. The prototype already knows how to use them: drop the raw images in `src/art/raw/`, run `python3 src/art/pack.py` and rebuild. Nothing is generated yet (the MCP connection still needs the `media:write` permission); [image-brief.md](image-brief.md) holds the prompts, sizes, budget rules and the status.
+The Brazil theme's characters, plaza tile, two hero illustrations and five video backgrounds were generated with GPT Image 2 through Real Oficial (16 images, 0 credits: they fall inside the plan's monthly allowance). [image-brief.md](image-brief.md) holds the prompts and rules. To add or replace art, drop the raw images in `src/art/raw/`, run `python3 src/art/pack.py` and rebuild.
 
 ## Rebuild
 

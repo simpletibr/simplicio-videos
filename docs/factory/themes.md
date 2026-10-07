@@ -67,6 +67,14 @@ Rules (validated by `simplicio-video theme validate <dir>`, tested by the `Theme
 - The scene is 3D. `fallback_2d` has a `landscape` and a `portrait` variant (coordinates in each `viewBox`) for devices without WebGL and for people who pick the flat view, so they still get the same factory.
 - The scene spec is renderer-neutral: the Three.js renderer is the default and the SVG renderer is the fallback. Both read the same theme.
 
+## Buildings, rooms and world
+
+Every stage has its own kind of building, so the scene reads like a small town in a game and not like seven identical boxes: a workshop house (brand), an idea shop (ideas), a video factory (make), an inspection garage (review), a launch market (publish), an observatory (metrics) and a learning barn (report). Each building has **rooms**, the sub-steps of its stage (for example Studio: write script, record voice, compose scenes, render, quality check); a row of lamps on the roof lights up as the followed video moves through them, and the station panel lists them. The belt runs through the whole town.
+
+The world around it is alive and costs no tokens: weather (sun, rain, snow, desert, fog), clouds, birds, a plane with a contrail, a lake with boats and jumping fish, fireflies at night. Weather and time of day are part of the scene, not of the theme's identity, so any theme can be rained on.
+
+The factory is also a chat: each agent can be clicked and asked for its status, what needs the human, to show or follow it, or to change the weather. Replies come from catalog templates (zero tokens); in the product the same panel can talk to real agents.
+
 ## Day and night
 
 The scene has two lighting states. At night the sky and fog change, windows and street lamps glow, and 2D sprites are dimmed. The default follows the system color scheme; a button over the scene switches it, and the choice is remembered per browser. Night never changes behavior.

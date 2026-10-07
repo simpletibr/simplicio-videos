@@ -12,6 +12,7 @@ Object.assign(ICON,{
   close:'<path d="M6 6l12 12M18 6L6 18"/>',
   eye:'<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>',
   bolt:'<path d="M13 2.5L5 13.5h6.2L10.5 21.5 19 10.5h-6.2z"/>',
+  up:'<path d="M6 15l6-6 6 6"/>',down:'<path d="M6 9l6 6 6-6"/>',
   pin:'<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/>'});
 
 const PAGE_OF={brand:'brand',ideas:'ideas',make:'studio',review:'review',publish:'publish',metrics:'activity',report:'activity'};
@@ -45,6 +46,10 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     if(k==='publish')return [{l:t('pn.toconfirm'),v:String(S.pubq.length),p:pct(S.pubq.length*10),c:'#d98a00'},{l:t('pn.today'),v:S.done+'/3',p:pct(S.done/3*100)},{l:t('pn.provider'),v:t('pn.provider.v')},{l:t('pn.upload'),v:t(S.canUpload?'pn.upload.on':'pn.upload.off')}];
     if(k==='metrics')return [{l:t('pn.views'),v:'4.1k',p:41},{l:t('pn.lift'),v:'+38%',p:38},{l:t('pn.pull'),v:t('pn.pull.v')},{l:t('pn.cost'),v:'0 · 0'}];
     return [{l:t('pn.cycle'),v:String(SIM.cycle),p:pct(SIM.cycle*12)},{l:t('pn.family'),v:t('fam.tip')},{l:t('pn.hintsgen'),v:'2',p:40},{l:t('pn.cost'),v:'0 · 0'}]},
+  subs(k,it){const n=SUBS[k],i=STAGES.indexOf(k)+1,out=[];if(!it)return Array(n).fill('todo');const cs=curStation(it);
+    if(it.c>=8||cs>i)return Array(n).fill('done');if(cs<i)return Array(n).fill('todo');
+    let idx=n-1,st='cur';if(it.mode==='wait'){st='wait'}else if(it.mode==='dwell'&&it.dwl){idx=Math.min(n-1,Math.floor(Math.max(0,Math.min(.999,1-(it.until-SIM.time)/it.dwl))*n))}else if(it.c<i-.05){idx=0}
+    for(let q=0;q<n;q++)out.push(q<idx?'done':q===idx?st:'todo');return out},
   statusOf(k){const it=this.tracked(),i=STAGES.indexOf(k)+1;
     if(k==='review'&&S.queue.length||k==='publish'&&S.pubq.length)return ['wait',t('pn.s.wait')];
     if(it&&curStation(it)===i&&it.c<8)return it.mode==='wait'?['wait',t('pn.s.wait')]:['work',t('pn.s.work')];
@@ -62,8 +67,8 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     return `<span class="glass live"><i class="led ${led}"></i><span>${t('loop.'+S.loop)}</span><em class="mono" id="twClock">${mmss(SIM.time)}</em></span>
     <button class="glass ib" data-act="pause" aria-label="${run?t('loop.pause'):t('loop.resume')}">${ico(run?'pause':'play','width="14" height="14"')}<span>${run?t('loop.pause'):t('loop.resume')}</span></button>
     <button class="glass ib" data-act="stop" aria-label="${t('loop.stop')}">${ico('stop','width="13" height="13"')}<span>${t('loop.stop')}</span></button>
-    <span class="tools" role="toolbar"><button class="tbtn only3d wide" data-act="zoomin" aria-label="${t('tool.zin')}" title="${t('tool.zin')}">${ico('plus')}</button><button class="tbtn only3d wide" data-act="zoomout" aria-label="${t('tool.zout')}" title="${t('tool.zout')}">${ico('minus')}</button><button class="tbtn only3d wide" data-act="rotl" aria-label="${t('tool.rotl')}" title="${t('tool.rotl')}">${ico('rotl')}</button><button class="tbtn only3d wide" data-act="rotr" aria-label="${t('tool.rotr')}" title="${t('tool.rotr')}">${ico('rotr')}</button><button class="tbtn only3d" data-act="resetview" aria-label="${t('tool.reset')}" title="${t('tool.reset')}">${ico('target')}</button><button class="tbtn only3d" data-act="tod" aria-label="${night?t('tool.day'):t('tool.night')}" title="${night?t('tool.day'):t('tool.night')}">${ico(night?'sun':'moon')}</button><button class="tbtn" data-act="panel" aria-pressed="${open}" aria-label="${t('tool.panel')}" title="${t('tool.panel')}">${ico('panel')}</button></span>`},
-  kpisHTML(){return this.kpis().map(k=>`<div class="kpi hud-card ${k.warn?'warn':''}" style="--c:${k.c}"><span class="ki">${ico(k.ic)}</span><div><small>${k.l}</small><b>${k.v}</b><em>${esc(k.s)}</em></div></div>`).join('')},
+    <span class="tools" role="toolbar"><button class="tbtn only3d wide" data-act="zoomin" aria-label="${t('tool.zin')}" title="${t('tool.zin')}">${ico('plus')}</button><button class="tbtn only3d wide" data-act="zoomout" aria-label="${t('tool.zout')}" title="${t('tool.zout')}">${ico('minus')}</button><button class="tbtn only3d wide" data-act="rotl" aria-label="${t('tool.rotl')}" title="${t('tool.rotl')}">${ico('rotl')}</button><button class="tbtn only3d wide" data-act="rotr" aria-label="${t('tool.rotr')}" title="${t('tool.rotr')}">${ico('rotr')}</button><button class="tbtn only3d wide" data-act="tiltup" aria-label="${t('tool.tiltup')}" title="${t('tool.tiltup')}">${ico('up')}</button><button class="tbtn only3d wide" data-act="tiltdown" aria-label="${t('tool.tiltdown')}" title="${t('tool.tiltdown')}">${ico('down')}</button><button class="tbtn only3d" data-act="resetview" aria-label="${t('tool.reset')}" title="${t('tool.reset')}">${ico('target')}</button><button class="tbtn only3d" data-act="tod" aria-label="${night?t('tool.day'):t('tool.night')}" title="${night?t('tool.day'):t('tool.night')}">${ico(night?'sun':'moon')}</button><button class="tbtn only3d" data-act="wx" aria-label="${t('tool.wx')}: ${t('wx.'+(S.wx||'clear'))}" title="${t('tool.wx')}: ${t('wx.'+(S.wx||'clear'))}">${ico('cloud')}</button><button class="tbtn" data-act="chat" aria-pressed="${open&&S.ptab==='chat'}" aria-label="${t('tool.chat')}" title="${t('tool.chat')}">${ico('chat')}</button><button class="tbtn" data-act="panel" aria-pressed="${open}" aria-label="${t('tool.panel')}" title="${t('tool.panel')}">${ico('panel')}</button></span>`},
+  kpisHTML(){return `<div class="strip hud-card">${this.kpis().map(k=>`<div class="st ${k.warn?'warn':''}" title="${esc(k.s)}"><b>${k.v}</b><small>${k.l}</small></div>`).join('')}</div>`},
   stepperHTML(){const it=this.tracked(),cs=it?curStation(it):0,k0=STAGES[Math.max(0,cs-1)],cap=it?`${t('station.'+k0)} · ${it.mode==='wait'?t('st.wait'):it.c>=8?t('pn.s.ok'):t('st.work')}`:t('st.idle');
     const steps=STAGES.map((k,i)=>{const s=this.step(it,i+1),tm=it&&it.times&&it.times[i+1],sub=s==='done'?(tm?fmtT(tm):'✓'):s==='wait'?t('st.waitshort'):s==='cur'?t('st.workshort'):'—';
       return `<li class="${s}" style="--sc:${SC[k]}"><button data-act="selstation" data-k="${k}" aria-label="${t('station.'+k)}"><span class="sd">${s==='done'?ico('check'):ico(ICON_OF(k))}</span><b>${t('station.'+k)}</b><small>${sub}</small></button></li>`}).join('');
@@ -78,10 +83,13 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     else rows=S.posted.map(p=>`<button class="qrow" data-act="qrow" data-kind="done" data-id="${p.id}">${th(p.n)}<span class="tx"><b>${esc(p.hook)}</b><small>${p.id} · ${fmtT(p.ts)}</small></span><span class="stc" style="--chipc:${STATECOL.published}">${t('state.published')}</span></button>`).join('')||`<p class="qe">${t('q.empty.done')}</p>`;
     const tb=(v,l,n)=>`<button role="tab" data-act="qtab" data-v="${v}" aria-selected="${tab===v}">${l}<b>${n}</b></button>`;
     return `<div class="qtabs" role="tablist">${tb('live',t('q.live'),live.length)}${tb('need',t('q.need'),need)}${tb('done',t('q.done'),S.posted.length)}</div><div class="qrows">${rows}</div>`},
-  panelHTML(){const k=this.sel(),[st,stl]=this.statusOf(k),role=STAGE_ROLE[k],page=PAGE_OF[k],pinned=!!S.sel;
+  insideHTML(k){const st=this.subs(k,this.tracked());return `<div class="inside"><div class="pmode">${t('pn.inside')}</div><ol class="subs">${st.map((s,i)=>`<li class="${s}"><span class="sb"></span>${t('sub.'+k+'.'+i)}</li>`).join('')}</ol></div>`},
+  ptabsHTML(){const u=BOT_ROLES.reduce((a,r)=>a+(Chat.unread[r]||0),0);return `<div class="ptabs" role="tablist"><button role="tab" data-act="ptab" data-v="details" aria-selected="${S.ptab!=='chat'}">${t('pn.tab.details')}</button><button role="tab" data-act="ptab" data-v="chat" aria-selected="${S.ptab==='chat'}">${t('pn.tab.chat')}${u?`<i class="ud" id="ptabUd">${u}</i>`:''}</button><button class="tbtn sm" data-act="panel" aria-label="${t('pn.close')}" title="${t('pn.close')}">${ico('close')}</button></div>`},
+  unreadBadge(){const u=BOT_ROLES.reduce((a,r)=>a+(Chat.unread[r]||0),0),b=document.getElementById('ptabUd'),btn=document.querySelector('.ptabs [data-v=chat]'),tb=document.querySelector('.tools [data-act=chat]');if(btn){if(u&&!b){const i=document.createElement('i');i.className='ud';i.id='ptabUd';btn.appendChild(i)}const x=document.getElementById('ptabUd');if(x){if(u)x.textContent=u;else x.remove()}}if(tb){let d=tb.querySelector('.ud');if(u){if(!d){d=document.createElement('i');d.className='ud';tb.appendChild(d)}d.textContent=u}else if(d)d.remove()}},
+  panelHTML(){if(S.ptab==='chat')return this.ptabsHTML()+Chat.html();const k=this.sel(),[st,stl]=this.statusOf(k),role=STAGE_ROLE[k],page=PAGE_OF[k],pinned=!!S.sel;
     const rows=this.rows(k).map(r=>`<div class="pr"><div class="pl"><span>${esc(r.l)}</span><b>${esc(r.v)}</b></div>${r.p!==undefined?`<div class="pbar"><i style="width:${r.p}%;--c:${r.c||SC[k]}"></i></div>`:''}</div>`).join('');
-    return `<header><span class="pic" style="background:${SC[k]}">${ico(ICON_OF(k),'width="18" height="18"')}</span><div class="pt"><b>${t('station.'+k)}</b><small>${esc(charName(role))} · <i class="sdot ${st}"></i>${stl}</small></div><div class="pbtns">${pinned?`<button class="tbtn sm" data-act="pfollow" aria-label="${t('pn.follow')}" title="${t('pn.follow')}">${ico('eye')}</button>`:''}<button class="tbtn sm" data-act="panel" aria-label="${t('pn.close')}" title="${t('pn.close')}">${ico('close')}</button></div></header>
-      <div class="pmode">${pinned?t('pn.pinned'):t('pn.following')}</div><div class="pbody">${rows}</div><footer><button class="btn sm primary" data-go="${page}">${t('pn.open',{page:t('nav.'+page)})}</button></footer>`},
+    return this.ptabsHTML()+`<header><span class="pic" style="background:${SC[k]}">${ico(ICON_OF(k),'width="18" height="18"')}</span><div class="pt"><b>${t('station.'+k)}</b><small>${esc(charName(role))} · <i class="sdot ${st}"></i>${stl}</small></div><div class="pbtns">${pinned?`<button class="tbtn sm" data-act="pfollow" aria-label="${t('pn.follow')}" title="${t('pn.follow')}">${ico('eye')}</button>`:''}</div></header>
+      <div class="pmode">${pinned?t('pn.pinned'):t('pn.following')} · ${t('bld.'+BLD_OF[k])}</div><div class="pbody">${rows}</div>${this.insideHTML(k)}<footer><button class="btn sm primary" data-go="${page}">${t('pn.open',{page:t('nav.'+page)})}</button></footer>`},
 
   /* ---------- lifecycle ---------- */
   mount(){this.root=$('#twin');if(!this.root)return;const $$$=id=>document.getElementById(id);
@@ -92,12 +100,12 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
   relayout(){if(!this.root)return;const lay=this.layoutFor();if(this.root.dataset.layout!==lay){this.root.dataset.layout=lay;this.sig='';this.update(true)}},
   update(force){if(!this.root)return;const it=this.tracked(),k=this.sel(),
       mk=k==='make'&&it&&it.mode==='dwell'&&curStation(it)===3?Math.floor(SIM.time*4):0,
-      sig=JSON.stringify([this.live().map(i=>[i.id,curStation(i),i.state,i.mode]),S.queue.map(q=>q.id),S.pubq.map(p=>p.id),S.fails.length,S.done,S.posted.length,S.track,S.sel,this.panelOpen(),S.tab3,S.tod,S.loop,S.lang,S.canUpload,this.compact(),SIM.cycle]);
+      sig=JSON.stringify([this.live().map(i=>[i.id,curStation(i),i.state,i.mode]),S.queue.map(q=>q.id),S.pubq.map(p=>p.id),S.fails.length,S.done,S.posted.length,S.track,S.sel,this.panelOpen(),S.tab3,S.tod,S.wx,S.ptab,S.bot,S.loop,S.lang,S.canUpload,this.compact(),SIM.cycle]);
     const E=this.els;
-    if(!force&&sig===this.sig){if(mk!==this.mk){this.mk=mk;E.panel.innerHTML=this.panelHTML()}return}
+    if(!force&&sig===this.sig){if(mk!==this.mk&&S.ptab!=='chat'){this.mk=mk;E.panel.innerHTML=this.panelHTML()}return}
     this.sig=sig;this.mk=mk;
     E.ctl.innerHTML=this.ctlHTML();E.kpis.innerHTML=this.kpisHTML();E.stepper.innerHTML=this.stepperHTML();E.table.innerHTML=this.tableHTML();
-    E.panel.innerHTML=this.panelHTML();E.panel.classList.toggle('open',this.panelOpen());this.renderPins();this.root.dataset.tod=S.tod;this.tick(0);this.measure()},
+    const ps=S.ptab==='chat'?JSON.stringify(['c',S.bot,S.lang,this.panelOpen()]):null;if(S.ptab!=='chat'||ps!==this.ps||!document.getElementById('chat')){E.panel.innerHTML=this.panelHTML();if(S.ptab==='chat')Chat.mount()}this.ps=ps;E.panel.classList.toggle('open',this.panelOpen());this.renderPins();this.root.dataset.tod=S.tod;this.tick(0);this.measure()},
   renderPins(){const E=this.els;if(!E.pins)return;const list=[];
     if(S.queue.length)list.push(['review',S.queue[0],t('pin.review',{n:S.queue.length}),'amber']);
     if(S.pubq.length)list.push(['publish',S.pubq[0],t('pin.publish',{n:S.pubq.length}),'amber']);
@@ -131,8 +139,15 @@ const Twin={root:null,els:{},sig:'',stepKey:'',sec:-1,ro:null,safeKey:'',
     if(a==='zoomout'){Scene.zoomBy&&Scene.zoomBy(1.18);return true}
     if(a==='rotl'){Scene.rotateBy&&Scene.rotateBy(-.3);return true}
     if(a==='rotr'){Scene.rotateBy&&Scene.rotateBy(.3);return true}
+    if(a==='tiltup'){Scene.tiltBy&&Scene.tiltBy(-.2);return true}
+    if(a==='tiltdown'){Scene.tiltBy&&Scene.tiltBy(.2);return true}
     if(a==='tod'){S.tod=S.tod==='night'?'day':'night';try{localStorage.setItem('sv.tod',S.tod)}catch(e){}Scene.applyTod&&Scene.applyTod();this.update(true);return true}
     if(a==='panel'){S.panel=!this.panelOpen();this.update(true);return true}
+    if(a==='wx'){const i=WX_ORDER.indexOf(S.wx||'clear');S.wx=WX_ORDER[(i+1)%WX_ORDER.length];Scene.applyTod&&Scene.applyTod();this.update(true);return true}
+    if(a==='chat'){if(this.panelOpen()&&S.ptab==='chat')S.panel=false;else{S.ptab='chat';S.panel=true;Chat.unread[S.bot]=0;Chat.greet(S.bot)}this.update(true);return true}
+    if(a==='ptab'){S.ptab=el.dataset.v;if(S.ptab==='chat'){Chat.unread[S.bot]=0;Chat.greet(S.bot)}this.update(true);return true}
+    if(a==='bot'){S.bot=el.dataset.r;Chat.unread[S.bot]=0;Chat.greet(S.bot);this.update(true);return true}
+    if(a==='chip'){Chat.send(el.dataset.t);return true}
     if(a==='pfollow'){S.sel=null;this.update(true);return true}
     if(a==='selstation'){this.select(el.dataset.k);return true}
     if(a==='qtab'){S.tab3=el.dataset.v;this.update(true);return true}

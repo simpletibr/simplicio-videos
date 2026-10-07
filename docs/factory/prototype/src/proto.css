@@ -485,3 +485,73 @@ canvas.three:active{cursor:grabbing}
 /* generated art */
 .tcard .mini img{width:100%;aspect-ratio:1280/780;object-fit:cover;display:block}
 .loginhero{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:16px;box-shadow:var(--shadow);display:block}
+.inside{margin-top:6px;border-top:1px solid #e1e9f1;padding-top:4px}
+.subs{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:3px}
+.subs li{display:flex;align-items:center;gap:8px;font:500 12px var(--font-body);color:#7a8fa3}
+.subs .sb{width:9px;height:9px;border-radius:50%;background:#c6d4e1;flex:none}
+.subs li.done{color:#3f5468}.subs li.done .sb{background:#1f9d62}
+.subs li.cur,.subs li.wait{color:#0f2233;font-weight:700}.subs li.cur .sb,.subs li.wait .sb{background:#ffb21f;box-shadow:0 0 0 3px rgba(255,178,31,.3)}
+
+/* bots */
+.ptabs{display:flex;gap:4px;align-items:center;margin-bottom:8px}
+.ptabs [role=tab]{all:unset;cursor:pointer;box-sizing:border-box;padding:5px 11px;border-radius:8px;font:700 12px var(--font-body);color:#46596d;display:inline-flex;gap:6px;align-items:center}
+.ptabs [role=tab][aria-selected="true"]{background:#0f2233;color:#fff}
+.ptabs .tbtn{margin-inline-start:auto}
+.ud{font-style:normal;min-width:16px;height:16px;border-radius:8px;background:#e5483b;color:#fff;font:700 10px/16px var(--font-body);text-align:center;padding:0 4px}
+.tools .tbtn{position:relative}.tools .tbtn .ud{position:absolute;top:-5px;inset-inline-end:-5px}
+.chat{display:grid;gap:8px}
+.bots{display:flex;gap:5px;overflow-x:auto;padding:2px 1px 4px}
+.bot{all:unset;cursor:pointer;position:relative;flex:none;border-radius:50%;box-sizing:border-box;padding:2px;border:2px solid transparent}
+.bot[aria-selected="true"]{border-color:var(--sc)}
+.bot .ud{position:absolute;top:-3px;inset-inline-end:-3px}
+.bav{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--sc,#58b4ff) 30%,#fff);overflow:hidden;flex:none;color:#0f2233}
+.bav img{width:100%;height:150%;object-fit:cover;object-position:50% 8%;display:block}
+.bav.lg{width:42px;height:42px}.bav.sm{width:24px;height:24px}
+.bhead{display:flex;align-items:center;gap:10px}
+.bhead b{display:block;font:700 14px/1.2 var(--font-display)}
+.bhead small{display:flex;align-items:center;gap:5px;font:500 11px var(--font-body);color:#56697c}
+.bhead .stc{margin-inline-start:auto}
+.msgs{height:200px;overflow:auto;display:grid;gap:7px;align-content:start;padding:4px 2px}
+.m{display:flex;gap:6px;align-items:flex-end;max-width:92%}
+.m p{margin:0;padding:7px 10px;border-radius:14px;font:500 12.5px/1.35 var(--font-body);background:#eaf1f8;color:#0f2233;border-end-start-radius:4px}
+.m time{font:500 9.5px var(--font-mono);color:#7a8fa3;align-self:flex-end}
+.m.me{margin-inline-start:auto;flex-direction:row-reverse}
+.m.me p{background:var(--accent);color:var(--accent-ink);border-end-start-radius:14px;border-end-end-radius:4px}
+.m.sys p{background:#fff6dc}
+.dots{display:inline-flex;gap:4px}.dots i{width:6px;height:6px;border-radius:50%;background:#7a8fa3;animation:bounce 1s infinite}.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,60%,100%{transform:none;opacity:.5}30%{transform:translateY(-4px);opacity:1}}
+.qchips{display:flex;gap:5px;overflow-x:auto;padding-bottom:3px}
+.qc{all:unset;cursor:pointer;flex:none;box-sizing:border-box;padding:4px 10px;border-radius:999px;border:1px solid #c6d4e1;font:600 11.5px var(--font-body);color:#0f2233;background:#fff}
+.qc:hover{background:#eaf1f8}
+.composer{display:flex;gap:6px}
+.composer input{flex:1;min-width:0;height:34px;border:1px solid #c6d4e1;border-radius:999px;padding:0 14px;background:#fff;color:#0f2233;font:500 13px var(--font-body)}
+.composer .send{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);border-radius:50%;width:34px;height:34px}
+@media (prefers-reduced-motion:reduce){.dots i{animation:none}.msgs{scroll-behavior:auto}}
+
+/* ---- design pass: one HUD voice. Tokens, tighter radii, severity stripes instead of glowing outlines ---- */
+.twin{--hud-bg:rgba(255,255,255,.93);--hud-ink:#0f2233;--hud-muted:#56697c;--hud-line:rgba(15,34,51,.11);--hud-r:10px;--amber:#f0a81c}
+.hud-card{background:var(--hud-bg);color:var(--hud-ink);border:1px solid var(--hud-line);border-radius:var(--hud-r);box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 8px 22px rgba(8,22,44,.2)}
+.strip{display:inline-flex;align-items:stretch}
+.strip .st{display:grid;gap:2px;padding:7px 15px 8px;border-inline-start:1px solid var(--hud-line)}
+.strip .st:first-child{border-inline-start:0}
+.strip b{font:700 21px/1 var(--font-display);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.strip small{font:600 9.5px/1.1 var(--font-body);text-transform:uppercase;letter-spacing:.08em;color:var(--hud-muted)}
+.strip .st.warn b::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-inline-end:6px;vertical-align:3px}
+.kpis{display:block}
+.pin{border-radius:var(--hud-r);border-inline-start:4px solid var(--amber);padding-inline-start:6px;animation:none!important;box-shadow:0 8px 22px rgba(8,22,44,.26)!important}
+.pin.red{border-inline-start-color:#c23636}
+.pin::after{display:none}
+.tbtn{border-radius:8px}
+.stc{border-radius:5px}
+.qrow,.qtabs button{border-radius:6px}
+.ptabs,.qtabs{gap:14px}
+.ptabs [role=tab],.qtabs button{border-radius:0;padding:4px 1px;background:none!important;color:var(--hud-muted);border-bottom:2px solid transparent}
+.ptabs [role=tab][aria-selected="true"],.qtabs button[aria-selected="true"]{color:var(--hud-ink);border-bottom-color:var(--accent)}
+.steps li.wait .sd{animation:none;box-shadow:0 0 0 3px rgba(240,168,28,.28)}
+.hud-tl .hint{background:rgba(10,24,40,.7);font-weight:600}
+.twin[data-layout="compact"] .strip{width:100%}
+.twin[data-layout="compact"] .strip .st{flex:1;padding:6px 10px 7px}
+.twin[data-layout="compact"] .strip b{font-size:17px}
+.twin[data-layout="compact"] .strip .st:nth-child(4){display:none}
+.twin[data-layout="compact"] .kpis{width:100%}
+.twin[data-layout="compact"] .hud-tl{inset-inline-end:10px;max-width:none}

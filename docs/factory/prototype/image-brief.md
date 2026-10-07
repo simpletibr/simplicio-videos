@@ -1,6 +1,6 @@
 # Image brief: richer art for the Brazil theme (GPT Image 2 through Real Oficial)
 
-**Status (2026-10-07): the pipeline is ready, no image is generated yet.** The owner asked to use Real Oficial's MCP with GPT Image 2 to improve the graphics and characters. The MCP is connected, but the connection was authorized with read permissions only (`projects:read`, `account:read`). `ro_estimate_image` and `ro_confirm_spend` both need **`media:write`**, so image generation is refused until the owner re-authorizes (`/mcp`, then `realoficial`, then Re-authenticate, and tick `media:write` on Real Oficial's screen; publishing, purchase, projects and renders are not needed).
+**Status (2026-10-07): generated.** All 16 images were made with `gpt-image-2` through Real Oficial (connector with `media:write`), at **0 credits**: they fell inside the plan's 50 included images per month (about 34 left, resets 2026-11-02). The prototype uses them (`src/art/pack.py` packs them). The prompts below are the ones used, except that the poster prompts were shortened to one scene each and the hero prompts name the soft 3D clay look. Raw files stay local (`src/art/raw/`, git-ignored); the committed result is the small WebP set in `src/art/webp/` and `src/proto.art.data.js`.
 
 ## What the catalog says (read on 2026-10-07; prices change, always quote first)
 

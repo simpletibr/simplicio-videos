@@ -128,7 +128,7 @@ simplicio-video theme new <id> | validate <dir> | install <path|url> | use <id>
 
 ## What the panel looks like
 
-The factory is a living 3D scene with the numbers floating over it: KPI cards, the station you picked, a stepper that follows one video, the queue, and callouts on the buildings that need you. These are shots of a **clickable prototype with sample data** (the product is not built yet). [Open it and read how](docs/factory/prototype/README.md).
+The factory is a small 3D town (a house, a shop, a factory, a garage, a market, an observatory and a barn, one per stage, with the belt running through it) that you can walk around, with weather, birds, boats and a chat with each robot. The numbers float over it: KPI cards, the station you picked, a stepper that follows one video, the queue, and callouts on the buildings that need you. These are shots of a **clickable prototype with sample data** (the product is not built yet). [Open it and read how](docs/factory/prototype/README.md).
 
 ![The factory by day](docs/factory/prototype/screens/factory-day.jpg)
 

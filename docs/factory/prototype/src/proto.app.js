@@ -7,10 +7,10 @@ const TABS_MOBILE=['factory','inbox','review','publish','more'];
 const S={device:Q.get('device')||'desktop',theme:TH[Q.get('theme')]?Q.get('theme'):'br',
   lang:Q.get('lang')?(Q.get('lang')==='en'?'en':'pt-BR'):((navigator.language||'en').toLowerCase().startsWith('pt')?'pt-BR':'en'),
   rtl:Q.get('rtl')==='1',page:PAGES.concat(['login']).includes(Q.get('page'))?Q.get('page'):'factory',tab:Q.get('tab')||'appearance',
-  view:Q.get('view')||'3d',auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:false,canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
+  view:Q.get('view')||(ART.chars.brander?'3d-sprites':'3d'),auto:Q.get('auto')==='1',keep:Q.get('keep')==='1',loop:'running',reduce:false,canUpload:Q.get('upload')==='1',more:false,full:Q.get('full')==='1',
   queue:[],pubq:[],fails:[],events:[],rv:0,stale:false,otp:'',loginErr:false,done:0,idea:{n:5,adding:false},route:'det',
   doc:{running:false,ran:false},upd:false,clean:false,hold:null,studio:{rendered:false,rendering:false},logged:Q.get('page')?true:false,
-  tod:'day',track:null,sel:null,panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
+  tod:'day',wx:Q.get('wx')||'clear',ptab:Q.get('ptab')==='chat'?'chat':'details',bot:Q.get('bot')||'gatekeeper',track:null,sel:null,panel:Q.get('panel')?Q.get('panel')==='1':undefined,tab3:Q.get('tab3')||'live',posted:[]};
 const RAILK='sv.rail';try{S.rail=Q.get('rail')?Q.get('rail')==='min':localStorage.getItem(RAILK)==='1'}catch(e){S.rail=Q.get('rail')==='min'}
 const lk=()=>S.lang==='pt-BR'?1:0;
 function t(k,p){const e=D[k];if(!e){if(!t.w[k]){t.w[k]=1;console.warn('missing i18n',k)}return k}let s=e[lk()];if(p)s=s.replace(/\{(\w+)\}/g,(m,n)=>p[n]!==undefined?p[n]:m);return s}t.w={};
@@ -44,7 +44,7 @@ const SC={brand:'#2a62c9',ideas:'#e0a21a',make:'#7b5cd6',review:'#e5483b',publis
 let EVN=0;
 const STAGE_OF={'brand.checked':'brand','ideas.generated':'ideas','make.started':'make','make.rendered':'make','item.failed':'make','gate.review':'review','review.approved':'review','review.discarded':'review','review.changes':'review','publish.previewed':'publish','gate.publish':'publish','publish.published':'publish','metrics.ingested':'metrics','report.generated':'report','hints.generated':'report'};
 function phrase(ev){return t('ev.'+ev.kind,ev.data)}
-function emit(kind,data){const ev={id:++EVN,ts:new Date(),kind,data:data||{},stage:STAGE_OF[kind]||null};S.events.unshift(ev);if(S.events.length>120)S.events.pop();bubbleFor(ev);refresh('events');return ev}
+function emit(kind,data){const ev={id:++EVN,ts:new Date(),kind,data:data||{},stage:STAGE_OF[kind]||null};S.events.unshift(ev);if(S.events.length>120)S.events.pop();bubbleFor(ev);Chat.fromEvent(ev);refresh('events');return ev}
 function bubbleFor(ev){if(!Scene.host||!ev.stage||Scene.hidden)return;Scene.bubble(ev)}
 
 /* ---------- simulation (canonical progress: 0..8, station k sits at k) ---------- */
@@ -72,7 +72,7 @@ function stepSim(dt){
   if(S.auto)for(const p of [...S.pubq])if(p.sim&&SIM.time-p.since>2.4)confirmPost(p,true);
   SIM.items=SIM.items.filter(i=>!i.dead||i.fade<1);
 }
-function dwell(it,s,after){it.mode='dwell';it.until=SIM.time+s;it.after=after||null}
+function dwell(it,s,after){it.mode='dwell';it.dwl=s;it.until=SIM.time+s;it.after=after||null}
 function arrive(it,k){
   (it.times=it.times||{})[k]=new Date();
   if(k===1){emit('brand.checked',{facts:FACTS.length});dwell(it,DWELL)}
@@ -311,6 +311,7 @@ document.addEventListener('click',e=>{
   else if(act==='export'){toast(t('toast.export'))}
   else Twin.act(act,a);
 });
+document.addEventListener('submit',e=>{if(e.target.id==='chatForm'){e.preventDefault();const i=document.getElementById('chatIn');Chat.send(i.value);i.value=''}});
 document.addEventListener('change',e=>{const el=e.target;
   if(el.id==='ul'){S.lang=el.value;applyTheme();renderPage();$('#langSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.l===S.lang))}
   else if(el.id==='rtlSw'){S.rtl=el.checked;applyTheme()}
@@ -355,6 +356,6 @@ let last=performance.now();
 function frame(now){window.__fr=(window.__fr||0)+1;const dt=Math.min(.06,(now-last)/1000);last=now;if(!document.hidden){stepSim(dt);if(Scene.host)Scene.draw(dt);if(Twin.root)Twin.tick(dt)}requestAnimationFrame(frame)}
 window.addEventListener('DOMContentLoaded',()=>{
   if(Q.get('scheme'))document.documentElement.dataset.theme=Q.get('scheme');
-  S.tod=todDefault();geoInit();seed();buildControls();wireControls();applyTheme();renderPage();
+  S.tod=todDefault();geoInit();seed();Chat.seed();buildControls();wireControls();applyTheme();renderPage();
   if(Q.get('warm')){const n=+Q.get('warm');for(let i=0;i<n*30;i++)stepSim(1/30)}
   requestAnimationFrame(frame)});
