@@ -67,7 +67,7 @@ The direction is sound and differentiated: a **deterministic** video engine that
 3. **Franchise themes.** Minions, Chaves and Game of Thrones cannot be shipped; original genre themes can. Confirm.
 4. **Distribution.** Decided on 2026-10-07: free, code going public (FSL or AGPL, to confirm in #70), funded by a partnership with the default publisher, direct sponsorships and, as a complement, site ads ([monetization.md](monetization.md)). Before going public: clean the history (item 7), read the generated art's terms. Generated videos never carry our ads.
 4b. **Which "site" carries the ads.** Decided on 2026-10-07: the public website, gallery and docs (direct sponsorships first), and later the public view-only window of a factory. The local panel carries no ads.
-5. **Tenancy.** Single host and no billing in the MVP; one workspace can hold several brands (the owner's clients, see [blueprint.md](blueprint.md)). A paid hosted version may come later.
+5. **Tenancy.** Single host and no billing in the MVP; one workspace can hold several projects, each with its own channels (see [blueprint.md](blueprint.md)). A paid hosted version may come later.
 6. **Sales operations code** (`prospect.py`, `venda.py`, Pix billing) lives in this package. Keep, or move out so the product engine stays generic.
 7. **History.** Client folders were removed from the tree but remain in git history, and the example videos still show client contacts on screen.
 8. **Unknown names.** "dots" and "muse" were mentioned as target clients; we support any MCP, OpenAPI, function-calling or shell client.
