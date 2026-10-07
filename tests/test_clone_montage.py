@@ -12,7 +12,7 @@ from simplicio_video import cli, clone, mcp_server, montage
 def test_clone_find_hypit_bin_fallback(monkeypatch):
     monkeypatch.setattr("shutil.which", lambda cmd: "/usr/bin/npx" if cmd == "npx" else None)
     bin_cmd = clone.find_hypit_bin()
-    assert bin_cmd == ["/usr/bin/npx", "--yes", "@hypit/hypit"]
+    assert bin_cmd == ["/usr/bin/npx", "--yes", "@hypit/hypit@0.2.17"]  # pinned in tools.TOOLS
 
 
 def test_clone_find_hypit_bin_local(monkeypatch):
@@ -45,16 +45,34 @@ def test_clone_main_error_handling(monkeypatch, capsys):
 
 def test_montage_find_openmontage_dir_env(monkeypatch, tmp_path):
     d = tmp_path / "custom_openmontage"
-    d.mkdir()
+    (d / "backlot").mkdir(parents=True)
     monkeypatch.setenv("OPENMONTAGE_DIR", str(d))
     found = montage.find_openmontage_dir()
     assert found == d.resolve()
 
 
-def test_montage_find_openmontage_dir_default():
-    found = montage.find_openmontage_dir()
-    assert found is not None
-    assert (found / "backlot").is_dir() or (found / ".git").is_dir()
+def test_montage_find_openmontage_dir_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("OPENMONTAGE_DIR", raising=False)
+    monkeypatch.delenv("SIMPLICIO_OPENMONTAGE_DIR", raising=False)
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path))
+    assert montage.find_openmontage_dir() is None  # no hardcoded machine paths
+    (tmp_path / "openmontage" / "backlot").mkdir(parents=True)
+    assert montage.find_openmontage_dir() == (tmp_path / "openmontage").resolve()
+
+
+def test_tools_install_checks_out_the_pinned_commit(monkeypatch, tmp_path):
+    from simplicio_video import tools
+    monkeypatch.delenv("OPENMONTAGE_DIR", raising=False)
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: calls.append(a) or "")
+    assert tools.install("openmontage") == str(tmp_path / "openmontage")
+    ref = tools.TOOLS["openmontage"].ref
+    assert calls[0][0] == "clone" and calls[-1] == ("checkout", "--quiet", "--detach", ref)
+    monkeypatch.setenv("SIMPLICIO_OPENMONTAGE_REF", "abc123")
+    calls.clear()
+    tools.install("openmontage")
+    assert calls[-1][-1] == "abc123"
 
 
 def test_montage_run_demo_list(monkeypatch):
