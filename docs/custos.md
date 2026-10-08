@@ -57,7 +57,7 @@ Observações:
 
 ## 3. Entrega no Drive
 
-`publish` via rclone para o Drive do Wesley: **US$ 0 por vídeo**. Não há cobrança por upload nem por API. O arquivo ocupa a cota de armazenamento da conta: o MP4 da WJR tem **21,4 MB** **[medido]**. O custo só aparece se a conta precisar de um plano de armazenamento maior, e isso não é por vídeo.
+upload via rclone (ferramenta de operação, fora do motor desde a #75) para o Drive do Wesley: **US$ 0 por vídeo**. Não há cobrança por upload nem por API. O arquivo ocupa a cota de armazenamento da conta: o MP4 da WJR tem **21,4 MB** **[medido]**. O custo só aparece se a conta precisar de um plano de armazenamento maior, e isso não é por vídeo.
 
 ## 4. Custo por vídeo (voz + render + Drive), WJR
 

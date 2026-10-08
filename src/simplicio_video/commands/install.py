@@ -33,7 +33,7 @@ class InstallError(Exception):
 
 
 def parse_extras(texto: str | None) -> list[str] | None:
-    """'server, publish' -> ['server', 'publish']. None quando o usuário não passou --with."""
+    """'local-tts, mcp' -> ['local-tts', 'mcp']. None quando o usuário não passou --with."""
     if texto is None:
         return None
     itens = [x.strip() for x in texto.split(",") if x.strip()]
