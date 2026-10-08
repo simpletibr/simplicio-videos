@@ -488,7 +488,3 @@ trilha:
 saida:
   arquivo: out/previa-full.mp4
   qualidade: draft
-drive:
-  caminho: simplicio-video/clientes/Empresa_Exemplo/2026/Previa_Institucional
-  arquivo: Empresa Exemplo - Previa Institucional 16s - v02.mp4
-  status: prévia de venda ativa (não publicar)

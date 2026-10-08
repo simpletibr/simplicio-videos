@@ -207,7 +207,6 @@ def write_manifest(c: Contract, dst: Path, backend: str, quality: str, gpu: bool
         "inputs_sha256": info["inputs_sha256"], "inputs": info["files"], "tools": tools or tool_versions(),
         "output": {"path": os.path.relpath(dst, c.dir), **{k: v for k, v in media.items() if k != "frame_md5"}},
         "loudness": loudness(dst),
-        "drive": c.data["drive"],
         "timings_s": timings,
     }
     if usage:
@@ -229,7 +228,7 @@ def build_bundle(c: Contract, out: Path | None = None, quality: str | None = Non
     (wd / "render_bundle.sh").write_text(bundle_script(q, gpu_encode))
     bundle_meta = {"schema": "simplicio.render-bundle/v1", "contract": os.path.relpath(c.path, c.home), "contract_sha256": c.sha256(),
                    "inputs_sha256": info["inputs_sha256"], "quality": q, "tools": tool_versions(),
-                   "output_name": Path(c.data["saida"]["arquivo"]).name, "drive": c.data["drive"],
+                   "output_name": Path(c.data["saida"]["arquivo"]).name,
                    "run": "bash render_bundle.sh  # -> out/final.mp4"}
     if os.environ.get("SIMPLICIO_FFMPEG_URL"):  # pinned static ffmpeg: remote_render.py downloads + verifies the same build
         bundle_meta["toolchain"] = {"ffmpeg_url": os.environ["SIMPLICIO_FFMPEG_URL"],

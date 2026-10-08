@@ -563,7 +563,3 @@ saida:
   arquivo: out/wjr-video-01-cli.mp4
   qualidade: delivery
   preview: preview/video-01-preview-720p.mp4
-drive:
-  caminho: simplicio-video/clientes/WJR_Informatica_Games/2026/Video_Institucional
-  arquivo: WJR - video 20s voz Gemini - v01.mp4
-  status: aprovada internamente (enviada antes da convenção de nomes como "WJR - video 20s (voz Gemini).mp4")

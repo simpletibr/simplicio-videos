@@ -54,8 +54,6 @@ def skeleton(home: Path, slug: str, campanha: str, template: str, ano: int | Non
                              "progression": [[48, [60, 64, 67]], [43, [59, 62, 67]], [45, [57, 60, 64]], [41, [57, 60, 65]]]},
                    "master": {"target_lufs": -14, "true_peak_db": -1.5}},
         "saida": {"arquivo": f"out/{slug}-{camp.lower().replace('_', '-')}.mp4", "qualidade": "delivery"},
-        "drive": {"caminho": f"simplicio-video/clientes/{dn}/{ano}/{camp}",
-                  "arquivo": f"{dn.split('_')[0]} - TODO descricao - v01.mp4", "status": "rascunho"},
     }
 
 

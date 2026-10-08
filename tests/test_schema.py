@@ -21,9 +21,9 @@ def test_real_contracts_match_schema(path):
 
 
 @pytest.mark.parametrize("mutate,needle", [
-    (lambda d: d.pop("drive"), "drive"),
-    (lambda d: d["drive"].update(caminho="clientes/Lothus/2026/Dia"), "caminho"),
-    (lambda d: d["drive"].update(arquivo="lothus final.mp4"), "arquivo"),
+    (lambda d: d.update(drive={"caminho": "simplicio-video/clientes/Lothus/2026/Dia", "arquivo": "Lothus - Dia - v01.mp4"}), "drive"),
+    (lambda d: d.update(drive={"caminho": "clientes/Lothus/2026/Dia"}), "drive"),
+    (lambda d: d.update(drive={"arquivo": "lothus final.mp4"}), "drive"),
     (lambda d: d["cliente"].update(drive_nome="Lothus Odontologia"), "drive_nome"),
     (lambda d: d["voz"].update(provider="azure"), "provider"),
     (lambda d: d["cenas"][0]["fala"].pop("max_s"), "max_s"),

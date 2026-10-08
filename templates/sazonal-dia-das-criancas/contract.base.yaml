@@ -1,5 +1,5 @@
 # simplicio.video-contract/v1 — BASE da campanha sazonal Dia das Crianças (16 s, 9:16, 128 BPM) para `simplicio-video prospect`.
-# Coreografia = Lothus Odontologia v02 (clients/lothus-odontologia/video-01-dia-das-criancas). O prospect troca só: cliente/campanha/drive,
+# Coreografia = Lothus Odontologia v02 (clients/lothus-odontologia/video-01-dia-das-criancas). O prospect troca só: cliente/campanha,
 # s2-main/s3-main (padrão + params por setor, setores.json), falas vo3/vo4 e textos das kinetic-words, lockup (nome, sub, @, cidade, accent)
 # e o logo REAL (site ou Instagram da empresa, nunca recriado; sem logo = lockup de texto). Padrão v2 (piloto All Prime, 30/09/2026):
 # voz Gemini 3.8 Flash TTS Laomedeia (a mesma da Lothus v02), leva animada; trilha festiva 128 BPM idêntica à da Lothus v02. Nada de preço, promoção ou fato inventado.
@@ -740,7 +740,3 @@ trilha:
 saida:
   arquivo: out/previa-full.mp4
   qualidade: draft
-drive:
-  caminho: simplicio-video/clientes/Empresa_Exemplo/2026/Previa_Dia_Criancas
-  arquivo: Empresa Exemplo - Previa Dia das Criancas 16s - v01.mp4
-  status: prévia de venda ativa (não publicar)

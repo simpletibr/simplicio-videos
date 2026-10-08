@@ -55,11 +55,6 @@
     "integrated_lufs": -14.0,
     "true_peak_dbfs": -4.1
   },
-  "drive": {
-    "caminho": "simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas",
-    "arquivo": "Lothus - Dia das Criancas 16s - v02.mp4",
-    "status": "v02 dinâmica (voz Gemini Laomedeia animada, trilha festiva 128 BPM) - aguardando aprovação do cliente"
-  },
   "timings_s": {
     "compile_build": 3.13,
     "render": 79.09,

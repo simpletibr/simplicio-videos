@@ -36,12 +36,12 @@ def _mp4(mini):
 
 def test_schema_accepts_real_contract_without_drive():
     d = yaml.safe_load(LOTHUS.read_text())
-    d.pop("drive")
+    d.pop("drive", None)
     assert ct.schema_errors(d, ROOT) == []
 
 
 def test_contract_without_drive_is_valid(mini):
-    _edit(mini, lambda d: d.pop("drive"))
+    _edit(mini, lambda d: d.pop("drive", None))
     assert ct.schema_errors(yaml.safe_load(mini.read_text()), ROOT) == []
     rep = ct.validate(ct.load(mini))
     assert rep.ok, rep.errors
@@ -50,7 +50,7 @@ def test_contract_without_drive_is_valid(mini):
 @pytest.mark.render
 @pytest.mark.skipif(not have_render_tools(), reason="needs node, npx and ffmpeg")
 def test_contract_without_drive_renders_and_manifest_has_no_drive(mini):
-    _edit(mini, lambda d: d.pop("drive"))
+    _edit(mini, lambda d: d.pop("drive", None))
     voice.run(ct.load(mini), log=lambda *_: None)
     man = render.render_local(ct.load(mini), log=lambda *_: None)
     assert man["output"]["frames"] == 30
@@ -78,7 +78,7 @@ def test_cli_validate_rejects_drive_with_exit_code_1(mini):
 # (c) manifest has no drive key (unit: write_manifest with the media probes faked, no ffmpeg needed)
 
 def test_manifest_written_without_drive_key(mini, monkeypatch):
-    _edit(mini, lambda d: d.pop("drive"))
+    _edit(mini, lambda d: d.pop("drive", None))
     c = ct.load(mini)
     fake_media = {"frame_md5": [], "sha256": "0" * 64, "video_frames_sha256": "0" * 64, "audio_pcm_sha256": "0" * 64,
                   "frames": 30, "duration_s": 1.0}
@@ -109,7 +109,7 @@ class _NoDriveRead(dict):
 
 
 def test_publish_accepts_destino_parameter_without_drive_in_contract(mini):
-    _edit(mini, lambda d: d.pop("drive"))
+    _edit(mini, lambda d: d.pop("drive", None))
     _mp4(mini)
     res = pub.publish(ct.load(mini), remote="gdrive", dry_run=True, destino=DESTINO, log=lambda *_: None)
     assert res["dest"] == "gdrive:simplicio-video/clientes/Teste_Mini/2026/Teste_Hash/Teste - mini - v01.mp4"
@@ -117,14 +117,14 @@ def test_publish_accepts_destino_parameter_without_drive_in_contract(mini):
 
 def test_publish_uses_destino_and_never_reads_contract_drive(mini):
     _mp4(mini)
-    c = ct.load(mini)  # fixture still carries a stale drive block; publish must ignore it
+    c = ct.load(mini)  # any read of `drive` from the contract data fails the test
     c.data = _NoDriveRead(c.data)
     res = pub.publish(c, remote="gdrive", dry_run=True, destino=DESTINO, log=lambda *_: None)
     assert res["dest"] == "gdrive:simplicio-video/clientes/Teste_Mini/2026/Teste_Hash/Teste - mini - v01.mp4"
 
 
 def test_publish_without_destino_refuses_instead_of_reading_drive(mini):
-    _edit(mini, lambda d: d.pop("drive"))
+    _edit(mini, lambda d: d.pop("drive", None))
     _mp4(mini)
     with pytest.raises(SystemExit, match="destino"):
         pub.publish(ct.load(mini), dry_run=True, log=lambda *_: None)

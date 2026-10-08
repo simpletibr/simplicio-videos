@@ -748,9 +748,6 @@ def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider:
             s["tela"] = ([f"logo real ({logo.get('origem')}: {logo.get('fonte')})"] if logo_dst else [f"{name} / {sub}"]) + \
                 [camp["tagline"], handle or "(sem @)", city, linhas4.replace("{nome}", spoken).replace("|", " / ")]
     d["voz"]["provider"] = provider
-    d["drive"] = {"caminho": f"simplicio-video/clientes/{d['cliente']['drive_nome']}/2026/{camp['campanha_id']}",
-                  "arquivo": f"{ascii_name(disp) or 'Empresa'} - {camp.get('arquivo', 'Previa Dia das Criancas 16s')} - v{int(PADRAO[1:]):02d}.mp4",
-                  "status": "prévia de venda ativa (não publicar)"}
     meta = {"template": cdir.name, "setor": setor["id"], "regra": regra, "oab": oab or None, "lockup": [name, sub], "fala_nome": spoken, "vo3": d["cenas"][2]["fala"]["texto"],
             "padrao": PADRAO, "voz": provider, "logo": ({"origem": logo.get("origem"), "url": logo.get("url"), "fonte": logo.get("fonte")}
                                                       if logo_dst else None),

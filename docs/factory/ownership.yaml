@@ -368,7 +368,6 @@ issues:
       - "tests/test_prospect_institucional.py"
       - "skills/simplicio-video/SKILL.md"
       - "docs/receita-video-cliente.md"
-      - "AGENTS.md"
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}

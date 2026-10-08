@@ -28,7 +28,7 @@ def test_same_input_same_output(mini, tmp_path):
         assert a["output"][k] == b["output"][k], k
     assert a["output"]["frames"] == 30
     man = json.loads((mini.parent / "render.manifest.json").read_text())
-    assert man["drive"]["caminho"].startswith("simplicio-video/clientes/")
+    assert "drive" not in man  # o manifesto não guarda a entrega (issue #75)
 
 
 def test_contract_change_changes_hash(mini):

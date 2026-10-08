@@ -220,11 +220,20 @@ def test_entregar_exige_pagamento(pdir):
         venda.entregar(pdir, render=lambda c: None, publish=lambda c: {})
 
 
-def test_nome_final_sem_previa(pdir):
-    f = pdir / "contract.yaml"
-    arq = venda._final_contract(pdir).data["drive"]["arquivo"]
-    f.write_text(f.read_text(encoding="utf8").replace(arq, "Clinica X - Previa Dia das Criancas 16s - v01.mp4"), encoding="utf8")
-    assert venda._final_contract(pdir).data["drive"]["arquivo"] == "Clinica X - Dia das Criancas 16s - v01.mp4"
+def test_destino_da_entrega_vem_do_ambiente_sem_previa(monkeypatch):
+    monkeypatch.setenv(venda.ENV_DESTINO, json.dumps(
+        {"caminho": "simplicio-video/clientes/Clinica_X/2026/Dia_Criancas", "arquivo": "Clinica X - Previa Dia das Criancas 16s - v01.mp4"}))
+    d = venda._destino_entrega()
+    assert d["arquivo"] == "Clinica X - Dia das Criancas 16s - v01.mp4" and d["caminho"].endswith("/Dia_Criancas")
+
+
+def test_entregar_sem_destino_falha_antes_do_render(pdir, monkeypatch):
+    _pago(pdir)
+    monkeypatch.delenv(venda.ENV_DESTINO, raising=False)
+    renders = []
+    with pytest.raises(venda.VendaError, match=venda.ENV_DESTINO):
+        venda.entregar(pdir, render=lambda c: renders.append(1), publish=None)
+    assert renders == [] and _venda(pdir)["status"] == "pago"
 
 
 def test_status_tabela(pdir):

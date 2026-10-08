@@ -34,7 +34,7 @@ Preencha o esqueleto (todo `TODO` bloqueia o `validate`):
 
 ## 3. Validar
 ```bash
-simplicio-video validate <contrato.yaml>          # schema, assets, soma das durações, falas cabem, drive, TODO
+simplicio-video validate <contrato.yaml>          # schema, assets, soma das durações, falas cabem, TODO
 ```
 
 ## 4. Voz
@@ -62,7 +62,7 @@ simplicio-video run <contrato.yaml> --provider gemini --backend local   # voz + 
 ## 6. Entrega no Google Drive
 - Caminho: `simplicio-video/clientes/NOME_CLIENTE/ANO/CAMPANHA`
   - `NOME_CLIENTE` em Title_Case com underscore, sem acento (ex.: `Lothus_Odontologia`, `WJR_Informatica_Games`).
-  - `CAMPANHA` idem (ex.: `Dia_Criancas`, `Video_Institucional`). O contrato valida `drive.caminho` contra `cliente.drive_nome`/`campanha`.
+  - `CAMPANHA` idem (ex.: `Dia_Criancas`, `Video_Institucional`). O contrato não tem bloco `drive` (issue #75): esse caminho é convenção de quem entrega, fora do motor.
 - Nome do arquivo: `<CLIENTE> - <descricao> - vNN.mp4` (ex.: `Lothus - Dia das Criancas 15s - v01.mp4`); nova versão = vNN+1.
 - O repositório guarda **links**, nunca o MP4 final. Todo link novo entra na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
 - Upload: `simplicio-video publish <contrato.yaml>` (rclone, remote `gdrive`, configurado uma vez) ou `run ... --publish`. Nunca sobrescreve, é idempotente e grava o link na tabela sozinho. **Só com pedido explícito do Wesley;** sem pedido, use `publish --dry-run`.

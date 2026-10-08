@@ -91,14 +91,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("init", formatter_class=Fmt, help="gera o esqueleto de contrato para <cliente> <campanha>",
         description="Gera um contrato-esqueleto a partir de templates/<template>/template.json: cenas, padrões de motion,\n"
-                    "voz sugerida, trilha padrão e o destino no Drive. Campos com TODO precisam ser preenchidos\n"
+                    "voz sugerida e trilha padrão. Campos com TODO precisam ser preenchidos\n"
                     f"(validate falha enquanto houver TODO). Schema: {SCHEMA_REL}.",
         epilog="exemplos:\n"
                "  simplicio-video init lothus-odontologia Dia_Criancas --template saude-odontologia --nome \"Lothus Odontologia\"\n"
                "  simplicio-video init wjr-informatica-games Black_Friday --template assistencia-tecnica-games --ano 2026 \\\n"
                "      --out clients/wjr-informatica-games/video-03/contract.yaml")
     p.add_argument("cliente", help="slug do cliente (pasta em clients/, ex.: lothus-odontologia)")
-    p.add_argument("campanha", help="campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas); vira a pasta do Drive")
+    p.add_argument("campanha", help="campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)")
     p.add_argument("--template", "-t", required=True, help="id do template de setor (ver `simplicio-video list templates`)")
     p.add_argument("--nome", help="nome de exibição do cliente (padrão: TODO)")
     p.add_argument("--drive-nome", help="NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Lothus_Odontologia)")
@@ -114,7 +114,7 @@ def build_parser() -> argparse.ArgumentParser:
                     "  - soma de cenas[].duracao_s == formato.duracao_s\n"
                     "  - cada fala: inicio_s + max_s cabe na cena (+ J-cut voz.jcut_max_s, padrão 0,15 s);\n"
                     "    com timing.lock.json, a duração real <= max_s (a voz NUNCA é acelerada)\n"
-                    "  - drive.caminho == simplicio-video/clientes/<drive_nome>/<ano>/<campanha>; nenhum TODO\n"
+                    "  - nenhum bloco drive (a entrega no Drive fica fora do motor); nenhum TODO\n"
                     "Saída 0 = válido, 1 = erros.",
         epilog="exemplos:\n  simplicio-video validate clients/wjr-informatica-games/video-01/contract.yaml\n"
                "  simplicio-video validate contract.yaml --json      # relatório em JSON\n"

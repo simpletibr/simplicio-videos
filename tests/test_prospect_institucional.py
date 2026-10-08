@@ -96,7 +96,7 @@ def test_institutional_template_builds_validates_and_compiles(tmp_path, tid):
     col["instagram"]["handle"] = "@empresa"
     d, m = P.build_contract(ROOT, tid, row, col)
     assert m["template"] == tid and d["template"] == tid and d["voz"]["voice"] == "Laomedeia"
-    assert d["drive"]["arquivo"].endswith("Previa Institucional 16s - v02.mp4")
+    assert "drive" not in d  # a entrega fica fora do motor (issue #75)
     lp = next(mm["params"] for s in d["cenas"] for mm in s["motion"] if mm.get("bloco") == "s4-lockup")
     assert lp["logo"] == "assets/client/logo.png" and lp["logo_round"] == 1
     P.write_contract(pdir / "contract.yaml", d, row, m)
@@ -295,7 +295,7 @@ def test_preview_watermark_and_end_card_have_no_simpleti(tmp_path):
 
 @pytest.mark.parametrize("tid", ALL)
 def test_no_template_output_mentions_simpleti(tid, tmp_path):
-    """Whole generated contract (end card lockup, tela, objetivo, drive name) of every prospect template."""
+    """Whole generated contract (end card lockup, tela, objetivo) of every prospect template."""
     row = {"nome": "Clínica Sorriso", "cidade": "Guarulhos · SP", "setor": "odontologia", "oab": "OAB/SP 123.456"}
     d, meta = P.build_contract(ROOT, tid, row, _coleta())
     assert not OLD_BRAND.search(yaml.safe_dump(d, allow_unicode=True)), tid

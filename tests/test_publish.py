@@ -18,6 +18,9 @@ README = """# Teste Mini
 """
 
 
+DESTINO = {"caminho": "simplicio-video/clientes/Teste_Mini/2026/Teste_Hash", "arquivo": "Teste - mini - v01.mp4"}
+
+
 def _cp(rc=0, out="", err=""):
     return subprocess.CompletedProcess([], rc, out, err)
 
@@ -43,7 +46,6 @@ class Drive:
             self.files[cmd[3].rsplit("/", 1)[1]] = data
             return _cp()
         if cmd[1] == "lsjson":
-            target = cmd[-1]
             if "--dirs-only" in cmd:
                 return _cp(0, json.dumps([{"Name": "Teste_Hash", "ID": "FOLDER123", "IsDir": True}]))
             if not self.files:
@@ -58,7 +60,7 @@ def test_publish_uploads_and_writes_readme(mini, mp4, tmp_path, monkeypatch):
     readme = tmp_path / "README.md"
     readme.write_text(README)
     drive = Drive()
-    res = pub.publish(ct.load(mini), remote="gdrive", readme=readme, run=drive, log=lambda *_: None)
+    res = pub.publish(ct.load(mini), destino=DESTINO, remote="gdrive", readme=readme, run=drive, log=lambda *_: None)
     copy = [c for c in drive.calls if c[1] == "copyto"][0]
     assert copy[3] == "gdrive:simplicio-video/clientes/Teste_Mini/2026/Teste_Hash/Teste - mini - v01.mp4"
     assert res["status"] == "uploaded" and res["link"] == "https://drive.google.com/file/d/FILE-Teste/view"
@@ -74,7 +76,7 @@ def test_publish_is_idempotent_and_updates_row(mini, mp4, tmp_path, monkeypatch)
     readme = tmp_path / "README.md"
     readme.write_text(README + "| Teste_Hash | 2026/Teste_Hash | Teste - mini - v01.mp4 | **(preencher: link do Drive)** | aguardando |\n")
     drive = Drive({"Teste - mini - v01.mp4": mp4.read_bytes()})
-    res = pub.publish(ct.load(mini), readme=readme, run=drive, log=lambda *_: None)
+    res = pub.publish(ct.load(mini), destino=DESTINO, readme=readme, run=drive, log=lambda *_: None)
     assert res["status"] == "already-published" and not any(c[1] == "copyto" for c in drive.calls)
     txt = readme.read_text()
     assert txt.count("Teste - mini - v01.mp4") == 1 and "[abrir](https://drive.google.com/file/d/FILE-Teste/view) | aguardando |" in txt
@@ -84,17 +86,17 @@ def test_publish_never_overwrites(mini, mp4, tmp_path, monkeypatch):
     monkeypatch.setenv("SIMPLICIO_RCLONE_BIN", "rclone")
     drive = Drive({"Teste - mini - v01.mp4": b"other bytes"})
     with pytest.raises(SystemExit, match="vNN"):
-        pub.publish(ct.load(mini), readme=tmp_path / "R.md", run=drive, log=lambda *_: None)
+        pub.publish(ct.load(mini), destino=DESTINO, readme=tmp_path / "R.md", run=drive, log=lambda *_: None)
     assert not any(c[1] == "copyto" for c in drive.calls)
 
 
 def test_publish_dry_run_needs_no_rclone(mini, mp4, monkeypatch):
     monkeypatch.delenv("SIMPLICIO_RCLONE_BIN", raising=False)
     monkeypatch.setenv("PATH", "/nonexistent")
-    res = pub.publish(ct.load(mini), dry_run=True, log=lambda *_: None)
+    res = pub.publish(ct.load(mini), destino=DESTINO, dry_run=True, log=lambda *_: None)
     assert res["dry_run"] and res["dest"].startswith("gdrive:simplicio-video/clientes/Teste_Mini/2026/Teste_Hash/")
 
 
 def test_publish_missing_mp4(mini):
     with pytest.raises(SystemExit, match="render"):
-        pub.publish(ct.load(mini), dry_run=True, log=lambda *_: None)
+        pub.publish(ct.load(mini), destino=DESTINO, dry_run=True, log=lambda *_: None)
