@@ -295,6 +295,18 @@ issues:
       - "scripts/gen_reference.py"
       - "mk/docs.mk"
       - "tests/test_docs/**"
+      - "docs/reference/**"  # gerado por scripts/gen_reference.py (make regen)
+      # correção de link quebrado pela #74 (templates/, motion/, schema/ e schemas/ foram para src/simplicio_video/data/): só o caminho do link muda, nada mais
+      - "docs/pipeline-deterministico-gemini.md"
+      - "docs/plugin-simplicio-runtime.md"
+      - "docs/receita-video-cliente.md"
+      - "docs/venda-ativa.md"
+      - "docs/video-use-integracao.md"
+      - "src/simplicio_video/data/templates/README.md"  # também mudou de profundidade: ../intake e ../../ apontavam para fora
+      - "src/simplicio_video/data/templates/assistencia-tecnica-games/README.md"
+      - "src/simplicio_video/data/templates/saude-odontologia/README.md"
+      - "src/simplicio_video/data/templates/sazonal-dia-das-criancas/README.md"
+      - "clients/lothus-odontologia/video-01-dia-das-criancas/README.md"
   46:
     track: licenses
     milestone: M1
