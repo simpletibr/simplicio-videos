@@ -573,6 +573,18 @@ issues:
       - "docs/how-to/README.md"   # índice de guias (acréscimo: só a linha do langflow)
       - "docs/legal/terceiros.md#LangFlow"   # só a seção LangFlow (o arquivo é da #70)
 
+  # ------------------------------------------------------------------ M2 spike de agentes (épico #81, post-mvp)
+  83:   # post-mvp
+    track: spike-agentes
+    milestone: M2
+    status: ready
+    adr: 19
+    owns:
+      - "docs/decisoes/ADR-0019-agentes.md"
+      - "docs/decisoes/README.md#ADR-0019"
+      - "docs/research/agentes/**"
+      - "docs/README.md#agentes"
+
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
