@@ -484,4 +484,6 @@ issues:
       - "pyproject.toml#project"
       - "docs/README.md"
       - "docs/licenses.md"   # a linha do produto é regenerada por `make licenses-write`
+      - "docs/host/licenses.md"   # nota de licença do produto (AGPL), não mais "proprietário"
+      - "clients/wjr-informatica-games/coleta/**"   # coleta de cliente saiu do índice (regra do .gitignore)
       - "tests/test_legal.py"
