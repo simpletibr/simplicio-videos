@@ -1,7 +1,9 @@
-"""Gerador de schemas/factory/item.schema.json (#33; rotas e review em #82). Não edite o JSON à mão.
+"""Gerador de schemas/factory/item.schema.json (#33; rotas e review em #82) e do board.schema.json (#86). Não edite o JSON à mão.
 
 Uso (pelo alvo `make factory-schema`, que entra em `make regen`):
-    python -m simplicio_factory.contracts.schema [caminho_de_saida]
+    python -m simplicio_factory.contracts.schema [caminho_do_item_schema]
+
+Grava o item no caminho dado e o schema do quadro (board.schema.json) ao lado dele.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from simplicio_factory.contracts.models import REVIEW_VALUES, ROUTES, STATES
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUT = ROOT / "schemas" / "factory" / "item.schema.json"
+BOARD_SCHEMA_NAME = "board.schema.json"
 FAILED_FROM = ("rendering", "generating")
 
 
@@ -57,9 +60,14 @@ def build_schema() -> dict:
 
 
 def main(argv: list[str]) -> int:
+    # import tardio: o schema do quadro importa FAILED_FROM deste módulo
+    from simplicio_factory.plugins.board.schema import build_schema as build_board_schema
+
     out = Path(argv[0]) if argv else DEFAULT_OUT
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(build_schema(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    board_out = out.with_name(BOARD_SCHEMA_NAME)
+    board_out.write_text(json.dumps(build_board_schema(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return 0
 
 
