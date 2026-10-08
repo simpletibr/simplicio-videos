@@ -8,7 +8,7 @@ chama este comando, e o update chama de novo depois do git pull. Não usa sudo e
 Exemplos:
   simplicio-video install --check
   simplicio-video install
-  simplicio-video install --python 3.12 --with server,publish
+  simplicio-video install --python 3.12 --with local-tts
 """
 from __future__ import annotations
 

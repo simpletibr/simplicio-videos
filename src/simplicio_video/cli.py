@@ -268,11 +268,11 @@ def build_parser() -> argparse.ArgumentParser:
                     "em modo editável com os extras. Idempotente: sem mudança em Python, extras ou pyproject.toml, não faz nada.\n"
                     "--check mostra o plano sem criar nada e sai com 1 se houver mudança pendente. Não usa sudo.",
         epilog="exemplos:\n  simplicio-video install --check\n  simplicio-video install\n"
-               "  simplicio-video install --python 3.12 --with server,publish")
+               "  simplicio-video install --python 3.12 --with local-tts")
     p.add_argument("--check", action="store_true", help="mostra o que mudaria e não cria nada")
     p.add_argument("--python", metavar="VERSÃO", help="versão do Python do .venv, ex.: 3.12 (padrão: a última usada, ou 3.12)")
     p.add_argument("--with", dest="extras", metavar="EXTRAS",
-                   help="extras separados por vírgula, ex.: server,publish (padrão: os da última instalação)")
+                   help="extras separados por vírgula, ex.: local-tts,mcp (padrão: os da última instalação)")
 
     p = sub.add_parser("update", formatter_class=Fmt, help="git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor",
         description="Mostra os commits novos e o diff do CHANGELOG, aplica com git pull --ff-only, reexecuta install,\n"

@@ -2,7 +2,7 @@
 # install.sh: instalação do simplicio-video (issue #43). Um comando, sem privilégio de root, idempotente.
 #
 # Uso:
-#   ./install.sh [--with server,publish] [--python 3.12] [--dry-run]
+#   ./install.sh [--with local-tts] [--python 3.12] [--dry-run]
 #
 # Faz, nesta ordem: checa Node 22 ou superior, ffmpeg com libass e 5 GB livres (sem instalar nada no sistema);
 # garante o uv (se faltar, oferece instalar e só baixa com sua confirmação); cria o .venv com o Python pedido e
@@ -24,7 +24,7 @@ uso() {
   cat <<'AJUDA'
 uso: ./install.sh [--with EXTRAS] [--python VERSÃO] [--dry-run]
 
-  --with EXTRAS     extras do pacote separados por vírgula, ex.: server,publish
+  --with EXTRAS     extras do pacote separados por vírgula, ex.: local-tts,mcp
   --python VERSÃO   Python do .venv (padrão: 3.12; os extras do CrewAI exigem menos de 3.14)
   --dry-run         lista o plano e sai; não cria nem altera nada
   -h, --help        mostra esta ajuda
@@ -32,7 +32,7 @@ uso: ./install.sh [--with EXTRAS] [--python VERSÃO] [--dry-run]
 exemplos:
   ./install.sh --dry-run
   ./install.sh
-  ./install.sh --with server,publish --python 3.12
+  ./install.sh --with local-tts --python 3.12
 
 Requisitos: Node 22 ou superior, ffmpeg com libass, 5 GB livres. Sem sudo.
 Depois: .venv/bin/simplicio-video setup  e  .venv/bin/simplicio-video doctor
