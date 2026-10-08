@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.preview-manifest/v1",
+  "title": "preview.manifest.json",
+  "description": "Manifesto da prévia (render --preview, ao lado do contrato). Não substitui o render.manifest.json da entrega. Só o formato: $schema é opcional.",
+  "type": "object",
+  "required": ["schema", "contract_sha256", "inputs_sha256", "preview", "spec", "timings_s"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema": { "const": "simplicio.preview-manifest/v1" },
+    "contract_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "inputs_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "preview": {
+      "type": "object",
+      "required": ["path", "sha256", "duration_s", "bytes", "watermark", "logo"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "duration_s": { "type": "number" },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "watermark": { "description": "marca.dagua (texto ou objeto, conforme o compilador)" },
+        "logo": { "type": ["string", "null"] }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["marca"],
+      "properties": { "marca": { "type": "object" } }
+    },
+    "timings_s": { "type": "object", "additionalProperties": { "type": ["number", "null"] } }
+  }
+}

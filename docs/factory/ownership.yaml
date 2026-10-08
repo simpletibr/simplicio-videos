@@ -388,6 +388,13 @@ issues:
       - "src/simplicio_video/cli.py"
       - "src/simplicio_video/status.py"
       - "tests/test_status_json.py"
+  72:
+    track: motor-saida
+    status: ready
+    owns:
+      - "src/simplicio_video/cli.py"
+      - "schemas/cli/**"
+      - "tests/test_saida_json.py"
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
