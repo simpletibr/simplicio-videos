@@ -8,7 +8,7 @@ last_verified: 2026-10-08
 
 # Licenças das dependências
 
-O produto é proprietário e gratuito, então toda dependência que entra no ambiente precisa permitir distribuição proprietária. Esta página diz o que o gate checa e como agir quando reprova. O script é `scripts/licenses.py`. A tabela gerada é `docs/licenses.md`.
+O produto é open source sob AGPL-3.0-or-later (ver `docs/legal/licenca.md`). O gate continua conservador: toda dependência que entra no ambiente precisa estar na allowlist ou nas exceções justificadas. Esta página diz o que o gate checa e como agir quando reprova. O script é `scripts/licenses.py`. A tabela gerada é `docs/licenses.md`.
 
 ## Como rodar
 
@@ -27,7 +27,7 @@ scripts/licenses.py --help
 3. **Exceções** em `docs/licenses-exceptions.yaml`. Uma exceção vale só se tiver `package`, `license` (igual à licença declarada no metadado instalado), `justificativa` e `uso`. Faltando um desses campos, ou com licença diferente da declarada, o pacote reprova.
 4. **`docs/licenses.md` em dia.** O arquivo é gerado a partir do scan. Se estiver ausente ou diferente do que o scan produz, o gate reprova. Quem corrige é `make licenses-write`.
 5. **Import check** (`scripts/licenses.py --imports src scripts`). Arquivos `.py` que importam um pacote negado, ou OpenMontage, VoiceStudio ou Postiz, reprovam. A checagem usa `ast`, não regex.
-6. **Produto.** O próprio `simplicio-video` fica fora do scan. A tabela mostra a licença dele (`Proprietary`).
+6. **Produto.** O próprio `simplicio-video` fica fora do scan. A tabela mostra a licença dele (`AGPL-3.0-or-later`).
 
 ## Como adicionar uma exceção
 

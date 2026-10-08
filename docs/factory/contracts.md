@@ -264,3 +264,16 @@ Added when their first plugin lands (each with a contract suite): `MediaGenerato
 One `Command(name, summary, description, examples, add_arguments, run, mcp, status, http)` per CLI verb. `summary`, `description` and at least one example are **mandatory**: the loader rejects a command without them. The registry feeds the CLI parser and `--help`, the MCP tool (`video.<stage>.<verb>`), `plugin.json` for Simplicio Runtime, the generated reference and the help tests, so adding a feature never edits `cli.py`, `mcp_server.py`, `plugin.json` or `tests/test_help.py`. Experimental commands are hidden unless `SIMPLICIO_EXPERIMENTAL=1`.
 
 Naming: CLI `simplicio-video <stage> <verb>`; MCP `video.<stage>.<verb>`; REST `/api/v1/<plural-resource>`; events `<noun>.<past-tense-verb>`.
+
+## Decisões do MVP (divergências registradas)
+
+Decisões tomadas na M0a para o kernel (#33), o plugin host (#32) e o studio (#16). Onde o código diverge do texto acima, vale o código. Os motivos estão em [ADR-0007](../decisoes/ADR-0007-kernel.md) e [ADR-0006](../decisoes/ADR-0006-plugin-host.md).
+
+- **`transition(item, to, store)`**, com três argumentos, em vez de `transition(item, to, actor, clock)`. O MVP não tem atores nem relógio injetado. O grafo tem só quatro transições: `idea -> drafted`, `drafted -> rendering`, `rendering -> rendered` e `rendering -> failed` (este último grava `failed_from`). `failed -> drafted` é inválido no MVP: levanta `InvalidTransition`, sem mudar o item e sem gravar evento. Cada transição emite `item.state_changed`.
+- **`JsonStore` em `simplicio_factory/contracts/json_store.py`**, com import explícito (não é reexportado por `contracts`). O MVP tem `JsonStore` e `MemoryStore` (testkit) e nenhum outro backend. O `Store` do MVP tem `save_item`, `get_item`, `list_items`, `append_event` e `read`; as partes de artefatos, ledger e fila deste spec ficam para o #35.
+- **Estado do item com schema `simplicio.factory-item/v1`**, em `schemas/factory/item.schema.json`, gerado por `make factory-schema` (`FACTORY_SCHEMA_OUT` troca o caminho de saída). Nem `simplicio.item/v1` nem `simplicio.video-contract/v1` são usados para o estado do item.
+- **Estado do estúdio fora do kernel.** O estúdio grava `<pasta-do-item>/studio.json` (com `content_hash`, o caminho do MP4 e o sha256 do render) e `<pasta-do-item>/draft.json` (o Draft). O kernel guarda só o estado do item, então o `content_hash` não fica no item.
+- **Template `brand-promo` em `src/simplicio_video/data/templates/brand-promo/`**, com status `pronto`, e não em `templates/brand-promo/` na raiz. A #74 moveu os templates para o pacote de dados.
+- **Manifesto de plugin em `plugin.json`**, em `src/simplicio_factory/plugins/<id>/plugin.json`, validado por `schemas/plugin.manifest.schema.json`. O spec descreve `plugin.yaml` (`simplicio.video-plugin/v1`, acima). O `plugin.json` da raiz do repositório é outro arquivo, do Simplicio Runtime.
+- **Comandos `make` e `draft` por despacho de plugin**, e não como subcomandos de `cli.py`. O `cli.py` despacha, antes do argparse, o primeiro argumento que não é subcomando e que está no manifesto de algum plugin.
+- **`Renderer.render(contract_path, preview)`** devolve `RenderResult(mp4_path, content_hash)`. `manifest_path` e `duration_s` ficam fora do MVP.

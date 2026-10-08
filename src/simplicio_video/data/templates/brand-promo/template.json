@@ -1,0 +1,58 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "brand-promo",
+  "setor": "Promo de marca genérica (qualquer setor): 3 cenas com os fatos do brand.json (studio, #16)",
+  "status": "pronto",
+  "nichos": [],
+  "referencia": null,
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 15.0,
+  "cenas": [
+    {
+      "id": "s1",
+      "papel": "gancho",
+      "dur_s": 5.0,
+      "padroes": ["kinetic-words"],
+      "campos": ["idea"]
+    },
+    {
+      "id": "s2",
+      "papel": "prova",
+      "dur_s": 5.0,
+      "padroes": ["kinetic-words"],
+      "campos": ["claims"]
+    },
+    {
+      "id": "s3",
+      "papel": "marca",
+      "dur_s": 5.0,
+      "padroes": ["brand-lockup-soft"],
+      "campos": ["marca.nome", "marca.logo", "marca.cidade"]
+    }
+  ],
+  "voz": {
+    "padrao": "none",
+    "habilitada": false
+  },
+  "musica": {
+    "bpm": 120,
+    "mood": "pulso constante, sem seções"
+  },
+  "tom": "Direto e sóbrio; só fatos que estão em brand.json (claim guard do studio)",
+  "cuidados": [
+    "Número, preço, percentual ou promessa do Draft precisa estar em brand.json (facts)",
+    "Logo: só o arquivo real da marca; sem arquivo, o lockup sai só com texto"
+  ],
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": ["s1", "s2", "s3"],
+    "blocos": ["s1-words", "s2-words", "s3-lockup"],
+    "_doc": "Blocos só de motion/patterns (kinetic-words nas cenas 1 e 2, brand-lockup-soft na 3). Textos e params vêm do contrato gerado pelo studio (src/simplicio_factory/plugins/studio/composer.py)."
+  }
+}

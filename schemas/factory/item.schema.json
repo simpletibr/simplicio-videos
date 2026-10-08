@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "simplicio.factory-item/v1",
+  "description": "Estado de um item da fábrica (kernel #33). Gerado por simplicio_factory.contracts.schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "brand",
+    "state"
+  ],
+  "properties": {
+    "schema": {
+      "const": "simplicio.factory-item/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "brand": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "enum": [
+        "idea",
+        "drafted",
+        "rendering",
+        "rendered",
+        "failed"
+      ]
+    },
+    "failed_from": {
+      "enum": [
+        "rendering",
+        null
+      ]
+    }
+  }
+}

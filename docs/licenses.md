@@ -38,7 +38,7 @@ Scan das distribuições instaladas (`importlib.metadata`). Allowlist: MIT, Apac
 | rpds-py | 2026.9.1 | MIT | permitida | jsonschema, referencing |
 | ruff | 0.16.10 | MIT | permitida | idna[all], simplicio-video[test] |
 | shellcheck_py | 0.11.0.1 | MIT | exceção | simplicio-video[test] |
-| simplicio-video | 0.3.0 | Proprietary | produto | produto (este repo) |
+| simplicio-video | 0.3.0 | AGPL-3.0-or-later | produto | produto (este repo) |
 | sse-starlette | 3.5.0 | BSD-3-Clause | permitida | mcp |
 | starlette | 1.7.0 | BSD-3-Clause | permitida | mcp, sse-starlette |
 | truststore | 0.10.4 | MIT | permitida | httpcore2, httpx2 |

@@ -24,6 +24,8 @@ prospects/*
 
 # estado local do simplicio-loop/runtime
 .simplicio/
+# estado local do JsonStore da fábrica (#33): SIMPLICIO_FACTORY_HOME, padrão .simplicio-factory/
+.simplicio-factory/
 .orchestrator/
 
 # client facts never enter the repo (briefs, sources, contacts, saved sites)

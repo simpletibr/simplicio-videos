@@ -1,0 +1,20 @@
+{
+  "id": "studio",
+  "kind": "studio",
+  "version": "0.1.0",
+  "commands": [
+    {
+      "name": "make",
+      "handler": "simplicio_factory.plugins.studio.cli:make_cmd",
+      "help": "roda o estágio studio do item até rendered; 'make preview ITEM' renderiza 540x960",
+      "example": "simplicio-video make ITEM"
+    },
+    {
+      "name": "draft",
+      "handler": "simplicio_factory.plugins.studio.cli:draft_cmd",
+      "help": "mostra o Draft do item em JSON ('draft show ITEM')",
+      "example": "simplicio-video draft show ITEM"
+    }
+  ],
+  "stages": []
+}

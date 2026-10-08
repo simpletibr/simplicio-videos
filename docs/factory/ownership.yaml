@@ -66,6 +66,7 @@ issues:
       - "src/simplicio_video/commands/mcp.py"
       - "src/simplicio_video/commands/plugin.py"
       - "schemas/plugin.manifest.schema.json"
+      - "src/simplicio_factory/plugins/studio/plugin.json"  # manifesto do studio (id, kind, version, comandos make/draft) para o registro ter um plugin real; a #16 é dona de plugins/studio/** e deve manter o arquivo. Sobreposição declarada.
       - "scripts/gen_manifest.py"
       - "mk/manifest.mk"
       - "tests/test_help.py"
@@ -89,8 +90,11 @@ issues:
       - "tests/factory/conftest.py"
       - "tests/factory/contracts/**"
       - "tests/factory/fixtures/**"
+      - "tests/factory/_fixtures.py"   # helpers explícitos da #33 (importados pelos testes); sem conftest.py em tests/factory/ (conflito de nome, #43)
       - "tests/factory/test_architecture.py"
       - "mk/kernel.mk"
+      - "docs/factory/contracts.md"   # o spec manda o PR do kernel atualizar este arquivo (transition, Store, nomes)
+      - ".gitignore"   # linha .simplicio-factory/ (estado local do JsonStore)
       - "docs/host/kernel.md"
       - "docs/decisoes/ADR-0007-*.md"
       - "pyproject.toml#extras.*"
@@ -173,9 +177,12 @@ issues:
     milestone: M1
     owns:
       - "src/simplicio_factory/plugins/studio/**"
-      - "templates/brand-promo/**"
+      - "src/simplicio_video/data/templates/brand-promo/**"   # desvio: a spec diz templates/brand-promo/** na raiz; #74 moveu os templates para src/simplicio_video/data/templates/, então o brand-promo fica lá (status do engine: pronto)
       - "tests/factory/plugins/studio/**"
       - "docs/plugins/studio.md"
+      - "docs/plugins/README.md"   # índices de docs (cross-issue)
+      - "docs/host/README.md"   # índices de docs (cross-issue)
+      - "docs/decisoes/README.md"   # índices de docs (cross-issue)
   18:
     track: review
     milestone: M1
@@ -473,4 +480,17 @@ issues:
   67: {track: integrations-ai-media, milestone: M4, status: backlog}
   68: {track: site, milestone: M6, status: backlog}
   69: {track: sponsors, milestone: M6, status: backlog}
-  70: {track: legal, milestone: M6, status: backlog}
+  70:
+    track: legal
+    milestone: M6
+    status: ready
+    owns:
+      - "LICENSE"
+      - "NOTICE"
+      - "docs/legal/**"
+      - "pyproject.toml#project"
+      - "docs/README.md"
+      - "docs/licenses.md"   # a linha do produto é regenerada por `make licenses-write`
+      - "docs/host/licenses.md"   # nota de licença do produto (AGPL), não mais "proprietário"
+      - "clients/wjr-informatica-games/coleta/**"   # coleta de cliente saiu do índice (regra do .gitignore)
+      - "tests/test_legal.py"
