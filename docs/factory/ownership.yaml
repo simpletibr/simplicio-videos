@@ -304,6 +304,7 @@ issues:
       - "mk/licenses.mk"
       - "tests/test_licenses.py"
       - "docs/host/licenses.md"
+      - "docs/licenses-exceptions.yaml"
   # ------------------------------------------------------------------ M1 close
   48:
     track: ui-e2e
