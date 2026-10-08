@@ -101,7 +101,8 @@ def test_item_json_guarda_content_hash_e_production(tmp_path):
 
     stage.run(item, store)
 
-    saved = json.loads((tmp_path / "factory" / "items" / f"{item.id}.json").read_text(encoding="utf-8"))
+    # Estado do estúdio fica em <pasta-do-item>/studio.json (decisão fixada da #16); o item.json do kernel não muda de schema.
+    saved = json.loads((tmp_path / "items" / item.id / "studio.json").read_text(encoding="utf-8"))
     assert saved["production"] == {"route": "deterministic", "steps": []}
     assert re.fullmatch(r"[0-9a-f]{64}", saved["content_hash"])
     contract = tmp_path / "items" / item.id / "contract.yaml"
