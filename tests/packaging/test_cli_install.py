@@ -26,7 +26,7 @@ def checkout(tmp_path, monkeypatch):
     return repo
 
 
-def test_install_check_reporta_o_que_mudaria_sem_criar_nada(checkout, casa, capsys):
+def test_install_check_reporta_o_que_mudaria_sem_criar_nada(checkout, casa, capsys):  # noqa: F811
     exige_registrado("install", capsys, main)
     antes = instantanea(checkout)
     rc, out, err = executa(["install", "--check"], capsys, main)

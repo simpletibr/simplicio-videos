@@ -36,7 +36,7 @@ def _git(*args, cwd):
 
 
 @pytest.fixture
-def remoto(casa, monkeypatch):
+def remoto(casa, monkeypatch):  # noqa: F811
     """origem.git (remoto simulado), semente (quem publica) e checkout (o repo do usuário, um commit atrás)."""
     tmp = casa.tmp
     _git("init", "--bare", "-b", "main", "origem.git", cwd=tmp)
@@ -64,7 +64,7 @@ def remoto(casa, monkeypatch):
 
 
 @pytest.fixture
-def comandos(casa, remoto, monkeypatch):
+def comandos(casa, remoto, monkeypatch):  # noqa: F811
     """Registra cada comando. git passa pelo subprocess real (só dentro de tmp_path); o resto é simulado."""
     chamadas: list[tuple[list[str], str]] = []
     real = subprocess.run

@@ -39,7 +39,7 @@ FFMPEG_SEM_LIBASS = (
 
 
 @pytest.fixture
-def saude(casa, monkeypatch):
+def saude(casa, monkeypatch):  # noqa: F811
     """Ambiente saudável: ffmpeg com libass, node 22, 50 GB livres, GEMINI_API_KEY presente, workspace criado."""
     st = SimpleNamespace(ffmpeg=True, ffmpeg_out=FFMPEG_COM_LIBASS, node="v22.11.0", livre_gb=50.0, chamadas=[])
 
@@ -171,7 +171,7 @@ def test_credencial_presente_nunca_mostra_o_valor(saude, capsys):
     assert achadas and all(c["status"] == "ok" for c in achadas), f"credencial presente deveria estar ok: {achadas}"
 
 
-def test_workspace_ruim_falha_com_setup_como_correcao(saude, casa, capsys):
+def test_workspace_ruim_falha_com_setup_como_correcao(saude, casa, capsys):  # noqa: F811
     (casa.workspace / "workspace.yaml").unlink()
     rc, rel, _, _ = _json(capsys)
     assert rc != 0

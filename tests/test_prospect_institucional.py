@@ -7,10 +7,10 @@ import yaml
 
 from conftest import ROOT
 DATA = ROOT / "src" / "simplicio_video" / "data"  # esquemas, templates e motion: dentro do pacote (#74)
-from simplicio_video import contract as ct
-from simplicio_video import prospect as P
-from simplicio_video.compiler import compile_project
-from test_prospect import PAGES, _coleta, _png, fake_opener
+from simplicio_video import contract as ct  # noqa: E402
+from simplicio_video import prospect as P  # noqa: E402
+from simplicio_video.compiler import compile_project  # noqa: E402
+from test_prospect import PAGES, _coleta, _png, fake_opener  # noqa: E402
 
 INST = ["institucional-odontologia", "institucional-estetica", "institucional-advocacia"]
 ALL = INST + ["sazonal-dia-das-criancas"]

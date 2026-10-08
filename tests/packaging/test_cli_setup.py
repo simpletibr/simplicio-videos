@@ -16,7 +16,7 @@ def _le(ws, nome):
     return yaml.safe_load((ws / nome).read_text(encoding="utf8"))
 
 
-def test_setup_cria_workspace_com_tema_idioma_l1_e_tokens_zero(casa, capsys):
+def test_setup_cria_workspace_com_tema_idioma_l1_e_tokens_zero(casa, capsys):  # noqa: F811
     exige_registrado("setup", capsys, main)
     rc, out, err = executa(["setup", "--yes", "--theme", "br", "--lang", "pt-BR"], capsys, main)
     assert rc == 0, out + err
@@ -34,7 +34,7 @@ def test_setup_cria_workspace_com_tema_idioma_l1_e_tokens_zero(casa, capsys):
         assert pol["budgets"][limite] == 0, f"orçamento {limite} precisa começar em zero"
 
 
-def test_setup_sem_escolhas_usa_autonomia_l1_e_zero_tokens(casa, capsys):
+def test_setup_sem_escolhas_usa_autonomia_l1_e_zero_tokens(casa, capsys):  # noqa: F811
     exige_registrado("setup", capsys, main)
     rc, out, err = executa(["setup", "--yes"], capsys, main)
     assert rc == 0, out + err
@@ -43,7 +43,7 @@ def test_setup_sem_escolhas_usa_autonomia_l1_e_zero_tokens(casa, capsys):
     assert pol["budgets"]["llm_tokens"] == 0
 
 
-def test_setup_nao_escreve_fora_do_workspace(casa, capsys):
+def test_setup_nao_escreve_fora_do_workspace(casa, capsys):  # noqa: F811
     exige_registrado("setup", capsys, main)
     rc, out, err = executa(["setup", "--yes"], capsys, main)
     assert rc == 0, out + err

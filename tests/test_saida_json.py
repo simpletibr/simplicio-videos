@@ -6,7 +6,6 @@ de qualquer subprocesso, porque a validação do contrato roda primeiro. O texto
 """
 import json
 import sys
-from pathlib import Path
 
 import pytest
 import yaml
