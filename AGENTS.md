@@ -24,17 +24,20 @@ simplicio-video init <slug> <Campanha> --template <id> --nome "<Nome>"
 simplicio-video validate clients/<slug>/<video>/contract.yaml
 simplicio-video voice    clients/<slug>/<video>/contract.yaml [--provider file|local|gemini]   # gemini = API (GEMINI_API_KEY)
 simplicio-video render   clients/<slug>/<video>/contract.yaml [--backend local|kaggle|colab-cli|colab] [--out x.mp4]
-simplicio-video publish  clients/<slug>/<video>/contract.yaml [--dry-run]    # Drive via rclone; SÓ com pedido explícito
-simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini [--publish]   # render local (padrão)
+simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini   # render local (padrão)
 simplicio-video render   <contrato.yaml> --preview   # prévia de venda 540x960 com marca d'água Wesley Simplicio (@wesleysimplicio)
-simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N] [--only SLUG]   # venda ativa em massa (alias batch; padrão v2: voz Laomedeia animada + logo real), docs/venda-ativa.md
-simplicio-video venda cobrar prospects/<lote>/<slug> --preco 120|80|60   # Pix (AbacatePay); venda webhook serve | entregar | status
+# comandos de venda (prospect, venda, ugc) e publish saíram do CLI do motor (#77) e ficam no repositório de operação
 simplicio-video clone [args]                            # Hypit AI: clonagem de vídeo com agentes (https://github.com/hypit-ai/hypit)
 simplicio-video montage [clone|open|serve|demo|args]   # OpenMontage: produção de vídeo com agentes (https://github.com/calesthio/OpenMontage)
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
-simplicio-video ugc list [--json]                   # UGC (gerativo, fora do render): lista os 10 personagens do pack
-simplicio-video ugc prompt <personagem> --app "<APP>" [--fala "texto"] [--duracao 7] [--json]   # monta o prompt Seedance 2.5; --todos no lugar do personagem = os 10 com falas de exemplo
+simplicio-video edit setup|transcribe|pack|render|verify   # edição por EDL com video-use (tools/video-use)
+simplicio-video opencut clone|dev|where            # editor OpenCut para acabamento manual
+simplicio-video status [--json] [contrato]         # ferramentas instaladas, versões fixadas e estado do render
+simplicio-video install [--check]                  # ambiente do checkout (.venv com uv); --check só mostra o plano
+simplicio-video update [--check]                   # git pull --ff-only, reinstala e roda doctor; --check não altera nada
+simplicio-video doctor [--json]                    # diagnóstico do ambiente com a correção de cada falha
+simplicio-video setup                              # primeira execução: cria o workspace (tema, idioma, autonomia L1)
 python -m pytest                                   # schema, validate, --help, determinismo (render curto)
 ```
 
@@ -90,7 +93,7 @@ Ainda não há plugins em `docs/plugins/`.
 **Venda ativa em massa (prévias para oferecer)**
 1. Monte o CSV (`nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes`) com empresas achadas por busca web; registre a fonte de cada @/WhatsApp.
 2. O template sai da coluna `setor` (`templates/prospect-roteamento.json`): `--campanha auto` (padrão) = odontologia/infantil no Dia das Crianças, advocacia e estética nos institucionais; `--campanha institucional` = institucional por setor. Advocacia exige `oab`.
-   `simplicio-video prospect lista.csv --lote <lote>` → `prospects/<lote>/<slug>/preview.mp4` + `lote.csv` (status, motivo, dados achados, tempo). Retomada idempotente; `--jobs N` para paralelo.
+   `prospect` saiu do CLI do motor (#77) e fica no repositório de operação (antes gerava `prospects/<lote>/<slug>/preview.mp4` + `lote.csv`).
 3. Padrão v2 (default): voz Gemini 3.8 Flash TTS Laomedeia animada (a da Lothus v02; reserva Achernar), **logo real** (coluna `logo` do CSV tirada do site/Instagram da empresa, ou logo do site) e ritmo da Lothus v02; nunca gerar/recriar logo. Só dado público e da empresa (LGPD), Instagram sem login (robots.txt do instagram.com proíbe robôs: o @ vem do CSV/site), nunca preço/promoção/fato inventado. **Nada é enviado pelo agente**: o Wesley revisa e envia ([docs/venda-ativa.md](docs/venda-ativa.md)).
 
 **Novo vídeo (etapas 3–7) — pelo CLI**
@@ -103,7 +106,7 @@ Ainda não há plugins em `docs/plugins/`.
 **Vídeo UGC (gerativo)** ([ugc/README.md](ugc/README.md) · [ADR-0004](docs/decisoes/ADR-0004-ugc-generativo.md))
 1. Fatos e público vêm de `clients/<slug>/coleta/`; sem fato confirmado, sem fala ("Só fatos reais"). Fora da esteira: sem contrato, template, motion nem `render`, e fora da regra de determinismo.
 2. Elenco, prompt de imagem e roteiros (passos 1, 2, 4) são prompts de LLM em `ugc/prompts/01` a `04`; imagens (passo 3) e clipes (passo 6) são gerativos e manuais (ChatGPT, Higgsfield, Krea).
-3. `simplicio-video ugc list` → `ugc prompt <personagem> --app "<APP>" --fala "<fala de coleta/>"` monta o prompt Seedance 2.5 (passo 5) e avisa se a fala foge de ~3,5 palavras/s (22–28 palavras em 7 s). Renderize 1 clipe por personagem, confira rosto e voz e só então use o áudio como referência de voz nos outros.
+3. Os comandos `ugc` saíram do CLI do motor (#77) e ficam no repositório de operação. Renderize 1 clipe por personagem, confira rosto e voz e só então use o áudio como referência de voz nos outros.
 4. Travas: personagem sintético (nunca rosto ou voz de pessoa real sem autorização); sem depoimento fabricado apresentado como cliente real; rótulo de IA da plataforma e CONAR; imagens e MP4 em `out/ugc/<slug>/` e no Drive, nunca no git; chaves só no ambiente; gerar em plataforma paga só com pedido explícito do Wesley.
 
 **Voz / narração** ([voices/](voices/README.md))
@@ -144,7 +147,7 @@ Ainda não há plugins em `docs/plugins/`.
 - Nome do arquivo: `<CLIENTE> - <descricao> - vNN.mp4` (ex.: `Lothus - Dia das Criancas 15s - v01.mp4`); versão nova = `vNN+1`, nunca sobrescrever.
 - O repositório guarda **os links**, nunca o MP4 final como entrega (`out/` é gitignored; `preview/` só leva a prévia leve 720p).
 - Todo link novo entra na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
-- Upload: `simplicio-video publish` / `run --publish` (rclone, remote `gdrive`; nunca sobrescreve, link pelo ID). O agente **só** roda publish sem `--dry-run` com pedido explícito do Wesley para aquele vídeo. **Exceção única**: `simplicio-video venda` — o pagamento Pix confirmado (webhook validado) é a autorização do conselho para o publish automático **daquele** vídeo, e só nesse fluxo (docs/venda-ativa.md).
+- Upload: `publish` e a flag de upload do `run` saíram do CLI do motor (#77) e ficam no repositório de operação (rclone, remote `gdrive`; nunca sobrescreve, link pelo ID). O agente **só** faz upload com pedido explícito do Wesley para aquele vídeo. A exceção do fluxo de venda (Pix) também saiu do motor (#77).
 
 ## Convenções e travas
 
