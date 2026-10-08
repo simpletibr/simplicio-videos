@@ -491,6 +491,20 @@ issues:
       - "tests/factory/plugins/board/**"
       - "docs/plugins/board.md"
       - "docs/plugins/README.md"   # índice de plugins (acréscimo: só a linha do board)
+  88:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/board/html.py"
+      - "src/simplicio_factory/plugins/board/templates/**"
+      - "src/simplicio_factory/plugins/board/cli.py#build"   # só o subcomando build (cli.py é do #86)
+      - "src/simplicio_factory/plugins/board/plugin.json"   # só o texto de help do comando board (lista build)
+      - "pyproject.toml#tool.setuptools.package-data"   # só a linha que põe o template board.html.tpl no wheel (seção é do #74)
+      - "tests/factory/plugins/board/test_html.py"
+      - "tests/factory/plugins/board/golden/**"
+      - "docs/plugins/board.md"   # só a seção html (e o `commands` do front matter)
+      - "docs/assets/board-html.png"   # captura do dashboard, PNG pequeno
 
   # ------------------------------------------------------------------ M1 geração assistida: attach, recibo e runbook (épico #81)
   87:
