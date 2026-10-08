@@ -451,6 +451,20 @@ issues:
       - "tests/test_prospect.py"
       - "tests/test_prospect_institucional.py"
       - "tests/test_saida_json.py"
+  # ------------------------------------------------------------------ M1 rotas de produção (épico #81)
+  82:
+    track: kernel-routes
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/contracts/models.py"
+      - "src/simplicio_factory/contracts/transitions.py"
+      - "schemas/factory/item.schema.json"
+      - "tests/factory/contracts/test_transition_ai.py"
+      - "tests/factory/contracts/test_item_production.py"
+      - "docs/host/kernel.md"
+      - "docs/decisoes/ADR-0008-duas-rotas.md"
+
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
