@@ -118,6 +118,7 @@ Mapa gerado a partir do front matter de `docs/host/` e `docs/plugins/`. A refer�
 <!-- BEGIN GENERATED: host -->
 Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
+- [Duas rotas de produção (determinística e ai_assisted)](docs/host/duas-rotas.md): As duas rotas do item lado a lado, o que é reproduzível byte a byte, onde mora cada decisão e os comandos reais de cada etapa.
 - [Gate local, TDD e pouso de PRs](docs/host/gate.md): Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
 - [Kernel da fábrica (simplicio_factory)](docs/host/kernel.md): O que é o kernel da fábrica, os Protocols e dataclasses, transition() como única forma de mudar o estado, JsonStore e MemoryStore, o testkit e o alvo make factory-schema.
 - [Licenças das dependências](docs/host/licenses.md): Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e o que ainda falta (web/).

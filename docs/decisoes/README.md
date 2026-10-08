@@ -13,3 +13,4 @@ Cada ADR registra uma decisão, o contexto, as alternativas e o status. Os arqui
 | [ADR-0007: kernel da fábrica (contratos, transition(), JsonStore e testkit)](ADR-0007-kernel.md) | Kernel |
 | [ADR-0008: duas rotas de produção no item (determinística intocada e ai_assisted com gasto aprovado)](ADR-0008-duas-rotas.md) | Duas rotas |
 | [ADR-0017: instalação e atualização (um comando, git pull --ff-only, Docker só build local)](ADR-0017-instalacao-atualizacao.md) | Instalação e atualização |
+| [ADR-0018: render final determinístico também na rota ai_assisted (a mídia gerada entra como asset verificado)](ADR-0018-render-final-deterministico.md) | Render final determinístico |
