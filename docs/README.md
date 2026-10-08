@@ -26,6 +26,7 @@
 | [recursos.md](recursos.md) | Curadoria de ferramentas/repos de vídeo e motion |
 | [licenses.md](licenses.md) | Licenças das dependências instaladas (scan do `.venv`, allowlist e exceções); gerado por `make licenses-write` |
 | [host/licenses.md](host/licenses.md) | Como o gate confere licenças, como pedir uma exceção e como regerar `docs/licenses.md` |
+| [legal/README.md](legal/README.md) | **Índice legal**: licença AGPL-3.0-or-later e por que, terceiros (OFL, GSAP, ferramentas externas) e histórico com dados de cliente |
 | [glossary.md](glossary.md) | Glossário: contrato, render, marca, motion, template, voz, manifesto, ferramenta, ADR, stage, station, character, plugin e Runtime plugin |
 | [reference/cli.md](reference/cli.md) | Referência da CLI: o `--help` real de cada comando (gerado por `make regen`) |
 | [reference/schemas.md](reference/schemas.md) | Schemas JSON do pacote (gerado) |

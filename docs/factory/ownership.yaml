@@ -483,4 +483,5 @@ issues:
       - "docs/legal/**"
       - "pyproject.toml#project"
       - "docs/README.md"
+      - "docs/licenses.md"   # a linha do produto é regenerada por `make licenses-write`
       - "tests/test_legal.py"
