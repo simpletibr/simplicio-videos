@@ -473,4 +473,14 @@ issues:
   67: {track: integrations-ai-media, milestone: M4, status: backlog}
   68: {track: site, milestone: M6, status: backlog}
   69: {track: sponsors, milestone: M6, status: backlog}
-  70: {track: legal, milestone: M6, status: backlog}
+  70:
+    track: legal
+    milestone: M6
+    status: ready
+    owns:
+      - "LICENSE"
+      - "NOTICE"
+      - "docs/legal/**"
+      - "pyproject.toml#project"
+      - "docs/README.md"
+      - "tests/test_legal.py"
