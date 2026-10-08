@@ -87,7 +87,7 @@ def test_manifesto_declara_generate_com_handler_existente():
     manifesto = json.loads(MANIFEST.read_text(encoding="utf-8"))
 
     assert manifesto["id"] == "media"
-    assert [c["name"] for c in manifesto["commands"]] == ["generate"]
+    assert [c["name"] for c in manifesto["commands"]] == ["generate", "media"]
     assert (
         manifesto["commands"][0]["handler"]
         == "simplicio_factory.plugins.media.cli:generate_cmd"
