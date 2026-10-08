@@ -271,6 +271,8 @@ issues:
       - "src/simplicio_video/commands/install.py"
       - "src/simplicio_video/commands/update.py"
       - "src/simplicio_video/commands/setup.py"
+      - "src/simplicio_video/commands/__init__.py"  # a #32 (host de plugins) ainda não está no repo; a #32 também lista este arquivo, então a sobreposição vale até ela ser mergeada
+      - "src/simplicio_video/cli.py"  # registra install, update, doctor e setup; comandos existentes não mudam. Sobreposição: a #32 também lista este arquivo (inteiro)
       - "tests/packaging/**"
       - "docs/how-to/install.md"
       - "docs/host/packaging.md"
