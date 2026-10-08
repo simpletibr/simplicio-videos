@@ -323,6 +323,15 @@ issues:
       - "constraints.txt"
       - "docs/release/**"
       - "pyproject.toml#project.version"
+  # ------------------------------------------------------------------ motor sem vendas
+  77:
+    track: motor-sem-vendas
+    status: ready
+    owns:
+      - "src/simplicio_video/cli.py"
+      - "src/simplicio_video/pipeline.py"
+      - "tests/test_help.py"
+      - "tests/test_motor_sem_vendas.py"
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
