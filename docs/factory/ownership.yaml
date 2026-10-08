@@ -467,6 +467,7 @@ issues:
       - "src/simplicio_factory/contracts/json_store.py"   # persistência de production e review (round-trip; arquivo da #33)
       - "docs/host/kernel.md"
       - "docs/decisoes/ADR-0008-duas-rotas.md"
+      - "docs/decisoes/README.md"   # índice de ADRs (acréscimo: registra o ADR-0008)
 
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
