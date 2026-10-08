@@ -379,3 +379,69 @@ def test_fluxo_cita_so_comandos_do_help_real():
     assert "board" in citados, (
         "o fluxo deveria citar 'simplicio-video board list' (leitura do quadro)"
     )
+
+
+# ----------------------------------------------------------------- receita e nota legal
+
+RECEITA = ROOT / "docs" / "how-to" / "langflow.md"
+INDICE_GUIAS = ROOT / "docs" / "how-to" / "README.md"
+TERCEIROS = ROOT / "docs" / "legal" / "terceiros.md"
+LICENCAS = ROOT / "docs" / "licenses.md"
+VERSAO_PENDENTE = (
+    "versão do LangFlow: a fixar na primeira execução real; "
+    "não testado contra uma instalação real nesta entrega"
+)
+
+
+def _receita() -> str:
+    assert RECEITA.is_file(), "falta docs/how-to/langflow.md"
+    return RECEITA.read_text(encoding="utf-8")
+
+
+def test_receita_tem_front_matter_do_padrao():
+    cabecalho = re.match(r"^---\n(.*?)\n---\n", _receita(), re.S)
+    assert cabecalho, "a receita não tem front matter"
+    for chave in ("title:", "summary:", "commands:", "issue: 84", "last_verified:"):
+        assert chave in cabecalho.group(1), f"front matter sem {chave}"
+
+
+def test_receita_esta_linkada_no_indice_de_guias():
+    assert "(langflow.md)" in INDICE_GUIAS.read_text(encoding="utf-8")
+
+
+def test_receita_registra_a_versao_pendente_sem_inventar_versao():
+    texto = _receita()
+    assert VERSAO_PENDENTE.lower() in texto.lower()
+    assert not re.search(r"langflow\s*[=<>~!]*\s*\d+\.\d+", texto, re.I), (
+        "versão do LangFlow inventada"
+    )
+
+
+def test_receita_cita_so_comandos_do_help_real():
+    grupos = _grupos_reais()
+    citados = 0
+    for achado in RE_COMANDO_CITADO.finditer(_receita()):
+        citados += 1
+        primeiro, segundo = achado.group(1), achado.group(2)
+        if primeiro in grupos:
+            assert segundo in grupos[primeiro], (
+                f"simplicio-video {primeiro} {segundo} não existe no --help"
+            )
+        else:
+            assert _existe(primeiro), f"simplicio-video {primeiro} não existe no --help"
+    assert citados, "a receita não cita nenhum comando"
+
+
+def test_receita_linka_os_arquivos_da_pasta_examples():
+    texto = _receita()
+    assert "../../examples/langflow/simplicio_component.py" in texto
+    assert "../../examples/langflow/fluxo-exemplo.json" in texto
+
+
+def test_terceiros_marca_langflow_como_cliente_externo_fora_do_licenses():
+    partes = TERCEIROS.read_text(encoding="utf-8").split("## LangFlow", 1)
+    assert len(partes) == 2, "terceiros.md sem a seção LangFlow"
+    corpo = partes[1].split("\n## ", 1)[0].lower()
+    assert "não empacotado" in corpo
+    assert "licenses.md" in corpo
+    assert "langflow" not in LICENCAS.read_text(encoding="utf-8").lower()

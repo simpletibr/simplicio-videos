@@ -37,3 +37,9 @@ Estas ferramentas não são redistribuídas pelo repositório. O CLI as invoca c
 | Postiz | Programa externo, AGPL. Não empacotado. |
 
 A checagem de importação em `scripts/licenses.py --imports` reprova código Python que importe OpenMontage, VoiceStudio ou Postiz.
+
+## LangFlow (cliente externo)
+
+O LangFlow é cliente externo e **não empacotado** pelo repositório. O usuário o instala à parte (receita em [how-to/langflow.md](../how-to/langflow.md)). O componente em `examples/langflow/` só chama o CLI `simplicio-video` como programa separado. O motor não depende do LangFlow, e nenhum código dele é redistribuído aqui.
+
+Por isso o LangFlow **não entra em [../licenses.md](../licenses.md)**: aquela tabela é gerada a partir das dependências Python que o pacote instala, e o LangFlow não é uma delas. A licença do LangFlow vale para quem o instala. Esta entrega não a verificou.
