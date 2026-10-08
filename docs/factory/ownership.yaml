@@ -386,7 +386,6 @@ issues:
     status: ready
     owns:
       - "src/simplicio_video/cli.py"
-      - "src/simplicio_video/tools.py"
       - "src/simplicio_video/status.py"
       - "tests/test_status_json.py"
   # ------------------------------------------------------------------ backlog (elaborate before starting)

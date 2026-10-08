@@ -28,6 +28,7 @@ Fluxo completo:
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut
+  status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
 Skill para LLMs: skills/simplicio-video/SKILL.md"""
@@ -86,7 +87,9 @@ def _contract_arg(p):
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="simplicio-video", description=MAIN_DESC, epilog=MAIN_EPILOG, formatter_class=Fmt)
-    ap.add_argument("--version", action="version", version=f"simplicio-video {__version__} ({HYPERFRAMES})")
+    ap.add_argument("--version", action="store_true",
+                    help="mostra a versão do motor e sai (com --json: {version, engine})")
+    ap.add_argument("--json", dest="ver_json", action="store_true", help="com --version: imprime {version, engine} em JSON")
     sub = ap.add_subparsers(dest="cmd", metavar="COMANDO", title="comandos (na ordem do fluxo)")
 
     p = sub.add_parser("init", formatter_class=Fmt, help="gera o esqueleto de contrato para <cliente> <campanha>",
@@ -230,6 +233,16 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video mcp                  # stdio (o runtime lança este processo)\n"
                "  simplicio-video-mcp                  # mesmo servidor, entrypoint dedicado")
 
+    p = sub.add_parser("status", formatter_class=Fmt, help="ferramentas instaladas, versões fixadas e estado do render",
+        description="Estado do motor para o looping: ferramentas (OpenMontage, OpenCut, Hypit, ffmpeg, node) com\n"
+                    "installed, version, pinned (versão fixada em tools.py ou SIMPLICIO_<NOME>_REF) e pinned_source.\n"
+                    "Com CONTRATO, acrescenta o estado do render (render.manifest.json ao lado do contrato): rendered,\n"
+                    "contract_sha256 e finished_at. Ferramenta ausente não é erro: sai com 0. Sai com 2 se o contrato não existir.",
+        epilog="exemplos:\n  simplicio-video status\n  simplicio-video status --json\n"
+               "  simplicio-video status --json clients/lothus-odontologia/video-01/contract.yaml")
+    p.add_argument("contrato", nargs="?", metavar="CONTRATO.yaml", help="contrato cujo render (render.manifest.json) será lido")
+    p.add_argument("--json", action="store_true", help="imprime tools (e render, com CONTRATO) em JSON")
+
     p = sub.add_parser("list", formatter_class=Fmt, help="lista templates, padrões de motion ou providers de voz",
         description="Catálogos do plugin: templates/ (renderizável = tem composição), motion/catalog.json, providers de voz.",
         epilog="exemplos:\n  simplicio-video list templates\n  simplicio-video list motion --json\n  simplicio-video list voices")
@@ -273,10 +286,26 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
 
     a = ap.parse_args(argv)
+    if a.version:
+        from . import status
+        if a.ver_json:
+            print(json.dumps(status.version_info(), indent=2, ensure_ascii=False))
+        else:
+            print(f"simplicio-video {__version__} ({HYPERFRAMES})")
+        return 0
     if not a.cmd:
         ap.print_help()
         return 0
 
+    if a.cmd == "status":
+        from . import status
+        try:
+            rep = status.report(a.contrato)
+        except status.StatusError as e:
+            print(f"status: {e}", file=sys.stderr)
+            return 2
+        print(json.dumps(rep, indent=2, ensure_ascii=False) if a.json else status.text(rep))
+        return 0
 
     if a.cmd == "list":
         from . import catalog
