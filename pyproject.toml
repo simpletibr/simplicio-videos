@@ -27,6 +27,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 simplicio_video = ["engine/*", "data/**/*"]
+simplicio_factory = ["plugins/board/templates/*.tpl"]  # #88: template do board build (board.html.tpl) no wheel
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

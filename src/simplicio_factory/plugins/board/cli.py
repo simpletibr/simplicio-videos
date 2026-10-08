@@ -3,6 +3,7 @@
     simplicio-video board list [--json]                                  colunas e cartões
     simplicio-video board comment ITEM "texto" --by NOME                 comentário append-only
     simplicio-video board review ITEM approve|changes --by NOME [--note]  revisão humana
+    simplicio-video board build [--out ARQUIVO]                          quadro em HTML estático (#88)
 
 Estado: $SIMPLICIO_FACTORY_HOME (padrão .simplicio-factory/). As colunas são derivadas; o quadro não move cartão de etapa.
 """
@@ -15,6 +16,7 @@ import os
 import sys
 from pathlib import Path
 
+from simplicio_factory.plugins.board import html as quadro_html
 from simplicio_factory.plugins.board import service
 from simplicio_factory.plugins.board.service import BoardError
 
@@ -33,6 +35,10 @@ EXEMPLO_COMMENT = """Exemplo:
 EXEMPLO_REVIEW = """Exemplo:
   simplicio-video board review itm_01HZEXEMPLO0000000000001 approve --by Ana
   simplicio-video board review itm_01HZEXEMPLO0000000000001 changes --by Ana --note "refazer o final"
+"""
+EXEMPLO_BUILD = """Exemplo:
+  simplicio-video board build
+  simplicio-video board build --out quadro/board.html
 """
 
 
@@ -74,7 +80,7 @@ def board_cmd(argv: list[str]) -> int:
         epilog=EXEMPLO_BOARD,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    acoes = parser.add_subparsers(dest="acao", metavar="{list,comment,review}")
+    acoes = parser.add_subparsers(dest="acao", metavar="{list,comment,review,build}")
 
     lista = _subparser(
         acoes,
@@ -108,6 +114,18 @@ def board_cmd(argv: list[str]) -> int:
     revisa.add_argument("--by", required=True, metavar="NOME", help="quem revisa (obrigatório)")
     revisa.add_argument("--note", metavar="TEXTO", help="texto da revisão (padrão: aprovado ou alterações solicitadas)")
 
+    constroi = _subparser(
+        acoes,
+        "build",
+        "grava o quadro em um HTML estático",
+        "Grava um arquivo HTML autocontido (CSS e JS inline, sem rede) com uma coluna por etapa e um cartão por item. "
+        "Só leitura: o navegador não escreve comentário nem move cartão.",
+        EXEMPLO_BUILD,
+    )
+    constroi.add_argument(
+        "--out", default="board.html", metavar="ARQUIVO", help="arquivo HTML de saída (padrão: board.html)"
+    )
+
     args = parser.parse_args(argv)
     if args.acao is None:
         parser.print_help()
@@ -121,6 +139,15 @@ def board_cmd(argv: list[str]) -> int:
                 print(json.dumps(quadro, ensure_ascii=False, indent=2))
             else:
                 _imprime_texto(quadro)
+            return 0
+        if args.acao == "build":
+            destino = Path(args.out)
+            try:
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                destino.write_bytes(quadro_html.construir(home, destino.resolve().parent).encode("utf-8"))
+            except OSError as exc:
+                return _erro(f"não foi possível gravar {destino}: {exc}")
+            print(f"{destino}: quadro gravado")
             return 0
         if args.acao == "comment":
             linha = service.comentar(home, args.item, args.texto, args.by)

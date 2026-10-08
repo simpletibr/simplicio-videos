@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quadro da fábrica</title>
+<style>
+:root {
+  color-scheme: light;
+  --fundo: #f4f5f7;
+  --superficie: #ffffff;
+  --texto: #1b1f24;
+  --texto-suave: #4b5563;
+  --borda: #cfd5dd;
+  --link: #0a4f9c;
+  --foco: #0a4f9c;
+  --alerta: #9b1c1c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --fundo: #111418;
+    --superficie: #1b2027;
+    --texto: #eef1f5;
+    --texto-suave: #b8c0cc;
+    --borda: #3d4652;
+    --link: #9cc3ff;
+    --foco: #9cc3ff;
+    --alerta: #ffb4ab;
+  }
+}
+* { box-sizing: border-box; }
+html { background: var(--fundo); }
+body {
+  margin: 0;
+  padding: 16px;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow-wrap: anywhere;
+}
+h1 { font-size: 1.4rem; margin: 0 0 4px; }
+h2 { font-size: 1rem; margin: 0 0 8px; }
+h3 { font-size: 0.95rem; margin: 12px 0 6px; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
+.resumo, .dica-topo { margin: 0 0 4px; color: var(--texto-suave); }
+.colunas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 12px;
+  align-items: start;
+  margin-top: 16px;
+}
+.coluna {
+  min-width: 0;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 10px;
+}
+.contagem { color: var(--texto-suave); font-weight: 400; }
+.vazia, .resto { margin: 6px 0; font-size: 0.9rem; color: var(--texto-suave); }
+.card {
+  position: relative;
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.card:has(.card-link:focus-visible) { outline: 3px solid var(--foco); outline-offset: 2px; }
+.titulo-cartao { font-size: 0.95rem; margin: 0 0 4px; }
+.card-link { color: var(--texto); text-decoration: none; font-weight: 600; }
+.card-link::after { content: ""; position: absolute; inset: 0; border-radius: 6px; }
+.card-link:focus-visible { outline: none; }
+.meta { margin: 2px 0; font-size: 0.85rem; color: var(--texto-suave); }
+.detalhes { margin-top: 24px; }
+.detalhe {
+  display: none;
+  max-width: 760px;
+  margin: 0 0 16px;
+  padding: 16px;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  scroll-margin-top: 12px;
+}
+.detalhe:target { display: block; }
+.detalhe h2:focus { outline: none; }
+.detalhe h2:focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
+.topo-detalhe { margin: 0 0 4px; }
+.fechar { font-size: 0.9rem; }
+ol, ul { margin: 4px 0; padding-left: 20px; }
+.recibo {
+  margin: 4px 0;
+  padding: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+code { font-size: 0.9em; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<header>
+<h1>Quadro da fábrica</h1>
+<p class="resumo">4 itens em 8 colunas</p>
+<p class="dica-topo">Clique em um cartão para ver etapas, arquivos, recibo e comentários. Esta página só mostra o estado: comentários e revisão são feitos pela CLI.</p>
+</header>
+<main class="colunas">
+<section data-coluna="ideia" class="coluna" data-restantes="0" aria-labelledby="col-ideia"><h2 id="col-ideia">Ideia <span class="contagem">(0)</span></h2><p class="vazia">(vazia)</p></section>
+<section data-coluna="roteiro" class="coluna" data-restantes="0" aria-labelledby="col-roteiro"><h2 id="col-roteiro">Roteiro <span class="contagem">(0)</span></h2><p class="vazia">(vazia)</p></section>
+<section data-coluna="orcamento" class="coluna" data-restantes="0" aria-labelledby="col-orcamento"><h2 id="col-orcamento">Orçamento <span class="contagem">(0)</span></h2><p class="vazia">(vazia)</p></section>
+<section data-coluna="aprovado" class="coluna" data-restantes="0" aria-labelledby="col-aprovado"><h2 id="col-aprovado">Aprovado <span class="contagem">(0)</span></h2><p class="vazia">(vazia)</p></section>
+<section data-coluna="gerando" class="coluna" data-restantes="0" aria-labelledby="col-gerando"><h2 id="col-gerando">Gerando <span class="contagem">(1)</span></h2><article class="card" data-item="itm_01HZHTML0000000000000003" data-ultimo-evento="10" data-comentarios="0"><h3 class="titulo-cartao"><a class="card-link" href="#item-itm_01HZHTML0000000000000003">Vídeo de boas-vindas gerado por IA</a></h3><p class="meta">acme · rota generativa</p><p class="meta">Estado: gerando (generating)</p><p class="meta">Custo: 120 créditos (provedor-teste)</p><p class="meta">Última atividade: evento #10</p><p class="meta">Comentários: 0</p></article></section>
+<section data-coluna="revisao" class="coluna" data-restantes="0" aria-labelledby="col-revisao"><h2 id="col-revisao">Revisão <span class="contagem">(1)</span></h2><article class="card" data-item="itm_01HZHTML0000000000000002" data-ultimo-evento="6" data-comentarios="1"><h3 class="titulo-cartao"><a class="card-link" href="#item-itm_01HZHTML0000000000000002">Apresentação da equipe da clínica</a></h3><p class="meta">acme · rota determinística</p><p class="meta">Estado: renderizado (rendered)</p><p class="meta">Última atividade: evento #6</p><p class="meta">Comentários: 1</p></article></section>
+<section data-coluna="pronto" class="coluna" data-restantes="0" aria-labelledby="col-pronto"><h2 id="col-pronto">Pronto <span class="contagem">(1)</span></h2><article class="card" data-item="itm_01HZHTML0000000000000001" data-ultimo-evento="3" data-comentarios="1"><h3 class="titulo-cartao"><a class="card-link" href="#item-itm_01HZHTML0000000000000001">Dica de higiene bucal para o Dia das Crianças</a></h3><p class="meta">acme · rota determinística</p><p class="meta">Estado: renderizado (rendered)</p><p class="meta">Revisão: aprovada</p><p class="meta">Última atividade: evento #3</p><p class="meta">Comentários: 1</p></article></section>
+<section data-coluna="falhou" class="coluna" data-restantes="0" aria-labelledby="col-falhou"><h2 id="col-falhou">Falhou <span class="contagem">(1)</span></h2><article class="card" data-item="itm_01HZHTML0000000000000004" data-ultimo-evento="13" data-comentarios="0"><h3 class="titulo-cartao"><a class="card-link" href="#item-itm_01HZHTML0000000000000004">Oferta de consulta de avaliação</a></h3><p class="meta">acme · rota determinística</p><p class="meta">Estado: falhou (failed), em rendering</p><p class="meta">Última atividade: evento #13</p><p class="meta">Comentários: 0</p></article></section>
+</main>
+<div class="detalhes">
+<article id="item-itm_01HZHTML0000000000000003" class="detalhe" aria-labelledby="titulo-itm_01HZHTML0000000000000003"><p class="topo-detalhe"><a class="fechar" href="#">Fechar</a></p><h2 id="titulo-itm_01HZHTML0000000000000003" tabindex="-1">Vídeo de boas-vindas gerado por IA</h2><p class="meta">itm_01HZHTML0000000000000003 · marca acme · rota generativa · estado gerando (generating)</p><h3>Etapas</h3><ol class="linha-do-tempo"><li>#7 ideia → roteiro <span class="meta">(item.state_changed)</span></li><li>#8 roteiro → orçamento <span class="meta">(item.state_changed)</span></li><li>#9 orçamento → aprovado <span class="meta">(item.state_changed)</span></li><li>#10 aprovado → gerando <span class="meta">(item.state_changed)</span></li></ol><h3>Arquivos</h3><ul><li>Prévia: não gerada</li><li>MP4 de entrega: não gerado</li></ul><h3>Recibo da mídia</h3><pre class="recibo">{
+  &quot;credits&quot;: 120,
+  &quot;estimate_ref&quot;: &quot;cot-001&quot;,
+  &quot;provider&quot;: &quot;provedor-teste&quot;,
+  &quot;status&quot;: &quot;gerando&quot;
+}</pre><h3>Comentários e revisão</h3><p class="meta">Sem comentários.</p><p class="dica">Para comentar ou revisar, use no terminal: <code>simplicio-video board comment itm_01HZHTML0000000000000003 "texto" --by NOME</code> ou <code>simplicio-video board review itm_01HZHTML0000000000000003 approve --by NOME</code>.</p></article>
+<article id="item-itm_01HZHTML0000000000000002" class="detalhe" aria-labelledby="titulo-itm_01HZHTML0000000000000002"><p class="topo-detalhe"><a class="fechar" href="#">Fechar</a></p><h2 id="titulo-itm_01HZHTML0000000000000002" tabindex="-1">Apresentação da equipe da clínica</h2><p class="meta">itm_01HZHTML0000000000000002 · marca acme · rota determinística · estado renderizado (rendered)</p><h3>Etapas</h3><ol class="linha-do-tempo"><li>#4 ideia → roteiro <span class="meta">(item.state_changed)</span></li><li>#5 roteiro → renderizando <span class="meta">(item.state_changed)</span></li><li>#6 renderizando → renderizado <span class="meta">(item.state_changed)</span></li></ol><h3>Arquivos</h3><ul><li>Prévia: não gerada</li><li>MP4 de entrega: não gerado</li></ul><h3>Recibo da mídia</h3><p class="meta">Sem recibo de mídia gerada.</p><h3>Comentários e revisão</h3><ol class="comentarios"><li><strong>Bruno</strong> em 2026-10-08T10:00:00-03:00 (comment): Trocar a cor do logo</li></ol><p class="dica">Para comentar ou revisar, use no terminal: <code>simplicio-video board comment itm_01HZHTML0000000000000002 "texto" --by NOME</code> ou <code>simplicio-video board review itm_01HZHTML0000000000000002 approve --by NOME</code>.</p></article>
+<article id="item-itm_01HZHTML0000000000000001" class="detalhe" aria-labelledby="titulo-itm_01HZHTML0000000000000001"><p class="topo-detalhe"><a class="fechar" href="#">Fechar</a></p><h2 id="titulo-itm_01HZHTML0000000000000001" tabindex="-1">Dica de higiene bucal para o Dia das Crianças</h2><p class="meta">itm_01HZHTML0000000000000001 · marca acme · rota determinística · estado renderizado (rendered)</p><h3>Etapas</h3><ol class="linha-do-tempo"><li>#1 ideia → roteiro <span class="meta">(item.state_changed)</span></li><li>#2 roteiro → renderizando <span class="meta">(item.state_changed)</span></li><li>#3 renderizando → renderizado <span class="meta">(item.state_changed)</span></li></ol><h3>Arquivos</h3><ul><li>Prévia: <a href="home/studio/renders/itm_01HZHTML0000000000000001-previa.mp4">prévia 540x960</a></li><li>MP4 de entrega: <a href="home/studio/renders/itm_01HZHTML0000000000000001.mp4">abrir o MP4</a></li></ul><h3>Recibo da mídia</h3><p class="meta">Sem recibo de mídia gerada.</p><h3>Comentários e revisão</h3><p class="meta">Revisão atual: aprovada</p><ol class="comentarios"><li><strong>Ana</strong> em 2026-10-08T10:00:00-03:00 (review): pode publicar</li></ol><p class="dica">Para comentar ou revisar, use no terminal: <code>simplicio-video board comment itm_01HZHTML0000000000000001 "texto" --by NOME</code> ou <code>simplicio-video board review itm_01HZHTML0000000000000001 approve --by NOME</code>.</p></article>
+<article id="item-itm_01HZHTML0000000000000004" class="detalhe" aria-labelledby="titulo-itm_01HZHTML0000000000000004"><p class="topo-detalhe"><a class="fechar" href="#">Fechar</a></p><h2 id="titulo-itm_01HZHTML0000000000000004" tabindex="-1">Oferta de consulta de avaliação</h2><p class="meta">itm_01HZHTML0000000000000004 · marca acme · rota determinística · estado falhou (failed), em rendering</p><h3>Etapas</h3><ol class="linha-do-tempo"><li>#11 ideia → roteiro <span class="meta">(item.state_changed)</span></li><li>#12 roteiro → renderizando <span class="meta">(item.state_changed)</span></li><li>#13 renderizando → falhou <span class="meta">(item.state_changed)</span></li></ol><h3>Arquivos</h3><ul><li>Prévia: não gerada</li><li>MP4 de entrega: não gerado</li></ul><h3>Recibo da mídia</h3><p class="meta">Sem recibo de mídia gerada.</p><h3>Comentários e revisão</h3><p class="meta">Sem comentários.</p><p class="dica">Para comentar ou revisar, use no terminal: <code>simplicio-video board comment itm_01HZHTML0000000000000004 "texto" --by NOME</code> ou <code>simplicio-video board review itm_01HZHTML0000000000000004 approve --by NOME</code>.</p></article>
+</div>
+<script>
+(function () {
+  window.addEventListener("hashchange", function () {
+    var alvo = document.getElementById(location.hash.slice(1));
+    if (alvo && alvo.classList.contains("detalhe")) {
+      var titulo = alvo.querySelector("h2");
+      if (titulo) { titulo.focus(); }
+    }
+  });
+})();
+</script>
+</body>
+</html>
