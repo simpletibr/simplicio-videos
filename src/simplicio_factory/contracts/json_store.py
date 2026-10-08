@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from simplicio_factory.contracts.models import Event, Item
+from simplicio_factory.contracts.models import Event, Item, default_production
 
 ITEM_SCHEMA = "simplicio.factory-item/v1"
 DEFAULT_HOME = ".simplicio-factory"
@@ -44,6 +44,8 @@ class JsonStore:
             "brand": item.brand,
             "state": item.state,
             "failed_from": item.failed_from,
+            "production": item.production,
+            "review": item.review,
         }
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -54,7 +56,14 @@ class JsonStore:
         if not path.is_file():
             return None
         data = json.loads(path.read_text(encoding="utf-8"))
-        return Item(id=data["id"], brand=data["brand"], state=data["state"], failed_from=data.get("failed_from"))
+        return Item(
+            id=data["id"],
+            brand=data["brand"],
+            state=data["state"],
+            failed_from=data.get("failed_from"),
+            production=data.get("production") or default_production(),
+            review=data.get("review"),
+        )
 
     def list_items(self) -> list[Item]:
         if not self._items_dir.is_dir():

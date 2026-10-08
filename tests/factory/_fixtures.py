@@ -21,6 +21,58 @@ VALID_TRANSITIONS = (
 )
 
 
+# Rotas de produção (#82, épico #81): grafos completos de cada rota. O grafo `deterministic` é o de VALID_TRANSITIONS.
+ROUTES = ("deterministic", "ai_assisted")
+ALL_STATES = (
+    "idea",
+    "drafted",
+    "quoted",
+    "approved",
+    "generating",
+    "generated",
+    "rendering",
+    "rendered",
+    "failed",
+)
+DETERMINISTIC_TRANSITIONS = frozenset(VALID_TRANSITIONS)
+AI_ASSISTED_TRANSITIONS = frozenset(
+    {
+        ("idea", "drafted"),
+        ("drafted", "quoted"),
+        ("quoted", "drafted"),
+        ("quoted", "approved"),
+        ("approved", "generating"),
+        ("generating", "generated"),
+        ("generating", "failed"),
+        ("generated", "rendering"),
+        ("rendering", "rendered"),
+        ("rendering", "failed"),
+    }
+)
+ROUTE_TRANSITIONS = {"deterministic": DETERMINISTIC_TRANSITIONS, "ai_assisted": AI_ASSISTED_TRANSITIONS}
+AI_MEDIA_STEP = {"kind": "ai_media", "provider": "provedor-teste"}
+
+
+def ai_production(steps=None):
+    """`production` de um item ai_assisted. Sem `steps`, traz um passo ai_media com provider não vazio."""
+    return {"route": "ai_assisted", "steps": [dict(AI_MEDIA_STEP)] if steps is None else steps}
+
+
+def make_routed_item(state: str = "idea", production=None, review=None, item_id: str = "itm_01HZTEST0000000000000001", brand: str = "acme"):
+    """Item com `production` e `review` atribuídos após a construção, para que a falha caia na transição
+    (InvalidTransition) e não num TypeError do construtor. `production=None` = item sem `production` (compatibilidade)."""
+    item = make_item(state=state, item_id=item_id, brand=brand)
+    if production is not None:
+        item.production = production
+    if review is not None:
+        item.review = review
+    return item
+
+
+def transitions_module():
+    return importlib.import_module("simplicio_factory.contracts.transitions")
+
+
 def contracts():
     return importlib.import_module("simplicio_factory.contracts")
 
