@@ -1,0 +1,20 @@
+# Exceções de licença (#46), lidas por scripts/licenses.py.
+#
+# Cada entrada tem: package (nome do dist), license (exatamente a licença declarada no metadado
+# instalado), justificativa (por que aceitamos) e uso (onde o pacote roda).
+# Entrada sem justificativa ou sem uso reprova. Licença diferente da declarada no metadado reprova.
+# Como adicionar: docs/host/licenses.md.
+
+- package: cffi
+  license: MIT-0
+  justificativa: >-
+    O metadado declara MIT-0, uma variante permissiva da MIT sem cláusula de aviso, que permite
+    distribuição proprietária. Entra por cryptography (PyJWT[crypto], usado pelo mcp). Não é GPL nem AGPL.
+  uso: runtime, permissiva (distribuível)
+
+- package: shellcheck-py
+  license: MIT
+  justificativa: >-
+    O wrapper declara MIT, mas o binário shellcheck que ele baixa é GPL-3.0. Só roda como lint no gate
+    (make check, scripts/check.sh). Nunca é distribuído nem importado pelo produto.
+  uso: somente desenvolvimento, não distribuído
