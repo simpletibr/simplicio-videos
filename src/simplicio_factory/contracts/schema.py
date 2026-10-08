@@ -1,4 +1,4 @@
-"""Gerador de schemas/factory/item.schema.json (#33). Não edite o JSON à mão.
+"""Gerador de schemas/factory/item.schema.json (#33; rotas e review em #82). Não edite o JSON à mão.
 
 Uso (pelo alvo `make factory-schema`, que entra em `make regen`):
     python -m simplicio_factory.contracts.schema [caminho_de_saida]
@@ -10,16 +10,18 @@ import json
 import sys
 from pathlib import Path
 
+from simplicio_factory.contracts.models import REVIEW_VALUES, ROUTES, STATES
+
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUT = ROOT / "schemas" / "factory" / "item.schema.json"
-STATES = ["idea", "drafted", "rendering", "rendered", "failed"]
+FAILED_FROM = ("rendering", "generating")
 
 
 def build_schema() -> dict:
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "simplicio.factory-item/v1",
-        "description": "Estado de um item da fábrica (kernel #33). Gerado por simplicio_factory.contracts.schema.",
+        "description": "Estado de um item da fábrica (kernel #33; rotas e review #82). Gerado por simplicio_factory.contracts.schema.",
         "type": "object",
         "additionalProperties": False,
         "required": ["schema", "id", "brand", "state"],
@@ -27,8 +29,29 @@ def build_schema() -> dict:
             "schema": {"const": "simplicio.factory-item/v1"},
             "id": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
             "brand": {"type": "string", "minLength": 1},
-            "state": {"enum": STATES},
-            "failed_from": {"enum": ["rendering", None]},
+            "state": {"enum": list(STATES)},
+            "failed_from": {"enum": [*FAILED_FROM, None]},
+            "production": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["route"],
+                "properties": {
+                    "route": {"enum": list(ROUTES)},
+                    "steps": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["kind"],
+                            "properties": {
+                                "kind": {"type": "string", "minLength": 1},
+                                "provider": {"type": ["string", "null"]},
+                            },
+                        },
+                    },
+                },
+            },
+            "review": {"enum": [*REVIEW_VALUES, None]},
         },
     }
 
