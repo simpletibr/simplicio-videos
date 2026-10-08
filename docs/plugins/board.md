@@ -141,7 +141,7 @@ Clicar no cartão abre o detalhe do item:
 
 - linha do tempo das etapas, com os eventos do item em ordem;
 - links para a prévia 540x960 (`studio/renders/<id>-previa.mp4`) e para o MP4 de entrega (o `stages.studio.mp4` do `studio.json`), quando existirem;
-- recibo da mídia gerada (`media/<id>/media.json`), em JSON, quando o arquivo existir;
+- recibo da mídia gerada (`studio/<id>/media.json`, gravado por `media attach`), em JSON, quando o arquivo existir;
 - comentários e revisão atual, com o comando da CLI para comentar ou revisar.
 
 **Regras.**
@@ -152,7 +152,7 @@ Clicar no cartão abre o detalhe do item:
 - **Leitura apenas.** A página não tem formulário nem botão: não grava comentário e não move cartão. Comentar e revisar continuam na CLI.
 - **Layout.** Uma coluna em 375 px, várias em 1440 px, sem rolagem horizontal. Tema claro e escuro pelo `prefers-color-scheme`. Foco visível, e cada cartão é um link, então dá para navegar pelo teclado. O texto tem contraste de pelo menos 4,5:1 nos dois temas (AA).
 - **Links relativos.** A prévia e o MP4 são caminhos relativos à pasta onde o HTML foi gravado. Se o arquivo for movido, leve junto a pasta `studio/` ou gere de novo.
-- **Recibo.** Nenhum comando do repositório grava `media/<id>/media.json` ainda. O quadro só lê o arquivo quando ele existir.
+- **Recibo.** O quadro lê `studio/<id>/media.json`, o recibo que `media attach` grava (#87). Sem recibo, o detalhe diz que não há mídia gerada.
 
 **Testes.** O golden do HTML com quatro itens (pronto, em revisão, gerando e falhou) fica em `tests/factory/plugins/board/golden/board.html`. O teste `ui` (marcador `ui`, Chromium) mede a rolagem horizontal da página em 375 e 1440 px, e pula quando o navegador não existe.
 

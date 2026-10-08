@@ -102,8 +102,8 @@ def monta_quatro_itens(home: Path) -> None:
     (home / "studio" / PRONTO / "studio.json").write_text(json.dumps(estado, indent=2), encoding="utf-8")
 
     recibo = {"provider": "provedor-teste", "estimate_ref": "cot-001", "credits": 120, "status": "gerando"}
-    (home / "media" / GERANDO).mkdir(parents=True, exist_ok=True)
-    (home / "media" / GERANDO / "media.json").write_text(json.dumps(recibo, indent=2), encoding="utf-8")
+    (home / "studio" / GERANDO).mkdir(parents=True, exist_ok=True)
+    (home / "studio" / GERANDO / "media.json").write_text(json.dumps(recibo, indent=2), encoding="utf-8")
 
 
 def _gera(home: Path, out: Path, monkeypatch) -> bytes:

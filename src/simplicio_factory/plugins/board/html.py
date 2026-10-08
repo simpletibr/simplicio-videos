@@ -1,7 +1,7 @@
 """Dashboard HTML estático do quadro (#88, épico #81): `board build` grava um arquivo autocontido.
 
 Só leitura: lê o JsonStore, os comentários (`comments.jsonl`), o Draft e o `studio.json` do estúdio, a prévia e o MP4
-em `studio/`, e o recibo `media/<id>/media.json` quando existir. Não escreve nada e não faz rede. O arquivo traz CSS e
+em `studio/`, e o recibo `studio/<id>/media.json` quando existir. Não escreve nada e não faz rede. O arquivo traz CSS e
 JS inline e nenhuma URL externa.
 
 Determinístico: a mesma entrada gera os mesmos bytes. Não há horário de geração. A última atividade de um item é o
@@ -85,7 +85,7 @@ def _cartao_de(home: Path, item, eventos: list) -> dict:
     estudio = _json_se_existir(home / "studio" / item.id / "studio.json") or {}
     mp4 = (estudio.get("stages") or {}).get("studio", {}).get("mp4")
     previa = home / "studio" / "renders" / f"{item.id}-previa.mp4"
-    recibo = _json_se_existir(home / "media" / item.id / "media.json")
+    recibo = _json_se_existir(home / "studio" / item.id / "media.json")
     passo = _passo_ia(item)
     custo = None
     if passo is not None and isinstance(passo.get("credits"), int):
