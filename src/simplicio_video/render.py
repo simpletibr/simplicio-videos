@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 
 from . import HYPERFRAMES, __version__, paths
-from .compiler import compile_project
+from .compiler import MARCA_PADRAO_DAGUA, compile_project
 from .contract import Contract, load_lock, validate
 from .voice import sha256_file
 
@@ -269,12 +269,13 @@ def render_colab(c: Contract, out: Path | None = None, quality: str | None = Non
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# render --preview: low-res watermarked sales preview (simplicio-video prospect). Deterministic ffmpeg post-process of a
-# draft local render: 540x960 @30 fps, x264 crf 30, diagonal tiled watermark + corner badge + end card.
-# Branding (Wesley, 30/09/2026): Wesley Simplicio + Instagram @wesleysimplicio; never SimpleTI/simpleti.com.br on previews.
-PREVIEW = {"width": 540, "height": 960, "fps": 30, "crf": 30, "end_card_s": 2.5,
-           "watermark": "Prévia • Wesley Simplicio • @wesleysimplicio", "badge": "PRÉVIA · @wesleysimplicio",
-           "end_title": "Vídeo feito por Wesley Simplicio", "end_url": "@wesleysimplicio", "end_note": "Prévia em baixa resolução"}
+# render --preview: low-res watermarked preview. Deterministic ffmpeg post-process of a draft local render: 540x960 @30
+# fps, x264 crf 30, diagonal tiled watermark + corner badge + end card. The brand is contract input (`marca`, issue #76):
+# the watermark text and the end credit come from spec.json["marca"]; the engine has no brand of its own. Labels that are
+# only preview chrome (badge, end-card line) come from the caller (`chrome`), e.g. the sales module's configuration.
+PREVIEW = {"width": 540, "height": 960, "fps": 30, "crf": 30, "end_card_s": 2.5, "badge": "PRÉVIA",
+           "end_note": "Prévia em baixa resolução"}
+MARCA_PADRAO = {"dagua": MARCA_PADRAO_DAGUA, "credito": None}
 
 
 def preview_font(home: Path) -> Path:
@@ -289,24 +290,25 @@ def preview_font(home: Path) -> Path:
 
 
 def preview_logo(home: Path) -> Path | None:
-    """Wesley Simplicio logo, only if one is versioned in the repo (assets/brand/wesley-simplicio-logo.png); else text-only."""
-    for name in ("wesley-simplicio-logo.png",):
-        f = home / "assets" / "brand" / name
-        if f.is_file():
-            return f
-    return None
+    """Logo of the preview lockup, only if one is versioned in the repo (assets/brand/logo-marca.png); else text-only."""
+    f = home / "assets" / "brand" / "logo-marca.png"
+    return f if f.is_file() else None
 
 
-def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False) -> str:
-    """filter_complex for: [0] draft render, [1] logo (optional). Output labels [v] [a]."""
+def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False, marca: dict | None = None,
+                   chrome: dict | None = None) -> str:
+    """filter_complex for: [0] draft render, [1] logo (optional). Output labels [v] [a].
+    `marca` = spec.json["marca"] (dagua, credito); no credito = no end card. `chrome` = badge / end_url labels."""
     P = PREVIEW
+    marca = marca or MARCA_PADRAO
+    selo = {"badge": P["badge"], "end_url": None, **(chrome or {})}
     W, H, fps = P["width"], P["height"], P["fps"]
     def tf(name: str, text: str) -> str:
         f = tmp / f"{name}.txt"
         f.write_text(text, encoding="utf8")
         return str(f).replace("\\", "/").replace(":", "\\:")
     ff = str(font).replace(":", "\\:")
-    row = tf("wm", ("   " + P["watermark"]) * 3)
+    row = tf("wm", ("   " + marca["dagua"]) * 3)
     # diagonal tiled rows on a transparent 1000x1000 canvas, rotated -30° and centred over the 540x960 frame
     rows = []
     for i in range(10):
@@ -316,7 +318,7 @@ def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False) -> s
                     f"borderw=2:bordercolor=black")
     wm = (f"color=c=black@0.0:s=1000x1000:r={fps}:d={dur_s:.3f},format=rgba," + ",".join(rows) +
           ",rotate=-30*PI/180:c=none:ow=1000:oh=1000,colorchannelmixer=aa=0.2[wm]")
-    badge = tf("badge", P["badge"])
+    badge = tf("badge", selo["badge"])
     main = (f"[0:v]scale={W}:{H}:flags=lanczos,fps={fps},setsar=1,format=yuv420p[m0];"
             f"{wm};[m0][wm]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1,"
             f"drawtext=fontfile='{ff}':textfile='{badge}':x=w-tw-18:y=18:fontsize=18:fontcolor=white@0.85:"
@@ -326,59 +328,71 @@ def preview_filter(dur_s: float, font: Path, tmp: Path, logo: bool = False) -> s
     if logo:
         main += f"[m1];[1:v]scale=90:-1,format=rgba,colorchannelmixer=aa=0.55[lg];[m1][lg]overlay=x=18:y=18"
     main += "[mv];"
-    t1, t2, t3 = tf("end1", P["end_title"]), tf("end2", P["end_url"]), tf("end3", P["end_note"])
+    audio_main = (f"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"
+                  f"afade=t=out:st={max(dur_s - 0.4, 0):.3f}:d=0.4[ma];")
+    if not marca.get("credito"):  # sem crédito final: sem cartão final
+        return main + audio_main + "[mv][ma]concat=n=1:v=1:a=1[v][a]"
+    t1, t3 = tf("end1", marca["credito"]["texto"]), tf("end3", P["end_note"])
     e = P["end_card_s"]
     end = (f"color=c=0x0b0b10:s={W}x{H}:r={fps}:d={e},format=yuv420p,"
-           f"drawtext=fontfile='{ff}':textfile='{t1}':x=(w-tw)/2:y=h/2-70:fontsize=34:fontcolor=white,"
-           f"drawtext=fontfile='{ff}':textfile='{t2}':x=(w-tw)/2:y=h/2:fontsize=44:fontcolor=0x4fa3ff,"
-           f"drawtext=fontfile='{ff}':textfile='{t3}':x=(w-tw)/2:y=h/2+80:fontsize=20:fontcolor=white@0.6,"
-           f"fade=t=in:st=0:d=0.35[ev];")
-    audio = (f"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"
-             f"afade=t=out:st={max(dur_s - 0.4, 0):.3f}:d=0.4[ma];"
-             f"anullsrc=r=48000:cl=stereo,atrim=duration={e},aformat=sample_fmts=fltp:channel_layouts=stereo[ea];"
+           f"drawtext=fontfile='{ff}':textfile='{t1}':x=(w-tw)/2:y=h/2-70:fontsize=34:fontcolor=white")
+    if selo["end_url"]:
+        t2 = tf("end2", selo["end_url"])
+        end += (f",drawtext=fontfile='{ff}':textfile='{t2}':x=(w-tw)/2:y=h/2:fontsize=44:fontcolor=0x4fa3ff")
+    end += (f",drawtext=fontfile='{ff}':textfile='{t3}':x=(w-tw)/2:y=h/2+80:fontsize=20:fontcolor=white@0.6,"
+            f"fade=t=in:st=0:d=0.35[ev];")
+    audio = (audio_main + f"anullsrc=r=48000:cl=stereo,atrim=duration={e},"
+             f"aformat=sample_fmts=fltp:channel_layouts=stereo[ea];"
              f"[mv][ma][ev][ea]concat=n=2:v=1:a=1[v][a]")
     return main + end + audio
 
 
-def make_preview(src: Path, dst: Path, home: Path, log=print) -> dict:
-    """Draft render -> watermarked 540x960 preview (+ end card). Returns {path, sha256, duration_s, bytes}."""
+def make_preview(src: Path, dst: Path, home: Path, log=print, marca: dict | None = None,
+                 chrome: dict | None = None) -> dict:
+    """Draft render -> watermarked 540x960 preview (+ end card when marca.credito). Returns {path, sha256, ...}."""
     import tempfile
+    marca = marca or MARCA_PADRAO
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(src)],
                                capture_output=True, text=True, env=paths.node_env()).stdout.strip())
     logo = preview_logo(home)
     dst.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
-        fc = preview_filter(dur, preview_font(home), Path(td), logo=bool(logo))
+        fc = preview_filter(dur, preview_font(home), Path(td), logo=bool(logo), marca=marca, chrome=chrome)
         cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)] + (["-i", str(logo)] if logo else []) + [
             "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium",
             "-crf", str(PREVIEW["crf"]), "-pix_fmt", "yuv420p", "-r", str(PREVIEW["fps"]), "-threads", "4",
             "-c:a", "aac", "-b:a", "96k", "-ar", "48000", "-movflags", "+faststart", "-map_metadata", "-1",
             "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact", str(dst)]
-        log(f"$ ffmpeg (prévia {PREVIEW['width']}x{PREVIEW['height']} crf {PREVIEW['crf']}, marca d'água + cartão final) -> {dst}")
+        log(f"$ ffmpeg (prévia {PREVIEW['width']}x{PREVIEW['height']} crf {PREVIEW['crf']}, marca d'água"
+            f"{' + cartão final' if marca.get('credito') else ''}) -> {dst}")
         p = subprocess.run(cmd, cwd=dst.parent, env=paths.node_env(), capture_output=True, text=True)
         if p.returncode != 0:
             raise SystemExit(f"render --preview: ffmpeg failed ({p.returncode})\n{(p.stderr or '')[-3000:]}")
     out_dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(dst)],
                                    capture_output=True, text=True, env=paths.node_env()).stdout.strip())
     return {"path": str(dst), "sha256": sha256_file(dst), "duration_s": round(out_dur, 3), "bytes": dst.stat().st_size,
-            "watermark": PREVIEW["watermark"], "logo": str(logo) if logo else None}
+            "watermark": marca["dagua"], "logo": str(logo) if logo else None}
 
 
-def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = None, log=print) -> dict:
-    """`render --preview`: draft local render (no delivery manifest) -> make_preview. Writes preview.manifest.json."""
+def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = None, log=print,
+                   chrome: dict | None = None) -> dict:
+    """`render --preview`: draft local render (no delivery manifest) -> make_preview. The brand (marca) is read from the
+    workdir's spec.json. Writes preview.manifest.json."""
     t0 = time.time()
     raw = c.dir / "out" / "draft-full.mp4"
-    info = render_local(c, out=raw, quality="draft", workdir=workdir, log=log, manifest=False)
+    wd = workdir or (c.dir / "build" / "simplicio-video")
+    info = render_local(c, out=raw, quality="draft", workdir=wd, log=log, manifest=False)
     t1 = time.time()
+    spec = json.loads((wd / "spec.json").read_text(encoding="utf8"))
+    marca = spec.get("marca") or MARCA_PADRAO
     s = c.data["saida"]["arquivo"]
     dst = (out or c.rel(str(Path(s).with_name(Path(s).stem + "-previa.mp4")))).resolve()
-    res = make_preview(raw, dst, c.home, log=log)
+    res = make_preview(raw, dst, c.home, log=log, marca=marca, chrome=chrome)
     t2 = time.time()
     man = {"schema": "simplicio.preview-manifest/v1", "contract_sha256": c.sha256(), "inputs_sha256": info["inputs_sha256"],
-           "preview": {**res, "path": os.path.relpath(dst, c.dir)}, "spec": {k: v for k, v in PREVIEW.items()},
+           "preview": {**res, "path": os.path.relpath(dst, c.dir)}, "spec": {**PREVIEW, "marca": marca},
            "timings_s": {**info["timings_s"], "render_total": round(t1 - t0, 2), "preview_post": round(t2 - t1, 2),
                          "total": round(t2 - t0, 2)}}
     (c.dir / "preview.manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     log(f"preview: {dst} ({res['duration_s']} s, {res['bytes'] // 1024} KiB) · render {t1 - t0:.1f}s + pós {t2 - t1:.1f}s")
     return man
-

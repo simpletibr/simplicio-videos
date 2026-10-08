@@ -10,6 +10,7 @@ Neutral default (no brand in the engine): with no `marca.dagua` the watermark is
 
 No render, no ffmpeg, no sockets: only the composition spec is built.
 """
+import json
 import re
 from pathlib import Path
 
@@ -89,3 +90,71 @@ def test_invalid_brand_field_is_rejected_by_validate(mini, campo, valor, local):
     rep = ct.validate(ct.load(mini))
     assert not rep.ok
     assert any(e.startswith(f"schema: {local}:") for e in rep.errors), rep.errors
+
+
+# (e) the preview reads the brand from spec.json (watermark text and end card); no credit = no end card.
+# Covered at the ffmpeg argument level (filter graph + texts) and by a real encode of a 2 s synthetic clip.
+
+def _preview_src(tmp_path):
+    import subprocess
+    src = tmp_path / "draft.mp4"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=1080x1920:rate=30", "-f", "lavfi",
+                    "-i", "sine=frequency=440", "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                    str(src)], check=True)
+    return src
+
+
+def _duration(path):
+    import subprocess
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+                         capture_output=True, text=True, check=True).stdout
+    return float(out.strip())
+
+
+def test_preview_filter_without_credit_has_no_end_card(tmp_path):
+    from simplicio_video import render
+    fc = render.preview_filter(2.0, render.preview_font(ROOT), tmp_path, marca=DEFAULT_MARCA)
+    assert "concat=n=1:v=1:a=1" in fc and "concat=n=2" not in fc and "anullsrc" not in fc
+    assert (tmp_path / "wm.txt").read_text().count("Prévia") == 3 and not (tmp_path / "end1.txt").exists()
+
+
+def test_preview_filter_takes_watermark_and_credit_from_marca(tmp_path):
+    from simplicio_video import render
+    render.preview_filter(2.0, render.preview_font(ROOT), tmp_path, marca=BRAND, chrome={"badge": "PRÉVIA · Teste"})
+    assert (tmp_path / "wm.txt").read_text().count("Marca Teste") == 3
+    assert (tmp_path / "end1.txt").read_text() == "Feito por Teste"
+    assert (tmp_path / "badge.txt").read_text() == "PRÉVIA · Teste"
+    assert not (tmp_path / "end2.txt").exists()  # no end_url in the chrome -> no second end-card line
+
+
+def test_make_preview_encodes_with_and_without_end_card(tmp_path):
+    from simplicio_video import render
+    src = _preview_src(tmp_path)
+    no_card = render.make_preview(src, tmp_path / "sem.mp4", ROOT, log=lambda *a: None, marca=DEFAULT_MARCA)
+    with_card = render.make_preview(src, tmp_path / "com.mp4", ROOT, log=lambda *a: None, marca=BRAND)
+    assert abs(no_card["duration_s"] - 2.0) < 0.2 and no_card["watermark"] == "Prévia"
+    assert abs(with_card["duration_s"] - (2.0 + render.PREVIEW["end_card_s"])) < 0.2 and with_card["watermark"] == "Marca Teste"
+
+
+def test_render_preview_reads_marca_from_spec_json(mini, tmp_path, monkeypatch):
+    from simplicio_video import render
+    _edit(mini, lambda d: d["marca"].update(BRAND))
+    c = ct.load(mini)
+    wd = tmp_path / "wd"
+    wd.mkdir()
+    (wd / "spec.json").write_text(json.dumps(_spec(mini)), encoding="utf8")
+    seen = {}
+
+    def fake_render_local(c, out=None, workdir=None, log=print, **kw):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"draft")
+        return {"inputs_sha256": "0" * 64, "timings_s": {}}
+
+    def fake_make_preview(src, dst, home, log=print, marca=None, chrome=None):
+        seen.update(marca=marca, chrome=chrome)
+        return {"path": str(dst), "sha256": "0" * 64, "duration_s": 1.0, "bytes": 1, "watermark": marca["dagua"], "logo": None}
+
+    monkeypatch.setattr(render, "render_local", fake_render_local)
+    monkeypatch.setattr(render, "make_preview", fake_make_preview)
+    man = render.render_preview(c, out=tmp_path / "p.mp4", workdir=wd, log=lambda *a: None, chrome={"badge": "B"})
+    assert seen == {"marca": BRAND, "chrome": {"badge": "B"}} and man["spec"]["marca"] == BRAND

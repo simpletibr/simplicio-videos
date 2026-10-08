@@ -202,7 +202,7 @@ def test_batch_so_contrato_report_and_resume(tmp_path, monkeypatch):
 
 def test_preview_filter_has_watermark_and_end_card(tmp_path):
     from simplicio_video import render
-    fc = render.preview_filter(16.0, render.preview_font(ROOT), tmp_path)
+    fc = render.preview_filter(16.0, render.preview_font(ROOT), tmp_path, marca=P.MARCA_PREVIA, chrome=P.SELO_PREVIA)
     assert "scale=540:960" in fc and "rotate=-30*PI/180" in fc and "concat=n=2:v=1:a=1" in fc
     assert (tmp_path / "wm.txt").read_text().count("Prévia • Wesley Simplicio • @wesleysimplicio") == 3
     assert (tmp_path / "end1.txt").read_text() == "Vídeo feito por Wesley Simplicio" and (tmp_path / "end2.txt").read_text() == "@wesleysimplicio"
@@ -212,7 +212,8 @@ def test_preview_filter_has_watermark_and_end_card(tmp_path):
 
 def test_cli_render_help_keeps_preview():  # o subcomando prospect saiu do motor (#77); o --preview do render fica
     r = run_cli("render", "--help")
-    assert "--preview" in r.stdout and "@wesleysimplicio" in r.stdout and "simpleti" not in r.stdout.lower()
+    assert "--preview" in r.stdout and "marca.dagua" in r.stdout and "simpleti" not in r.stdout.lower()
+    assert "wesley" not in r.stdout.lower()  # o motor não cita pessoa nem empresa (issue #76)
 
 
 # ------------------------------------------------------------------ standard v2 (pilot All Prime, 30/09/2026)

@@ -285,12 +285,13 @@ OLD_BRAND = re.compile(r"simple\s*ti|simpleti\.com\.br", re.I)
 
 def test_preview_watermark_and_end_card_have_no_simpleti(tmp_path):
     from simplicio_video import render
-    assert render.PREVIEW["watermark"] == "Prévia • Wesley Simplicio • @wesleysimplicio"
-    render.preview_filter(16.0, render.preview_font(ROOT), tmp_path)
+    assert P.MARCA_PREVIA["dagua"] == "Prévia • Wesley Simplicio • @wesleysimplicio"
+    render.preview_filter(16.0, render.preview_font(ROOT), tmp_path, marca=P.MARCA_PREVIA, chrome=P.SELO_PREVIA)
     for f in ("wm", "badge", "end1", "end2", "end3"):
         assert not OLD_BRAND.search((tmp_path / f"{f}.txt").read_text()), f
     assert "@wesleysimplicio" in (tmp_path / "end2.txt").read_text()
     assert all(not OLD_BRAND.search(str(v)) for v in render.PREVIEW.values())
+    assert all(not OLD_BRAND.search(str(v)) for v in (P.MARCA_PREVIA, P.SELO_PREVIA))
 
 
 @pytest.mark.parametrize("tid", ALL)

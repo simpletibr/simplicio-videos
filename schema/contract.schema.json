@@ -43,7 +43,13 @@
       "properties": {
         "paleta": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }, "description": "named brand colors (informational + available to the template)" },
         "logo": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/asset" }], "description": "null = no logo file (text lockup); never recreate a logo" },
-        "fontes": { "type": "array", "items": { "type": "string" } }
+        "fontes": { "type": "array", "items": { "type": "string" } },
+        "dagua": { "type": "string", "minLength": 1, "maxLength": 60, "default": "Prévia", "description": "marca d'água da prévia (render --preview); padrão neutro 'Prévia'" },
+        "credito": {
+          "type": ["object", "null"], "default": null, "additionalProperties": false, "required": ["texto"],
+          "description": "crédito final da prévia (cartão final); null = sem cartão final",
+          "properties": { "texto": { "type": "string", "minLength": 1, "maxLength": 120 } }
+        }
       }
     },
     "assets": { "type": "array", "items": { "$ref": "#/$defs/asset" }, "description": "extra client files copied into the composition (photos, logo variants)" },

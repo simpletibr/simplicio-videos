@@ -41,7 +41,7 @@ exemplos:
   simplicio-video render clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml
   simplicio-video render clients/wjr-informatica-games/video-01/contract.yaml --backend kaggle
   simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini
-  simplicio-video render contract.yaml --preview          # 540x960, marca d'água Wesley Simplicio (prévia de venda)
+  simplicio-video render contract.yaml --preview          # 540x960, marca d'água e crédito final do contrato (marca)
 
 ambiente:
   SIMPLICIO_VIDEO_HOME  checkout do plugin (templates/, motion/, schema/); padrão: procura a partir do contrato/cwd
@@ -166,7 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video render contract.yaml --backend kaggle --accelerator none\n"
                "  simplicio-video render contract.yaml --backend colab-cli --accelerator T4\n"
                "  simplicio-video render contract.yaml --backend colab   # -> out/<nome>.colab-bundle.zip\n"
-               "  simplicio-video render contract.yaml --preview         # prévia de venda 540x960 + marca d'água Wesley Simplicio")
+               "  simplicio-video render contract.yaml --preview         # prévia 540x960 + marca d'água (marca.dagua) e crédito final (marca.credito)")
     _contract_arg(p)
     p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via créditos)")
     p.add_argument("--out", "-o", type=Path, help="MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo")
@@ -179,9 +179,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "necessário p/ comparar frames com o local). A captura (Chrome) é CPU de qualquer jeito")
     p.add_argument("--workdir", type=Path, help="pasta da composição compilada (padrão: <contrato>/build/simplicio-video)")
     p.add_argument("--preview", action="store_true",
-                   help="prévia de venda (só local): render draft -> 540x960, 30 fps, x264 crf 30, marca d'água diagonal "
-                        "'Prévia • Wesley Simplicio • @wesleysimplicio' + selo nos cantos + cartão final 'Vídeo feito por Wesley Simplicio — "
-                        "@wesleysimplicio' (2,5 s). Padrão --out: <saida.arquivo>-previa.mp4. Grava preview.manifest.json "
+                   help="prévia (só local): render draft -> 540x960, 30 fps, x264 crf 30, marca d'água diagonal (marca.dagua, "
+                        "padrão 'Prévia') + selo nos cantos + cartão final com marca.credito.texto (2,5 s; sem crédito, sem cartão). "
+                        "Padrão --out: <saida.arquivo>-previa.mp4. Grava preview.manifest.json "
                         "(não toca no render.manifest.json da entrega)")
 
     p = sub.add_parser("run", formatter_class=Fmt, help="voice -> validate -> render num comando só (para no MP4)",

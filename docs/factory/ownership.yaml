@@ -373,13 +373,11 @@ issues:
     status: ready
     owns:
       - "schema/contract.schema.json"
-      - "src/simplicio_video/contract.py"
       - "src/simplicio_video/compiler.py"
       - "src/simplicio_video/render.py"
       - "src/simplicio_video/engine/build.mjs"
       - "src/simplicio_video/cli.py"
       - "src/simplicio_video/prospect.py"
-      - "src/simplicio_video/venda.py"
       - "tests/test_marca_contrato.py"
       - "tests/test_prospect.py"
       - "tests/test_prospect_institucional.py"

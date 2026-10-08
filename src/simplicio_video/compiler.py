@@ -109,6 +109,15 @@ def template_meta(c: Contract) -> tuple[dict, Path]:
     return t, tdir / t["composicao"].get("dir", "composition")
 
 
+MARCA_PADRAO_DAGUA = "Prévia"  # neutro: o motor não tem marca própria (issue #76)
+
+
+def marca_spec(d: dict) -> dict:
+    """`marca` do spec.json: marca d'água e crédito final com os padrões preenchidos (sem crédito = null)."""
+    m = d.get("marca") or {}
+    return {"dagua": m.get("dagua", MARCA_PADRAO_DAGUA), "credito": m.get("credito") or None}
+
+
 def build_spec(c: Contract, lock: dict | None) -> dict:
     d = c.data
     variables: dict = {}
@@ -125,7 +134,7 @@ def build_spec(c: Contract, lock: dict | None) -> dict:
              "duck_sfx_db": v.get("duck_sfx_db", 0),
              "lines": [{"id": l["id"], "t": l["t"], "max_s": l["max_s"], "scene": l["scene"], "text": l["texto"],
                         **({"say": l["say"]} if "say" in l else {})} for l in c.lines()]}
-    spec = {"variables": variables, "blocks": blocks, "audio": audio, "voice": voice}
+    spec = {"variables": variables, "blocks": blocks, "audio": audio, "voice": voice, "marca": marca_spec(d)}
     if d.get("placas_video"):
         spec["clips"] = {"slots": d["placas_video"]}
     return spec
