@@ -1,7 +1,7 @@
 ---
 title: Board (quadro kanban dos itens)
 summary: O quadro de itens da fábrica, com oito colunas derivadas de state e review (nunca guardadas), os comandos board list, board comment e board review, o arquivo comments.jsonl, as regras de revisão, o schema simplicio.board/v1 e as ressalvas de escritores concorrentes.
-commands: board list, board comment, board review
+commands: board list, board comment, board review, board build
 issue: 86
 last_verified: 2026-10-08
 ---
@@ -38,6 +38,7 @@ A rota determinística passa só por Ideia, Roteiro, Gerando (`rendering`), Revi
 | `simplicio-video board list [--json]` | mostra as oito colunas e os cartões; com `--json`, imprime o quadro em JSON |
 | `simplicio-video board comment ITEM "texto" --by NOME` | grava um comentário no item |
 | `simplicio-video board review ITEM approve\|changes --by NOME [--note TEXTO]` | aprova ou pede alterações no vídeo renderizado |
+| `simplicio-video board build [--out ARQUIVO]` | grava o quadro num HTML estático, de uma página só, para abrir no navegador ([seção abaixo](#dashboard-html-board-build)) |
 
 Cada comando tem `--help` com exemplo. O estado vem de `SIMPLICIO_FACTORY_HOME` (padrão `.simplicio-factory/`, gitignored).
 
@@ -115,6 +116,46 @@ simplicio-video board review itm_01HZEXEMPLO0000000000001 changes --by Ana --not
 - Revisar de novo substitui o `review` anterior. Por exemplo, `changes` seguido de `approve` leva o cartão a Pronto.
 - Sem `--note`, a linha de revisão leva um texto padrão (`aprovado` ou `alterações solicitadas`).
 
+## Dashboard HTML (`board build`)
+
+Issue #88, épico #81. `simplicio-video board build [--out board.html]` grava um único arquivo HTML com o quadro. Ele não precisa de servidor nem de rede: CSS e JS vêm inline, e o arquivo não tem nenhuma URL `http://` ou `https://`. Código: [html.py](../../src/simplicio_factory/plugins/board/html.py) e o template [board.html.tpl](../../src/simplicio_factory/plugins/board/templates/board.html.tpl).
+
+```bash
+simplicio-video board build --out quadro.html
+```
+
+```text
+quadro.html: quadro gravado
+```
+
+![Dashboard do board com o detalhe de um cartão aberto](../assets/board-html.png)
+
+**O que a página mostra.** Uma coluna por etapa, na ordem das oito colunas da tabela, com o total de cada uma. Um cartão por item, com:
+
+- título (a ideia do Draft, se houver), marca e rota (determinística ou generativa);
+- estado, e a revisão quando o item está `rendered`;
+- custo em créditos, do último passo `ai_media` com `credits` (se houver);
+- última atividade e número de comentários.
+
+Clicar no cartão abre o detalhe do item:
+
+- linha do tempo das etapas, com os eventos do item em ordem;
+- links para a prévia 540x960 (`studio/renders/<id>-previa.mp4`) e para o MP4 de entrega (o `stages.studio.mp4` do `studio.json`), quando existirem;
+- recibo da mídia gerada (`media/<id>/media.json`), em JSON, quando o arquivo existir;
+- comentários e revisão atual, com o comando da CLI para comentar ou revisar.
+
+**Regras.**
+
+- **Última atividade sai do último evento** do item (`evento #N`, o `seq` do `events.jsonl`). O HTML não guarda horário de geração, então a mesma entrada dá sempre os mesmos bytes.
+- **Limite de 50 cartões por coluna**, os mais recentes pelo último evento. O resto aparece como `+N mais antigos fora do quadro`.
+- **Escape.** Todo texto de cartão, de detalhe e de comentário é escapado. Um comentário com `<script>` aparece como texto.
+- **Leitura apenas.** A página não tem formulário nem botão: não grava comentário e não move cartão. Comentar e revisar continuam na CLI.
+- **Layout.** Uma coluna em 375 px, várias em 1440 px, sem rolagem horizontal. Tema claro e escuro pelo `prefers-color-scheme`. Foco visível, e cada cartão é um link, então dá para navegar pelo teclado. O texto tem contraste de pelo menos 4,5:1 nos dois temas (AA).
+- **Links relativos.** A prévia e o MP4 são caminhos relativos à pasta onde o HTML foi gravado. Se o arquivo for movido, leve junto a pasta `studio/` ou gere de novo.
+- **Recibo.** Nenhum comando do repositório grava `media/<id>/media.json` ainda. O quadro só lê o arquivo quando ele existir.
+
+**Testes.** O golden do HTML com quatro itens (pronto, em revisão, gerando e falhou) fica em `tests/factory/plugins/board/golden/board.html`. O teste `ui` (marcador `ui`, Chromium) mede a rolagem horizontal da página em 375 e 1440 px, e pula quando o navegador não existe.
+
 ## Comentários (`comments.jsonl`)
 
 Os comentários ficam em `<SIMPLICIO_FACTORY_HOME>/items/<id>/comments.jsonl`, um objeto JSON por linha. O arquivo é append-only: cada comando só acrescenta uma linha, e as linhas antigas não são reescritas.
@@ -141,5 +182,5 @@ Os comentários não mudam estado nem coluna. O board conta os comentários de c
 ## Ressalvas
 
 - **Escritores concorrentes.** Duas escritas no mesmo item ao mesmo tempo (dois `comment`, ou um `comment` e um `review`) podem se atropelar: o id da linha é calculado pelo número de linhas do arquivo, e o `review` é gravado com regravação do JSON do item. A CLI não tem trava de arquivo. O servidor (issue #89) é quem serializa as escritas; até lá, use um escritor por vez.
-- **Sem visualização HTML.** O board entrega o quadro em texto e em JSON. Uma tela para o quadro fica fora deste plugin.
+- **Dashboard somente leitura.** O HTML do `board build` só mostra o quadro. Ele não tem servidor, então comentário e revisão ficam na CLI.
 - **Coluna não se edita.** Não há comando para mover cartão. Para mudar a coluna, muda-se o estado do item pelo estágio que o produz.
