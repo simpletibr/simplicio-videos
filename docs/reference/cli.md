@@ -58,6 +58,7 @@ comandos (na ordem do fluxo):
     update    git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
     doctor    diagnóstico: Python, Node 22, ffmpeg+libass, disco, portas, credenciais, workspace
     setup     primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
+    plugin    registro de plugins (listar os descobertos)
 
 exemplos:
   simplicio-video list templates
@@ -259,6 +260,25 @@ options:
 exemplos:
   simplicio-video opencut clone
   simplicio-video opencut dev
+```
+
+## simplicio-video plugin
+
+```text
+usage: simplicio-video plugin [-h] SUBCOMANDO ...
+
+Registro de plugins: varre src/simplicio_factory/plugins/*/plugin.json e mostra o que cada um
+acrescenta à CLI. Comandos de plugin são chamados direto, por exemplo `simplicio-video make ITEM`.
+
+options:
+  -h, --help  show this help message and exit
+
+subcomandos:
+  SUBCOMANDO
+    list      lista os plugins descobertos: id, kind e comandos
+
+exemplos:
+  simplicio-video plugin list
 ```
 
 ## simplicio-video render
