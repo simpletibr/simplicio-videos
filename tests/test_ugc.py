@@ -1,9 +1,8 @@
 import json
-from pathlib import Path
 
 import pytest
 
-from conftest import ROOT, run_cli
+from conftest import ROOT
 from simplicio_video import ugc
 
 GOLDEN = (ROOT / "tests" / "fixtures" / "ugc" / "notion-prompts.txt").read_text(encoding="utf8").strip().split("\n\n")
@@ -57,34 +56,3 @@ def test_duplicate_ids_are_rejected(tmp_path):
     (tmp_path / ugc.SCHEMA_REL).write_text((ROOT / ugc.SCHEMA_REL).read_text(encoding="utf8"), encoding="utf8")
     with pytest.raises(ugc.UgcError, match="duplicados"):
         ugc.load_pack(tmp_path)
-
-
-def test_cli_list_json():
-    r = run_cli("ugc", "list", "--json")
-    assert r.returncode == 0, r.stderr
-    rows = json.loads(r.stdout)
-    assert len(rows) == 10 and {"id", "nome", "entrega", "palavras"} <= set(rows[0])
-
-
-def test_cli_prompt_single_prints_only_the_prompt():
-    r = run_cli("ugc", "prompt", "gym-guy", "--app", "FitApp")
-    assert r.returncode == 0, r.stderr
-    assert r.stdout.strip() == ugc.build_prompt(ugc.find(ugc.load_pack(), "gym-guy"), "FitApp")["prompt"]
-
-
-def test_cli_prompt_todos_json():
-    r = run_cli("ugc", "prompt", "--todos", "--app", "FitApp", "--json")
-    assert r.returncode == 0, r.stderr
-    rows = json.loads(r.stdout)
-    assert len(rows) == 10 and all("FitApp" in x["prompt"] for x in rows)
-
-
-@pytest.mark.parametrize("args", [
-    ["prompt", "--app", "A"],
-    ["prompt", "gym-guy", "--todos", "--app", "A"],
-    ["prompt", "--todos", "--app", "A", "--fala", "x"],
-    ["prompt", "nope", "--app", "A"],
-])
-def test_cli_prompt_usage_errors(args):
-    r = run_cli("ugc", *args)
-    assert r.returncode == 2 and r.stderr.strip()

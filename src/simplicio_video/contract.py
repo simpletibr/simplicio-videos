@@ -77,7 +77,7 @@ class Contract:
 
     def template_dir(self) -> Path:
         t = self.data["template"]
-        cand = self.home / "templates" / t
+        cand = paths.data_dir() / "templates" / t
         if "/" not in t and cand.is_dir():
             return cand
         return self.rel(t)
@@ -100,8 +100,8 @@ def load(path: str | Path) -> Contract:
     return Contract(p, data, paths.home(p.parent))
 
 
-def schema_errors(data: dict, home: Path) -> list[str]:
-    schema = json.loads(paths.schema_path(home).read_text(encoding="utf8"))
+def schema_errors(data: dict) -> list[str]:
+    schema = json.loads(paths.schema_path().read_text(encoding="utf8"))
     v = Draft202012Validator(schema)
     errs = []
     for e in sorted(v.iter_errors(data), key=lambda e: list(e.absolute_path)):
@@ -115,8 +115,14 @@ def load_lock(c: Contract) -> dict | None:
     return json.loads(lp.read_text(encoding="utf8")) if lp.is_file() else None
 
 
+DRIVE_FORA = ("drive: o bloco drive saiu do contrato (issue #75); a entrega (Drive, link, Real Oficial) "
+              "fica fora do motor. Remova a chave drive do contrato.")
+
+
 def validate(c: Contract, need_lock: bool = False) -> Report:
-    rep = Report(errors=schema_errors(c.data, c.home))
+    if "drive" in c.data:
+        return Report(errors=[DRIVE_FORA])
+    rep = Report(errors=schema_errors(c.data))
     if rep.errors:
         return rep
     d = c.data
@@ -151,7 +157,7 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
             if missing:
                 rep.errors.append(f"template: composition needs blocos {missing} (cenas[].motion[].bloco)")
     # ---- motion patterns ----
-    pdir = c.home / "motion" / "patterns"
+    pdir = paths.data_dir() / "motion" / "patterns"
     blocks = []
     for s in d["cenas"]:
         for m in s.get("motion", []):
@@ -218,11 +224,6 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
         elif isinstance(o, str) and "TODO" in o:
             rep.errors.append(f"todo: {loc.lstrip('/')} still has a TODO: {o[:60]}")
     walk(d, "")
-    # ---- drive convention ----
-    dr = d["drive"]
-    want = f"simplicio-video/clientes/{d['cliente']['drive_nome']}/{d['campanha']['ano']}/{d['campanha']['id']}"
-    if dr["caminho"] != want:
-        rep.errors.append(f"drive.caminho must be {want}")
     if not (d.get("marca") or {}).get("logo"):
         rep.warnings.append("marca.logo is null: text lockup only (never recreate a logo)")
     return rep

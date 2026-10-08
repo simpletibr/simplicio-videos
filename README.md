@@ -4,7 +4,7 @@
 
 Decisions: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) · [ADR-0002 (CLI + contract + Colab + credits)](docs/decisoes/ADR-0002-cli-contrato-colab-creditos.md) · [ADR-0003 (100% script flow; local render by default)](docs/decisoes/ADR-0003-fluxo-100-script.md) · [ADR-0004 (generative UGC outside the deterministic render)](docs/decisoes/ADR-0004-ugc-generativo.md) · Costs: [docs/custos.md](docs/custos.md) · Outbound sales: [docs/venda-ativa.md](docs/venda-ativa.md) · Manifest: [`plugin.json`](plugin.json) · Skill: [`skills/simplicio-video/SKILL.md`](skills/simplicio-video/SKILL.md)
 
-**Entry point: the `simplicio-video` CLI.** The agent writes the YAML contract ([`schema/contract.schema.json`](schema/contract.schema.json)); the CLI validates it, generates the voice and renders deterministically (local or Colab GPU). Agents (Claude Code, Codex, Grok): start at [`AGENTS.md`](AGENTS.md).
+**Entry point: the `simplicio-video` CLI.** The agent writes the YAML contract ([`schema/contract.schema.json`](src/simplicio_video/data/schema/contract.schema.json)); the CLI validates it, generates the voice and renders deterministically (local or Colab GPU). Agents (Claude Code, Codex, Grok): start at [`AGENTS.md`](AGENTS.md).
 
 ## Apps
 
@@ -14,7 +14,7 @@ Every external tool is a **track** with one CLI command, one MCP verb (`plugin.j
 
 | App | License | Role | CLI command | MCP verb | Doc |
 |---|---|---|---|---|---|
-| [HyperFrames](https://github.com/heygen-com/hyperframes) | Apache-2.0 | Deterministic HTML/GSAP → MP4 render (core) | `simplicio-video render contract.yaml` | `video.render` | [motion/README.md](motion/README.md) |
+| [HyperFrames](https://github.com/heygen-com/hyperframes) | Apache-2.0 | Deterministic HTML/GSAP → MP4 render (core) | `simplicio-video render contract.yaml` | `video.render` | [motion/README.md](src/simplicio_video/data/motion/README.md) |
 | [video-use](https://github.com/browser-use/video-use) | MIT | EDL editing of any MP4 (cuts, reorder, subtitles, review) | `simplicio-video edit setup\|transcribe\|pack\|render\|verify` | `video.edit` | [tools/video-use](tools/video-use/README.md) |
 | [OpenMontage](https://github.com/calesthio/OpenMontage) | see repo | Agentic production pipelines (Backlot, Remotion, HyperFrames) | `simplicio-video montage [clone\|open\|serve\|demo]` | `video.montage` | [docs/recursos.md](docs/recursos.md) |
 | [OpenCut](https://github.com/OpenCut-app/OpenCut) | MIT | Open-source editor for manual finishing (uses `opencut-classic` until the rewrite has an API) | `simplicio-video opencut clone\|dev\|where` | `video.opencut` | [docs/recursos.md](docs/recursos.md) |
@@ -58,8 +58,8 @@ simplicio-videos/
 
 | What | Where | Today |
 |---|---|---|
-| Motion patterns | [motion/README.md](motion/README.md) | 46 (24 ready blocks with preview, 1 lib, 2 inline, 19 proposed) |
-| Sector templates | [templates/README.md](templates/README.md) | 2 ready (repair/games, dentistry) + 6 skeleton |
+| Motion patterns | [motion/README.md](src/simplicio_video/data/motion/README.md) | 46 (24 ready blocks with preview, 1 lib, 2 inline, 19 proposed) |
+| Sector templates | [templates/README.md](src/simplicio_video/data/templates/README.md) | 2 ready (repair/games, dentistry) + 6 skeleton |
 | Voices | [voices/README.md](voices/README.md) | Gemini (default), Kokoro, VoxCPM2, OpenVoice V2, VoiceStudio |
 | Intake | [intake/README.md](intake/README.md) | questionnaire, auto extraction, schema, WJR example |
 | Optional tools | [tools/README.md](tools/README.md) | video-use |
@@ -110,3 +110,21 @@ Index in [`docs/README.md`](docs/README.md). Curated video/motion tools (stars a
 Also built on [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft), [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) (recipes distilled into `motion/`) and [motion-video-kit](https://github.com/echris6/motion-video-kit) (MIT; source of 5 `proposed` patterns).
 
 > Language policy: new documentation, CLI help and code comments are written in English. Older docs under `docs/`, `intake/`, `templates/` and client folders are still Portuguese and are translated as they are touched.
+
+## Plugins e host
+
+Mapa gerado a partir do front matter de `docs/host/` e `docs/plugins/`. A referência da CLI, dos schemas, das tools MCP e das variáveis de ambiente fica em [`docs/reference/`](docs/reference/) (gerada com `make regen`).
+
+<!-- BEGIN GENERATED: host -->
+Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
+
+- [Gate local, TDD e pouso de PRs](docs/host/gate.md): Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
+- [Licenças das dependências](docs/host/licenses.md): Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e o que ainda falta (web/).
+- [Pacote de operação (install, update, doctor, setup)](docs/host/packaging.md): O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites até as
+<!-- END GENERATED -->
+
+<!-- BEGIN GENERATED: plugins -->
+Gerado de `docs/plugins/*.md` (front matter). Não edite aqui: rode `make regen`.
+
+Ainda não há plugins em `docs/plugins/`.
+<!-- END GENERATED -->

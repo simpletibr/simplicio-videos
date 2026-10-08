@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.run-result/v1",
+  "title": "simplicio-video run --json",
+  "description": "Saída de `simplicio-video run CONTRATO --json` (stdout): voice -> validate --need-lock -> render, num comando só. Com ok=true, traz voice e render (os mesmos campos do resumo de pipeline.run_all). Com ok=false, traz error.code (um dos códigos de $defs/erro).",
+  "type": "object",
+  "required": ["ok"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "contrato": { "type": "string" },
+    "voice": {
+      "type": "object",
+      "required": ["provider", "lines"],
+      "properties": {
+        "provider": { "type": "string" },
+        "lines": { "type": "object", "additionalProperties": { "type": ["number", "null"] }, "description": "id da fala -> duração real (s)" },
+        "usage": { "type": ["object", "null"] }
+      }
+    },
+    "render": {
+      "type": "object",
+      "required": ["backend"],
+      "properties": {
+        "backend": { "enum": ["local", "kaggle", "colab-cli", "colab"] },
+        "output": { "type": ["string", "null"], "description": "MP4 final (ou bundle, no backend colab)" },
+        "loudness": { "type": ["object", "null"] },
+        "usage": { "type": ["object", "null"] }
+      }
+    },
+    "error": { "$ref": "#/$defs/erro" }
+  },
+  "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+  "then": {
+    "required": ["contrato", "voice", "render"],
+    "not": { "required": ["error"] }
+  },
+  "else": { "required": ["error"] },
+  "$defs": {
+    "erro": {
+      "description": "Erro com código estável. Códigos: CONTRATO_NAO_ENCONTRADO, CONTRATO_INVALIDO, RENDER_FALHOU, FERRAMENTA_AUSENTE (mesmo significado de validate-result).",
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "enum": ["CONTRATO_NAO_ENCONTRADO", "CONTRATO_INVALIDO", "RENDER_FALHOU", "FERRAMENTA_AUSENTE"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

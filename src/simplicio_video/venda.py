@@ -30,6 +30,7 @@ API_BASE = "https://api.abacatepay.com/v2"
 PRECOS = {120: 12000, 80: 8000, 60: 6000}  # R$ -> cents, decided by the council
 ENV_KEY = "ABACATEPAY_API_KEY"
 ENV_WEBHOOK_SECRET = "ABACATEPAY_WEBHOOK_SECRET"
+ENV_DESTINO = "SIMPLICIO_DRIVE_DESTINO"  # JSON {"caminho": ..., "arquivo": ...} da entrega (o contrato não tem drive)
 # Published in docs.abacatepay.com/pages/webhooks/security; it is AbacatePay's verification key, not our secret.
 ABACATEPAY_PUBLIC_KEY = ("t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7"
                          "RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyz"
@@ -230,11 +231,23 @@ def serve(root: Path, host: str = "127.0.0.1", port: int = 8787, deliver: Callab
 # ---------------------------------------------------------------- entrega
 def _final_contract(pdir: Path):
     from . import contract as ct
-    c = ct.load(pdir / "contract.yaml")
-    d = c.data["drive"]
-    d["arquivo"] = d["arquivo"].replace(" - Previa ", " - ")  # delivery name: "<CLIENTE> - <descricao> - vNN.mp4"
-    d.pop("status", None)
-    return c
+    return ct.load(pdir / "contract.yaml")
+
+
+def _destino_entrega() -> dict:
+    """Destino do Drive para a entrega, vindo de SIMPLICIO_DRIVE_DESTINO (o contrato não tem bloco drive)."""
+    raw = os.environ.get(ENV_DESTINO)
+    if not raw:
+        raise VendaError(f"{ENV_DESTINO} não definido: informe o destino da entrega como JSON, ex.: "
+                         '{"caminho": "simplicio-video/clientes/NOME/2026/CAMPANHA", "arquivo": "NOME - descricao - v01.mp4"}')
+    try:
+        d = json.loads(raw)
+    except ValueError:
+        raise VendaError(f"{ENV_DESTINO} não é JSON válido")
+    if not isinstance(d, dict) or not d.get("caminho") or not d.get("arquivo"):
+        raise VendaError(f"{ENV_DESTINO} precisa de 'caminho' e 'arquivo'")
+    d = {**d, "arquivo": str(d["arquivo"]).replace(" - Previa ", " - ")}  # nome de entrega: sem "Previa"
+    return d
 
 
 def entregar(pdir: Path, render: Callable | None = None, publish: Callable | None = None, log=print) -> dict:
@@ -252,8 +265,9 @@ def entregar(pdir: Path, render: Callable | None = None, publish: Callable | Non
         from .cli import do_render
         render = lambda c: do_render(c, "local", log=log)  # noqa: E731
     if publish is None:
+        destino = _destino_entrega()  # falha antes do render se o destino faltar
         from . import publish as pub
-        publish = lambda c: pub.publish(c, update_readme=False, log=log)  # noqa: E731
+        publish = lambda c: pub.publish(c, destino=destino, update_readme=False, log=log)  # noqa: E731
     try:
         c = _final_contract(pdir)
         render(c)

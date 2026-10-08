@@ -48,9 +48,9 @@ def test_todo_blocks_validation(mini):
     assert any(e.startswith("todo:") for e in ct.validate(ct.load(mini)).errors)
 
 
-def test_drive_path_must_follow_convention(mini):
-    _edit(mini, lambda d: d["drive"].update(caminho="simplicio-video/clientes/Outro/2026/Teste_Hash"))
-    assert any(e.startswith("drive.caminho") for e in ct.validate(ct.load(mini)).errors)
+def test_drive_block_is_rejected(mini):
+    _edit(mini, lambda d: d.update(drive={"caminho": "simplicio-video/clientes/Teste_Mini/2026/Teste_Hash", "arquivo": "Teste - mini - v01.mp4"}))
+    assert any(e.startswith("drive:") for e in ct.validate(ct.load(mini)).errors)
 
 
 def test_lock_longer_than_slot_is_error(mini):
@@ -73,7 +73,7 @@ def test_init_skeleton_blocks_until_filled(tmp_path):
     r = run_cli("init", "clinica-teste", "Dia_Criancas", "--template", "saude-odontologia", "--nome", "Clínica Teste", "--ano", "2026", "--out", out)
     assert r.returncode == 0, r.stderr
     d = yaml.safe_load(out.read_text())
-    assert d["drive"]["caminho"] == "simplicio-video/clientes/Clinica_Teste/2026/Dia_Criancas"
+    assert d["cliente"]["drive_nome"] == "Clinica_Teste" and "drive" not in d
     rep = ct.validate(ct.load(out))
-    assert not ct.schema_errors(d, ct.load(out).home)
+    assert not ct.schema_errors(d)
     assert any(e.startswith("todo:") for e in rep.errors)

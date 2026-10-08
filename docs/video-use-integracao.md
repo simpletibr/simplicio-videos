@@ -30,7 +30,7 @@ footage do cliente (ou render nosso) ──► transcrição palavra a palavra �
 
 - **Onde entra:** etapa 6, *só quando há vídeo filmado* (depoimentos, bancada, loja, clipes do Grok Imagine). O resultado vira clipe para os slots `clips` do spec **ou** vídeo final (cutdown, versão por canal).
 - **Determinismo:** a *decisão* de corte é do LLM, mas fica congelada no `edl.json` versionado; reexecutar o EDL é ffmpeg puro. Transcrições são cache por fonte (regra 9 do próprio video-use).
-- **Com a biblioteca de motion:** overlays são blocos de [`motion/`](../motion/README.md) renderizados com `hyperframes render --format mov` (ProRes 4444 com alfa) e referenciados em `overlays[]` do EDL.
+- **Com a biblioteca de motion:** overlays são blocos de [`motion/`](../src/simplicio_video/data/motion/README.md) renderizados com `hyperframes render --format mov` (ProRes 4444 com alfa) e referenciados em `overlays[]` do EDL.
 - **Com a voz:** o video-use não gera voz; se o corte precisar de narração nova, ela vem de [`voices/`](../voices/README.md) (cache) e entra como faixa/overlay de áudio — ainda não automatizado.
 
 ## Decisões tomadas aqui

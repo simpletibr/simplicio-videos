@@ -6,10 +6,11 @@ import pytest
 import yaml
 
 from conftest import ROOT
-from simplicio_video import contract as ct
-from simplicio_video import prospect as P
-from simplicio_video.compiler import compile_project
-from test_prospect import PAGES, _coleta, _png, fake_opener
+DATA = ROOT / "src" / "simplicio_video" / "data"  # esquemas, templates e motion: dentro do pacote (#74)
+from simplicio_video import contract as ct  # noqa: E402
+from simplicio_video import prospect as P  # noqa: E402
+from simplicio_video.compiler import compile_project  # noqa: E402
+from test_prospect import PAGES, _coleta, _png, fake_opener  # noqa: E402
 
 INST = ["institucional-odontologia", "institucional-estetica", "institucional-advocacia"]
 ALL = INST + ["sazonal-dia-das-criancas"]
@@ -19,12 +20,12 @@ BANNED = re.compile(r"melhor|garant|ganhe|resultado|gr[aá]tis|pre[cç]o|promo|d
 
 
 def _base(tid):
-    return yaml.safe_load((ROOT / "templates" / tid / "contract.base.yaml").read_text(encoding="utf8"))
+    return yaml.safe_load((DATA / "templates" / tid / "contract.base.yaml").read_text(encoding="utf8"))
 
 
 def _texts(tid):
     """Every spoken/written line of a template: base contract falas/tela/kinetic lines/tagline + setores.json lines."""
-    b, s = _base(tid), json.loads((ROOT / "templates" / tid / "setores.json").read_text(encoding="utf8"))
+    b, s = _base(tid), json.loads((DATA / "templates" / tid / "setores.json").read_text(encoding="utf8"))
     out = [b["campanha"]["titulo"]]
     for c in b["cenas"]:
         out += [c["fala"]["texto"], *c.get("tela", [])]
@@ -96,7 +97,7 @@ def test_institutional_template_builds_validates_and_compiles(tmp_path, tid):
     col["instagram"]["handle"] = "@empresa"
     d, m = P.build_contract(ROOT, tid, row, col)
     assert m["template"] == tid and d["template"] == tid and d["voz"]["voice"] == "Laomedeia"
-    assert d["drive"]["arquivo"].endswith("Previa Institucional 16s - v02.mp4")
+    assert "drive" not in d  # a entrega fica fora do motor (issue #75)
     lp = next(mm["params"] for s in d["cenas"] for mm in s["motion"] if mm.get("bloco") == "s4-lockup")
     assert lp["logo"] == "assets/client/logo.png" and lp["logo_round"] == 1
     P.write_contract(pdir / "contract.yaml", d, row, m)
@@ -136,7 +137,7 @@ def test_every_template_uses_the_laomedeia_standard_voice_and_fast_cuts(tid):
     assert len(fx) == 4 and all(6 <= m["params"]["frames"] <= 10 for m in fx)
     words = [m for s in b["cenas"] for m in s["motion"] if m["padrao"] == "kinetic-words"]
     assert [m["params"]["times"] for m in words] == [f"{{{{words:vo{i}}}}}" for i in range(1, 5)]
-    tj = json.loads((ROOT / "templates" / tid / "template.json").read_text(encoding="utf8"))
+    tj = json.loads((DATA / "templates" / tid / "template.json").read_text(encoding="utf8"))
     assert tj["voz"]["gemini_voz"] == "Laomedeia" and tj["composicao"]["cenas"] == ["s1", "s2", "s3", "s4"]
     blocos = {m["bloco"] for s in b["cenas"] for m in s["motion"]}
     assert blocos == set(tj["composicao"]["blocos"])
@@ -160,7 +161,7 @@ def test_institutional_templates_have_no_confetti_and_advocacia_is_sober():
     assert {x["tipo"] for s in b["cenas"] for x in s["sfx"]} <= {"whoosh"}
     est = b["voz"]["estilo"]
     assert "calmo" in est and "sem entusiasmo publicitário" in est
-    html = (ROOT / "templates/institucional-advocacia/composition/index.template.html").read_text()
+    html = (DATA / "templates/institucional-advocacia/composition/index.template.html").read_text()
     cam = html.split("<script>")[-1]
     assert "elastic.out" not in cam and "whipL" not in cam and "rotation" not in cam and "z:" not in cam  # no punch/whip/shake
 
@@ -285,21 +286,22 @@ OLD_BRAND = re.compile(r"simple\s*ti|simpleti\.com\.br", re.I)
 
 def test_preview_watermark_and_end_card_have_no_simpleti(tmp_path):
     from simplicio_video import render
-    assert render.PREVIEW["watermark"] == "Prévia • Wesley Simplicio • @wesleysimplicio"
-    render.preview_filter(16.0, render.preview_font(ROOT), tmp_path)
+    assert P.MARCA_PREVIA["dagua"] == "Prévia • Wesley Simplicio • @wesleysimplicio"
+    render.preview_filter(16.0, render.preview_font(ROOT), tmp_path, marca=P.MARCA_PREVIA, chrome=P.SELO_PREVIA)
     for f in ("wm", "badge", "end1", "end2", "end3"):
         assert not OLD_BRAND.search((tmp_path / f"{f}.txt").read_text()), f
     assert "@wesleysimplicio" in (tmp_path / "end2.txt").read_text()
     assert all(not OLD_BRAND.search(str(v)) for v in render.PREVIEW.values())
+    assert all(not OLD_BRAND.search(str(v)) for v in (P.MARCA_PREVIA, P.SELO_PREVIA))
 
 
 @pytest.mark.parametrize("tid", ALL)
 def test_no_template_output_mentions_simpleti(tid, tmp_path):
-    """Whole generated contract (end card lockup, tela, objetivo, drive name) of every prospect template."""
+    """Whole generated contract (end card lockup, tela, objetivo) of every prospect template."""
     row = {"nome": "Clínica Sorriso", "cidade": "Guarulhos · SP", "setor": "odontologia", "oab": "OAB/SP 123.456"}
     d, meta = P.build_contract(ROOT, tid, row, _coleta())
     assert not OLD_BRAND.search(yaml.safe_dump(d, allow_unicode=True)), tid
-    assert not OLD_BRAND.search((ROOT / "templates" / tid / "composition" / "index.template.html").read_text(encoding="utf8"))
+    assert not OLD_BRAND.search((DATA / "templates" / tid / "composition" / "index.template.html").read_text(encoding="utf8"))
 
 
 # --- batch voice via the Gemini API: bounded regeneration, never speed-up (mock server, no network) ---

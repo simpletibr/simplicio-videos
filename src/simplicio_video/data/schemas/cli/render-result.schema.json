@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.render-result/v1",
+  "title": "simplicio-video render --json",
+  "description": "Saída de `simplicio-video render CONTRATO --json` (stdout). Com ok=true: caminhos do MP4 (ou bundle) e do manifesto gravado. Com ok=false: error.code (um dos códigos de $defs/erro).",
+  "type": "object",
+  "required": ["ok"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "contrato": { "type": "string" },
+    "backend": { "enum": ["local", "kaggle", "colab-cli", "colab"] },
+    "preview": { "type": "boolean", "description": "true com --preview (manifest = preview.manifest.json)" },
+    "output": { "type": ["string", "null"], "description": "MP4 final (ou prévia), ou .zip do bundle no backend colab" },
+    "manifest": { "type": ["string", "null"], "description": "render.manifest.json (ou preview.manifest.json) gravado ao lado do contrato" },
+    "error": { "$ref": "#/$defs/erro" }
+  },
+  "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+  "then": {
+    "required": ["contrato", "backend", "output"],
+    "not": { "required": ["error"] }
+  },
+  "else": { "required": ["error"] },
+  "$defs": {
+    "erro": {
+      "description": "Erro com código estável. Códigos: CONTRATO_NAO_ENCONTRADO, CONTRATO_INVALIDO, RENDER_FALHOU, FERRAMENTA_AUSENTE (mesmo significado de validate-result).",
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "enum": ["CONTRATO_NAO_ENCONTRADO", "CONTRATO_INVALIDO", "RENDER_FALHOU", "FERRAMENTA_AUSENTE"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -1,5 +1,8 @@
-"""`simplicio-video publish`: upload the final MP4 to Google Drive at drive.caminho/drive.arquivo (rclone, no browser)
+"""`simplicio-video publish`: upload the final MP4 to Google Drive at the destino given by the caller (rclone, no browser)
 and record the link in clients/<slug>/README.md ("Entregas no Drive").
+
+The contract has no Drive block (issue #75): the destino is a parameter `destino={"caminho": ..., "arquivo": ...}`
+(optional `pasta_url`, `status`). Without it, publish refuses; it never reads a `drive` key from the contract.
 
 Rules (AGENTS.md): never overwrite a delivered version (same name + different bytes = error, bump vNN); same bytes =
 idempotent (just refresh the link). Links come from the Drive file ID (`rclone lsjson`), never from `rclone link`
@@ -56,8 +59,7 @@ def readme_path(c: Contract) -> Path:
     return c.home / "clients" / slug / "README.md"
 
 
-def upsert_readme(readme: Path, c: Contract, file_url: str | None, folder_url: str | None, status: str) -> str:
-    d = c.data["drive"]
+def upsert_readme(readme: Path, c: Contract, destino: dict, file_url: str | None, folder_url: str | None, status: str) -> str:
     camp, ano = c.data["campanha"]["id"], c.data["campanha"]["ano"]
     pasta = f"[{ano}/{camp}]({folder_url})" if folder_url else f"{ano}/{camp}"
     link = f"[abrir]({file_url})" if file_url else "**(preencher: link do Drive)**"
@@ -65,14 +67,14 @@ def upsert_readme(readme: Path, c: Contract, file_url: str | None, folder_url: s
     lines = text.splitlines()
     for i, ln in enumerate(lines):
         cells = [x.strip() for x in ln.strip().strip("|").split("|")] if ln.lstrip().startswith("|") else []
-        if len(cells) >= 5 and cells[2] == d["arquivo"]:
+        if len(cells) >= 5 and cells[2] == destino["arquivo"]:
             cells[3] = link
             if folder_url and "](" not in cells[1]:
                 cells[1] = pasta
             lines[i] = "| " + " | ".join(cells) + " |"
             break
     else:
-        row = f"| {camp} | {pasta} | {d['arquivo']} | {link} | {status} |"
+        row = f"| {camp} | {pasta} | {destino['arquivo']} | {link} | {status} |"
         try:
             h = next(i for i, ln in enumerate(lines) if ln.strip() == HEADER)
             j = h + 2
@@ -90,8 +92,11 @@ def upsert_readme(readme: Path, c: Contract, file_url: str | None, folder_url: s
 
 
 def publish(c: Contract, file: Path | None = None, remote: str | None = None, dry_run: bool = False,
-            readme: Path | None = None, update_readme: bool = True, run: Runner | None = None, log=print) -> dict:
-    d = c.data["drive"]
+            readme: Path | None = None, update_readme: bool = True, run: Runner | None = None, log=print,
+            destino: dict | None = None) -> dict:
+    if not destino or not destino.get("caminho") or not destino.get("arquivo"):
+        raise SystemExit("publish: falta o destino (destino={'caminho': ..., 'arquivo': ...}); o contrato não tem bloco drive")
+    d = destino
     src = Path(file).resolve() if file else c.rel(c.data["saida"]["arquivo"]).resolve()
     if not src.is_file():
         raise SystemExit(f"publish: {src} not found - run `simplicio-video render {c.path}` first")
@@ -121,7 +126,7 @@ def publish(c: Contract, file: Path | None = None, remote: str | None = None, dr
             log(f"publish: {dest} already has these bytes - not uploading again")
         else:
             raise SystemExit(f"publish: {dest} already exists with different content. Never overwrite a delivery: "
-                             "bump drive.arquivo to vNN+1 in the contract and publish again.")
+                             "bump destino['arquivo'] to vNN+1 and publish again.")
     if status == "uploaded":
         log(f"$ rclone copyto {src} {dest}")
         p = run([rc, "copyto", str(src), dest, "--drive-chunk-size", "64M"])
@@ -138,11 +143,9 @@ def publish(c: Contract, file: Path | None = None, remote: str | None = None, dr
     if update_readme:
         rp = readme or readme_path(c)
         st = d.get("status") or f"publicado em {dt.date.today():%d/%m/%Y}"
-        upsert_readme(rp, c, file_url, folder_url, st)
+        upsert_readme(rp, c, d, file_url, folder_url, st)
         res["readme"] = str(rp)
         log(f"readme: {rp} (Entregas no Drive)")
     log(f"publish: {status} -> {file_url or dest}")
-    if file_url and not d.get("link"):
-        log(f"tip: add `link: {file_url}` under drive: in the contract")
     return res
 

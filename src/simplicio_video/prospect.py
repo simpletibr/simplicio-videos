@@ -68,6 +68,10 @@ DEFAULT_CAMPANHA = "auto"
 # confetti, word-by-word kinetic text) and the same festive 128 BPM track. Bump it when the standard changes.
 PADRAO = "v2"
 PADRAO_DESC = "v2: voz Gemini 3.8 Flash TTS Laomedeia animada (a da Lothus v02) + logo real (site/Instagram) + ritmo/confete/palavra a palavra da Lothus v02"
+# Marca do operador nas prévias de venda (issue #76): o motor não tem marca própria. A prévia recebe a marca pelo contrato
+# (marca.dagua e marca.credito) e o selo/linha de contato do cartão final por SELO_PREVIA (só prévia de venda).
+MARCA_PREVIA = {"dagua": "Prévia • Wesley Simplicio • @wesleysimplicio", "credito": {"texto": "Vídeo feito por Wesley Simplicio"}}
+SELO_PREVIA = {"badge": "PRÉVIA · @wesleysimplicio", "end_url": "@wesleysimplicio"}
 DEFAULT_PROVIDER = "gemini"
 LOGO_MIN_PX = 64
 REPORT_COLS = ["nome", "slug", "setor", "setor_regra", "cidade", "instagram", "instagram_fonte", "whatsapp", "whatsapp_fonte",
@@ -585,14 +589,14 @@ def collect(row: dict, f: Fetcher, dest: Path | None = None) -> dict:
 def campaign_dir(home: Path, template: str) -> Path:
     """Template dir from a template id (institucional-advocacia, ...) or a legacy campaign alias (dia-das-criancas)."""
     tid = CAMPANHAS.get(template) or template
-    d = home / "templates" / tid
+    d = paths.data_dir() / "templates" / tid
     if not (d / "setores.json").is_file():
         raise SystemExit(f"prospect: template desconhecido {template!r} (precisa de templates/<id>/setores.json)")
     return d
 
 
 def load_routing(home: Path) -> dict:
-    return json.loads((home / "templates" / "prospect-roteamento.json").read_text(encoding="utf8"))
+    return json.loads((paths.data_dir() / "templates" / "prospect-roteamento.json").read_text(encoding="utf8"))
 
 
 def route_template(home: Path, campanha: str, row: dict, site_text: str = "") -> tuple[str, str]:
@@ -701,6 +705,7 @@ def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider:
     d["cliente"] = {"slug": slug, "nome": row["nome"].strip(), "drive_nome": drive_name(disp), "coleta": "coleta.json"}
     d["campanha"] = {"id": camp["campanha_id"], "ano": 2026, "titulo": camp["titulo"],
                      "objetivo": "Prévia com marca d'água Wesley Simplicio (@wesleysimplicio) para oferecer o vídeo (venda ativa; não publicar)"}
+    d.setdefault("marca", {}).update(copy.deepcopy(MARCA_PREVIA))
     colors = site.get("cores") or []
     logo = coleta.get("logo") or {}
     logo_dst, logo_round = None, 1
@@ -748,9 +753,6 @@ def build_contract(home: Path, campanha: str, row: dict, coleta: dict, provider:
             s["tela"] = ([f"logo real ({logo.get('origem')}: {logo.get('fonte')})"] if logo_dst else [f"{name} / {sub}"]) + \
                 [camp["tagline"], handle or "(sem @)", city, linhas4.replace("{nome}", spoken).replace("|", " / ")]
     d["voz"]["provider"] = provider
-    d["drive"] = {"caminho": f"simplicio-video/clientes/{d['cliente']['drive_nome']}/2026/{camp['campanha_id']}",
-                  "arquivo": f"{ascii_name(disp) or 'Empresa'} - {camp.get('arquivo', 'Previa Dia das Criancas 16s')} - v{int(PADRAO[1:]):02d}.mp4",
-                  "status": "prévia de venda ativa (não publicar)"}
     meta = {"template": cdir.name, "setor": setor["id"], "regra": regra, "oab": oab or None, "lockup": [name, sub], "fala_nome": spoken, "vo3": d["cenas"][2]["fala"]["texto"],
             "padrao": PADRAO, "voz": provider, "logo": ({"origem": logo.get("origem"), "url": logo.get("url"), "fonte": logo.get("fonte")}
                                                       if logo_dst else None),
@@ -973,7 +975,7 @@ def process(row: dict, slug: str, out: Path, home: Path, f: Fetcher, campanha: s
             if prev.is_file() and prev_std != PADRAO:  # keep the older standard for comparison
                 shutil.move(str(prev), str(pdir / f"preview.{prev_std}.mp4"))
             t2 = time.time()
-            man = rmod.render_preview(load(pdir / "contract.yaml"), out=prev, log=log)
+            man = rmod.render_preview(load(pdir / "contract.yaml"), out=prev, log=log, chrome=SELO_PREVIA)
             res["timings_s"]["render"] = round(time.time() - t2, 2)
             res["preview"] = {"path": str(prev), "sha256": man["preview"]["sha256"], "duration_s": man["preview"]["duration_s"],
                               "bytes": man["preview"]["bytes"]}

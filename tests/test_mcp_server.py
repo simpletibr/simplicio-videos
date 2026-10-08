@@ -12,8 +12,6 @@ def test_tool_functions_without_sdk(mini):
     assert rep["ok"] is True
     v = mcp_server.video_voice(str(mini))
     assert v["ok"] and v["result"]["lines"]["vo1"]["fits"]
-    bad = mcp_server.video_publish(str(mini))  # no MP4 yet -> clean error, no exception
-    assert bad["ok"] is False and "render" in bad["error"]
     assert any(t["id"] == "gemini" for t in mcp_server.video_list("voices")["items"])
 
 
@@ -31,7 +29,7 @@ def test_mcp_protocol_lists_and_calls_tools(mini):
             return names, res
 
     names, res = asyncio.run(go())
-    assert names == sorted(["video.init", "video.validate", "video.voice", "video.render", "video.publish", "video.run", "video.list", "video.clone", "video.montage", "video.opencut", "video.edit"])
+    assert names == sorted(["video.init", "video.validate", "video.voice", "video.render", "video.run", "video.list", "video.clone", "video.montage", "video.opencut", "video.edit"])
     payload = res.structured_content or json.loads(res.content[0].text)
     payload = payload.get("result", payload)
     assert payload["ok"] is True and payload["errors"] == []

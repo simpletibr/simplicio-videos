@@ -39,4 +39,4 @@ npm run render:placeholder # sem assets do cliente
 
 Verificado no box (Linux, Node 22.23.3, FFmpeg 7.1), 30/09/2026 15:08 BRT: `check` passou (0 erros); `render` gerou H.264 1080×1920 30 fps (600 frames) + AAC 48 kHz, **20,0 s**, 21 MB; voz **Gemini 3.8 Flash TTS (Puck)** via provider `file`; MP4 final **−14,0 LUFS, true peak −2,4 dBTP, LRA 0,9 LU**; faster-whisper small no MP4 final reconhece as 9 frases ("Hall Effect" sai como "Whole Effect" — pronúncia da voz); narração sem aceleração; mesmo `spec.json` + mesmos WAVs = mesma mixagem (md5).
 
-**Antes de publicar:** trocar fotos pelas reais do cliente (ou clipes aprovados), confirmar logo/cores e aprovar o roteiro — ver [`../coleta/checklist-cliente.md`](../coleta/checklist-cliente.md) e [`../coleta/pendencias.md`](../coleta/pendencias.md).
+**Antes de publicar:** trocar fotos pelas reais do cliente (ou clipes aprovados), confirmar logo/cores e aprovar o roteiro — ver `../coleta/checklist-cliente.md` e `../coleta/pendencias.md`.

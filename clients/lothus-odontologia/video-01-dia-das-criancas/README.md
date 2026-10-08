@@ -1,6 +1,6 @@
 # video-01-dia-das-criancas — Lothus Odontologia
 
-Post 9:16, 1080×1920, 30 fps, **16 s (v02 dinâmica)**, para o Dia das Crianças (12/10/2026). Referência do template [`saude-odontologia`](../../../templates/saude-odontologia/) v2. Roteiro: [`roteiro.md`](roteiro.md) · fatos: [`../coleta/`](../coleta/) · licenças: [`assets/audio/LICENSES.md`](assets/audio/LICENSES.md).
+Post 9:16, 1080×1920, 30 fps, **16 s (v02 dinâmica)**, para o Dia das Crianças (12/10/2026). Referência do template [`saude-odontologia`](../../../src/simplicio_video/data/templates/saude-odontologia/) v2. Roteiro: [`roteiro.md`](roteiro.md) · fatos: `../coleta/` · licenças: [`assets/audio/LICENSES.md`](assets/audio/LICENSES.md).
 
 ## v02 dinâmica (feedback do Wesley sobre a v01)
 
@@ -23,7 +23,7 @@ Fica **fora** do vídeo: telefone e endereço (fontes divergem), nota/avaliaçõ
 
 ## Como é gerado (só pelo CLI)
 
-A fonte única é [`contract.yaml`](contract.yaml) (`simplicio.video-contract/v1`). O CLI compila o contrato com a composição do template ([`templates/saude-odontologia/composition/`](../../../templates/saude-odontologia/composition/)) e os blocos de `motion/patterns/`.
+A fonte única é [`contract.yaml`](contract.yaml) (`simplicio.video-contract/v1`). O CLI compila o contrato com a composição do template ([`templates/saude-odontologia/composition/`](../../../src/simplicio_video/data/templates/saude-odontologia/composition/)) e os blocos de `motion/patterns/`.
 
 ```bash
 cd clients/lothus-odontologia/video-01-dia-das-criancas
@@ -43,7 +43,7 @@ simplicio-video render contract.yaml    # -> out/lothus-dia-criancas.mp4 + rende
 
 ## Entrega
 
-Drive: `simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas` → `Lothus - Dia das Criancas 16s - v02.mp4` (link na tabela do [README do cliente](../README.md); status: aguardando aprovação do cliente).
+Drive: `simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas` → `Lothus - Dia das Criancas 16s - v02.mp4` (link na tabela do `README do cliente`; status: aguardando aprovação do cliente).
 
 QA do render v02 dinâmica (30/09/2026, CLI):
 

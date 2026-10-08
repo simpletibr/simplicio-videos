@@ -8,7 +8,8 @@ from jsonschema import Draft202012Validator
 from conftest import FIXTURE, LOTHUS, ROOT, WJR
 from simplicio_video.contract import schema_errors
 
-SCHEMA = json.loads((ROOT / "schema" / "contract.schema.json").read_text())
+DATA = ROOT / "src" / "simplicio_video" / "data"  # esquemas, templates e motion: dentro do pacote (#74)
+SCHEMA = json.loads((DATA / "schema" / "contract.schema.json").read_text())
 
 
 def test_schema_is_valid_draft_2020_12():
@@ -17,13 +18,13 @@ def test_schema_is_valid_draft_2020_12():
 
 @pytest.mark.parametrize("path", [WJR, LOTHUS, FIXTURE / "contract.yaml"], ids=["wjr", "lothus", "mini"])
 def test_real_contracts_match_schema(path):
-    assert schema_errors(yaml.safe_load(path.read_text()), ROOT) == []
+    assert schema_errors(yaml.safe_load(path.read_text())) == []
 
 
 @pytest.mark.parametrize("mutate,needle", [
-    (lambda d: d.pop("drive"), "drive"),
-    (lambda d: d["drive"].update(caminho="clientes/Lothus/2026/Dia"), "caminho"),
-    (lambda d: d["drive"].update(arquivo="lothus final.mp4"), "arquivo"),
+    (lambda d: d.update(drive={"caminho": "simplicio-video/clientes/Lothus/2026/Dia", "arquivo": "Lothus - Dia - v01.mp4"}), "drive"),
+    (lambda d: d.update(drive={"caminho": "clientes/Lothus/2026/Dia"}), "drive"),
+    (lambda d: d.update(drive={"arquivo": "lothus final.mp4"}), "drive"),
     (lambda d: d["cliente"].update(drive_nome="Lothus Odontologia"), "drive_nome"),
     (lambda d: d["voz"].update(provider="azure"), "provider"),
     (lambda d: d["cenas"][0]["fala"].pop("max_s"), "max_s"),
@@ -33,5 +34,5 @@ def test_real_contracts_match_schema(path):
 def test_schema_rejects_bad_contracts(mutate, needle):
     d = copy.deepcopy(yaml.safe_load(LOTHUS.read_text()))
     mutate(d)
-    errs = schema_errors(d, ROOT)
+    errs = schema_errors(d)
     assert errs and any(needle in e for e in errs), errs

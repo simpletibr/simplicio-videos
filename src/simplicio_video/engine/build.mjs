@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Deterministic audio/variables build step of the simplicio-video engine (forked from WJR video-01, extended for Lothus) — no network, no LLM, no third-party audio:
+// Deterministic audio/variables build step of the simplicio-video engine (derivado do motor de vídeo-01) — no network, no LLM, no third-party audio:
 //   -) renders index.html from src/index.template.html: {{vars:<id>}} -> JSON of spec.blocks[<id>] (motion block params)
 //   0) normalizes optional video plates (spec.clips) or writes black stand-ins + <id>_on flags
 //   1) splits spec.json -> build/variables.json (HyperFrames --variables-file)

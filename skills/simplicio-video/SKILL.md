@@ -22,7 +22,7 @@ Você (LLM) **raciocina e escreve o contrato**; o CLI **executa**. Nunca edite H
 5. **Voz:** pt-BR, gênero/energia do público. Provisória: `local` (Kokoro, ex. `pf_dora`/`pm_alex`). Final: `gemini` (API, precisa de `GEMINI_API_KEY`) ou WAVs do AI Studio → `file`. Sugira voz Gemini + instrução de estilo no contrato (`voz.providers.gemini`).
 6. **Tempos:** leia cada fala em voz alta a ~2,5 palavras/s; `max_s` = duração natural + folga (0,2–0,5 s). `inicio_s + max_s` ≤ duração da cena (+ J-cut ≤ 0,15 s). A soma das cenas = `formato.duracao_s`. SFX com tempo relativo à cena, nas batidas (120 BPM = 0,5 s).
 7. **Marca:** logo só com arquivo real (`marca.logo`); sem arquivo → `logo: null` e lockup de texto. Não mostre telefone/endereço/preço/avaliações não confirmados.
-8. **Entrega:** `drive.caminho = simplicio-video/clientes/<Drive_Nome>/<ANO>/<Campanha>`, `drive.arquivo = "<CLIENTE> - <descricao> - vNN.mp4"`.
+8. **Entrega:** fora do motor (issue #75). O contrato não tem bloco `drive`; quem entrega (Drive, link, Real Oficial) informa o destino. Convenção: `simplicio-video/clientes/<Drive_Nome>/<ANO>/<Campanha>` e `"<CLIENTE> - <descricao> - vNN.mp4"`.
 
 ## Comandos exatos
 ```bash
@@ -46,7 +46,7 @@ simplicio-video mcp                                       # mesmas operações c
 Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz do repo (Python ≥ 3.10, Node ≥ 22, ffmpeg).
 
 ## Checklist de validação
-- [ ] `validate` sem erro (nenhum `TODO`, drive no padrão, assets existem).
+- [ ] `validate` sem erro (nenhum `TODO`, sem bloco `drive`, assets existem).
 - [ ] `voice` sem fala acima de `max_s` (se estourar: encurte o texto ou aumente cena/`max_s`; **nunca** acelere).
 - [ ] `render` ok; `render.manifest.json → loudness.integrated_lufs` ≈ −14 e pico ≤ −1,5.
 - [ ] STT (faster-whisper) reconhece todas as falas; olhe a prévia/contact sheet.
@@ -60,7 +60,7 @@ Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz 
 - **Custo por vídeo** (voz + render + Drive, US$/R$, medido/oficial/estimativa): `docs/custos.md`. Voz Gemini API ≈ US$ 0,005 por vídeo WJR; render local US$ 0; Colab A100 ≈ US$ 0,043.
 
 ## Destino no Drive
-Não faça upload sem pedido explícito do usuário para aquele vídeo. Sem pedido: `publish --dry-run` (ou `run` sem `--publish`) e informe o caminho do MP4 e `drive.caminho`. Com pedido: `simplicio-video publish <contrato>` (rclone, remote `gdrive`): nunca sobrescreve (mesmo nome com bytes diferentes = erro, suba vNN+1), é idempotente e grava o link sozinho na tabela **Entregas no Drive** de `clients/<slug>/README.md`.
+Não faça upload sem pedido explícito do usuário para aquele vídeo. Sem pedido: `publish --dry-run` (ou `run` sem `--publish`) e informe o caminho do MP4. Com pedido: `simplicio-video publish <contrato>` (rclone, remote `gdrive`): nunca sobrescreve (mesmo nome com bytes diferentes = erro, suba vNN+1), é idempotente e grava o link sozinho na tabela **Entregas no Drive** de `clients/<slug>/README.md`.
 
 ## Exemplo mínimo de contrato
 ```yaml
@@ -91,7 +91,6 @@ trilha:
   music: { style: playful, gain_db: -5, fade_in_s: 0.05, fade_out_s: 1.2, progression: [[48, [60, 64, 67]]] }
   master: { target_lufs: -14, true_peak_db: -1.5 }
 saida: { arquivo: out/lothus-dia-criancas.mp4, qualidade: delivery }
-drive: { caminho: simplicio-video/clientes/Lothus_Odontologia/2026/Dia_Criancas, arquivo: "Lothus - Dia das Criancas 15s - v01.mp4" }
 ```
 Contratos completos: `clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml`, `clients/wjr-informatica-games/video-01/contract.yaml`.
 

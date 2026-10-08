@@ -1,0 +1,18 @@
+# simplicio-video (issue #43). Só build local: não há imagem pública (ver Dockerfile e docs/host/packaging.md).
+# Uso: docker compose build && docker compose run --rm simplicio doctor
+name: simplicio-video
+
+services:
+  simplicio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: simplicio-video:local
+    environment:
+      # Passada do seu shell em tempo de execução. Nunca gravada na imagem.
+      GEMINI_API_KEY:
+    volumes:
+      - workspace:/workspace
+
+volumes:
+  workspace:

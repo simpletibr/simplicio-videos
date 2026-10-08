@@ -1,0 +1,476 @@
+# Machine-readable ownership map. `scripts/check_ownership.py <issue>` compares a PR's changed files
+# with `owns` (glob patterns, `**` = any depth) plus `generated`. Anything else fails the check.
+# `path#section` means the file is shared and the issue owns only that named part (a section of
+# pyproject.toml, a function of app.py, a heading of a doc); the checker allows the file and the
+# reviewer verifies the section. An issue with `status: backlog` has no owned paths yet and cannot be
+# started: elaborate it first (owned paths, acceptance criteria) and flip it to `status: ready`.
+schema: simplicio.ownership/v1
+
+generated:         # never hand-edited; regenerate with `make regen`
+  - "plugin.json"
+  - "schemas/factory/*.json"
+  - "docs/reference/**"
+  - "web/shared/src/generated/**"
+  - "web/package-lock.json"
+
+issues:
+  # ------------------------------------------------------------------ M0a foundation
+  31:
+    track: gate
+    milestone: M0
+    adr: 5
+    owns:
+      - "Makefile"
+      - "scripts/check.sh"
+      - "scripts/land.sh"
+      - "scripts/check_ownership.py"
+      - "scripts/check_tdd.py"
+      - ".githooks/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - "CONTRIBUTING.md"
+      - "tests/conftest.py"
+      - "tests/test_clone_montage.py"
+      - "tests/test_render_determinism.py"
+      - "tests/test_scripts/**"
+      - "src/simplicio_video/montage.py"
+      - "docs/host/gate.md"
+      - "docs/decisoes/ADR-0005-*.md"
+      - "pyproject.toml#tool.pytest,tool.ruff,project.scripts,extras.test"
+  32:
+    track: registry-plugin-host
+    milestone: M0
+    adr: 6
+    owns:
+      - "src/simplicio_video/registry.py"
+      - "src/simplicio_video/manifest.py"
+      - "src/simplicio_video/cli.py"
+      - "src/simplicio_video/mcp_server.py"
+      - "src/simplicio_video/plugins/**"
+      - "src/simplicio_video/commands/__init__.py"
+      - "src/simplicio_video/commands/init.py"
+      - "src/simplicio_video/commands/validate.py"
+      - "src/simplicio_video/commands/voice.py"
+      - "src/simplicio_video/commands/render.py"
+      - "src/simplicio_video/commands/publish.py"
+      - "src/simplicio_video/commands/run.py"
+      - "src/simplicio_video/commands/venda.py"
+      - "src/simplicio_video/commands/prospect.py"
+      - "src/simplicio_video/commands/ugc.py"
+      - "src/simplicio_video/commands/clone.py"
+      - "src/simplicio_video/commands/montage.py"
+      - "src/simplicio_video/commands/edit.py"
+      - "src/simplicio_video/commands/opencut.py"
+      - "src/simplicio_video/commands/realoficial.py"
+      - "src/simplicio_video/commands/list.py"
+      - "src/simplicio_video/commands/mcp.py"
+      - "src/simplicio_video/commands/plugin.py"
+      - "schemas/plugin.manifest.schema.json"
+      - "scripts/gen_manifest.py"
+      - "mk/manifest.mk"
+      - "tests/test_help.py"
+      - "tests/test_mcp_server.py"
+      - "tests/test_registry.py"
+      - "tests/test_plugin_host/**"
+      - "tests/golden/help/**"
+      - "docs/host/plugin-host.md"
+      - "docs/decisoes/ADR-0006-*.md"
+  33:
+    track: kernel
+    milestone: M0
+    adr: 7
+    owns:
+      - "src/simplicio_factory/__init__.py"
+      - "src/simplicio_factory/app.py"
+      - "src/simplicio_factory/**/__init__.py"
+      - "src/simplicio_factory/contracts/**"
+      - "src/simplicio_factory/testkit/**"
+      - "schemas/factory/**"
+      - "tests/factory/conftest.py"
+      - "tests/factory/contracts/**"
+      - "tests/factory/fixtures/**"
+      - "tests/factory/test_architecture.py"
+      - "mk/kernel.mk"
+      - "docs/host/kernel.md"
+      - "docs/decisoes/ADR-0007-*.md"
+      - "pyproject.toml#extras.*"
+  34:
+    track: web-scaffold
+    milestone: M0
+    adr: 8
+    owns:
+      - "web/package.json"
+      - "web/tsconfig.base.json"
+      - "web/eslint.config.*"
+      - "web/vitest.workspace.*"
+      - "web/playwright.config.*"
+      - "web/shared/**"
+      - "web/app/package.json"
+      - "web/scene/package.json"
+      - "web/i18n/package.json"
+      - "mk/web.mk"
+      - "docs/host/web-scaffold.md"
+      - "docs/decisoes/ADR-0008-*.md"
+  47:
+    track: skeleton-loop
+    milestone: M0
+    owns:
+      - "src/simplicio_factory/runner/**"
+      - "src/simplicio_factory/plugins/loop/**"
+      - "tests/e2e/**"
+      - "mk/e2e.mk"
+      - "docs/host/skeleton-loop.md"
+      - "docs/tutorials/demo.md"
+  # ------------------------------------------------------------------ M1 MVP: host services
+  35:
+    track: store
+    milestone: M1
+    adr: 9
+    owns:
+      - "src/simplicio_factory/workspace/**"
+      - "src/simplicio_factory/store/**"
+      - "src/simplicio_factory/plugins/workspace/**"
+      - "tests/factory/workspace/**"
+      - "tests/factory/store/**"
+      - "docs/host/store.md"
+      - "docs/decisoes/ADR-0009-*.md"
+  36:
+    track: policy
+    milestone: M1
+    adr: 10
+    owns:
+      - "src/simplicio_factory/policy/**"
+      - "src/simplicio_factory/plugins/policy/**"
+      - "tests/factory/policy/**"
+      - "docs/host/policy.md"
+      - "docs/decisoes/ADR-0010-*.md"
+  37:
+    track: security
+    milestone: M1
+    adr: 11
+    owns:
+      - "src/simplicio_factory/security/**"
+      - "tests/factory/security/**"
+      - "docs/host/security.md"
+      - "docs/decisoes/ADR-0011-*.md"
+  # ------------------------------------------------------------------ M1 MVP: plugins
+  15:
+    track: brand
+    milestone: M1
+    owns:
+      - "src/simplicio_factory/plugins/brand/**"
+      - "tests/factory/plugins/brand/**"
+      - "docs/plugins/brand.md"
+  52:
+    track: ideas
+    milestone: M1
+    owns:
+      - "src/simplicio_factory/plugins/ideas/**"
+      - "tests/factory/plugins/ideas/**"
+      - "docs/plugins/ideas.md"
+  16:
+    track: studio
+    milestone: M1
+    owns:
+      - "src/simplicio_factory/plugins/studio/**"
+      - "templates/brand-promo/**"
+      - "tests/factory/plugins/studio/**"
+      - "docs/plugins/studio.md"
+  18:
+    track: review
+    milestone: M1
+    owns:
+      - "src/simplicio_factory/plugins/review/**"
+      - "tests/factory/plugins/review/**"
+      - "docs/plugins/review.md"
+  19:
+    track: publish-realoficial
+    milestone: M1
+    adr: 12
+    owns:
+      - "src/simplicio_factory/plugins/publish/**"
+      - "src/simplicio_factory/plugins/realoficial/**"
+      - "tests/factory/plugins/publish/**"
+      - "tests/factory/plugins/realoficial/**"
+      - "docs/plugins/publish.md"
+      - "docs/plugins/realoficial.md"
+      - "docs/decisoes/ADR-0012-*.md"
+  22:
+    track: metrics
+    milestone: M1
+    owns:
+      - "src/simplicio_factory/plugins/metrics/**"
+      - "src/simplicio_factory/plugins/realoficial_analytics/**"
+      - "tests/factory/plugins/metrics/**"
+      - "tests/factory/plugins/realoficial_analytics/**"
+      - "docs/plugins/metrics.md"
+  # ------------------------------------------------------------------ M1 MVP: surface
+  41:
+    track: server
+    milestone: M1
+    adr: 13
+    owns:
+      - "src/simplicio_factory/plugins/server/**"
+      - "tests/factory/plugins/server/**"
+      - "docs/plugins/server.md"
+      - "docs/decisoes/ADR-0013-*.md"
+  23:
+    track: panel
+    milestone: M1
+    adr: 14
+    owns:
+      - "web/app/**"
+      - "docs/factory/prototype/**"
+      - "docs/plugins/panel.md"
+      - "docs/decisoes/ADR-0014-*.md"
+  28:
+    track: factory-scene
+    milestone: M1
+    adr: 15
+    owns:
+      - "web/scene/**"
+      - "docs/plugins/factory-scene.md"
+      - "docs/design/factory-scene.md"
+      - "docs/decisoes/ADR-0015-*.md"
+  53:
+    track: theme-engine
+    milestone: M1
+    owns:
+      - "src/simplicio_factory/plugins/theme/**"
+      - "tests/factory/plugins/theme/**"
+      - "docs/plugins/theme.md"
+      - "docs/themes/authoring.md"
+  54:
+    track: theme-br
+    milestone: M1
+    owns:
+      - "themes/br/**"
+      - "docs/themes/br.md"
+  55:
+    track: i18n
+    milestone: M1
+    adr: 16
+    owns:
+      - "web/i18n/**"
+      - "locales/en/**"
+      - "locales/pt-BR/**"
+      - "tests/test_locales/**"
+      - "docs/plugins/i18n.md"
+      - "docs/decisoes/ADR-0016-*.md"
+  # ------------------------------------------------------------------ M1 MVP: platform
+  43:
+    track: packaging
+    milestone: M1
+    adr: 17
+    owns:
+      - "install.sh"
+      - "Dockerfile"
+      - "compose.yaml"
+      - "deploy/docker/**"
+      - "src/simplicio_video/commands/doctor.py"
+      - "src/simplicio_video/commands/install.py"
+      - "src/simplicio_video/commands/update.py"
+      - "src/simplicio_video/commands/setup.py"
+      - "src/simplicio_video/commands/__init__.py"  # a #32 (host de plugins) ainda não está no repo; a #32 também lista este arquivo, então a sobreposição vale até ela ser mergeada
+      - "src/simplicio_video/cli.py"  # registra install, update, doctor e setup; comandos existentes não mudam. Sobreposição: a #32 também lista este arquivo (inteiro)
+      - "tests/packaging/**"
+      - "docs/how-to/install.md"
+      - "docs/host/packaging.md"
+      - "docs/decisoes/ADR-0017-*.md"
+  44:
+    track: docs-system
+    milestone: M1
+    owns:
+      - "README.md"
+      - "AGENTS.md"
+      - "CHANGELOG.md"
+      - "docs/README.md"
+      - "docs/glossary.md"
+      - "docs/how-to/README.md"
+      - "docs/tutorials/README.md"
+      - "docs/tutorials/primeiro-video.md"
+      - "docs/decisoes/README.md"
+      - "docs/plugins/README.md"
+      - "docs/host/README.md"
+      - "scripts/check_docs.py"
+      - "scripts/gen_reference.py"
+      - "mk/docs.mk"
+      - "tests/test_docs/**"
+      - "docs/reference/**"  # gerado por scripts/gen_reference.py (make regen)
+      # correção de link quebrado pela #74 (templates/, motion/, schema/ e schemas/ foram para src/simplicio_video/data/): só o caminho do link muda, nada mais
+      - "docs/pipeline-deterministico-gemini.md"
+      - "docs/plugin-simplicio-runtime.md"
+      - "docs/receita-video-cliente.md"
+      - "docs/venda-ativa.md"
+      - "docs/video-use-integracao.md"
+      - "src/simplicio_video/data/templates/README.md"  # também mudou de profundidade: ../intake e ../../ apontavam para fora
+      - "src/simplicio_video/data/templates/assistencia-tecnica-games/README.md"
+      - "src/simplicio_video/data/templates/saude-odontologia/README.md"
+      - "src/simplicio_video/data/templates/sazonal-dia-das-criancas/README.md"
+      - "clients/lothus-odontologia/video-01-dia-das-criancas/README.md"
+      # correção de link: caminho de coleta/ (gitignored, não existe no repo) vira código; nada mais muda
+      - "clients/lothus-odontologia/video-01-dia-das-criancas/roteiro.md"
+      - "clients/wjr-informatica-games/video-01/README.md"
+      - "clients/wjr-informatica-games/video-01/roteiro.md"
+      # correção de link: exemplos/ (não existe no repo) vira código; nada mais muda
+      - "intake/extracao-automatica.md"
+      - "intake/questionario.md"
+  46:
+    track: licenses
+    milestone: M1
+    owns:
+      - "scripts/licenses.py"
+      - "docs/licenses.md"
+      - "mk/licenses.mk"
+      - "tests/test_licenses.py"
+      - "docs/host/licenses.md"
+      - "docs/licenses-exceptions.yaml"
+  # ------------------------------------------------------------------ M1 close
+  48:
+    track: ui-e2e
+    milestone: M1
+    owns:
+      - "tests/e2e_ui/**"
+      - "docs/tutorials/panel.md"
+  49:
+    track: live-check
+    milestone: M1
+    owns:
+      - "docs/plugins/realoficial.md#live-verification-log"
+      - "tests/factory/plugins/realoficial/fixtures/tools.json"
+  50:
+    track: release
+    milestone: M1
+    owns:
+      - "CHANGELOG.md#v0.4.0"
+      - "constraints.txt"
+      - "docs/release/**"
+      - "pyproject.toml#project.version"
+  # ------------------------------------------------------------------ motor sem vendas
+  77:
+    track: motor-sem-vendas
+    status: ready
+    owns:
+      - "src/simplicio_video/cli.py"
+      - "src/simplicio_video/pipeline.py"
+      - "src/simplicio_video/mcp_server.py"
+      - "tests/test_help.py"
+      - "tests/test_mcp_server.py"
+      - "tests/test_pipeline.py"
+      - "tests/test_prospect.py"
+      - "tests/test_ugc.py"
+      - "tests/test_venda.py"
+      - "tests/test_motor_sem_vendas.py"
+  75:
+    track: motor-sem-drive
+    status: ready
+    owns:
+      - "schema/contract.schema.json"
+      - "src/simplicio_video/contract.py"
+      - "src/simplicio_video/render.py"
+      - "src/simplicio_video/publish.py"
+      - "src/simplicio_video/venda.py"
+      - "src/simplicio_video/scaffold.py"
+      - "src/simplicio_video/prospect.py"
+      - "src/simplicio_video/cli.py"
+      - "templates/institucional-advocacia/contract.base.yaml"
+      - "templates/institucional-estetica/contract.base.yaml"
+      - "templates/institucional-odontologia/contract.base.yaml"
+      - "templates/sazonal-dia-das-criancas/contract.base.yaml"
+      - "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml"
+      - "clients/lothus-odontologia/video-01-dia-das-criancas/render.manifest.json"
+      - "clients/wjr-informatica-games/video-01/contract.yaml"
+      - "clients/wjr-informatica-games/video-01/render.manifest.json"
+      - "tests/fixtures/mini/contract.yaml"
+      - "tests/test_contrato_sem_drive.py"
+      - "tests/test_schema.py"
+      - "tests/test_validate.py"
+      - "tests/test_render_determinism.py"
+      - "tests/test_publish.py"
+      - "tests/test_venda.py"
+      - "tests/test_prospect_institucional.py"
+      - "skills/simplicio-video/SKILL.md"
+      - "docs/receita-video-cliente.md"
+  76:
+    track: motor-marca
+    status: ready
+    owns:
+      - "schema/contract.schema.json"
+      - "src/simplicio_video/compiler.py"
+      - "src/simplicio_video/render.py"
+      - "src/simplicio_video/engine/build.mjs"
+      - "src/simplicio_video/cli.py"
+      - "src/simplicio_video/prospect.py"
+      - "tests/test_marca_contrato.py"
+      - "tests/test_prospect.py"
+      - "tests/test_prospect_institucional.py"
+  73:
+    track: motor-status
+    status: ready
+    owns:
+      - "src/simplicio_video/cli.py"
+      - "src/simplicio_video/status.py"
+      - "tests/test_status_json.py"
+  72:
+    track: motor-saida
+    status: ready
+    owns:
+      - "src/simplicio_video/cli.py"
+      - "schemas/cli/**"
+      - "tests/test_saida_json.py"
+  74:
+    track: motor-pacote
+    status: ready
+    owns:
+      - "src/simplicio_video/data/**"
+      - "schema/**"
+      - "schemas/**"
+      - "templates/**"
+      - "motion/**"
+      - "src/simplicio_video/paths.py"
+      - "src/simplicio_video/catalog.py"
+      - "src/simplicio_video/cli.py"
+      - "src/simplicio_video/mcp_server.py"
+      - "src/simplicio_video/contract.py"
+      - "src/simplicio_video/compiler.py"
+      - "src/simplicio_video/render.py"
+      - "src/simplicio_video/scaffold.py"
+      - "src/simplicio_video/prospect.py"
+      - "pyproject.toml#tool.setuptools"
+      - "tests/test_dados_pacote.py"
+      - "tests/test_validate.py"
+      - "tests/test_contrato_sem_drive.py"
+      - "tests/test_schema.py"
+      - "tests/test_prospect.py"
+      - "tests/test_prospect_institucional.py"
+      - "tests/test_saida_json.py"
+  # ------------------------------------------------------------------ backlog (elaborate before starting)
+  17: {track: plan, milestone: M3, status: backlog}
+  20: {track: library, milestone: M3, status: backlog}
+  21: {track: cast, milestone: M3, status: backlog}
+  39: {track: compliance, milestone: M3, status: backlog}
+  40: {track: realoficial-media, milestone: M3, status: backlog}
+  38: {track: postiz, milestone: M3, status: backlog}
+  42: {track: game-rules, milestone: M3, status: backlog}
+  25: {track: orchestrator-langgraph, milestone: M2, status: backlog}
+  26: {track: agents-crewai, milestone: M2, status: backlog}
+  27: {track: a2a, milestone: M2, status: backlog}
+  30: {track: observability, milestone: M2, status: backlog}
+  29: {track: learn, milestone: M2, status: backlog}
+  45: {track: evals, milestone: M2, status: backlog}
+  24: {track: agent-interface, milestone: M2, status: backlog}
+  56: {track: scene-three, milestone: M5, status: backlog}
+  57: {track: theme-packs, milestone: M5, status: backlog}
+  58: {track: locale-packs, milestone: M5, status: backlog}
+  59: {track: integrations-social-ads, milestone: M4, status: backlog}
+  60: {track: integrations-payments, milestone: M4, status: backlog}
+  61: {track: integrations-checkout, milestone: M4, status: backlog}
+  62: {track: integrations-crm, milestone: M4, status: backlog}
+  63: {track: integrations-attribution, milestone: M4, status: backlog}
+  64: {track: integrations-analytics, milestone: M4, status: backlog}
+  65: {track: integrations-vsl, milestone: M4, status: backlog}
+  66: {track: integrations-agent-runtimes, milestone: M4, status: backlog}
+  67: {track: integrations-ai-media, milestone: M4, status: backlog}
+  68: {track: site, milestone: M6, status: backlog}
+  69: {track: sponsors, milestone: M6, status: backlog}
+  70: {track: legal, milestone: M6, status: backlog}

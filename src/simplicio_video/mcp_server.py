@@ -1,8 +1,8 @@
 """MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
 
-Tools: video.init, video.validate, video.voice, video.render, video.publish, video.run, video.list.
-Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}). Long steps (render on
-kaggle/colab-cli) block until done. video.publish / video.run upload only with publish=true (explicit request).
+Tools: video.init, video.validate, video.voice, video.render, video.run, video.list, video.clone, video.montage,
+video.edit, video.opencut. Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
+Long steps (render on kaggle/colab-cli) block until done. O upload no Drive não é tool deste servidor.
 
 Run: `simplicio-video mcp` or `simplicio-video-mcp` (needs `pip install -e .[mcp]`).
 """
@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Any
 
 INSTRUCTIONS = ("simplicio-video: short marketing videos from a simplicio.video-contract/v1 YAML "
-                "(schema/contract.schema.json; how to write it: skills/simplicio-video/SKILL.md). "
+                "(src/simplicio_video/data/schema/contract.schema.json; how to write it: skills/simplicio-video/SKILL.md). "
                 "Flow: video.init -> fill TODOs from clients/<slug>/coleta -> video.validate -> video.voice -> "
-                "video.render -> video.publish (or video.run for voice->render->publish). Never invent client facts, "
-                "never speed up the voice; publish=true only when the user explicitly asked to upload.")
+                "video.render (or video.run for voice->render). Never invent client facts, never speed up the voice. "
+                "The upload is not a tool here: it is done by the operation tool.")
 
 
 def _capture(fn, *a, **k) -> dict[str, Any]:
@@ -83,23 +83,17 @@ def video_render(contrato: str, backend: str = "local", accelerator: str | None 
     return _capture(_do)
 
 
-def video_publish(contrato: str, publish: bool = False, remote: str | None = None, file: str | None = None) -> dict:
-    from . import contract as ct
-    from . import publish as pub
-    return _capture(pub.publish, ct.load(contrato), file=Path(file) if file else None, remote=remote, dry_run=not publish)
-
-
 def video_run(contrato: str, provider: str | None = None, backend: str = "local", accelerator: str | None = None,
-              quality: str | None = None, publish: bool = False, remote: str | None = None, timeout: int = 3600) -> dict:
+              quality: str | None = None, timeout: int = 3600) -> dict:
     from . import pipeline
     return _capture(pipeline.run_all, contrato, provider=provider, backend=backend, accelerator=accelerator, quality=quality,
-                    publish=publish, remote=remote, timeout=timeout)
+                    timeout=timeout)
 
 
 def video_list(what: str = "templates") -> dict:
     from . import catalog, paths
-    h = paths.home()
-    rows = {"templates": lambda: catalog.templates(h), "motion": lambda: catalog.motion(h), "voices": catalog.voices}[what]()
+    d = paths.data_dir()
+    rows = {"templates": lambda: catalog.templates(d), "motion": lambda: catalog.motion(d), "voices": catalog.voices}[what]()
     return {"ok": True, "items": rows}
 
 
@@ -132,9 +126,7 @@ TOOLS = [
     ("video.validate", video_validate, "Validate a contract: JSON Schema, assets, scene durations, every line fits (need_lock before render)."),
     ("video.voice", video_voice, "Generate/cache narration (provider file|local|gemini) and write timing.lock.json with real durations."),
     ("video.render", video_render, "Render the contract: backend local | kaggle (GPU T4) | colab-cli | colab (bundle only). Returns manifest summary."),
-    ("video.publish", video_publish, "Upload the MP4 to Google Drive at drive.caminho (rclone) and write the link in the client README. "
-                                     "Dry-run unless publish=true (only when the user explicitly asked)."),
-    ("video.run", video_run, "voice -> validate -> render -> publish in one call (publish dry-run unless publish=true)."),
+    ("video.run", video_run, "voice -> validate -> render in one call (stops at the MP4; no upload)."),
     ("video.list", video_list, "List templates, motion patterns or voice providers (what = templates|motion|voices)."),
     ("video.clone", video_clone, "Clone videos using Hypit AI (https://github.com/hypit-ai/hypit)."),
     ("video.montage", video_montage, "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage)."),

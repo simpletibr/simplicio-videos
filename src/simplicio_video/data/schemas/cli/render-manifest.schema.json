@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.render-manifest/v1",
+  "title": "render.manifest.json",
+  "description": "Manifesto da entrega (render.manifest.json, ao lado do contrato). O mesmo formato para todos os backends. Só o formato: o conteúdo é o que render.py grava. $schema é opcional (a chave schema identifica a versão).",
+  "type": "object",
+  "required": ["schema", "contract", "contract_sha256", "timing_lock_sha256", "template", "backend", "quality", "gpu_encode",
+               "inputs_sha256", "inputs", "tools", "output", "loudness", "timings_s"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema": { "const": "simplicio.render-manifest/v1" },
+    "contract": { "type": "string", "description": "caminho do contrato, relativo à raiz do motor" },
+    "contract_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timing_lock_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "template": { "type": "string" },
+    "backend": { "enum": ["local", "kaggle", "colab-cli", "colab"] },
+    "quality": { "enum": ["draft", "looks", "delivery"] },
+    "gpu_encode": { "type": "boolean" },
+    "inputs_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "inputs": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
+    "tools": { "type": "object", "description": "versões das ferramentas (remotos: também bundle_built_with)" },
+    "output": {
+      "type": "object",
+      "required": ["path", "sha256", "duration_s", "frames", "video_frames_sha256", "audio_pcm_sha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "duration_s": { "type": "number" },
+        "frames": { "type": "integer", "minimum": 0 },
+        "video_frames_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "audio_pcm_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "loudness": {
+      "type": "object",
+      "required": ["integrated_lufs", "true_peak_dbfs"],
+      "properties": {
+        "integrated_lufs": { "type": ["number", "null"] },
+        "true_peak_dbfs": { "type": ["number", "null"] }
+      }
+    },
+    "timings_s": { "type": "object", "additionalProperties": { "type": ["number", "null"] } },
+    "usage": { "type": "object", "description": "só nos backends remotos (créditos)" }
+  }
+}

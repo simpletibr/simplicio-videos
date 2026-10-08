@@ -1,6 +1,6 @@
 # Receita — vídeo de cliente do pedido à entrega
 
-**Regra:** o agente (LLM) **raciocina e escreve o contrato**; o CLI `simplicio-video` **executa** (validação, voz, render). Nada de editar HTML/spec à mão. Skill para LLMs: [`skills/simplicio-video/SKILL.md`](../skills/simplicio-video/SKILL.md) · decisões: [ADR-0002](decisoes/ADR-0002-cli-contrato-colab-creditos.md), [ADR-0003](decisoes/ADR-0003-fluxo-100-script.md) (fluxo 100% script) · schema: [`schema/contract.schema.json`](../schema/contract.schema.json).
+**Regra:** o agente (LLM) **raciocina e escreve o contrato**; o CLI `simplicio-video` **executa** (validação, voz, render). Nada de editar HTML/spec à mão. Skill para LLMs: [`skills/simplicio-video/SKILL.md`](../skills/simplicio-video/SKILL.md) · decisões: [ADR-0002](decisoes/ADR-0002-cli-contrato-colab-creditos.md), [ADR-0003](decisoes/ADR-0003-fluxo-100-script.md) (fluxo 100% script) · schema: [`schema/contract.schema.json`](../src/simplicio_video/data/schema/contract.schema.json).
 
 Exemplos reais: [WJR video-01](../clients/wjr-informatica-games/video-01/contract.yaml) (porte 1:1 do vídeo entregue) e [Lothus Dia_Criancas](../clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml) (feito só pelo CLI).
 
@@ -34,7 +34,7 @@ Preencha o esqueleto (todo `TODO` bloqueia o `validate`):
 
 ## 3. Validar
 ```bash
-simplicio-video validate <contrato.yaml>          # schema, assets, soma das durações, falas cabem, drive, TODO
+simplicio-video validate <contrato.yaml>          # schema, assets, soma das durações, falas cabem, TODO
 ```
 
 ## 4. Voz
@@ -62,7 +62,7 @@ simplicio-video run <contrato.yaml> --provider gemini --backend local   # voz + 
 ## 6. Entrega no Google Drive
 - Caminho: `simplicio-video/clientes/NOME_CLIENTE/ANO/CAMPANHA`
   - `NOME_CLIENTE` em Title_Case com underscore, sem acento (ex.: `Lothus_Odontologia`, `WJR_Informatica_Games`).
-  - `CAMPANHA` idem (ex.: `Dia_Criancas`, `Video_Institucional`). O contrato valida `drive.caminho` contra `cliente.drive_nome`/`campanha`.
+  - `CAMPANHA` idem (ex.: `Dia_Criancas`, `Video_Institucional`). O contrato não tem bloco `drive` (issue #75): esse caminho é convenção de quem entrega, fora do motor.
 - Nome do arquivo: `<CLIENTE> - <descricao> - vNN.mp4` (ex.: `Lothus - Dia das Criancas 15s - v01.mp4`); nova versão = vNN+1.
 - O repositório guarda **links**, nunca o MP4 final. Todo link novo entra na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
 - Upload: `simplicio-video publish <contrato.yaml>` (rclone, remote `gdrive`, configurado uma vez) ou `run ... --publish`. Nunca sobrescreve, é idempotente e grava o link na tabela sozinho. **Só com pedido explícito do Wesley;** sem pedido, use `publish --dry-run`.

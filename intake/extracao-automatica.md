@@ -1,6 +1,6 @@
 # Extração automática (site / Instagram)
 
-Objetivo: preencher o máximo do `intake.json` sozinho, **com fonte e data em cada fato**, e perguntar só o resto. Referência do que sai: [`exemplos/wjr-informatica-games.intake.json`](exemplos/wjr-informatica-games.intake.json) (extraído do site e do Instagram públicos da WJR em 30/09/2026).
+Objetivo: preencher o máximo do `intake.json` sozinho, **com fonte e data em cada fato**, e perguntar só o resto. Referência do que sai: `exemplos/wjr-informatica-games.intake.json` (extraído do site e do Instagram públicos da WJR em 30/09/2026).
 
 ## Regras gerais
 

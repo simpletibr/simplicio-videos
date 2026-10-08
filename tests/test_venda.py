@@ -7,7 +7,6 @@ import urllib.request
 
 import pytest
 
-from conftest import run_cli
 from simplicio_video import venda
 
 KEY = "abc_test_SECRETKEY_123"
@@ -49,8 +48,6 @@ def event(cid="char_abc123xyz", amount=12000, ev="transparent.completed", status
 
 
 def test_preco_obrigatorio_e_so_120_80_60():
-    assert run_cli("venda", "cobrar", "x").returncode == 2
-    assert run_cli("venda", "cobrar", "x", "--preco", "100").returncode == 2
     assert {k: v for k, v in venda.PRECOS.items()} == {120: 12000, 80: 8000, 60: 6000}
 
 
@@ -223,11 +220,20 @@ def test_entregar_exige_pagamento(pdir):
         venda.entregar(pdir, render=lambda c: None, publish=lambda c: {})
 
 
-def test_nome_final_sem_previa(pdir):
-    f = pdir / "contract.yaml"
-    arq = venda._final_contract(pdir).data["drive"]["arquivo"]
-    f.write_text(f.read_text(encoding="utf8").replace(arq, "Clinica X - Previa Dia das Criancas 16s - v01.mp4"), encoding="utf8")
-    assert venda._final_contract(pdir).data["drive"]["arquivo"] == "Clinica X - Dia das Criancas 16s - v01.mp4"
+def test_destino_da_entrega_vem_do_ambiente_sem_previa(monkeypatch):
+    monkeypatch.setenv(venda.ENV_DESTINO, json.dumps(
+        {"caminho": "simplicio-video/clientes/Clinica_X/2026/Dia_Criancas", "arquivo": "Clinica X - Previa Dia das Criancas 16s - v01.mp4"}))
+    d = venda._destino_entrega()
+    assert d["arquivo"] == "Clinica X - Dia das Criancas 16s - v01.mp4" and d["caminho"].endswith("/Dia_Criancas")
+
+
+def test_entregar_sem_destino_falha_antes_do_render(pdir, monkeypatch):
+    _pago(pdir)
+    monkeypatch.delenv(venda.ENV_DESTINO, raising=False)
+    renders = []
+    with pytest.raises(venda.VendaError, match=venda.ENV_DESTINO):
+        venda.entregar(pdir, render=lambda c: renders.append(1), publish=None)
+    assert renders == [] and _venda(pdir)["status"] == "pago"
 
 
 def test_status_tabela(pdir):

@@ -1,6 +1,6 @@
 # Roteiro — video-01 "showreel" (Reels 9:16 · 20 s · 30 fps · 120 BPM)
 
-Toda a copy vem de [`../coleta/`](../coleta/): site do cliente (fontes S1/S2) + **serviços confirmados pelo Wesley em 30/09/2026** (fonte S3: limpeza de controle, troca de metal líquido do PS5, analógico Hall Effect nos controles de PS5 e PS4). Rastreio em [`../coleta/pendencias.md`](../coleta/pendencias.md). Nada de preço, prazo, garantia, nota de avaliação ou promessa de "fim do drift" até o cliente confirmar.
+Toda a copy vem de `../coleta/`: site do cliente (fontes S1/S2) + **serviços confirmados pelo Wesley em 30/09/2026** (fonte S3: limpeza de controle, troca de metal líquido do PS5, analógico Hall Effect nos controles de PS5 e PS4). Rastreio em `../coleta/pendencias.md`. Nada de preço, prazo, garantia, nota de avaliação ou promessa de "fim do drift" até o cliente confirmar.
 Espírito: "showreel de motion designer" (ver `PROMPT.md` §0) — cada corte cai no tempo da música, cada texto tem um golpe sonoro.
 
 **Grade:** 120 BPM → 1 beat = 0,5 s, 1 compasso = 2 s. Cortes de cena caem em beats; o drop do CTA cai no beat 33 (16,5 s). Os tempos abaixo são os mesmos de `spec.json → audio.cues` e dos `tl.*(…, t)` em `index.html`; mudou um, mude os três. Os cortes foram desenhados **em volta da duração real de cada frase da narração** (sem acelerar a voz).

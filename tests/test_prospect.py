@@ -202,7 +202,7 @@ def test_batch_so_contrato_report_and_resume(tmp_path, monkeypatch):
 
 def test_preview_filter_has_watermark_and_end_card(tmp_path):
     from simplicio_video import render
-    fc = render.preview_filter(16.0, render.preview_font(ROOT), tmp_path)
+    fc = render.preview_filter(16.0, render.preview_font(ROOT), tmp_path, marca=P.MARCA_PREVIA, chrome=P.SELO_PREVIA)
     assert "scale=540:960" in fc and "rotate=-30*PI/180" in fc and "concat=n=2:v=1:a=1" in fc
     assert (tmp_path / "wm.txt").read_text().count("Prévia • Wesley Simplicio • @wesleysimplicio") == 3
     assert (tmp_path / "end1.txt").read_text() == "Vídeo feito por Wesley Simplicio" and (tmp_path / "end2.txt").read_text() == "@wesleysimplicio"
@@ -210,12 +210,10 @@ def test_preview_filter_has_watermark_and_end_card(tmp_path):
     assert render.PREVIEW["crf"] >= 28 and render.PREVIEW["fps"] == 30
 
 
-def test_cli_help_mentions_prospect():
-    r = run_cli("prospect", "--help")
-    assert r.returncode == 0 and "robots.txt" in r.stdout and "LGPD" in r.stdout and "lote.csv" in r.stdout
-    assert run_cli("batch", "--help").returncode == 0
+def test_cli_render_help_keeps_preview():  # o subcomando prospect saiu do motor (#77); o --preview do render fica
     r = run_cli("render", "--help")
-    assert "--preview" in r.stdout and "@wesleysimplicio" in r.stdout and "simpleti" not in r.stdout.lower()
+    assert "--preview" in r.stdout and "marca.dagua" in r.stdout and "simpleti" not in r.stdout.lower()
+    assert "wesley" not in r.stdout.lower()  # o motor não cita pessoa nem empresa (issue #76)
 
 
 # ------------------------------------------------------------------ standard v2 (pilot All Prime, 30/09/2026)
@@ -227,7 +225,7 @@ def _png(tmp_path, w=240, h=240, name="logo-src.png"):
 
 
 def test_standard_v2_is_the_default_lothus_pacing_laomedeia_voice_same_track():
-    base = yaml.safe_load((ROOT / "templates/sazonal-dia-das-criancas/contract.base.yaml").read_text(encoding="utf8"))
+    base = yaml.safe_load((ROOT / "src" / "simplicio_video" / "data" / "templates" / "sazonal-dia-das-criancas" / "contract.base.yaml").read_text(encoding="utf8"))
     lothus = yaml.safe_load((ROOT / "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml").read_text(encoding="utf8"))
     v = base["voz"]
     assert P.DEFAULT_PROVIDER == "gemini" and v["provider"] == "gemini" and v["voice"] == "Laomedeia"
@@ -244,11 +242,6 @@ def test_standard_v2_is_the_default_lothus_pacing_laomedeia_voice_same_track():
     assert sum(m["padrao"] in ("balloons-confetti", "beat-burst") for m in motion) >= 6  # confetti in every scene
     words = [m for m in motion if m["padrao"] == "kinetic-words"]
     assert [m["params"]["times"] for m in words] == [f"{{{{words:vo{i}}}}}" for i in range(1, 5)]  # word by word, on the voice
-    import argparse  # CLI default follows the standard
-    from simplicio_video import cli
-    ap = cli.build_parser() if hasattr(cli, "build_parser") else None
-    if isinstance(ap, argparse.ArgumentParser):
-        assert ap.parse_args(["prospect", "x.csv"]).provider == "gemini"
 
 
 def test_real_logo_from_site_goes_into_the_lockup(tmp_path):
