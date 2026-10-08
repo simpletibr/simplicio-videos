@@ -539,6 +539,40 @@ issues:
       - "docs/decisoes/README.md"   # índice de ADRs (acréscimo: só a linha do ADR do render final)
       - "docs/host/README.md"   # índice de host (acréscimo: só a linha de duas-rotas.md)
 
+  # ------------------------------------------------------------------ M1 rota no studio.json (épico #81)
+  95:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/studio/stage.py#_gravar_estado,run,import DEFAULT_ROUTE"   # studio.json grava o production real do item (arquivo da #16)
+      - "tests/factory/plugins/studio/test_studio_rota.py"   # épico #81
+
+  # ------------------------------------------------------------------ post-mvp, opcional: servidor local do quadro (épico #81)
+  89:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/board/serve.py"
+      - "src/simplicio_factory/plugins/board/cli.py#serve"   # só o subcomando serve (cli.py é do #86)
+      - "src/simplicio_factory/plugins/board/plugin.json"   # só o texto de help do comando board (lista serve)
+      - "tests/factory/plugins/board/test_serve.py"
+      - "tests/factory/plugins/board/test_board_comentarios.py#test_plugin_nao_importa_modulos_de_rede_nem_llm"   # exceção: serve.py importa http.server (só 127.0.0.1); socket, urllib e clientes de rede seguem proibidos
+      - "docs/plugins/board.md#servidor"   # seção Servidor, e a linha `commands` do front matter
+
+  # ------------------------------------------------------------------ M2 integração LangFlow (épico #81, post-mvp)
+  84:   # post-mvp
+    track: integration
+    milestone: M2
+    status: ready
+    owns:
+      - "examples/langflow/**"
+      - "tests/test_langflow_recipe.py"
+      - "docs/how-to/langflow.md"
+      - "docs/how-to/README.md"   # índice de guias (acréscimo: só a linha do langflow)
+      - "docs/legal/terceiros.md#LangFlow"   # só a seção LangFlow (o arquivo é da #70)
+
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}

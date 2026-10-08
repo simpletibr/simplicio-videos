@@ -1,0 +1,374 @@
+{
+  "id": "7e1d4c2a-5b3f-4a8e-9c6d-2f1b0a9e8d7c",
+  "name": "simplicio-video: quadro e estado",
+  "description": "Lê o quadro (`simplicio-video board list --json`) e o estado do motor (`simplicio-video status --json`) pelo CLI. Antes de rodar, crie o item no terminal com `simplicio-video make --from draft.json --brand brand.json`: make não tem --json, por isso fica fora do componente.",
+  "data": {
+    "nodes": [
+      {
+        "id": "SimplicioVideoComponent-quadro",
+        "type": "genericNode",
+        "position": {
+          "x": 0,
+          "y": 80
+        },
+        "data": {
+          "id": "SimplicioVideoComponent-quadro",
+          "type": "SimplicioVideoComponent",
+          "showNode": true,
+          "node": {
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "required": true,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": true,
+                "value": "\"\"\"Componente LangFlow para o motor de vídeo, pela linha de comando (#84, épico #81).\n\nO componente roda só os comandos do CLI que têm --json (conferido no --help real): validate, render,\nstatus e board list. Cada chamada é uma lista de argumentos para subprocess, sem shell e sem texto montado\npor concatenação. O JSON que o CLI imprime volta como dicionário. Quando o CLI devolve ok=false, ou quando\nnão há JSON, a chamada levanta ErroMotor com o código do motor.\n\nO módulo importa sem o LangFlow instalado. As funções puras (montar_argv, interpretar_saida, executar)\nnão dependem dele; a classe do componente só existe quando LANGFLOW_DISPONIVEL é True. Versão do LangFlow:\na fixar na primeira execução real; não testado contra uma instalação real nesta entrega.\n\nExecutável: o campo `executavel` do componente, depois a variável SIMPLICIO_VIDEO_BIN, depois o padrão\n`simplicio-video` (do PATH). Receita completa: docs/how-to/langflow.md.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport json\nimport os\nimport subprocess\nfrom typing import Any\n\ntry:  # LangFlow é opcional: sem ele, o módulo segue importável e testável.\n    from langflow.custom import Component\n    from langflow.io import BoolInput, DropdownInput, MessageTextInput, Output\n    from langflow.schema import Data\n\n    LANGFLOW_DISPONIVEL = True\nexcept ImportError:\n    LANGFLOW_DISPONIVEL = False\n\nEXECUTAVEL_PADRAO = \"simplicio-video\"\nVARIAVEL_EXECUTAVEL = \"SIMPLICIO_VIDEO_BIN\"\n# Limite para o subprocess não travar o fluxo. O render local pode levar minutos.\nTIMEOUT_S = 3600\n\n# Comandos do CLI com --json. `make` não tem --json e por isso não entra aqui.\nCOMANDOS: dict[str, tuple[str, ...]] = {\n    \"validate\": (\"validate\", \"--json\"),\n    \"render\": (\"render\", \"--json\"),\n    \"status\": (\"status\", \"--json\"),\n    \"board_list\": (\"board\", \"list\", \"--json\"),\n}\nEXIGE_CONTRATO = frozenset({\"validate\", \"render\"})\nCONTRATO_OPCIONAL = frozenset({\"status\"})\n\n\nclass ErroMotor(RuntimeError):\n    \"\"\"Falha do motor: `codigo` é o error.code do CLI (ou um código da própria receita).\"\"\"\n\n    def __init__(self, codigo: str, mensagem: str):\n        self.codigo = codigo\n        self.mensagem = mensagem\n        super().__init__(f\"simplicio-video [{codigo}]: {mensagem}\")\n\n\ndef _executavel(valor: Any) -> str:\n    escolhido = (\n        os.fspath(valor)\n        if valor\n        else os.environ.get(VARIAVEL_EXECUTAVEL) or EXECUTAVEL_PADRAO\n    )\n    if not escolhido.strip() or \"\\x00\" in escolhido:\n        raise ValueError(f\"executável inválido: {escolhido!r}\")\n    return escolhido\n\n\ndef _caminho(valor: Any) -> str:\n    texto = os.fspath(valor)\n    # Um caminho que começa com \"-\" seria lido pelo CLI como opção; recusamos.\n    if not texto.strip() or texto.startswith(\"-\") or \"\\x00\" in texto:\n        raise ValueError(f\"caminho de contrato inválido: {texto!r}\")\n    return texto\n\n\ndef montar_argv(\n    comando: str,\n    *,\n    contrato: Any = None,\n    executavel: Any = None,\n    need_lock: bool = False,\n    preview: bool = False,\n) -> list[str]:\n    \"\"\"Monta a lista de argumentos. Cada parte é um item da lista; nada é juntado em texto.\"\"\"\n    if comando not in COMANDOS:\n        raise ValueError(\n            f\"comando desconhecido: {comando!r} (use um de {sorted(COMANDOS)})\"\n        )\n    if comando in EXIGE_CONTRATO and contrato is None:\n        raise ValueError(f\"{comando} precisa do caminho do contrato\")\n    if contrato is not None and comando not in EXIGE_CONTRATO | CONTRATO_OPCIONAL:\n        raise ValueError(f\"{comando} não recebe contrato\")\n    if need_lock and comando != \"validate\":\n        raise ValueError(\"need_lock só vale para validate\")\n    if preview and comando != \"render\":\n        raise ValueError(\"preview só vale para render\")\n\n    argv = [_executavel(executavel), *COMANDOS[comando]]\n    if need_lock:\n        argv.append(\"--need-lock\")\n    if preview:\n        argv.append(\"--preview\")\n    if contrato is not None:\n        argv.append(_caminho(contrato))\n    return argv\n\n\ndef _erro_do_payload(payload: dict[str, Any]) -> tuple[str, str]:\n    erro = payload.get(\"error\")\n    if isinstance(erro, dict):\n        return str(erro.get(\"code\") or \"ERRO_MOTOR\"), str(\n            erro.get(\"message\") or \"sem mensagem\"\n        )\n    errors = payload.get(\"errors\") or []\n    if errors:\n        return \"CONTRATO_INVALIDO\", \"; \".join(str(item) for item in errors)\n    return \"ERRO_MOTOR\", \"falha sem detalhe\"\n\n\ndef interpretar_saida(\n    comando: str, returncode: int, stdout: str, stderr: str = \"\"\n) -> dict[str, Any]:\n    \"\"\"Transforma a saída do CLI em dicionário, ou em ErroMotor quando o motor reportou falha.\"\"\"\n    try:\n        payload = json.loads(stdout or \"\")\n    except json.JSONDecodeError as exc:\n        trecho = (stderr or stdout or \"\").strip()[-300:]\n        raise ErroMotor(\n            \"SAIDA_INVALIDA\",\n            f\"{comando}: o CLI não imprimiu JSON (código {returncode}). {trecho}\",\n        ) from exc\n    if not isinstance(payload, dict):\n        raise ErroMotor(\"SAIDA_INVALIDA\", f\"{comando}: o JSON não é um objeto\")\n    if payload.get(\"ok\") is False:\n        raise ErroMotor(*_erro_do_payload(payload))\n    if returncode != 0:\n        raise ErroMotor(\n            \"SAIDA_INESPERADA\", f\"{comando}: código {returncode} sem ok=false\"\n        )\n    return payload\n\n\ndef executar(\n    comando: str,\n    *,\n    contrato: Any = None,\n    executavel: Any = None,\n    need_lock: bool = False,\n    preview: bool = False,\n) -> dict[str, Any]:\n    \"\"\"Roda um comando do CLI com --json e devolve o JSON. Não usa shell.\"\"\"\n    argv = montar_argv(\n        comando,\n        contrato=contrato,\n        executavel=executavel,\n        need_lock=need_lock,\n        preview=preview,\n    )\n    try:\n        resultado = subprocess.run(\n            argv,\n            shell=False,\n            capture_output=True,\n            text=True,\n            timeout=TIMEOUT_S,\n            check=False,\n        )\n    except FileNotFoundError as exc:\n        raise ErroMotor(\n            \"FERRAMENTA_AUSENTE\",\n            f\"executável não encontrado: {argv[0]!r}. Instale o pacote (simplicio-video) ou aponte o caminho \"\n            f\"(campo executavel ou {VARIAVEL_EXECUTAVEL}).\",\n        ) from exc\n    except subprocess.TimeoutExpired as exc:\n        raise ErroMotor(\"TEMPO_ESGOTADO\", f\"{comando} passou de {TIMEOUT_S} s\") from exc\n    return interpretar_saida(\n        comando, resultado.returncode, resultado.stdout, resultado.stderr\n    )\n\n\nif LANGFLOW_DISPONIVEL:\n\n    class SimplicioVideoComponent(Component):\n        display_name = \"simplicio-video\"\n        description = \"Chama o CLI do motor (só comandos com --json) e devolve o JSON.\"\n        icon = \"video\"\n        name = \"SimplicioVideoComponent\"\n\n        inputs = [\n            DropdownInput(\n                name=\"comando\",\n                display_name=\"Comando\",\n                options=list(COMANDOS),\n                value=\"board_list\",\n                info=\"board_list lê o quadro; status mostra o estado do motor.\",\n            ),\n            MessageTextInput(\n                name=\"contrato\",\n                display_name=\"Contrato (YAML)\",\n                value=\"\",\n                info=\"Obrigatório para validate e render; opcional para status.\",\n            ),\n            MessageTextInput(\n                name=\"executavel\",\n                display_name=\"Executável\",\n                value=\"\",\n                info=\"Vazio = SIMPLICIO_VIDEO_BIN; sem ela, o executável do PATH.\",\n            ),\n            BoolInput(\n                name=\"need_lock\", display_name=\"Exigir timing.lock.json\", value=False\n            ),\n            BoolInput(\n                name=\"preview\", display_name=\"Prévia 540x960 (render)\", value=False\n            ),\n        ]\n        outputs = [Output(display_name=\"Resultado\", name=\"resultado\", method=\"rodar\")]\n\n        def rodar(self) -> Data:\n            comando = self.comando\n            usa_contrato = comando in EXIGE_CONTRATO | CONTRATO_OPCIONAL\n            contrato = (self.contrato or None) if usa_contrato else None\n            payload = executar(\n                comando,\n                contrato=contrato,\n                executavel=self.executavel or None,\n                need_lock=bool(self.need_lock) and comando == \"validate\",\n                preview=bool(self.preview) and comando == \"render\",\n            )\n            return Data(data=payload)\n",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "code",
+                "advanced": true,
+                "dynamic": true,
+                "info": "",
+                "load_from_db": false,
+                "title_case": false
+              },
+              "comando": {
+                "type": "str",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "options": [
+                  "validate",
+                  "render",
+                  "status",
+                  "board_list"
+                ],
+                "value": "board_list",
+                "name": "comando",
+                "display_name": "Comando",
+                "advanced": false,
+                "dynamic": false,
+                "info": "board_list lê o quadro; status mostra o estado do motor.",
+                "title_case": false,
+                "input_types": [],
+                "load_from_db": false
+              },
+              "contrato": {
+                "type": "str",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": false,
+                "value": "",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "contrato",
+                "display_name": "Contrato (YAML)",
+                "advanced": false,
+                "dynamic": false,
+                "info": "Obrigatório para validate e render; opcional para status.",
+                "title_case": false,
+                "input_types": [
+                  "Message"
+                ],
+                "load_from_db": false
+              },
+              "executavel": {
+                "type": "str",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": false,
+                "value": "",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "executavel",
+                "display_name": "Executável",
+                "advanced": false,
+                "dynamic": false,
+                "info": "Vazio = SIMPLICIO_VIDEO_BIN; sem ela, o executável do PATH.",
+                "title_case": false,
+                "input_types": [
+                  "Message"
+                ],
+                "load_from_db": false
+              },
+              "need_lock": {
+                "type": "bool",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "value": false,
+                "name": "need_lock",
+                "display_name": "Exigir timing.lock.json",
+                "advanced": false,
+                "dynamic": false,
+                "info": "",
+                "title_case": false
+              },
+              "preview": {
+                "type": "bool",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "value": false,
+                "name": "preview",
+                "display_name": "Prévia 540x960 (render)",
+                "advanced": false,
+                "dynamic": false,
+                "info": "",
+                "title_case": false
+              }
+            },
+            "description": "Lê o quadro: `simplicio-video board list --json` (schema simplicio.board/v1).",
+            "display_name": "simplicio-video",
+            "base_classes": [
+              "Data"
+            ],
+            "outputs": [
+              {
+                "types": [
+                  "Data"
+                ],
+                "selected": "Data",
+                "name": "resultado",
+                "display_name": "Resultado",
+                "method": "rodar",
+                "value": "__UNDEFINED__",
+                "cache": true,
+                "required_inputs": [],
+                "allows_loop": false,
+                "tool_mode": false
+              }
+            ],
+            "field_order": [
+              "comando",
+              "contrato",
+              "executavel",
+              "need_lock",
+              "preview"
+            ],
+            "icon": "video",
+            "documentation": "",
+            "minimized": false,
+            "custom_fields": {},
+            "output_types": [],
+            "pinned": false,
+            "conditional_paths": [],
+            "frozen": false,
+            "legacy": false,
+            "error": null,
+            "edited": false,
+            "metadata": {},
+            "tool_mode": false
+          }
+        },
+        "selected": false,
+        "width": 384,
+        "height": 400,
+        "dragging": false
+      },
+      {
+        "id": "SimplicioVideoComponent-estado",
+        "type": "genericNode",
+        "position": {
+          "x": 480,
+          "y": 80
+        },
+        "data": {
+          "id": "SimplicioVideoComponent-estado",
+          "type": "SimplicioVideoComponent",
+          "showNode": true,
+          "node": {
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "required": true,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": true,
+                "value": "\"\"\"Componente LangFlow para o motor de vídeo, pela linha de comando (#84, épico #81).\n\nO componente roda só os comandos do CLI que têm --json (conferido no --help real): validate, render,\nstatus e board list. Cada chamada é uma lista de argumentos para subprocess, sem shell e sem texto montado\npor concatenação. O JSON que o CLI imprime volta como dicionário. Quando o CLI devolve ok=false, ou quando\nnão há JSON, a chamada levanta ErroMotor com o código do motor.\n\nO módulo importa sem o LangFlow instalado. As funções puras (montar_argv, interpretar_saida, executar)\nnão dependem dele; a classe do componente só existe quando LANGFLOW_DISPONIVEL é True. Versão do LangFlow:\na fixar na primeira execução real; não testado contra uma instalação real nesta entrega.\n\nExecutável: o campo `executavel` do componente, depois a variável SIMPLICIO_VIDEO_BIN, depois o padrão\n`simplicio-video` (do PATH). Receita completa: docs/how-to/langflow.md.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport json\nimport os\nimport subprocess\nfrom typing import Any\n\ntry:  # LangFlow é opcional: sem ele, o módulo segue importável e testável.\n    from langflow.custom import Component\n    from langflow.io import BoolInput, DropdownInput, MessageTextInput, Output\n    from langflow.schema import Data\n\n    LANGFLOW_DISPONIVEL = True\nexcept ImportError:\n    LANGFLOW_DISPONIVEL = False\n\nEXECUTAVEL_PADRAO = \"simplicio-video\"\nVARIAVEL_EXECUTAVEL = \"SIMPLICIO_VIDEO_BIN\"\n# Limite para o subprocess não travar o fluxo. O render local pode levar minutos.\nTIMEOUT_S = 3600\n\n# Comandos do CLI com --json. `make` não tem --json e por isso não entra aqui.\nCOMANDOS: dict[str, tuple[str, ...]] = {\n    \"validate\": (\"validate\", \"--json\"),\n    \"render\": (\"render\", \"--json\"),\n    \"status\": (\"status\", \"--json\"),\n    \"board_list\": (\"board\", \"list\", \"--json\"),\n}\nEXIGE_CONTRATO = frozenset({\"validate\", \"render\"})\nCONTRATO_OPCIONAL = frozenset({\"status\"})\n\n\nclass ErroMotor(RuntimeError):\n    \"\"\"Falha do motor: `codigo` é o error.code do CLI (ou um código da própria receita).\"\"\"\n\n    def __init__(self, codigo: str, mensagem: str):\n        self.codigo = codigo\n        self.mensagem = mensagem\n        super().__init__(f\"simplicio-video [{codigo}]: {mensagem}\")\n\n\ndef _executavel(valor: Any) -> str:\n    escolhido = (\n        os.fspath(valor)\n        if valor\n        else os.environ.get(VARIAVEL_EXECUTAVEL) or EXECUTAVEL_PADRAO\n    )\n    if not escolhido.strip() or \"\\x00\" in escolhido:\n        raise ValueError(f\"executável inválido: {escolhido!r}\")\n    return escolhido\n\n\ndef _caminho(valor: Any) -> str:\n    texto = os.fspath(valor)\n    # Um caminho que começa com \"-\" seria lido pelo CLI como opção; recusamos.\n    if not texto.strip() or texto.startswith(\"-\") or \"\\x00\" in texto:\n        raise ValueError(f\"caminho de contrato inválido: {texto!r}\")\n    return texto\n\n\ndef montar_argv(\n    comando: str,\n    *,\n    contrato: Any = None,\n    executavel: Any = None,\n    need_lock: bool = False,\n    preview: bool = False,\n) -> list[str]:\n    \"\"\"Monta a lista de argumentos. Cada parte é um item da lista; nada é juntado em texto.\"\"\"\n    if comando not in COMANDOS:\n        raise ValueError(\n            f\"comando desconhecido: {comando!r} (use um de {sorted(COMANDOS)})\"\n        )\n    if comando in EXIGE_CONTRATO and contrato is None:\n        raise ValueError(f\"{comando} precisa do caminho do contrato\")\n    if contrato is not None and comando not in EXIGE_CONTRATO | CONTRATO_OPCIONAL:\n        raise ValueError(f\"{comando} não recebe contrato\")\n    if need_lock and comando != \"validate\":\n        raise ValueError(\"need_lock só vale para validate\")\n    if preview and comando != \"render\":\n        raise ValueError(\"preview só vale para render\")\n\n    argv = [_executavel(executavel), *COMANDOS[comando]]\n    if need_lock:\n        argv.append(\"--need-lock\")\n    if preview:\n        argv.append(\"--preview\")\n    if contrato is not None:\n        argv.append(_caminho(contrato))\n    return argv\n\n\ndef _erro_do_payload(payload: dict[str, Any]) -> tuple[str, str]:\n    erro = payload.get(\"error\")\n    if isinstance(erro, dict):\n        return str(erro.get(\"code\") or \"ERRO_MOTOR\"), str(\n            erro.get(\"message\") or \"sem mensagem\"\n        )\n    errors = payload.get(\"errors\") or []\n    if errors:\n        return \"CONTRATO_INVALIDO\", \"; \".join(str(item) for item in errors)\n    return \"ERRO_MOTOR\", \"falha sem detalhe\"\n\n\ndef interpretar_saida(\n    comando: str, returncode: int, stdout: str, stderr: str = \"\"\n) -> dict[str, Any]:\n    \"\"\"Transforma a saída do CLI em dicionário, ou em ErroMotor quando o motor reportou falha.\"\"\"\n    try:\n        payload = json.loads(stdout or \"\")\n    except json.JSONDecodeError as exc:\n        trecho = (stderr or stdout or \"\").strip()[-300:]\n        raise ErroMotor(\n            \"SAIDA_INVALIDA\",\n            f\"{comando}: o CLI não imprimiu JSON (código {returncode}). {trecho}\",\n        ) from exc\n    if not isinstance(payload, dict):\n        raise ErroMotor(\"SAIDA_INVALIDA\", f\"{comando}: o JSON não é um objeto\")\n    if payload.get(\"ok\") is False:\n        raise ErroMotor(*_erro_do_payload(payload))\n    if returncode != 0:\n        raise ErroMotor(\n            \"SAIDA_INESPERADA\", f\"{comando}: código {returncode} sem ok=false\"\n        )\n    return payload\n\n\ndef executar(\n    comando: str,\n    *,\n    contrato: Any = None,\n    executavel: Any = None,\n    need_lock: bool = False,\n    preview: bool = False,\n) -> dict[str, Any]:\n    \"\"\"Roda um comando do CLI com --json e devolve o JSON. Não usa shell.\"\"\"\n    argv = montar_argv(\n        comando,\n        contrato=contrato,\n        executavel=executavel,\n        need_lock=need_lock,\n        preview=preview,\n    )\n    try:\n        resultado = subprocess.run(\n            argv,\n            shell=False,\n            capture_output=True,\n            text=True,\n            timeout=TIMEOUT_S,\n            check=False,\n        )\n    except FileNotFoundError as exc:\n        raise ErroMotor(\n            \"FERRAMENTA_AUSENTE\",\n            f\"executável não encontrado: {argv[0]!r}. Instale o pacote (simplicio-video) ou aponte o caminho \"\n            f\"(campo executavel ou {VARIAVEL_EXECUTAVEL}).\",\n        ) from exc\n    except subprocess.TimeoutExpired as exc:\n        raise ErroMotor(\"TEMPO_ESGOTADO\", f\"{comando} passou de {TIMEOUT_S} s\") from exc\n    return interpretar_saida(\n        comando, resultado.returncode, resultado.stdout, resultado.stderr\n    )\n\n\nif LANGFLOW_DISPONIVEL:\n\n    class SimplicioVideoComponent(Component):\n        display_name = \"simplicio-video\"\n        description = \"Chama o CLI do motor (só comandos com --json) e devolve o JSON.\"\n        icon = \"video\"\n        name = \"SimplicioVideoComponent\"\n\n        inputs = [\n            DropdownInput(\n                name=\"comando\",\n                display_name=\"Comando\",\n                options=list(COMANDOS),\n                value=\"board_list\",\n                info=\"board_list lê o quadro; status mostra o estado do motor.\",\n            ),\n            MessageTextInput(\n                name=\"contrato\",\n                display_name=\"Contrato (YAML)\",\n                value=\"\",\n                info=\"Obrigatório para validate e render; opcional para status.\",\n            ),\n            MessageTextInput(\n                name=\"executavel\",\n                display_name=\"Executável\",\n                value=\"\",\n                info=\"Vazio = SIMPLICIO_VIDEO_BIN; sem ela, o executável do PATH.\",\n            ),\n            BoolInput(\n                name=\"need_lock\", display_name=\"Exigir timing.lock.json\", value=False\n            ),\n            BoolInput(\n                name=\"preview\", display_name=\"Prévia 540x960 (render)\", value=False\n            ),\n        ]\n        outputs = [Output(display_name=\"Resultado\", name=\"resultado\", method=\"rodar\")]\n\n        def rodar(self) -> Data:\n            comando = self.comando\n            usa_contrato = comando in EXIGE_CONTRATO | CONTRATO_OPCIONAL\n            contrato = (self.contrato or None) if usa_contrato else None\n            payload = executar(\n                comando,\n                contrato=contrato,\n                executavel=self.executavel or None,\n                need_lock=bool(self.need_lock) and comando == \"validate\",\n                preview=bool(self.preview) and comando == \"render\",\n            )\n            return Data(data=payload)\n",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "code",
+                "advanced": true,
+                "dynamic": true,
+                "info": "",
+                "load_from_db": false,
+                "title_case": false
+              },
+              "comando": {
+                "type": "str",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "options": [
+                  "validate",
+                  "render",
+                  "status",
+                  "board_list"
+                ],
+                "value": "status",
+                "name": "comando",
+                "display_name": "Comando",
+                "advanced": false,
+                "dynamic": false,
+                "info": "board_list lê o quadro; status mostra o estado do motor.",
+                "title_case": false,
+                "input_types": [],
+                "load_from_db": false
+              },
+              "contrato": {
+                "type": "str",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": false,
+                "value": "",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "contrato",
+                "display_name": "Contrato (YAML)",
+                "advanced": false,
+                "dynamic": false,
+                "info": "Obrigatório para validate e render; opcional para status.",
+                "title_case": false,
+                "input_types": [
+                  "Message"
+                ],
+                "load_from_db": false
+              },
+              "executavel": {
+                "type": "str",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": false,
+                "value": "",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "executavel",
+                "display_name": "Executável",
+                "advanced": false,
+                "dynamic": false,
+                "info": "Vazio = SIMPLICIO_VIDEO_BIN; sem ela, o executável do PATH.",
+                "title_case": false,
+                "input_types": [
+                  "Message"
+                ],
+                "load_from_db": false
+              },
+              "need_lock": {
+                "type": "bool",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "value": false,
+                "name": "need_lock",
+                "display_name": "Exigir timing.lock.json",
+                "advanced": false,
+                "dynamic": false,
+                "info": "",
+                "title_case": false
+              },
+              "preview": {
+                "type": "bool",
+                "required": false,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "value": false,
+                "name": "preview",
+                "display_name": "Prévia 540x960 (render)",
+                "advanced": false,
+                "dynamic": false,
+                "info": "",
+                "title_case": false
+              }
+            },
+            "description": "Estado do motor: `simplicio-video status --json` (ferramentas e, com contrato, o render).",
+            "display_name": "simplicio-video",
+            "base_classes": [
+              "Data"
+            ],
+            "outputs": [
+              {
+                "types": [
+                  "Data"
+                ],
+                "selected": "Data",
+                "name": "resultado",
+                "display_name": "Resultado",
+                "method": "rodar",
+                "value": "__UNDEFINED__",
+                "cache": true,
+                "required_inputs": [],
+                "allows_loop": false,
+                "tool_mode": false
+              }
+            ],
+            "field_order": [
+              "comando",
+              "contrato",
+              "executavel",
+              "need_lock",
+              "preview"
+            ],
+            "icon": "video",
+            "documentation": "",
+            "minimized": false,
+            "custom_fields": {},
+            "output_types": [],
+            "pinned": false,
+            "conditional_paths": [],
+            "frozen": false,
+            "legacy": false,
+            "error": null,
+            "edited": false,
+            "metadata": {},
+            "tool_mode": false
+          }
+        },
+        "selected": false,
+        "width": 384,
+        "height": 400,
+        "dragging": false
+      }
+    ],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  },
+  "is_component": false,
+  "folder": null,
+  "icon": "video",
+  "tags": [
+    "simplicio-video"
+  ],
+  "endpoint_name": null,
+  "locked": false,
+  "mcp_enabled": false
+}

@@ -15,6 +15,7 @@ import shutil
 from pathlib import Path
 
 from simplicio_factory.contracts import Brand, Draft, Renderer, Stage, Store, transition
+from simplicio_factory.contracts.models import DEFAULT_ROUTE
 from simplicio_factory.plugins.media import receipt
 from simplicio_factory.plugins.studio.composer import compose_contract
 from simplicio_factory.plugins.studio.hashing import content_hash
@@ -49,7 +50,13 @@ class StudioStage(Stage):
         except Exception:
             transition(item, "failed", store)
             raise
-        self._gravar_estado(item.id, content_hash(contrato, draft), resultado.mp4_path, resultado.content_hash)
+        self._gravar_estado(
+            item.id,
+            content_hash(contrato, draft),
+            resultado.mp4_path,
+            resultado.content_hash,
+            item.production,
+        )
         transition(item, "rendered", store)
 
     def previa(self, item_id: str):
@@ -77,13 +84,29 @@ class StudioStage(Stage):
         _escrever(contrato, texto)
         return contrato
 
-    def _gravar_estado(self, item_id: str, digest: str, mp4: str, render_hash: str) -> None:
+    def _gravar_estado(
+        self,
+        item_id: str,
+        digest: str,
+        mp4: str,
+        render_hash: str,
+        production: dict | None,
+    ) -> None:
         estado = {
             "content_hash": digest,
-            "production": {"route": "deterministic", "steps": []},
+            "production": _production_gravada(production),
             "stages": {NAME: {"state": "rendered", "mp4": mp4, "render_sha256": render_hash}},
         }
         _escrever(self.pasta(item_id) / ESTADO_ARQUIVO, json.dumps(estado, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+
+
+def _production_gravada(production: dict | None) -> dict:
+    """Rota e passos reais do item (#95). Item sem production grava a rota padrão e `steps: []`, como antes."""
+    production = production or {}
+    return {
+        "route": production.get("route") or DEFAULT_ROUTE,
+        "steps": list(production.get("steps") or []),
+    }
 
 
 def _escrever(destino: Path, texto: str) -> None:

@@ -1,7 +1,7 @@
 ---
 title: Board (quadro kanban dos itens)
 summary: O quadro de itens da fábrica, com oito colunas derivadas de state e review (nunca guardadas), os comandos board list, board comment e board review, o arquivo comments.jsonl, as regras de revisão, o schema simplicio.board/v1 e as ressalvas de escritores concorrentes.
-commands: board list, board comment, board review, board build
+commands: board list, board comment, board review, board build, board serve
 issue: 86
 last_verified: 2026-10-08
 ---
@@ -39,6 +39,7 @@ A rota determinística passa só por Ideia, Roteiro, Gerando (`rendering`), Revi
 | `simplicio-video board comment ITEM "texto" --by NOME` | grava um comentário no item |
 | `simplicio-video board review ITEM approve\|changes --by NOME [--note TEXTO]` | aprova ou pede alterações no vídeo renderizado |
 | `simplicio-video board build [--out ARQUIVO]` | grava o quadro num HTML estático, de uma página só, para abrir no navegador ([seção abaixo](#dashboard-html-board-build)) |
+| `simplicio-video board serve [--port N]` | sobe o quadro num servidor local em `127.0.0.1`, com formulário para comentar e botões para aprovar ou pedir alterações ([seção Servidor](#servidor-board-serve)) |
 
 Cada comando tem `--help` com exemplo. O estado vem de `SIMPLICIO_FACTORY_HOME` (padrão `.simplicio-factory/`, gitignored).
 
@@ -156,6 +157,47 @@ Clicar no cartão abre o detalhe do item:
 
 **Testes.** O golden do HTML com quatro itens (pronto, em revisão, gerando e falhou) fica em `tests/factory/plugins/board/golden/board.html`. O teste `ui` (marcador `ui`, Chromium) mede a rolagem horizontal da página em 375 e 1440 px, e pula quando o navegador não existe.
 
+## Servidor (`board serve`)
+
+Issue #89, épico #81 (post-mvp, opcional). `simplicio-video board serve [--port N]` sobe a mesma página do `board build` num servidor local, com um formulário para comentar e dois botões para aprovar ou pedir alterações. Código: [serve.py](../../src/simplicio_factory/plugins/board/serve.py). Usa só a biblioteca padrão (`http.server`): sem rede externa e sem LLM.
+
+```bash
+simplicio-video board serve --port 8765
+```
+
+```text
+Quadro em http://127.0.0.1:8765/ (Ctrl+C para parar)
+Token desta sessão: kDuu21F6srJ8qe3wX2J6g03FaZIb1ykH
+Abra no navegador: http://127.0.0.1:8765/?token=kDuu21F6srJ8qe3wX2J6g03FaZIb1ykH
+```
+
+Abra o endereço da última linha. O token é novo a cada execução e vale enquanto o servidor estiver no ar. Com `--port 0`, o sistema escolhe uma porta livre.
+
+**Escuta.** Só em `127.0.0.1`. `--host` aceita `127.0.0.1` ou `localhost`; qualquer outro valor, como `0.0.0.0`, sai com código 2 e não sobe nada. O servidor não atende pela rede.
+
+**Rotas.** Só estas. Qualquer outro caminho é 404.
+
+| Rota | Para quê | Resposta |
+|---|---|---|
+| `GET /?token=TOKEN` | a página do quadro, com o formulário | 200 |
+| `POST /comment` (`token`, `item`, `by`, `texto`) | grava um comentário em `comments.jsonl` | 303, de volta ao quadro, com aviso |
+| `POST /review` (`token`, `item`, `by`, `decisao`, `note` opcional) | define a revisão de um item `rendered`; `decisao` é `approve` ou `changes` | 303, de volta ao quadro |
+
+Respostas de erro: 400 quando o pedido é inválido (item inexistente, texto vazio, revisão fora de `rendered`), com a mensagem na página; 403 sem token, com token errado, ou com `Host` ou `Origin` que não seja `localhost` ou `127.0.0.1`; 404 para qualquer caminho que não exista; 405 para método errado numa rota que existe.
+
+**Nenhuma rota muda estado.** Não existe rota para mover cartão, mudar `state` de item, mexer no orçamento ou aprovar gasto. Aprovar gasto continua no terminal, com `generate approve`. Um pedido a uma dessas rotas recebe 404 e não grava nada.
+
+**Escritas.** Comentário e revisão passam pelo mesmo serviço da CLI (`service.comentar` e `service.revisar`) e são serializados por uma trava no servidor: dois pedidos ao mesmo tempo gravam um depois do outro, sem repetir o id da linha. Depois de comentar ou revisar, `board build` e `board list` já mostram a mudança.
+
+**Token e origem.** O token é aleatório (`secrets.token_urlsafe`), vale só nesta sessão e vai no formulário e na URL de abertura. Toda rota confere `Host` e, quando o navegador envia, `Origin`: os dois precisam ser `localhost` ou `127.0.0.1` na porta do servidor. As respostas saem com `Content-Security-Policy` restritiva, `Cache-Control: no-store` e `Referrer-Policy: no-referrer`.
+
+**O que o token não é.** Ele protege contra páginas de terceiros abertas no mesmo navegador, que não conseguem ler a página nem enviar o formulário sem o token. Não é autenticação de usuário. Quem lê a saída do terminal, ou o histórico do navegador onde a URL foi aberta, tem o token e acesso ao quadro.
+
+**Limites.**
+
+- A página é a do `board build`. Os links de prévia e MP4 são caminhos relativos ao arquivo gravado pelo build, e o servidor só responde ao quadro e às duas rotas de escrita. Por isso esses links não abrem pelo servidor: use `board build` ou o terminal para abrir os arquivos.
+- O servidor não move cartão e não muda o `state` de item. Para mudar a coluna, muda-se o estado pelo estágio que o produz.
+
 ## Comentários (`comments.jsonl`)
 
 Os comentários ficam em `<SIMPLICIO_FACTORY_HOME>/items/<id>/comments.jsonl`, um objeto JSON por linha. O arquivo é append-only: cada comando só acrescenta uma linha, e as linhas antigas não são reescritas.
@@ -181,6 +223,6 @@ Os comentários não mudam estado nem coluna. O board conta os comentários de c
 
 ## Ressalvas
 
-- **Escritores concorrentes.** Duas escritas no mesmo item ao mesmo tempo (dois `comment`, ou um `comment` e um `review`) podem se atropelar: o id da linha é calculado pelo número de linhas do arquivo, e o `review` é gravado com regravação do JSON do item. A CLI não tem trava de arquivo. O servidor (issue #89) é quem serializa as escritas; até lá, use um escritor por vez.
-- **Dashboard somente leitura.** O HTML do `board build` só mostra o quadro. Ele não tem servidor, então comentário e revisão ficam na CLI.
+- **Escritores concorrentes.** Duas escritas no mesmo item ao mesmo tempo (dois `comment`, ou um `comment` e um `review`) podem se atropelar: o id da linha é calculado pelo número de linhas do arquivo, e o `review` é gravado com regravação do JSON do item. A CLI não tem trava de arquivo. O servidor (`board serve`, seção Servidor) serializa as escritas dos próprios pedidos com uma trava. A CLI não tem trava de arquivo: não rode `board comment` ou `board review` no mesmo item enquanto o servidor estiver gravando nele.
+- **Dashboard somente leitura.** O HTML do `board build` só mostra o quadro. Para comentar e revisar pelo navegador, use `board serve` (seção Servidor), que escuta só em `127.0.0.1` e exige o token da sessão.
 - **Coluna não se edita.** Não há comando para mover cartão. Para mudar a coluna, muda-se o estado do item pelo estágio que o produz.
