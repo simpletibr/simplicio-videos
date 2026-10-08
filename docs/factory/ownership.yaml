@@ -502,8 +502,8 @@ issues:
       - "src/simplicio_factory/plugins/media/receipt.py"
       - "src/simplicio_factory/plugins/media/cli.py"
       - "src/simplicio_factory/plugins/media/plugin.json"   # acréscimo: comando `media` (attach) no manifesto do media (#85)
-      - "src/simplicio_factory/plugins/studio/composer.py#compose_contract"   # só o parâmetro midia (asset anexado opcional)
-      - "src/simplicio_factory/plugins/studio/stage.py#_materializar"   # copia a mídia anexada para assets/ e confere o sha256 no render (arquivo da #16)
+      - "src/simplicio_factory/plugins/studio/composer.py#compose_contract,_assets"   # só o parâmetro midia e o helper _assets (asset anexado opcional)
+      - "src/simplicio_factory/plugins/studio/stage.py#_materializar,import receipt"   # copia a mídia anexada para assets/ e confere o sha256 no render (arquivo da #16)
       - "tests/factory/plugins/media/test_attach.py"
       - "tests/factory/plugins/media/_attach_fixtures.py"
       - "tests/factory/plugins/media/test_media_cli.py#test_manifesto_declara_generate_com_handler_existente"   # a lista de comandos do manifesto passa a incluir `media` (arquivo da #85)
