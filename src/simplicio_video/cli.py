@@ -118,6 +118,8 @@ def build_parser() -> argparse.ArgumentParser:
                     "  - cada fala: inicio_s + max_s cabe na cena (+ J-cut voz.jcut_max_s, padrão 0,15 s);\n"
                     "    com timing.lock.json, a duração real <= max_s (a voz NUNCA é acelerada)\n"
                     "  - nenhum bloco drive (a entrega no Drive fica fora do motor); nenhum TODO\n"
+                    "--json: stdout só o objeto {ok, contrato, errors, warnings}; erro vira {ok: false, error: {code, message}}.\n"
+                    "  Códigos de erro (error.code): CONTRATO_NAO_ENCONTRADO, CONTRATO_INVALIDO, RENDER_FALHOU, FERRAMENTA_AUSENTE.\n"
                     "Saída 0 = válido, 1 = erros.",
         epilog="exemplos:\n  simplicio-video validate clients/wjr-informatica-games/video-01/contract.yaml\n"
                "  simplicio-video validate contract.yaml --json      # relatório em JSON\n"
@@ -162,13 +164,17 @@ def build_parser() -> argparse.ArgumentParser:
                     "  colab-cli  Colab oficial por CLI (`pip install google-colab-cli`): new --gpu T4 -> upload -> exec ->\n"
                     "             download -> stop (sempre). Login Google uma vez (código colado no terminal).\n"
                     "  colab      NÃO renderiza: gera <saida>.colab-bundle.zip para colab/render.ipynb no navegador (manual)\n"
-                    "Remotos baixam final.mp4 e gravam o mesmo render.manifest.json (+ usage: backend, GPU, tempos) para créditos.",
+                    "Remotos baixam final.mp4 e gravam o mesmo render.manifest.json (+ usage: backend, GPU, tempos) para créditos.\n"
+                    "--json: stdout só o objeto {ok, contrato, backend, preview, output, manifest}; erro vira\n"
+                    "  {ok: false, error: {code, message}}. Códigos de erro (error.code): CONTRATO_NAO_ENCONTRADO,\n"
+                    "  CONTRATO_INVALIDO, RENDER_FALHOU, FERRAMENTA_AUSENTE. Logs de render vão para stderr; exit 1 = erro.",
         epilog="exemplos:\n  simplicio-video render contract.yaml\n"
                "  simplicio-video render contract.yaml --out /tmp/teste.mp4 --quality draft\n"
                "  simplicio-video render contract.yaml --backend kaggle                   # opcional: T4 grátis (cota semanal)\n"
                "  simplicio-video render contract.yaml --backend kaggle --accelerator none\n"
                "  simplicio-video render contract.yaml --backend colab-cli --accelerator T4\n"
                "  simplicio-video render contract.yaml --backend colab   # -> out/<nome>.colab-bundle.zip\n"
+               "  simplicio-video render contract.yaml --json            # resultado em JSON (logs no stderr)\n"
                "  simplicio-video render contract.yaml --preview         # prévia 540x960 + marca d'água (marca.dagua) e crédito final (marca.credito)")
     _contract_arg(p)
     p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via créditos)")
@@ -193,6 +199,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Fluxo 100% script: validate -> voice (provider do contrato ou --provider, ex.: gemini) ->\n"
                     "validate --need-lock -> render (--backend local|kaggle|colab-cli|colab). Termina no render: o MP4 fica\n"
                     "em saida.arquivo. O upload no Drive não é feito pelo motor; é feito pela ferramenta de operação.\n"
+                    "--json: stdout só o objeto JSON do resumo (ok, contrato, ...); erro vira {ok: false, error: {code, message}}.\n"
+                    "  Códigos de erro (error.code): CONTRATO_NAO_ENCONTRADO, CONTRATO_INVALIDO, RENDER_FALHOU, FERRAMENTA_AUSENTE.\n"
                     f"Schema: {SCHEMA_REL}.",
         epilog="exemplos:\n  simplicio-video run contract.yaml                                   # voz do contrato, render local\n"
                "  simplicio-video run contract.yaml --provider gemini                    # local (padrão)\n"
@@ -205,7 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--accelerator", help="ver `render --help` (none = CPU)")
     p.add_argument("--quality", "-q", choices=["draft", "looks", "delivery"], help="qualidade HyperFrames")
     p.add_argument("--timeout", type=int, default=3600, help="limite do render remoto em s")
-    p.add_argument("--json", action="store_true", help="resumo em JSON")
+    p.add_argument("--json", action="store_true", help="imprime o resumo em JSON no stdout (com erro, error.code); os logs vão para stderr")
 
     p = sub.add_parser("clone", formatter_class=Fmt, help="trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA",
         description="Invoca o Hypit AI (https://github.com/hypit-ai/hypit) para clonar vídeos de referência e gerar fluxos de trabalho completos.",

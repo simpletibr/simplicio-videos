@@ -213,6 +213,16 @@ def test_help_mostra_json(sub, capsys):
     assert "--json" in out
 
 
+@pytest.mark.parametrize("sub", ["validate", "run", "render"])
+def test_help_tem_exemplo_json_e_codigos_de_erro(sub, capsys):
+    rc, out, _ = _run([sub, "--help"], capsys)
+    assert rc == 0
+    exemplos = [ln for ln in out.splitlines() if ln.strip().startswith(f"simplicio-video {sub} ") and "--json" in ln]
+    assert exemplos, f"{sub} --help sem exemplo com --json"
+    for codigo in sorted(CODIGOS):
+        assert codigo in out, f"{sub} --help sem o código de erro {codigo}"
+
+
 # (g) run --json: resumo válido segue run-result; erro vira error.code
 
 def test_run_json_valido_segue_o_schema(mini, monkeypatch, capsys):
