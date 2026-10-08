@@ -89,8 +89,11 @@ issues:
       - "tests/factory/conftest.py"
       - "tests/factory/contracts/**"
       - "tests/factory/fixtures/**"
+      - "tests/factory/_fixtures.py"   # helpers explícitos da #33 (importados pelos testes); sem conftest.py em tests/factory/ (conflito de nome, #43)
       - "tests/factory/test_architecture.py"
       - "mk/kernel.mk"
+      - "docs/factory/contracts.md"   # o spec manda o PR do kernel atualizar este arquivo (transition, Store, nomes)
+      - ".gitignore"   # linha .simplicio-factory/ (estado local do JsonStore)
       - "docs/host/kernel.md"
       - "docs/decisoes/ADR-0007-*.md"
       - "pyproject.toml#extras.*"
