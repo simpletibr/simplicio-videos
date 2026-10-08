@@ -210,10 +210,7 @@ def test_preview_filter_has_watermark_and_end_card(tmp_path):
     assert render.PREVIEW["crf"] >= 28 and render.PREVIEW["fps"] == 30
 
 
-def test_cli_help_mentions_prospect():
-    r = run_cli("prospect", "--help")
-    assert r.returncode == 0 and "robots.txt" in r.stdout and "LGPD" in r.stdout and "lote.csv" in r.stdout
-    assert run_cli("batch", "--help").returncode == 0
+def test_cli_render_help_keeps_preview():  # o subcomando prospect saiu do motor (#77); o --preview do render fica
     r = run_cli("render", "--help")
     assert "--preview" in r.stdout and "@wesleysimplicio" in r.stdout and "simpleti" not in r.stdout.lower()
 
@@ -244,11 +241,6 @@ def test_standard_v2_is_the_default_lothus_pacing_laomedeia_voice_same_track():
     assert sum(m["padrao"] in ("balloons-confetti", "beat-burst") for m in motion) >= 6  # confetti in every scene
     words = [m for m in motion if m["padrao"] == "kinetic-words"]
     assert [m["params"]["times"] for m in words] == [f"{{{{words:vo{i}}}}}" for i in range(1, 5)]  # word by word, on the voice
-    import argparse  # CLI default follows the standard
-    from simplicio_video import cli
-    ap = cli.build_parser() if hasattr(cli, "build_parser") else None
-    if isinstance(ap, argparse.ArgumentParser):
-        assert ap.parse_args(["prospect", "x.csv"]).provider == "gemini"
 
 
 def test_real_logo_from_site_goes_into_the_lockup(tmp_path):

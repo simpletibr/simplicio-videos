@@ -330,7 +330,13 @@ issues:
     owns:
       - "src/simplicio_video/cli.py"
       - "src/simplicio_video/pipeline.py"
+      - "src/simplicio_video/mcp_server.py"
       - "tests/test_help.py"
+      - "tests/test_mcp_server.py"
+      - "tests/test_pipeline.py"
+      - "tests/test_prospect.py"
+      - "tests/test_ugc.py"
+      - "tests/test_venda.py"
       - "tests/test_motor_sem_vendas.py"
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}

@@ -1,8 +1,8 @@
-"""`run` = voice -> validate --need-lock -> render -> publish (render mocked; publish stays dry-run without --publish)."""
+"""`run` = voice -> validate --need-lock -> render, e para no MP4 (render mocked; o upload não é do motor)."""
 from simplicio_video import cli, pipeline
 
 
-def test_run_all_chains_steps_and_dry_runs_publish(mini, monkeypatch):
+def test_run_all_chains_steps_and_stops_at_render(mini, monkeypatch):
     seen = {}
 
     def fake_render(c, backend, **k):
@@ -13,8 +13,10 @@ def test_run_all_chains_steps_and_dry_runs_publish(mini, monkeypatch):
         return {"backend": backend, "output": {"path": "out/mini.mp4"}, "loudness": {"integrated_lufs": -14.0}}
 
     monkeypatch.setattr(cli, "do_render", fake_render)
-    res = pipeline.run_all(mini, backend="kaggle", log=lambda *_: None)
+    logs = []
+    res = pipeline.run_all(mini, backend="kaggle", log=lambda *m: logs.append(" ".join(map(str, m))))
     assert seen["backend"] == "kaggle"
     assert res["voice"]["provider"] == "file" and "vo1" in res["voice"]["lines"]
-    assert res["publish"]["dry_run"] is True and res["publish"]["dest"].endswith("/Teste - mini - v01.mp4")
+    assert "publish" not in res and res["render"]["output"] == "out/mini.mp4"
+    assert any("ferramenta de operação" in m for m in logs)
     assert (mini.parent / "timing.lock.json").is_file()

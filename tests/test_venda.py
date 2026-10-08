@@ -7,7 +7,6 @@ import urllib.request
 
 import pytest
 
-from conftest import run_cli
 from simplicio_video import venda
 
 KEY = "abc_test_SECRETKEY_123"
@@ -49,8 +48,6 @@ def event(cid="char_abc123xyz", amount=12000, ev="transparent.completed", status
 
 
 def test_preco_obrigatorio_e_so_120_80_60():
-    assert run_cli("venda", "cobrar", "x").returncode == 2
-    assert run_cli("venda", "cobrar", "x", "--preco", "100").returncode == 2
     assert {k: v for k, v in venda.PRECOS.items()} == {120: 12000, 80: 8000, 60: 6000}
 
 
