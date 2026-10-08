@@ -25,13 +25,13 @@ def run_cli(*args):
                           capture_output=True, text=True, env=env)
 
 
-def test_plugin_list_imprime_o_id_do_plugin(plugin_root, capsys):
+def test_plugin_list_imprime_o_id_do_plugin(plugin_root, capsys):  # noqa: F811 (fixture importada, redefinida como parâmetro)
     code = cli.main(["plugin", "list"])
     assert code == 0
     assert "fake" in capsys.readouterr().out
 
 
-def test_comando_de_plugin_chama_handler_com_argumentos_restantes(plugin_root, handler_fake):
+def test_comando_de_plugin_chama_handler_com_argumentos_restantes(plugin_root, handler_fake):  # noqa: F811 (fixture importada, redefinida como parâmetro)
     code = cli.main(["fakecmd", "arg"])
     assert code == handler_fake
     assert sys.modules["pluginfake_hosttest"].CHAMADAS == [["arg"]]

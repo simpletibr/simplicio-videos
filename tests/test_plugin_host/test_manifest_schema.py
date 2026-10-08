@@ -20,12 +20,12 @@ def test_schema_e_json_schema_valido():
     Draft202012Validator.check_schema(_carrega_schema())
 
 
-def test_manifesto_valido_passa_no_schema(manifesto):
+def test_manifesto_valido_passa_no_schema(manifesto):  # noqa: F811 (fixture importada, redefinida como parâmetro)
     validador = Draft202012Validator(_carrega_schema())
     assert list(validador.iter_errors(manifesto())) == []
 
 
-def test_manifesto_sem_commands_e_rejeitado(manifesto):
+def test_manifesto_sem_commands_e_rejeitado(manifesto):  # noqa: F811 (fixture importada, redefinida como parâmetro)
     dados = manifesto()
     del dados["commands"]
     validador = Draft202012Validator(_carrega_schema())

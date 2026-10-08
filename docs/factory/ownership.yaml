@@ -66,6 +66,7 @@ issues:
       - "src/simplicio_video/commands/mcp.py"
       - "src/simplicio_video/commands/plugin.py"
       - "schemas/plugin.manifest.schema.json"
+      - "src/simplicio_factory/plugins/studio/plugin.json"  # manifesto do studio (id, kind, version, comandos make/draft) para o registro ter um plugin real; a #16 é dona de plugins/studio/** e deve manter o arquivo. Sobreposição declarada.
       - "scripts/gen_manifest.py"
       - "mk/manifest.mk"
       - "tests/test_help.py"
