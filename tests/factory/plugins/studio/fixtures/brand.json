@@ -1,0 +1,11 @@
+{
+  "name": "Clínica Exemplo",
+  "colors": {"primary": "#0b5d3b", "accent": "#f2b705", "ink": "#1d1d1b"},
+  "logo": "logo.svg",
+  "facts": {
+    "sessao": "sessão de 45 minutos",
+    "atendimento": "atendimento com hora marcada",
+    "garantia": "garantia de 1 ano no tratamento",
+    "unidade": "unidade no centro de Campinas"
+  }
+}

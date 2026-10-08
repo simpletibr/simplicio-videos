@@ -177,7 +177,7 @@ issues:
     milestone: M1
     owns:
       - "src/simplicio_factory/plugins/studio/**"
-      - "templates/brand-promo/**"
+      - "src/simplicio_video/data/templates/brand-promo/**"   # desvio: a spec diz templates/brand-promo/** na raiz; #74 moveu os templates para src/simplicio_video/data/templates/, então o brand-promo fica lá (status do engine: pronto)
       - "tests/factory/plugins/studio/**"
       - "docs/plugins/studio.md"
   18:

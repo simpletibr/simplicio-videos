@@ -1,0 +1,82 @@
+schema: simplicio.video-contract/v1
+cliente:
+  slug: clinica-exemplo
+  nome: Clínica Exemplo
+  drive_nome: Clinica_Exemplo
+campanha:
+  id: Promo
+  ano: 2026
+formato:
+  aspect: "9:16"
+  width: 1080
+  height: 1920
+  fps: 30
+  duracao_s: 15
+template: brand-promo
+marca:
+  paleta:
+    accent: "#f2b705"
+    ink: "#1d1d1b"
+    primary: "#0b5d3b"
+  logo:
+    arquivo: assets/logo.svg
+    destino: assets/logo.svg
+cenas:
+  - id: s1
+    papel: gancho
+    duracao_s: 5
+    motion:
+      - padrao: kinetic-words
+        bloco: s1-words
+        params:
+          lines: "Um sorriso mais leve|em uma sessão de 45 minutos."
+          colors: "#0b5d3b|#f2b705"
+          ink: "#1d1d1b"
+    textos:
+      titulo: "Um sorriso mais leve em uma sessão de 45 minutos."
+  - id: s2
+    papel: prova
+    duracao_s: 5
+    motion:
+      - padrao: line-accent
+        bloco: s2-accent
+        params:
+          color: "#f2b705"
+          ink: "#1d1d1b"
+    textos:
+      prova_1: "Atendimento com hora marcada."
+      prova_2: "Garantia de 1 ano no tratamento."
+  - id: s3
+    papel: marca
+    duracao_s: 5
+    motion:
+      - padrao: brand-lockup-soft
+        bloco: s3-lockup
+        params:
+          name: "Clínica Exemplo"
+          sub: ""
+          tagline: "Cuidado com hora marcada."
+          handle: ""
+          city: Campinas
+          logo: assets/logo.svg
+          ink: "#1d1d1b"
+          accent: "#0b5d3b"
+    textos:
+      cta: "Agende sua visita."
+voz:
+  habilitada: false
+  provider: file
+trilha:
+  bpm: 120
+  seed: 7
+  music:
+    gain_db: -6
+    fade_in_s: 0.5
+    fade_out_s: 1.0
+    progression: [[48, [60, 64, 67]]]
+  master:
+    target_lufs: -14
+    true_peak_db: -1.5
+saida:
+  arquivo: out/brand-promo.mp4
+  qualidade: delivery
