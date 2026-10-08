@@ -29,7 +29,9 @@ PASSO_IA = {
 
 
 def _estado_do_item(tmp_path):
-    return json.loads((tmp_path / "items" / ITEM_ID / "studio.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (tmp_path / "items" / ITEM_ID / "studio.json").read_text(encoding="utf-8")
+    )
 
 
 def test_item_ai_assisted_grava_rota_e_passos_no_studio_json(tmp_path):
@@ -46,9 +48,19 @@ def test_item_ai_assisted_grava_rota_e_passos_no_studio_json(tmp_path):
     make_stage(tmp_path, renderer=stub_renderer(tmp_path)).run(item, store)
 
     assert store.get_item(ITEM_ID).state == "rendered"
-    assert _estado_do_item(tmp_path)["production"] == {"route": "ai_assisted", "steps": [PASSO_IA]}
-    transicoes = [(e.data["from"], e.data["to"], e.data["route"]) for e in store.read() if e.kind == "item.state_changed"]
-    assert transicoes == [("generated", "rendering", "ai_assisted"), ("rendering", "rendered", "ai_assisted")]
+    assert _estado_do_item(tmp_path)["production"] == {
+        "route": "ai_assisted",
+        "steps": [PASSO_IA],
+    }
+    transicoes = [
+        (e.data["from"], e.data["to"], e.data["route"])
+        for e in store.read()
+        if e.kind == "item.state_changed"
+    ]
+    assert transicoes == [
+        ("generated", "rendering", "ai_assisted"),
+        ("rendering", "rendered", "ai_assisted"),
+    ]
 
 
 def test_item_deterministico_grava_rota_padrao_sem_passos(tmp_path):
@@ -58,4 +70,7 @@ def test_item_deterministico_grava_rota_padrao_sem_passos(tmp_path):
 
     make_stage(tmp_path).run(item, store)
 
-    assert _estado_do_item(tmp_path)["production"] == {"route": "deterministic", "steps": []}
+    assert _estado_do_item(tmp_path)["production"] == {
+        "route": "deterministic",
+        "steps": [],
+    }

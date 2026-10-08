@@ -539,6 +539,15 @@ issues:
       - "docs/decisoes/README.md"   # índice de ADRs (acréscimo: só a linha do ADR do render final)
       - "docs/host/README.md"   # índice de host (acréscimo: só a linha de duas-rotas.md)
 
+  # ------------------------------------------------------------------ M1 rota no studio.json (épico #81)
+  95:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/studio/stage.py#_gravar_estado,run,import DEFAULT_ROUTE"   # studio.json grava o production real do item (arquivo da #16)
+      - "tests/factory/plugins/studio/test_studio_rota.py"   # épico #81
+
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
