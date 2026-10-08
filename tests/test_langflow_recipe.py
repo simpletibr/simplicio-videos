@@ -71,17 +71,32 @@ def _ajuda(*comando: str) -> str:
 
 
 @lru_cache(maxsize=None)
-def _comandos_reais() -> tuple[frozenset[str], dict[str, frozenset[str]]]:
-    """Comandos de primeiro nível (da seção 'comandos' do help) e os subcomandos dos grupos conhecidos."""
-    principal = _ajuda()
-    secao = principal.split("comandos (na ordem do fluxo):", 1)[1].split(
-        "exemplos:", 1
-    )[0]
-    principais = frozenset(re.findall(r"^ {4}([a-z][a-z-]*)\s", secao, flags=re.M))
+def _existe(*comando: str) -> bool:
+    """O comando existe se o --help dele sai com 0 e começa com o próprio nome.
+
+    Não basta a lista de primeiro nível do help: make e board vêm do host de plugins e não aparecem nela.
+    """
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(SRC)
+    resultado = subprocess.run(
+        [sys.executable, "-m", "simplicio_video.cli", *comando, "--help"],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=120,
+        check=False,
+    )
+    return resultado.returncode == 0 and resultado.stdout.startswith(
+        f"usage: simplicio-video {' '.join(comando)}"
+    )
+
+
+@lru_cache(maxsize=None)
+def _grupos_reais() -> dict[str, frozenset[str]]:
+    """Subcomandos dos grupos conhecidos, lidos das chaves do usage do help."""
     usado = re.search(r"simplicio-video board \[-h\] \{([a-z,-]+)\}", _ajuda("board"))
     assert usado, "o help de board não lista os subcomandos entre chaves"
-    grupos = {"board": frozenset(usado.group(1).split(","))}
-    return principais, grupos
+    return {"board": frozenset(usado.group(1).split(","))}
 
 
 def _fluxo():
@@ -345,7 +360,7 @@ def test_fluxo_so_usa_comandos_do_componente_e_le_o_quadro():
 
 
 def test_fluxo_cita_so_comandos_do_help_real():
-    principais, grupos = _comandos_reais()
+    grupos = _grupos_reais()
     citados = []
 
     for texto in _textos(_fluxo()):
@@ -357,7 +372,7 @@ def test_fluxo_cita_so_comandos_do_help_real():
                     f"simplicio-video {primeiro} {segundo} não existe no --help"
                 )
             else:
-                assert primeiro in principais, (
+                assert _existe(primeiro), (
                     f"simplicio-video {primeiro} não existe no --help"
                 )
 
