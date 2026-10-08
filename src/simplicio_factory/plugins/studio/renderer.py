@@ -17,6 +17,17 @@ def _log(mensagem: str) -> None:
     print(mensagem, file=sys.stderr)
 
 
+def _item_id(contract_path: str, preview: bool) -> str:
+    """Id do item = nome da pasta do item, o layout do StudioStage: `<work>/<item_id>/contract.yaml` e `<work>/<item_id>/preview/contract.yaml`.
+
+    A fonte é o caminho porque o contrato não guarda o id do item; a pasta-pai da prévia é `preview/`, então sobe um nível.
+    """
+    pasta = Path(contract_path).parent
+    if preview and pasta.name == "preview":
+        pasta = pasta.parent
+    return pasta.name
+
+
 class EngineRenderer:
     def __init__(self, out_dir: Path | str) -> None:
         self.out_dir = Path(out_dir)
@@ -31,7 +42,7 @@ class EngineRenderer:
             motor_voice.run(contrato, log=_log)  # mesmo passo de `simplicio-video run`: voz antes do render
             contrato = motor_contract.load(contract_path)
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        nome = Path(contract_path).parent.name + ("-previa" if preview else "")
+        nome = _item_id(contract_path, preview) + ("-previa" if preview else "")
         destino = self.out_dir / f"{nome}.mp4"
         if preview:
             motor_render.render_preview(contrato, out=destino, log=_log)

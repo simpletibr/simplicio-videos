@@ -162,5 +162,4 @@ O render de entrega é o do motor (`render_local`). A prévia usa `render_previe
 ## Pendências conhecidas
 
 - **A marca nem sempre aparece no lockup.** O nome da marca fica na cena `s3`, mas nem sempre aparece no lockup. Por isso este documento não diz que a marca aparece em todos os frames.
-- **Prévias com o mesmo nome.** O nome do MP4 da prévia vem da pasta do contrato, que é sempre `preview/`. Todas as prévias gravam `studio/renders/preview-previa.mp4` e uma sobrescreve a outra. O comando imprime esse caminho, mas o arquivo é compartilhado entre os itens.
 - **Item já `rendered` não é re-renderizado.** Rodar `make` de novo, ou `make --from` com outro Draft, num item já `rendered` devolve o MP4 anterior. O `content_hash` não é comparado nesse caminho. Para outra versão, use outro item (outro `item_id`).
