@@ -1,0 +1,14 @@
+{
+  "id": "board",
+  "kind": "board",
+  "version": "0.1.0",
+  "commands": [
+    {
+      "name": "board",
+      "handler": "simplicio_factory.plugins.board.cli:board_cmd",
+      "help": "quadro kanban: 'board list [--json]', 'board comment ITEM TEXTO --by NOME' e 'board review ITEM approve|changes --by NOME'",
+      "example": "simplicio-video board list"
+    }
+  ],
+  "stages": []
+}

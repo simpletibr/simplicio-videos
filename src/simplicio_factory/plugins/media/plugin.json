@@ -1,0 +1,14 @@
+{
+  "id": "media",
+  "kind": "media",
+  "version": "0.1.0",
+  "commands": [
+    {
+      "name": "generate",
+      "handler": "simplicio_factory.plugins.media.cli:generate_cmd",
+      "help": "orçamento e aprovação humana de gasto por item: 'generate quote', 'generate approve' e 'generate show'",
+      "example": "simplicio-video generate quote ITEM --provider real-oficial --estimate-ref REF --credits N"
+    }
+  ],
+  "stages": []
+}

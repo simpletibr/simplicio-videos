@@ -468,6 +468,29 @@ issues:
       - "docs/host/kernel.md"
       - "docs/decisoes/ADR-0008-duas-rotas.md"
       - "docs/decisoes/README.md"   # índice de ADRs (acréscimo: registra o ADR-0008)
+  # ------------------------------------------------------------------ M1 plugin media (épico #81)
+  85:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/media/**"
+      - "tests/factory/plugins/media/**"
+      - "docs/plugins/media.md"
+      - "docs/plugins/README.md"   # índice de plugins (acréscimo: a linha do media; cross-issue)
+
+  # ------------------------------------------------------------------ M1 quadro (épico #81)
+  86:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/board/**"
+      - "schemas/factory/board.schema.json"
+      - "src/simplicio_factory/contracts/schema.py"   # gerador: `make factory-schema` passa a gravar também board.schema.json (arquivo da #33/#82; só essa linha de saída muda)
+      - "tests/factory/plugins/board/**"
+      - "docs/plugins/board.md"
+      - "docs/plugins/README.md"   # índice de plugins (acréscimo: só a linha do board)
 
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}

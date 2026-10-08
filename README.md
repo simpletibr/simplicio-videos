@@ -128,5 +128,7 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 <!-- BEGIN GENERATED: plugins -->
 Gerado de `docs/plugins/*.md` (front matter). Não edite aqui: rode `make regen`.
 
+- [Board (quadro kanban dos itens)](docs/plugins/board.md): O quadro de itens da fábrica, com oito colunas derivadas de state e review (nunca guardadas), os comandos board list, board comment e board review, o arquivo comments.jsonl, as regras de revisão, o schema simplicio.board/v1 e as ressalvas de escritores concorrentes.
+- [Media (orçamento e aprovação de gasto)](docs/plugins/media.md): O comando generate (quote, approve e show) que cota, aprova e mostra o gasto de geração por IA de cada item na rota ai_assisted, o orçamento media_credits do workspace, o teto diário, a regra de quem pode aprovar e a ressalva sobre o registro.
 - [Studio (Draft e marca viram vídeo)](docs/plugins/studio.md): O que o studio faz (Draft e brand.json viram contract.yaml e MP4), os comandos make, make preview e draft show, o composer determinístico, o claim guard, content_hash, a voz desligada por padrão, o template brand-promo e as pendências conhecidas.
 <!-- END GENERATED -->
