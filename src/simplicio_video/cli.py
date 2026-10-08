@@ -181,6 +181,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="kaggle/colab-cli/colab: NVENC no encode (auto = usa se o teste de encode passar; 0 = libx264, "
                         "necessário p/ comparar frames com o local). A captura (Chrome) é CPU de qualquer jeito")
     p.add_argument("--workdir", type=Path, help="pasta da composição compilada (padrão: <contrato>/build/simplicio-video)")
+    p.add_argument("--json", action="store_true",
+                   help="imprime o resultado em JSON no stdout (ok, output, manifest; com erro, error.code); os logs vão para stderr")
     p.add_argument("--preview", action="store_true",
                    help="prévia (só local): render draft -> 540x960, 30 fps, x264 crf 30, marca d'água diagonal (marca.dagua, "
                         "padrão 'Prévia') + selo nos cantos + cartão final com marca.credito.texto (2,5 s; sem crédito, sem cartão). "
@@ -249,6 +251,90 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("what", choices=["templates", "motion", "voices"], help="catálogo a listar")
     p.add_argument("--json", action="store_true", help="saída em JSON")
     return ap
+
+
+# --json de validate, run e render (issue #72): stdout só com o objeto JSON, que valida contra schemas/cli/*-result.
+# Os logs de voz e de render vão para stderr. Erros do motor ganham error.code fixo; o texto de erro e o exit code
+# (1, como no modo texto) não mudam.
+CODIGO_PADRAO = {"validate": "CONTRATO_INVALIDO", "run": "RENDER_FALHOU", "render": "RENDER_FALHOU"}
+
+
+def _stderr(*msg) -> None:
+    print(*msg, file=sys.stderr)
+
+
+def _emite(obj: dict) -> None:
+    print(json.dumps(obj, indent=2, ensure_ascii=False, default=str))
+
+
+def _erro(exc: BaseException, padrao: str) -> dict:
+    """Exceção do motor -> error {code, message}. Contrato não encontrado e inválido são reconhecidos pelo texto do
+    motor (contract.load / contract.validate); ferramenta ausente é FileNotFoundError do subprocesso."""
+    if isinstance(exc, FileNotFoundError):
+        return {"code": "FERRAMENTA_AUSENTE", "message": f"ferramenta ausente: {exc.filename or exc}"}
+    texto = (exc.code if isinstance(exc.code, str) else "").strip() if isinstance(exc, SystemExit) else str(exc).strip()
+    texto = texto or padrao
+    if texto.startswith("contract not found"):
+        code = "CONTRATO_NAO_ENCONTRADO"
+    elif texto.startswith("contract invalid") or "not a YAML mapping" in texto:
+        code = "CONTRATO_INVALIDO"
+    else:
+        code = padrao
+    return {"code": code, "message": texto}
+
+
+def _validate_json(a) -> int:
+    from . import contract as ct
+    try:
+        c = ct.load(a.contrato)
+    except (SystemExit, FileNotFoundError) as e:
+        _emite({"ok": False, "contrato": a.contrato, "error": _erro(e, CODIGO_PADRAO["validate"])})
+        return 1
+    rep = ct.validate(c, need_lock=a.need_lock)
+    if rep.ok:
+        _emite({"ok": True, "contrato": str(c.path), "errors": [], "warnings": rep.warnings})
+        return 0
+    _emite({"ok": False, "contrato": str(c.path), "errors": rep.errors, "warnings": rep.warnings,
+            "error": {"code": "CONTRATO_INVALIDO", "message": f"contrato inválido: {len(rep.errors)} erro(s)"}})
+    return 1
+
+
+def _run_json(a) -> int:
+    from . import pipeline
+    try:
+        res = pipeline.run_all(a.contrato, provider=a.provider, backend=a.backend, accelerator=a.accelerator,
+                               quality=a.quality, timeout=a.timeout, force_voice=a.force_voice, log=_stderr)
+    except (SystemExit, FileNotFoundError) as e:
+        _emite({"ok": False, "contrato": a.contrato, "error": _erro(e, CODIGO_PADRAO["run"])})
+        return 1
+    _emite({"ok": True, "contrato": str(Path(a.contrato).resolve()), **res})
+    return 0
+
+
+def _render_json(a) -> int:
+    from . import contract as ct, render
+    try:
+        c = ct.load(a.contrato)
+        if a.preview:
+            if a.backend != "local":
+                print("render --preview: só no backend local", file=sys.stderr)
+                return 2
+            man = render.render_preview(c, out=a.out, workdir=a.workdir, log=_stderr)
+            saida, manifesto = c.dir / man["preview"]["path"], c.dir / "preview.manifest.json"
+        else:
+            r = do_render(c, a.backend, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu, accelerator=a.accelerator,
+                          timeout=a.timeout, gpu_encode=a.gpu_encode, log=_stderr)
+            if isinstance(r.get("output"), dict):  # local e remotos: MP4 + render.manifest.json ao lado do contrato
+                saida, manifesto = c.dir / r["output"]["path"], c.dir / "render.manifest.json"
+            else:  # colab: só o bundle .zip, sem manifesto
+                saida, manifesto = r.get("bundle"), None
+    except (SystemExit, FileNotFoundError) as e:
+        _emite({"ok": False, "contrato": a.contrato, "backend": a.backend, "preview": a.preview,
+                "error": _erro(e, CODIGO_PADRAO["render"])})
+        return 1
+    _emite({"ok": True, "contrato": str(c.path), "backend": a.backend, "preview": a.preview,
+            "output": str(Path(saida).resolve()) if saida else None, "manifest": str(manifesto) if manifesto else None})
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -349,28 +435,28 @@ def main(argv: list[str] | None = None) -> int:
         mcp_server.main()
         return 0
     if a.cmd == "run":
-        from . import pipeline
-        res = pipeline.run_all(a.contrato, provider=a.provider, backend=a.backend, accelerator=a.accelerator, quality=a.quality,
-                               timeout=a.timeout, force_voice=a.force_voice,
-                               log=(lambda *_: None) if a.json else print)
         if a.json:
-            print(json.dumps(res, indent=2, ensure_ascii=False, default=str))
+            return _run_json(a)
+        from . import pipeline
+        pipeline.run_all(a.contrato, provider=a.provider, backend=a.backend, accelerator=a.accelerator, quality=a.quality,
+                         timeout=a.timeout, force_voice=a.force_voice, log=print)
         return 0
+    if a.cmd == "validate" and a.json:
+        return _validate_json(a)
+    if a.cmd == "render" and a.json:
+        return _render_json(a)
     from . import contract as ct
     c = ct.load(a.contrato)
     if a.cmd == "validate":
         rep = ct.validate(c, need_lock=a.need_lock)
-        if a.json:
-            print(json.dumps({"ok": rep.ok, "errors": rep.errors, "warnings": rep.warnings}, indent=2, ensure_ascii=False))
-        else:
-            for e in rep.errors:
-                print(f"ERRO   {e}")
-            for w in rep.warnings:
-                print(f"aviso  {w}")
-            sc = c.scenes() if not ct.schema_errors(c.data, c.home) else []
-            if sc:
-                print("cenas: " + " | ".join(f"{s['id']} {s['_start']}-{s['_end']}s" for s in sc))
-            print("OK: contrato válido" if rep.ok else f"FALHOU: {len(rep.errors)} erro(s)")
+        for e in rep.errors:
+            print(f"ERRO   {e}")
+        for w in rep.warnings:
+            print(f"aviso  {w}")
+        sc = c.scenes() if not ct.schema_errors(c.data, c.home) else []
+        if sc:
+            print("cenas: " + " | ".join(f"{s['id']} {s['_start']}-{s['_end']}s" for s in sc))
+        print("OK: contrato válido" if rep.ok else f"FALHOU: {len(rep.errors)} erro(s)")
         return 0 if rep.ok else 1
     if a.cmd == "voice":
         from . import voice
