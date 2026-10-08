@@ -119,12 +119,14 @@ Mapa gerado a partir do front matter de `docs/host/` e `docs/plugins/`. A refer�
 Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
 - [Gate local, TDD e pouso de PRs](docs/host/gate.md): Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
+- [Kernel da fábrica (simplicio_factory)](docs/host/kernel.md): O que é o kernel da fábrica, os Protocols e dataclasses, transition() como única forma de mudar o estado, JsonStore e MemoryStore, o testkit e o alvo make factory-schema.
 - [Licenças das dependências](docs/host/licenses.md): Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e o que ainda falta (web/).
 - [Pacote de operação (install, update, doctor, setup)](docs/host/packaging.md): O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites até as
+- [Host de plugins (manifesto, registro e despacho)](docs/host/plugin-host.md): Como cada plugin declara os seus comandos no plugin.json, como o registro descobre os plugins, como o despacho roda antes do argparse, e por que o plugin.json da raiz é outro arquivo.
 <!-- END GENERATED -->
 
 <!-- BEGIN GENERATED: plugins -->
 Gerado de `docs/plugins/*.md` (front matter). Não edite aqui: rode `make regen`.
 
-Ainda não há plugins em `docs/plugins/`.
+- [Studio (Draft e marca viram vídeo)](docs/plugins/studio.md): O que o studio faz (Draft e brand.json viram contract.yaml e MP4), os comandos make, make preview e draft show, o composer determinístico, o claim guard, content_hash, a voz desligada por padrão, o template brand-promo e as pendências conhecidas.
 <!-- END GENERATED -->

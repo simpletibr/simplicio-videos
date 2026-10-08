@@ -7,3 +7,5 @@ Documentos do host: como o repositório é checado, instalado e mantido na máqu
 | [Gate local, TDD e pouso de PRs](gate.md) | Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI |
 | [Pacote de operação (install, update, doctor, setup)](packaging.md) | O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites até as #32 e #34 |
 | [Licenças das dependências](licenses.md) | Como o gate confere licenças, como adicionar uma exceção justificada, como regerar `docs/licenses.md` e o que ainda falta (`web/`) |
+| [Kernel da fábrica (simplicio_factory)](kernel.md) | Os contratos do kernel, `transition()` como única forma de mudar o estado, JsonStore e MemoryStore, o testkit e `make factory-schema` |
+| [Host de plugins (manifesto, registro e despacho)](plugin-host.md) | Como cada plugin declara comandos no `plugin.json`, como o registro descobre os plugins, `plugin list` e por que o `plugin.json` da raiz é outro arquivo |
