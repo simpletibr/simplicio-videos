@@ -395,6 +395,14 @@ issues:
       - "src/simplicio_video/cli.py"
       - "schemas/cli/**"
       - "tests/test_saida_json.py"
+  74:
+    track: motor-pacote
+    status: ready
+    owns:
+      - "src/simplicio_video/data/**"
+      - "src/simplicio_video/paths.py"
+      - "pyproject.toml#tool.setuptools"
+      - "tests/test_dados_pacote.py"
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
