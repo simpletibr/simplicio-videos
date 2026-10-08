@@ -52,7 +52,7 @@ simplicio-video render <contrato.yaml>                    # -> saida.arquivo (ou
 simplicio-video render <contrato.yaml> --backend kaggle   # opcional: remoto sem navegador (4 vCPU grátis)
 simplicio-video render <contrato.yaml> --backend colab-cli  # opcional: Colab CLI oficial (2 vCPU no grátis)
 simplicio-video render <contrato.yaml> --backend colab    # opcional: bundle para colab/render.ipynb (manual)
-simplicio-video run <contrato.yaml> --provider gemini --backend local   # voz + validate + render + publish em dry-run
+simplicio-video run <contrato.yaml> --provider gemini --backend local   # voz + validate + render (termina no MP4)
 ```
 - A captura do Chrome headless é CPU: o local (8 vCPU) é ~6× mais rápido que o Colab grátis. Remoto só bate byte a byte com o local usando o mesmo ffmpeg e `--gpu-encode 0` ([ADR-0003](decisoes/ADR-0003-fluxo-100-script.md)).
 - `render.manifest.json`: hash do contrato e de cada input, versões, hash dos frames/áudio, loudness (alvo −14 LUFS, pico ≤ −1,5) e tempos.
@@ -65,7 +65,7 @@ simplicio-video run <contrato.yaml> --provider gemini --backend local   # voz + 
   - `CAMPANHA` idem (ex.: `Dia_Criancas`, `Video_Institucional`). O contrato não tem bloco `drive` (issue #75): esse caminho é convenção de quem entrega, fora do motor.
 - Nome do arquivo: `<CLIENTE> - <descricao> - vNN.mp4` (ex.: `Lothus - Dia das Criancas 15s - v01.mp4`); nova versão = vNN+1.
 - O repositório guarda **links**, nunca o MP4 final. Todo link novo entra na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
-- Upload: `simplicio-video publish <contrato.yaml>` (rclone, remote `gdrive`, configurado uma vez) ou `run ... --publish`. Nunca sobrescreve, é idempotente e grava o link na tabela sozinho. **Só com pedido explícito do Wesley;** sem pedido, use `publish --dry-run`.
+- Upload: não é do motor (#75); o comando `publish` saiu do CLI (#77) e fica no repositório de operação. O motor termina no MP4 em `saida.arquivo`. **Só com pedido explícito do Wesley** a entrega é feita, pela ferramenta de operação.
 
 ## 7. Commit
 Contrato + `timing.lock.json` + `render.manifest.json` + `assets/audio/voz/` + README/roteiro do vídeo + link no README do cliente. `pytest` e `simplicio-video validate` antes do push.

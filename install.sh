@@ -124,7 +124,7 @@ plano() {
 while [ $# -gt 0 ]; do
   case "$1" in
     --with)
-      [ $# -ge 2 ] || falha "--with pede os extras, ex.: --with server,publish"
+      [ $# -ge 2 ] || falha "--with pede os extras, ex.: --with local-tts,mcp"
       EXTRAS="$2"
       shift 2
       ;;
@@ -157,7 +157,7 @@ done
 
 [[ "$PY" =~ ^3\.[0-9]+$ ]] || falha "versão de Python inválida: $PY (use algo como 3.12)"
 if [ -n "$EXTRAS" ] && ! [[ "$EXTRAS" =~ ^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$ ]]; then
-  falha "extras inválidos: $EXTRAS (use nomes separados por vírgula, ex.: server,publish)"
+  falha "extras inválidos: $EXTRAS (use nomes separados por vírgula, ex.: local-tts,mcp)"
 fi
 
 if [ "$DRY" -eq 1 ]; then
