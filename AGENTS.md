@@ -25,7 +25,7 @@ simplicio-video validate clients/<slug>/<video>/contract.yaml
 simplicio-video voice    clients/<slug>/<video>/contract.yaml [--provider file|local|gemini]   # gemini = API (GEMINI_API_KEY)
 simplicio-video render   clients/<slug>/<video>/contract.yaml [--backend local|kaggle|colab-cli|colab] [--out x.mp4]
 simplicio-video run      clients/<slug>/<video>/contract.yaml --provider gemini   # render local (padrão)
-simplicio-video render   <contrato.yaml> --preview   # prévia de venda 540x960 com marca d'água Wesley Simplicio (@wesleysimplicio)
+simplicio-video render   <contrato.yaml> --preview   # prévia 540x960 com marca d'água e crédito final do contrato (marca.dagua, marca.credito)
 # comandos de venda (prospect, venda, ugc) e publish saíram do CLI do motor (#77) e ficam no repositório de operação
 simplicio-video clone [args]                            # Hypit AI: clonagem de vídeo com agentes (https://github.com/hypit-ai/hypit)
 simplicio-video montage [clone|open|serve|demo|args]   # OpenMontage: produção de vídeo com agentes (https://github.com/calesthio/OpenMontage)
