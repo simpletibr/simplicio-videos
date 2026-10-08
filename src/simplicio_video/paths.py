@@ -1,4 +1,8 @@
-"""Locate the plugin home (repo root with templates/, motion/, schema/)."""
+"""Locate the plugin home (checkout root with plugin.json) and the engine data (schema/, schemas/, templates/, motion/).
+
+Os dados vivem dentro do pacote (`src/simplicio_video/data/`, issue #74): um `pip install` numa pasta limpa basta
+para `list`, `validate` e `render`. SIMPLICIO_VIDEO_HOME (checkout) continua valendo e troca os dados para os do checkout.
+"""
 from __future__ import annotations
 
 import json
@@ -6,12 +10,13 @@ import os
 from pathlib import Path
 
 PKG_DIR = Path(__file__).resolve().parent
+DATA_DIR = PKG_DIR / "data"
 ENGINE_DIR = PKG_DIR / "engine"
 
 
 def _is_home(p: Path) -> bool:
     pj = p / "plugin.json"
-    if not (pj.is_file() and (p / "schema" / "contract.schema.json").is_file()):
+    if not pj.is_file():
         return False
     try:
         return json.loads(pj.read_text(encoding="utf8")).get("name") == "videos"
@@ -20,7 +25,7 @@ def _is_home(p: Path) -> bool:
 
 
 def home(start: Path | None = None) -> Path:
-    """SIMPLICIO_VIDEO_HOME, else walk up from `start`/cwd, else the source checkout (editable install)."""
+    """SIMPLICIO_VIDEO_HOME, else walk up from `start`/cwd to the checkout, else the package itself (wheel install)."""
     env = os.environ.get("SIMPLICIO_VIDEO_HOME")
     if env:
         return Path(env).resolve()
@@ -30,11 +35,19 @@ def home(start: Path | None = None) -> Path:
         for p in [base.resolve(), *base.resolve().parents]:
             if _is_home(p):
                 return p
-    raise SystemExit("simplicio-video: plugin home not found (set SIMPLICIO_VIDEO_HOME to the simplicio-videos checkout)")
+    return DATA_DIR
 
 
-def schema_path(h: Path | None = None) -> Path:
-    return (h or home()) / "schema" / "contract.schema.json"
+def data_dir() -> Path:
+    """Dados do motor: os do pacote, ou os do checkout apontado por SIMPLICIO_VIDEO_HOME."""
+    env = os.environ.get("SIMPLICIO_VIDEO_HOME")
+    if env:
+        return Path(env).resolve() / "src" / "simplicio_video" / "data"
+    return DATA_DIR
+
+
+def schema_path(d: Path | None = None) -> Path:
+    return (d or data_dir()) / "schema" / "contract.schema.json"
 
 
 def tts_python() -> str:

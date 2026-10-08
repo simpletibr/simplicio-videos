@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths
 
-SCHEMA_REL = "schema/contract.schema.json"
+SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
 
 MAIN_DESC = f"""\
 simplicio-video {__version__} — vídeo determinístico a partir de um contrato YAML ({CONTRACT_SCHEMA_ID}).
@@ -45,7 +45,7 @@ exemplos:
   simplicio-video render contract.yaml --preview          # 540x960, marca d'água e crédito final do contrato (marca)
 
 ambiente:
-  SIMPLICIO_VIDEO_HOME  checkout do plugin (templates/, motion/, schema/); padrão: procura a partir do contrato/cwd
+  SIMPLICIO_VIDEO_HOME  checkout do plugin (dados em src/simplicio_video/data/); padrão: os dados do próprio pacote
   SIMPLICIO_TTS_PY      python com kokoro-onnx para --provider local
   GEMINI_API_KEY        --provider gemini (aistudio.google.com/apikey; nunca commitar)
   KAGGLE_USERNAME, KAGGLE_API_TOKEN (ou ~/.kaggle/access_token)   --backend kaggle
@@ -403,8 +403,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if a.cmd == "list":
         from . import catalog
-        h = paths.home()
-        rows = {"templates": lambda: catalog.templates(h), "motion": lambda: catalog.motion(h), "voices": catalog.voices}[a.what]()
+        d = paths.data_dir()
+        rows = {"templates": lambda: catalog.templates(d), "motion": lambda: catalog.motion(d), "voices": catalog.voices}[a.what]()
         if a.json:
             print(json.dumps(rows, indent=2, ensure_ascii=False))
         elif a.what == "templates":
@@ -461,7 +461,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERRO   {e}")
         for w in rep.warnings:
             print(f"aviso  {w}")
-        sc = c.scenes() if not ct.schema_errors(c.data, c.home) else []
+        sc = c.scenes() if not ct.schema_errors(c.data) else []
         if sc:
             print("cenas: " + " | ".join(f"{s['id']} {s['_start']}-{s['_end']}s" for s in sc))
         print("OK: contrato válido" if rep.ok else f"FALHOU: {len(rep.errors)} erro(s)")

@@ -75,5 +75,5 @@ def test_init_skeleton_blocks_until_filled(tmp_path):
     d = yaml.safe_load(out.read_text())
     assert d["cliente"]["drive_nome"] == "Clinica_Teste" and "drive" not in d
     rep = ct.validate(ct.load(out))
-    assert not ct.schema_errors(d, ct.load(out).home)
+    assert not ct.schema_errors(d)
     assert any(e.startswith("todo:") for e in rep.errors)

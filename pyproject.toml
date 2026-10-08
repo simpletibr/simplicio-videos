@@ -26,7 +26,7 @@ simplicio-video-mcp = "simplicio_video.mcp_server:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-simplicio_video = ["engine/*"]
+simplicio_video = ["engine/*", "data/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

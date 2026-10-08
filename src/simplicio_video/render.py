@@ -280,10 +280,10 @@ MARCA_PADRAO = {"dagua": MARCA_PADRAO_DAGUA, "credito": None}
 
 def preview_font(home: Path) -> Path:
     for t in ("assistencia-tecnica-games", "saude-odontologia"):
-        f = home / "templates" / t / "composition" / "assets" / "fonts" / "Inter.ttf"
+        f = paths.data_dir() / "templates" / t / "composition" / "assets" / "fonts" / "Inter.ttf"
         if f.is_file():
             return f
-    hits = sorted((home / "templates").rglob("Inter*.ttf"))
+    hits = sorted((paths.data_dir() / "templates").rglob("Inter*.ttf"))
     if not hits:
         raise SystemExit("render --preview: no Inter.ttf under templates/*/composition/assets/fonts")
     return hits[0]

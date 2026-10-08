@@ -589,14 +589,14 @@ def collect(row: dict, f: Fetcher, dest: Path | None = None) -> dict:
 def campaign_dir(home: Path, template: str) -> Path:
     """Template dir from a template id (institucional-advocacia, ...) or a legacy campaign alias (dia-das-criancas)."""
     tid = CAMPANHAS.get(template) or template
-    d = home / "templates" / tid
+    d = paths.data_dir() / "templates" / tid
     if not (d / "setores.json").is_file():
         raise SystemExit(f"prospect: template desconhecido {template!r} (precisa de templates/<id>/setores.json)")
     return d
 
 
 def load_routing(home: Path) -> dict:
-    return json.loads((home / "templates" / "prospect-roteamento.json").read_text(encoding="utf8"))
+    return json.loads((paths.data_dir() / "templates" / "prospect-roteamento.json").read_text(encoding="utf8"))
 
 
 def route_template(home: Path, campanha: str, row: dict, site_text: str = "") -> tuple[str, str]:

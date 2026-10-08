@@ -17,7 +17,7 @@ from simplicio_video import cli as cli_mod
 from simplicio_video import pipeline, render
 from simplicio_video.cli import main
 
-SCHEMAS = ROOT / "schemas" / "cli"
+SCHEMAS = ROOT / "src" / "simplicio_video" / "data" / "schemas" / "cli"
 NOMES = ["validate-result", "run-result", "render-result", "render-manifest", "preview-manifest"]
 CODIGOS = {"CONTRATO_NAO_ENCONTRADO", "CONTRATO_INVALIDO", "RENDER_FALHOU", "FERRAMENTA_AUSENTE"}
 SCHEMA_DO_COMANDO = {"validate": "validate-result", "run": "run-result", "render": "render-result"}

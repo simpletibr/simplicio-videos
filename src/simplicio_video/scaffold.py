@@ -9,6 +9,8 @@ from pathlib import Path
 
 import yaml
 
+from . import paths
+
 
 def drive_token(s: str) -> str:
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
@@ -17,7 +19,7 @@ def drive_token(s: str) -> str:
 
 def skeleton(home: Path, slug: str, campanha: str, template: str, ano: int | None, nome: str | None,
              drive_nome: str | None) -> dict:
-    tj = home / "templates" / template / "template.json"
+    tj = paths.data_dir() / "templates" / template / "template.json"
     if not tj.is_file():
         raise SystemExit(f"template '{template}' not found (see `simplicio-video list templates`)")
     t = json.loads(tj.read_text(encoding="utf8"))

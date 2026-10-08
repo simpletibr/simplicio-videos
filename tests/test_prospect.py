@@ -225,7 +225,7 @@ def _png(tmp_path, w=240, h=240, name="logo-src.png"):
 
 
 def test_standard_v2_is_the_default_lothus_pacing_laomedeia_voice_same_track():
-    base = yaml.safe_load((ROOT / "templates/sazonal-dia-das-criancas/contract.base.yaml").read_text(encoding="utf8"))
+    base = yaml.safe_load((ROOT / "src" / "simplicio_video" / "data" / "templates" / "sazonal-dia-das-criancas" / "contract.base.yaml").read_text(encoding="utf8"))
     lothus = yaml.safe_load((ROOT / "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml").read_text(encoding="utf8"))
     v = base["voz"]
     assert P.DEFAULT_PROVIDER == "gemini" and v["provider"] == "gemini" and v["voice"] == "Laomedeia"

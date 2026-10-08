@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from conftest import ROOT
+DATA = ROOT / "src" / "simplicio_video" / "data"  # esquemas, templates e motion: dentro do pacote (#74)
 from simplicio_video import contract as ct
 from simplicio_video import prospect as P
 from simplicio_video.compiler import compile_project
@@ -19,12 +20,12 @@ BANNED = re.compile(r"melhor|garant|ganhe|resultado|gr[aá]tis|pre[cç]o|promo|d
 
 
 def _base(tid):
-    return yaml.safe_load((ROOT / "templates" / tid / "contract.base.yaml").read_text(encoding="utf8"))
+    return yaml.safe_load((DATA / "templates" / tid / "contract.base.yaml").read_text(encoding="utf8"))
 
 
 def _texts(tid):
     """Every spoken/written line of a template: base contract falas/tela/kinetic lines/tagline + setores.json lines."""
-    b, s = _base(tid), json.loads((ROOT / "templates" / tid / "setores.json").read_text(encoding="utf8"))
+    b, s = _base(tid), json.loads((DATA / "templates" / tid / "setores.json").read_text(encoding="utf8"))
     out = [b["campanha"]["titulo"]]
     for c in b["cenas"]:
         out += [c["fala"]["texto"], *c.get("tela", [])]
@@ -136,7 +137,7 @@ def test_every_template_uses_the_laomedeia_standard_voice_and_fast_cuts(tid):
     assert len(fx) == 4 and all(6 <= m["params"]["frames"] <= 10 for m in fx)
     words = [m for s in b["cenas"] for m in s["motion"] if m["padrao"] == "kinetic-words"]
     assert [m["params"]["times"] for m in words] == [f"{{{{words:vo{i}}}}}" for i in range(1, 5)]
-    tj = json.loads((ROOT / "templates" / tid / "template.json").read_text(encoding="utf8"))
+    tj = json.loads((DATA / "templates" / tid / "template.json").read_text(encoding="utf8"))
     assert tj["voz"]["gemini_voz"] == "Laomedeia" and tj["composicao"]["cenas"] == ["s1", "s2", "s3", "s4"]
     blocos = {m["bloco"] for s in b["cenas"] for m in s["motion"]}
     assert blocos == set(tj["composicao"]["blocos"])
@@ -160,7 +161,7 @@ def test_institutional_templates_have_no_confetti_and_advocacia_is_sober():
     assert {x["tipo"] for s in b["cenas"] for x in s["sfx"]} <= {"whoosh"}
     est = b["voz"]["estilo"]
     assert "calmo" in est and "sem entusiasmo publicitário" in est
-    html = (ROOT / "templates/institucional-advocacia/composition/index.template.html").read_text()
+    html = (DATA / "templates/institucional-advocacia/composition/index.template.html").read_text()
     cam = html.split("<script>")[-1]
     assert "elastic.out" not in cam and "whipL" not in cam and "rotation" not in cam and "z:" not in cam  # no punch/whip/shake
 
@@ -300,7 +301,7 @@ def test_no_template_output_mentions_simpleti(tid, tmp_path):
     row = {"nome": "Clínica Sorriso", "cidade": "Guarulhos · SP", "setor": "odontologia", "oab": "OAB/SP 123.456"}
     d, meta = P.build_contract(ROOT, tid, row, _coleta())
     assert not OLD_BRAND.search(yaml.safe_dump(d, allow_unicode=True)), tid
-    assert not OLD_BRAND.search((ROOT / "templates" / tid / "composition" / "index.template.html").read_text(encoding="utf8"))
+    assert not OLD_BRAND.search((DATA / "templates" / tid / "composition" / "index.template.html").read_text(encoding="utf8"))
 
 
 # --- batch voice via the Gemini API: bounded regeneration, never speed-up (mock server, no network) ---

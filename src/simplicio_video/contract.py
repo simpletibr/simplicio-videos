@@ -77,7 +77,7 @@ class Contract:
 
     def template_dir(self) -> Path:
         t = self.data["template"]
-        cand = self.home / "templates" / t
+        cand = paths.data_dir() / "templates" / t
         if "/" not in t and cand.is_dir():
             return cand
         return self.rel(t)
@@ -100,8 +100,8 @@ def load(path: str | Path) -> Contract:
     return Contract(p, data, paths.home(p.parent))
 
 
-def schema_errors(data: dict, home: Path) -> list[str]:
-    schema = json.loads(paths.schema_path(home).read_text(encoding="utf8"))
+def schema_errors(data: dict) -> list[str]:
+    schema = json.loads(paths.schema_path().read_text(encoding="utf8"))
     v = Draft202012Validator(schema)
     errs = []
     for e in sorted(v.iter_errors(data), key=lambda e: list(e.absolute_path)):
@@ -122,7 +122,7 @@ DRIVE_FORA = ("drive: o bloco drive saiu do contrato (issue #75); a entrega (Dri
 def validate(c: Contract, need_lock: bool = False) -> Report:
     if "drive" in c.data:
         return Report(errors=[DRIVE_FORA])
-    rep = Report(errors=schema_errors(c.data, c.home))
+    rep = Report(errors=schema_errors(c.data))
     if rep.errors:
         return rep
     d = c.data
@@ -157,7 +157,7 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
             if missing:
                 rep.errors.append(f"template: composition needs blocos {missing} (cenas[].motion[].bloco)")
     # ---- motion patterns ----
-    pdir = c.home / "motion" / "patterns"
+    pdir = paths.data_dir() / "motion" / "patterns"
     blocks = []
     for s in d["cenas"]:
         for m in s.get("motion", []):

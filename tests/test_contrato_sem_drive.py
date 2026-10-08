@@ -37,12 +37,12 @@ def _mp4(mini):
 def test_schema_accepts_real_contract_without_drive():
     d = yaml.safe_load(LOTHUS.read_text())
     d.pop("drive", None)
-    assert ct.schema_errors(d, ROOT) == []
+    assert ct.schema_errors(d) == []
 
 
 def test_contract_without_drive_is_valid(mini):
     _edit(mini, lambda d: d.pop("drive", None))
-    assert ct.schema_errors(yaml.safe_load(mini.read_text()), ROOT) == []
+    assert ct.schema_errors(yaml.safe_load(mini.read_text())) == []
     rep = ct.validate(ct.load(mini))
     assert rep.ok, rep.errors
 

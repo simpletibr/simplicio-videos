@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 INSTRUCTIONS = ("simplicio-video: short marketing videos from a simplicio.video-contract/v1 YAML "
-                "(schema/contract.schema.json; how to write it: skills/simplicio-video/SKILL.md). "
+                "(src/simplicio_video/data/schema/contract.schema.json; how to write it: skills/simplicio-video/SKILL.md). "
                 "Flow: video.init -> fill TODOs from clients/<slug>/coleta -> video.validate -> video.voice -> "
                 "video.render (or video.run for voice->render). Never invent client facts, never speed up the voice. "
                 "The upload is not a tool here: it is done by the operation tool.")
@@ -92,8 +92,8 @@ def video_run(contrato: str, provider: str | None = None, backend: str = "local"
 
 def video_list(what: str = "templates") -> dict:
     from . import catalog, paths
-    h = paths.home()
-    rows = {"templates": lambda: catalog.templates(h), "motion": lambda: catalog.motion(h), "voices": catalog.voices}[what]()
+    d = paths.data_dir()
+    rows = {"templates": lambda: catalog.templates(d), "motion": lambda: catalog.motion(d), "voices": catalog.voices}[what]()
     return {"ok": True, "items": rows}
 
 

@@ -167,6 +167,8 @@ def test_render_1s_fora_do_repo(instalado, tmp_path):
     if motivo:
         pytest.skip(motivo)
     contrato = _mini_em(tmp_path)
+    v = _cli(instalado, "voice", contrato, cwd=tmp_path)  # provider file (offline): gera o timing.lock.json que o render exige
+    assert v.returncode == 0, v.stdout + v.stderr
     r = _cli(instalado, "render", contrato, cwd=tmp_path, offline=False)
     assert r.returncode == 0, r.stdout[-1500:] + r.stderr[-1500:]
     assert (contrato.parent / "out" / "mini.mp4").is_file()

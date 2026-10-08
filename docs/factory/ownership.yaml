@@ -400,9 +400,27 @@ issues:
     status: ready
     owns:
       - "src/simplicio_video/data/**"
+      - "schema/**"
+      - "schemas/**"
+      - "templates/**"
+      - "motion/**"
       - "src/simplicio_video/paths.py"
+      - "src/simplicio_video/catalog.py"
+      - "src/simplicio_video/cli.py"
+      - "src/simplicio_video/mcp_server.py"
+      - "src/simplicio_video/contract.py"
+      - "src/simplicio_video/compiler.py"
+      - "src/simplicio_video/render.py"
+      - "src/simplicio_video/scaffold.py"
+      - "src/simplicio_video/prospect.py"
       - "pyproject.toml#tool.setuptools"
       - "tests/test_dados_pacote.py"
+      - "tests/test_validate.py"
+      - "tests/test_contrato_sem_drive.py"
+      - "tests/test_schema.py"
+      - "tests/test_prospect.py"
+      - "tests/test_prospect_institucional.py"
+      - "tests/test_saida_json.py"
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}

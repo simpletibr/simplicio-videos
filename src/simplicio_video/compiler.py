@@ -155,7 +155,7 @@ def compile_project(c: Contract, workdir: Path, lock: dict | None) -> dict:
             if m.get("bloco"):
                 dst = workdir / "compositions" / f"{m['padrao']}.html"
                 dst.parent.mkdir(exist_ok=True)
-                shutil.copy2(c.home / "motion" / "patterns" / m["padrao"] / "block.html", dst)
+                shutil.copy2(paths.data_dir() / "motion" / "patterns" / m["padrao"] / "block.html", dst)
     # client assets
     items = list(c.data.get("assets", []))
     logo = (c.data.get("marca") or {}).get("logo")
