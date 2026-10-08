@@ -527,6 +527,18 @@ issues:
       - "docs/plugins/media.md"
       - "docs/how-to/README.md"   # índice de guias (acréscimo: só a linha do runbook)
 
+  # ------------------------------------------------------------------ M1 fluxo ponta a ponta das duas rotas (épico #81)
+  90:
+    track: host
+    milestone: M1
+    status: ready
+    owns:
+      - "tests/e2e/test_duas_rotas.py"
+      - "docs/host/duas-rotas.md"
+      - "docs/decisoes/ADR-*-render-final-deterministico.md"
+      - "docs/decisoes/README.md"   # índice de ADRs (acréscimo: só a linha do ADR do render final)
+      - "docs/host/README.md"   # índice de host (acréscimo: só a linha de duas-rotas.md)
+
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
