@@ -3,7 +3,7 @@
 A coreografia v2 da Lothus Odontologia (Dia das Crianças 2026: 16 s, 128 BPM, cortes na batida, `fx-transition` de 6–10
 frames, confete/balões, `kinetic-words` palavra a palavra no tempo da fala, `beat-burst` nas batidas e câmera com punch/whip)
 generalizada para qualquer empresa com público de pais e crianças. Usada por `simplicio-video prospect` (venda ativa,
-[docs/venda-ativa.md](../../docs/venda-ativa.md)).
+[docs/venda-ativa.md](../../../../../docs/venda-ativa.md)).
 
 | Arquivo | O que é |
 |---|---|

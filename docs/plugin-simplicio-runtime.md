@@ -36,8 +36,8 @@ Engines (escolhidas por video.json → "engine"):
 | `videos schema` | devolve os schemas (`video-spec`, `intake`, `video-template`, `motion-pattern`) | não |
 | `videos intake --client <slug> [--site] [--instagram]` | estado do questionário ([`intake/`](../intake/README.md)): extrai dados públicos, devolve só as perguntas que faltam, valida `intake.json` | não (a conversa é do host) |
 | `videos brief --intake intake.json` | intake aprovado + template → `brief.md` + `spec.json`/`video.json` (a construir) | não |
-| `videos template [--intake]` | lista/escolhe template por nicho ([`templates/`](../templates/README.md)) | não |
-| `videos patterns` / `videos voices` | catálogo de motion ([`motion/catalog.json`](../motion/README.md)) / providers de voz ([`voices/`](../voices/README.md)) | não |
+| `videos template [--intake]` | lista/escolhe template por nicho ([`templates/`](../src/simplicio_video/data/templates/README.md)) | não |
+| `videos patterns` / `videos voices` | catálogo de motion ([`motion/catalog.json`](../src/simplicio_video/data/motion/README.md)) / providers de voz ([`voices/`](../voices/README.md)) | não |
 | `videos voice --spec video.json [--provider] [--force]` | narração com cache por hash | não (TTS é serviço, não LLM de autoria) |
 | `videos edit --edl edl.json` | executa um EDL do video-use sobre footage do cliente | a *decisão* do corte é do host; a execução não |
 | `videos new --client <slug> --template <id> --out <dir>` | copia um template aprovado + cria `video.json`, `spec.json`, slots placeholder | não |

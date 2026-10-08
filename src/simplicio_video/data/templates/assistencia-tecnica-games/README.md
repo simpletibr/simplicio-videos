@@ -2,7 +2,7 @@
 
 **Status: pronto** — tem vídeo de referência renderizado.
 
-Referência: [`clients/wjr-informatica-games/video-01`](../../clients/wjr-informatica-games/video-01/)
+Referência: [`clients/wjr-informatica-games/video-01`](../../../../../clients/wjr-informatica-games/video-01/)
 
 Nichos que caem aqui: assistência técnica, conserto de console, conserto de controle, games, videogame, celular, informática, eletrônicos.
 

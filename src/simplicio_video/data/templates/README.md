@@ -23,7 +23,7 @@ Um template transforma um intake aprovado em spec **sem LLM**: define a sequênc
 
 `simplicio-video prospect` (venda ativa) escolhe pela coluna `setor` com [`prospect-roteamento.json`](prospect-roteamento.json); o fluxo com intake segue abaixo.
 
-1. Intake → `empresa.nicho` + `descricao` (ver [`intake/`](../intake/README.md)).
+1. Intake → `empresa.nicho` + `descricao` (ver [`intake/`](../../../../intake/README.md)).
 2. Compara com a lista `nichos` de cada `template.json`; empate ou nenhum → pergunta ao usuário com as 2 opções mais próximas.
 3. Grava em `intake.empresa.setor_template`.
 

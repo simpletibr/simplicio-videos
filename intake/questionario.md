@@ -1,6 +1,6 @@
 # Questionário de intake
 
-O plugin sempre começa aqui. Resultado: um `intake.json` ([`intake.schema.json`](intake.schema.json)) que vira o brief/spec. Exemplo real: [`exemplos/wjr-informatica-games.intake.json`](exemplos/wjr-informatica-games.intake.json).
+O plugin sempre começa aqui. Resultado: um `intake.json` ([`intake.schema.json`](intake.schema.json)) que vira o brief/spec. Exemplo real: `exemplos/wjr-informatica-games.intake.json`.
 
 **Primeira pergunta (decide o modo):**
 

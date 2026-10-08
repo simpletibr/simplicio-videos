@@ -1,6 +1,6 @@
 # Receita — vídeo de cliente do pedido à entrega
 
-**Regra:** o agente (LLM) **raciocina e escreve o contrato**; o CLI `simplicio-video` **executa** (validação, voz, render). Nada de editar HTML/spec à mão. Skill para LLMs: [`skills/simplicio-video/SKILL.md`](../skills/simplicio-video/SKILL.md) · decisões: [ADR-0002](decisoes/ADR-0002-cli-contrato-colab-creditos.md), [ADR-0003](decisoes/ADR-0003-fluxo-100-script.md) (fluxo 100% script) · schema: [`schema/contract.schema.json`](../schema/contract.schema.json).
+**Regra:** o agente (LLM) **raciocina e escreve o contrato**; o CLI `simplicio-video` **executa** (validação, voz, render). Nada de editar HTML/spec à mão. Skill para LLMs: [`skills/simplicio-video/SKILL.md`](../skills/simplicio-video/SKILL.md) · decisões: [ADR-0002](decisoes/ADR-0002-cli-contrato-colab-creditos.md), [ADR-0003](decisoes/ADR-0003-fluxo-100-script.md) (fluxo 100% script) · schema: [`schema/contract.schema.json`](../src/simplicio_video/data/schema/contract.schema.json).
 
 Exemplos reais: [WJR video-01](../clients/wjr-informatica-games/video-01/contract.yaml) (porte 1:1 do vídeo entregue) e [Lothus Dia_Criancas](../clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml) (feito só pelo CLI).
 

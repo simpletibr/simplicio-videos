@@ -307,6 +307,13 @@ issues:
       - "src/simplicio_video/data/templates/saude-odontologia/README.md"
       - "src/simplicio_video/data/templates/sazonal-dia-das-criancas/README.md"
       - "clients/lothus-odontologia/video-01-dia-das-criancas/README.md"
+      # correção de link: caminho de coleta/ (gitignored, não existe no repo) vira código; nada mais muda
+      - "clients/lothus-odontologia/video-01-dia-das-criancas/roteiro.md"
+      - "clients/wjr-informatica-games/video-01/README.md"
+      - "clients/wjr-informatica-games/video-01/roteiro.md"
+      # correção de link: exemplos/ (não existe no repo) vira código; nada mais muda
+      - "intake/extracao-automatica.md"
+      - "intake/questionario.md"
   46:
     track: licenses
     milestone: M1

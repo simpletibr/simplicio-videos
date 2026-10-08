@@ -50,8 +50,8 @@ python -m pytest                                   # schema, validate, --help, d
 | `tests/` | pytest: schema, validate, voice, compile (WJR byte a byte), `--help`, determinismo de hash (render de 1 s), fixture `fixtures/mini/` | — |
 | `intake/` | Etapa 1: questionário (modo auto/completo), regras de extração de site/IG (só público, fonte+data por fato), `intake.schema.json` (`simplicio.intake/v1`), `exemplos/` | [intake/README.md](intake/README.md) |
 | `schemas/` | Etapa 2: `video-spec.schema.json` (`simplicio.video-spec/v1`, formato do `video.json`) | — |
-| `templates/<setor>/` | Etapa 3: `template.json` (cenas, padrões, campos do intake, voz, música, cuidados, `composicao`) + README + `composition/` (`index.template.html` com placeholders do CLI, fontes); `template.schema.json`. `pronto` ou `skeleton` | [templates/README.md](templates/README.md) |
-| `motion/` | Etapa 4: biblioteca — `patterns/<id>/` (`pattern.json`, `block.html`, `preview.png`), `catalog.json` (gerado), `lib/retime.js`, `assets/` (fontes OFL, placeholders), `scripts/` (`preview.sh`, `catalog.mjs`), `pattern.schema.json` | [motion/README.md](motion/README.md) |
+| `templates/<setor>/` | Etapa 3: `template.json` (cenas, padrões, campos do intake, voz, música, cuidados, `composicao`) + README + `composition/` (`index.template.html` com placeholders do CLI, fontes); `template.schema.json`. `pronto` ou `skeleton` | [templates/README.md](src/simplicio_video/data/templates/README.md) |
+| `motion/` | Etapa 4: biblioteca — `patterns/<id>/` (`pattern.json`, `block.html`, `preview.png`), `catalog.json` (gerado), `lib/retime.js`, `assets/` (fontes OFL, placeholders), `scripts/` (`preview.sh`, `catalog.mjs`), `pattern.schema.json` | [motion/README.md](src/simplicio_video/data/motion/README.md) |
 | `voices/` | Etapa 5: providers (`gemini.md` = tutorial, `elevenlabs.md`, `xai.md`, `local.md`), `narracao-tts.md` (pipeline, cache, tratamento) | [voices/README.md](voices/README.md) |
 | `tools/` | Ferramentas **opcionais** com versão fixada: `video-use/` (etapa 6 — `setup.sh`, `transcribe_local.py`, `edl_transcript.py`, README com quando usar × HyperFrames direto) | [tools/README.md](tools/README.md) |
 | `ugc/` | **Trilha UGC (gerativa, fora do `render`)**: `pack.json` (10 personagens, `simplicio.ugc-pack/v1`) + `pack.schema.json`, `prompts/` (5 prompts: elenco, imagem, fullbody, roteiros, Seedance). O CLI `ugc list\|prompt` só monta/valida o prompt; imagem e vídeo são gerados à mão. [ADR-0004](docs/decisoes/ADR-0004-ugc-generativo.md) | [ugc/README.md](ugc/README.md) |
@@ -61,6 +61,24 @@ python -m pytest                                   # schema, validate, --help, d
 | `clients/<cliente>/video-NN-videouse/` | Edição com video-use (etapa 6, opcional): `run.sh`, `source.variables.json` (variante da fonte), `edit/` (`edl.json`, transcrições, `takes_packed.md`, `project.md`, `verify/`), `overlay/` (HyperFrames → MOV alfa), `preview/` | README do vídeo |
 | `clients/<cliente>/<video>/contract.yaml` | **Vídeo pelo CLI**: `contract.yaml`, `timing.lock.json`, `render.manifest.json`, `assets/audio/voz/` (falas tratadas), `assets/audio/vo/external/` (WAVs Gemini), README/roteiro, `preview/`. Ex.: Lothus `video-01-dia-das-criancas` | README do vídeo |
 | `clients/<cliente>/video-NN/` | (legado, WJR) Projeto HyperFrames autocontido (`package.json`; rode os comandos **dentro** dele): `spec.json` (variáveis, áudio/cues, voz, clipes), `video.json`, `index.html` (timeline única + `RETIME`), `scripts/` (`build.mjs`, `voice.py`, `master.sh`, `gemini-tts.mjs`), `assets/` (+ `audio/LICENSES.md`), `preview/` | README do vídeo |
+
+## Plugins e host
+
+Mapa gerado a partir do front matter de `docs/host/` e `docs/plugins/` (`make regen`). A referência da CLI, dos schemas, das tools MCP e das variáveis de ambiente fica em [`docs/reference/`](docs/reference/).
+
+<!-- BEGIN GENERATED: host -->
+Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
+
+- [Gate local, TDD e pouso de PRs](docs/host/gate.md): Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
+- [Licenças das dependências](docs/host/licenses.md): Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e o que ainda falta (web/).
+- [Pacote de operação (install, update, doctor, setup)](docs/host/packaging.md): O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites até as
+<!-- END GENERATED -->
+
+<!-- BEGIN GENERATED: plugins -->
+Gerado de `docs/plugins/*.md` (front matter). Não edite aqui: rode `make regen`.
+
+Ainda não há plugins em `docs/plugins/`.
+<!-- END GENERATED -->
 
 ## Fluxos
 

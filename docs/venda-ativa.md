@@ -35,7 +35,7 @@ confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha fe
      automatizada sem autorização por escrito, então hoje o CLI **não baixa nada do Instagram**: registra
      `nao_coletado: robots.txt…` e segue. O @ vem do CSV (busca web, com fonte) ou do link publicado no site;
    - Maps: só a URL do CSV (sem scraping).
-3. **Setor → template → modelo**. Primeiro [`templates/prospect-roteamento.json`](../templates/prospect-roteamento.json) escolhe o
+3. **Setor → template → modelo**. Primeiro [`templates/prospect-roteamento.json`](../src/simplicio_video/data/templates/prospect-roteamento.json) escolhe o
    template pela coluna `setor` (sem acento, minúsculas; sem casar, título/descrição do site), conforme `--campanha`:
 
    | Setor (regex) | `auto` (padrão) | `dia-das-criancas` | `institucional` |
@@ -49,11 +49,11 @@ confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha fe
    Depois, o `setores.json` do template escolhido dá o modelo do setor (blocos de s2/s3, frase da s3, subtítulo do lockup).
    Setores do sazonal: odontologia, pediatria, escola (berçário, cursos), brinquedos, festas (buffet, parque), games, moda infantil.
    **Templates institucionais** (mesmo padrão v2: voz Laomedeia, logo real, ritmo Lothus; sem confete):
-   [`institucional-odontologia`](../templates/institucional-odontologia/) (fora de data comemorativa, mascote dente, 128 BPM),
-   [`institucional-estetica`](../templates/institucional-estetica/) (elegante, ornamento `line-accent`, 128 BPM) e
-   [`institucional-advocacia`](../templates/institucional-advocacia/) (sóbrio, OAB Provimento 205/2021, 96 BPM, sem percussão;
+   [`institucional-odontologia`](../src/simplicio_video/data/templates/institucional-odontologia/) (fora de data comemorativa, mascote dente, 128 BPM),
+   [`institucional-estetica`](../src/simplicio_video/data/templates/institucional-estetica/) (elegante, ornamento `line-accent`, 128 BPM) e
+   [`institucional-advocacia`](../src/simplicio_video/data/templates/institucional-advocacia/) (sóbrio, OAB Provimento 205/2021, 96 BPM, sem percussão;
    **exige a coluna `oab`**: sem ela a linha fica `aguardando_oab`, com contrato e `falas-gemini.md`, mas sem render).
-4. **Contrato** (`contract.yaml`): [`contract.base.yaml`](../templates/sazonal-dia-das-criancas/contract.base.yaml) (a
+4. **Contrato** (`contract.yaml`): [`contract.base.yaml`](../src/simplicio_video/data/templates/sazonal-dia-das-criancas/contract.base.yaml) (a
    coreografia da Lothus v02: 16 s, 128 BPM, cortes na batida, `fx-transition`, confete, `kinetic-words` palavra a palavra
    no tempo da fala) + o modelo do setor (mascote `tooth-character`/`icon-mascot`, frase da s3) + os dados reais: nome,
    @ do Instagram, cidade, logo e a cor do site (ajustada para contraste ≥ 3:1 com texto branco). As falas são genéricas da data

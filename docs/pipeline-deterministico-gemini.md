@@ -35,7 +35,7 @@ Proposta de bloco no `spec.json` (hoje o `video-01` usa `provider: "file"` com W
 
 ## (b) Biblioteca de padrões de motion
 
-**Implementada em [`motion/`](../motion/README.md)** (30/09/2026): cada padrão é um bloco HyperFrames parametrizado (`motion/patterns/<id>/block.html`, montado com `data-composition-src` + `data-variable-values`), com `pattern.json`, preview e fonte. 19 blocos prontos, 19 propostos; catálogo gerado em `motion/catalog.json`. A tabela abaixo é o inventário original tirado do `video-01/index.html` (fonte da extração):
+**Implementada em [`motion/`](../src/simplicio_video/data/motion/README.md)** (30/09/2026): cada padrão é um bloco HyperFrames parametrizado (`motion/patterns/<id>/block.html`, montado com `data-composition-src` + `data-variable-values`), com `pattern.json`, preview e fonte. 19 blocos prontos, 19 propostos; catálogo gerado em `motion/catalog.json`. A tabela abaixo é o inventário original tirado do `video-01/index.html` (fonte da extração):
 
 | Padrão | Onde no video-01 | Parâmetros |
 |---|---|---|

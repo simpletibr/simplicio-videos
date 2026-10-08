@@ -1,6 +1,6 @@
 # saude-odontologia — pronto (v2 dinâmica)
 
-Especialização do skeleton [`saude-clinica`](../saude-clinica/) para consultórios odontológicos em datas comemorativas (Dia das Crianças, Dia do Dentista, Natal) ou institucional leve. Referência renderizada: [`clients/lothus-odontologia/video-01-dia-das-criancas`](../../clients/lothus-odontologia/video-01-dia-das-criancas/).
+Especialização do skeleton [`saude-clinica`](../saude-clinica/) para consultórios odontológicos em datas comemorativas (Dia das Crianças, Dia do Dentista, Natal) ou institucional leve. Referência renderizada: [`clients/lothus-odontologia/video-01-dia-das-criancas`](../../../../../clients/lothus-odontologia/video-01-dia-das-criancas/).
 
 | Cena | Papel | Duração (ref., 128 BPM) | Padrões |
 |---|---|---|---|

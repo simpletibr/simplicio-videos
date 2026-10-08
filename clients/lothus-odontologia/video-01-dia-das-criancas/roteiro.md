@@ -1,6 +1,6 @@
 # Roteiro — Lothus · Dia das Crianças 2026 (16 s, 9:16 · v02 dinâmica)
 
-Fatos só de [`../coleta/brief.md`](../coleta/brief.md). Copy sazonal não afirma nada sobre a clínica.
+Fatos só de `../coleta/brief.md`. Copy sazonal não afirma nada sobre a clínica.
 
 Trilha 128 BPM (1 batida = 0,46875 s). Cortes na batida: 2,8125 / 7,03125 / 11,71875 s; "ta-dá" em 15,0 s.
 
