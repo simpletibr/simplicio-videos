@@ -381,6 +381,14 @@ issues:
       - "tests/test_marca_contrato.py"
       - "tests/test_prospect.py"
       - "tests/test_prospect_institucional.py"
+  73:
+    track: motor-status
+    status: ready
+    owns:
+      - "src/simplicio_video/cli.py"
+      - "src/simplicio_video/tools.py"
+      - "src/simplicio_video/status.py"
+      - "tests/test_status_json.py"
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
