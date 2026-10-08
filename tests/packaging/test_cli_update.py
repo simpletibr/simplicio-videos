@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from _casa import casa  # noqa: F401 (fixture: HOME e workspace isolados)
 from _comum import executa, exige_registrado
 from simplicio_video.cli import main
 

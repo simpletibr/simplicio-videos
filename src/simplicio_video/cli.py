@@ -29,6 +29,10 @@ Fluxo completo:
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
+  install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
+  update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
+  doctor       diagnóstico: Python, Node 22, ffmpeg com libass, disco, portas, credenciais, workspace
+  setup        primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
 Skill para LLMs: skills/simplicio-video/SKILL.md"""
@@ -258,6 +262,44 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video list templates\n  simplicio-video list motion --json\n  simplicio-video list voices")
     p.add_argument("what", choices=["templates", "motion", "voices"], help="catálogo a listar")
     p.add_argument("--json", action="store_true", help="saída em JSON")
+
+    p = sub.add_parser("install", formatter_class=Fmt, help="ambiente idempotente: .venv com uv, Python e extras (--check mostra o plano)",
+        description="Cria <checkout>/.venv com uv (Python --python; padrão: o último usado, ou 3.12) e instala o pacote\n"
+                    "em modo editável com os extras. Idempotente: sem mudança em Python, extras ou pyproject.toml, não faz nada.\n"
+                    "--check mostra o plano sem criar nada e sai com 1 se houver mudança pendente. Não usa sudo.",
+        epilog="exemplos:\n  simplicio-video install --check\n  simplicio-video install\n"
+               "  simplicio-video install --python 3.12 --with server,publish")
+    p.add_argument("--check", action="store_true", help="mostra o que mudaria e não cria nada")
+    p.add_argument("--python", metavar="VERSÃO", help="versão do Python do .venv, ex.: 3.12 (padrão: a última usada, ou 3.12)")
+    p.add_argument("--with", dest="extras", metavar="EXTRAS",
+                   help="extras separados por vírgula, ex.: server,publish (padrão: os da última instalação)")
+
+    p = sub.add_parser("update", formatter_class=Fmt, help="git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor",
+        description="Mostra os commits novos e o diff do CHANGELOG, aplica com git pull --ff-only, reexecuta install,\n"
+                    "reconstrói web/ e roda doctor. Recusa árvore suja (--force deixa seguir; o git ainda protege arquivos\n"
+                    "alterados). Imprime o commit anterior e o comando para voltar a ele (rollback).",
+        epilog="exemplos:\n  simplicio-video update --check\n  simplicio-video update\n  simplicio-video update --force")
+    p.add_argument("--check", action="store_true", help="mostra os commits novos e o diff do CHANGELOG; não altera nada")
+    p.add_argument("--force", action="store_true", help="segue com árvore suja (não descarta alterações)")
+
+    p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: Python, Node 22, ffmpeg+libass, disco, portas, credenciais, workspace",
+        description="Checa o ambiente e diz a correção exata de cada falha. Credenciais só mostram presença, nunca o valor.\n"
+                    "Aviso (warn) não reprova. Exit code 0 sem falhas; 1 se alguma checagem falhou. --json para máquinas.",
+        epilog="exemplos:\n  simplicio-video doctor\n  simplicio-video doctor --json\n"
+               "  docker compose run --rm simplicio doctor")
+    p.add_argument("--json", action="store_true", help="imprime {ok, checks[{name, status, detail, fix}]} em JSON")
+
+    p = sub.add_parser("setup", formatter_class=Fmt, help="primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)",
+        description="Cria o workspace em $SIMPLICIO_WORKSPACE (padrão ~/.simplicio-video/workspaces/default) com\n"
+                    "workspace.yaml (tema, idioma) e policy.yaml (autonomia L1; tokens, USD e créditos em zero).\n"
+                    "--yes aceita os padrões sem perguntar. Não faz login nem grava credencial.",
+        epilog="exemplos:\n  simplicio-video setup\n  simplicio-video setup --yes --theme br --lang pt-BR\n"
+               "  simplicio-video setup --yes --realoficial")
+    p.add_argument("--yes", "-y", action="store_true", help="aceita os padrões sem perguntar")
+    p.add_argument("--theme", metavar="ID", help="tema visual (padrão: br)")
+    p.add_argument("--lang", metavar="IDIOMA", help="idioma do conteúdo (padrão: pt-BR)")
+    p.add_argument("--force", action="store_true", help="regrava workspace.yaml e policy.yaml (zera orçamentos)")
+    p.add_argument("--realoficial", action="store_true", help="mostra como conectar o MCP do Real Oficial (OAuth no cliente)")
     return ap
 
 
@@ -390,6 +432,19 @@ def main(argv: list[str] | None = None) -> int:
     if not a.cmd:
         ap.print_help()
         return 0
+
+    if a.cmd == "install":
+        from .commands import install
+        return install.run(a)
+    if a.cmd == "update":
+        from .commands import update
+        return update.run(a)
+    if a.cmd == "doctor":
+        from .commands import doctor
+        return doctor.run(a)
+    if a.cmd == "setup":
+        from .commands import setup
+        return setup.run(a)
 
     if a.cmd == "status":
         from . import status

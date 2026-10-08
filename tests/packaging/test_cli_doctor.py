@@ -21,8 +21,10 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from _casa import casa  # noqa: F401 (fixture: HOME e workspace isolados)
 from _comum import executa, exige_registrado
 from simplicio_video.cli import main
+from simplicio_video.commands import doctor as doctor_mod
 
 GB = 1024**3
 SENTINELA = "segredo-sentinela-nao-pode-aparecer-na-saida"
@@ -72,6 +74,8 @@ def saude(casa, monkeypatch):
     monkeypatch.setattr(subprocess, "run", run)
     monkeypatch.setattr(subprocess, "Popen", popen)
     monkeypatch.setattr(os, "statvfs", statvfs)
+    # Sockets são bloqueados nos testes: a checagem de porta é trocada por uma função que diz "livre".
+    monkeypatch.setattr(doctor_mod, "porta_livre", lambda porta, *a, **kw: True)
     monkeypatch.setenv("GEMINI_API_KEY", SENTINELA)
 
     casa.workspace.mkdir(parents=True)
@@ -142,13 +146,19 @@ def test_pouco_disco_falha(saude, capsys):
         assert c["fix"], f"falha de disco sem correção: {c}"
 
 
-def test_credencial_ausente_falha_so_com_o_nome(saude, capsys, monkeypatch):
-    # Decisão a confirmar: a credencial exigida é GEMINI_API_KEY (o único provedor de voz nomeado no motor).
+def test_credencial_ausente_e_aviso_nao_falha(saude, capsys, monkeypatch):
+    # Decisão do orquestrador (antes era "a confirmar", com falha): GEMINI_API_KEY ausente não é falha. O MVP roda
+    # com voz local e zero tokens, então o doctor mostra a credencial como aviso (warn), com a correção que diz qual
+    # variável definir, sem nunca mostrar o valor, e sai com 0 (avisos não reprovam).
     monkeypatch.delenv("GEMINI_API_KEY")
     rc, rel, out, err = _json(capsys)
-    assert rc != 0
-    for c in _falhas_com(rel, "GEMINI_API_KEY"):
-        assert c["fix"] and "GEMINI_API_KEY" in c["fix"], f"correção não diz qual variável definir: {c}"
+    assert rc == 0, f"credencial ausente não pode reprovar o doctor: {rel}"
+    assert rel["ok"] is True
+    achadas = [c for c in rel["checks"] if c["name"] == "GEMINI_API_KEY"]
+    assert achadas and all(c["status"] == "warn" for c in achadas), f"credencial ausente deveria ser aviso: {achadas}"
+    for c in achadas:
+        assert c["fix"] and "GEMINI_API_KEY" in c["fix"], f"aviso não diz qual variável definir: {c}"
+    assert not [c for c in rel["checks"] if c["status"] == "fail" and "GEMINI_API_KEY" in json.dumps(c)]
     assert SENTINELA not in out + err
 
 

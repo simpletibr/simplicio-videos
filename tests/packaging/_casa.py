@@ -1,4 +1,8 @@
-"""Fixture compartilhada dos testes do pacote de operação (issue #43)."""
+"""Fixture `casa` dos testes do pacote de operação (issue #43).
+
+Nome de módulo próprio (não conftest.py): um tests/packaging/conftest.py sobrescreve o `conftest` da raiz de tests/,
+de onde os outros testes importam helpers. Cada teste que usa `casa` importa a fixture explicitamente.
+"""
 from types import SimpleNamespace
 
 import pytest

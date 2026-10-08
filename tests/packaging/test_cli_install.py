@@ -10,6 +10,7 @@ import shutil
 
 import pytest
 
+from _casa import casa  # noqa: F401 (fixture: HOME e workspace isolados)
 from _comum import ROOT, executa, exige_registrado, instantanea
 from simplicio_video.cli import main
 
