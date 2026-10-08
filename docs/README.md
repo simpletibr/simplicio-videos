@@ -2,6 +2,11 @@
 
 | Doc | Para quê |
 |---|---|
+| [tutorials/README.md](tutorials/README.md) | **Índice dos tutoriais** (do zero ao resultado): comece por [primeiro vídeo](tutorials/primeiro-video.md) |
+| [how-to/README.md](how-to/README.md) | **Índice dos how-to** (tarefas específicas): instalar, atualizar e checar; receita de vídeo para cliente |
+| [decisoes/README.md](decisoes/README.md) | **Índice dos ADRs** (decisões de arquitetura e de produto), em ordem |
+| [host/README.md](host/README.md) | **Índice do host**: gate local, pacote de operação e licenças |
+| [plugins/README.md](plugins/README.md) | **Índice de plugins**: ainda vazio; a #32 define o registro |
 | [decisoes/ADR-0001-visao-plugin.md](decisoes/ADR-0001-visao-plugin.md) | **Decisão de produto** (Wesley, 30/09/2026): plugin do Simplicio Runtime, esteira determinística por setor |
 | [receita-video-cliente.md](receita-video-cliente.md) | **Receita atual:** o agente escreve o contrato, o CLI `simplicio-video` executa (coleta → contrato → validate → voice → render → Drive) |
 | [decisoes/ADR-0002-cli-contrato-colab-creditos.md](decisoes/ADR-0002-cli-contrato-colab-creditos.md) | CLI + contrato YAML, backend Colab (GPU), design de créditos para clientes pagantes |

@@ -288,6 +288,7 @@ issues:
       - "docs/glossary.md"
       - "docs/how-to/README.md"
       - "docs/tutorials/README.md"
+      - "docs/tutorials/primeiro-video.md"
       - "docs/decisoes/README.md"
       - "docs/plugins/README.md"
       - "docs/host/README.md"

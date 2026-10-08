@@ -1,0 +1,8 @@
+# How-to
+
+Guias para uma tarefa específica. Cada página responde a uma pergunta do tipo "como faço X". Para aprender do zero, veja os [tutoriais](../tutorials/README.md). Para o que cada comando aceita, veja a [referência da CLI](../reference/cli.md).
+
+| Guia | Para quê |
+|---|---|
+| [Instalar, atualizar e checar](install.md) | Instalar o simplicio-video no checkout, atualizar com `update` e conferir o ambiente com `doctor` |
+| [Receita de vídeo para cliente](../receita-video-cliente.md) | O passo a passo atual: o agente escreve o contrato e o CLI valida, gera a voz, renderiza e entrega |
