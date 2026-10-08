@@ -38,11 +38,13 @@ cenas:
     papel: prova
     duracao_s: 5
     motion:
-      - padrao: line-accent
-        bloco: s2-accent
+      - padrao: kinetic-words
+        bloco: s2-words
         params:
-          color: "#f2b705"
+          lines: "Atendimento com hora marcada.|Garantia de 1 ano no tratamento."
+          colors: "#0b5d3b|#1d1d1b"
           ink: "#1d1d1b"
+          mode: calm
     textos:
       prova_1: "Atendimento com hora marcada."
       prova_2: "Garantia de 1 ano no tratamento."
@@ -55,7 +57,7 @@ cenas:
         params:
           name: "Clínica Exemplo"
           sub: ""
-          tagline: "Cuidado com hora marcada."
+          tagline: "Agende sua visita."
           handle: ""
           city: Campinas
           logo: assets/logo.svg
@@ -74,6 +76,10 @@ trilha:
     fade_in_s: 0.5
     fade_out_s: 1.0
     progression: [[48, [60, 64, 67]]]
+    sections:
+      - name: groove
+        from: 0
+        to: 15
   master:
     target_lufs: -14
     true_peak_db: -1.5

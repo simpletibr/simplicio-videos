@@ -22,8 +22,7 @@ PREVIA_9_16 = (540, 960)
 FPS = 30
 CLAIMS_MAX = 2  # prova_1 e prova_2 (s2)
 CAMPANHA = {"id": "Promo", "ano": 2026}
-TAGLINE = "Cuidado com hora marcada."  # texto do template (s3)
-CTA = "Agende sua visita."  # texto do template (s3)
+CTA = "Agende sua visita."  # texto do template (s3): vai no lugar da mensagem (tagline) do lockup
 CONECTIVOS = ("em", "de", "com", "para", "no", "na", "por")
 TRILHA = {
     "bpm": 120,
@@ -36,6 +35,12 @@ TRILHA = {
     },
     "master": {"target_lufs": -14, "true_peak_db": -1.5},
 }
+
+
+def _trilha(duracao_s: float) -> dict:
+    """Trilha do template: pulso constante numa única seção `groove` (build.mjs exige trilha.music.sections)."""
+    music = dict(TRILHA["music"], sections=[{"name": "groove", "from": 0, "to": _numero(duracao_s)}])
+    return {**TRILHA, "music": music}
 
 _PLAIN = re.compile(r"[A-Za-z][A-Za-z0-9_./-]*")
 _PLAIN_COM_ESPACO = re.compile(r"[^\W\d_][\w .-]*")  # nome com letras e espaços: plano só se não houver ': ' nem ' #'
@@ -65,7 +70,7 @@ def compose_contract(draft: Draft, brand: Brand, *, preview: bool = False) -> st
         "marca": _marca(brand),
         "cenas": _cenas(draft, brand),
         "voz": {"habilitada": False, "provider": "file"},
-        "trilha": TRILHA,
+        "trilha": _trilha(draft.duration_s),
         "saida": {"arquivo": "out/brand-promo.mp4", "qualidade": "draft" if preview else "delivery"},
     }
     linhas: list[str] = []
@@ -94,6 +99,8 @@ def _marca(brand: Brand) -> dict:
 
 
 def _cenas(draft: Draft, brand: Brand) -> list[dict]:
+    if not draft.claims:
+        raise ValueError("o Draft precisa de ao menos 1 claim: a cena de prova (s2) mostra o texto da prova")
     if len(draft.claims) > CLAIMS_MAX:
         raise ValueError(f"o Draft tem {len(draft.claims)} claims; o máximo é {CLAIMS_MAX} (prova_1, prova_2)")
     base = round(draft.duration_s / 3, 3)
@@ -119,7 +126,13 @@ def _cenas(draft: Draft, brand: Brand) -> list[dict]:
             "id": "s2",
             "papel": "prova",
             "duracao_s": duracoes[1],
-            "motion": [{"padrao": "line-accent", "bloco": "s2-accent", "params": {"color": destaque, "ink": tinta}}],
+            "motion": [
+                {
+                    "padrao": "kinetic-words",
+                    "bloco": "s2-words",
+                    "params": {"lines": "|".join(draft.claims), "colors": f"{primaria}|{tinta}", "ink": tinta, "mode": "calm"},
+                }
+            ],
             "textos": {f"prova_{i + 1}": texto for i, texto in enumerate(draft.claims)},
         },
         {
@@ -133,7 +146,7 @@ def _cenas(draft: Draft, brand: Brand) -> list[dict]:
                     "params": {
                         "name": brand.name,
                         "sub": "",
-                        "tagline": TAGLINE,
+                        "tagline": CTA,
                         "handle": "",
                         "city": _cidade(brand.facts),
                         "logo": f"assets/{logo}" if logo else "",

@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
   brand-promo: promo de marca de 3 cenas para qualquer setor (studio, #16). Composta ONLY com blocos de motion/patterns
-  (kinetic-words, line-accent, brand-lockup-soft): params vêm do contrato (cenas[].motion[].params -> {{vars:<bloco>}}),
+  (kinetic-words, brand-lockup-soft): params vêm do contrato (cenas[].motion[].params -> {{vars:<bloco>}}),
   tempos das cenas de cenas[].duracao_s. Sem fundo animado nem fx: nenhum mecanismo de render novo.
   Deterministic: no Math.random, Date.now, fetch or infinite repeats. Fatos só de brand.json (claim guard do studio).
 -->
@@ -23,7 +23,7 @@
       <div id="s1-words" class="clip" data-composition-id="kinetic-words" data-composition-src="compositions/kinetic-words.html" data-start="{{t:s1}}" data-duration="{{dur:s1}}" data-track-index="1" data-variable-values='{{vars:s1-words}}'></div>
 
       <!-- S2 prova -->
-      <div id="s2-accent" class="clip" data-composition-id="line-accent" data-composition-src="compositions/line-accent.html" data-start="{{t:s2}}" data-duration="{{dur:s2}}" data-track-index="1" data-variable-values='{{vars:s2-accent}}'></div>
+      <div id="s2-words" class="clip" data-composition-id="kinetic-words" data-composition-src="compositions/kinetic-words.html" data-start="{{t:s2}}" data-duration="{{dur:s2}}" data-track-index="1" data-variable-values='{{vars:s2-words}}'></div>
 
       <!-- S3 marca -->
       <div id="s3-lockup" class="clip" data-composition-id="brand-lockup-soft" data-composition-src="compositions/brand-lockup-soft.html" data-start="{{t:s3}}" data-duration="{{dur:s3}}" data-track-index="1" data-variable-values='{{vars:s3-lockup}}'></div>
