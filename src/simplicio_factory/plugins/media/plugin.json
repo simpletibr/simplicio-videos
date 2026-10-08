@@ -6,8 +6,14 @@
     {
       "name": "generate",
       "handler": "simplicio_factory.plugins.media.cli:generate_cmd",
-      "help": "orçamento e aprovação humana de gasto por item: 'generate quote', 'generate approve' e 'generate show'",
+      "help": "orçamento, aprovação e início da geração por item: 'generate quote', 'generate approve', 'generate start' e 'generate show'",
       "example": "simplicio-video generate quote ITEM --provider real-oficial --estimate-ref REF --credits N"
+    },
+    {
+      "name": "media",
+      "handler": "simplicio_factory.plugins.media.cli:media_cmd",
+      "help": "anexa a mídia gerada ao item e grava o recibo: 'media attach ITEM ARQUIVO --source real-oficial --media-id ID --prompt-file ARQ'",
+      "example": "simplicio-video media attach ITEM ARQUIVO --source real-oficial --media-id ID --prompt-file ARQ"
     }
   ],
   "stages": []

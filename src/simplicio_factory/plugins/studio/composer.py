@@ -51,7 +51,9 @@ class _NomeLivre(str):
     """Texto que o golden escreve sem aspas quando é seguro (cliente.nome), ex.: `nome: Clínica Exemplo`."""
 
 
-def compose_contract(draft: Draft, brand: Brand, *, preview: bool = False) -> str:
+def compose_contract(draft: Draft, brand: Brand, *, preview: bool = False, midia: str | None = None) -> str:
+    """`midia`: nome do arquivo da mídia anexada pelo `media attach` (#87), que entra como asset opcional do contrato.
+    Sem mídia a chave `assets` não existe e a saída é a de sempre (os goldens não mudam)."""
     check_claims(draft, brand)
     plataforma = _plataforma(draft)
     largura, altura = PREVIA_9_16 if preview else PRESETS[plataforma]
@@ -68,6 +70,7 @@ def compose_contract(draft: Draft, brand: Brand, *, preview: bool = False) -> st
         },
         "template": TEMPLATE_ID,
         "marca": _marca(brand),
+        **_assets(midia, brand),
         "cenas": _cenas(draft, brand),
         "voz": {"habilitada": False, "provider": "file"},
         "trilha": _trilha(draft.duration_s),
@@ -96,6 +99,17 @@ def _marca(brand: Brand) -> dict:
         nome = Path(brand.logo).name
         logo = {"arquivo": f"assets/{nome}", "destino": f"assets/{nome}"}
     return {"paleta": {chave: cores[chave] for chave in sorted(cores)}, "logo": logo}
+
+
+def _assets(midia: str | None, brand: Brand) -> dict:
+    """Mídia anexada como asset do contrato (`assets`), copiada para assets/<nome> pelo stage. Só nome de arquivo."""
+    if midia is None:
+        return {}
+    if not isinstance(midia, str) or not midia or midia in (".", "..") or Path(midia).name != midia:
+        raise ValueError(f"mídia anexada precisa ser só um nome de arquivo: {midia!r}")
+    if brand.logo and midia == Path(brand.logo).name:
+        raise ValueError(f"mídia anexada com o nome do logo ({midia}): renomeie o arquivo baixado do Real Oficial")
+    return {"assets": [{"arquivo": f"assets/{midia}", "destino": f"assets/{midia}"}]}
 
 
 def _cenas(draft: Draft, brand: Brand) -> list[dict]:

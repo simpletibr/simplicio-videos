@@ -15,6 +15,7 @@ import shutil
 from pathlib import Path
 
 from simplicio_factory.contracts import Brand, Draft, Renderer, Stage, Store, transition
+from simplicio_factory.plugins.media import receipt
 from simplicio_factory.plugins.studio.composer import compose_contract
 from simplicio_factory.plugins.studio.hashing import content_hash
 
@@ -63,11 +64,15 @@ class StudioStage(Stage):
         return self.drafts[item_id]
 
     def _materializar(self, pasta: Path, draft: Draft, preview: bool = False) -> Path:
-        texto = compose_contract(draft, self.brand, preview=preview)
+        # Mídia anexada pelo `media attach` (#87): o recibo fica na pasta do item, não na da prévia.
+        recibo = receipt.ler(self.pasta(draft.item_id))
+        texto = compose_contract(draft, self.brand, preview=preview, midia=recibo["arquivo"] if recibo else None)
         pasta.mkdir(parents=True, exist_ok=True)
         if self.brand.logo:
             (pasta / "assets").mkdir(exist_ok=True)
             shutil.copy2(self.brand.logo, pasta / "assets" / Path(self.brand.logo).name)
+        if recibo:
+            receipt.copia_verificada(self.pasta(draft.item_id), recibo, pasta / "assets")  # confere o sha256 antes do render
         contrato = pasta / CONTRATO_ARQUIVO
         _escrever(contrato, texto)
         return contrato

@@ -491,6 +491,41 @@ issues:
       - "tests/factory/plugins/board/**"
       - "docs/plugins/board.md"
       - "docs/plugins/README.md"   # índice de plugins (acréscimo: só a linha do board)
+  88:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/board/html.py"
+      - "src/simplicio_factory/plugins/board/templates/**"
+      - "src/simplicio_factory/plugins/board/cli.py#build"   # só o subcomando build (cli.py é do #86)
+      - "src/simplicio_factory/plugins/board/plugin.json"   # só o texto de help do comando board (lista build)
+      - "pyproject.toml#tool.setuptools.package-data"   # só a linha que põe o template board.html.tpl no wheel (seção é do #74)
+      - "tests/factory/plugins/board/test_html.py"
+      - "tests/factory/plugins/board/golden/**"
+      - "docs/plugins/board.md"   # só a seção html (e o `commands` do front matter)
+      - "docs/assets/board-html.png"   # captura do dashboard, PNG pequeno
+
+  # ------------------------------------------------------------------ M1 geração assistida: attach, recibo e runbook (épico #81)
+  87:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/media/attach.py"
+      - "src/simplicio_factory/plugins/media/receipt.py"
+      - "src/simplicio_factory/plugins/media/cli.py"
+      - "src/simplicio_factory/plugins/media/plugin.json"   # acréscimo: comando `media` (attach) no manifesto do media (#85)
+      - "src/simplicio_factory/plugins/studio/composer.py#compose_contract,_assets"   # só o parâmetro midia e o helper _assets (asset anexado opcional)
+      - "src/simplicio_factory/plugins/studio/stage.py#_materializar,import receipt"   # copia a mídia anexada para assets/ e confere o sha256 no render (arquivo da #16)
+      - "tests/factory/plugins/media/test_attach.py"
+      - "tests/factory/plugins/media/_attach_fixtures.py"
+      - "tests/factory/plugins/media/test_media_cli.py#test_manifesto_declara_generate_com_handler_existente"   # a lista de comandos do manifesto passa a incluir `media` (arquivo da #85)
+      - "tests/factory/plugins/studio/test_asset_anexado.py"
+      - "tests/test_docs/test_runbook_real_oficial.py"
+      - "docs/how-to/gerar-video-real-oficial.md"
+      - "docs/plugins/media.md"
+      - "docs/how-to/README.md"   # índice de guias (acréscimo: só a linha do runbook)
 
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
