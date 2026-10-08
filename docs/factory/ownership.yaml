@@ -338,6 +338,37 @@ issues:
       - "tests/test_ugc.py"
       - "tests/test_venda.py"
       - "tests/test_motor_sem_vendas.py"
+  75:
+    track: motor-sem-drive
+    status: ready
+    owns:
+      - "schema/contract.schema.json"
+      - "src/simplicio_video/contract.py"
+      - "src/simplicio_video/render.py"
+      - "src/simplicio_video/publish.py"
+      - "src/simplicio_video/venda.py"
+      - "src/simplicio_video/scaffold.py"
+      - "src/simplicio_video/prospect.py"
+      - "src/simplicio_video/cli.py"
+      - "templates/institucional-advocacia/contract.base.yaml"
+      - "templates/institucional-estetica/contract.base.yaml"
+      - "templates/institucional-odontologia/contract.base.yaml"
+      - "templates/sazonal-dia-das-criancas/contract.base.yaml"
+      - "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml"
+      - "clients/lothus-odontologia/video-01-dia-das-criancas/render.manifest.json"
+      - "clients/wjr-informatica-games/video-01/contract.yaml"
+      - "clients/wjr-informatica-games/video-01/render.manifest.json"
+      - "tests/fixtures/mini/contract.yaml"
+      - "tests/test_contrato_sem_drive.py"
+      - "tests/test_schema.py"
+      - "tests/test_validate.py"
+      - "tests/test_render_determinism.py"
+      - "tests/test_publish.py"
+      - "tests/test_venda.py"
+      - "tests/test_prospect_institucional.py"
+      - "skills/simplicio-video/SKILL.md"
+      - "docs/receita-video-cliente.md"
+      - "AGENTS.md"
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}
