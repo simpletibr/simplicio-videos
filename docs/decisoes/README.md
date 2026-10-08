@@ -14,3 +14,4 @@ Cada ADR registra uma decisão, o contexto, as alternativas e o status. Os arqui
 | [ADR-0008: duas rotas de produção no item (determinística intocada e ai_assisted com gasto aprovado)](ADR-0008-duas-rotas.md) | Duas rotas |
 | [ADR-0017: instalação e atualização (um comando, git pull --ff-only, Docker só build local)](ADR-0017-instalacao-atualizacao.md) | Instalação e atualização |
 | [ADR-0018: render final determinístico também na rota ai_assisted (a mídia gerada entra como asset verificado)](ADR-0018-render-final-deterministico.md) | Render final determinístico |
+| [ADR-0019: agentes atrás de Protocols (LangGraph como orchestrator opcional, CrewAI fora do motor, A2A na borda externa)](ADR-0019-agentes.md) | Agentes atrás de Protocols |
