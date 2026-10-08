@@ -468,6 +468,16 @@ issues:
       - "docs/host/kernel.md"
       - "docs/decisoes/ADR-0008-duas-rotas.md"
       - "docs/decisoes/README.md"   # índice de ADRs (acréscimo: registra o ADR-0008)
+  # ------------------------------------------------------------------ M1 plugin media (épico #81)
+  85:
+    track: plugin
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_factory/plugins/media/**"
+      - "tests/factory/plugins/media/**"
+      - "docs/plugins/media.md"
+      - "docs/plugins/README.md"   # índice de plugins (acréscimo: a linha do media; cross-issue)
 
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
