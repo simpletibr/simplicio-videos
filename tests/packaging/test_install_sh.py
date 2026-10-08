@@ -63,10 +63,10 @@ def test_dry_run_lista_o_plano_completo(copia):
 
 def test_dry_run_aceita_extras_e_python(copia):
     assert SCRIPT.is_file(), "install.sh não existe"
-    r = _dry_run(copia, "--with", "server,publish", "--python", "3.12")
+    r = _dry_run(copia, "--with", "local-tts,mcp", "--python", "3.12")
     texto = r.stdout + r.stderr
     assert r.returncode == 0, texto
-    assert "server" in texto and "publish" in texto, f"extras pedidos não aparecem no plano:\n{texto}"
+    assert "local-tts" in texto and "mcp" in texto, f"extras pedidos não aparecem no plano:\n{texto}"
     assert "3.12" in texto
 
 

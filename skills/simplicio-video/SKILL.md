@@ -1,6 +1,6 @@
 ---
 name: simplicio-video
-description: Use this when a Simplicio Runtime user asks for a short marketing video (Reels/Stories/Shorts, date greeting, institutional, promo) for a real business, or asks to re-render, change the voice, retime or deliver an existing one. You reason about the client facts, pick template/motion/voice/timings and write a simplicio.video-contract/v1 YAML; the deterministic `simplicio-video` CLI validates, generates the voice and renders the MP4 (locally by default; Kaggle / Colab CLI / Colab notebook only as optional backends for clients paying with credits) and, only when explicitly asked, publishes it to Google Drive. Also available as an MCP server (`simplicio-video mcp`, tools video.*).
+description: Use this when a Simplicio Runtime user asks for a short marketing video (Reels/Stories/Shorts, date greeting, institutional, promo) for a real business, or asks to re-render, change the voice, retime or deliver an existing one. You reason about the client facts, pick template/motion/voice/timings and write a simplicio.video-contract/v1 YAML; the deterministic `simplicio-video` CLI validates, generates the voice and renders the MP4 (locally by default; Kaggle / Colab CLI / Colab notebook only as optional backends for clients paying with credits) and stops at the MP4 (Drive delivery is not part of the engine, #75). Also available as an MCP server (`simplicio-video mcp`, tools video.*).
 ---
 
 # simplicio-video — contrato primeiro, CLI executa
@@ -10,8 +10,7 @@ Você (LLM) **raciocina e escreve o contrato**; o CLI **executa**. Nunca edite H
 ## Quando usar
 - Pedido de vídeo curto para um negócio real (post de data comemorativa, institucional, oferta, CTA para WhatsApp).
 - Trocar a voz provisória pela final (WAVs do Gemini), mudar texto/tempo, renderizar de novo, gerar bundle para o Colab.
-- **Venda ativa em massa** (lista de empresas → prévias com marca d'água para o Wesley oferecer): `simplicio-video prospect <lista.csv>` (alias `batch`), sem LLM por vídeo; ver `docs/venda-ativa.md`.
-- **Vídeos UGC em volume** (selfie vertical de ~7 s, personagem sintético falando do app): ver a seção **UGC (gerativo)** abaixo; fora do contrato e do `render`.
+- **Vídeos UGC em volume** (selfie vertical de ~7 s, personagem sintético falando do app): trilha gerativa fora do motor e do `render`; ver `ugc/README.md`.
 - **Não** use para edição de footage bruto (cortar/legendar gravações): isso é `tools/video-use/` (etapa opcional).
 
 ## Como raciocinar (antes de escrever)
@@ -36,14 +35,13 @@ simplicio-video render <contrato.yaml>                    # local -> saida.arqui
 simplicio-video render <contrato.yaml> --backend kaggle   # OPCIONAL (créditos): remoto, sem navegador (KAGGLE_USERNAME + token)
 simplicio-video render <contrato.yaml> --backend colab-cli  # OPCIONAL (créditos): Colab CLI oficial (login único)
 simplicio-video render <contrato.yaml> --backend colab    # OPCIONAL: bundle zip para colab/render.ipynb (manual)
-simplicio-video publish <contrato.yaml> --dry-run         # mostra destino/link; sem --dry-run SÓ com pedido explícito
-simplicio-video run <contrato.yaml> --provider gemini [--publish]   # tudo em sequência, render local (padrão)
+simplicio-video run <contrato.yaml> --provider gemini     # tudo em sequência (voz -> validate -> render), termina no MP4; render local (padrão)
 simplicio-video render <contrato.yaml> --preview          # prévia 540x960 crf 30 + marca d'água Wesley Simplicio · @wesleysimplicio + cartão final
-simplicio-video prospect <lista.csv> [--lote X] [--out DIR] [--jobs N] [--only SLUG] [--provider gemini|local] [--so-contrato]
-                                                          # venda ativa: coleta pública -> contrato por setor -> prévia + lote.csv
 simplicio-video mcp                                       # mesmas operações como tools MCP (stdio)
 ```
-Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz do repo (Python ≥ 3.10, Node ≥ 22, ffmpeg).
+Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz do repo (Python ≥ 3.10, Node ≥ 22, ffmpeg). Extras reais: `test`, `local-tts`, `mcp`, `remote` (`./install.sh --with local-tts,mcp`).
+
+> Nota: comandos de venda (prospect, venda, ugc) e publish saíram do CLI do motor (#77) e ficam no repositório de operação; o upload para o Drive não é mais do motor (#75).
 
 ## Checklist de validação
 - [ ] `validate` sem erro (nenhum `TODO`, sem bloco `drive`, assets existem).
@@ -60,7 +58,7 @@ Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz 
 - **Custo por vídeo** (voz + render + Drive, US$/R$, medido/oficial/estimativa): `docs/custos.md`. Voz Gemini API ≈ US$ 0,005 por vídeo WJR; render local US$ 0; Colab A100 ≈ US$ 0,043.
 
 ## Destino no Drive
-Não faça upload sem pedido explícito do usuário para aquele vídeo. Sem pedido: `publish --dry-run` (ou `run` sem `--publish`) e informe o caminho do MP4. Com pedido: `simplicio-video publish <contrato>` (rclone, remote `gdrive`): nunca sobrescreve (mesmo nome com bytes diferentes = erro, suba vNN+1), é idempotente e grava o link sozinho na tabela **Entregas no Drive** de `clients/<slug>/README.md`.
+O motor não faz upload (#75): não existe `publish` nem `run --publish`. O CLI termina no MP4 em `saida.arquivo`; informe o caminho do MP4 e quem entrega (ferramenta de operação) cuida do destino. Não faça upload sem pedido explícito do usuário para aquele vídeo.
 
 ## Exemplo mínimo de contrato
 ```yaml
@@ -94,20 +92,9 @@ saida: { arquivo: out/lothus-dia-criancas.mp4, qualidade: delivery }
 ```
 Contratos completos: `clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml`, `clients/wjr-informatica-games/video-01/contract.yaml`.
 
-## Venda ativa (prospect)
-- Entrada: CSV `nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes, logo, logo_fonte` (só `nome` obrigatório; exemplo `prospects/exemplo-dia-criancas.csv`). Registre em `fontes` onde achou cada dado; `logo` = arquivo/URL do logo **real** tirado do site ou do Instagram da própria empresa, com a página em `logo_fonte`.
-- O CLI coleta só dado público e leve (página inicial do site, robots.txt respeitado), escolhe o **template pelo setor** (`templates/prospect-roteamento.json`: `--campanha auto` = odontologia/infantil → `sazonal-dia-das-criancas`, advocacia → `institucional-advocacia`, estética → `institucional-estetica`; `--campanha institucional` = odontologia → `institucional-odontologia`) e o modelo do setor no `setores.json` do template, gera o contrato (nome/@/cidade/logo reais + textos genéricos da data; **nunca** preço, promoção ou fato inventado), voz e `render --preview`.
-- **Padrão v2 (default)**: voz Gemini 3.8 Flash TTS **Laomedeia** (a da Lothus v02; reserva Achernar), leva animada (API com `GEMINI_API_KEY` ou falas do AI Studio em `<slug>/assets/audio/vo/external/line-01..04.wav`; sem nenhuma das duas a linha fica `aguardando_voz` com `falas-gemini.md`), logo real no anel da assinatura, ritmo da Lothus v02 (cortes na batida, transições de 6–10 frames, confete, texto palavra a palavra) e a mesma trilha festiva 128 BPM. `--provider local` (Kokoro) só para rascunho.
-- **Advocacia** (OAB Provimento 205/2021): template sóbrio e informativo, sem confete/percussão/promessa; exige a coluna `oab` (inscrição real, conferida no CNA) — sem ela, `aguardando_oab` (contrato e falas sim, render não). CSV aceita `logo_url` como apelido de `logo`.
-- **Logo**: nunca gerar, redesenhar ou inventar. Sem arquivo real (site/Instagram da empresa) = lockup de texto.
-- Instagram: nunca com login nem scraping; o `robots.txt` do instagram.com proíbe robôs, então o @ vem do CSV ou do link no site.
-- LGPD: só dados da empresa (WhatsApp comercial publicado por ela); nada de pessoas, e-mails ou telefones pessoais.
-- Saída fora do git (`prospects/*`); **nunca envie nada**: o Wesley revisa `lote.csv` e envia (script em `docs/venda-ativa.md`).
-
 ## UGC (gerativo)
 - **Quando usar:** pedido de vídeos curtos "estilo UGC" (selfie vertical de ~7 s, personagem sintético falando do app ou produto), em volume. Trilha **gerativa, fora do contrato e do `render`**: `ugc/README.md`; decisão em `docs/decisoes/ADR-0004-ugc-generativo.md`. Vídeo de cliente com motion e voz TTS continua sendo contrato + `render`.
-- **O CLI só monta o prompt:** `simplicio-video ugc list [--json]` e `simplicio-video ugc prompt <personagem> --app "<APP>" [--fala "texto"] [--duracao 7] [--json]` (`--todos` no lugar do personagem = os 10 com as falas de exemplo). Monta o esqueleto Seedance 2.5 do artigo, byte a byte, e avisa se a fala foge de ~3,5 palavras/s (22–28 palavras para 7 s). Não chama LLM nem API de geração.
 - **Texto e mídia:** elenco, prompt de imagem e roteiros (passos 1, 2, 4, 7) são prompts em `ugc/prompts/`; imagens e clipes (passos 3 e 6) são manuais (ChatGPT, Higgsfield, Krea). Gerar em plataforma paga (inclusive pelo MCP do Higgsfield) só com pedido explícito; gasta crédito.
-- **A fala vem de `clients/<slug>/coleta/`** e entra por `--fala`. As falas do pack são exemplos de formato (namoro, treino, diário, finanças): nunca as publique para cliente real.
+- **A fala vem de `clients/<slug>/coleta/`**. As falas do pack são exemplos de formato (namoro, treino, diário, finanças): nunca as publique para cliente real.
 - **Guardrails:** personagem sintético, nunca rosto ou voz de pessoa real sem autorização; depoimento fabricado ("uso há 40 dias", "economizei R$ 400") apresentado como cliente real é publicidade enganosa: só fato confirmado em `coleta/` ou encenação clara; rótulo de IA da plataforma (TikTok, Instagram, YouTube) e CONAR; imagens e MP4 em `out/ugc/<slug>/` e no Drive, nunca no git; chaves só no ambiente.
 

@@ -39,7 +39,7 @@ def parse_extras(texto: str | None) -> list[str] | None:
     itens = [x.strip() for x in texto.split(",") if x.strip()]
     for item in itens:
         if not EXTRA_RE.match(item):
-            raise InstallError(f"extra inválido {item!r}: use nomes como server,publish")
+            raise InstallError(f"extra inválido {item!r}: use nomes como local-tts,mcp")
     return list(dict.fromkeys(itens))
 
 

@@ -1,5 +1,7 @@
 # Venda ativa em massa — `simplicio-video prospect`
 
+Atenção: estes comandos saíram do CLI do motor na #77 e ficam no repositório de operação.
+
 Lista de empresas → coleta pública → contrato por setor → **prévia com marca d'água Wesley Simplicio (@wesleysimplicio)** para o Wesley oferecer.
 Tudo determinístico: nenhuma chamada de LLM por vídeo; mesma lista + mesma coleta → mesmos contratos e mesmas prévias.
 
