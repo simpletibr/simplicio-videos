@@ -144,6 +144,14 @@ def test_comment_pela_cli_grava_uma_linha(tmp_path, monkeypatch):
     assert linha["text"] == "Gancho fraco" and linha["by"] == "Ana"
 
 
+def _proibido(arquivo, modulo: str) -> bool:
+    raiz = modulo.split(".")[0]
+    if raiz not in PROIBIDOS_NO_PLUGIN:
+        return False
+    # #89: o servidor local (serve.py) usa http.server, escuta só em 127.0.0.1 e não importa cliente de rede.
+    return not (arquivo.name == "serve.py" and modulo.startswith("http.server"))
+
+
 def test_plugin_nao_importa_modulos_de_rede_nem_llm():
     arquivos = sorted(PLUGIN_DIR.rglob("*.py"))
     assert arquivos, "src/simplicio_factory/plugins/board/ ausente: nada para checar (#86)"
@@ -157,6 +165,6 @@ def test_plugin_nao_importa_modulos_de_rede_nem_llm():
                 modulos = [no.module or ""]
             else:
                 continue
-            ruins += [f"{arquivo.name}: {m}" for m in modulos if m.split(".")[0] in PROIBIDOS_NO_PLUGIN]
+            ruins += [f"{arquivo.name}: {m}" for m in modulos if _proibido(arquivo, m)]
 
     assert not ruins, "o plugin do quadro não pode usar rede nem LLM:\n" + "\n".join(ruins)

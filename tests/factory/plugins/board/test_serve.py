@@ -367,3 +367,52 @@ def test_pagina_servida_tem_formulario_e_botoes_sem_rede_externa(tmp_path):
     assert re.search(r'name="decisao"\s+value="changes"', corpo)
     assert re.search(r"https?://", corpo) is None
     assert re.search(r"<script[^>]*\ssrc=", corpo) is None
+
+
+# ---------------------------------------------------------------- regras puras (sem socket; rodam no gate padrão)
+
+
+def test_host_e_origem_so_aceitam_localhost_e_127_0_0_1_na_porta_do_servidor():
+    from simplicio_factory.plugins.board import serve
+
+    assert serve._host_local("127.0.0.1:8765", 8765)
+    assert serve._host_local("localhost", 8765)
+    assert not serve._host_local("evil.example:8765", 8765)
+    assert not serve._host_local("127.0.0.1:9999", 8765), "outra porta não é este servidor"
+    assert serve._origem_local("http://localhost:8765", 8765)
+    assert not serve._origem_local("http://evil.example", 8765)
+    assert not serve._origem_local("null", 8765)
+    assert not serve._origem_local("https://127.0.0.1:8765", 8765), "o servidor só fala http"
+
+
+def test_checa_host_recusa_tudo_que_nao_e_loopback():
+    from simplicio_factory.plugins.board import serve
+    from simplicio_factory.plugins.board.service import BoardError
+
+    assert serve.checa_host("localhost") == "127.0.0.1"
+    for host in ("0.0.0.0", "::", "192.168.0.10"):
+        with pytest.raises(BoardError):
+            serve.checa_host(host)
+
+
+def test_decodifica_formulario_com_utf8_mais_e_percent():
+    from simplicio_factory.plugins.board import serve
+
+    assert serve._campos("by=Ana+J%C3%BAlia&texto=50%25+%2B+1") == {"by": "Ana Júlia", "texto": "50% + 1"}
+
+
+def test_pagina_servida_escapa_comentario_e_o_estatico_nao_tem_formulario(tmp_path):
+    from simplicio_factory.plugins.board import html as quadro_html
+    from simplicio_factory.plugins.board import serve
+
+    home = home_de(tmp_path)
+    salvar_item(home, "rendered")
+    service_module().comentar(home, ITEM_ID, "<script>x()</script>", "Ana", relogio=lambda: "2026-10-08T10:00:00-03:00")
+
+    servida = serve.pagina(home, "tok123")
+    estatica = quadro_html.construir(home, home.resolve())
+
+    assert "<script>x()</script>" not in servida
+    assert "&lt;script&gt;x()&lt;/script&gt;" in servida
+    assert 'name="token" value="tok123"' in servida
+    assert "<form" not in estatica, "o build estático não ganha formulário"

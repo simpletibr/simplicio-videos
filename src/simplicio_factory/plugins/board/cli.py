@@ -4,6 +4,7 @@
     simplicio-video board comment ITEM "texto" --by NOME                 comentário append-only
     simplicio-video board review ITEM approve|changes --by NOME [--note]  revisão humana
     simplicio-video board build [--out ARQUIVO]                          quadro em HTML estático (#88)
+    simplicio-video board serve [--port N]                               servidor local em 127.0.0.1 com token (#89)
 
 Estado: $SIMPLICIO_FACTORY_HOME (padrão .simplicio-factory/). As colunas são derivadas; o quadro não move cartão de etapa.
 """
@@ -17,6 +18,7 @@ import sys
 from pathlib import Path
 
 from simplicio_factory.plugins.board import html as quadro_html
+from simplicio_factory.plugins.board import serve as servidor
 from simplicio_factory.plugins.board import service
 from simplicio_factory.plugins.board.service import BoardError
 
@@ -40,6 +42,10 @@ EXEMPLO_BUILD = """Exemplo:
   simplicio-video board build
   simplicio-video board build --out quadro/board.html
 """
+EXEMPLO_SERVE = """Exemplo:
+  simplicio-video board serve
+  simplicio-video board serve --port 9000
+"""
 
 
 def _home() -> Path:
@@ -49,6 +55,44 @@ def _home() -> Path:
 def _erro(mensagem: str) -> int:
     print(f"erro: {mensagem}", file=sys.stderr)
     return 1
+
+
+def _porta(valor: str) -> int:
+    try:
+        porta = int(valor)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"porta inválida: {valor!r} (use um número de 0 a 65535)") from None
+    if not 0 <= porta <= 65535:
+        raise argparse.ArgumentTypeError(f"porta fora da faixa: {porta} (use de 0 a 65535; 0 escolhe uma livre)")
+    return porta
+
+
+def _host_local(valor: str) -> str:
+    try:
+        return servidor.checa_host(valor)
+    except BoardError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
+
+
+def _sobe(args, home: Path) -> int:
+    """Liga o servidor, imprime a URL com o token e atende até Ctrl+C."""
+    try:
+        srv = servidor.criar(home, args.host, args.port)
+    except BoardError as exc:
+        return _erro(str(exc))
+    except OSError as exc:
+        return _erro(f"não foi possível escutar em {args.host}:{args.port}: {exc}")
+    porta = srv.server_address[1]
+    print(f"Quadro em http://127.0.0.1:{porta}/ (Ctrl+C para parar)", flush=True)
+    print(f"Token desta sessão: {srv.token}", flush=True)
+    print(f"Abra no navegador: http://127.0.0.1:{porta}/?token={srv.token}", flush=True)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        print("servidor parado", flush=True)
+    finally:
+        srv.server_close()
+    return 0
 
 
 def _subparser(acoes, nome: str, ajuda: str, descricao: str, exemplo: str):
@@ -80,7 +124,7 @@ def board_cmd(argv: list[str]) -> int:
         epilog=EXEMPLO_BOARD,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    acoes = parser.add_subparsers(dest="acao", metavar="{list,comment,review,build}")
+    acoes = parser.add_subparsers(dest="acao", metavar="{list,comment,review,build,serve}")
 
     lista = _subparser(
         acoes,
@@ -126,6 +170,30 @@ def board_cmd(argv: list[str]) -> int:
         "--out", default="board.html", metavar="ARQUIVO", help="arquivo HTML de saída (padrão: board.html)"
     )
 
+    sobe = _subparser(
+        acoes,
+        "serve",
+        "sobe o quadro num servidor local (127.0.0.1) com token",
+        "Serve a mesma página do build, com formulário para comentar e botões para aprovar ou pedir alterações. "
+        "Escuta só em 127.0.0.1: o token impresso no terminal vale só nesta sessão. Aprovar gasto não passa pelo "
+        "navegador: continua no comando generate approve, no terminal.",
+        EXEMPLO_SERVE,
+    )
+    sobe.add_argument(
+        "--port",
+        type=_porta,
+        default=servidor.PORTA_PADRAO,
+        metavar="N",
+        help="porta (padrão: 8765; 0 escolhe uma livre)",
+    )
+    sobe.add_argument(
+        "--host",
+        type=_host_local,
+        default=servidor.HOST,
+        metavar="HOST",
+        help="só 127.0.0.1 ou localhost; qualquer outro endereço é recusado",
+    )
+
     args = parser.parse_args(argv)
     if args.acao is None:
         parser.print_help()
@@ -149,6 +217,8 @@ def board_cmd(argv: list[str]) -> int:
                 return _erro(f"não foi possível gravar {destino}: {exc}")
             print(f"{destino}: quadro gravado")
             return 0
+        if args.acao == "serve":
+            return _sobe(args, home)
         if args.acao == "comment":
             linha = service.comentar(home, args.item, args.texto, args.by)
             print(f"{args.item}: comentário {linha['id']} registrado")
