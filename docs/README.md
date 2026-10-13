@@ -34,7 +34,3 @@
 | [reference/events.md](reference/events.md) | Eventos catalogados (gerado; vazio por enquanto) |
 
 Voz/narração saiu daqui e foi para [`voices/`](../voices/README.md) (tutorial Gemini, pipeline TTS, ElevenLabs, xAI, locais).
-
-## Agentes
-
-Pesquisa e critérios de orquestração e runtime de agentes: [research/agentes/README.md](research/agentes/README.md).

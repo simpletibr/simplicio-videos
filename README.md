@@ -50,7 +50,7 @@ simplicio-videos/
 ├── tools/                  # optional pinned tools (video-use)
 ├── ugc/                    # generative UGC track (outside the render): pack.json, prompts/
 ├── schemas/                # video-spec.schema.json (simplicio.video-spec/v1)
-├── docs/                   # ADRs, pipeline, setup, research — index in docs/README.md
+├── docs/                   # ADRs, pipeline, setup — index in docs/README.md
 └── clients/<client>/       # example videos only: <video>/contract.yaml, preview/, assets
 ```
 
