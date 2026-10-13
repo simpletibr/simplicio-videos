@@ -1,7 +1,7 @@
 ---
 title: Usar o LangFlow como cliente do motor
 summary: Receita para instalar o LangFlow à parte, apontar o executável do simplicio-video, importar o componente e o fluxo de exemplo, e rodar ponta a ponta. O LangFlow é cliente externo: o motor não depende dele.
-commands: simplicio-video make, simplicio-video board list, simplicio-video board review, simplicio-video validate, simplicio-video render, simplicio-video status, simplicio-video doctor
+commands: simplicio-video validate, simplicio-video render, simplicio-video status, simplicio-video doctor
 issue: 84
 last_verified: 2026-10-08
 ---
@@ -21,9 +21,8 @@ O componente em [simplicio_component.py](../../examples/langflow/simplicio_compo
 | `validate` | `simplicio-video validate CONTRATO --json` | valida o contrato antes do render |
 | `render` | `simplicio-video render CONTRATO --json` | renderiza; `--preview` gera a prévia 540x960 |
 | `status` | `simplicio-video status --json` | ferramentas e, com contrato, o estado do render |
-| `board_list` | `simplicio-video board list --json` | lê o quadro dos itens |
 
-`make` não tem `--json`, então o componente não o chama. A criação do item continua no terminal, com `simplicio-video make --from DRAFT.JSON`. O componente não usa shell: cada chamada é uma lista de argumentos. Quando o CLI responde `ok: false`, o componente levanta um erro com o código do motor.
+O componente não usa shell: cada chamada é uma lista de argumentos. Quando o CLI responde `ok: false`, o componente levanta um erro com o código do motor.
 
 ## 1. Instalar o LangFlow à parte
 
@@ -53,32 +52,24 @@ Copie [simplicio_component.py](../../examples/langflow/simplicio_component.py) p
 
 ## 4. Importar o fluxo de exemplo
 
-Importe [fluxo-exemplo.json](../../examples/langflow/fluxo-exemplo.json) pelo menu de importação de fluxos do LangFlow. Ele tem dois nós do componente: **Quadro** (`board_list`) e **Estado** (`status`). A descrição do fluxo lembra o passo de criação do item, que fica no terminal.
+Importe [fluxo-exemplo.json](../../examples/langflow/fluxo-exemplo.json) pelo menu de importação de fluxos do LangFlow. Ele tem um nó do componente, **Estado** (`status`). A descrição do fluxo indica como trocar o comando para `validate` ou `render`.
 
 ## 5. Exemplo de ponta a ponta
 
-O exemplo usa o Draft e a marca de [studio](../plugins/studio.md), com o id `itm_01HZEXEMPLO0000000000001`. Troque pelo id do seu item.
+O exemplo usa o contrato do vídeo `video-01-dia-das-criancas` do cliente `lothus-odontologia`. Troque o caminho pelo contrato do seu vídeo.
 
-**No terminal, crie o item e confira o quadro:**
+**No LangFlow, rode o nó Estado (`status`).** O resultado é o JSON do `status --json`, com as ferramentas instaladas e as versões fixadas. Confira que o executável apontado é o do seu checkout.
 
-```bash
-simplicio-video make --from draft.json --brand brand.json
-# saída: itm_01HZEXEMPLO0000000000001: rendered (e o caminho do MP4)
+**Valide o contrato.** No nó Estado, troque `comando` para `validate` e preencha `contrato` com `clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml`. Rode de novo. A saída é o JSON do `validate --json` (`ok`, `errors`, `warnings`). Um contrato com problema volta como erro `CONTRATO_INVALIDO`, com a lista dos erros na mensagem.
 
-simplicio-video board list --json > quadro.json
-```
+**Renderize a prévia.** Troque `comando` para `render`, ligue `preview` (prévia 540x960 com marca d'água) e rode. O render local roda na sua máquina e pode levar minutos; o componente espera até 3600 s. O resultado traz o `render.manifest.json` gerado ao lado do contrato.
 
-**No LangFlow, rode o nó Quadro.** O resultado é o mesmo JSON do `board list --json` (schema `simplicio.board/v1`). O cartão aparece em Revisão, porque o estado é `rendered` e ainda não há revisão aprovada ([board](../plugins/board.md)).
-
-**Aprove a revisão no terminal:**
+**Confira no terminal.** O mesmo estado aparece no CLI:
 
 ```bash
-simplicio-video board review itm_01HZEXEMPLO0000000000001 approve --by Ana --note "pode publicar"
+"$SIMPLICIO_VIDEO_BIN" validate clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --json
+"$SIMPLICIO_VIDEO_BIN" status --json
 ```
-
-**De novo no LangFlow, rode o nó Quadro.** O cartão agora está em Pronto.
-
-**Valide um contrato (opcional).** No nó Quadro, troque `comando` para `validate` e preencha `contrato` com o caminho do YAML. A saída é o JSON do `validate --json`, e um contrato inválido vira erro com o código `CONTRATO_INVALIDO` ou `CONTRATO_NAO_ENCONTRADO`.
 
 ## Erros
 
@@ -95,6 +86,5 @@ Quando a chamada falha, o componente levanta `ErroMotor` com um código e uma me
 ## Limites
 
 - Cada chamada roda o CLI de novo: o componente não guarda estado entre execuções.
-- O quadro não tem trava de escrita. Com dois escritores ao mesmo tempo, um comentário ou uma revisão pode se perder ([ressalvas do board](../plugins/board.md#ressalvas)).
 - Nada desta receita usa LLM, rede ou shell. Os dados ficam no seu checkout.
 - O LangFlow é cliente: a licença dele não está em [docs/licenses.md](../licenses.md), e sim na [nota de terceiros](../legal/terceiros.md).

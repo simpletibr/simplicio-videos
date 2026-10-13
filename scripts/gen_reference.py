@@ -2,7 +2,7 @@
 """Generates the reference in docs/reference/ from the code, plus the GENERATED blocks of README.md and AGENTS.md (#44).
 
 Usage:
-  scripts/gen_reference.py --out DIR                  writes cli.md, schemas.md, config.md, mcp-tools.md, plugins.md, events.md
+  scripts/gen_reference.py --out DIR                  writes cli.md, schemas.md, config.md, mcp-tools.md, events.md
   scripts/gen_reference.py --out DIR --check          writes nothing; exits 1 when a file in DIR or a block is stale
   scripts/gen_reference.py --out DIR --update-blocks  writes DIR and rewrites the blocks of README.md and AGENTS.md
 
@@ -30,7 +30,7 @@ SRC = ROOT / "src"
 PKG = SRC / "simplicio_video"
 DATA = PKG / "data"
 BLOCK_FILES = (ROOT / "README.md", ROOT / "AGENTS.md")
-SECTION_DIRS = {"host": ROOT / "docs" / "host", "plugins": ROOT / "docs" / "plugins"}
+SECTION_DIRS = {"host": ROOT / "docs" / "host"}
 FRONT_MATTER = re.compile(r"^---\n(.*?)\n---\n", re.S)
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]+$")
 ENV_READERS = {"get", "pop", "setdefault"}
@@ -244,17 +244,6 @@ def mcp_tools_md() -> str:
     return "\n".join(lines)
 
 
-def plugins_md() -> str:
-    return "\n".join([
-        "# Plugins",
-        "",
-        "> Gerado por `scripts/gen_reference.py`. Não edite à mão: rode `make regen`.",
-        "",
-        "Ainda não há plugins registrados. Quando o host de plugins (#32) estiver no repo, cada plugin aparece aqui com os seus comandos.",
-        "",
-    ])
-
-
 def events_md() -> str:
     return "\n".join([
         "# Eventos",
@@ -272,7 +261,6 @@ def reference_files() -> dict[str, str]:
         "schemas.md": schemas_md(),
         "config.md": config_md(),
         "mcp-tools.md": mcp_tools_md(),
-        "plugins.md": plugins_md(),
         "events.md": events_md(),
     }
 
@@ -296,7 +284,7 @@ def block_body(section: str) -> str:
     )
     note = f"Gerado de `docs/{section}/*.md` (front matter). Não edite aqui: rode `make regen`."
     if not pages:
-        return f"{note}\n\nAinda não há plugins em `docs/plugins/`."
+        return f"{note}\n\nAinda não há páginas em `docs/{section}/`."
     items = []
     for page in pages:
         meta = _front_matter(page)

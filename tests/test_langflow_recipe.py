@@ -1,7 +1,7 @@
 """Receita LangFlow para chamar o motor (#84, épico #81).
 
 O componente em examples/langflow/simplicio_component.py chama o CLI simplicio-video só com comandos que têm
---json, por lista de argumentos e sem shell. Estes testes trocam o subprocess por um falso e não precisam do
+--json (validate, render, status), por lista de argumentos e sem shell. Estes testes trocam o subprocess por um falso e não precisam do
 LangFlow instalado. O fluxo de exemplo cita só comandos que existem no --help real do CLI.
 """
 
@@ -72,10 +72,7 @@ def _ajuda(*comando: str) -> str:
 
 @lru_cache(maxsize=None)
 def _existe(*comando: str) -> bool:
-    """O comando existe se o --help dele sai com 0 e começa com o próprio nome.
-
-    Não basta a lista de primeiro nível do help: make e board vêm do host de plugins e não aparecem nela.
-    """
+    """O comando existe se o --help dele sai com 0 e começa com o próprio nome."""
     env = dict(os.environ)
     env["PYTHONPATH"] = str(SRC)
     resultado = subprocess.run(
@@ -89,14 +86,6 @@ def _existe(*comando: str) -> bool:
     return resultado.returncode == 0 and resultado.stdout.startswith(
         f"usage: simplicio-video {' '.join(comando)}"
     )
-
-
-@lru_cache(maxsize=None)
-def _grupos_reais() -> dict[str, frozenset[str]]:
-    """Subcomandos dos grupos conhecidos, lidos das chaves do usage do help."""
-    usado = re.search(r"simplicio-video board \[-h\] \{([a-z,-]+)\}", _ajuda("board"))
-    assert usado, "o help de board não lista os subcomandos entre chaves"
-    return {"board": frozenset(usado.group(1).split(","))}
 
 
 def _fluxo():
@@ -125,15 +114,6 @@ def test_componente_devolve_o_json_do_validate(monkeypatch):
 
     assert m.executar("validate", contrato="c.yaml") == payload
     assert chamadas[0][0] == ["simplicio-video", "validate", "--json", "c.yaml"]
-
-
-def test_componente_devolve_o_quadro_do_board_list(monkeypatch):
-    m = _modulo()
-    quadro = {"schema": "simplicio.board/v1", "columns": []}
-    chamadas = _falso_run(monkeypatch, 0, json.dumps(quadro))
-
-    assert m.executar("board_list") == quadro
-    assert chamadas[0][0] == ["simplicio-video", "board", "list", "--json"]
 
 
 @pytest.mark.parametrize(
@@ -182,7 +162,7 @@ def test_recusa_contrato_que_parece_opcao_e_comando_sem_contrato(monkeypatch):
     with pytest.raises(ValueError):
         m.executar("render")
     with pytest.raises(ValueError):
-        m.executar("board_list", contrato="c.yaml")
+        m.executar("board", contrato="c.yaml")
     assert chamadas == []
 
 
@@ -346,7 +326,7 @@ def test_fluxo_e_json_valido_com_o_componente_atual():
     )
 
 
-def test_fluxo_so_usa_comandos_do_componente_e_le_o_quadro():
+def test_fluxo_so_usa_comandos_do_componente():
     m = _modulo()
     componentes = [
         no
@@ -355,30 +335,20 @@ def test_fluxo_so_usa_comandos_do_componente_e_le_o_quadro():
     ]
     usados = {no["data"]["node"]["template"]["comando"]["value"] for no in componentes}
 
+    assert usados, "o fluxo não tem nenhum nó com comando"
     assert usados <= set(m.COMANDOS)
-    assert "board_list" in usados
 
 
 def test_fluxo_cita_so_comandos_do_help_real():
-    grupos = _grupos_reais()
-    citados = []
+    citados = 0
 
     for texto in _textos(_fluxo()):
         for achado in RE_COMANDO_CITADO.finditer(texto):
-            primeiro, segundo = achado.group(1), achado.group(2)
-            citados.append(primeiro)
-            if primeiro in grupos:
-                assert segundo in grupos[primeiro], (
-                    f"simplicio-video {primeiro} {segundo} não existe no --help"
-                )
-            else:
-                assert _existe(primeiro), (
-                    f"simplicio-video {primeiro} não existe no --help"
-                )
+            citados += 1
+            primeiro = achado.group(1)
+            assert _existe(primeiro), f"simplicio-video {primeiro} não existe no --help"
 
-    assert "board" in citados, (
-        "o fluxo deveria citar 'simplicio-video board list' (leitura do quadro)"
-    )
+    assert citados, "o fluxo não cita nenhum comando"
 
 
 # ----------------------------------------------------------------- receita e nota legal
@@ -418,17 +388,11 @@ def test_receita_registra_a_versao_pendente_sem_inventar_versao():
 
 
 def test_receita_cita_so_comandos_do_help_real():
-    grupos = _grupos_reais()
     citados = 0
     for achado in RE_COMANDO_CITADO.finditer(_receita()):
         citados += 1
-        primeiro, segundo = achado.group(1), achado.group(2)
-        if primeiro in grupos:
-            assert segundo in grupos[primeiro], (
-                f"simplicio-video {primeiro} {segundo} não existe no --help"
-            )
-        else:
-            assert _existe(primeiro), f"simplicio-video {primeiro} não existe no --help"
+        primeiro = achado.group(1)
+        assert _existe(primeiro), f"simplicio-video {primeiro} não existe no --help"
     assert citados, "a receita não cita nenhum comando"
 
 

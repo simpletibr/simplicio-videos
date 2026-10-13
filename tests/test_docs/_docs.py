@@ -11,7 +11,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
 HOST_DIR = ROOT / "docs" / "host"
-PLUGINS_DIR = ROOT / "docs" / "plugins"
 FRONT_MATTER_KEYS = ("title", "summary", "commands", "issue", "last_verified")
 
 

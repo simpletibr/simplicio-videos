@@ -4,31 +4,14 @@ Regras, mapa e fluxos para qualquer agente (Claude Code, Codex, Grok) trabalhand
 
 ## Product boundary — read this first
 
-Two repositories, one product, one hard line between them. This section is identical in the `AGENTS.md` of `simplicio-videos`, `simplicio-loop-marketing` and `site_simpleti`.
-
-| | `simplicio-videos` | `simplicio-loop-marketing` |
-|---|---|---|
-| Role | **Media-generation engine** | **The product and the whole ecosystem**: the Fastlane-style marketing loop |
-| Owns | Image and video generation, motion, the render pipeline, the execution engine, and **every integration needed to produce media** (Real Oficial media, voice/TTS, image and video providers, motion libraries) | The site and UI, onboarding, dashboard, projects and channels, the whole flow (idea → script → media → approval → post → metrics → learning), publishing/ads/metrics integrations, accounts, billing and the 15 languages |
-| Used by | Any LLM, IDE, ADE, app or system, standalone, **and** by `simplicio-loop-marketing` | End users, at **https://simpleti.com.br/simplicio-videos** |
-| Knows about the other | **No.** No product concepts (users, projects, channels, plans, UI) and no import from marketing | Reaches media generation **only** through the engine's public interface |
-
-`site_simpleti` is the web host of `simpleti.com.br`. It serves the product at `/simplicio-videos`; it owns none of the product code.
+`simplicio-videos` is a **standalone media-generation engine**. Any LLM, IDE, ADE, app or system uses it through its public interfaces: the `simplicio-video` CLI (`--json` output) and the `simplicio-video-mcp` MCP server.
 
 Rules:
 
-1. Media generation (images, video, motion, voice, render, Real Oficial media calls) is implemented **only** in `simplicio-videos`. If the product needs a new media capability, add it to the engine behind its public interface, then call it. Never re-implement it in the product repo.
-2. Product logic (site pages, UI, onboarding, flow, scheduling, approval, publishing, accounts, billing, i18n) lives **only** in `simplicio-loop-marketing`. Never put it in the engine.
-3. The engine must keep working standalone for any LLM, IDE, ADE, app or system. Never add a dependency on the product to make a feature easier.
-4. The URL `/simplicio-videos` is a public name, not a location. The code behind it is `simplicio-loop-marketing`, not the `simplicio-videos` repo.
-5. Fastlane (usefastlane.ai) is a reference for functions and flow only. Write original code, copy, images and brand: never copy their code, text, images or logos.
-6. The product ships in the 15 official languages: `en`, `pt-BR`, `es`, `fr`, `it`, `de`, `ja`, `ko`, `zh-CN`, `ru`, `pl`, `hi`, `ar`, `he`, `id` (right-to-left: `ar`, `he`).
-
-### In this repo (engine)
-
-- This repo is the engine. Expose capabilities through the `simplicio-video` CLI and the `contract.yaml → MP4` contract. Add no UI, accounts, billing, projects/channels or posting here.
-- A capability that any other LLM, IDE or app could also use belongs here. A capability that only makes sense inside the marketing flow does not.
-- Where an older section of this file conflicts with the boundary above, the boundary wins.
+1. The engine owns image and video generation, motion, voice/TTS, the render pipeline, and every media integration (Real Oficial media, voice, image and video providers, motion libraries).
+2. Expose each capability through the CLI (`--json`) and, where it fits, the MCP server, over the `contract.yaml → MP4` contract. A capability that any LLM, IDE or app could use belongs here.
+3. The engine must keep working standalone. Add no UI, accounts, billing, projects/channels, plans or publishing/posting here, and never add a dependency on a host application to make a feature easier.
+4. Where an older section of this file conflicts with the boundary above, the boundary wins.
 
 ## Missão e operação de vendas
 
@@ -93,28 +76,18 @@ python -m pytest                                   # schema, validate, --help, d
 | `clients/<cliente>/<video>/contract.yaml` | **Vídeo pelo CLI**: `contract.yaml`, `timing.lock.json`, `render.manifest.json`, `assets/audio/voz/` (falas tratadas), `assets/audio/vo/external/` (WAVs Gemini), README/roteiro, `preview/`. Ex.: Lothus `video-01-dia-das-criancas` | README do vídeo |
 | `clients/<cliente>/video-NN/` | (legado, WJR) Projeto HyperFrames autocontido (`package.json`; rode os comandos **dentro** dele): `spec.json` (variáveis, áudio/cues, voz, clipes), `video.json`, `index.html` (timeline única + `RETIME`), `scripts/` (`build.mjs`, `voice.py`, `master.sh`, `gemini-tts.mjs`), `assets/` (+ `audio/LICENSES.md`), `preview/` | README do vídeo |
 
-## Plugins e host
+## Host
 
-Mapa gerado a partir do front matter de `docs/host/` e `docs/plugins/` (`make regen`). A referência da CLI, dos schemas, das tools MCP e das variáveis de ambiente fica em [`docs/reference/`](docs/reference/).
+Mapa gerado a partir do front matter de `docs/host/` (`make regen`). A referência da CLI, dos schemas, das tools MCP e das variáveis de ambiente fica em [`docs/reference/`](docs/reference/).
 
 <!-- BEGIN GENERATED: host -->
 Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
-- [Duas rotas de produção (determinística e ai_assisted)](docs/host/duas-rotas.md): As duas rotas do item lado a lado, o que é reproduzível byte a byte, onde mora cada decisão e os comandos reais de cada etapa.
 - [Gate local, TDD e pouso de PRs](docs/host/gate.md): Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
-- [Kernel da fábrica (simplicio_factory)](docs/host/kernel.md): O que é o kernel da fábrica, os Protocols e dataclasses, transition() como única forma de mudar o estado, JsonStore e MemoryStore, o testkit e o alvo make factory-schema.
 - [Licenças das dependências](docs/host/licenses.md): Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e o que ainda falta (web/).
 - [Pacote de operação (install, update, doctor, setup)](docs/host/packaging.md): O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites até as
-- [Host de plugins (manifesto, registro e despacho)](docs/host/plugin-host.md): Como cada plugin declara os seus comandos no plugin.json, como o registro descobre os plugins, como o despacho roda antes do argparse, e por que o plugin.json da raiz é outro arquivo.
 <!-- END GENERATED -->
 
-<!-- BEGIN GENERATED: plugins -->
-Gerado de `docs/plugins/*.md` (front matter). Não edite aqui: rode `make regen`.
-
-- [Board (quadro kanban dos itens)](docs/plugins/board.md): O quadro de itens da fábrica, com oito colunas derivadas de state e review (nunca guardadas), os comandos board list, board comment e board review, o arquivo comments.jsonl, as regras de revisão, o schema simplicio.board/v1 e as ressalvas de escritores concorrentes.
-- [Media (orçamento e aprovação de gasto)](docs/plugins/media.md): Os comandos generate (quote, approve, start e show) e media attach que cotam, aprovam, iniciam e anexam a geração por IA de cada item na rota ai_assisted, com o orçamento media_credits do workspace, o teto diário, o recibo da mídia, a regra de quem pode aprovar e a ressalva sobre o registro.
-- [Studio (Draft e marca viram vídeo)](docs/plugins/studio.md): O que o studio faz (Draft e brand.json viram contract.yaml e MP4), os comandos make, make preview e draft show, o composer determinístico, o claim guard, content_hash, a voz desligada por padrão, o template brand-promo e as pendências conhecidas.
-<!-- END GENERATED -->
 
 ## Fluxos
 

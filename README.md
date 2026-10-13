@@ -50,7 +50,7 @@ simplicio-videos/
 ├── tools/                  # optional pinned tools (video-use)
 ├── ugc/                    # generative UGC track (outside the render): pack.json, prompts/
 ├── schemas/                # video-spec.schema.json (simplicio.video-spec/v1)
-├── docs/                   # ADRs, pipeline, setup, research — index in docs/README.md
+├── docs/                   # ADRs, pipeline, setup — index in docs/README.md
 └── clients/<client>/       # example videos only: <video>/contract.yaml, preview/, assets
 ```
 
@@ -111,25 +111,15 @@ Also built on [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraf
 
 > Language policy: new documentation, CLI help and code comments are written in English. Older docs under `docs/`, `intake/`, `templates/` and client folders are still Portuguese and are translated as they are touched.
 
-## Plugins e host
+## Host
 
-Mapa gerado a partir do front matter de `docs/host/` e `docs/plugins/`. A referência da CLI, dos schemas, das tools MCP e das variáveis de ambiente fica em [`docs/reference/`](docs/reference/) (gerada com `make regen`).
+Mapa gerado a partir do front matter de `docs/host/`. A referência da CLI, dos schemas, das tools MCP e das variáveis de ambiente fica em [`docs/reference/`](docs/reference/) (gerada com `make regen`).
 
 <!-- BEGIN GENERATED: host -->
 Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
-- [Duas rotas de produção (determinística e ai_assisted)](docs/host/duas-rotas.md): As duas rotas do item lado a lado, o que é reproduzível byte a byte, onde mora cada decisão e os comandos reais de cada etapa.
 - [Gate local, TDD e pouso de PRs](docs/host/gate.md): Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
-- [Kernel da fábrica (simplicio_factory)](docs/host/kernel.md): O que é o kernel da fábrica, os Protocols e dataclasses, transition() como única forma de mudar o estado, JsonStore e MemoryStore, o testkit e o alvo make factory-schema.
 - [Licenças das dependências](docs/host/licenses.md): Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e o que ainda falta (web/).
 - [Pacote de operação (install, update, doctor, setup)](docs/host/packaging.md): O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites até as
-- [Host de plugins (manifesto, registro e despacho)](docs/host/plugin-host.md): Como cada plugin declara os seus comandos no plugin.json, como o registro descobre os plugins, como o despacho roda antes do argparse, e por que o plugin.json da raiz é outro arquivo.
 <!-- END GENERATED -->
 
-<!-- BEGIN GENERATED: plugins -->
-Gerado de `docs/plugins/*.md` (front matter). Não edite aqui: rode `make regen`.
-
-- [Board (quadro kanban dos itens)](docs/plugins/board.md): O quadro de itens da fábrica, com oito colunas derivadas de state e review (nunca guardadas), os comandos board list, board comment e board review, o arquivo comments.jsonl, as regras de revisão, o schema simplicio.board/v1 e as ressalvas de escritores concorrentes.
-- [Media (orçamento e aprovação de gasto)](docs/plugins/media.md): Os comandos generate (quote, approve, start e show) e media attach que cotam, aprovam, iniciam e anexam a geração por IA de cada item na rota ai_assisted, com o orçamento media_credits do workspace, o teto diário, o recibo da mídia, a regra de quem pode aprovar e a ressalva sobre o registro.
-- [Studio (Draft e marca viram vídeo)](docs/plugins/studio.md): O que o studio faz (Draft e brand.json viram contract.yaml e MP4), os comandos make, make preview e draft show, o composer determinístico, o claim guard, content_hash, a voz desligada por padrão, o template brand-promo e as pendências conhecidas.
-<!-- END GENERATED -->
