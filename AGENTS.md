@@ -2,6 +2,34 @@
 
 Regras, mapa e fluxos para qualquer agente (Claude Code, Codex, Grok) trabalhando neste repositório. Cada vídeo também tem o seu `AGENTS.md` com detalhes da composição.
 
+## Product boundary — read this first
+
+Two repositories, one product, one hard line between them. This section is identical in the `AGENTS.md` of `simplicio-videos`, `simplicio-loop-marketing` and `site_simpleti`.
+
+| | `simplicio-videos` | `simplicio-loop-marketing` |
+|---|---|---|
+| Role | **Media-generation engine** | **The product and the whole ecosystem**: the Fastlane-style marketing loop |
+| Owns | Image and video generation, motion, the render pipeline, the execution engine, and **every integration needed to produce media** (Real Oficial media, voice/TTS, image and video providers, motion libraries) | The site and UI, onboarding, dashboard, projects and channels, the whole flow (idea → script → media → approval → post → metrics → learning), publishing/ads/metrics integrations, accounts, billing and the 15 languages |
+| Used by | Any LLM, IDE, ADE, app or system, standalone, **and** by `simplicio-loop-marketing` | End users, at **https://simpleti.com.br/simplicio-videos** |
+| Knows about the other | **No.** No product concepts (users, projects, channels, plans, UI) and no import from marketing | Reaches media generation **only** through the engine's public interface |
+
+`site_simpleti` is the web host of `simpleti.com.br`. It serves the product at `/simplicio-videos`; it owns none of the product code.
+
+Rules:
+
+1. Media generation (images, video, motion, voice, render, Real Oficial media calls) is implemented **only** in `simplicio-videos`. If the product needs a new media capability, add it to the engine behind its public interface, then call it. Never re-implement it in the product repo.
+2. Product logic (site pages, UI, onboarding, flow, scheduling, approval, publishing, accounts, billing, i18n) lives **only** in `simplicio-loop-marketing`. Never put it in the engine.
+3. The engine must keep working standalone for any LLM, IDE, ADE, app or system. Never add a dependency on the product to make a feature easier.
+4. The URL `/simplicio-videos` is a public name, not a location. The code behind it is `simplicio-loop-marketing`, not the `simplicio-videos` repo.
+5. Fastlane (usefastlane.ai) is a reference for functions and flow only. Write original code, copy, images and brand: never copy their code, text, images or logos.
+6. The product ships in the 15 official languages: `en`, `pt-BR`, `es`, `fr`, `it`, `de`, `ja`, `ko`, `zh-CN`, `ru`, `pl`, `hi`, `ar`, `he`, `id` (right-to-left: `ar`, `he`).
+
+### In this repo (engine)
+
+- This repo is the engine. Expose capabilities through the `simplicio-video` CLI and the `contract.yaml → MP4` contract. Add no UI, accounts, billing, projects/channels or posting here.
+- A capability that any other LLM, IDE or app could also use belongs here. A capability that only makes sense inside the marketing flow does not.
+- Where an older section of this file conflicts with the boundary above, the boundary wins.
+
 ## Missão e operação de vendas
 
 Este repositório é só a **execução dos scripts e a geração dos vídeos** (CLI `simplicio-video`). A **missão de vendas e o guia de operação** (preços, mensagens aprovadas, funil, planilha de controle, Paperclip, times, estado atual e próximos passos) ficam no Google Drive, em [`simplicio-video/AGENTS.md`](https://drive.google.com/file/d/19Y0BvZw-st_YasMk39vNkbNGd_4pJ4ir/view?usp=drivesdk) (conta wesleybob4). Leia esse guia antes de qualquer trabalho de venda ativa.
