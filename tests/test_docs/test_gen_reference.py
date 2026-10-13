@@ -1,9 +1,9 @@
 """scripts/gen_reference.py --out DIR: writes docs/reference/*.md from the code, deterministically and completely.
 
-Contract under test: the six files below appear in DIR; two runs (and a run from another cwd) give identical bytes;
+Contract under test: the five files below appear in DIR; two runs (and a run from another cwd) give identical bytes;
 every subcommand of simplicio_video.cli.build_parser() and each of its long options appear in cli.md; every MCP
 tool of mcp_server.TOOLS appears in mcp-tools.md; every *.schema.json under src/simplicio_video/data/ appears in
-schemas.md; every env var the package reads appears in config.md; plugins.md and events.md say they are empty.
+schemas.md; every env var the package reads appears in config.md; events.md says it is empty.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import re
 
 from _docs import ROOT, run_script
 
-REFERENCE_FILES = {"cli.md", "mcp-tools.md", "schemas.md", "events.md", "config.md", "plugins.md"}
+REFERENCE_FILES = {"cli.md", "mcp-tools.md", "schemas.md", "events.md", "config.md"}
 PKG = ROOT / "src" / "simplicio_video"
 ENV_READ = re.compile(
     r"""(?:environ(?:\.get)?|getenv)\(\s*["']([A-Z][A-Z0-9_]+)["']|environ\[\s*["']([A-Z][A-Z0-9_]+)["']\]"""
@@ -37,7 +37,7 @@ def _subcommands():
     return action.choices
 
 
-def test_gera_os_seis_arquivos(tmp_path):
+def test_gera_os_cinco_arquivos(tmp_path):
     out = _gen(tmp_path / "ref")
     assert {p.name for p in out.iterdir()} == REFERENCE_FILES
 
@@ -92,7 +92,6 @@ def test_config_md_tem_toda_variavel_lida_pelo_codigo(tmp_path):
     assert not missing, f"variáveis lidas pelo código ausentes de config.md: {missing}"
 
 
-def test_plugins_e_eventos_vazios_com_aviso(tmp_path):
+def test_eventos_vazio_com_aviso(tmp_path):
     out = _gen(tmp_path / "ref")
-    assert "ainda não há plugins" in _read(out, "plugins.md").lower()
     assert "ainda não há eventos" in _read(out, "events.md").lower()

@@ -29,7 +29,7 @@ Link do commit que só toca testes, fixtures e docs e falha pelo motivo certo:
 
 ## Docs e help
 
-- [ ] Docs atualizados (`docs/host/<nome>.md` ou `docs/plugins/<id>.md`, com o que mudou e como usar).
+- [ ] Docs atualizados (`docs/host/<nome>.md`, com o que mudou e como usar).
 - [ ] Todo comando novo tem `--help` com exemplos.
 - [ ] ADR escrito, se houve decisão (número reservado em `ownership.yaml`).
 

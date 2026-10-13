@@ -16,7 +16,7 @@ make check       # offline, menos de 60 s
 1. Leia a issue, a entrada dela em [`docs/factory/ownership.yaml`](docs/factory/ownership.yaml) e o [AGENTS.md](AGENTS.md).
 2. **Testes primeiro.** Escreva os testes que falham pelo motivo certo e commite-os sozinhos (só testes, fixtures e docs). Esse é o primeiro commit do branch.
 3. Implemente até o `make check` ficar verde. Só toque nos paths da sua issue; precisa de outro arquivo? Comente na issue dona.
-4. Docs e help: o que mudou em `docs/host/<nome>.md` ou `docs/plugins/<id>.md`, `--help` com exemplos em todo comando, ADR se houve decisão.
+4. Docs e help: o que mudou em `docs/host/<nome>.md`, `--help` com exemplos em todo comando, ADR se houve decisão.
 5. Abra o PR pelo [template](.github/PULL_REQUEST_TEMPLATE.md) (`Closes #N`, link do commit vermelho, evidência por critério).
 6. Revisão independente (outro agente ou pessoa, `/code-review` no diff). O revisor aplica o label `reviewed`.
 7. Pouso: `scripts/land.sh <pr>` (use `--dry-run` antes). Um pouso por vez.

@@ -35,7 +35,6 @@ Todo comando tem `--help` com exemplos. Os testes da suíte conferem isso (`test
 | `disco livre` | menos de 5 GB livres no caminho do checkout | não consegue medir o disco | liberar espaço |
 | `portas` | — | 3000 (opencut dev) ou 8000 (montage serve) em uso | parar o processo, ou ignorar se for o seu servidor |
 | `GEMINI_API_KEY` | — | variável não definida | definir a chave para voz via Gemini |
-| `plugins` | — | — (hoje sempre `ok`: nenhum plugin instalado) | — (health check chega com a #32) |
 | `workspace` | `workspace.yaml` ausente, ilegível ou com schema ou layout errados | — | `simplicio-video setup` |
 | `workspace policy` | `policy.yaml` ausente, ilegível ou sem autonomia válida | — | `simplicio-video setup` |
 
@@ -64,7 +63,6 @@ Todo o mecanismo de atualização está num módulo só, `src/simplicio_video/co
 
 ## Limites atuais
 
-- **Plugins (#32):** o doctor ainda não roda health checks de plugin. A checagem `plugins` é um placeholder que sempre sai `ok`.
 - **web/ (#34):** o build de `web/` ainda não existe. `install` e `update` registram `web/ chega com a #34: nada a construir` e seguem.
 - **Workspace de checagem (#35):** o doctor checa só a presença e o schema do workspace. As checagens de saúde do workspace chegam com a #35.
 - **Windows nativo:** fora do escopo. Use o WSL ou o Docker.

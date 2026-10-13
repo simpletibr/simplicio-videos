@@ -1,7 +1,7 @@
 """Componente LangFlow para o motor de vídeo, pela linha de comando (#84, épico #81).
 
-O componente roda só os comandos do CLI que têm --json (conferido no --help real): validate, render,
-status e board list. Cada chamada é uma lista de argumentos para subprocess, sem shell e sem texto montado
+O componente roda só os comandos do CLI que têm --json (conferido no --help real): validate, render
+e status. Cada chamada é uma lista de argumentos para subprocess, sem shell e sem texto montado
 por concatenação. O JSON que o CLI imprime volta como dicionário. Quando o CLI devolve ok=false, ou quando
 não há JSON, a chamada levanta ErroMotor com o código do motor.
 
@@ -39,7 +39,6 @@ COMANDOS: dict[str, tuple[str, ...]] = {
     "validate": ("validate", "--json"),
     "render": ("render", "--json"),
     "status": ("status", "--json"),
-    "board_list": ("board", "list", "--json"),
 }
 EXIGE_CONTRATO = frozenset({"validate", "render"})
 CONTRATO_OPCIONAL = frozenset({"status"})
@@ -191,8 +190,8 @@ if LANGFLOW_DISPONIVEL:
                 name="comando",
                 display_name="Comando",
                 options=list(COMANDOS),
-                value="board_list",
-                info="board_list lê o quadro; status mostra o estado do motor.",
+                value="status",
+                info="status mostra o estado do motor; validate e render pedem o contrato.",
             ),
             MessageTextInput(
                 name="contrato",

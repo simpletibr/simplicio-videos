@@ -1,7 +1,7 @@
 """scripts/check_docs.py --root DIR (offline): links, anchors, front matter, orphans, TODO and mermaid fences.
 
 Contract under test: the checker scans every .md under DIR, prints each problem with its file path, and exits 1
-when there is any problem and 0 when there is none. Pages under docs/host/ and docs/plugins/ (except README.md)
+when there is any problem and 0 when there is none. Pages under docs/host/ (except README.md)
 need the five front matter keys. Every problem is planted in a copy of a valid mini tree under tmp_path. The valid
 tree must pass (positive control), so the negative cases fail because of the planted problem and not because the
 checker rejects everything.
@@ -85,15 +85,12 @@ def test_pagina_orfa_e_pega(tmp_path):
             "last_verified",
         ),
         (
-            {
-                "docs/README.md": VALID["docs/README.md"] + "- [Plugin](plugins/exemplo.md)\n",
-                "docs/plugins/exemplo.md": FM.replace("issue: 31\n", "") + "# Exemplo\n",
-            },
-            "exemplo.md",
+            {"docs/host/gate.md": FM.replace("issue: 31\n", "") + "# Gate\n\nSem issue.\n"},
+            "gate.md",
             "issue",
         ),
     ],
-    ids=["sem-front-matter-host", "host-sem-last_verified", "plugin-sem-issue"],
+    ids=["sem-front-matter-host", "host-sem-last_verified", "host-sem-issue"],
 )
 def test_front_matter_ausente_e_pego(tmp_path, overrides, page, key):
     result = _check(_tree(tmp_path, overrides))

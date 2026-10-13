@@ -1,7 +1,7 @@
 """`simplicio-video doctor [--json]` (issue #43): diagnóstico do ambiente, com a correção exata de cada falha.
 
 Checa: Python, Node 22 ou superior, ffmpeg com libass, 5 GB livres, portas de desenvolvimento, presença de
-credenciais (nunca o valor), plugins e workspace. Não instala, não altera e não grava nada. Ferramentas são
+credenciais (nunca o valor) e workspace. Não instala, não altera e não grava nada. Ferramentas são
 chamadas com subprocess.run (com timeout).
 
 Contrato de saída:
@@ -191,10 +191,6 @@ def _checa_workspace() -> list[dict]:
     return achados
 
 
-def _checa_plugins() -> dict:
-    return _c("plugins", "ok", "nenhum plugin instalado")
-
-
 def relatorio() -> dict:
     checks = [
         _checa_python(),
@@ -203,7 +199,6 @@ def relatorio() -> dict:
         _checa_disco(),
         _checa_portas(),
         *_checa_credenciais(),
-        _checa_plugins(),
         *_checa_workspace(),
     ]
     return {"ok": not any(c["status"] == "fail" for c in checks), "checks": checks}

@@ -53,6 +53,6 @@
     "entrada": "index.template.html",
     "cenas": ["s1", "s2", "s3"],
     "blocos": ["s1-words", "s2-words", "s3-lockup"],
-    "_doc": "Blocos só de motion/patterns (kinetic-words nas cenas 1 e 2, brand-lockup-soft na 3). Textos e params vêm do contrato gerado pelo studio (src/simplicio_factory/plugins/studio/composer.py)."
+    "_doc": "Blocos só de motion/patterns (kinetic-words nas cenas 1 e 2, brand-lockup-soft na 3). Textos e params vêm do contrato (contract.yaml)."
   }
 }

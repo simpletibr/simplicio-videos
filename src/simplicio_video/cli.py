@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths, registry
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
 
@@ -300,43 +300,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lang", metavar="IDIOMA", help="idioma do conteúdo (padrão: pt-BR)")
     p.add_argument("--force", action="store_true", help="regrava workspace.yaml e policy.yaml (zera orçamentos)")
     p.add_argument("--realoficial", action="store_true", help="mostra como conectar o MCP do Real Oficial (OAuth no cliente)")
-
-    p = sub.add_parser("plugin", formatter_class=Fmt, help="registro de plugins (listar os descobertos)",
-        description="Registro de plugins: varre src/simplicio_factory/plugins/*/plugin.json e mostra o que cada um\n"
-                    "acrescenta à CLI. Comandos de plugin são chamados direto, por exemplo `simplicio-video make ITEM`.",
-        epilog="exemplos:\n  simplicio-video plugin list")
-    psub = p.add_subparsers(dest="plugin_cmd", metavar="SUBCOMANDO", title="subcomandos")
-    psub.add_parser("list", formatter_class=Fmt, help="lista os plugins descobertos: id, kind e comandos",
-        description="Imprime, para cada plugin encontrado no registro, o id, o kind e os nomes dos comandos.",
-        epilog="exemplos:\n  simplicio-video plugin list")
     return ap
-
-
-def _subcomandos(ap: argparse.ArgumentParser) -> set[str]:
-    for act in ap._actions:
-        if isinstance(act, argparse._SubParsersAction):
-            return set(act.choices)
-    return set()
-
-
-def _despacha_plugin(args_list: list[str]) -> int | None:
-    """Comando de plugin do registro: devolve o código de saída do handler, ou None se o nome não é de plugin."""
-    try:
-        indice = registry.commands_index(registry.discover(registry.PLUGINS_DIR))
-    except registry.ManifestError as e:
-        print(f"simplicio-video: plugin: {e}", file=sys.stderr)
-        return 2
-    achado = indice.get(args_list[0])
-    if achado is None:
-        return None
-    manifesto, comando = achado
-    try:
-        handler = registry.resolve_handler(comando.handler)
-    except registry.ManifestError as e:
-        print(f"simplicio-video: plugin {manifesto.id}: {e}", file=sys.stderr)
-        return 2
-    rc = handler(args_list[1:])
-    return 0 if rc is None else int(rc)
 
 
 # --json de validate, run e render (issue #72): stdout só com o objeto JSON, que valida contra schemas/cli/*-result.
@@ -457,11 +421,6 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"opencut: {e}", file=sys.stderr)
                 return 1
 
-    if args_list and not args_list[0].startswith("-") and args_list[0] not in _subcomandos(ap):
-        rc = _despacha_plugin(args_list)
-        if rc is not None:
-            return rc
-
     a = ap.parse_args(argv)
     if a.version:
         from . import status
@@ -486,19 +445,6 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "setup":
         from .commands import setup
         return setup.run(a)
-
-    if a.cmd == "plugin":
-        if a.plugin_cmd != "list":
-            ap.parse_args(["plugin", "--help"])
-            return 0
-        try:
-            manifestos = registry.discover(registry.PLUGINS_DIR)
-        except registry.ManifestError as e:
-            print(f"plugin list: {e}", file=sys.stderr)
-            return 2
-        for m in manifestos:
-            print(f"{m.id:12s} {m.kind:10s} {', '.join(c.name for c in m.commands) or '-'}")
-        return 0
 
     if a.cmd == "status":
         from . import status

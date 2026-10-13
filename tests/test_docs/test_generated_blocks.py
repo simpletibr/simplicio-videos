@@ -1,8 +1,8 @@
-"""The plugin and host maps in README.md and AGENTS.md are generated from the front matter of docs/plugins/*.md
-and docs/host/*.md, between `<!-- BEGIN GENERATED: <name> -->` and `<!-- END GENERATED -->` markers.
+"""The host map in README.md and AGENTS.md is generated from the front matter of docs/host/*.md, between
+`<!-- BEGIN GENERATED: host -->` and `<!-- END GENERATED -->` markers.
 
-Contract under test: each file has exactly one block per section (`plugins`, `host`). The set of (title, path)
-links inside the block equals the set built from the front matter of the pages in that folder (README.md excluded).
+Contract under test: each file has exactly one `host` block. The set of (title, path) links inside the block equals
+the set built from the front matter of the pages in docs/host/ (README.md excluded).
 """
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ import re
 
 import pytest
 
-from _docs import HOST_DIR, PLUGINS_DIR, ROOT, doc_pages, front_matter
+from _docs import HOST_DIR, ROOT, doc_pages, front_matter
 
-SECTIONS = {"plugins": PLUGINS_DIR, "host": HOST_DIR}
+SECTIONS = {"host": HOST_DIR}
 LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
 END = "<!-- END GENERATED -->"
 
@@ -38,7 +38,7 @@ def _found(block):
     entries = set()
     for title, target in LINK.findall(block):
         path = target.split("#")[0]
-        if path.startswith(("docs/plugins/", "docs/host/")) and not path.endswith("README.md"):
+        if path.startswith("docs/host/") and not path.endswith("README.md"):
             entries.add((title, path))
     return entries
 

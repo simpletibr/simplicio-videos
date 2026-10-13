@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # temporary trees, so this exclusion does not hide any check from the tests.
 SPEC_PREFIXES = ("docs/factory/",)
 # Pages under these folders need front matter (the folder README.md is an index and is exempt).
-FRONT_MATTER_DIRS = ("docs/host/", "docs/plugins/")
+FRONT_MATTER_DIRS = ("docs/host/",)
 FRONT_MATTER_KEYS = ("title", "summary", "commands", "issue", "last_verified")
 # Orphan check: only the documentation tree. Folder READMEs are indexes, so they are exempt too.
 ORPHAN_DIR = "docs/"

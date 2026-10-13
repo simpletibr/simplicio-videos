@@ -38,7 +38,7 @@ labels: ""
 - [ ]
 
 ## Docs and help
-<!-- docs/host/<nome>.md ou docs/plugins/<id>.md; cada comando com --help e exemplos; ADR (número reservado), se houver decisão. -->
+<!-- docs/host/<nome>.md; cada comando com --help e exemplos; ADR (número reservado), se houver decisão. -->
 -
 
 ## Risks and open questions
