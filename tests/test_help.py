@@ -27,7 +27,7 @@ def test_main_help_lists_the_whole_flow():
     ("montage", ["OpenMontage", "argumentos repassados"]),
     ("edit", ["video-use", "render"]),
     ("opencut", ["OpenCut", "dev"]),
-    ("toonflow", ["Toonflow", "clone", "serve", "where", "Bun"]),
+    ("toonflow", ["Toonflow", "clone", "serve", "where", "Bun", "--lan", "0.0.0.0"]),
     ("mcp", ["video.init", "video.render", "video.run", "stdio"]),
     ("list", ["templates", "motion", "voices", "--json"]),
 ])

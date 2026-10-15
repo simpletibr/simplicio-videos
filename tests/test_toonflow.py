@@ -74,11 +74,11 @@ def test_help_needs_no_checkout(monkeypatch, capsys):
     assert toonflow.run_toonflow(["--help"]) == 0
     out = capsys.readouterr().out
     assert "clone" in out and "serve" in out and "where" in out
-    assert "localhost" in out
+    assert "--lan" in out and "0.0.0.0" in out
     assert calls == []
 
 
-@pytest.mark.parametrize("args", [["where"], ["serve"]])
+@pytest.mark.parametrize("args", [["where"], ["serve", "--lan"]])
 def test_commands_without_a_checkout_point_to_clone(args):
     with pytest.raises(toonflow.ToonflowError, match="toonflow clone"):
         toonflow.run_toonflow(args)
@@ -122,9 +122,17 @@ def test_where_prints_the_checkout(checkout, capsys):
     assert capsys.readouterr().out.strip() == str(checkout.resolve())
 
 
+def test_serve_without_lan_refuses_because_the_server_is_open_on_every_interface(checkout, bun, calls):
+    recorded, _ = calls
+    with pytest.raises(toonflow.ToonflowError) as e:
+        toonflow.run_toonflow(["serve"])
+    assert "--lan" in str(e.value) and "0.0.0.0" in str(e.value)
+    assert recorded == []
+
+
 def test_serve_installs_builds_then_starts_the_server_inside_the_checkout(checkout, bun, calls):
     recorded, _ = calls
-    assert toonflow.run_toonflow(["serve"]) == 0
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 0
     assert [cmd for cmd, _, _ in recorded] == [
         [bun, "install", "--frozen-lockfile"],
         [bun, "run", "build:server"],
@@ -135,7 +143,7 @@ def test_serve_installs_builds_then_starts_the_server_inside_the_checkout(checko
 
 def test_serve_keeps_the_data_outside_the_checkout(checkout, bun, calls, tmp_path):
     recorded, _ = calls
-    assert toonflow.run_toonflow(["serve"]) == 0
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 0
     data = (tmp_path / "data" / "toonflow-data").resolve()
     assert recorded[-1][2] == str(data)
     assert (data / "workspaces" / "myProject").is_dir()
@@ -146,7 +154,7 @@ def test_serve_respects_a_data_dir_the_user_set(checkout, bun, calls, monkeypatc
     mine = (tmp_path / "meu-toonflow").resolve()
     monkeypatch.setenv("TOONFLOW_DATA_DIR", str(mine))
     recorded, _ = calls
-    assert toonflow.run_toonflow(["serve"]) == 0
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 0
     assert recorded[-1][2] == str(mine)
     assert (mine / "workspaces" / "myProject").is_dir()
 
@@ -163,7 +171,7 @@ def test_data_dir_is_absolute_because_the_server_runs_inside_the_checkout(monkey
 def test_serve_stops_at_the_first_failing_step(checkout, bun, calls, step):
     recorded, fail = calls
     fail[step] = 3
-    assert toonflow.run_toonflow(["serve"]) == 1
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 1
     assert recorded[-1][0][1:3] == list(step)
     assert not any("start:server" in cmd for cmd, _, _ in recorded)
 
@@ -175,21 +183,30 @@ def test_serve_ctrl_c_stops_the_server_without_a_traceback(checkout, bun, monkey
         return 0
 
     monkeypatch.setattr("subprocess.call", interrupted)
-    assert toonflow.run_toonflow(["serve"]) == 0
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 0
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_serve_ctrl_c_during_install_is_an_interruption_not_a_traceback(checkout, bun, monkeypatch, capsys):
+    def interrupted(cmd, cwd=None, env=None):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("subprocess.call", interrupted)
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 130
     assert "Traceback" not in capsys.readouterr().err
 
 
 def test_serve_refuses_extra_args_because_the_port_is_fixed(checkout, bun, calls):
     recorded, _ = calls
-    with pytest.raises(toonflow.ToonflowError, match="não recebe argumentos"):
-        toonflow.run_toonflow(["serve", "--port", "5174"])
+    with pytest.raises(toonflow.ToonflowError, match="aceita só --lan"):
+        toonflow.run_toonflow(["serve", "--lan", "--port", "5174"])
     assert recorded == []
 
 
 def test_serve_without_bun_says_where_to_get_it(checkout, monkeypatch):
     monkeypatch.setattr("shutil.which", lambda cmd: None)
     with pytest.raises(toonflow.ToonflowError, match="bun"):
-        toonflow.run_toonflow(["serve"])
+        toonflow.run_toonflow(["serve", "--lan"])
 
 
 def test_cli_dispatch_toonflow(monkeypatch):
@@ -219,16 +236,31 @@ def test_mcp_where_returns_the_checkout(checkout):
     assert str(checkout.resolve()) in r["log"]
 
 
-def test_mcp_refuses_serve_because_it_blocks_the_server(checkout):
-    r = mcp_server.video_toonflow("serve")
+@pytest.mark.parametrize("args", ["serve", "serve --lan"])
+def test_mcp_refuses_serve_because_it_blocks_the_server(checkout, args):
+    r = mcp_server.video_toonflow(args)
     assert r["ok"] is False
     assert "terminal" in r["error"]
 
 
-def test_mcp_capture_does_not_pass_log_to_functions_that_do_not_take_it():
-    # Regression: _capture always passed log=, so every wrapper of a plain run_* function failed with TypeError.
-    r = mcp_server._capture(lambda args: 0, ["x"])
-    assert r["ok"] is True and r["result"] == 0
+def test_mcp_clone_uses_the_default_dir(monkeypatch, tmp_path):
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: calls.append(a) or "")
+    r = mcp_server.video_toonflow("clone")
+    assert r["ok"] is True
+    assert calls[0][-1] == str(tmp_path / "toonflow")
+
+
+def test_mcp_clone_into_a_chosen_dir_is_refused(monkeypatch, tmp_path):
+    # An agent must not pick where a git checkout is written: that is a terminal-only choice.
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+    calls = []
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: calls.append(a) or "")
+    r = mcp_server.video_toonflow(f"clone {tmp_path / 'em-outro-lugar'}")
+    assert r["ok"] is False
+    assert calls == []
 
 
 def _verbs(node):
