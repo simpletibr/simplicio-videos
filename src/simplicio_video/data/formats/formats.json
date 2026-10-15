@@ -1,0 +1,1094 @@
+{
+  "schema": "simplicio.ad-formats/v1",
+  "pasta_drive": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+  "descricao": "50 formatos de anúncio e de vídeo curto da pasta 'Swipe File - 50 Formatos' (Drive). Cada entrada aponta para a pasta e para o arquivo de exemplo; a descrição estrutural foi escrita pela trilha e segue verificado=false até conferir o arquivo.",
+  "formatos": [
+    {
+      "id": "caixinha",
+      "nome": "Caixinha",
+      "descricao": "Vídeo em que a pessoa responde a perguntas de seguidores exibidas na tela, no estilo da caixinha de perguntas dos Stories. A pergunta aparece em destaque e a resposta vem falada, de forma direta e conversada.",
+      "estrutura": [
+        "pergunta exibida na caixinha como gancho",
+        "resposta direta falada para a câmera",
+        "exemplo ou detalhe que aprofunda a resposta",
+        "convite para mandar novas perguntas ou chamada para a ação"
+      ],
+      "limites": "vídeo vertical, 15 a 45 s; de uma a três perguntas por vídeo",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que o nome se refere à caixinha de perguntas dos Stories, em que seguidores enviam dúvidas e o criador responde.",
+      "fonte_drive": "Caixinha",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Caixinha",
+        "link": null
+      }
+    },
+    {
+      "id": "pov",
+      "nome": "POV",
+      "descricao": "Vídeo em que o espectador é colocado dentro de uma situação, como se a câmera fossem os olhos dele ou como se o criador interpretasse um personagem diante dele. Um texto curto na tela define o cenário e a cena se desenrola até uma virada.",
+      "estrutura": [
+        "texto de cenário na tela",
+        "cena em primeira pessoa",
+        "virada ou reação inesperada",
+        "resolução ligada ao produto ou ao tema",
+        "chamada para a ação"
+      ],
+      "limites": "vídeo vertical, 7 a 30 s; poucos cortes e um único cenário",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que POV significa ponto de vista, no sentido da tendência dos vídeos curtos em que o espectador vive a cena.",
+      "fonte_drive": "POV",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "POV",
+        "link": null
+      }
+    },
+    {
+      "id": "dialogo",
+      "nome": "Diálogo",
+      "descricao": "Cena de conversa entre duas pessoas ou personagens, em que uma traz uma dúvida ou problema e a outra apresenta a solução. A informação chega pela troca de falas, sem narrador.",
+      "estrutura": [
+        "fala de abertura que expõe o problema",
+        "troca de falas que aprofunda a dúvida",
+        "apresentação da solução por um dos lados",
+        "reação do outro personagem",
+        "chamada para a ação"
+      ],
+      "limites": "vídeo vertical ou quadrado, 20 a 45 s; dois interlocutores e um único ambiente",
+      "objetivo": "lead",
+      "suposicao": "",
+      "fonte_drive": "Diálogo",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Diálogo",
+        "link": null
+      }
+    },
+    {
+      "id": "choquei",
+      "nome": "Choquei",
+      "descricao": "Peça que imita o visual das páginas de notícias quentes e fofoca das redes sociais brasileiras: manchete forte em destaque, imagem de apoio e tom de novidade urgente. O assunto real do anúncio aparece depois da manchete, como o desfecho da história.",
+      "estrutura": [
+        "manchete de impacto em destaque",
+        "imagem ou vídeo de apoio",
+        "contexto curto em tom de urgência",
+        "virada para o assunto real do anúncio",
+        "chamada para a ação"
+      ],
+      "limites": "imagem única ou vídeo vertical de 10 a 30 s; manchete de poucas palavras",
+      "objetivo": "clique",
+      "suposicao": "Assumi que o nome designa o estilo de página de notícias e fofoca de redes sociais, usado só como referência de formato, sem relação com qualquer conta real.",
+      "fonte_drive": "Choquei",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Choquei",
+        "link": null
+      }
+    },
+    {
+      "id": "noticia",
+      "nome": "Notícia",
+      "descricao": "Vídeo ou peça que imita um telejornal ou matéria jornalística, com apresentador ou locução, letreiros e linguagem de reportagem. O tema do anúncio é tratado como o fato do dia.",
+      "estrutura": [
+        "chamada inicial com tarja de notícia",
+        "apresentação do fato",
+        "explicação do contexto e do que muda para o público",
+        "fecho do apresentador",
+        "chamada para a ação"
+      ],
+      "limites": "vídeo vertical ou horizontal, 20 a 45 s; tarja e letreiro na tela",
+      "objetivo": "clique",
+      "suposicao": "",
+      "fonte_drive": "Notícia",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Notícia",
+        "link": null
+      }
+    },
+    {
+      "id": "meme",
+      "nome": "Meme",
+      "descricao": "Imagem ou vídeo curto que usa um modelo de humor conhecido da internet, com texto sobreposto e uma situação com a qual o público se identifica. A graça vem da comparação entre a situação e o desfecho.",
+      "estrutura": [
+        "imagem ou cena de meme reconhecível",
+        "situação com a qual o público se identifica",
+        "frase de humor que fecha a piada",
+        "ligação discreta com o produto ou o tema"
+      ],
+      "limites": "imagem estática ou vídeo vertical de 3 a 10 s; texto de uma ou duas linhas",
+      "objetivo": "engajamento",
+      "suposicao": "",
+      "fonte_drive": "Meme",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Meme",
+        "link": null
+      }
+    },
+    {
+      "id": "ugc-1a-pessoa",
+      "nome": "UGC em 1ª Pessoa",
+      "descricao": "Vídeo com cara de conteúdo feito por gente comum, em que uma pessoa fala direto para a câmera sobre algo que viveu ou usou, em primeira pessoa. A gravação é caseira, com luz natural e linguagem informal.",
+      "estrutura": [
+        "gancho dito para a câmera",
+        "problema vivido pela pessoa",
+        "descoberta ou uso do produto",
+        "demonstração em imagens",
+        "recomendação e chamada para a ação"
+      ],
+      "limites": "vídeo vertical, 15 a 45 s; filmado com celular, estilo caseiro",
+      "objetivo": "venda",
+      "suposicao": "Assumi que UGC significa conteúdo gerado por usuário e que 1ª pessoa quer dizer relato narrado por quem viveu a experiência.",
+      "fonte_drive": "UGC em 1ª Pessoa",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "UGC em 1ª Pessoa",
+        "link": null
+      }
+    },
+    {
+      "id": "tela-dividida",
+      "nome": "Tela Dividida",
+      "descricao": "Vídeo com a tela repartida em duas partes, que mostram ao mesmo tempo duas situações, duas opções ou um conteúdo principal ao lado de uma imagem de apoio. A comparação visual conduz a mensagem.",
+      "estrutura": [
+        "gancho que apresenta o contraste",
+        "exibição dos dois lados da tela",
+        "comparação ponto a ponto",
+        "conclusão em favor de um dos lados",
+        "chamada para a ação"
+      ],
+      "limites": "vídeo vertical dividido em duas metades, 15 a 40 s",
+      "objetivo": "venda",
+      "suposicao": "Assumi que a tela é dividida em duas metades, lado a lado ou uma sobre a outra, usadas para comparar duas coisas ou unir um conteúdo principal a uma imagem de apoio.",
+      "fonte_drive": "Tela Dividida",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Tela Dividida",
+        "link": null
+      }
+    },
+    {
+      "id": "fofoca",
+      "nome": "Fofoca",
+      "descricao": "Narração em tom de segredo contado a uma amiga, sobre uma situação envolvendo terceiros fictícios ou genéricos. A curiosidade é construída aos poucos até a revelação, que se liga ao assunto do anúncio.",
+      "estrutura": [
+        "abertura em tom de segredo",
+        "apresentação dos envolvidos",
+        "reviravolta da história",
+        "revelação ligada ao produto ou ao tema",
+        "chamada para a ação"
+      ],
+      "limites": "vídeo vertical, 20 a 45 s; narração em primeiro plano",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que o nome se refere ao tom de fofoca contada em confidência, aplicado a personagens fictícios, e não a boatos sobre pessoas reais.",
+      "fonte_drive": "Fofoca",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Fofoca",
+        "link": null
+      }
+    },
+    {
+      "id": "react",
+      "nome": "React",
+      "descricao": "Vídeo em que uma pessoa aparece reagindo a outro conteúdo, como um vídeo, um post ou uma situação exibida na tela, e comenta o que vê. A reação do rosto e o comentário guiam o espectador até o ponto do anúncio.",
+      "estrutura": [
+        "conteúdo original exibido na tela",
+        "reação de rosto e comentário inicial",
+        "pausas para explicar ou opinar",
+        "conclusão que leva ao assunto do anúncio",
+        "chamada para a ação"
+      ],
+      "limites": "vídeo vertical, 20 a 45 s; conteúdo de referência e rosto do criador ao mesmo tempo",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que o nome se refere ao vídeo de reação, em que o criador comenta outro conteúdo que aparece na tela.",
+      "fonte_drive": "React",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "React",
+        "link": null
+      }
+    },
+    {
+      "id": "ugc-3a-pessoa",
+      "nome": "UGC em 3ª Pessoa",
+      "descricao": "Vídeo no estilo conteúdo de usuário em que quem fala conta a experiência de outra pessoa com o produto, como um amigo, parente ou cliente, em vez de falar de si. O olhar de fora dá um tom de recomendação espontânea.",
+      "estrutura": [
+        "gancho apresentando a outra pessoa ou a situação dela",
+        "contexto do problema que ela vivia",
+        "momento em que ela passa a usar o produto",
+        "o que mudou na rotina dela, visto por quem observa",
+        "convite para conhecer ou comprar"
+      ],
+      "limites": "vídeo vertical, 15 a 40 s, uma pessoa falando para a câmera",
+      "objetivo": "venda",
+      "suposicao": "Assumi que UGC significa conteúdo gerado por usuário e que 3ª pessoa quer dizer que o narrador relata o caso de alguém, não o próprio.",
+      "fonte_drive": "UGC em 3ª Pessoa",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "UGC em 3ª Pessoa",
+        "link": null
+      }
+    },
+    {
+      "id": "esquete",
+      "nome": "Esquete",
+      "descricao": "Cena curta encenada por um ou mais personagens, em tom de comédia ou situação do dia a dia, em que o produto ou a ideia entra como parte natural da trama. A mensagem aparece pela história, não por uma explicação direta.",
+      "estrutura": [
+        "gancho com a cena já em andamento",
+        "situação e conflito entre os personagens",
+        "escalada do problema ou do mal-entendido",
+        "virada em que o produto resolve ou muda o rumo",
+        "fecho curto com chamada para ação"
+      ],
+      "limites": "vídeo vertical, 20 a 60 s, de 1 a 3 personagens e um cenário",
+      "objetivo": "engajamento",
+      "suposicao": "",
+      "fonte_drive": "Esquete",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Esquete",
+        "link": null
+      }
+    },
+    {
+      "id": "fala-e-faz",
+      "nome": "Fala e Faz",
+      "descricao": "A pessoa explica em voz alta o que está fazendo enquanto executa a tarefa diante da câmera, de modo que a demonstração e a narração andam juntas. O espectador aprende o passo a passo vendo e ouvindo ao mesmo tempo.",
+      "estrutura": [
+        "gancho dizendo o que será feito",
+        "preparo do material ou do cenário",
+        "execução narrada passo a passo",
+        "resultado mostrado na tela",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical, 20 a 60 s, de 3 a 5 passos demonstrados",
+      "objetivo": "clique",
+      "suposicao": "Assumi que o nome descreve a dupla fala mais ação: a pessoa narra e executa a tarefa ao mesmo tempo, em tempo real.",
+      "fonte_drive": "Fala e Faz",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Fala e Faz",
+        "link": null
+      }
+    },
+    {
+      "id": "depoimento",
+      "nome": "Depoimento",
+      "descricao": "Uma pessoa fala direto para a câmera sobre a experiência que teve com o produto ou serviço, em tom de relato pessoal. O formato se apoia na credibilidade de quem conta, e o conteúdo precisa vir de um relato real e autorizado.",
+      "estrutura": [
+        "gancho com a frase mais forte do relato",
+        "situação em que a pessoa estava antes",
+        "como foi a experiência de uso",
+        "o que ela percebeu de diferente depois",
+        "recomendação final e chamada para ação"
+      ],
+      "limites": "vídeo vertical, 20 a 45 s, uma pessoa em plano médio ou close",
+      "objetivo": "venda",
+      "suposicao": "",
+      "fonte_drive": "Depoimento",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Depoimento",
+        "link": null
+      }
+    },
+    {
+      "id": "experimento-social",
+      "nome": "Experimento Social",
+      "descricao": "O criador monta uma situação ou faz uma pergunta para pessoas comuns, geralmente em local público, e registra as reações para tirar uma conclusão. A graça está na surpresa do que os participantes dizem ou fazem.",
+      "estrutura": [
+        "gancho com a pergunta ou a provocação do teste",
+        "montagem do cenário e abordagem das pessoas",
+        "reações e respostas dos participantes",
+        "revelação ou virada que dá sentido ao teste",
+        "conclusão ligada à marca e chamada para ação"
+      ],
+      "limites": "vídeo vertical, 30 a 90 s, de 3 a 6 participantes em cena",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi um formato de rua ou de ambiente aberto em que desconhecidos reagem a uma situação preparada pelo criador.",
+      "fonte_drive": "Experimento Social",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Experimento Social",
+        "link": null
+      }
+    },
+    {
+      "id": "tela-verde",
+      "nome": "Tela Verde",
+      "descricao": "O apresentador aparece recortado sobre um fundo trocado em edição, como uma notícia, um print, uma página ou outro vídeo, e comenta o que está atrás dele. O fundo serve de apoio visual para a explicação.",
+      "estrutura": [
+        "gancho com o conteúdo de fundo em destaque",
+        "apresentação do que está sendo mostrado",
+        "comentário ou explicação do ponto principal",
+        "ligação do assunto com a oferta",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical, 15 a 45 s, um apresentador e de 1 a 3 fundos diferentes",
+      "objetivo": "clique",
+      "suposicao": "Assumi que o nome vem do efeito de chroma key, em que a pessoa fica sobreposta a uma imagem ou vídeo de fundo.",
+      "fonte_drive": "Tela Verde",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Tela Verde",
+        "link": null
+      }
+    },
+    {
+      "id": "palestrinha",
+      "nome": "Palestrinha",
+      "descricao": "Uma aula ou palestra em miniatura, em que uma pessoa ensina um assunto em tom informal, como se falasse para uma plateia pequena, às vezes com quadro ou slides simples. O objetivo é entregar um aprendizado rápido e posicionar quem fala como referência.",
+      "estrutura": [
+        "gancho com a promessa do que será ensinado",
+        "tese ou ideia central",
+        "dois ou três pontos de explicação",
+        "fechamento que amarra o aprendizado",
+        "convite para o próximo passo"
+      ],
+      "limites": "vídeo vertical ou horizontal, 30 a 90 s, de 2 a 3 pontos principais",
+      "objetivo": "lead",
+      "suposicao": "Assumi que o diminutivo de palestra indica uma fala curta e descontraída de ensino, no estilo mini aula.",
+      "fonte_drive": "Palestrinha",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Palestrinha",
+        "link": null
+      }
+    },
+    {
+      "id": "telepatia",
+      "nome": "Telepatia",
+      "descricao": "O criador finge adivinhar o que o espectador está pensando ou sentindo, nomeando dúvidas, hábitos e situações comuns do público. A identificação rápida prende a atenção e abre caminho para apresentar a solução.",
+      "estrutura": [
+        "gancho dizendo que vai adivinhar o pensamento do público",
+        "leitura de pensamentos, dúvidas e situações típicas",
+        "confirmação de que isso é comum e tem saída",
+        "apresentação da solução",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical, 15 a 40 s, uma pessoa falando para a câmera",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que telepatia é a brincadeira de ler a mente de quem assiste, e não um truque de mágica nem uma dinâmica com participantes.",
+      "fonte_drive": "Telepatia",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Telepatia",
+        "link": null
+      }
+    },
+    {
+      "id": "analise",
+      "nome": "Análise",
+      "descricao": "O apresentador examina um produto, uma oferta, um caso ou uma comparação com critérios claros, mostrando o que observa e chegando a um veredito. O tom é o de quem avalia com olhar crítico antes de recomendar.",
+      "estrutura": [
+        "gancho com o objeto da análise",
+        "critérios que serão avaliados",
+        "exame dos pontos fortes e dos limites",
+        "veredito do apresentador",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical, 30 a 90 s, de 3 a 5 critérios analisados",
+      "objetivo": "venda",
+      "suposicao": "Assumi que análise significa avaliar ou comentar criticamente um item, no estilo de review ou de dissecação de um caso.",
+      "fonte_drive": "Análise",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Análise",
+        "link": null
+      }
+    },
+    {
+      "id": "google-meet",
+      "nome": "Google Meet",
+      "descricao": "Vídeo que imita uma chamada de videoconferência, com quadros de participantes e elementos da interface de reunião, simulando uma conversa ao vivo com um especialista ou com um cliente. O visual familiar de reunião online passa a sensação de atendimento direto.",
+      "estrutura": [
+        "gancho com a entrada na chamada",
+        "dúvida ou pedido do participante",
+        "explicação do especialista na reunião",
+        "demonstração com compartilhamento de tela",
+        "convite para agendar ou pedir contato"
+      ],
+      "limites": "vídeo vertical ou quadrado, 30 a 60 s, de 2 a 3 quadros de participantes",
+      "objetivo": "lead",
+      "suposicao": "Assumi que o nome se refere ao visual de uma chamada de vídeo no estilo do Google Meet, e não a uma reunião real transmitida.",
+      "fonte_drive": "Google Meet",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Google Meet",
+        "link": null
+      }
+    },
+    {
+      "id": "telemarketing",
+      "nome": "Telemarketing",
+      "descricao": "Encenação de uma ligação de vendas por telefone, com duas vozes: quem liga para oferecer algo e quem atende. A graça está no ritmo de roteiro de call center, com a pessoa do outro lado reagindo e levantando dúvidas.",
+      "estrutura": [
+        "toque e atendimento da chamada",
+        "apresentação da oferta por quem liga",
+        "reação ou objeção de quem atende",
+        "resposta que desfaz a dúvida",
+        "convite para o próximo passo"
+      ],
+      "limites": "vídeo vertical, 20 a 45 s, duas vozes",
+      "objetivo": "lead",
+      "suposicao": "Assumi que é uma ligação de vendas encenada, com tom de call center, e não uma gravação de chamada real.",
+      "fonte_drive": "Telemarketing",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Telemarketing",
+        "link": null
+      }
+    },
+    {
+      "id": "pov-meme",
+      "nome": "POV + Meme",
+      "descricao": "Vídeo curto em que um texto na tela coloca o espectador dentro de uma situação cotidiana (ponto de vista) e um meme ou clipe de reação conhecido ilustra o sentimento. O humor de identificação leva a uma ligação leve com o produto ou a ideia.",
+      "estrutura": [
+        "texto de abertura com o ponto de vista",
+        "situação reconhecível do dia a dia",
+        "meme ou clipe de reação",
+        "ligação com o produto ou a ideia",
+        "convite curto para interagir"
+      ],
+      "limites": "vídeo vertical, 7 a 20 s, texto na tela",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que POV significa ponto de vista em primeira pessoa e que o meme entra como imagem ou clipe de reação.",
+      "fonte_drive": "POV + Meme",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "POV + Meme",
+        "link": null
+      }
+    },
+    {
+      "id": "lo-fi",
+      "nome": "LO-FI",
+      "descricao": "Vídeo com aparência caseira e sem produção: gravado no celular, câmera na mão, luz natural e fala direta, como se fosse um registro espontâneo. O visual simples passa naturalidade e proximidade.",
+      "estrutura": [
+        "gancho falado direto para a câmera",
+        "relato simples de uma situação",
+        "demonstração ou detalhe do produto",
+        "convite para agir"
+      ],
+      "limites": "vídeo vertical, 15 a 40 s, uma única câmera",
+      "objetivo": "clique",
+      "suposicao": "Assumi que LO-FI se refere à baixa produção visual (aparência caseira) e não ao estilo musical lo-fi.",
+      "fonte_drive": "LO-FI",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "LO-FI",
+        "link": null
+      }
+    },
+    {
+      "id": "corte-de-podcast",
+      "nome": "Corte de Podcast",
+      "descricao": "Trecho recortado de uma conversa no estilo podcast, com dois ou mais participantes à mesa e legendas na tela. O recorte escolhido precisa fazer sentido sozinho e prender a atenção do começo ao fim.",
+      "estrutura": [
+        "frase de abertura que prende a atenção",
+        "desenvolvimento da fala",
+        "ponto forte ou virada do trecho",
+        "identificação do programa e legenda",
+        "chamada para seguir ou ver o episódio completo"
+      ],
+      "limites": "vídeo vertical, 30 a 90 s, legendas na tela",
+      "objetivo": "engajamento",
+      "suposicao": "",
+      "fonte_drive": "Corte de Podcast",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Corte de Podcast",
+        "link": null
+      }
+    },
+    {
+      "id": "top-5",
+      "nome": "Top 5 (ranking)",
+      "descricao": "Lista em contagem regressiva com cinco itens, do quinto ao primeiro, cada um marcado com o número na tela. O último item, o primeiro colocado, recebe o maior destaque e fecha o vídeo.",
+      "estrutura": [
+        "gancho que anuncia o ranking",
+        "itens do quinto ao segundo em sequência rápida",
+        "primeiro colocado em destaque",
+        "convite para comentar ou agir"
+      ],
+      "limites": "vídeo vertical, 30 a 60 s, cinco itens de 4 a 8 s cada",
+      "objetivo": "engajamento",
+      "suposicao": "",
+      "fonte_drive": "Top 5 (ranking)",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Top 5 (ranking)",
+        "link": null
+      }
+    },
+    {
+      "id": "conversa-no-carro",
+      "nome": "Conversa no Carro",
+      "descricao": "Cena gravada dentro de um carro, com a câmera no painel ou no banco, em que duas pessoas (ou uma falando para a câmera) conversam de forma informal. O clima de papo no trajeto dá a sensação de assunto espontâneo.",
+      "estrutura": [
+        "gancho no meio de uma conversa",
+        "dúvida ou assunto levantado",
+        "resposta ou virada",
+        "fechamento com convite"
+      ],
+      "limites": "vídeo vertical, 20 a 45 s, cenário fixo dentro do carro",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que o carro é só o cenário de um papo informal, sem que o tema do vídeo seja automóveis.",
+      "fonte_drive": "Conversa no Carro",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Conversa no Carro",
+        "link": null
+      }
+    },
+    {
+      "id": "dialogo-de-gemeos",
+      "nome": "Diálogo de Gêmeos",
+      "descricao": "Duas personagens idênticas, gêmeas, conversam entre si: uma faz a pergunta ou segue um caminho e a outra mostra a alternativa. O contraste entre as duas conduz a comparação.",
+      "estrutura": [
+        "apresentação da dupla e do cenário",
+        "dúvida ou posição de uma das gêmeas",
+        "resposta ou posição oposta da outra",
+        "comparação entre os dois caminhos",
+        "convite para agir"
+      ],
+      "limites": "vídeo vertical, 20 a 40 s, duas personagens",
+      "objetivo": "venda",
+      "suposicao": "Assumi que as gêmeas podem ser a mesma pessoa em dois papéis, por edição, e que cada uma representa um lado do contraste.",
+      "fonte_drive": "Diálogo de Gêmeos",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Diálogo de Gêmeos",
+        "link": null
+      }
+    },
+    {
+      "id": "mensagem",
+      "nome": "Mensagem",
+      "descricao": "Simulação da tela de um aplicativo de mensagens, com balões de conversa que surgem em sequência e são lidos na tela ou narrados. A história se desenrola como um bate-papo entre duas pessoas.",
+      "estrutura": [
+        "primeira mensagem que chama a atenção",
+        "troca de balões que desenvolve o assunto",
+        "resposta ou virada da conversa",
+        "mensagem final com o convite"
+      ],
+      "limites": "vídeo vertical, 10 a 30 s, cerca de 4 a 10 balões",
+      "objetivo": "clique",
+      "suposicao": "Assumi que é uma conversa de texto em estilo de aplicativo de mensagens, e não e-mail, SMS ou mensagem de voz.",
+      "fonte_drive": "Mensagem",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Mensagem",
+        "link": null
+      }
+    },
+    {
+      "id": "passo-a-passo",
+      "nome": "Passo a passo",
+      "descricao": "Tutorial curto e numerado que mostra como fazer algo em etapas simples, com apoio visual a cada passo. O espectador acompanha o caminho até o resultado final.",
+      "estrutura": [
+        "gancho que promete o que será ensinado",
+        "o que é preciso ter ou saber antes",
+        "passos numerados, um de cada vez",
+        "resultado final mostrado",
+        "convite para o próximo passo"
+      ],
+      "limites": "vídeo vertical, 30 a 60 s, de 3 a 5 passos",
+      "objetivo": "lead",
+      "suposicao": "",
+      "fonte_drive": "Passo a passo",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Passo a passo",
+        "link": null
+      }
+    },
+    {
+      "id": "copy-no-papel",
+      "nome": "Copy no Papel",
+      "descricao": "O texto de venda aparece escrito à mão (ou digitado) em uma folha ou caderno filmado de perto, sendo revelado aos poucos, com marcações e destaques. A narração, quando existe, acompanha o que vai sendo escrito.",
+      "estrutura": [
+        "título escrito na folha",
+        "texto aparecendo linha a linha",
+        "destaques com marcador, círculo ou sublinhado",
+        "frase final com o convite para agir"
+      ],
+      "limites": "vídeo vertical, 15 a 40 s, plano fechado na folha",
+      "objetivo": "venda",
+      "suposicao": "Assumi que copy é o texto persuasivo do anúncio e que no papel quer dizer mostrado escrito em folha ou caderno, em vez de apenas na tela.",
+      "fonte_drive": "Copy no Papel",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Copy no Papel",
+        "link": null
+      }
+    },
+    {
+      "id": "cinema",
+      "nome": "Cinema",
+      "descricao": "Vídeo com acabamento de filme: enquadramentos amplos, cor tratada, trilha marcante e ritmo mais lento que o de um anúncio comum. Conta uma pequena cena dramática em que o produto ou a ideia aparece como parte da história.",
+      "estrutura": [
+        "plano de abertura que define o clima",
+        "apresentação do personagem ou da situação",
+        "tensão ou conflito",
+        "virada em que o produto ou a ideia entra",
+        "fecho com título e chamada final"
+      ],
+      "limites": "vídeo de 15 a 60 s, em proporção ampla ou vertical com barras",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que \"Cinema\" indica o estilo visual cinematográfico, como um mini curta ou trailer, e não a divulgação de uma sala de cinema.",
+      "fonte_drive": "Cinema",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Cinema",
+        "link": null
+      }
+    },
+    {
+      "id": "asmr",
+      "nome": "ASMR",
+      "descricao": "Vídeo que gira em torno de sons suaves e texturas captados bem de perto, como toques, cliques, embalagens abrindo e líquidos. Quase não há fala, e o prazer sensorial é o que segura a atenção.",
+      "estrutura": [
+        "close inicial no objeto",
+        "sequência de ações com som marcado",
+        "momento de destaque do produto",
+        "fecho calmo com chamada discreta"
+      ],
+      "limites": "vídeo vertical, 15 a 45 s, com áudio em primeiro plano",
+      "objetivo": "engajamento",
+      "suposicao": "",
+      "fonte_drive": "ASMR",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "ASMR",
+        "link": null
+      }
+    },
+    {
+      "id": "live",
+      "nome": "Live",
+      "descricao": "Transmissão ao vivo, ou corte dela, em que uma pessoa fala direto para a câmera, responde ao chat e mostra itens em tempo real. O conteúdo se apoia na interação e na sensação de presença.",
+      "estrutura": [
+        "abertura e boas-vindas",
+        "tema ou pauta do dia",
+        "demonstração intercalada com respostas ao chat",
+        "destaque do que está em pauta",
+        "encerramento com chamada final"
+      ],
+      "limites": "transmissão de 20 min a 2 h; cortes para divulgação de 30 a 90 s",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que \"Live\" é uma transmissão ao vivo em rede social, ou um recorte ou simulação dela, e não um evento presencial.",
+      "fonte_drive": "Live",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Live",
+        "link": null
+      }
+    },
+    {
+      "id": "analogia",
+      "nome": "Analogia",
+      "descricao": "Explica uma ideia difícil ou abstrata comparando-a com algo do dia a dia que o público já conhece. A comparação é o fio condutor, e cada parte da coisa difícil é ligada a uma parte da coisa familiar.",
+      "estrutura": [
+        "gancho com a ideia difícil",
+        "apresentação da coisa familiar usada como comparação",
+        "correspondência entre as partes das duas coisas",
+        "volta ao tema real com a conclusão",
+        "chamada final"
+      ],
+      "limites": "vídeo de 20 a 45 s ou carrossel de 5 a 8 telas",
+      "objetivo": "engajamento",
+      "suposicao": "",
+      "fonte_drive": "Analogia",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Analogia",
+        "link": null
+      }
+    },
+    {
+      "id": "receita",
+      "nome": "Receita",
+      "descricao": "Passo a passo em que se mostra o que é preciso e como chegar ao resultado, em etapas curtas e numeradas. Pode ser culinária de verdade ou qualquer processo contado como se fosse uma receita.",
+      "estrutura": [
+        "gancho com o resultado final",
+        "lista de ingredientes ou materiais",
+        "etapas em sequência",
+        "resultado pronto",
+        "chamada para salvar ou seguir"
+      ],
+      "limites": "vídeo vertical de 30 a 60 s, com 3 a 7 etapas",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que \"Receita\" é o formato de passo a passo de preparo, no sentido culinário, que também serve de modelo para qualquer procedimento em etapas.",
+      "fonte_drive": "Receita",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Receita",
+        "link": null
+      }
+    },
+    {
+      "id": "tweet",
+      "nome": "Tweet",
+      "descricao": "Peça em que uma postagem curta de texto, no estilo de rede de microblog, é a protagonista, mostrada como imagem ou como vídeo curto. Defende uma ideia ou opinião em poucas linhas.",
+      "estrutura": [
+        "afirmação de abertura",
+        "desenvolvimento em uma ou duas linhas",
+        "remate ou frase de efeito",
+        "convite para responder ou compartilhar"
+      ],
+      "limites": "texto de até cerca de 280 caracteres; imagem única ou vídeo de 5 a 15 s",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que \"Tweet\" é uma postagem curta de texto em estilo de microblog, apresentada como imagem ou vídeo, e não um anúncio hospedado em uma plataforma específica.",
+      "fonte_drive": "Tweet",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Tweet",
+        "link": null
+      }
+    },
+    {
+      "id": "oferta-direta",
+      "nome": "Oferta Direta",
+      "descricao": "Anúncio que vai direto ao produto e à proposta de compra, sem construir uma história antes. Diz a quem se destina, o que está sendo oferecido e como aproveitar.",
+      "estrutura": [
+        "chamada ao público certo",
+        "apresentação do produto ou da oferta",
+        "principais benefícios",
+        "condição da oferta e motivo para agir agora",
+        "chamada final para comprar"
+      ],
+      "limites": "vídeo de 10 a 30 s ou imagem única com texto curto",
+      "objetivo": "venda",
+      "suposicao": "",
+      "fonte_drive": "Oferta Direta",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Oferta Direta",
+        "link": null
+      }
+    },
+    {
+      "id": "story",
+      "nome": "Story",
+      "descricao": "Sequência de telas verticais e efêmeras, em que cada tela traz uma imagem ou um vídeo curto, com texto, figurinhas e elementos interativos por cima. A pessoa avança tocando e termina em um link ou botão.",
+      "estrutura": [
+        "tela de abertura que prende o toque",
+        "desenvolvimento em duas ou três telas",
+        "elemento interativo, como enquete ou caixa de perguntas",
+        "tela final com link e chamada"
+      ],
+      "limites": "formato vertical 9:16, em geral 3 a 7 telas de até cerca de 15 s cada",
+      "objetivo": "clique",
+      "suposicao": "Assumi que \"Story\" é o formato vertical e efêmero de redes sociais, e não uma narrativa em sentido amplo.",
+      "fonte_drive": "Story",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Story",
+        "link": null
+      }
+    },
+    {
+      "id": "serie",
+      "nome": "Série",
+      "descricao": "Conteúdo dividido em episódios curtos e numerados, com tema, personagem ou cenário recorrente. Cada episódio fecha uma pequena parte e deixa uma pergunta aberta que leva ao seguinte.",
+      "estrutura": [
+        "vinheta ou recapitulação do episódio anterior",
+        "situação ou mini conflito do episódio",
+        "avanço da trama ou do tema",
+        "gancho para o próximo episódio",
+        "chamada para seguir o perfil"
+      ],
+      "limites": "episódios de 30 a 90 s, em séries de 3 a 10 partes",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que \"Série\" é uma sequência de vídeos curtos em episódios para redes sociais, e não uma produção de TV ou streaming.",
+      "fonte_drive": "Série",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Série",
+        "link": null
+      }
+    },
+    {
+      "id": "edit",
+      "nome": "Edit",
+      "descricao": "Vídeo de montagem acelerada, com cortes no ritmo da música, transições e efeitos, que prioriza imagem e som sobre fala. Reúne os melhores trechos de um tema, de uma pessoa ou de um produto em uma sequência de impacto.",
+      "estrutura": [
+        "abertura de impacto",
+        "sequência de cortes sincronizados com a batida",
+        "clímax na parte mais forte da música",
+        "fecho com identificação ou título"
+      ],
+      "limites": "vídeo vertical de 10 a 30 s, com muitos cortes por segundo",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que \"Edit\" é o estilo de montagem rápida sincronizada com música, comum em redes sociais, e não a ação genérica de editar.",
+      "fonte_drive": "Edit",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Edit",
+        "link": null
+      }
+    },
+    {
+      "id": "rotina",
+      "nome": "Rotina",
+      "descricao": "Vídeo que acompanha uma sequência de momentos do dia de uma pessoa, do início ao fim, e encaixa o produto ou serviço como parte natural desse dia. A história é contada por cenas curtas ligadas pela passagem do tempo.",
+      "estrutura": [
+        "gancho com a abertura do dia",
+        "sequência de momentos da rotina",
+        "ponto em que o produto entra na rotina",
+        "efeito percebido no restante do dia",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical, 15 a 40 s, com 4 a 8 cenas curtas",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que o nome se refere a mostrar o dia a dia de alguém (manhã, trabalho, noite) e não a uma rotina de treino ou de cuidados específica.",
+      "fonte_drive": "Rotina",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Rotina",
+        "link": null
+      }
+    },
+    {
+      "id": "pov-depoimento",
+      "nome": "POV + Depoimento",
+      "descricao": "Combina uma cena em primeira pessoa, em que a câmera mostra a situação pelo ponto de vista de quem a vive, com a fala de uma pessoa contando como foi a experiência. A cena prende a atenção e o depoimento dá credibilidade.",
+      "estrutura": [
+        "indicação de POV na tela com a situação",
+        "cena em primeira pessoa",
+        "fala em depoimento sobre a experiência",
+        "imagem de apoio que ilustra o que foi dito",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical, 15 a 45 s",
+      "objetivo": "venda",
+      "suposicao": "Assumi que POV significa a cena filmada do ponto de vista de quem vive a situação e que o depoimento é a fala de um cliente ou usuário real, gravada à parte ou em seguida.",
+      "fonte_drive": "POV + Depoimento",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "POV + Depoimento",
+        "link": null
+      }
+    },
+    {
+      "id": "certo-vs-errado",
+      "nome": "Certo VS Errado",
+      "descricao": "Compara lado a lado, ou em sequência, a maneira equivocada e a maneira correta de fazer algo, deixando clara a diferença entre as duas. Funciona como mini aula visual que mostra o erro comum e a alternativa.",
+      "estrutura": [
+        "gancho que anuncia a comparação",
+        "o jeito errado e sua consequência",
+        "o jeito certo",
+        "explicação curta da diferença",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical de 15 a 30 s, ou carrossel de 5 a 8 imagens",
+      "objetivo": "lead",
+      "suposicao": "",
+      "fonte_drive": "Certo VS Errado",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Certo VS Errado",
+        "link": null
+      }
+    },
+    {
+      "id": "trivial",
+      "nome": "Trivial",
+      "descricao": "Formato de pergunta e resposta no estilo de jogo de curiosidades: o conteúdo propõe uma pergunta, dá um momento para o público pensar e revela a resposta. A revelação é usada para ligar o tema ao que se quer divulgar.",
+      "estrutura": [
+        "gancho com a pergunta",
+        "alternativas ou pista visual",
+        "pausa para o público pensar",
+        "revelação da resposta",
+        "ligação com o tema divulgado e chamada para ação"
+      ],
+      "limites": "vídeo vertical de 10 a 30 s, com 1 a 3 perguntas",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que o nome remete a um jogo de perguntas e respostas de conhecimentos gerais, e não ao sentido de algo banal ou sem importância.",
+      "fonte_drive": "Trivial",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Trivial",
+        "link": null
+      }
+    },
+    {
+      "id": "the-office",
+      "nome": "The Office",
+      "descricao": "Imita o estilo de falso documentário de escritório: câmera quase parada, situações do trabalho cotidiano e personagens que olham para a lente e comentam o que acontece em tom de confissão. O humor vem do contraste entre a cena e a reação de quem a comenta.",
+      "estrutura": [
+        "cena de escritório com uma situação do dia a dia",
+        "olhar para a câmera como reação",
+        "comentário em formato de confessionário",
+        "virada que mostra a solução ou o produto",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical ou horizontal, 20 a 45 s, com 2 a 3 personagens",
+      "objetivo": "engajamento",
+      "suposicao": "Assumi que o nome se refere ao estilo de comédia de falso documentário em ambiente de escritório, usado apenas como referência de linguagem, sem reproduzir cenas ou personagens de nenhuma série.",
+      "fonte_drive": "The Office",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "The Office",
+        "link": null
+      }
+    },
+    {
+      "id": "tiktok",
+      "nome": "TikTok",
+      "descricao": "Vídeo feito com a linguagem nativa da plataforma: filmagem simples e vertical, cortes rápidos, legendas na tela e ritmo acelerado, com aparência de conteúdo comum e não de propaganda produzida. A ideia é parecer parte natural do feed.",
+      "estrutura": [
+        "gancho nos primeiros segundos",
+        "desenvolvimento em cortes rápidos com legenda na tela",
+        "virada ou revelação",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical 9:16, 15 a 30 s",
+      "objetivo": "clique",
+      "suposicao": "Assumi que o nome indica um anúncio no estilo nativo do TikTok (formato e ritmo próprios da plataforma), e não um formato específico com roteiro fixo.",
+      "fonte_drive": "TikTok",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "TikTok",
+        "link": null
+      }
+    },
+    {
+      "id": "leia-a-legenda",
+      "nome": "Leia a Legenda",
+      "descricao": "Publicação em que a imagem ou o vídeo curto serve de isca visual e a mensagem principal fica na legenda, para a qual o público é convidado a olhar. A leitura da legenda é o passo central da peça.",
+      "estrutura": [
+        "imagem ou vídeo que desperta curiosidade",
+        "aviso na tela para ler a legenda",
+        "legenda com o conteúdo principal",
+        "chamada para ação no fim da legenda"
+      ],
+      "limites": "imagem ou vídeo de 5 a 15 s, com legenda de poucos parágrafos curtos",
+      "objetivo": "clique",
+      "suposicao": "Assumi que o nome é uma instrução ao público e que o conteúdo explicativo vai no texto do post, não no vídeo.",
+      "fonte_drive": "Leia a Legenda",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Leia a Legenda",
+        "link": null
+      }
+    },
+    {
+      "id": "entrevista",
+      "nome": "Entrevista",
+      "descricao": "Um entrevistador faz perguntas diretas a uma ou mais pessoas, na rua ou em estúdio, e as respostas conduzem o assunto. O formato dá ritmo de conversa e permite apresentar diferentes pontos de vista sobre o tema.",
+      "estrutura": [
+        "gancho com a pergunta principal",
+        "apresentação de quem responde",
+        "rodada de perguntas e respostas",
+        "ponto de virada ou resposta de destaque",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical de 20 a 60 s, com 2 a 4 perguntas",
+      "objetivo": "lead",
+      "suposicao": "",
+      "fonte_drive": "Entrevista",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Entrevista",
+        "link": null
+      }
+    },
+    {
+      "id": "jornal-nacional",
+      "nome": "Jornal Nacional",
+      "descricao": "Paródia do formato de telejornal de bancada, com apresentador, manchete, entrada de repórter e tom de notícia séria. O assunto divulgado é tratado como se fosse o fato do dia.",
+      "estrutura": [
+        "vinheta e manchete",
+        "apresentador na bancada",
+        "entrada ao vivo de repórter ou reportagem curta",
+        "detalhe ou dado de destaque",
+        "encerramento com chamada para ação"
+      ],
+      "limites": "vídeo vertical ou horizontal, 20 a 45 s, com 1 a 2 apresentadores",
+      "objetivo": "venda",
+      "suposicao": "Assumi que o nome se refere ao estilo de telejornal de bancada, usado como paródia e referência de linguagem, sem usar a marca, o cenário nem pessoas reais.",
+      "fonte_drive": "Jornal Nacional",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Jornal Nacional",
+        "link": null
+      }
+    },
+    {
+      "id": "anjinho-vs-diabinho",
+      "nome": "Anjinho VS Diabinho",
+      "descricao": "Um personagem enfrenta uma decisão enquanto um anjinho e um diabinho, um em cada ombro, defendem lados opostos: o impulso e a escolha ponderada. O público acompanha o debate até a decisão final.",
+      "estrutura": [
+        "situação que gera o dilema",
+        "argumento do diabinho",
+        "argumento do anjinho",
+        "decisão do personagem",
+        "chamada para ação"
+      ],
+      "limites": "vídeo vertical de 15 a 30 s, com 3 personagens",
+      "objetivo": "engajamento",
+      "suposicao": "",
+      "fonte_drive": "Anjinho VS Diabinho",
+      "verificado": false,
+      "exemplo": {
+        "pasta": "https://drive.google.com/drive/folders/1RhmMHVcjFft9yS-DgZedqzXZE9SXk_Ms",
+        "arquivo": "Anjinho VS Diabinho",
+        "link": null
+      }
+    }
+  ]
+}

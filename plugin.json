@@ -450,6 +450,25 @@
       }
     },
     {
+      "verb": "video.formats",
+      "description": "Library of 50 ad formats from the Drive swipe file: list, show <id>, prompt <id> --copia <arquivo|->.",
+      "argv": [
+        "simplicio-video",
+        "formats",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "list [--objetivo clique|lead|venda|engajamento] | show <id> | prompt <id> --copia <arquivo|->"
+          }
+        }
+      }
+    },
+    {
       "verb": "video.realoficial",
       "description": "Real Oficial MCP (https://api.realoficial.com.br/mcp): config/check; OAuth MCP with 49 tools (social scheduling, AI media, cuts), see docs/realoficial.md.",
       "argv": [
