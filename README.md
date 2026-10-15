@@ -19,6 +19,16 @@ Every external tool is a **track** with one CLI command, one MCP verb (`plugin.j
 | [OpenMontage](https://github.com/calesthio/OpenMontage) | see repo | Agentic production pipelines (Backlot, Remotion, HyperFrames) | `simplicio-video montage [clone\|open\|serve\|demo]` | `video.montage` | [docs/recursos.md](docs/recursos.md) |
 | [OpenCut](https://github.com/OpenCut-app/OpenCut) | MIT | Open-source editor for manual finishing (uses `opencut-classic` until the rewrite has an API) | `simplicio-video opencut clone\|dev\|where` | `video.opencut` | [docs/recursos.md](docs/recursos.md) |
 | [Hypit AI](https://github.com/hypit-ai/hypit) | see repo | Clone viral videos into agent workflows | `simplicio-video clone [args]` | `video.clone` | [docs/recursos.md](docs/recursos.md) |
+| [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | Open-source AI studio for short dramas, comic dramas and videos (local web app on Bun) | `simplicio-video toonflow clone\|serve\|where` | `video.toonflow` (clone, where) | [docs/recursos.md](docs/recursos.md) |
+
+Toonflow runs from a pinned checkout, as its own program:
+
+```bash
+simplicio-video toonflow clone   # clones at the commit pinned in src/simplicio_video/tools.py
+simplicio-video toonflow serve --lan   # bun install --frozen-lockfile, build, start: http://localhost:3000
+```
+
+It needs Bun (the version is in the checkout's `packageManager` field). The server has **no login** and listens on every interface (`0.0.0.0:3000`), so `serve` refuses to start without `--lan`. To keep it on your own machine, run the Docker setup from Toonflow's `compose.yaml` (publishes `127.0.0.1:3000`) or block port 3000 at the firewall. Its data goes to `~/.simplicio-video/toonflow-data` (set `TOONFLOW_DATA_DIR` to move it), outside the checkout, so a re-clone never deletes it. Model API keys are entered in Toonflow's own UI. Toonflow sits outside the deterministic render; whatever it produces enters a contract as a file with a hash.
 
 ### Audio apps
 
@@ -65,6 +75,7 @@ simplicio-videos/
 | Optional tools | [tools/README.md](tools/README.md) | video-use |
 | UGC (generative) | [ugc/README.md](ugc/README.md) | 10 characters + 5 prompts |
 | Ad formats | `src/simplicio_video/data/formats/formats.json` | 50 formats from the Drive swipe file, with the example folder and file name (`simplicio-video formats list`, `formats prompt <id> --copia <file>`) |
+| Ad angles | `src/simplicio_video/data/angles/angles.json` | 50 angles in 5 groups (`simplicio-video list angles --grupo prova`) |
 
 ## Example videos
 

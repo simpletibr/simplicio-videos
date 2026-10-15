@@ -26,7 +26,8 @@ Fluxo completo:
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
-  mcp         servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut
+  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -52,10 +53,11 @@ comandos (na ordem do fluxo):
     montage   trilha Montage (OpenMontage): produção de vídeo com agentes de IA
     edit      edição por EDL com video-use sobre qualquer MP4
     opencut   editor OpenCut (open-source) para acabamento manual
+    toonflow  Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
     formats   biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
     mcp       servidor MCP (stdio) para o simplicio-runtime
     status    ferramentas instaladas, versões fixadas e estado do render
-    list      lista templates, padrões de motion ou providers de voz
+    list      lista templates, padrões de motion, providers de voz ou ângulos de anúncio
     install   ambiente idempotente: .venv com uv, Python e extras (--check mostra o plano)
     update    git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
     doctor    diagnóstico: Python, Node 22, ffmpeg+libass, disco, portas, credenciais, workspace
@@ -210,21 +212,26 @@ exemplos:
 ## simplicio-video list
 
 ```text
-usage: simplicio-video list [-h] [--json] {templates,motion,voices}
+usage: simplicio-video list [-h] [--json] [--grupo {problema,prova,desejo,decisao,estrategia}]
+                            {templates,motion,voices,angles}
 
-Catálogos do plugin: templates/ (renderizável = tem composição), motion/catalog.json, providers de voz.
+Catálogos do plugin: templates/ (renderizável = tem composição), motion/catalog.json, providers de voz, ângulos de anúncio (data/angles, 50 em 5 grupos; só fatos por marcador).
 
 positional arguments:
-  {templates,motion,voices}  catálogo a listar
+  {templates,motion,voices,angles}
+                                  catálogo a listar
 
 options:
-  -h, --help                 show this help message and exit
-  --json                     saída em JSON
+  -h, --help                      show this help message and exit
+  --json                          saída em JSON
+  --grupo {problema,prova,desejo,decisao,estrategia}
+                                  só com angles: lista só os ângulos desse grupo
 
 exemplos:
   simplicio-video list templates
   simplicio-video list motion --json
   simplicio-video list voices
+  simplicio-video list angles --grupo prova --json
 ```
 
 ## simplicio-video mcp
@@ -435,6 +442,25 @@ exemplos:
   simplicio-video status
   simplicio-video status --json
   simplicio-video status --json clients/lothus-odontologia/video-01/contract.yaml
+```
+
+## simplicio-video toonflow
+
+```text
+usage: simplicio-video toonflow [-h] ...
+
+Clona e sobe o Toonflow (https://github.com/HBAI-Ltd/Toonflow-app, MIT) no commit fixado em tools.py. Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan. Fica fora do render determinístico.
+
+positional arguments:
+  args        clone [dir] | serve --lan | where
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video toonflow clone
+  simplicio-video toonflow serve --lan
+  simplicio-video toonflow where
 ```
 
 ## simplicio-video update

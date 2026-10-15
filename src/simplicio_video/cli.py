@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths, toonflow
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
 
@@ -28,7 +28,8 @@ Fluxo completo:
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
-  mcp         servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut
+  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -240,6 +241,12 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video opencut clone\n  simplicio-video opencut dev")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | dev | where")
 
+    p = sub.add_parser("toonflow", formatter_class=Fmt, help="Toonflow (MIT): estúdio de séries e vídeos com IA, app web local",
+        description="Clona e sobe o Toonflow (https://github.com/HBAI-Ltd/Toonflow-app, MIT) no commit fixado em tools.py. "
+                    "Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan. "
+                    "Fica fora do render determinístico.",
+        epilog="exemplos:\n  simplicio-video toonflow clone\n  simplicio-video toonflow serve --lan\n  simplicio-video toonflow where")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | serve --lan | where")
 
     p = sub.add_parser("formats", formatter_class=Fmt, help="biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy",
         description="Os 50 formatos da pasta 'Swipe File - 50 Formatos' (Drive): descrição, estrutura e o exemplo de cada um. "
@@ -264,11 +271,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("contrato", nargs="?", metavar="CONTRATO.yaml", help="contrato cujo render (render.manifest.json) será lido")
     p.add_argument("--json", action="store_true", help="imprime tools (e render, com CONTRATO) em JSON")
 
-    p = sub.add_parser("list", formatter_class=Fmt, help="lista templates, padrões de motion ou providers de voz",
-        description="Catálogos do plugin: templates/ (renderizável = tem composição), motion/catalog.json, providers de voz.",
-        epilog="exemplos:\n  simplicio-video list templates\n  simplicio-video list motion --json\n  simplicio-video list voices")
-    p.add_argument("what", choices=["templates", "motion", "voices"], help="catálogo a listar")
+    p = sub.add_parser("list", formatter_class=Fmt, help="lista templates, padrões de motion, providers de voz ou ângulos de anúncio",
+        description="Catálogos do plugin: templates/ (renderizável = tem composição), motion/catalog.json, providers de voz, "
+                    "ângulos de anúncio (data/angles, 50 em 5 grupos; só fatos por marcador).",
+        epilog="exemplos:\n  simplicio-video list templates\n  simplicio-video list motion --json\n  simplicio-video list voices\n"
+               "  simplicio-video list angles --grupo prova --json")
+    p.add_argument("what", choices=["templates", "motion", "voices", "angles"], help="catálogo a listar")
     p.add_argument("--json", action="store_true", help="saída em JSON")
+    p.add_argument("--grupo", choices=["problema", "prova", "desejo", "decisao", "estrategia"],
+                   help="só com angles: lista só os ângulos desse grupo")
 
     p = sub.add_parser("install", formatter_class=Fmt, help="ambiente idempotente: .venv com uv, Python e extras (--check mostra o plano)",
         description="Cria <checkout>/.venv com uv (Python --python; padrão: o último usado, ou 3.12) e instala o pacote\n"
@@ -397,7 +408,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "formats"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "formats"):
         if any(h in args_list for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
@@ -433,6 +444,12 @@ def main(argv: list[str] | None = None) -> int:
                 return formats.run_formats(sub_args)
             except formats.FormatError as e:
                 print(f"formats: {e}", file=sys.stderr)
+                return 1
+        if cmd == "toonflow":
+            try:
+                return toonflow.run_toonflow(sub_args)
+            except toonflow.ToonflowError as e:
+                print(f"toonflow: {e}", file=sys.stderr)
                 return 1
 
     a = ap.parse_args(argv)
@@ -473,9 +490,15 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "list":
         from . import catalog
         d = paths.data_dir()
-        rows = {"templates": lambda: catalog.templates(d), "motion": lambda: catalog.motion(d), "voices": catalog.voices}[a.what]()
+        if a.grupo and a.what != "angles":
+            ap.error("--grupo só vale com `list angles`")
+        rows = {"templates": lambda: catalog.templates(d), "motion": lambda: catalog.motion(d), "voices": catalog.voices,
+                "angles": lambda: catalog.angles(d, grupo=a.grupo)}[a.what]()
         if a.json:
             print(json.dumps(rows, indent=2, ensure_ascii=False))
+        elif a.what == "angles":
+            for r in rows:
+                print(f"{r['id']:30s} {r['grupo']:11s} {r['nome']}")
         elif a.what == "templates":
             for r in rows:
                 print(f"{r['id']:28s} {r['status']:9s} {r['duracao_s']:>5}s  {'renderizável' if r['renderizavel'] else 'sem composição':15s} {r['setor']}")
