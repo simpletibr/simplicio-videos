@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -95,6 +96,40 @@ def _bun() -> str:
     return bun
 
 
+def _on_term(signum, frame):
+    raise KeyboardInterrupt  # `kill <this process>` stops the server the same way Ctrl+C does
+
+
+def _stop_group(proc: subprocess.Popen) -> None:
+    """SIGINT to the server's whole process group; SIGKILL if it outlives 15 s; then a SIGKILL sweep of the group.
+    The sweep matters: a helper the server started may still be finishing after the server exited, and it must not
+    keep running (or keep port 3000 open without login) once this returns."""
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGINT)
+    try:
+        proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGKILL)
+
+
+def _run_server(bun: str, d: Path, data: Path) -> int:
+    """`bun build/server/index.js`, the command upstream's Dockerfile runs: one process, in its own group."""
+    proc = subprocess.Popen([bun, "build/server/index.js"], cwd=d,
+                            env={**os.environ, "TOONFLOW_DATA_DIR": str(data)}, start_new_session=True)
+    try:
+        return proc.wait()
+    except KeyboardInterrupt:  # Ctrl+C is how the user stops the server: not an error
+        _stop_group(proc)
+        return 0
+    finally:
+        if proc.poll() is None:  # the wait was cut short by something else: never leave the server running
+            _stop_group(proc)
+
+
 def _serve(d: Path, args: list[str]) -> int:
     if [a for a in args if a != LAN_FLAG]:
         raise ToonflowError(f"serve aceita só {LAN_FLAG}: a porta é fixa no Toonflow ({PORT}).")
@@ -116,10 +151,11 @@ def _serve(d: Path, args: list[str]) -> int:
         return 130
     (data / "workspaces" / "myProject").mkdir(parents=True, exist_ok=True)
     print(f"Toonflow em http://localhost:{PORT}, também em todas as interfaces e sem login (dados: {data}). Ctrl+C para parar.")
+    previous = signal.signal(signal.SIGTERM, _on_term)
     try:
-        return subprocess.call([bun, "run", "start:server"], cwd=d, env={**os.environ, "TOONFLOW_DATA_DIR": str(data)})
-    except KeyboardInterrupt:  # Ctrl+C is how the user stops the server: not an error
-        return 0
+        return _run_server(bun, d, data)
+    finally:
+        signal.signal(signal.SIGTERM, previous)
 
 
 def run_toonflow(args: list[str]) -> int:

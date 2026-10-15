@@ -232,8 +232,8 @@ def test_serve_stops_at_the_first_failing_step(checkout, bun, calls, server, ste
 def test_serve_ctrl_c_stops_the_whole_server_group_without_a_traceback(checkout, bun, calls, server, capsys):
     server.interrupt = True
     assert toonflow.run_toonflow(["serve", "--lan"]) == 0
-    assert (4242, signal.SIGINT) in server.signals
-    assert (4242, signal.SIGKILL) not in server.signals
+    # SIGINT first, then the sweep of the group (SIGKILL) that catches anything the server left behind
+    assert server.signals == [(4242, signal.SIGINT), (4242, signal.SIGKILL)]
     assert "Traceback" not in capsys.readouterr().err
 
 
@@ -241,7 +241,7 @@ def test_serve_escalates_to_sigkill_when_the_server_ignores_sigint(checkout, bun
     server.interrupt = True
     server.ignore_sigint = True
     assert toonflow.run_toonflow(["serve", "--lan"]) == 0
-    assert server.signals == [(4242, signal.SIGINT), (4242, signal.SIGKILL)]
+    assert server.signals == [(4242, signal.SIGINT), (4242, signal.SIGKILL), (4242, signal.SIGKILL)]
 
 
 def test_serve_sigterm_is_handled_like_ctrl_c_and_restored_afterwards(checkout, bun, calls, server):
@@ -274,6 +274,9 @@ def test_stop_group_kills_grandchildren_too(tmp_path):
         assert _alive(helper)
         toonflow._stop_group(proc)
         assert proc.poll() is not None
+        deadline = time.time() + 5  # the kernel finishes the kill asynchronously: give it a moment, not a fixed sleep
+        while _alive(helper) and time.time() < deadline:
+            time.sleep(0.05)
         assert not _alive(helper)
     finally:
         if proc.poll() is None:
