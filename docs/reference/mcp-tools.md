@@ -9,7 +9,7 @@
 | `video.voice` | Generate/cache narration (provider file\|local\|gemini) and write timing.lock.json with real durations. |
 | `video.render` | Render the contract: backend local \| kaggle (GPU T4) \| colab-cli \| colab (bundle only). Returns manifest summary. |
 | `video.run` | voice -> validate -> render in one call (stops at the MP4; no upload). |
-| `video.list` | List templates, motion patterns or voice providers (what = templates\|motion\|voices). |
+| `video.list` | List templates, motion patterns, voice providers or ad angles (what = templates\|motion\|voices\|angles; angles accepts grupo). |
 | `video.clone` | Clone videos using Hypit AI (https://github.com/hypit-ai/hypit). |
 | `video.montage` | Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage). |
 | `video.edit` | video-use EDL editing over any MP4 (setup\|transcribe\|pack\|render\|verify). |

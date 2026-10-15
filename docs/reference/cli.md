@@ -53,7 +53,7 @@ comandos (na ordem do fluxo):
     opencut   editor OpenCut (open-source) para acabamento manual
     mcp       servidor MCP (stdio) para o simplicio-runtime
     status    ferramentas instaladas, versões fixadas e estado do render
-    list      lista templates, padrões de motion ou providers de voz
+    list      lista templates, padrões de motion, providers de voz ou ângulos de anúncio
     install   ambiente idempotente: .venv com uv, Python e extras (--check mostra o plano)
     update    git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
     doctor    diagnóstico: Python, Node 22, ffmpeg+libass, disco, portas, credenciais, workspace
@@ -189,21 +189,26 @@ exemplos:
 ## simplicio-video list
 
 ```text
-usage: simplicio-video list [-h] [--json] {templates,motion,voices}
+usage: simplicio-video list [-h] [--json] [--grupo {problema,prova,desejo,decisao,estrategia}]
+                            {templates,motion,voices,angles}
 
-Catálogos do plugin: templates/ (renderizável = tem composição), motion/catalog.json, providers de voz.
+Catálogos do plugin: templates/ (renderizável = tem composição), motion/catalog.json, providers de voz, ângulos de anúncio (data/angles, 50 em 5 grupos; só fatos por marcador).
 
 positional arguments:
-  {templates,motion,voices}  catálogo a listar
+  {templates,motion,voices,angles}
+                                  catálogo a listar
 
 options:
-  -h, --help                 show this help message and exit
-  --json                     saída em JSON
+  -h, --help                      show this help message and exit
+  --json                          saída em JSON
+  --grupo {problema,prova,desejo,decisao,estrategia}
+                                  só com angles: lista só os ângulos desse grupo
 
 exemplos:
   simplicio-video list templates
   simplicio-video list motion --json
   simplicio-video list voices
+  simplicio-video list angles --grupo prova --json
 ```
 
 ## simplicio-video mcp

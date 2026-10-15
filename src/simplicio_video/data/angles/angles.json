@@ -1,0 +1,456 @@
+{
+  "schema": "simplicio.ad-angles/v1",
+  "descricao": "50 ângulos de anúncio em 5 grupos. Gancho usa marcadores ({produto}, {beneficio}, ...) para fatos; nunca número ou promessa escrita no texto.",
+  "angulos": [
+    {
+      "id": "agitacao-dor",
+      "nome": "Agitação da dor",
+      "grupo": "problema",
+      "gatilho": "Ao detalhar o que o problema custa no dia a dia, o anúncio faz a pessoa sentir o peso da situação, de modo que a solução chega como alívio e não como mais uma oferta.",
+      "quando_usar": "Funciona melhor em ofertas que resolvem uma dor recorrente e visível, com objetivo de conversão direta; falha quando o público já está cansado do assunto ou quando a dor descrita soa exagerada ou distante da realidade dele.",
+      "gancho_exemplo": "{problema} não some sozinho: cresce em silêncio e pesa no dia de {publico}. Existe saída com {produto}.",
+      "cuidado": "Exagerar ou inventar consequências soa manipulador e gera ansiedade gratuita, então todo dano citado precisa ser real e provável."
+    },
+    {
+      "id": "inimigo-comum",
+      "nome": "Inimigo comum",
+      "grupo": "problema",
+      "gatilho": "Ao apontar um vilão externo que o público já rejeita, o anúncio cria um 'nós contra isso' e leva a simpatia para o lado da marca.",
+      "quando_usar": "Funciona melhor para ganhar atenção e identificação em mercados com uma prática ou hábito malvisto por todos; falha quando o vilão é vago, injusto ou parece acusar o próprio cliente.",
+      "gancho_exemplo": "O vilão não é você, {publico}. É {problema}, que atrapalha {setor} há tempo demais. {produto} muda esse jogo.",
+      "cuidado": "Um vilão mal escolhido pode atacar um grupo de pessoas ou o próprio cliente; mire sempre numa prática ou sistema, nunca em marcas ou indivíduos."
+    },
+    {
+      "id": "contra-intuitivo",
+      "nome": "Verdade contra-intuitiva",
+      "grupo": "problema",
+      "gatilho": "Uma afirmação que contraria o que todo mundo acredita gera estranhamento e curiosidade, e a explicação que vem em seguida faz a pessoa se sentir mais informada do que antes.",
+      "quando_usar": "Funciona melhor em ofertas que exigem educar o mercado ou em que o senso comum leva a decisões ruins; falha quando a tese não se sustenta com uma explicação clara e vira surpresa vazia.",
+      "gancho_exemplo": "Resolver {problema} do jeito que todo mundo ensina costuma piorar o quadro. Veja por que {produto} faz o caminho oposto.",
+      "cuidado": "A tese precisa de explicação e evidência verificável, porque dizer que todo mundo está errado sem prova é afirmação não comprovada."
+    },
+    {
+      "id": "contraste-antes-depois",
+      "nome": "Contraste antes e depois",
+      "grupo": "problema",
+      "gatilho": "Colocar a situação atual e a situação possível no mesmo cenário torna a diferença concreta e deixa a pessoa projetar a mudança em si mesma.",
+      "quando_usar": "Funciona melhor em ofertas com transformação visível ou fácil de descrever, para gerar conversão; falha quando o depois não pode ser comprovado ou depende de fatores que só o cliente controla.",
+      "gancho_exemplo": "Mesmo cenário de {setor}: de um lado, {problema}; do outro, {beneficio} com {produto}. Qual dos dois você prefere viver?",
+      "cuidado": "O depois não pode virar promessa de resultado garantido nem usar imagens ou cenas que não representem casos reais."
+    },
+    {
+      "id": "diagnostico",
+      "nome": "Diagnóstico",
+      "grupo": "problema",
+      "gatilho": "Listar sinais reconhecíveis faz a pessoa se identificar item a item, e dar nome à causa transmite autoridade e a sensação de ser compreendida.",
+      "quando_usar": "Funciona melhor em problemas com sintomas variados e pouco percebidos, para atrair quem ainda não sabe o que tem; falha quando os sinais são genéricos demais, pois qualquer um se reconhece e o anúncio perde credibilidade.",
+      "gancho_exemplo": "Sinais de {problema} passam despercebidos. Se {publico} se reconhece neles, a causa tem nome, e {produto} atua sobre ela.",
+      "cuidado": "Não pode parecer laudo médico, jurídico ou financeiro, e os sintomas citados precisam estar realmente ligados ao problema, sem afirmar certeza sobre a causa."
+    },
+    {
+      "id": "frustracao-acumulada",
+      "nome": "Frustração acumulada",
+      "grupo": "problema",
+      "gatilho": "Reconhecer, sem julgar, as tentativas anteriores que não deram certo gera empatia e desfaz a objeção de que nada funciona, abrindo espaço para tentar de novo.",
+      "quando_usar": "Funciona melhor com público que já testou outras soluções e desconfia de novas, para recuperar a esperança; falha com quem nunca tentou nada ou quando o texto sugere que a culpa do fracasso foi da pessoa.",
+      "gancho_exemplo": "Já tentou de tudo contra {problema} e nada ficou? Não foi falta de esforço. Talvez faltasse {produto}.",
+      "cuidado": "Dizer que tudo já falhou é generalização, e sugerir que o produto resolve onde os outros falharam exige prova."
+    },
+    {
+      "id": "erro-comum",
+      "nome": "Erro comum que custa caro",
+      "grupo": "problema",
+      "gatilho": "Apontar um deslize frequente e o seu custo desperta o medo de estar errando sem saber e a curiosidade pela correção, posicionando a marca como quem enxerga o que o cliente não vê.",
+      "quando_usar": "Funciona melhor para atrair quem está pesquisando e quer evitar falhas, com ofertas que corrigem ou previnem o erro; falha quando o erro apontado é discutível ou quando o tom faz o público se sentir ignorante.",
+      "gancho_exemplo": "Um erro comum de {publico} com {problema} parece inofensivo e sai caro. Veja como {produto} ajuda a evitá-lo.",
+      "cuidado": "Afirmar que o erro é frequente e custoso exige base; sem dado ou prova vira fato inventado, e culpar o público afasta em vez de atrair."
+    },
+    {
+      "id": "confissao",
+      "nome": "Confissão",
+      "grupo": "problema",
+      "gatilho": "Admitir um erro ou limite de quem vende quebra a expectativa de discurso perfeito e gera confiança pela honestidade.",
+      "quando_usar": "Funciona melhor para construir confiança em marcas novas ou em mercados desconfiados, com tom humano; falha se a confissão for inventada, se expuser uma falha séria ou se servir só de truque para vender.",
+      "gancho_exemplo": "Vamos ser sinceros: no começo erramos ao lidar com {problema}. Foi assim que aprendemos a criar {produto} para {publico}.",
+      "cuidado": "A confissão precisa ser verdadeira e aprovada por quem vende, pois inventar um erro ou expor uma falha grave prejudica a marca."
+    },
+    {
+      "id": "comparacao-social-negativa",
+      "nome": "Comparação social negativa",
+      "grupo": "problema",
+      "gatilho": "Mostrar que outras pessoas do mesmo perfil já agem desperta o medo de ficar para trás e leva a pessoa a se mexer para não perder terreno.",
+      "quando_usar": "Funciona melhor em mercados competitivos onde o comportamento coletivo pode ser verificado, para gerar urgência; falha se a afirmação sobre os outros não puder ser comprovada ou se humilhar o público.",
+      "gancho_exemplo": "Cada vez mais {publico} em {cidade} já usa {produto} para {beneficio}. Quem espera segue lidando com {problema}.",
+      "cuidado": "Alegar o que os outros fazem exige dado verificável; sem isso vira fato inventado e a pressão social pode parecer manipulação."
+    },
+    {
+      "id": "perda-evitavel",
+      "nome": "Perda evitável",
+      "grupo": "problema",
+      "gatilho": "As pessoas reagem mais forte a perder algo do que a ganhar o equivalente, então a decisão é apresentada como parar um prejuízo que já está acontecendo.",
+      "quando_usar": "Funciona melhor quando existe um custo contínuo real e demonstrável, como tempo, dinheiro ou oportunidade, em ofertas de eficiência ou economia; falha quando a perda é inventada e a urgência vira pressão artificial.",
+      "gancho_exemplo": "Enquanto {problema} continua, {publico} segue perdendo sem perceber. {produto} ajuda a parar essa perda.",
+      "cuidado": "Toda perda citada precisa ser real e demonstrável, porque inventar prejuízo ou criar pânico é manipulação."
+    },
+    {
+      "id": "prova-social",
+      "nome": "Prova social",
+      "grupo": "prova",
+      "gatilho": "Quando percebemos que outras pessoas parecidas conosco já fizeram a mesma escolha, usamos a decisão delas como atalho para diminuir a nossa insegurança.",
+      "quando_usar": "Serve para reduzir hesitação em compras de risco percebido médio, quando existe um dado real de adoção com data de apuração, e falha quando a base é pequena, antiga ou impossível de comprovar.",
+      "gancho_exemplo": "{numero} {publico} em {cidade} já escolheram {produto} para lidar com {problema}. Veja por que a escolha se repete.",
+      "cuidado": "Citar quantidade de clientes, vendas ou seguidores sem registro que sustente o número é propaganda enganosa e derruba a confiança de uma vez."
+    },
+    {
+      "id": "autoridade-especialista",
+      "nome": "Autoridade do especialista",
+      "grupo": "prova",
+      "gatilho": "Tendemos a delegar o julgamento técnico a quem demonstra domínio comprovável do assunto, e aceitamos a recomendação dessa pessoa com menos resistência.",
+      "quando_usar": "Funciona melhor em ofertas técnicas, de saúde, finanças ou serviços complexos que o público não sabe avaliar sozinho, e falha quando a credencial é vaga ou não tem relação com o que o produto promete.",
+      "gancho_exemplo": "Especialista em {setor} explica por que {problema} acontece e como {produto} leva {publico} até {beneficio}.",
+      "cuidado": "Exibir título, registro profissional ou tempo de experiência que não possa ser verificado é fraude e, em áreas regulamentadas, pode violar as normas do conselho da profissão."
+    },
+    {
+      "id": "emprestimo-autoridade",
+      "nome": "Empréstimo de autoridade",
+      "grupo": "prova",
+      "gatilho": "A credibilidade de uma instituição ou pessoa respeitada passa para a marca por associação, desde que o público enxergue o vínculo como verdadeiro.",
+      "quando_usar": "É útil para marcas novas ou pouco conhecidas que têm parceria, certificação ou aprovação formal e documentada, e falha quando o vínculo é distante, já venceu ou o selo é usado sem autorização.",
+      "gancho_exemplo": "Parceria confirmada: {produto} e uma referência de {setor} juntos para {publico} resolverem {problema}.",
+      "cuidado": "Usar nome, logotipo ou selo de instituição ou pessoa sem autorização escrita, ou sugerir uma relação maior do que a real, expõe a marca a processo e retratação pública."
+    },
+    {
+      "id": "especificidade",
+      "nome": "Especificidade",
+      "grupo": "prova",
+      "gatilho": "Detalhes concretos são mais fáceis de imaginar e soam mais verdadeiros do que adjetivos genéricos, o que aumenta a credibilidade e a lembrança da mensagem.",
+      "quando_usar": "Funciona em qualquer oferta com características observáveis ou mensuráveis, sobretudo em mercados cheios de promessas vagas, e falha quando o detalhe é inventado ou o dado real não favorece a marca.",
+      "gancho_exemplo": "Esqueça o adjetivo vago: {produto} traz {numero} de {beneficio} para {publico} que cansou de {problema}.",
+      "cuidado": "Um número ou detalhe preciso que foi inventado, arredondado a favor da marca ou tirado de contexto parece comprovado e é justamente o que mais facilita ser desmentido."
+    },
+    {
+      "id": "endosso-terceiros",
+      "nome": "Endosso de terceiros",
+      "grupo": "prova",
+      "gatilho": "Ouvir uma pessoa real contar a própria experiência gera identificação e faz o relato parecer mais honesto do que qualquer fala da própria marca.",
+      "quando_usar": "Funciona para ofertas de decisão emocional ou com dúvida sobre o resultado, desde que o cliente seja real e tenha autorizado o uso, e falha quando o relato é roteirizado ou o caso raro é apresentado como se fosse comum.",
+      "gancho_exemplo": "{nome_cliente} conta, com as próprias palavras, como era conviver com {problema} antes de conhecer {produto}.",
+      "cuidado": "Inventar, roteirizar ou editar um relato para mudar o sentido, ou usar a fala de alguém sem autorização, é fraude e exige deixar claro que o resultado varia de pessoa para pessoa."
+    },
+    {
+      "id": "demonstracao",
+      "nome": "Demonstração",
+      "grupo": "prova",
+      "gatilho": "Ver o produto funcionando troca a promessa por evidência direta, o que poupa o espectador de imaginar o resultado e diminui a desconfiança.",
+      "quando_usar": "Rende mais em produtos físicos, softwares e serviços cujo resultado aparece rápido na tela, e falha quando o efeito é lento, invisível ou a cena montada não reproduz o uso real.",
+      "gancho_exemplo": "Sem discurso: olhe {produto} resolvendo {problema} na sua frente, do início ao fim, sem corte.",
+      "cuidado": "Encenar, acelerar ou cortar a cena para que o resultado pareça melhor do que no uso de verdade engana o consumidor e gera reclamação e devolução."
+    },
+    {
+      "id": "bastidores-processo",
+      "nome": "Bastidores do processo",
+      "grupo": "prova",
+      "gatilho": "Mostrar como o trabalho é feito revela cuidado e transparência, e quem acompanha o processo passa a valorizar mais o resultado e a confiar mais em quem o faz.",
+      "quando_usar": "Funciona em artesanato, alimentos e serviços em que o método é um diferencial e o público duvida da qualidade, e falha quando o processo real é banal, desorganizado ou expõe dados de terceiros.",
+      "gancho_exemplo": "Abrimos a porta: veja cada etapa de como {produto} sai do zero até entregar {beneficio} para {publico}.",
+      "cuidado": "Exibir um processo idealizado que não corresponde à rotina real, ou mostrar rostos e dados de funcionários e clientes sem permissão, transforma transparência em engano."
+    },
+    {
+      "id": "tour-produto",
+      "nome": "Tour pelo produto",
+      "grupo": "prova",
+      "gatilho": "Ligar cada função a uma dor concreta converte uma lista de recursos em motivos de compra que o espectador reconhece como seus.",
+      "quando_usar": "É indicado para software, aplicativos e equipamentos com várias funções quando o público já sente o problema, e falha quando o tour vira catálogo de recursos sem dor associada ou se estende demais.",
+      "gancho_exemplo": "Passo a passo por {produto}: cada função existe para acabar com {problema} na rotina de {publico}.",
+      "cuidado": "Apresentar como disponíveis funções que não existem, estão em plano mais caro ou ainda estão em desenvolvimento induz o cliente ao erro e gera cancelamentos."
+    },
+    {
+      "id": "historia-origem",
+      "nome": "História de origem",
+      "grupo": "prova",
+      "gatilho": "Saber por que algo foi criado gera vínculo emocional e sensação de propósito, e uma motivação humana e verificável torna a marca mais memorável e digna de confiança.",
+      "quando_usar": "Funciona para marcas pequenas, autorais ou com missão clara na fase de apresentação, e falha quando a narrativa é genérica, exagerada ou não tem relação com o benefício que o produto entrega hoje.",
+      "gancho_exemplo": "{produto} nasceu em {cidade} por causa de {problema}, vivido de perto por quem o criou, e hoje ajuda {publico}.",
+      "cuidado": "Inventar ou dramatizar a origem, ou incluir fatos que não estejam documentados, é o jeito mais rápido de quebrar a confiança quando alguém descobre."
+    },
+    {
+      "id": "reason-why",
+      "nome": "Reason why",
+      "grupo": "prova",
+      "gatilho": "Ao explicar o mecanismo pelo qual o resultado acontece, a promessa deixa de ser mera alegação e passa a parecer razoável, o que reduz o ceticismo.",
+      "quando_usar": "Funciona para ofertas com diferencial técnico ou resultado que soa bom demais para um público cético, e falha quando a explicação é complicada, pseudocientífica ou não se sustenta em evidência.",
+      "gancho_exemplo": "Por que {produto} entrega {beneficio}? Porque ele age na causa de {problema}, e a explicação é simples.",
+      "cuidado": "Uma explicação que soa plausível, mas não tem base técnica ou científica verificável, vira falsa justificativa e, em saúde ou finanças, pode configurar promessa proibida."
+    },
+    {
+      "id": "novidade",
+      "nome": "Novidade",
+      "grupo": "desejo",
+      "gatilho": "O cérebro dá atenção extra ao que é recém-chegado ou diferente do padrão, e a vontade de ficar por dentro faz a pessoa parar para olhar.",
+      "quando_usar": "Funciona melhor em lançamentos, versões atualizadas e mudanças reais de oferta para quem já conhece a categoria; falha quando o item não mudou de verdade ou quando o público não vê diferença prática.",
+      "gancho_exemplo": "Acabou de chegar em {cidade}: {produto}, pensado para entregar {beneficio} a quem é {publico}.",
+      "cuidado": "Chamar de novo ou inédito algo que já existe há tempo, ou alegar pioneirismo sem prova, vira propaganda enganosa e queima a confiança."
+    },
+    {
+      "id": "atalho",
+      "nome": "Atalho",
+      "grupo": "desejo",
+      "gatilho": "Vende a ideia de poupar esforço e tempo no trajeto até o resultado, apelando à vontade natural de gastar menos energia para chegar ao mesmo lugar.",
+      "quando_usar": "Funciona melhor em produtos e serviços que realmente cortam etapas ou eliminam retrabalho, para público cansado de processos longos; falha quando soa como promessa de resultado sem esforço.",
+      "gancho_exemplo": "{publico}, dá para chegar a {beneficio} sem repetir o caminho longo de sempre com {problema}.",
+      "cuidado": "Qualquer insinuação de resultado garantido sem esforço exige prova e pode ser lida como promessa milagrosa; mostre o que de fato foi encurtado."
+    },
+    {
+      "id": "simplicidade",
+      "nome": "Simplicidade",
+      "grupo": "desejo",
+      "gatilho": "Reduz o medo de errar e a preguiça de começar ao mostrar que o primeiro passo é curto e claro, deixando o início parecer pequeno.",
+      "quando_usar": "Funciona melhor em ofertas com onboarding enxuto, para quem tem receio de complicação ou já desistiu de algo parecido; falha quando o uso real exige aprendizado e a promessa de facilidade decepciona.",
+      "gancho_exemplo": "Começar com {produto} não precisa de manual: poucos passos e você já caminha rumo a {beneficio}.",
+      "cuidado": "Dizer que é fácil e rápido sem que o início realmente seja assim gera frustração, reembolso e reclamação pública."
+    },
+    {
+      "id": "transformacao-identidade",
+      "nome": "Transformação de identidade",
+      "grupo": "desejo",
+      "gatilho": "Deixa de falar do objeto e passa a falar de quem a pessoa se torna ao escolhê-lo, ligando a compra à imagem que ela quer ter de si.",
+      "quando_usar": "Funciona melhor em marcas com propósito claro, cursos, saúde, hábitos e consumo ligado a valores, quando o público já deseja uma mudança; falha em compras puramente utilitárias ou quando soa pretensioso.",
+      "gancho_exemplo": "Você não está só comprando {produto}: está virando quem decide parar de aceitar {problema}.",
+      "cuidado": "Sugerir que quem não compra é menos capaz ou menos comprometido parece manipulação e pode ofender; fale de escolha, não de defeito da pessoa."
+    },
+    {
+      "id": "pertencimento",
+      "nome": "Pertencimento",
+      "grupo": "desejo",
+      "gatilho": "Aproveita a necessidade humana de fazer parte de um grupo que partilha crenças ou hábitos, oferecendo a compra como porta de entrada para essa turma.",
+      "quando_usar": "Funciona melhor em comunidades, marcas com valores definidos e nichos com identidade forte, para engajar e fidelizar; falha quando não existe grupo real por trás ou quando o público é muito diverso.",
+      "gancho_exemplo": "Para quem é {publico} e acredita em {beneficio}: {produto} é onde essa turma se encontra.",
+      "cuidado": "Não afirme tamanho ou existência de comunidade sem comprovação, e evite criar pressão de que ficar de fora significa estar sozinho ou errado."
+    },
+    {
+      "id": "aspiracional",
+      "nome": "Aspiracional",
+      "grupo": "desejo",
+      "gatilho": "Projeta uma versão melhor da vida ou de si mesmo e faz o produto parecer a ponte entre onde a pessoa está e onde gostaria de estar.",
+      "quando_usar": "Funciona melhor em moda, beleza, viagens, educação e serviços premium, para construir marca e desejo de longo prazo; falha quando o abismo entre a imagem e a realidade do produto é grande demais.",
+      "gancho_exemplo": "Imagine sua rotina com {beneficio} presente todo dia. {produto} é o primeiro passo para essa versão sua.",
+      "cuidado": "Imagens de vida ideal podem sugerir que o produto sozinho entrega aquele estilo de vida, o que exige cuidado para não enganar nem alimentar comparação dolorosa."
+    },
+    {
+      "id": "recompensa-imediata",
+      "nome": "Recompensa imediata",
+      "grupo": "desejo",
+      "gatilho": "Prometer um retorno percebido logo no começo vence a tendência de adiar a decisão, porque o prazer próximo pesa mais do que o benefício distante.",
+      "quando_usar": "Funciona melhor em produtos com efeito perceptível no primeiro contato, testes e conversão rápida de oferta; falha quando o benefício real só aparece com uso prolongado.",
+      "gancho_exemplo": "Use {produto} logo de cara e veja {beneficio} aparecer na hora, sem espera para sentir a diferença.",
+      "cuidado": "Afirmar efeito instantâneo sem que isso ocorra com a maioria dos usuários exige prova e gera quebra de expectativa logo no primeiro uso."
+    },
+    {
+      "id": "curiosidade-lacuna",
+      "nome": "Lacuna de curiosidade",
+      "grupo": "desejo",
+      "gatilho": "Abre uma pergunta sem fechá-la de imediato, e o incômodo de ficar sem a resposta mantém a pessoa assistindo até o fim.",
+      "quando_usar": "Funciona melhor para prender atenção nos primeiros segundos de vídeos de topo de funil e conteúdos educativos; falha quando a resposta é fraca, genérica ou nunca chega.",
+      "gancho_exemplo": "Tem um detalhe sobre {problema} que costuma passar batido em {setor}. Veja o vídeo até o fim para descobrir.",
+      "cuidado": "Se a revelação não for entregue de forma honesta e útil, vira isca de clique e afasta o público; nunca prometa uma resposta que o vídeo não tem."
+    },
+    {
+      "id": "pov-cenario",
+      "nome": "POV",
+      "grupo": "desejo",
+      "gatilho": "Coloca o espectador dentro de uma cena em primeira pessoa, de modo que ele sinta a situação como sua e se imagine já usando a solução.",
+      "quando_usar": "Funciona melhor em vídeos curtos de feed e stories, com produtos ligados a momentos do dia a dia e público que se reconhece na cena; falha quando a situação é artificial ou distante da rotina dele.",
+      "gancho_exemplo": "POV: é mais um dia comum, você pega {produto} e {problema} deixa de ser o centro da sua rotina.",
+      "cuidado": "A cena precisa ser plausível e não insinuar que o produto resolve sozinho {problema}; exagero de situação dramatizada pode parecer manipulação."
+    },
+    {
+      "id": "ugc-reacao",
+      "nome": "Reação espontânea",
+      "grupo": "desejo",
+      "gatilho": "A reação visível de uma pessoa comum ao usar algo passa naturalidade e cria identificação, o que desperta vontade parecida no espectador.",
+      "quando_usar": "Funciona melhor com criadores reais que de fato usaram o produto, com roteiro combinado e autorização de imagem, em campanhas de consideração; falha quando a reação parece encenada ou o criador não tem relação com o público.",
+      "gancho_exemplo": "Vou usar {produto} pela primeira vez agora, na câmera, e mostrar o que acontece com {problema}.",
+      "cuidado": "Nunca invente a reação, atribua frases a alguém que não as disse nem publique sem autorização e sem indicar que é conteúdo combinado, sob risco de depoimento falso."
+    },
+    {
+      "id": "escassez",
+      "nome": "Escassez real",
+      "grupo": "decisao",
+      "gatilho": "Quando a quantidade disponível é finita e o cliente consegue ver isso, o medo de ficar sem o item acelera a decisão de quem já queria comprar.",
+      "quando_usar": "Funciona para lotes, edições limitadas, vagas de turma ou itens artesanais com estoque contado, buscando fechar a compra de quem já está convencido; falha quando o estoque é amplo ou reposto sem aviso, porque o aviso deixa de ser verdadeiro.",
+      "gancho_exemplo": "Restam {numero} unidades de {produto} no estoque, com contagem conferida a cada venda.",
+      "cuidado": "Inventar quantidade, ou repor em silêncio algo anunciado como último, é prática enganosa; use somente com estoque real, conferido e registrado."
+    },
+    {
+      "id": "exclusividade",
+      "nome": "Exclusividade",
+      "grupo": "decisao",
+      "gatilho": "Quando o acesso é reservado a quem cumpre um critério claro, a pessoa se sente reconhecida como parte do grupo e passa a valorizar mais a oferta.",
+      "quando_usar": "Funciona para programas de clientes antigos, pré-venda para lista de espera ou condições para uma categoria profissional, com o objetivo de reforçar vínculo e valor percebido; falha quando o critério é vago ou qualquer pessoa consegue entrar.",
+      "gancho_exemplo": "Esta condição de {produto} é aberta somente a {publico}, e você já se encaixa no critério.",
+      "cuidado": "Fingir uma restrição que não existe, ou prometer um tratamento especial que ninguém recebe de fato, é enganoso e irrita quem descobre."
+    },
+    {
+      "id": "urgencia-contexto",
+      "nome": "Urgência do contexto",
+      "grupo": "decisao",
+      "gatilho": "Um evento, estação ou data que já está em andamento faz o produto parecer a solução para o momento atual, e adiar deixa de ter sentido.",
+      "quando_usar": "Funciona para produtos sazonais, serviços ligados a datas comemorativas ou necessidades criadas por clima, calendário escolar ou eventos locais, quando o objetivo é capturar demanda já despertada; falha se o vínculo com o contexto for forçado.",
+      "gancho_exemplo": "A temporada já começou em {cidade}, e {produto} ajuda {publico} a conseguir {beneficio} enquanto ela dura.",
+      "cuidado": "Não force uma ligação inexistente entre o evento e o produto, nem trate como urgente algo que pode esperar sem prejuízo para o cliente."
+    },
+    {
+      "id": "urgencia-prazo",
+      "nome": "Urgência com prazo",
+      "grupo": "decisao",
+      "gatilho": "Um limite de tempo verificável cria um ponto final para a decisão e tira o cliente da posição confortável de deixar para depois.",
+      "quando_usar": "Funciona para inscrições, campanhas promocionais e condições especiais com data de término definida em regulamento, para converter quem está indeciso; falha se o prazo se repete ou se prorroga sempre que termina.",
+      "gancho_exemplo": "Decida até a data registrada no regulamento: depois dela, {produto} deixa de ter essa condição para {publico}.",
+      "cuidado": "Prazo falso, ou que se renova toda vez que expira, é prática enganosa; a data precisa ser real, documentada e cumprida quando chegar."
+    },
+    {
+      "id": "ancoragem-preco",
+      "nome": "Ancoragem de preço",
+      "grupo": "decisao",
+      "gatilho": "Ao ver primeiro um valor de referência, o cliente usa esse número como régua e passa a julgar o preço real como mais razoável.",
+      "quando_usar": "Funciona para ofertas em que existe uma comparação honesta, como o preço anterior praticado, o custo de resolver o problema por outro caminho ou o valor dos itens vendidos separadamente; falha quando a referência não se sustenta diante de uma conferência.",
+      "gancho_exemplo": "O valor de referência de {produto} é {numero}; o nosso preço vem logo abaixo, com a fonte da comparação.",
+      "cuidado": "Referência inflada ou nunca praticada é preço enganoso; guarde o registro de onde o valor veio e de que ele foi realmente cobrado."
+    },
+    {
+      "id": "aumento-preco",
+      "nome": "Aumento de preço anunciado",
+      "grupo": "decisao",
+      "gatilho": "Avisar com antecedência que o preço vai subir em data marcada faz o valor atual parecer uma janela que se fecha, e muda a conta de esperar.",
+      "quando_usar": "Funciona para assinaturas, turmas, serviços e produtos com reajuste realmente decidido, pedindo que o cliente antecipe a compra; falha se o reajuste é incerto ou se a data é empurrada sem motivo.",
+      "gancho_exemplo": "O preço de {produto} será reajustado na data já comunicada; quem decidir antes mantém o valor atual.",
+      "cuidado": "Anunciar um reajuste que não vai ocorrer, ou adiar a data repetidamente, é prática enganosa e destrói a confiança; só use com decisão tomada e registrada."
+    },
+    {
+      "id": "objecao-antecipada",
+      "nome": "Objeção antecipada",
+      "grupo": "decisao",
+      "gatilho": "Responder à dúvida mais comum antes que ela seja dita mostra que você conhece o cliente e remove o atrito que faria a pessoa desistir em silêncio.",
+      "quando_usar": "Funciona para ofertas de ticket médio ou alto, serviços novos e produtos com uma dúvida recorrente conhecida, com o objetivo de destravar a decisão; falha quando a resposta é evasiva ou quando você não sabe qual é a objeção real.",
+      "gancho_exemplo": "A dúvida mais comum sobre {produto} é se funciona para {publico}. Respondemos agora, antes de você perguntar.",
+      "cuidado": "Resposta que minimiza um problema real vira promessa vazia e gera reclamação; responda apenas com fatos que você consegue comprovar."
+    },
+    {
+      "id": "anti-venda",
+      "nome": "Anti-venda",
+      "grupo": "decisao",
+      "gatilho": "Dizer com franqueza para quem a oferta não serve faz a recomendação soar honesta, e quem se reconhece no perfil certo confia mais.",
+      "quando_usar": "Funciona para produtos e serviços com perfil de uso bem definido ou promessa que depende do encaixe, ajudando a atrair clientes mais adequados e a reduzir devoluções; falha quando a exclusão é só encenação e o texto não aponta limites reais.",
+      "gancho_exemplo": "{produto} não serve para quem não tem {problema}. Se for o seu caso, prefira não comprar.",
+      "cuidado": "Se os limites citados forem inventados só para criar efeito, o truque é uma forma de manipulação, e exagerar na exclusão afasta clientes que serviriam."
+    },
+    {
+      "id": "escolha-guiada",
+      "nome": "Escolha guiada",
+      "grupo": "decisao",
+      "gatilho": "Quando há muitas opções, a pessoa trava; uma recomendação com critério explícito reduz o esforço mental e transforma a dúvida em um próximo passo simples.",
+      "quando_usar": "Funciona para catálogos com planos, tamanhos, versões ou pacotes parecidos, levando o cliente indeciso a uma escolha em vez de abandono; falha quando o critério de recomendação não é claro ou parece servir só a quem vende.",
+      "gancho_exemplo": "Em dúvida entre as opções de {produto}? Para {publico}, recomendamos esta, e o critério vem logo abaixo.",
+      "cuidado": "Empurrar sempre a opção mais cara sem um critério honesto quebra a confiança, e as diferenças relevantes entre as opções não podem ficar escondidas."
+    },
+    {
+      "id": "bonus-empilhado",
+      "nome": "Bônus empilhado",
+      "grupo": "decisao",
+      "gatilho": "Cada extra listado com nome, função e valor soma percepção de ganho, e o conjunto parece maior do que o item principal sozinho.",
+      "quando_usar": "Funciona para ofertas completas, como cursos, kits e serviços em pacote, em que os extras de fato ajudam a obter o resultado principal; falha quando os bônus são fracos, repetidos ou apenas enchem a lista.",
+      "gancho_exemplo": "Com {produto}, você leva extras listados um a um, cada qual com função clara para {beneficio} e valor informado.",
+      "cuidado": "Inflar o valor dos bônus ou prometer extras que não serão entregues como descritos é prática enganosa; cada valor precisa ter base real e verificável."
+    },
+    {
+      "id": "psicologia-reversa",
+      "nome": "Psicologia reversa",
+      "grupo": "estrategia",
+      "gatilho": "Ao admitir que o produto talvez não sirva para todo mundo, o anúncio devolve a decisão para a pessoa, que passa a querer descobrir por conta própria se ele serve para ela.",
+      "quando_usar": "Funciona para atrair atenção de um público cético ou cansado de apelos em ofertas de nicho ou de maior consideração, e falha quando o tom soa sarcástico, quando o produto realmente serve a todos ou quando a decisão exige urgência real.",
+      "gancho_exemplo": "{produto} não é para qualquer {publico}. Se você não se incomoda com {problema}, pode seguir adiante sem ele.",
+      "cuidado": "Se o aviso de que o produto não é para todos for falso ou exagerado, parece manipulação e afasta justamente quem precisaria dele, então nunca use o recurso para esconder limitações reais."
+    },
+    {
+      "id": "analogia",
+      "nome": "Analogia",
+      "grupo": "estrategia",
+      "gatilho": "Ligar algo novo a uma situação que a pessoa já conhece reduz o esforço de entender e faz o benefício parecer simples e concreto.",
+      "quando_usar": "Funciona com produtos ou serviços técnicos, abstratos ou novos para o público, sobretudo em conteúdo que educa antes de vender, e falha quando a comparação é forçada, confusa ou usa uma referência que o público não domina.",
+      "gancho_exemplo": "Pense em {produto} como a chave de uma porta emperrada: ele abre caminho entre {problema} e {beneficio}.",
+      "cuidado": "Uma analogia imprecisa ou exagerada pode prometer mais do que o produto entrega ou soar ofensiva, então confira se a imagem escolhida é fiel ao que a oferta realmente faz."
+    },
+    {
+      "id": "humor-leve",
+      "nome": "Humor leve",
+      "grupo": "estrategia",
+      "gatilho": "O sorriso baixa a guarda, faz a pessoa reconhecer o próprio problema sem sentir cobrança e deixa a marca mais simpática e fácil de lembrar.",
+      "quando_usar": "Funciona para ganhar atenção e memorização em ofertas de baixo risco e consumo cotidiano com público informal, e falha em temas sensíveis, como saúde e dinheiro, ou quando a piada ofusca a oferta.",
+      "gancho_exemplo": "Todo mundo já passou por {problema} e fingiu que estava tudo sob controle. {produto} entra na história para ajudar.",
+      "cuidado": "Piada que ridiculariza quem sofre com o problema ou algum grupo causa rejeição imediata, então mantenha o humor sobre a situação e nunca sobre a pessoa."
+    },
+    {
+      "id": "desafio",
+      "nome": "Desafio",
+      "grupo": "estrategia",
+      "gatilho": "Um convite com começo, meio e fim transforma curiosidade passiva em ação, porque a pessoa quer provar algo a si mesma e enxerga um compromisso pequeno e delimitado.",
+      "quando_usar": "Funciona para engajar e levar ao primeiro teste produtos cujo efeito dá para perceber num período curto e bem definido, e falha quando o resultado não é visível ou quando as regras do desafio são vagas.",
+      "gancho_exemplo": "{publico}, topa testar {produto} do começo ao fim e ver se {beneficio} acontece na sua rotina?",
+      "cuidado": "Se o desafio sugerir resultado garantido ou esconder regras, vira propaganda enganosa, então deixe claras as etapas e o que conta como desafio concluído."
+    },
+    {
+      "id": "comparacao-justa",
+      "nome": "Comparação justa",
+      "grupo": "estrategia",
+      "gatilho": "Colocar a oferta ao lado da alternativa mais usada, com critérios claros e verificáveis, ajuda a pessoa a decidir com segurança e transmite honestidade.",
+      "quando_usar": "Funciona em mercados onde há um jeito dominante de resolver o problema e o público pesquisa antes de comprar, e falha quando os critérios parecem escolhidos a dedo, quando faltam dados comprováveis ou quando a diferença real é pequena.",
+      "gancho_exemplo": "Veja, critério por critério, como {produto} se compara ao jeito mais comum de resolver {problema}.",
+      "cuidado": "Toda comparação exige dados que possam ser comprovados e critérios honestos, e não se deve nomear concorrente nem distorcer a alternativa para parecer melhor."
+    },
+    {
+      "id": "lista-numerada",
+      "nome": "Lista numerada",
+      "grupo": "estrategia",
+      "gatilho": "Itens curtos e ordenados prometem uma leitura rápida e previsível, e a vontade de ver o restante da lista mantém a pessoa até o fim.",
+      "quando_usar": "Funciona em conteúdo educativo e em ofertas com vários argumentos, para organizar motivos, erros ou passos, e falha quando os itens são genéricos, repetitivos ou existem só para completar a conta.",
+      "gancho_exemplo": "{numero} erros que {publico} comete ao lidar com {problema} e como {produto} ajuda a evitar cada um.",
+      "cuidado": "Itens inventados só para fechar a quantidade tiram a credibilidade, então mantenha cada ponto verdadeiro e útil e só use um número que seja real."
+    },
+    {
+      "id": "pergunta-direta",
+      "nome": "Pergunta direta",
+      "grupo": "estrategia",
+      "gatilho": "Uma pergunta que coloca em palavras o pensamento do público gera identificação imediata e abre uma curiosidade que a resposta seguinte precisa fechar.",
+      "quando_usar": "Funciona na abertura de vídeos curtos para um público que já sabe que tem o problema e para ofertas com resposta clara, e falha quando a pergunta é óbvia demais ou quando a resposta que vem depois é vaga.",
+      "gancho_exemplo": "Você que é {publico}: será que {problema} tem mesmo jeito? Tem, e {produto} é parte da resposta.",
+      "cuidado": "Perguntas que insinuam um defeito ou um problema que a pessoa não declarou soam invasivas, e a resposta precisa cumprir de fato o que a pergunta deixou no ar."
+    },
+    {
+      "id": "tutorial-rapido",
+      "nome": "Tutorial rápido",
+      "grupo": "estrategia",
+      "gatilho": "Entregar algo útil antes de pedir qualquer coisa gera reciprocidade e mostra competência, de modo que a oferta chega como continuação natural da ajuda.",
+      "quando_usar": "Funciona com produtos que resolvem uma tarefa que dá para ensinar, para atrair público novo e construir autoridade, e falha quando o passo ensinado já resolve tudo sozinho ou é longo demais para o formato.",
+      "gancho_exemplo": "Vou te mostrar um passo simples para lidar com {problema}. Depois, como {produto} leva isso mais longe.",
+      "cuidado": "A dica precisa ser correta e realmente útil, pois conselho errado ou isca que não ensina nada destrói a confiança e prejudica a oferta que vem em seguida."
+    },
+    {
+      "id": "garantia-risco",
+      "nome": "Reversão de risco",
+      "grupo": "estrategia",
+      "gatilho": "Quando a marca assume parte do risco da decisão, a pessoa perde o medo de errar e o primeiro passo fica mais fácil.",
+      "quando_usar": "Funciona em ofertas de maior consideração ou com público desconfiado, desde que exista uma política real de devolução ou teste, e falha quando a condição não existe, é confusa ou vem cheia de exceções.",
+      "gancho_exemplo": "Quer testar {produto} sem medo? Veja, antes de decidir, as condições reais de devolução, explicadas sem letra miúda.",
+      "cuidado": "Só use se a política de devolução ou teste for real, documentada e cumprida, sem inventar prazo, valor ou condição e sem esconder exceções."
+    },
+    {
+      "id": "transparencia-processo",
+      "nome": "Transparência do processo",
+      "grupo": "estrategia",
+      "gatilho": "Mostrar cada etapa e o que será entregue elimina a incerteza e a desconfiança, e a abertura passa ao comprador uma sensação de honestidade e controle.",
+      "quando_usar": "Funciona em serviços, encomendas e ofertas com várias etapas ou em que o público teme pegadinhas, e falha quando o processo real é confuso, muda no meio do caminho ou o excesso de detalhe cansa.",
+      "gancho_exemplo": "Veja {produto} etapa por etapa: o que acontece depois do pedido e exatamente o que você recebe, sem pegadinha.",
+      "cuidado": "Cada etapa mostrada precisa corresponder à realidade, porque omitir custo ou limite real, ou exibir um processo idealizado, transforma transparência em engano."
+    }
+  ]
+}
