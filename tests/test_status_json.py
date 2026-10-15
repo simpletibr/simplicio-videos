@@ -14,7 +14,7 @@ from simplicio_video import __version__, tools
 from simplicio_video.cli import main
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini" / "contract.yaml"
-TOOL_NAMES = {"openmontage", "opencut", "hypit", "ffmpeg", "node"}
+TOOL_NAMES = {"openmontage", "opencut", "hypit", "toonflow", "ffmpeg", "node"}
 
 
 def _run(argv, capsys):
@@ -79,7 +79,7 @@ def test_status_json_lista_ferramentas_e_campos(capsys, ambiente):
         assert isinstance(t["installed"], bool)
 
     by = _ferramentas(out)
-    for nome in ("openmontage", "opencut", "hypit"):
+    for nome in ("openmontage", "opencut", "hypit", "toonflow"):
         t = tools.TOOLS[nome]
         assert by[nome]["pinned"] == tools.pinned_ref(t)
         assert "tools.py" in by[nome]["pinned_source"]

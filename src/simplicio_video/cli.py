@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths, toonflow
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
 
@@ -27,7 +27,8 @@ Fluxo completo:
   montage      trilha Montage (OpenMontage): produção de vídeo com agentes de IA (https://github.com/calesthio/OpenMontage)
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut
+  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/toonflow
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -239,6 +240,12 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video opencut clone\n  simplicio-video opencut dev")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | dev | where")
 
+    p = sub.add_parser("toonflow", formatter_class=Fmt, help="Toonflow (MIT): estúdio de séries e vídeos com IA, app web local",
+        description="Clona e sobe o Toonflow (https://github.com/HBAI-Ltd/Toonflow-app, MIT) no commit fixado em tools.py. "
+                    "Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan. "
+                    "Fica fora do render determinístico.",
+        epilog="exemplos:\n  simplicio-video toonflow clone\n  simplicio-video toonflow serve --lan\n  simplicio-video toonflow where")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | serve --lan | where")
 
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
@@ -390,7 +397,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow"):
         if any(h in args_list for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
@@ -419,6 +426,12 @@ def main(argv: list[str] | None = None) -> int:
                 return opencut.run_opencut(sub_args)
             except opencut.OpenCutError as e:
                 print(f"opencut: {e}", file=sys.stderr)
+                return 1
+        if cmd == "toonflow":
+            try:
+                return toonflow.run_toonflow(sub_args)
+            except toonflow.ToonflowError as e:
+                print(f"toonflow: {e}", file=sys.stderr)
                 return 1
 
     a = ap.parse_args(argv)
