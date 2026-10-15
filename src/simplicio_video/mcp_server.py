@@ -1,7 +1,7 @@
 """MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
 
 Tools: video.init, video.validate, video.voice, video.render, video.run, video.list, video.clone, video.montage,
-video.edit, video.opencut. Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
+video.edit, video.opencut, video.toonflow. Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
 Long steps (render on kaggle/colab-cli) block until done. O upload no Drive não é tool deste servidor.
 
 Run: `simplicio-video mcp` or `simplicio-video-mcp` (needs `pip install -e .[mcp]`).
@@ -121,6 +121,27 @@ def video_edit(args: str = "") -> dict:
     return _capture(edit.run_edit, argv)
 
 
+def video_toonflow(args: str = "") -> dict:
+    """Toonflow over MCP: `where` and `clone` into the default folder only. `serve` runs a server that never ends, and
+    `clone <dir>` is refused because an agent does not choose where a git checkout is written. Captures its own output
+    instead of using _capture: the clone runs git with captured output, so nothing reaches the MCP stdio channel."""
+    from . import toonflow
+    argv = args.split() if isinstance(args, str) else list(args)
+    if argv[:1] == ["serve"]:
+        return {"ok": False, "error": f"toonflow serve sobe um servidor local que não termina; rode `simplicio-video toonflow serve {toonflow.LAN_FLAG}` no terminal"}
+    if argv[:1] == ["clone"] and len(argv) > 1:
+        return {"ok": False, "error": "toonflow clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            rc = toonflow.run_toonflow(argv)
+        out = {"ok": rc == 0, "result": rc}
+    except Exception as e:  # noqa: BLE001 - report, don't kill the server
+        out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    out["log"] = buf.getvalue().strip()[-8000:]
+    return out
+
+
 TOOLS = [
     ("video.init", video_init, "Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts)."),
     ("video.validate", video_validate, "Validate a contract: JSON Schema, assets, scene durations, every line fits (need_lock before render)."),
@@ -132,6 +153,7 @@ TOOLS = [
     ("video.montage", video_montage, "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage)."),
     ("video.edit", video_edit, "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify)."),
     ("video.opencut", video_opencut, "OpenCut editor (clone|dev|where) for manual finishing (https://github.com/OpenCut-app/OpenCut)."),
+    ("video.toonflow", video_toonflow, "Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app)."),
 ]
 
 

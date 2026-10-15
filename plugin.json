@@ -450,6 +450,25 @@
       }
     },
     {
+      "verb": "video.toonflow",
+      "description": "Toonflow open-source AI studio for short dramas and videos (https://github.com/HBAI-Ltd/Toonflow-app): clone into the default folder, where; serve runs in the terminal with --lan.",
+      "argv": [
+        "simplicio-video",
+        "toonflow",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "clone | where (serve --lan: só no terminal)"
+          }
+        }
+      }
+    },
+    {
       "verb": "video.realoficial",
       "description": "Real Oficial MCP (https://api.realoficial.com.br/mcp): config/check; OAuth MCP with 49 tools (social scheduling, AI media, cuts), see docs/realoficial.md.",
       "argv": [
@@ -529,6 +548,7 @@
       "video.clone",
       "video.montage",
       "video.opencut",
+      "video.toonflow",
       "video.realoficial",
       "video.edit"
     ]

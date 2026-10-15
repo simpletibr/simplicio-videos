@@ -13,6 +13,7 @@ Estrelas conferidas via GitHub API em 30/09/2026.
 - [calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) — ⭐62k · AGPL-3.0. Produção de vídeo agentic (pipelines, Remotion/FFmpeg, text-to-video, custos por vídeo).
 - [browser-use/video-use](https://github.com/browser-use/video-use) — ⭐27.8k · MIT. Editar vídeos com coding agents.
 - [hypit-ai/hypit](https://github.com/hypit-ai/hypit) — ⭐17.9k. Clonar vídeos virais: troca de rosto, falas, B-roll; 100 variações.
+- [HBAI-Ltd/Toonflow-app](https://github.com/HBAI-Ltd/Toonflow-app) — MIT (estrelas não conferidas aqui). Estúdio open-source de séries, quadrinhos e vídeos com IA: canvas para roteiro e storyboard, personagens e cenas, imagens e vídeos; app Bun com interface web local. Integrado como `simplicio-video toonflow` (ver [README](../README.md#video-apps)).
 - [wide-trace/open-higgsfield](https://github.com/wide-trace/open-higgsfield) — ⭐3.9k. Estúdio de geração de imagem + vídeo.
 - [vargHQ/sdk](https://github.com/vargHQ/sdk) — ⭐340 · Apache-2.0. JSX para vídeo com IA (Kling, Flux, ElevenLabs, Veed).
 - [taruma/SceneFlow](https://github.com/taruma/SceneFlow) — ⭐335 · MIT. Sincroniza roteiro ↔ vídeo e avalia footage gerado por IA.
@@ -49,6 +50,7 @@ Textos conferidos via API pública do fxtwitter em 30/09/2026.
 ## Agent integrations (status)
 
 - **Hypit AI**: `simplicio-video clone` (integrated).
+- **Toonflow**: `simplicio-video toonflow clone|serve --lan|where`. Open-source (MIT) AI studio for short dramas and comics, a Bun web app on port 3000 that listens on every interface with no login, so `serve` requires `--lan`. Data lives outside the checkout (`TOONFLOW_DATA_DIR`). Outside the deterministic render.
 - **OpenMontage**: `simplicio-video montage` (integrated).
 - **OpenCut**: `simplicio-video opencut clone|dev|where`. Open-source editor (MIT) for manual finishing; uses `opencut-classic` until the rewrite ships its Editor API/MCP/headless mode. Outside the deterministic render.
 - **video-use**: `simplicio-video edit setup|transcribe|pack|render|verify` over any MP4 from HyperFrames, OpenMontage or OpenCut.

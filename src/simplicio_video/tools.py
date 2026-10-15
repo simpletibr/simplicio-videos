@@ -1,11 +1,12 @@
 """Pinned versions and install location for the external tools behind the existing commands
-`montage` (OpenMontage), `opencut` (OpenCut) and `clone` (Hypit). No command of its own.
+`montage` (OpenMontage), `opencut` (OpenCut), `clone` (Hypit) and `toonflow` (Toonflow). No command of its own.
 
-The engine drives: OpenMontage, OpenCut and Hypit, each pinned to a known version.
+The engine drives: OpenMontage, OpenCut, Hypit and Toonflow, each pinned to a known version.
 
 The deterministic render (contract -> MP4) never depends on them. They are optional tracks: an agentic
-producer (OpenMontage), a manual editor (OpenCut) and an agentic cloner (Hypit). Whatever they produce
-enters a contract as a file with a hash, so the final render stays reproducible.
+producer (OpenMontage), a manual editor (OpenCut), an agentic cloner (Hypit) and a creation studio for
+short dramas and comics (Toonflow). Whatever they produce enters a contract as a file with a hash, so the
+final render stays reproducible.
 
 Install location: $SIMPLICIO_TOOLS_DIR (default ~/.simplicio-video/tools/<name>).
 Pins: $SIMPLICIO_<NAME>_REF overrides the commit (git tools) or version (npm tools).
@@ -47,6 +48,11 @@ TOOLS: dict[str, Tool] = {
     "hypit": Tool("hypit", "npm", "@hypit/hypit", "0.2.17", "Hypit license (modified Apache-2.0)",
                   "agentic video cloning; user-installed, never bundled or offered as a hosted service",
                   note="its license forbids commercial redistribution and multi-tenant service without permission"),
+    "toonflow": Tool("toonflow", "git", "https://github.com/HBAI-Ltd/Toonflow-app",
+                     "d2e94aca7b59659ff6b4ca15f03cf134ec7f0e1d", "MIT",
+                     "open-source AI studio for short dramas, comic dramas and videos (Bun, web app on localhost); "
+                     "runs as a separate program, never imported", marker="package.json",
+                     note="its server has no login and listens on 0.0.0.0:3000 (every interface): serve needs --lan"),
 }
 
 

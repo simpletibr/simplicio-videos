@@ -14,3 +14,4 @@
 | `video.montage` | Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage). |
 | `video.edit` | video-use EDL editing over any MP4 (setup\|transcribe\|pack\|render\|verify). |
 | `video.opencut` | OpenCut editor (clone\|dev\|where) for manual finishing (https://github.com/OpenCut-app/OpenCut). |
+| `video.toonflow` | Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app). |
