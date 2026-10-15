@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
+import subprocess
+import sys
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -15,6 +20,9 @@ SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 @pytest.fixture(autouse=True)
 def _no_toonflow_overrides(monkeypatch, tmp_path):
+    # Isolate the home and the tools dir: a real checkout under ~/.simplicio-video must never be found by a test.
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
     monkeypatch.delenv("TOONFLOW_DIR", raising=False)
     monkeypatch.delenv("TOONFLOW_DATA_DIR", raising=False)
     monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path / "data"))
@@ -38,7 +46,8 @@ def bun(monkeypatch):
 
 @pytest.fixture
 def calls(monkeypatch):
-    """Records every subprocess.call as (cmd, cwd, TOONFLOW_DATA_DIR). A step exits 0 unless a test sets fail[(args)]."""
+    """Records every install/build subprocess.call as (cmd, cwd, TOONFLOW_DATA_DIR). A step exits 0 unless a
+    test sets fail[(args)]."""
     recorded: list[tuple[list[str], Path | None, str | None]] = []
     fail: dict[tuple[str, ...], int] = {}
 
@@ -48,6 +57,49 @@ def calls(monkeypatch):
 
     monkeypatch.setattr("subprocess.call", fake)
     return recorded, fail
+
+
+@pytest.fixture
+def server(monkeypatch):
+    """Fakes the long-running server process. Records how it is started and which signal reaches its group.
+    state.interrupt: the next blocking wait() raises KeyboardInterrupt (Ctrl+C on this process).
+    state.ignore_sigint: the server ignores SIGINT, so the stop must escalate to SIGKILL."""
+    state = SimpleNamespace(started=[], signals=[], interrupt=False, ignore_sigint=False, term_handler=None)
+
+    class Proc:
+        pid = 4242
+
+        def __init__(self, cmd, cwd=None, env=None, start_new_session=False):
+            self.cmd, self.cwd, self.env, self.start_new_session = cmd, cwd, env, start_new_session
+            self.returncode = None
+            state.started.append(self)
+
+        def wait(self, timeout=None):
+            if timeout is None:
+                state.term_handler = signal.getsignal(signal.SIGTERM)
+                if state.interrupt:
+                    state.interrupt = False  # one Ctrl+C: the wait after SIGKILL must return normally
+                    raise KeyboardInterrupt
+            elif state.ignore_sigint and any(sig == signal.SIGINT for _, sig in state.signals):
+                raise subprocess.TimeoutExpired(self.cmd, timeout)
+            self.returncode = 0
+            return 0
+
+        def poll(self):
+            return self.returncode
+
+    monkeypatch.setattr("subprocess.Popen", Proc)
+    monkeypatch.setattr(toonflow.os, "killpg", lambda pgid, sig: state.signals.append((pgid, sig)))
+    return state
+
+
+def _alive(pid: int) -> bool:
+    """Linux: a zombie counts as gone, since it no longer runs and no longer holds the port."""
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except (FileNotFoundError, ProcessLookupError):
+        return False
+    return state != "Z"
 
 
 def test_toonflow_is_pinned_to_a_full_commit_under_mit():
@@ -122,40 +174,41 @@ def test_where_prints_the_checkout(checkout, capsys):
     assert capsys.readouterr().out.strip() == str(checkout.resolve())
 
 
-def test_serve_without_lan_refuses_because_the_server_is_open_on_every_interface(checkout, bun, calls):
+def test_serve_without_lan_refuses_because_the_server_is_open_on_every_interface(checkout, bun, calls, server):
     recorded, _ = calls
     with pytest.raises(toonflow.ToonflowError) as e:
         toonflow.run_toonflow(["serve"])
     assert "--lan" in str(e.value) and "0.0.0.0" in str(e.value)
-    assert recorded == []
+    assert recorded == [] and server.started == []
 
 
-def test_serve_installs_builds_then_starts_the_server_inside_the_checkout(checkout, bun, calls):
+def test_serve_installs_builds_then_runs_the_built_server_directly(checkout, bun, calls, server):
+    # `bun build/server/index.js` is the command upstream's Dockerfile runs. No `bun run` wrappers: each wrapper is
+    # one more process that a stop could leave behind holding port 3000.
     recorded, _ = calls
     assert toonflow.run_toonflow(["serve", "--lan"]) == 0
     assert [cmd for cmd, _, _ in recorded] == [
         [bun, "install", "--frozen-lockfile"],
         [bun, "run", "build:server"],
-        [bun, "run", "start:server"],
     ]
-    assert all(cwd == checkout.resolve() for _, cwd, _ in recorded)
+    assert [p.cmd for p in server.started] == [[bun, "build/server/index.js"]]
+    assert server.started[0].cwd == checkout.resolve()
+    assert server.started[0].start_new_session is True  # its own group, so a stop reaches every process it started
 
 
-def test_serve_keeps_the_data_outside_the_checkout(checkout, bun, calls, tmp_path):
-    recorded, _ = calls
+def test_serve_keeps_the_data_outside_the_checkout(checkout, bun, calls, server, tmp_path):
     assert toonflow.run_toonflow(["serve", "--lan"]) == 0
     data = (tmp_path / "data" / "toonflow-data").resolve()
-    assert recorded[-1][2] == str(data)
+    assert server.started[0].env["TOONFLOW_DATA_DIR"] == str(data)
     assert (data / "workspaces" / "myProject").is_dir()
     assert checkout.resolve() not in data.parents
 
 
-def test_serve_respects_a_data_dir_the_user_set(checkout, bun, calls, monkeypatch, tmp_path):
+def test_serve_respects_a_data_dir_the_user_set(checkout, bun, calls, server, monkeypatch, tmp_path):
     mine = (tmp_path / "meu-toonflow").resolve()
     monkeypatch.setenv("TOONFLOW_DATA_DIR", str(mine))
-    recorded, _ = calls
     assert toonflow.run_toonflow(["serve", "--lan"]) == 0
-    assert recorded[-1][2] == str(mine)
+    assert server.started[0].env["TOONFLOW_DATA_DIR"] == str(mine)
     assert (mine / "workspaces" / "myProject").is_dir()
 
 
@@ -168,23 +221,63 @@ def test_data_dir_is_absolute_because_the_server_runs_inside_the_checkout(monkey
 
 
 @pytest.mark.parametrize("step", [("install", "--frozen-lockfile"), ("run", "build:server")])
-def test_serve_stops_at_the_first_failing_step(checkout, bun, calls, step):
+def test_serve_stops_at_the_first_failing_step(checkout, bun, calls, server, step):
     recorded, fail = calls
     fail[step] = 3
     assert toonflow.run_toonflow(["serve", "--lan"]) == 1
     assert recorded[-1][0][1:3] == list(step)
-    assert not any("start:server" in cmd for cmd, _, _ in recorded)
+    assert server.started == []
 
 
-def test_serve_ctrl_c_stops_the_server_without_a_traceback(checkout, bun, monkeypatch, capsys):
-    def interrupted(cmd, cwd=None, env=None):
-        if cmd[1:3] == ["run", "start:server"]:
-            raise KeyboardInterrupt
-        return 0
-
-    monkeypatch.setattr("subprocess.call", interrupted)
+def test_serve_ctrl_c_stops_the_whole_server_group_without_a_traceback(checkout, bun, calls, server, capsys):
+    server.interrupt = True
     assert toonflow.run_toonflow(["serve", "--lan"]) == 0
+    assert (4242, signal.SIGINT) in server.signals
+    assert (4242, signal.SIGKILL) not in server.signals
     assert "Traceback" not in capsys.readouterr().err
+
+
+def test_serve_escalates_to_sigkill_when_the_server_ignores_sigint(checkout, bun, calls, server):
+    server.interrupt = True
+    server.ignore_sigint = True
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 0
+    assert server.signals == [(4242, signal.SIGINT), (4242, signal.SIGKILL)]
+
+
+def test_serve_sigterm_is_handled_like_ctrl_c_and_restored_afterwards(checkout, bun, calls, server):
+    before = signal.getsignal(signal.SIGTERM)
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 0
+    handler = server.term_handler  # what SIGTERM would run while the server was up
+    assert callable(handler) and handler is not before
+    with pytest.raises(KeyboardInterrupt):
+        handler(signal.SIGTERM, None)
+    assert signal.getsignal(signal.SIGTERM) is before
+
+
+@pytest.mark.skipif(not Path("/proc").is_dir(), reason="o teste lê /proc (Linux)")
+def test_stop_group_kills_grandchildren_too(tmp_path):
+    # Real processes, no network: the server starts a helper, and stopping the group must kill the helper as well.
+    pidfile = tmp_path / "helper.pid"
+    script = (
+        "import subprocess, sys, time\n"
+        f"h = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)'])\n"
+        f"open({str(pidfile)!r}, 'w').write(str(h.pid))\n"
+        "time.sleep(600)\n"
+    )
+    proc = subprocess.Popen([sys.executable, "-c", script], start_new_session=True,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        deadline = time.time() + 20
+        while not (pidfile.exists() and pidfile.read_text().strip()) and time.time() < deadline:
+            time.sleep(0.05)
+        helper = int(pidfile.read_text())
+        assert _alive(helper)
+        toonflow._stop_group(proc)
+        assert proc.poll() is not None
+        assert not _alive(helper)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
 
 
 def test_serve_ctrl_c_during_install_is_an_interruption_not_a_traceback(checkout, bun, monkeypatch, capsys):
@@ -196,11 +289,11 @@ def test_serve_ctrl_c_during_install_is_an_interruption_not_a_traceback(checkout
     assert "Traceback" not in capsys.readouterr().err
 
 
-def test_serve_refuses_extra_args_because_the_port_is_fixed(checkout, bun, calls):
+def test_serve_refuses_extra_args_because_the_port_is_fixed(checkout, bun, calls, server):
     recorded, _ = calls
     with pytest.raises(toonflow.ToonflowError, match="aceita só --lan"):
         toonflow.run_toonflow(["serve", "--lan", "--port", "5174"])
-    assert recorded == []
+    assert recorded == [] and server.started == []
 
 
 def test_serve_without_bun_says_where_to_get_it(checkout, monkeypatch):
