@@ -451,6 +451,25 @@
       }
     },
     {
+      "verb": "video.formats",
+      "description": "Library of 50 ad formats from the Drive swipe file: list, show <id>, prompt <id> --copia <arquivo|->.",
+      "argv": [
+        "simplicio-video",
+        "formats",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "list [--objetivo clique|lead|venda|engajamento] | show <id> | prompt <id> --copia <arquivo|->"
+          }
+        }
+      }
+    },
+    {
       "verb": "video.toonflow",
       "description": "Toonflow open-source AI studio for short dramas and videos (https://github.com/HBAI-Ltd/Toonflow-app): clone into the default folder, where; serve runs in the terminal with --lan.",
       "argv": [
@@ -549,6 +568,7 @@
       "video.clone",
       "video.montage",
       "video.opencut",
+      "video.formats",
       "video.toonflow",
       "video.realoficial",
       "video.edit"

@@ -25,8 +25,9 @@ Fluxo completo:
   montage      trilha Montage (OpenMontage): produção de vídeo com agentes de IA (https://github.com/calesthio/OpenMontage)
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
+  formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/toonflow
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -53,6 +54,7 @@ comandos (na ordem do fluxo):
     edit      edição por EDL com video-use sobre qualquer MP4
     opencut   editor OpenCut (open-source) para acabamento manual
     toonflow  Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
+    formats   biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
     mcp       servidor MCP (stdio) para o simplicio-runtime
     status    ferramentas instaladas, versões fixadas e estado do render
     list      lista templates, padrões de motion, providers de voz ou ângulos de anúncio
@@ -135,6 +137,25 @@ options:
 exemplos:
   simplicio-video edit setup
   simplicio-video edit render edit/edl.json -o out/final.raw.mp4
+```
+
+## simplicio-video formats
+
+```text
+usage: simplicio-video formats [-h] ...
+
+Os 50 formatos da pasta 'Swipe File - 50 Formatos' (Drive): descrição, estrutura e o exemplo de cada um. `prompt` monta o pedido para adaptar uma copy ao formato; quem adapta é o LLM, não o CLI.
+
+positional arguments:
+  args        list [--objetivo ...] | show <id> | prompt <id> --copia <arquivo|->
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video formats list --objetivo venda
+  simplicio-video formats show caixinha
+  simplicio-video formats prompt caixinha --copia roteiro.txt
 ```
 
 ## simplicio-video init
