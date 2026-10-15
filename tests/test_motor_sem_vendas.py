@@ -19,7 +19,7 @@ VENDAS = ("prospect", "batch", "venda", "ugc", "realoficial", "publish")
 # Módulos que o motor não pode importar (a batch é alias de prospect, então não entra aqui).
 MODULOS_VENDAS = ("prospect", "venda", "ugc", "realoficial", "publish")
 # Subcomandos do motor que ficam; o --help de cada um não pode citar os de venda.
-MOTOR = ("init", "validate", "voice", "render", "run", "list", "mcp", "clone", "montage", "edit", "opencut")
+MOTOR = ("init", "validate", "voice", "render", "run", "list", "mcp", "clone", "montage", "edit", "opencut", "toonflow")
 
 # Roda o CLI com os módulos de venda bloqueados: `sys.modules[nome] = None` faz o import falhar como se o arquivo
 # não existisse. Depois de importar o CLI, executa cli.main() com os argumentos recebidos.
