@@ -90,10 +90,11 @@ def video_run(contrato: str, provider: str | None = None, backend: str = "local"
                     timeout=timeout)
 
 
-def video_list(what: str = "templates") -> dict:
+def video_list(what: str = "templates", grupo: str | None = None) -> dict:
     from . import catalog, paths
     d = paths.data_dir()
-    rows = {"templates": lambda: catalog.templates(d), "motion": lambda: catalog.motion(d), "voices": catalog.voices}[what]()
+    rows = {"templates": lambda: catalog.templates(d), "motion": lambda: catalog.motion(d), "voices": catalog.voices,
+            "angles": lambda: catalog.angles(d, grupo=grupo)}[what]()
     return {"ok": True, "items": rows}
 
 
@@ -148,7 +149,7 @@ TOOLS = [
     ("video.voice", video_voice, "Generate/cache narration (provider file|local|gemini) and write timing.lock.json with real durations."),
     ("video.render", video_render, "Render the contract: backend local | kaggle (GPU T4) | colab-cli | colab (bundle only). Returns manifest summary."),
     ("video.run", video_run, "voice -> validate -> render in one call (stops at the MP4; no upload)."),
-    ("video.list", video_list, "List templates, motion patterns or voice providers (what = templates|motion|voices)."),
+    ("video.list", video_list, "List templates, motion patterns, voice providers or ad angles (what = templates|motion|voices|angles; angles accepts grupo)."),
     ("video.clone", video_clone, "Clone videos using Hypit AI (https://github.com/hypit-ai/hypit)."),
     ("video.montage", video_montage, "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage)."),
     ("video.edit", video_edit, "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify)."),

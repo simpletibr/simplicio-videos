@@ -74,6 +74,7 @@ simplicio-videos/
 | Intake | [intake/README.md](intake/README.md) | questionnaire, auto extraction, schema, WJR example |
 | Optional tools | [tools/README.md](tools/README.md) | video-use |
 | UGC (generative) | [ugc/README.md](ugc/README.md) | 10 characters + 5 prompts |
+| Ad angles | `src/simplicio_video/data/angles/angles.json` | 50 angles in 5 groups (`simplicio-video list angles --grupo prova`) |
 
 ## Example videos
 
