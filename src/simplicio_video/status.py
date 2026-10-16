@@ -99,7 +99,8 @@ def render_state(contrato: Path) -> dict:
 
 
 def report(contrato: str | Path | None = None) -> dict:
-    rep: dict = {"tools": [tool_status(n) for n in ENGINE_TOOLS]}
+    from . import swap
+    rep: dict = {"tools": [tool_status(n) for n in ENGINE_TOOLS], "swap": swap.status_summary()}
     if contrato is not None:
         path = Path(contrato)
         if not path.is_file():
@@ -115,6 +116,13 @@ def text(rep: dict) -> str:
         fixada = t["pinned"] or "-"
         linhas.append(f"  {t['name']:<12} {estado:<9} versão {t['version'] or '-':<16} "
                       f"fixada {fixada} ({t['pinned_source']})")
+    if rep.get("swap"):
+        linhas.append("swap (troca de personagem; só diz se a variável da chave está definida, nunca o valor):")
+        for p in rep["swap"]:
+            chave = p["env_var"] or "sem chave"
+            estado = "pronto" if p["configured"] else "sem chave"
+            marca = "" if p["verified"] else "  UNVERIFIED"
+            linhas.append(f"  {p['name']:<10} {estado:<10} {chave}{marca}")
     if "render" in rep:
         r = rep["render"]
         if r["rendered"]:

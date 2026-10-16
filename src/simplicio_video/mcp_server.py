@@ -137,6 +137,26 @@ def video_formats(acao: str = "list", id: str | None = None, copia: str = "", ob
         return {"ok": False, "error": str(e)}
 
 
+def video_swap(acao: str = "providers", provider: str | None = None, video: str | None = None,
+               refs: list[str] | None = None, resolution: str = "720p") -> dict:
+    """Character swap, read-only over MCP: `providers` and `estimate`. It never spends money here: `run` exists only in
+    the terminal (`simplicio-video swap run --autorizo --yes`)."""
+    from . import swap
+    try:
+        if acao == "providers":
+            return {"ok": True, **swap.providers_report()}
+        if acao == "estimate":
+            if not provider or not video:
+                return {"ok": False, "error": "estimate precisa de provider, video e refs"}
+            return {"ok": True, **swap.estimate_report(provider, video, list(refs or []), resolution)}
+        if acao == "run":
+            return {"ok": False, "error": "run não existe pelo MCP: gastar dinheiro só pelo terminal "
+                                         "(simplicio-video swap run --autorizo --yes)"}
+        return {"ok": False, "error": f"acao desconhecida: {acao} (providers|estimate)"}
+    except swap.SwapError as e:
+        return {"ok": False, "error": str(e)}
+
+
 def video_toonflow(args: str = "") -> dict:
     """Toonflow over MCP: `where` and `clone` into the default folder only. `serve` runs a server that never ends, and
     `clone <dir>` is refused because an agent does not choose where a git checkout is written. Captures its own output
@@ -170,6 +190,7 @@ TOOLS = [
     ("video.edit", video_edit, "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify)."),
     ("video.opencut", video_opencut, "OpenCut editor (clone|dev|where) for manual finishing (https://github.com/OpenCut-app/OpenCut)."),
     ("video.formats", video_formats, "Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format."),
+    ("video.swap", video_swap, "Character swap, read-only: providers (adapters, capabilities, price, confidence) and estimate (cost before spending). Never runs a paid swap; run is terminal-only."),
     ("video.toonflow", video_toonflow, "Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app)."),
 ]
 

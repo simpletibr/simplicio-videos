@@ -470,6 +470,25 @@
       }
     },
     {
+      "verb": "video.swap",
+      "description": "Character swap (provider-agnostic), read-only over MCP: providers and estimate. Paid runs only in the terminal: simplicio-video swap run --autorizo --yes.",
+      "argv": [
+        "simplicio-video",
+        "swap",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "providers [--json] | estimate --provider <name> --video <file> --ref <image> [--resolution 720p] [--json]"
+          }
+        }
+      }
+    },
+    {
       "verb": "video.toonflow",
       "description": "Toonflow open-source AI studio for short dramas and videos (https://github.com/HBAI-Ltd/Toonflow-app): clone into the default folder, where; serve runs in the terminal with --lan.",
       "argv": [
@@ -569,6 +588,7 @@
       "video.montage",
       "video.opencut",
       "video.formats",
+      "video.swap",
       "video.toonflow",
       "video.realoficial",
       "video.edit"

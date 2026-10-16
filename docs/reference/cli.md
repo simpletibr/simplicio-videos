@@ -26,8 +26,9 @@ Fluxo completo:
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
+  swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/toonflow
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -55,6 +56,7 @@ comandos (na ordem do fluxo):
     opencut   editor OpenCut (open-source) para acabamento manual
     toonflow  Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
     formats   biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
+    swap      troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
     mcp       servidor MCP (stdio) para o simplicio-runtime
     status    ferramentas instaladas, versões fixadas e estado do render
     list      lista templates, padrões de motion, providers de voz ou ângulos de anúncio
@@ -442,6 +444,40 @@ exemplos:
   simplicio-video status
   simplicio-video status --json
   simplicio-video status --json clients/lothus-odontologia/video-01/contract.yaml
+```
+
+## simplicio-video swap
+
+```text
+usage: simplicio-video swap [-h] ...
+
+Troca o personagem de um vídeo existente por um avatar de referência. Agnóstico de fornecedor: cada provedor entra por
+um adaptador (gemini, fal, wavespeed, kie, alibaba e fake para testes). Os adaptadores fal, wavespeed, kie e alibaba
+estão UNVERIFIED: escritos da documentação pública, sem conferência na API real; `run` só gasta neles com
+--aceito-unverified.
+
+Subcomandos:
+  providers             lista adaptadores, capacidades, preço (US$ e R$) e confiança
+  estimate              custo previsto, sem rede (precisa de ffprobe)
+  run                   executa; exige --autorizo; sem --yes só estima (dry-run); --max-usd é o teto de gasto
+  status <manifesto>    lê o swap.manifest.json de uma execução
+
+A chave de API entra só pela variável de ambiente do provedor (GEMINI_API_KEY, FAL_KEY, WAVESPEED_API_KEY, KIE_API_KEY,
+DASHSCOPE_API_KEY), nunca por argumento. Use só vídeo e imagens sobre os quais você tem direito. O prompt padrão mantém
+todas as outras pessoas, o cenário, a câmera e o áudio.
+
+positional arguments:
+  args        providers | estimate | run | status <manifesto>
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video swap providers
+  simplicio-video swap estimate --provider gemini --video in.mp4 --ref avatar.png
+  simplicio-video swap run --provider gemini --video in.mp4 --ref avatar.png --out out/swap.mp4 --autorizo
+  simplicio-video swap run --provider gemini --video in.mp4 --ref avatar.png --out out/swap.mp4 --autorizo --yes --max-usd 2
+  simplicio-video swap status out/swap.manifest.json --json
 ```
 
 ## simplicio-video toonflow

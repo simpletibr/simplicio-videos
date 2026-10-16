@@ -40,7 +40,7 @@ ENV_READERS = {"get", "pop", "setdefault"}
 DESCRIPTIONS = {
     "ABACATEPAY_API_KEY": "Chave da API AbacatePay (cobrança Pix da trilha de venda). Só no ambiente.",
     "ABACATEPAY_WEBHOOK_SECRET": "Segredo que valida o webhook de pagamento da trilha de venda.",
-    "GEMINI_API_KEY": "Chave da API Gemini (TTS, provider `gemini`). Só no ambiente; nunca no repo.",
+    "GEMINI_API_KEY": "Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo.",
     "HYPERFRAMES_BROWSER_PATH": "Chrome headless que o HyperFrames usa na captura. Definido pelo render remoto.",
     "HYPERFRAMES_FFMPEG_PATH": "ffmpeg que o HyperFrames usa. Definido pelo render remoto.",
     "HYPERFRAMES_FFPROBE_PATH": "ffprobe que o HyperFrames usa. Definido pelo render remoto.",
@@ -55,6 +55,7 @@ DESCRIPTIONS = {
     "SIMPLICIO_COLAB_AUTH": "Modo de autenticação do Colab CLI, repassado a `--auth`.",
     "SIMPLICIO_DRIVE_DESTINO": "JSON com `caminho` e `arquivo` da entrega no Drive da trilha de venda.",
     "SIMPLICIO_DRIVE_REMOTE": "Nome do remote do rclone para o Drive (padrão: `gdrive`).",
+    "SIMPLICIO_FFMPEG_DIR": "Pasta do ffmpeg/ffprobe fixados (render local e `swap`).",
     "SIMPLICIO_FFMPEG_SHA256": "SHA-256 esperado do ffmpeg estático de `SIMPLICIO_FFMPEG_URL`.",
     "SIMPLICIO_FFMPEG_URL": "URL de um ffmpeg estático fixado, baixado e verificado pelos renders remotos.",
     "SIMPLICIO_GEMINI_BASE": "Base da API Gemini (padrão: a oficial). Para proxies e testes.",

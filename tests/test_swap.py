@@ -548,7 +548,9 @@ def test_cli_despacha_swap(capsys):
 
 
 def test_help_do_swap(capsys):
-    assert cli.main(["swap", "--help"]) == 0
+    with pytest.raises(SystemExit) as e:
+        cli.main(["swap", "--help"])
+    assert e.value.code == 0
     out = capsys.readouterr().out
     for termo in ("providers", "estimate", "run", "status", "--autorizo", "--yes", "--max-usd", "exemplos:"):
         assert termo in out
@@ -565,6 +567,15 @@ def test_mcp_nunca_gasta(media):
     r = mcp_server.video_swap("run", provider="fake", video=str(media["video"]), refs=[str(media["ref"])])
     assert r["ok"] is False and "terminal" in r["error"]
     assert fake.FakeAdapter.submits == []
+
+
+def test_status_mostra_chave_definida_sem_o_valor(monkeypatch):
+    from simplicio_video import status
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+    rep = {"tools": [], "swap": swap.status_summary()}  # status.report() would read the tool checkouts
+    por_nome = {p["name"]: p for p in rep["swap"]}
+    assert por_nome["gemini"]["configured"] is True and por_nome["fal"]["configured"] is False
+    assert FAKE_KEY not in json.dumps(rep) and FAKE_KEY not in status.text(rep)
 
 
 def test_mcp_registrado():
