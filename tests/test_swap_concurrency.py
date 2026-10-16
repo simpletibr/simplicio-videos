@@ -232,3 +232,43 @@ def test_retry_transitorio_continua_valendo_em_paralelo(longo):
     m = manifest(longo)
     assert m["attempts"] == 5 and sum(c["attempts"] for c in m["chunks"]) == 5
     assert Path(m["output"]["path"]).is_file()
+
+
+# ---------------------------------------------------------------- B1: submit em voo quando outro pedaço falha
+
+def _submit_lento(monkeypatch, demora):
+    """O pedaço 0 falha de vez aos 1,2 s; o pedaço 1 ainda está subindo (o provedor aceita e cobra no fim)."""
+    original = fake.FakeAdapter.submit
+    cobrados: list = []
+
+    def submit(self, job):
+        if job.index == 0:
+            time.sleep(1.2)  # depois dos cortes do ffmpeg (seriais): os outros pedaços já estão subindo
+            raise swap.ProviderError("falha definitiva simulada no pedaço 0", retryable=False)
+        if job.index == 1:
+            time.sleep(demora)
+            handle = original(self, job)
+            cobrados.append(handle["id"])
+            return handle
+        time.sleep(1.5)
+        raise swap.ProviderError("nunca cobrado", retryable=False)
+
+    monkeypatch.setattr(fake.FakeAdapter, "submit", submit)
+    return cobrados
+
+
+def test_b1_handle_cobrado_durante_o_cancelamento_vai_para_o_manifesto(longo, monkeypatch):
+    cobrados = _submit_lento(monkeypatch, 1.5)
+    assert swap.run_swap(argv(longo, "--timeout", "30", "--concurrency", "3")) == 1
+    m = manifest(longo)
+    assert cobrados, "o provedor aceitou o pedaço 1"
+    assert m["chunks"][1]["handle"] == {"id": cobrados[0]}, "todo handle devolvido pelo submit fica no manifesto"
+
+
+def test_b1_submit_que_nao_termina_fica_possivelmente_cobrado(longo, monkeypatch):
+    monkeypatch.setattr(swap, "SUBMIT_DRAIN_S", 0.2, raising=False)
+    _submit_lento(monkeypatch, 4.0)
+    assert swap.run_swap(argv(longo, "--timeout", "30", "--concurrency", "3")) == 1
+    c = manifest(longo)["chunks"][1]
+    assert c["handle"] is None and c["possibly_charged"] is True
+    assert c["state"] == "cancelled_during_submit"
