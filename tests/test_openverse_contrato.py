@@ -17,6 +17,7 @@ import ast
 import copy
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -90,10 +91,42 @@ def sem_ffmpeg_no_manifesto(monkeypatch):
     monkeypatch.setattr(render, "loudness", lambda mp4: {"integrated_lufs": -14.0, "true_peak_dbfs": -1.5})
 
 
-def _manifesto(contrato, **kw):
+def _sem_voz(contrato):
+    _edit(contrato, lambda d: d["voz"].update(habilitada=False))  # sem voz não há timing.lock.json a gerar
+
+
+def _arquivos_da_composicao(contrato):
+    """A composição que o render monta (compilada de verdade, sem o node) e o sha256 de cada arquivo dela, como o `render.prepare` entrega."""
+    _sem_voz(contrato)
+    wd = Path(contrato).parent / "build" / "wd-teste"
+    compiler.compile_project(ct.load(contrato), wd, None)
+    return render.tree_hash(wd)[1]
+
+
+def _manifesto(contrato, files=None):
+    files = _arquivos_da_composicao(contrato) if files is None else files  # antes do load: ela mexe no contrato (voz desligada)
     c = ct.load(contrato)
     return render.write_manifest(c, _mp4(contrato), backend="local", quality="draft", gpu=False,
-                                 info={"inputs_sha256": "e" * 64, "files": {}}, timings={"render": 1.0}, log=lambda *_: None, **kw)
+                                 info={"inputs_sha256": "e" * 64, "files": files}, timings={"render": 1.0}, log=lambda *_: None)
+
+
+def _exportar(contrato, item, **kw):
+    """Exporta o ativo para assets/openverse/ ao lado do contrato (o fluxo real) SEM declará-lo em `assets`; devolve o nome do arquivo."""
+    return Path(ov.export(item["id"], PEDIDO, contrato=contrato, **kw)["arquivo"]).name
+
+
+def _placa(arquivo, id_="p1", **extra):
+    return {"id": id_, "file": arquivo, "out": f"assets/clips/{id_}.mp4", "scene": "a", "start": 0, "duration": 1, **extra}
+
+
+def _bytes_da_biblioteca(env, item):
+    return (env.lib / item["arquivo"]).read_bytes()
+
+
+@pytest.fixture
+def sem_node(monkeypatch):
+    """`render.prepare` compila de verdade; só o `node scripts/build.mjs` (trilha, placas) fica de fora."""
+    monkeypatch.setattr(render, "_run", lambda *_a, **_k: "")
 
 
 # ------------------------------------------------------------------------------------------------ schema
@@ -354,10 +387,38 @@ def test_projeto_dentro_de_uma_pasta_assets_openverse_nao_marca_todo_asset_como_
     assert _ok(destino / "contract.yaml") is not None
 
 
-def test_contratos_dos_clientes_do_repositorio_nao_ganham_erro_do_openverse():
-    for p in ROOT.glob("clients/*/*/contract.yaml"):
-        rep = ct.validate(ct.load(p))
+def _referencias_do_contrato(d):
+    """Todo arquivo que o contrato aponta: assets, logo e placas de vídeo."""
+    refs = [a["arquivo"] for a in d.get("assets") or []]
+    if (d.get("marca") or {}).get("logo"):
+        refs.append(d["marca"]["logo"]["arquivo"])
+    return refs + [s["file"] for s in d.get("placas_video") or []]
+
+
+def test_contratos_dos_clientes_do_repositorio_nao_ganham_erro_do_openverse(env, aprovado, tmp_path, monkeypatch):
+    """Biblioteca com um item e os arquivos dos assets presentes: o portão olha de verdade cada um e não acusa nenhum.
+    Os arquivos de `coleta/` não vão para o git, então aqui eles são criados numa cópia temporária do contrato."""
+    olhados = []
+    real = ov.verify_asset
+    monkeypatch.setattr(ov, "verify_asset", lambda arquivo, bloco=None, idx=None: (olhados.append(Path(arquivo).name), real(arquivo, bloco, idx=idx))[1])
+    contratos = sorted(ROOT.glob("clients/*/*/contract.yaml"))
+    assert contratos
+    esperados = 0
+    for i, p in enumerate(contratos):
+        d = yaml.safe_load(p.read_text(encoding="utf8"))
+        raiz = tmp_path / f"cliente{i}"
+        copia = raiz / "a" / "video"
+        copia.mkdir(parents=True)
+        (copia / "contract.yaml").write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False), encoding="utf8")
+        for ref in _referencias_do_contrato(d):
+            alvo = (copia / ref).resolve()
+            assert raiz in alvo.parents, ref  # a cópia nunca escreve fora da pasta temporária
+            alvo.parent.mkdir(parents=True, exist_ok=True)
+            alvo.write_bytes(b"\x89PNG\r\n\x1a\n" + ref.encode())
+            esperados += 1
+        rep = ct.validate(ct.load(copia / "contract.yaml"))
         assert not [e for e in rep.errors if e.startswith("openverse:")], (p, rep.errors)
+    assert esperados >= 3 and len(olhados) == esperados  # o portão leu cada arquivo (com a biblioteca vazia ele nem abria)
 
 
 # ------------------------------------------------------------------------------------------------ verify_asset: a função pública do módulo
@@ -545,20 +606,42 @@ def test_render_recusa_gravar_manifesto_de_ativo_que_deixou_de_valer(env, aprova
     assert not (mini.parent / "out" / "mini.CREDITS-openverse.md").exists()
 
 
-def test_previa_tambem_registra_a_proveniencia_e_grava_os_creditos(env, aprovado, mini, monkeypatch):
-    _declarar(mini, aprovado)
-    wd = mini.parent / "build" / "simplicio-video"
+def _previa(contrato, files, monkeypatch):
+    """`render --preview` com o render e o ffmpeg trocados por fakes: o assunto é a procedência da prévia e os arquivos da composição."""
+    wd = Path(contrato).parent / "build" / "simplicio-video"
     wd.mkdir(parents=True)
     (wd / "spec.json").write_text(json.dumps({"marca": {"dagua": "Prévia", "credito": None}}), encoding="utf8")
-    monkeypatch.setattr(render, "render_local", lambda c, **kw: {"inputs_sha256": "e" * 64, "timings_s": {"render": 1.0}})
+    monkeypatch.setattr(render, "render_local", lambda c, **kw: {"inputs_sha256": "e" * 64, "files": files, "timings_s": {"render": 1.0}})
     monkeypatch.setattr(render, "make_preview", lambda src, dst, home, **kw: {"path": str(dst), "sha256": "a" * 64, "duration_s": 1.0, "bytes": 10,
                                                                              "watermark": "Prévia", "logo": None})
-    (mini.parent / "out").mkdir()
-    (mini.parent / "out" / "mini-previa.mp4").write_bytes(b"x")
-    man = render.render_preview(ct.load(mini), workdir=wd, log=lambda *_: None)
+    (Path(contrato).parent / "out").mkdir()
+    (Path(contrato).parent / "out" / "mini-previa.mp4").write_bytes(b"x")
+    return render.render_preview(ct.load(contrato), workdir=wd, log=lambda *_: None)
+
+
+def test_previa_tambem_registra_a_proveniencia_e_grava_os_creditos(env, aprovado, mini, monkeypatch):
+    _declarar(mini, aprovado)
+    man = _previa(mini, _arquivos_da_composicao(mini), monkeypatch)
     assert man["openverse"]["ativos"][0]["id"] == aprovado["id"]
     assert (mini.parent / "out" / "mini-previa.CREDITS-openverse.md").is_file()
     assert json.loads((mini.parent / "preview.manifest.json").read_text(encoding="utf8"))["openverse"] == man["openverse"]
+
+
+def test_previa_recusa_ativo_cujo_destino_nao_tem_os_bytes_da_procedencia(env, aprovado, mini, monkeypatch):
+    nome = _declarar(mini, aprovado)
+    ruim = {**_arquivos_da_composicao(mini), f"assets/openverse/{nome}": "0" * 64}
+    with pytest.raises(SystemExit, match="destino"):
+        _previa(mini, ruim, monkeypatch)
+    assert not (mini.parent / "out" / "mini-previa.CREDITS-openverse.md").exists() and not (mini.parent / "preview.manifest.json").exists()
+
+
+def test_render_local_sem_manifesto_devolve_os_arquivos_da_composicao(env, mini, tmp_path, monkeypatch, sem_node):
+    files = {"assets/x.png": "f" * 64}
+    monkeypatch.setattr(render, "prepare", lambda c, wd, log: ({"inputs_sha256": "e" * 64, "files": files, "compile_build_s": 0.1}, {}))
+    wd = tmp_path / "wd"
+    (wd / "out").mkdir(parents=True)
+    r = render.render_local(ct.load(mini), out=tmp_path / "o.mp4", workdir=wd, manifest=False, log=lambda *_: None)
+    assert r["files"] == files  # a prévia liga a procedência a estes arquivos, os mesmos que o render leu
 
 
 def test_preview_manifest_schema_aceita_o_bloco_openverse():
@@ -689,6 +772,256 @@ def test_help_do_openverse_lista_o_verify(capsys):
     assert rc in (0, None) and "library verify" in out
 
 
+# ------------------------------------------------------------------------------------------------ B1: a placa de vídeo passa pelo mesmo portão
+
+def test_placa_de_video_com_arquivo_de_assets_openverse_e_recusada(env, aprovado, mini, capsys):
+    nome = _exportar(mini, aprovado)
+    _edit(mini, lambda d: d.update(placas_video=[_placa(f"assets/openverse/{nome}")]))
+    erros = _ov_erros(mini)
+    assert len(erros) == 1 and "placas_video" in erros[0] and "declare em assets[] com o bloco openverse" in erros[0], erros
+    assert not ct.validate(ct.load(mini)).ok
+    rc, out, _ = cli(["library", "verify", str(mini)], capsys)
+    assert rc == 1 and "placas_video" in out
+
+
+def test_placa_de_video_com_os_mesmos_bytes_da_biblioteca_fora_da_pasta_tambem_e_recusada(env, aprovado, mini):
+    (mini.parent / "assets" / "client").mkdir(parents=True)
+    (mini.parent / "assets" / "client" / "fundo.png").write_bytes(_bytes_da_biblioteca(env, aprovado))
+    _edit(mini, lambda d: d.update(placas_video=[_placa("assets/client/fundo.png")]))
+    erros = _ov_erros(mini)
+    assert len(erros) == 1 and "placas_video" in erros[0] and "mesmos bytes" in erros[0] and aprovado["id"] in erros[0], erros
+
+
+def test_bloco_dentro_da_placa_nao_vale_e_o_asset_declarado_nao_libera_a_placa(env, aprovado, mini):
+    nome = _declarar(mini, aprovado)
+    _edit(mini, lambda d: (d["assets"][0].update(destino="assets/foto.png"),
+                           d.update(placas_video=[_placa(f"assets/openverse/{nome}", openverse={"id": aprovado["id"], "pedido": PEDIDO})])))
+    erros = _ov_erros(mini)  # o asset em assets[] está certo; só a placa é recusada
+    assert len(erros) == 1 and "placas_video" in erros[0], erros
+
+
+def test_placa_de_video_comum_e_placa_sem_arquivo_seguem_passando_com_a_biblioteca_cheia(env, aprovado, mini, monkeypatch):
+    (mini.parent / "assets" / "clips").mkdir(parents=True)
+    (mini.parent / "assets" / "clips" / "entrada.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"video do cliente")
+    _edit(mini, lambda d: d.update(placas_video=[_placa("assets/clips/entrada.mp4"), _placa("assets/clips/nao-existe.mp4", id_="p2")]))
+    olhados = []
+    real = ov.verify_asset
+    monkeypatch.setattr(ov, "verify_asset", lambda arquivo, bloco=None, idx=None: (olhados.append(Path(arquivo).name), real(arquivo, bloco, idx=idx))[1])
+    rep = ct.validate(ct.load(mini))
+    assert rep.ok and not [w for w in rep.warnings if "openverse" in w], (rep.errors, rep.warnings)
+    assert olhados == ["entrada.mp4"]  # a placa existente passa pelo portão; a que não existe é do "arquivo ausente" de sempre
+
+
+# ------------------------------------------------------------------------------------------------ I2: um destino, um arquivo
+
+@pytest.mark.parametrize("onde", ["assets+assets", "assets+logo", "assets+placa", "logo+placa"])
+def test_destino_repetido_e_erro_do_validate(env, mini, onde):
+    (mini.parent / "assets" / "client").mkdir(parents=True)
+    for n in ("a.png", "b.png"):
+        (mini.parent / "assets" / "client" / n).write_bytes(b"\x89PNG\r\n\x1a\n" + n.encode())
+    a = {"arquivo": "assets/client/a.png", "destino": "assets/x.png"}
+    b = {"arquivo": "assets/client/b.png", "destino": "assets/x.png"}
+    placa_dest = "assets/clips/p.mp4"
+
+    def monta(d):
+        if onde == "assets+assets":
+            d["assets"] = [a, b]
+        elif onde == "assets+logo":
+            d["assets"], d["marca"]["logo"] = [a], b
+        elif onde == "assets+placa":
+            d["assets"], d["placas_video"] = [{**a, "destino": placa_dest}], [_placa(placa_dest)]
+        else:
+            d["marca"]["logo"], d["placas_video"] = {**a, "destino": placa_dest}, [_placa(placa_dest)]
+    _edit(mini, monta)
+    rep = ct.validate(ct.load(mini))
+    repetidos = [e for e in rep.errors if "duplicated destino" in e]
+    assert not rep.ok and len(repetidos) == 1 and ("assets/x.png" if "placa" not in onde else placa_dest) in repetidos[0], rep.errors
+
+
+def test_destino_repetido_entre_ativo_do_openverse_e_foto_do_cliente_nao_passa(env, aprovado, mini):
+    nome = _exportar(mini, aprovado)
+    (mini.parent / "assets" / "client").mkdir(parents=True)
+    (mini.parent / "assets" / "client" / "foto.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"cliente-de-verdade")
+    _edit(mini, lambda d: d.update(assets=[
+        {"arquivo": f"assets/openverse/{nome}", "destino": "assets/x.png", "openverse": {"id": aprovado["id"], "pedido": PEDIDO}},
+        {"arquivo": "assets/client/foto.png", "destino": "assets/x.png"}]))
+    rep = ct.validate(ct.load(mini))
+    assert not rep.ok and any("duplicated destino" in e and "assets/x.png" in e for e in rep.errors), rep.errors
+
+
+def test_destinos_diferentes_para_o_mesmo_arquivo_seguem_valendo(env, aprovado, mini):
+    nome = _declarar(mini, aprovado)
+    _edit(mini, lambda d: d["assets"].append({"arquivo": f"assets/openverse/{nome}", "destino": "assets/openverse/de-novo.png",
+                                               "openverse": {"id": aprovado["id"], "pedido": PEDIDO}}))
+    _ok(mini)
+
+
+# ------------------------------------------------------------------------------------------------ B1/I1/I2: o portão olha a composição compilada
+
+def test_prepare_aceita_o_ativo_declarado_e_aprovado_e_devolve_os_arquivos_da_composicao(env, aprovado, mini, sem_node):
+    nome = _declarar(mini, aprovado)
+    _sem_voz(mini)
+    info, _ = render.prepare(ct.load(mini), mini.parent / "build" / "wd", lambda *_: None)
+    assert info["files"][f"assets/openverse/{nome}"] == aprovado["sha256"]
+
+
+@pytest.mark.parametrize("declarado", [False, True])
+def test_prepare_recusa_copia_exata_do_ativo_na_pasta_do_template(env, aprovado, mini, sem_node, declarado):
+    if declarado:
+        _declarar(mini, aprovado)  # ter o ativo declarado em outro destino não libera a cópia que veio com o template
+    pasta = mini.parent / "template" / "composition" / "assets"
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "foto.png").write_bytes(_bytes_da_biblioteca(env, aprovado))
+    _sem_voz(mini)
+    wd = mini.parent / "build" / "wd"
+    with pytest.raises(SystemExit) as e:
+        render.prepare(ct.load(mini), wd, lambda *_: None)
+    msg = str(e.value)
+    assert "assets/foto.png" in msg and aprovado["id"] in msg and "biblioteca" in msg and "openverse" in msg, msg
+    assert not wd.exists()  # nada com os bytes recusados fica para trás
+
+
+def test_prepare_recusa_o_destino_cujo_arquivo_mudou_entre_o_portao_e_a_copia(env, aprovado, mini, sem_node, monkeypatch):
+    nome = _declarar(mini, aprovado)
+    _sem_voz(mini)
+    compila = render.compile_project
+
+    def compila_e_troca(c, wd, lock):
+        spec = compila(c, wd, lock)
+        (wd / "assets" / "openverse" / nome).write_bytes(PNG_B)  # trocado depois do portão e antes do hash
+        return spec
+    monkeypatch.setattr(render, "compile_project", compila_e_troca)
+    wd = mini.parent / "build" / "wd"
+    with pytest.raises(SystemExit) as e:
+        render.prepare(ct.load(mini), wd, lambda *_: None)
+    msg = str(e.value)
+    assert f"assets/openverse/{nome}" in msg and aprovado["sha256"] in msg and "destino" in msg, msg
+    assert not wd.exists()
+
+
+def test_prepare_de_contrato_sem_openverse_funciona_sem_biblioteca_e_com_indice_ilegivel(env, mini, sem_node):
+    _sem_voz(mini)
+    render.prepare(ct.load(mini), mini.parent / "build" / "wd", lambda *_: None)
+    assert not env.lib.exists()  # sem biblioteca, o render não cria nada nela
+    env.lib.mkdir(parents=True)
+    (env.lib / "index.json").write_text("{isto não é json", encoding="utf8")
+    render.prepare(ct.load(mini), mini.parent / "build" / "wd", lambda *_: None)
+
+
+def test_manifesto_recusa_ativo_cujo_destino_nao_tem_os_bytes_da_procedencia(env, aprovado, mini, sem_ffmpeg_no_manifesto):
+    nome = _declarar(mini, aprovado)
+    arquivos = _arquivos_da_composicao(mini)
+    destino = f"assets/openverse/{nome}"
+    ruins = {"bytes de outro arquivo": {**arquivos, destino: "0" * 64},
+             "destino ausente": {k: v for k, v in arquivos.items() if k != destino},
+             "mesmos bytes em outro caminho": {**arquivos, "assets/extra.png": aprovado["sha256"]}}
+    for nome_do_caso, ruim in ruins.items():
+        with pytest.raises(SystemExit, match="openverse"):
+            _manifesto(mini, files=ruim)
+        assert not (mini.parent / "out" / "mini.CREDITS-openverse.md").exists(), nome_do_caso
+        assert not (mini.parent / "render.manifest.json").exists(), nome_do_caso
+    assert _manifesto(mini, files=arquivos)["openverse"]["ativos"][0]["sha256"] == aprovado["sha256"]
+
+
+def test_manifesto_antigo_nao_fica_ao_lado_de_um_mp4_novo_quando_o_ativo_deixou_de_valer(env, aprovado, mini, sem_ffmpeg_no_manifesto):
+    _declarar(mini, aprovado)
+    _manifesto(mini)
+    assert (mini.parent / "render.manifest.json").is_file()
+    ov.review(aprovado["id"], PEDIDO, "reprovado", "mudei de ideia", "revisor")
+    with pytest.raises(SystemExit):
+        _manifesto(mini)
+    assert not (mini.parent / "render.manifest.json").exists()  # o MP4 é novo: o manifesto antigo não o descreve
+
+
+# ------------------------------------------------------------------------------------------------ I3: o aceite vale para a licença aceita
+
+def test_aceite_de_by_sa_nao_vale_para_by_nc_depois_da_troca_de_licenca(env, aprovado, mini):
+    _mudar_e_reaprovar(env, aprovado["id"], licenca="by-sa", licenca_url="https://creativecommons.org/licenses/by-sa/2.0/")
+    _declarar(mini, aprovado, aceito=True)
+    _ok(mini)
+    exp = json.loads((env.lib / "index.json").read_text(encoding="utf8"))["exportacoes"]
+    assert exp[0]["aceito_restricao"] is True and exp[0]["licenca"] == "by-sa"
+    # `get --atualizar` traz os mesmos bytes como by-nc e o revisor aprova de novo: ninguém aceitou a restrição NC
+    _mudar_e_reaprovar(env, aprovado["id"], licenca="by-nc", licenca_url="https://creativecommons.org/licenses/by-nc/2.0/")
+    erros = _ov_erros(mini)
+    assert len(erros) == 1 and "aceito-restricao" in erros[0] and "by-nc" in erros[0], erros
+    ov.export(aprovado["id"], PEDIDO, contrato=mini, aceito_restricao=True)  # aceitar a nova restrição: novo registro, com a licença nova
+    _ok(mini)
+    exp = json.loads((env.lib / "index.json").read_text(encoding="utf8"))["exportacoes"]
+    assert [e["licenca"] for e in exp] == ["by-sa", "by-nc"]
+
+
+def test_aceite_sem_licenca_gravada_nao_vale(env, aprovado, mini):
+    _mudar_e_reaprovar(env, aprovado["id"], licenca="by-nd", licenca_url="https://creativecommons.org/licenses/by-nd/2.0/")
+    _declarar(mini, aprovado, aceito=True)
+    _ok(mini)
+    _forjar(env, lambda d: [e.pop("licenca") for e in d["exportacoes"]])  # registro sem a licença aceita
+    erros = _ov_erros(mini)
+    assert len(erros) == 1 and "aceito-restricao" in erros[0], erros
+
+
+def test_indice_com_licenca_aceita_que_nao_e_texto_e_recusado(env, aprovado):
+    _mudar_e_reaprovar(env, aprovado["id"], licenca="by-sa", licenca_url="https://creativecommons.org/licenses/by-sa/2.0/")
+    ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida", aceito_restricao=True)
+    _forjar(env, lambda d: d["exportacoes"][0].update(licenca=["by-sa"]))
+    with pytest.raises(ov.OpenverseError, match="índice inválido"):
+        ov.load_index()
+
+
+def test_schema_do_indice_conhece_a_licenca_aceita(env, aprovado):
+    jsonschema = pytest.importorskip("jsonschema")
+    _mudar_e_reaprovar(env, aprovado["id"], licenca="by-sa", licenca_url="https://creativecommons.org/licenses/by-sa/2.0/")
+    ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida", aceito_restricao=True)
+    doc = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    jsonschema.validate(doc, json.loads((paths.data_dir() / "openverse" / "library.schema.json").read_text(encoding="utf8")))
+    assert doc["exportacoes"][0]["licenca"] == "by-sa"
+
+
+# ------------------------------------------------------------------------------------------------ I4: a regra da pasta não depende da caixa
+
+@pytest.mark.parametrize("caminho", ["assets/Openverse/x.png", "assets/OPENVERSE/x.png", "Assets/openverse/x.png", "ASSETS/OpenVerse/sub/x.png"])
+def test_regra_da_pasta_ignora_a_caixa_das_letras(mini, caminho):
+    assert openverse_contract.in_openverse_dir(mini.parent / caminho, mini.parent) is True
+    assert openverse_contract.in_openverse_dir(mini.parent / "assets" / "client" / "x.png", mini.parent) is False
+
+
+def test_arquivo_em_pasta_openverse_com_outra_caixa_tambem_pede_o_bloco(env, aprovado, mini):
+    pasta = mini.parent / "assets" / "OpenVerse"
+    pasta.mkdir(parents=True)
+    (pasta / "recorte.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"derivado")  # num sistema sem distinção de caixa esta é a pasta do export
+    _edit(mini, lambda d: d.update(assets=[{"arquivo": "assets/OpenVerse/recorte.png", "destino": "assets/recorte.png"}]))
+    erros = _ov_erros(mini)
+    assert len(erros) == 1 and "bloco openverse" in erros[0], erros
+
+
+# ------------------------------------------------------------------------------------------------ M2 e M4
+
+def test_library_verify_roda_o_schema_do_contrato_e_nao_diz_tudo_certo_com_contrato_invalido(env, aprovado, mini, capsys):
+    nome = _exportar(mini, aprovado)
+    _edit(mini, lambda d: d.update(assets=[{"arquivo": f"assets/openverse/{nome}", "destino": "fora/x.png",
+                                            "openverse": {"id": aprovado["id"], "pedido": PEDIDO, "extra": 1}}]))
+    assert not ct.validate(ct.load(mini)).ok
+    rc, out, _ = cli(["library", "verify", str(mini)], capsys)
+    assert rc == 1 and "schema" in out and "tudo certo" not in out
+    rc, out, _ = cli(["library", "verify", str(mini), "--json"], capsys)
+    doc = json.loads(out)
+    assert rc == 1 and doc["ok"] is False and any(e.startswith("schema:") for e in doc["erros"])
+
+
+def test_creditos_do_video_trocam_o_link_em_vez_de_seguir_o_link(env, aprovado, mini, tmp_path, sem_ffmpeg_no_manifesto):
+    _declarar(mini, aprovado)
+    dst = _mp4(mini)
+    alvo = tmp_path / "fora-da-saida.txt"
+    alvo.write_text("original", encoding="utf8")
+    (dst.parent / "mini.CREDITS-openverse.md").symlink_to(alvo)
+    _manifesto(mini)
+    assert alvo.read_text(encoding="utf8") == "original"
+    cred = dst.parent / "mini.CREDITS-openverse.md"
+    assert not cred.is_symlink() and cred.read_text(encoding="utf8").startswith("# Créditos")
+    assert (cred.stat().st_mode & 0o777) == 0o644  # um arquivo normal da pasta de saída, como o MP4
+    assert not [p for p in dst.parent.iterdir() if p.name.endswith(".tmp")]  # nenhum temporário fica para trás
+
+
 # ------------------------------------------------------------------------------------------------ docs
 
 def test_docs_explicam_o_fluxo_do_ativo_no_contrato():
@@ -706,6 +1039,37 @@ def test_docs_explicam_o_fluxo_do_ativo_no_contrato():
     rec = (ROOT / "docs" / "recursos.md").read_text(encoding="utf8")
     assert "openverse_contract.py" in rec and "O contrato ainda não conhece o Openverse" not in rec
     assert "Não está integrado ao `contract.yaml`/schema do render ainda" not in rec
+
+
+def _secao_do_openverse_no_skill():
+    skill = (ROOT / "skills" / "simplicio-video" / "SKILL.md").read_text(encoding="utf8")
+    return skill.split("## Imagens e áudio do Openverse", 1)[1].split("\n## ", 1)[0]
+
+
+def test_skill_e_agents_mandam_usar_o_arquivo_exportado_como_esta():
+    secao = _secao_do_openverse_no_skill()
+    for trecho in ("Use o arquivo exportado como está", "CSS", "derivado em disco", "by-nd"):
+        assert trecho in secao, trecho
+    ag = (ROOT / "AGENTS.md").read_text(encoding="utf8")
+    assert "use o arquivo exportado como está" in ag and "derivado em disco" in ag
+
+
+def test_skill_diz_por_onde_o_ativo_nao_entra_e_o_limite_da_narracao():
+    secao = _secao_do_openverse_no_skill()
+    for trecho in ("placas_video", "pasta do template", "bytes de toda a composição", "voz.providers.file.dir"):
+        assert trecho in secao, trecho
+    ag = (ROOT / "AGENTS.md").read_text(encoding="utf8")
+    assert "placas_video" in ag and "composição compilada" in ag
+
+
+def test_skill_diz_que_nenhum_template_embutido_referencia_audio_externo():
+    assert "Nenhum template embutido referencia áudio externo" in _secao_do_openverse_no_skill()
+    # a frase acima só vale enquanto for verdade: todo <audio> dos templates embutidos é a trilha que o motor mixa
+    achados = {}
+    for html in sorted((paths.data_dir() / "templates").glob("*/composition/*.html")):
+        srcs = re.findall(r"<audio\b[^>]*\bsrc=[\"']([^\"']+)", html.read_text(encoding="utf8"))
+        achados[html.parent.parent.name] = [x for x in srcs if x != "assets/audio/build/mix.wav"]
+    assert achados and not {k: v for k, v in achados.items() if v}, achados
 
 
 # ------------------------------------------------------------------------------------------------ render de verdade (node + HyperFrames)
@@ -727,3 +1091,25 @@ def test_render_de_verdade_com_ativo_openverse_grava_manifesto_e_creditos_iguais
     for k in ("video_frames_sha256", "audio_pcm_sha256"):
         assert a["output"][k] == b["output"][k], k
     assert json.loads(texto_a)["openverse"] == a["openverse"]
+
+
+@pytest.mark.render
+@pytest.mark.skipif(not have_render_tools(), reason="needs node, npx and ffmpeg")
+def test_render_de_verdade_recusa_placa_e_copia_do_template_antes_de_gerar_o_mp4(env, aprovado, mini):
+    nome = _exportar(mini, aprovado)
+    _sem_voz(mini)
+    saida = mini.parent / "out" / "mini.mp4"
+    # a placa de vídeo apontando para o arquivo exportado: o validate recusa, nada é renderizado
+    _edit(mini, lambda d: d.update(placas_video=[_placa(f"assets/openverse/{nome}")]))
+    with pytest.raises(SystemExit, match="placas_video"):
+        render.render_local(ct.load(mini), log=lambda *_: None)
+    # uma cópia exata na pasta do template: o validate não a vê, a composição compilada (node de verdade) sim
+    _edit(mini, lambda d: d.pop("placas_video"))
+    pasta = mini.parent / "template" / "composition" / "assets"
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "foto.png").write_bytes(_bytes_da_biblioteca(env, aprovado))
+    assert ct.validate(ct.load(mini)).ok
+    with pytest.raises(SystemExit, match="assets/foto.png"):
+        render.render_local(ct.load(mini), log=lambda *_: None)
+    assert not saida.exists() and not (mini.parent / "render.manifest.json").exists()
+    assert not list((mini.parent / "out").glob("*CREDITS*")) if (mini.parent / "out").exists() else True
