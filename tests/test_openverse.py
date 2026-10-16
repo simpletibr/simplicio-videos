@@ -1742,6 +1742,85 @@ def test_status_diz_quando_o_indice_e_invalido(env):
     assert resumo["itens"] is None and "índice inválido" in resumo["indice_erro"]
 
 
+# ------------------------------------------------------------------------------------------------ revisão por trio (achado 2 da revisão do PR #108)
+
+@needs_ffmpeg
+def test_dois_ids_com_os_mesmos_bytes_aprovar_um_nao_aprova_o_outro(env, midia):
+    env.api.images["results"][1]["creator"] = "Quem Reenviou"
+    env.api.images["results"][1]["license"] = "cc0"  # os mesmos bytes reenviados como CC0, sem a atribuição que o autor real exige
+    env.api.images["results"][1]["license_url"] = "https://creativecommons.org/publicdomain/zero/1.0/"
+    a = baixar(env, idx=0, body=midia["nitida"])
+    b = baixar(env, idx=1, body=midia["nitida"])
+    assert a["sha256"] == b["sha256"] and a["id"] != b["id"]
+    ov.review_sheet(a["id"], PEDIDO)
+    ov.review(a["id"], PEDIDO, "aprovado", "autor e licença conferidos na origem", "revisor")
+    assert ov.review_status(a["id"], PEDIDO) == "aprovado"
+    assert ov.review_status(b["id"], PEDIDO) == "nao_revisado"
+    assert ov.library_show(b["id"], PEDIDO)["status"] == "nao_revisado" and ov.library_show(b["id"])["aprovado_para"] == []
+    assert next(r for r in ov.library_list() if r["id"] == b["id"])["aprovado_para"] == []
+    dest = env.tmp / "saida"
+    with pytest.raises(ov.OpenverseError, match="nao_revisado"):
+        ov.export(b["id"], PEDIDO, para=dest)
+    assert not dest.exists() or not list(dest.iterdir())
+    with pytest.raises(ov.OpenverseError, match="folha"):  # o outro id também precisa da própria folha
+        ov.review(b["id"], PEDIDO, "aprovado", "serve", "revisor")
+    ov.review_sheet(b["id"], PEDIDO)
+    ov.review(b["id"], PEDIDO, "aprovado", "conferi a origem deste id", "revisor")
+    assert ov.review_status(b["id"], PEDIDO) == "aprovado"
+    texto = Path(ov.export(b["id"], PEDIDO, para=dest)["creditos"]).read_text(encoding="utf8")
+    assert "Quem Reenviou" in texto and "Phuketian.S" not in texto
+
+
+@needs_ffmpeg
+def test_get_atualizar_com_os_mesmos_bytes_e_outro_autor_pede_nova_revisao(env, midia):
+    a = baixar(env, idx=0, body=midia["nitida"])
+    ov.review_sheet(a["id"], PEDIDO)
+    ov.review(a["id"], PEDIDO, "aprovado", "ok", "revisor")
+    ov.get(a["id"], tipo="imagem", atualizar=True)  # nada mudou na origem: a aprovação continua
+    assert ov.review_status(a["id"], PEDIDO) == "aprovado"
+    env.api.images["results"][0]["creator"] = "Autor Trocado"
+    env.api.images["results"][0]["foreign_landing_url"] = "https://outra-origem.example/x"
+    novo = ov.get(a["id"], tipo="imagem", atualizar=True)["item"]
+    assert novo["sha256"] == a["sha256"] and novo["autor"] == "Autor Trocado"
+    assert ov.review_status(a["id"], PEDIDO) == "nao_revisado"
+    with pytest.raises(ov.OpenverseError, match="nao_revisado"):
+        ov.export(a["id"], PEDIDO, para=env.tmp / "saida")
+    ov.review_sheet(a["id"], PEDIDO)
+    ov.review(a["id"], PEDIDO, "aprovado", "conferi o novo autor na origem", "revisor")
+    assert "Autor Trocado" in Path(ov.export(a["id"], PEDIDO, para=env.tmp / "saida")["creditos"]).read_text(encoding="utf8")
+
+
+@needs_ffmpeg
+def test_revisao_grava_o_trio_e_a_proveniencia(env, midia):
+    a = baixar(env, body=midia["nitida"])
+    ov.review_sheet(a["id"], PEDIDO)
+    rev = ov.review(a["id"], PEDIDO, "aprovado", "ok", "revisor")
+    assert rev["id"] == a["id"] and rev["sha256"] == a["sha256"] and rev["pedido_normalizado"] == ov.normalize_pedido(PEDIDO)
+    assert re.fullmatch(r"[0-9a-f]{64}", rev["proveniencia_sha256"])
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("tirar", ["id", "proveniencia_sha256"])
+def test_revisao_antiga_so_com_o_sha256_nao_vale_e_o_indice_diz_o_que_fazer(env, midia, tirar):
+    a = baixar(env, body=midia["nitida"])
+    ov.review_sheet(a["id"], PEDIDO)
+    ov.review(a["id"], PEDIDO, "aprovado", "ok", "revisor")
+    _forjar(env, lambda d: d["revisoes"][0].pop(tirar, None))
+    with pytest.raises(ov.OpenverseError, match="índice inválido") as e:
+        ov.export(a["id"], PEDIDO, para=env.tmp / "saida")
+    assert "revis" in str(e.value) and "revise de novo" in str(e.value)
+    assert not (env.tmp / "saida").exists()
+
+
+@needs_ffmpeg
+def test_veredito_forjado_so_com_sha256_e_pedido_nao_passa_no_export(env, midia):
+    a = baixar(env, body=midia["nitida"])
+    _forjar(env, lambda d: d["revisoes"].append({"sha256": a["sha256"], "pedido_normalizado": ov.normalize_pedido(PEDIDO), "veredito": "aprovado"}))
+    with pytest.raises(ov.OpenverseError):
+        ov.export(a["id"], PEDIDO, para=env.tmp / "saida")
+    assert not (env.tmp / "saida").exists()
+
+
 # ------------------------------------------------------------------------------------------------ status, dados, docs
 
 def test_status_json_mostra_a_biblioteca_e_se_as_credenciais_existem_sem_o_valor(env, capsys, monkeypatch):
