@@ -476,6 +476,54 @@ def test_id_inexistente_ou_malicioso(stub_spawn):
             jobs.status(jid)
 
 
+# ---------------------------------------------------------------- I1: saída longa sem quebra de linha
+
+def _runner_com_script(monkeypatch, tmp_path, mini, corpo: str):
+    """Roda o runner de verdade com um script no lugar do `python -m simplicio_video`: só a saída dele importa."""
+    import asyncio
+
+    script = tmp_path / "fakepy"
+    script.write_text("#!/bin/sh\n" + corpo)
+    script.chmod(0o755)
+
+    class Shim:  # o runner executa [sys.executable, "-m", "simplicio_video", *argv]
+        executable = str(script)
+
+    monkeypatch.setattr(jobs, "sys", Shim)
+    jid = "20261016-000000-0badc0de"
+    jobs.write_json_atomic(jobs.job_dir(jid) / "job.json", {
+        "schema": jobs.SCHEMA, "id": jid, "kind": "voice", "state": "queued", "created_at": jobs.now_iso(),
+        "params": {"contrato": str(mini), "provider": "file"}, "cwd": str(tmp_path)})
+
+    async def go():
+        return await asyncio.wait_for(jobs._runner(jid), timeout=25)
+
+    asyncio.run(go())
+    return jid
+
+
+def test_i1_saida_longa_sem_quebra_de_linha_nao_trava_o_runner(monkeypatch, tmp_path, mini):
+    corpo = r"""i=0; while [ $i -lt 4000 ]; do printf '\r 45%%|#####     | 450/1000 [00:10<00:12]'; i=$((i+1)); done
+echo
+head -c 300000 /dev/zero | tr '\0' 'y'; echo
+echo '{"ok": true}'
+exit 0
+"""
+    jid = _runner_com_script(monkeypatch, tmp_path, mini, corpo)
+    st = jobs.read_state(jid)
+    assert st["state"] in ("done", "failed") and st["exit_code"] == 0
+    log = jobs.read_log(jid)
+    assert '{"ok": true}' in log, "a última linha (resultado) chegou ao log depois da saída longa"
+
+
+def test_i1_chave_na_fronteira_de_um_bloco_continua_apagada(monkeypatch, tmp_path, mini):
+    chave = "AIzaSy" + "Z" * 33
+    corpo = (f"head -c 65500 /dev/zero | tr '\\0' 'y'; printf '{chave}'; head -c 70000 /dev/zero | tr '\\0' 'y'; echo\n"
+             "exit 0\n")
+    jid = _runner_com_script(monkeypatch, tmp_path, mini, corpo)
+    assert chave not in jobs.read_log(jid) and chave not in json.dumps(jobs.read_state(jid))
+
+
 # ---------------------------------------------------------------- CLI
 
 def test_ajuda_do_jobs():
