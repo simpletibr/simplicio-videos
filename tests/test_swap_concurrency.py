@@ -204,7 +204,7 @@ def test_ctrl_c_cancela_limpo(longo, capsys):
     assert swap.run_swap(argv(longo, "--timeout", "60")) == 130
     assert "interrompido" in capsys.readouterr().err.lower()
     m = manifest(longo)
-    assert m["state"] == "cancelled" and all(c["state"] == "cancelled" for c in m["chunks"])
+    assert m["state"] == "interrupted" and all(c["state"] == "interrupted" for c in m["chunks"])
     assert sobras(longo) == []
     assert not (longo["dir"] / "out" / "swapped.mp4").exists()
     time.sleep(0.3)

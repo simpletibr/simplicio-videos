@@ -17,7 +17,7 @@ from simplicio_video import cli, mcp_server, swap, swap_providers
 from simplicio_video.swap_providers import fake, http
 
 FIX = Path(__file__).parent / "fixtures" / "swap"
-FAKE_KEY = "AIzaSyFAKE-KEY-for-tests-0000000000"
+FAKE_KEY = "test-gemini-key-not-real-000000"
 needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 
 
@@ -493,11 +493,11 @@ def test_gemini_503_e_transitorio(gemini, media, monkeypatch):
 
 
 def test_gemini_base_configuravel(gemini, media, monkeypatch):
-    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", "http://proxy.local/v1beta")
+    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", "https://proxy.local/v1beta")
     rota = Rota([(200, fx("gemini_in_progress.json"))])
     monkeypatch.setattr(http, "request", rota)
     gemini.submit(gjob(media))
-    assert rota.calls[0]["url"] == "http://proxy.local/v1beta/interactions"
+    assert rota.calls[0]["url"] == "https://proxy.local/v1beta/interactions"
 
 
 @needs_ffmpeg
@@ -584,3 +584,251 @@ def test_mcp_registrado():
     plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
     assert any(v["verb"] == "video.swap" for v in plugin["commands"])
     assert "video.swap" in plugin["mcp"]["tools"]
+
+
+# ---------------------------------------------------------------- revisão do PR #103 (I1 a I6)
+
+def dois_pedacos(monkeypatch):
+    monkeypatch.setattr(fake.FakeAdapter, "capabilities", fake.FakeAdapter.capabilities.__class__(
+        **{**fake.FakeAdapter.capabilities.__dict__, "max_input_s": 5.0}))
+
+
+@needs_ffmpeg
+def test_i1_caminho_com_apostrofo_e_espaco_emenda(media, monkeypatch):
+    dois_pedacos(monkeypatch)
+    out = media["dir"] / "Joana's dir" / "out.mp4"
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5", out=out)) == 0
+    assert out.is_file() and len(fake.FakeAdapter.submits) == 2
+
+
+@needs_ffmpeg
+def test_i1_falha_na_emenda_nao_apaga_os_pedacos_pagos(media, monkeypatch, capsys):
+    dois_pedacos(monkeypatch)
+    real = swap._run
+
+    def run(cmd):
+        if "concat" in cmd:
+            raise swap.SwapError("ffmpeg falhou (simulado)")
+        return real(cmd)
+
+    monkeypatch.setattr(swap, "_run", run)
+    out = media["dir"] / "out" / "swapped.mp4"
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5", out=out)) == 1
+    man = json.loads((out.parent / "swap.manifest.json").read_text())
+    rec = Path(man["recovery_dir"])
+    assert rec.is_dir() and str(rec) in capsys.readouterr().err
+    assert sorted(p.name for p in rec.glob("raw-*.mp4")) == ["raw-00.mp4", "raw-01.mp4"]
+    assert [Path(c["raw_path"]).is_file() for c in man["chunks"]] == [True, True]
+    assert not list(out.parent.glob(".swap-work-*"))
+
+
+@pytest.mark.parametrize("fixture,chamadas", [("gemini_error_quota.json", 1), ("gemini_error_quota_paid.json", 1)])
+def test_i4_erro_de_cota_nunca_repete(gemini, media, monkeypatch, fixture, chamadas):
+    rota = Rota([(429, fx(fixture))])
+    monkeypatch.setattr(http, "request", rota)
+    with pytest.raises(swap_providers.ProviderError) as e:
+        swap._com_tentativas(lambda: gemini.submit(gjob(media)), tentativas=[0])
+    assert e.value.retryable is False and len(rota.calls) == chamadas
+
+
+def test_i4_plano_gratis_com_texto_de_cota_cita_faturamento(gemini, media, monkeypatch):
+    monkeypatch.setattr(http, "request", Rota([(429, fx("gemini_error_quota.json"))]))
+    with pytest.raises(swap_providers.ProviderError, match="faturamento"):
+        gemini.submit(gjob(media))
+
+
+def test_i4_limite_de_taxa_comum_continua_transitorio(gemini, media, monkeypatch):
+    corpo = b'{"error":{"code":429,"message":"Too many requests, slow down","status":"RESOURCE_EXHAUSTED"}}'
+    monkeypatch.setattr(http, "request", Rota([(429, corpo)]))
+    with pytest.raises(swap_providers.ProviderError) as e:
+        gemini.submit(gjob(media))
+    assert e.value.retryable is True
+
+
+def chaves_por_formato():
+    """Chaves falsas montadas em tempo de execução (nunca como literal): casam com o formato, não estão no ambiente."""
+    return ["AIza" + "Sy" + "B" * 33 + "-_", "AQ." + "Ab8" + "x" * 40 + "._-"]
+
+
+@pytest.mark.parametrize("chave", chaves_por_formato())
+def test_i6_scrub_pega_chave_pelo_formato(chave):
+    assert chave not in swap.scrub(f"vazou {chave} no meio")
+    assert "***" in swap.scrub(f"vazou {chave} no meio")
+
+
+@pytest.mark.parametrize("chave", chaves_por_formato())
+def test_i6_manifesto_nao_grava_chave_pelo_formato(tmp_path, chave):
+    swap.write_manifest(tmp_path / "m.json", {"prompt": f"use {chave} aqui"})
+    assert chave not in (tmp_path / "m.json").read_text()
+
+
+@pytest.mark.parametrize("chave", chaves_por_formato())
+def test_i6_mensagem_de_erro_do_provedor_nao_ecoa_chave(gemini, media, monkeypatch, chave, capsys):
+    corpo = json.dumps({"error": {"code": 400, "message": f"API key not valid: {chave}"}}).encode()
+    monkeypatch.setattr(http, "request", Rota([(400, corpo)]))
+    with pytest.raises(swap_providers.ProviderError) as e:
+        gemini.submit(gjob(media))
+    assert chave not in str(e.value)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("chave", chaves_por_formato())
+def test_i6_prompt_com_chave_nao_chega_ao_manifesto_nem_ao_log(media, chave, capsys):
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5", "--prompt", f"minha chave {chave}")) == 0
+    cap = capsys.readouterr()
+    for texto in ((media["dir"] / "out" / "swap.manifest.json").read_text(), cap.out, cap.err):
+        assert chave not in texto
+
+
+@needs_ffmpeg
+def test_i2_manifesto_com_handle_existe_antes_do_fim(media, monkeypatch):
+    visto = {}
+
+    def poll(self, handle):
+        m = media["dir"] / "out" / "swap.manifest.json"
+        visto["handle"] = json.loads(m.read_text())["chunks"][0]["handle"] if m.is_file() else None
+        return swap_providers.base.Status("done")
+
+    monkeypatch.setattr(fake.FakeAdapter, "poll", poll)
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
+    assert visto["handle"] == {"id": "fake-0"}
+
+
+@needs_ffmpeg
+def test_i2_ctrl_c_grava_manifesto_parcial(media, monkeypatch, capsys):
+    def poll(self, handle):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(fake.FakeAdapter, "poll", poll)
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 130
+    man = json.loads((media["dir"] / "out" / "swap.manifest.json").read_text())
+    assert man["state"] == "interrupted" and man["chunks"][0]["handle"] == {"id": "fake-0"}
+    assert "Traceback" not in capsys.readouterr().err
+
+
+@needs_ffmpeg
+def test_i2_excecao_inesperada_grava_manifesto_parcial(media, monkeypatch, capsys):
+    def fetch(self, handle):
+        raise KeyError("campo inesperado")
+
+    monkeypatch.setattr(fake.FakeAdapter, "fetch", fetch)
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 1
+    man = json.loads((media["dir"] / "out" / "swap.manifest.json").read_text())
+    assert man["state"] == "failed" and "campo inesperado" in man["error"]
+    assert man["chunks"][0]["handle"] == {"id": "fake-0"} and man["chunks"][0]["state"] == "failed"
+    assert "Traceback" not in capsys.readouterr().err
+
+
+@needs_ffmpeg
+def test_i2_excecao_depois_do_download_preserva_pedacos(media, monkeypatch):
+    dois_pedacos(monkeypatch)
+
+    def normalize(*a, **k):
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr(swap, "_normalize", normalize)
+    out = media["dir"] / "out" / "swapped.mp4"
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5", out=out)) == 1
+    man = json.loads((out.parent / "swap.manifest.json").read_text())
+    assert sorted(p.name for p in Path(man["recovery_dir"]).glob("raw-*.mp4")) == ["raw-00.mp4", "raw-01.mp4"]
+
+
+@needs_ffmpeg
+def test_i3_erro_de_rede_no_submit_nao_repete_e_avisa_do_risco(media, monkeypatch, capsys):
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+    chamadas = []
+
+    def request(method, url, headers=None, json_body=None, timeout=60):
+        chamadas.append(method)
+        raise http.NetworkError("falha de rede: TimeoutError")
+
+    monkeypatch.setattr(http, "request", request)
+    argv = ["run", "--provider", "gemini", "--video", str(media["video"]), "--ref", str(media["ref"]),
+            "--out", str(media["dir"] / "out" / "o.mp4"), "--autorizo", "--yes", "--max-usd", "5"]
+    assert swap.run_swap(argv) == 1
+    assert chamadas == ["POST"]  # um único POST: repetir poderia cobrar em dobro
+    err = capsys.readouterr().err
+    assert "cobr" in err and "não foi repetido" in err
+    man = json.loads((media["dir"] / "out" / "swap.manifest.json").read_text())
+    assert man["chunks"][0]["possibly_charged"] is True and man["attempts"] == 1
+
+
+@needs_ffmpeg
+def test_i3_resposta_5xx_do_submit_continua_com_nova_tentativa(media, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+    clip = media["video"].read_bytes()
+    completo = json.dumps({"id": "v1_abc123", "status": "completed", "steps": [{"type": "model_output", "content": [
+        {"type": "video", "mime_type": "video/mp4", "data": base64.b64encode(clip).decode()}]}]}).encode()
+    rota = Rota([(503, fx("gemini_error_503.json")), (200, fx("gemini_in_progress.json")), (200, completo)])
+    monkeypatch.setattr(http, "request", rota)
+    argv = ["run", "--provider", "gemini", "--video", str(media["video"]), "--ref", str(media["ref"]),
+            "--out", str(media["dir"] / "out" / "o.mp4"), "--autorizo", "--yes", "--max-usd", "5"]
+    assert swap.run_swap(argv) == 0
+    assert [c["method"] for c in rota.calls[:2]] == ["POST", "POST"]
+
+
+def _swap_verbs():
+    plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
+    return [v for v in plugin["commands"] if v.get("argv", [])[:2] == ["simplicio-video", "swap"]]
+
+
+def test_i5_plugin_nao_expoe_run_nem_args_livre():
+    verbs = _swap_verbs()
+    assert {v["verb"] for v in verbs} >= {"video.swap"}
+    for v in verbs:
+        assert v["argv"][2] in ("providers", "estimate"), v["verb"]  # literal: o agente não escolhe o subcomando
+        assert "{args}" not in v["argv"] and "args" not in v["args_schema"].get("properties", {}), v["verb"]
+        assert v["args_schema"].get("additionalProperties") is False
+        proibidos = {"run", "--autorizo", "--yes", "--max-usd", "--aceito-unverified", "--force", "--out", "--prompt"}
+        assert not proibidos & set(v["argv"]), v["verb"]
+        for placeholder in (a for a in v["argv"] if a.startswith("{")):
+            assert placeholder.strip("{}") in v["args_schema"]["properties"], placeholder
+
+
+def test_i5_verbo_estimate_exige_provider_video_e_ref():
+    v = next(v for v in _swap_verbs() if v["argv"][2] == "estimate")
+    assert {"provider", "video", "ref"} <= set(v["args_schema"]["required"])
+    assert "run" not in json.dumps(v["args_schema"]["properties"])
+
+
+@pytest.mark.parametrize("uri,com_chave", [
+    ("https://generativelanguage.googleapis.com/v1beta/files/abc:download", True),
+    ("https://evilgoogleapis.com/x", False),
+    ("http://generativelanguage.googleapis.com/v1beta/files/abc", False),
+])
+def test_m2_chave_so_vai_para_google_por_https(gemini, monkeypatch, uri, com_chave):
+    corpo = json.dumps({"id": "v1", "status": "completed", "steps": [{"type": "model_output", "content": [
+        {"type": "video", "mime_type": "video/mp4", "uri": uri}]}]}).encode()
+    rota = Rota([(200, corpo), (200, b"BYTES")])
+    monkeypatch.setattr(http, "request", rota)
+    gemini.fetch({"id": "v1"})
+    assert ("x-goog-api-key" in rota.calls[1]["headers"]) is com_chave
+
+
+def test_m2_base_http_so_em_loopback(gemini, media, monkeypatch):
+    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", "http://proxy.local/v1beta")
+    monkeypatch.setattr(http, "request", Rota([(200, fx("gemini_in_progress.json"))]))
+    with pytest.raises(swap.SwapError, match="https"):
+        gemini.submit(gjob(media))
+    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", "http://127.0.0.1:8080/v1beta")
+    assert gemini.submit(gjob(media))["id"]
+
+
+@pytest.mark.parametrize("valor", ["nan", "-1", "inf"])
+def test_m3_max_usd_invalido_e_recusado(media, capsys, valor):
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", valor)) != 0
+    assert "--max-usd" in capsys.readouterr().err
+    assert fake.FakeAdapter.submits == []
+
+
+def test_m7_chave_com_caractere_de_controle_e_recusada(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "abc\ndef-chave")
+    with pytest.raises(swap.SwapError, match="GEMINI_API_KEY") as e:
+        swap_providers.get("gemini").api_key()
+    assert "abc" not in str(e.value)
+
+
+@needs_ffmpeg
+def test_i1_sucesso_limpa_a_pasta_de_trabalho(media):
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
+    assert not list((media["dir"] / "out").glob(".swap-work-*")) and not list((media["dir"] / "out").glob("*recovery*"))

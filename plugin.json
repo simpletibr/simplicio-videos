@@ -471,21 +471,65 @@
     },
     {
       "verb": "video.swap",
-      "description": "Character swap (provider-agnostic), read-only over MCP: providers and estimate. Paid runs only in the terminal: simplicio-video swap run --autorizo --yes.",
+      "description": "Character swap cost estimate (read-only, no network): provider, video and avatar image in, price out. Paid runs exist only in the terminal: simplicio-video swap run --autorizo --yes.",
       "argv": [
         "simplicio-video",
         "swap",
-        "{args}"
+        "estimate",
+        "--provider",
+        "{provider}",
+        "--video",
+        "{video}",
+        "--ref",
+        "{ref}",
+        "--resolution",
+        "{resolution}",
+        "--json"
       ],
       "args_schema": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "provider",
+          "video",
+          "ref"
+        ],
         "properties": {
-          "args": {
+          "provider": {
             "type": "string",
-            "description": "providers [--json] | estimate --provider <name> --video <file> --ref <image> [--resolution 720p] [--json]"
+            "description": "adapter name (see video.swap.providers)"
+          },
+          "video": {
+            "type": "string",
+            "description": "input video file"
+          },
+          "ref": {
+            "type": "string",
+            "description": "avatar image file"
+          },
+          "resolution": {
+            "enum": [
+              "720p",
+              "1080p"
+            ],
+            "default": "720p"
           }
         }
+      }
+    },
+    {
+      "verb": "video.swap.providers",
+      "description": "List character swap providers, capabilities, prices (USD and BRL) and confidence. Read-only.",
+      "argv": [
+        "simplicio-video",
+        "swap",
+        "providers",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
       }
     },
     {

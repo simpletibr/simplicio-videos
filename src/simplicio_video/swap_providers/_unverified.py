@@ -20,7 +20,7 @@ class UnverifiedAdapter(Adapter):
             raise self._error(res)
         data = res.json()
         if not isinstance(data, dict):
-            raise ProviderError(f"{self.name}: resposta que não é JSON", retryable=True)
+            raise ProviderError(f"{self.name}: resposta que não é JSON", retryable=True, network=True)
         return data
 
     def _state(self, raw: str | None) -> str:

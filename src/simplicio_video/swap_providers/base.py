@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,14 @@ PRICES_READ_ON = "2026-10-15"
 UNVERIFIED = "UNVERIFIED"
 
 
+KEY_PATTERN = re.compile(r"AIzaSy[A-Za-z0-9_-]{25,}|AQ\.[A-Za-z0-9_.-]{30,}")  # Google API key and OAuth-style token shapes
+
+
+def redact(text: str) -> str:
+    """Hide anything shaped like an API key, whether or not it is in the environment."""
+    return KEY_PATTERN.sub("***", text)
+
+
 class SwapError(Exception):
     pass
 
@@ -26,9 +35,11 @@ class SwapError(Exception):
 class ProviderError(SwapError):
     """A provider failure. `retryable` says whether trying the same call again can help."""
 
-    def __init__(self, message: str, retryable: bool = False):
+    def __init__(self, message: str, retryable: bool = False, network: bool = False):
         super().__init__(message)
         self.retryable = retryable
+        self.network = network  # the request may have reached the server: no answer came back
+        self.possibly_charged = False
 
 
 @dataclass(frozen=True)
@@ -125,13 +136,15 @@ class Adapter:
         key = os.environ.get(self.env_var, "").strip() if self.env_var else ""
         if self.env_var and not key:
             raise SwapError(f"{self.env_var} não definida: a chave do provedor {self.name} só entra por variável de ambiente")
+        if key and not re.fullmatch(r"[\x21-\x7e]+", key):
+            raise SwapError(f"{self.env_var} tem caractere inválido (espaço ou controle no meio): confira a variável")
         return key
 
     def _call(self, method: str, url: str, headers: dict | None = None, body: dict | None = None, timeout: float = 120):
         try:
             return http.request(method, url, headers=headers, json_body=body, timeout=timeout)
         except http.NetworkError as e:
-            raise ProviderError(f"{self.name}: {e}", retryable=True) from None
+            raise ProviderError(f"{self.name}: {e}", retryable=True, network=True) from None
 
     def _error(self, res: http.Response) -> ProviderError:
         """A non-2xx response as a ProviderError (5xx and 429 are transient, other 4xx are not)."""
@@ -140,8 +153,9 @@ class Adapter:
         if isinstance(data, dict):
             err = data.get("error")
             msg = (err.get("message") if isinstance(err, dict) else err) or data.get("message") or data.get("msg") or ""
-        msg = str(msg or res.body[:200].decode("utf8", "replace"))
-        return ProviderError(f"{self.name}: HTTP {res.status}: {msg}", retryable=res.status == 429 or res.status >= 500)
+        msg = redact(str(msg or res.body[:200].decode("utf8", "replace")))
+        quota = res.status == 429 and "quota" in msg.lower()  # an exhausted quota does not come back in seconds
+        return ProviderError(f"{self.name}: HTTP {res.status}: {msg}", retryable=(res.status == 429 and not quota) or res.status >= 500)
 
     # -- price ----------------------------------------------------------------------------------------------------
     def price_row(self, resolution: str) -> PriceRow:

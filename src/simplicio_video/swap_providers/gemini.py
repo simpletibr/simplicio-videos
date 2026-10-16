@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from urllib.parse import urlparse
 
-from .base import Adapter, Capabilities, PriceRow, ProviderError, Status, b64_file, mime_of
+from .base import Adapter, Capabilities, PriceRow, ProviderError, Status, SwapError, b64_file, mime_of
 
 BASE = "https://generativelanguage.googleapis.com/v1beta"
 PRICING = "https://ai.google.dev/gemini-api/docs/pricing"
@@ -27,6 +28,10 @@ IN_USD_PER_TOKEN = 1.5e-6    # US$ 1,50 per 1M input tokens
 FREE_PLAN_MSG = (
     "gemini: o plano grátis não tem cota para o modelo gemini-omni-1.1-flash (Rate limit exceeded ... limit: 0). "
     "Use uma chave de um projeto com faturamento ativo no Google AI Studio / Google Cloud. Não adianta tentar de novo."
+)
+QUOTA_MSG = (
+    "gemini: cota excedida (You exceeded your current quota). Confira o plano e o faturamento do projeto no Google AI Studio / "
+    "Google Cloud. Não adianta tentar de novo agora."
 )
 FAILED_STATES = ("failed", "cancelled", "canceled", "expired", "incomplete")  # UNVERIFIED: only completed/in_progress are documented
 
@@ -52,7 +57,11 @@ class GeminiAdapter(Adapter):
         self._usage: dict = {}
 
     def _base(self) -> str:
-        return os.environ.get("SIMPLICIO_GEMINI_BASE", "").strip().rstrip("/") or BASE
+        base = os.environ.get("SIMPLICIO_GEMINI_BASE", "").strip().rstrip("/") or BASE
+        u = urlparse(base)
+        if u.scheme != "https" and not (u.scheme == "http" and u.hostname in ("localhost", "127.0.0.1", "::1")):
+            raise SwapError("SIMPLICIO_GEMINI_BASE precisa ser https (http só em localhost): a chave não vai em texto claro")
+        return base
 
     def _headers(self) -> dict:
         return {"x-goog-api-key": self.api_key()}
@@ -62,12 +71,14 @@ class GeminiAdapter(Adapter):
         if res.status >= 400 or (isinstance(data, dict) and "error" in data and "steps" not in data and "status" not in data):
             err = data.get("error") if isinstance(data, dict) else None
             msg = (err.get("message") if isinstance(err, dict) else str(err or "")) or ""
-            low = msg.lower()
-            if "rate limit exceeded" in low and "limit: 0" in low:
+            low = (msg or res.body[:400].decode("utf8", "replace")).lower()
+            if res.status == 429 and re.search(r"limit:\s*0\b", low):  # free plan: no quota at all, whatever the wording
                 raise ProviderError(FREE_PLAN_MSG, retryable=False)
+            if res.status == 429 and "quota" in low:  # an exhausted quota does not come back by waiting seconds
+                raise ProviderError(QUOTA_MSG, retryable=False)
             raise self._error(res)
         if not isinstance(data, dict):
-            raise ProviderError("gemini: resposta que não é JSON", retryable=True)
+            raise ProviderError("gemini: resposta que não é JSON", retryable=True, network=True)
         return data
 
     def build_body(self, job) -> dict:
@@ -123,8 +134,10 @@ class GeminiAdapter(Adapter):
                 raise ProviderError("gemini: base64 do vídeo inválido", retryable=False) from None
         uri = video.get("uri")
         if uri:
-            host = urlparse(uri).hostname or ""
-            headers = self._headers() if host.endswith("googleapis.com") else {}  # the key goes only to Google
+            u = urlparse(uri)
+            host = u.hostname or ""
+            google = u.scheme == "https" and (host == "googleapis.com" or host.endswith(".googleapis.com"))
+            headers = self._headers() if google else {}  # the key goes only to Google, over TLS
             res = self._call("GET", uri, headers)
             if res.status >= 400:
                 raise self._error(res)

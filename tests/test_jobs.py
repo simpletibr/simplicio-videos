@@ -259,7 +259,7 @@ def test_cancelar_para_o_grupo_e_deixa_o_manifesto_cancelado(media, monkeypatch)
         time.sleep(0.05)
     assert not alive(run["runner_pid"]) and not alive(run["task_pid"])
     man = json.loads((media["dir"] / "out" / "swap.manifest.json").read_text())
-    assert man["state"] == "cancelled"
+    assert man["state"] == "interrupted"
     assert [p for p in (media["dir"] / "out").iterdir() if p.name.startswith(".swap-work")] == []
     assert not (media["dir"] / "out" / "s.mp4").exists()
 

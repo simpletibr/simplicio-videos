@@ -30,7 +30,7 @@ from pathlib import Path
 
 from . import swap_providers
 from .aio import athread, clamp, positive_int, run_sync
-from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError
+from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError, redact
 
 __all__ = ["Job", "SwapError", "SwapTimeout", "run_swap", "plan_chunks", "estimate_report", "providers_report"]
 
@@ -89,7 +89,7 @@ def _secrets() -> list[str]:
 def scrub(text: str) -> str:
     for v in _secrets():
         text = text.replace(v, "***")
-    return text
+    return redact(text)
 
 
 def sha256_file(path: Path) -> str:
@@ -151,13 +151,20 @@ def plan_chunks(total_s: float, max_s: float, min_s: float = 0.0) -> list[tuple[
     return [(total_s * i / n, length) for i in range(n)]
 
 
-def _com_tentativas(fn, tentativas: list, max_tries: int = MAX_TRIES):
-    """Call fn, retrying only transient provider errors with exponential backoff. tentativas[0] counts the calls."""
+def _com_tentativas(fn, tentativas: list, max_tries: int = MAX_TRIES, retry_network: bool = True):
+    """Call fn, retrying only transient provider errors with exponential backoff. tentativas[0] counts the calls.
+    With retry_network=False (submit) a network failure is never retried: the provider may have accepted and charged the
+    request without answering, and no provider supports an idempotency key here, so a retry could charge twice."""
     for i in range(max_tries):
         tentativas[0] += 1
         try:
             return fn()
         except ProviderError as e:
+            if e.network and not retry_network:
+                e.retryable, e.possibly_charged = False, True
+                e.args = (f"{e} A requisição pode ter sido aceita e cobrada sem resposta; o envio não foi repetido para não "
+                          "cobrar em dobro. Confira o painel do provedor antes de rodar de novo.",)
+                raise
             if not e.retryable or i == max_tries - 1:
                 raise
             _sleep(min(2.0 ** (i + 1), 30.0))
@@ -169,6 +176,7 @@ def write_manifest(path: Path, data: dict) -> None:
     for v in _secrets():
         if v in text:
             raise SwapError("segredo (chave de API) encontrado no manifesto: não gravado")
+    text = redact(text)  # a key-shaped string (e.g. pasted in --prompt) is hidden even when it is not in the environment
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf8")
 
@@ -253,6 +261,38 @@ def _normalize(raw: Path, dst: Path, info: dict, length: float, keep_audio: bool
           "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", *audio, str(dst)])
 
 
+def _concat_escape(name: str) -> str:
+    """Escape a name for the ffmpeg concat list (inside single quotes a `'` is written as `'\\''`)."""
+    return name.replace("'", "'\\''")
+
+
+def _preserve_paid(work: Path, out: Path, recs: list[dict], manifest: dict) -> str | None:
+    """On failure, keep the chunks already generated (and paid) in a recovery folder next to the output."""
+    raws = sorted(work.glob("raw-*.mp4"))
+    if not raws:
+        return None
+    dest = out.parent / f"{out.stem}.swap-recovery"
+    if dest.exists():
+        dest = out.parent / f"{out.stem}.swap-recovery-{os.getpid()}"
+    shutil.move(str(work), str(dest))
+    for f in dest.iterdir():
+        if not f.name.startswith("raw-"):
+            f.unlink(missing_ok=True)
+    for r in recs:
+        if r.get("raw_path"):
+            r["raw_path"] = str(dest / Path(r["raw_path"]).name)
+    manifest["recovery_dir"] = str(dest)
+    return str(dest)
+
+
+def _save_partial(path: Path, manifest: dict) -> None:
+    """Best effort: a partial manifest must never hide the error that is being handled."""
+    try:
+        write_manifest(path, manifest)
+    except (SwapError, OSError):
+        pass
+
+
 async def _asleep(seconds: float) -> None:
     """Sleep without blocking the loop. Tests replace `_sleep` with a fake clock: then honour it and only yield."""
     if _sleep is time.sleep:
@@ -279,13 +319,19 @@ async def _arun(cmd: list[str]) -> None:
         raise SwapError(f"{Path(cmd[0]).name} falhou ({proc.returncode}): {(err or b'').decode('utf8', 'replace')[-600:].strip()}")
 
 
-async def _acom_tentativas(fn, counter: list, max_tries: int = MAX_TRIES):
-    """`_com_tentativas` for the event loop: the blocking call runs in a thread, the backoff does not block the others."""
+async def _acom_tentativas(fn, counter: list, max_tries: int = MAX_TRIES, retry_network: bool = True):
+    """`_com_tentativas` for the event loop: the blocking call runs in a thread, the backoff does not block the others.
+    Same rule for submit: a network failure is never retried (the provider may have accepted and charged the request)."""
     for i in range(max_tries):
         counter[0] += 1
         try:
             return await athread(fn)
         except ProviderError as e:
+            if e.network and not retry_network:
+                e.retryable, e.possibly_charged = False, True
+                e.args = (f"{e} A requisição pode ter sido aceita e cobrada sem resposta; o envio não foi repetido para não "
+                          "cobrar em dobro. Confira o painel do provedor antes de rodar de novo.",)
+                raise
             if not e.retryable or i == max_tries - 1:
                 raise
             await _asleep(min(2.0 ** (i + 1), 30.0))
@@ -324,7 +370,7 @@ async def _apoll_until_done(adapter, handle: dict, rec: dict, timeout: float, in
 
 
 async def _chunk(i: int, p: "Plan", prompt: str, work: Path, rec: dict, counters: dict, gate: dict, timeout: float,
-                 poll_interval: float) -> Path:
+                 poll_interval: float, save) -> Path:
     """One chunk, from the cut to the downloaded bytes. The semaphore bounds how many chunks are in flight; the cut lock
     keeps ffmpeg serial (CPU) while the waits of the other chunks overlap with it."""
     adapter, info = p.adapter, p.info
@@ -346,17 +392,22 @@ async def _chunk(i: int, p: "Plan", prompt: str, work: Path, rec: dict, counters
             _log(f"swap: pedaço {i + 1}/{n} ({length:.1f} s): enviando para {adapter.name}")
             t = _now()
             try:
-                handle = await _acom_tentativas(lambda: adapter.submit(job), counters["submit"][i])
+                handle = await _acom_tentativas(lambda: adapter.submit(job), counters["submit"][i], retry_network=False)
+            except ProviderError as e:
+                rec["possibly_charged"] = e.possibly_charged
+                raise
             finally:
                 rec["attempts"] = counters["submit"][i][0]
             rec["latency"]["upload_s"] = round(_now() - t, 3)
             rec["handle"], rec["state"] = handle, "submitted"
+            save()  # the paid handle reaches the disk before the long wait
             await _apoll_until_done(adapter, handle, rec, timeout, poll_interval)
             t = _now()
             data = await _acom_tentativas(lambda: adapter.fetch(handle), counters["fetch"][i])
             rec["latency"]["download_s"] = round(_now() - t, 3)
             raw = work / f"raw-{i:02d}.mp4"
             raw.write_bytes(data)
+            rec["raw_path"] = str(raw)
             rec["state"] = "done"
             try:
                 rec["measured_usd"] = adapter.measured_usd(handle)
@@ -376,11 +427,11 @@ async def _chunk(i: int, p: "Plan", prompt: str, work: Path, rec: dict, counters
 
 
 async def _run_chunks(p: "Plan", prompt: str, work: Path, recs: list[dict], counters: dict, effective: int, timeout: float,
-                      poll_interval: float) -> list[Path]:
+                      poll_interval: float, save) -> list[Path]:
     """Submit every chunk (at most `effective` in flight), poll them concurrently and return the raw files in chunk order.
     The first failure cancels the others and is the error reported (the lowest chunk index when several fail together)."""
     gate = {"sem": asyncio.Semaphore(effective), "cut": asyncio.Lock()}
-    tasks = [asyncio.create_task(_chunk(i, p, prompt, work, recs[i], counters, gate, timeout, poll_interval),
+    tasks = [asyncio.create_task(_chunk(i, p, prompt, work, recs[i], counters, gate, timeout, poll_interval, save),
                                  name=f"swap-chunk-{i}") for i in range(len(p.chunks))]
     try:
         await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
@@ -424,7 +475,7 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         "attempts": 0, "fetch_attempts": 0, "timing": None, "chunks": [], "output": None, "error": None,
     }
     recs = [{"index": i, "start_s": round(start, 3), "length_s": round(length, 3), "state": "pending", "handle": None,
-             "attempts": 0, "error": None, "measured_usd": None,
+             "attempts": 0, "error": None, "measured_usd": None, "possibly_charged": False,
              "latency": {"upload_s": None, "queue_s": None, "generation_s": None, "download_s": None, "total_s": None}}
             for i, (start, length) in enumerate(p.chunks)]
     manifest["chunks"] = recs
@@ -434,9 +485,13 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         manifest["attempts"] = sum(c[0] for c in counters["submit"])
         manifest["fetch_attempts"] = sum(c[0] for c in counters["fetch"])
 
+    def save() -> None:
+        tally()
+        _save_partial(manifest_path, manifest)
+
     try:
         t_wall = _now()
-        raws = run_sync(_run_chunks(p, prompt, work, recs, counters, effective, timeout, poll_interval))
+        raws = run_sync(_run_chunks(p, prompt, work, recs, counters, effective, timeout, poll_interval, save))
         wall = _now() - t_wall
         tally()
         sum_chunks = sum(r["latency"]["total_s"] or 0.0 for r in recs)
@@ -455,7 +510,7 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         joined = norm[0]
         if len(norm) > 1:
             lst = work / "list.txt"
-            lst.write_text("".join(f"file '{n}'\n" for n in norm), encoding="utf8")
+            lst.write_text("".join(f"file '{_concat_escape(n.name)}'\n" for n in norm), encoding="utf8")  # relative: ffmpeg resolves it next to list.txt
             joined = work / "joined.mp4"
             _run([_bin("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(joined)])
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -471,23 +526,25 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         manifest["state"] = "done"
         write_manifest(manifest_path, manifest)
         return manifest
-    except SwapError as e:
+    except BaseException as e:  # noqa: BLE001 (Ctrl+C and unexpected errors must keep the paid handles too)
         tally()
-        manifest["state"] = "timeout" if isinstance(e, SwapTimeout) else "failed"
-        manifest["error"] = scrub(str(e))
+        kept = _preserve_paid(work, out, recs, manifest)
+        if kept:
+            e.args = (f"{e} Os pedaços já gerados e pagos ficaram em {kept} (nada foi apagado).",)
+        interrupted = isinstance(e, (KeyboardInterrupt, asyncio.CancelledError))
+        if interrupted:
+            manifest["state"] = "interrupted"
+        elif isinstance(e, SwapTimeout):
+            manifest["state"] = "timeout"
+        else:
+            manifest["state"] = "failed"
+        manifest["error"] = scrub(str(e) or type(e).__name__) if isinstance(e, SwapError) else scrub(f"{type(e).__name__}: {e}")
         for r in recs:
-            if r["state"] == "pending":  # never started because another chunk failed first
-                r["state"] = "cancelled"
-        write_manifest(manifest_path, manifest)
-        raise
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        tally()
-        manifest["state"] = "cancelled"
-        manifest["error"] = "interrompido (Ctrl+C ou cancelamento); os handles dos pedaços enviados ficam no manifesto"
-        for r in recs:
-            if r["state"] != "done":
-                r["state"] = "cancelled"
-        write_manifest(manifest_path, manifest)
+            if r["state"] == "pending" or (interrupted and r["state"] != "done"):
+                r["state"] = "interrupted" if interrupted else "cancelled"  # never started / stopped before the end
+            if r["state"] == "interrupted":
+                r["error"] = manifest["error"]
+        _save_partial(manifest_path, manifest)
         raise
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -630,6 +687,8 @@ def _cmd_run(a) -> int:
                         f"e que não vai usar a troca para enganar ou imitar alguém. Texto registrado: \"{AUTORIZACAO_TEXTO}\"")
     if not a.video:
         raise SwapError("falta --video <arquivo>")
+    if not (math.isfinite(a.max_usd) and a.max_usd >= 0):
+        raise SwapError("--max-usd precisa ser um número finito, 0 ou maior")
     p = prepare(a.provider, a.video, a.ref, a.resolution)
     out = Path(a.out)
     over = p.estimate.usd > a.max_usd
@@ -685,6 +744,8 @@ def run_swap(argv: list[str]) -> int:
         print(f"swap: {scrub(str(e))}", file=sys.stderr)
         return getattr(e, "code", 1)
     except KeyboardInterrupt:
-        print("swap: interrompido (Ctrl+C): nada ficou rodando aqui; o swap.manifest.json guarda os handles dos pedaços "
-              "já enviados (o provedor pode ter cobrado por eles)", file=sys.stderr)
+        print("swap: interrompido (Ctrl+C); o manifesto guarda os handles já pagos", file=sys.stderr)
         return 130
+    except Exception as e:  # noqa: BLE001 (no traceback: it could carry a key; the manifest has the state)
+        print(f"swap: erro inesperado: {scrub(f'{type(e).__name__}: {e}')}", file=sys.stderr)
+        return 1
