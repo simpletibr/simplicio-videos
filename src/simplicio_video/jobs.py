@@ -171,28 +171,48 @@ def read_log(jid: str, tail: int | None = None) -> str:
 
 # --------------------------------------------------------------------------------------------------- liveness, lost
 
-def proc_start(pid: int) -> str | None:
-    """Start time of `pid` in clock ticks (/proc, Linux), to tell a reused pid from the original process."""
+PROC = Path("/proc")
+
+
+def _ps(field: str, pid: int) -> str | None:
+    """`ps -o <field>= -p PID` (macOS and other systems without /proc). None when ps is missing or the pid is gone."""
     try:
-        stat = Path(f"/proc/{pid}/stat").read_text()
-    except OSError:
+        r = subprocess.run(["ps", "-o", f"{field}=", "-p", str(int(pid))], capture_output=True, text=True, timeout=5,
+                           env={**os.environ, "LC_ALL": "C", "LANG": "C"})
+    except (OSError, subprocess.SubprocessError, ValueError):
         return None
+    out = r.stdout.strip()
+    return out if r.returncode == 0 and out else None
+
+
+def proc_start(pid: int) -> str | None:
+    """Start time of `pid`, to tell a reused pid from the original process: clock ticks from /proc (Linux), else the
+    `ps -o lstart=` text (macOS, prefixed `ps:`). None when neither can say: then nothing may be signalled."""
+    try:
+        stat = (PROC / str(pid) / "stat").read_text()
+    except OSError:
+        if (PROC / "self").exists():
+            return None  # /proc works and the pid is not there: it is gone
+        text = _ps("lstart", pid)
+        return f"ps:{' '.join(text.split())}" if text else None
     return stat[stat.rindex(")") + 2:].split()[19]
 
 
 def boot_id() -> str | None:
     """Identifier of the current boot (Linux): pids restart after a reboot, so an identity from another boot proves nothing."""
     try:
-        return Path("/proc/sys/kernel/random/boot_id").read_text().strip() or None
+        return (PROC / "sys/kernel/random/boot_id").read_text().strip() or None
     except OSError:
         return None
 
 
 def _is_zombie(pid: int) -> bool:
     try:
-        stat = Path(f"/proc/{pid}/stat").read_text()
+        stat = (PROC / str(pid) / "stat").read_text()
     except OSError:
-        return False
+        if (PROC / "self").exists():
+            return False
+        return (_ps("stat", pid) or "").startswith("Z")
     return stat[stat.rindex(")") + 2:].split()[0] == "Z"
 
 
