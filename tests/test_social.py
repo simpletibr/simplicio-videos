@@ -774,3 +774,65 @@ def test_plano_malformado_vira_erro_do_social_e_nao_traceback(video):
         r = mcp_server.video_social("check", plano=path)
         assert r["ok"] is False
         plano(video, force=True)
+
+
+# ------------------------------------------------------------------------------------------------ achado 2: a trava vale para a sequência completa
+
+def _doc_adulterado(monkeypatch, provedor, mutar):
+    doc = json.loads(json.dumps(social._providers_doc()))
+    prov = next(p for p in doc["providers"] if p["id"] == provedor)
+    mutar(prov, prov["recipe"], [s["id"] for s in prov["recipe"]])
+    monkeypatch.setattr(social, "_providers_doc", lambda: doc)
+    return doc
+
+
+def _mover(rec, ids, quem, antes_de):
+    rec.insert([s["id"] for s in rec].index(antes_de), rec.pop(ids.index(quem)))
+
+
+def _tirar(rec, ids, quem):
+    rec.pop(ids.index(quem))
+
+
+def _sem_requires(rec, quem):
+    next(s for s in rec if s["id"] == quem).pop("requires")
+
+
+def _efeito(rec, quem, efeito):
+    next(s for s in rec if s["id"] == quem)["effect"] = efeito
+
+
+ADULTERACOES = [
+    ("zernio", "upload_antes_de_mostrar", lambda p, r, i: _mover(r, i, "upload", "show")),
+    ("zernio", "upload_sem_requires", lambda p, r, i: _sem_requires(r, "upload")),
+    ("zernio", "put_antes_do_sim", lambda p, r, i: _mover(r, i, "put", "show")),
+    ("zernio", "put_sem_requires", lambda p, r, i: _sem_requires(r, "put")),
+    ("zernio", "post_sem_requires", lambda p, r, i: _sem_requires(r, "post")),
+    ("zernio", "publish_tools_vazio_e_post_antes", lambda p, r, i: (p.update(publish_tools=[]), _mover(r, i, "post", "show"))),
+    ("zernio", "efeito_do_post_rotulado_como_leitura", lambda p, r, i: (_efeito(r, "post", "read"), _mover(r, i, "post", "show"))),
+    ("zernio", "sem_etapa_de_consentimento", lambda p, r, i: _tirar(r, i, "consent")),
+    ("zernio", "sem_etapa_de_mostrar", lambda p, r, i: _tirar(r, i, "show")),
+    ("realoficial", "confirm_antes_de_mostrar", lambda p, r, i: _mover(r, i, "confirm", "show")),
+    ("realoficial", "publish_tools_vazio_e_confirm_antes", lambda p, r, i: (p.update(publish_tools=[]), _mover(r, i, "confirm", "show"))),
+    ("realoficial", "confirm_sem_requires", lambda p, r, i: _sem_requires(r, "confirm")),
+    ("realoficial", "efeito_do_confirm_rotulado_como_leitura", lambda p, r, i: (_efeito(r, "confirm", "read"), _mover(r, i, "confirm", "consent"))),
+    ("realoficial", "sem_cotar", lambda p, r, i: _tirar(r, i, "preview")),
+    ("realoficial", "cotar_depois_de_mostrar", lambda p, r, i: _mover(r, i, "preview", "consent")),
+    ("realoficial", "sem_etapa_de_consentimento", lambda p, r, i: _tirar(r, i, "consent")),
+]
+
+
+@pytest.mark.parametrize("provedor,nome,mutar", ADULTERACOES, ids=[f"{p}-{n}" for p, n, _ in ADULTERACOES])
+def test_motor_recusa_receita_de_providers_json_adulterado(video, monkeypatch, provedor, nome, mutar):
+    path = plano(video)["path"]
+    _doc_adulterado(monkeypatch, provedor, mutar)
+    with pytest.raises(social.SocialError, match="receita insegura"):
+        social.recipe(path, provider=provedor, clip_id=CLIP_RO)
+
+
+@pytest.mark.parametrize("provedor", PROVEDORES)
+def test_requires_vai_para_o_passo_e_e_executado(video, provedor):
+    rec = social.recipe(plano(video)["path"], provider=provedor, clip_id=CLIP_RO)
+    com_requires = [s for s in rec["steps"] if s.get("requires")]
+    assert com_requires and all(s["requires"] == "consent" for s in com_requires)
+    assert all(s.get("requires_step") for s in com_requires)
