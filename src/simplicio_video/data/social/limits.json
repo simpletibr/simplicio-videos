@@ -4,7 +4,7 @@
   "about": "Limites de vídeo por rede. confidence=official só quando a linha foi conferida na página oficial da rede; o resto é UNVERIFIED (lido na documentação do Zernio, terceiro) e uma violação exige --aceito-unverified. value null = a fonte não informa (o plano marca unchecked).",
   "rows": [
     {
-      "network": "youtube",
+      "network": "youtube_shorts",
       "field": "duration_min_s",
       "value": 1,
       "source_url": "https://docs.zernio.com/platforms/youtube",
@@ -13,24 +13,52 @@
       "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
     },
     {
-      "network": "youtube",
+      "network": "youtube_shorts",
       "field": "duration_max_s",
       "value": 180,
       "source_url": "https://support.google.com/youtube/answer/10059070",
       "read_on": "2026-10-16",
       "confidence": "official",
-      "note": "Página de ajuda do YouTube: Shorts de até 3 minutos."
+      "note": "Página de ajuda do YouTube: Shorts de até 3 minutos. Só vale para Shorts (youtube_shorts), não para vídeo comum."
+    },
+    {
+      "network": "youtube",
+      "field": "duration_max_s",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Vídeo comum (não Shorts): sem limite conferido nesta tabela; o teto depende da conta (verificada ou não) e da própria página da rede. Confira lá."
+    },
+    {
+      "network": "youtube_shorts",
+      "field": "aspect_ratios",
+      "value": {
+        "min_ratio": 0.5625,
+        "max_ratio": 1.0
+      },
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Shorts: vertical 9:16 ou quadrado 1:1 (a página do YouTube aceita os dois)."
     },
     {
       "network": "youtube",
       "field": "aspect_ratios",
-      "value": [
-        "9:16"
-      ],
+      "value": null,
       "source_url": "https://docs.zernio.com/platforms/youtube",
       "read_on": "2026-10-16",
       "confidence": "UNVERIFIED",
-      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Shorts: vertical 9:16."
+      "note": "Vídeo comum (não Shorts): sem limite conferido nesta tabela; o teto depende da conta (verificada ou não) e da própria página da rede. Confira lá."
+    },
+    {
+      "network": "youtube_shorts",
+      "field": "size_max_mb",
+      "value": 262144,
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. 256 GB."
     },
     {
       "network": "youtube",
@@ -42,6 +70,15 @@
       "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. 256 GB."
     },
     {
+      "network": "youtube_shorts",
+      "field": "caption_max_chars",
+      "value": 5000,
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Descrição."
+    },
+    {
       "network": "youtube",
       "field": "caption_max_chars",
       "value": 5000,
@@ -49,6 +86,15 @@
       "read_on": "2026-10-16",
       "confidence": "UNVERIFIED",
       "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Descrição."
+    },
+    {
+      "network": "youtube_shorts",
+      "field": "title_max_chars",
+      "value": 100,
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
     },
     {
       "network": "youtube",

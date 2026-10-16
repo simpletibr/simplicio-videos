@@ -697,7 +697,7 @@ def reforjar(path, mutar):
 
 
 def test_plano_forjado_com_id_recalculado_nao_fura_o_limite_oficial(video, monkeypatch):
-    path = plano(video, targets=["youtube"])["path"]
+    path = plano(video, targets=["youtube_shorts"])["path"]
     monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 200.0})  # o arquivo de verdade tem 200 s
     reforjar(path, lambda pl: None)  # só recalcula o id: o plano continua dizendo 20 s
     rep = social.check_plan(path)

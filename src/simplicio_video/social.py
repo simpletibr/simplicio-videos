@@ -36,7 +36,7 @@ SCHEMA_RECIPE = "simplicio.social-recipe/v1"
 PLAN_NAME = "social.plan.json"
 OFFICIAL = "official"
 UNVERIFIED = "UNVERIFIED"
-NETWORKS = ("youtube", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky")
+NETWORKS = ("youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky")
 FIELDS = ("duration_min_s", "duration_max_s", "aspect_ratios", "size_max_mb", "caption_max_chars", "title_max_chars", "hashtags_max")
 DEFAULT_PROVIDER = "realoficial"
 ASPECT_TOLERANCE = 0.02
@@ -237,6 +237,8 @@ def _violates(field: str, limit, actual, vid: dict) -> bool:
         if isinstance(limit, dict):
             return not (limit["min_ratio"] * (1 - ASPECT_TOLERANCE) <= ratio <= limit["max_ratio"] * (1 + ASPECT_TOLERANCE))
         return not any(abs(ratio - _ratio_value(a)) / _ratio_value(a) <= ASPECT_TOLERANCE for a in limit)
+    if field == "duration_max_s":  # um quadro de folga: "3:00" exportado sai com 180,02 s
+        return actual > limit + (1 / vid["fps"] if vid.get("fps") else 0)
     return actual > limit
 
 
@@ -490,13 +492,14 @@ def _context(plan: dict, provider: str, clip_id: str | None) -> dict:
     vid = plan["video"]
     ctx: dict = {
         "caption": plan["caption"], "title": plan.get("title"), "video_name": Path(vid["path"]).name, "video_size": vid["size_bytes"],
-        "video_sha256_short": vid["sha256"][:12], "platforms": nets, "has_tiktok": "tiktok" in nets, "has_youtube": "youtube" in nets,
+        "video_sha256_short": vid["sha256"][:12], "platforms": list(dict.fromkeys("youtube" if n == "youtube_shorts" else n for n in nets)), "has_tiktok": "tiktok" in nets,
+        "has_youtube": "youtube" in nets or "youtube_shorts" in nets,
         "needs_clip_id": clip_id is None, "mode": "at" if sched else "now", "schedule_at": sched["at"] if sched else None,
         "schedule_timezone": sched["timezone"] if sched else None, "ai_generated": True if plan.get("ai_generated") else None,
         "publish_at": _offset_iso(sched) if sched else "now",
         "clip_id": clip_id or "<clip_id do vídeo no Real Oficial (passo {step.clip})>",
         "tiktok_privacy": None if "tiktok" not in nets else "<o usuário escolhe entre as opções que ro_list_social_accounts devolveu no passo {step.tiktok_options}; o motor nunca escolhe>",
-        "youtube_visibility": None if "youtube" not in nets else "<pergunte ao usuário: public, unlisted ou private (o padrão do provedor é public)>",
+        "youtube_visibility": None if not ("youtube" in nets or "youtube_shorts" in nets) else "<pergunte ao usuário: public, unlisted ou private (o padrão do provedor é public)>",
     }
     ids = []
     for t in tgts:

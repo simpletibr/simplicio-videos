@@ -38,6 +38,7 @@
           "network": {
             "enum": [
               "youtube",
+              "youtube_shorts",
               "tiktok",
               "instagram",
               "facebook",
