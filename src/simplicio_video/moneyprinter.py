@@ -50,6 +50,8 @@ USAGE = (
     "Exige Python 3.11 ou mais novo (setup procura python3.11 a python3.13) e usa ffmpeg (o upstream tenta baixar um sozinho).\n"
     f"O serve escuta só em {LOOPBACK}, forçado por argumento: o upstream escuta em 0.0.0.0 por padrão na API (config listen_host).\n"
     f"Para escutar em todas as interfaces use {LAN_FLAG}; a WebUI não tem login e a API só pede chave se app.api_key estiver preenchida.\n"
+    "A API sem app.api_key sobe com um aviso (sem chave, qualquer programa que alcance a porta a usa); o CORS do upstream vem fechado, "
+    "e o serve recusa CORS_ALLOWED_ORIGINS com `*` enquanto app.api_key estiver vazio.\n"
     "Pasta de dados em MONEYPRINTER_DATA_DIR (padrão ~/.simplicio-video/moneyprinter-data): venv e storage (vídeos gerados). "
     "O config.toml fica dentro do checkout (o upstream não permite outro lugar).\n"
     "Chaves de API (LLM, TTS, Pexels, Pixabay...) são suas, entram na WebUI ou no config.toml, e este comando nunca as imprime.\n"
@@ -305,6 +307,24 @@ def _commands(d: Path, host: str, webui: bool, api: bool) -> list[list[str]]:
     return cmds
 
 
+def _check_api_key(d: Path) -> None:
+    """Read at the pinned commit (app/asgi.py, app/controllers/base.py): the API has no login while app.api_key is empty,
+    and CORS is closed unless CORS_ALLOWED_ORIGINS says otherwise. So the browser cannot read it from another site by
+    default, but any other program on this computer can use it (and with --lan, anyone on the network), spending the
+    LLM and TTS keys of config.toml. `*` in CORS_ALLOWED_ORIGINS without a key lets any web page do the same: refused."""
+    if config_report(d / "config.toml")["keys"].get("app.api_key"):
+        return
+    origins = [o.strip() for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")]
+    if "*" in origins:
+        raise MoneyPrinterError(
+            "CORS_ALLOWED_ORIGINS tem `*` e app.api_key está vazio: qualquer página aberta no navegador chamaria a API "
+            "com as suas chaves de LLM e voz. Preencha app.api_key no config.toml ou tire o `*` de CORS_ALLOWED_ORIGINS."
+        )
+    print("aviso: a API sobe sem chave (app.api_key vazio no config.toml): qualquer programa que alcance a porta "
+          f"{API_PORT} cria vídeos com as suas chaves de LLM e voz. Preencha app.api_key e envie o cabeçalho x-api-key.",
+          file=sys.stderr)
+
+
 def _serve(d: Path, args: list[str]) -> int:
     webui, api, lan, host = _parse_serve(args)
     host = host or ("0.0.0.0" if lan else LOOPBACK)
@@ -316,6 +336,8 @@ def _serve(d: Path, args: list[str]) -> int:
         )
     if not venv_python().exists():
         raise MoneyPrinterError("ambiente não preparado: rode `simplicio-video moneyprinter setup`.")
+    if api:
+        _check_api_key(d)
     cmds = _commands(d, host, webui, api)
     existing = os.environ.get("PYTHONPATH")
     env = {**os.environ, "PYTHONPATH": str(d) + (os.pathsep + existing if existing else "")}
