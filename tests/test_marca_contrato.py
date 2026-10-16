@@ -148,7 +148,7 @@ def test_render_preview_reads_marca_from_spec_json(mini, tmp_path, monkeypatch):
     def fake_render_local(c, out=None, workdir=None, log=print, **kw):
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(b"draft")
-        return {"inputs_sha256": "0" * 64, "timings_s": {}}
+        return {"inputs_sha256": "0" * 64, "files": {}, "timings_s": {}}
 
     def fake_make_preview(src, dst, home, log=print, marca=None, chrome=None):
         seen.update(marca=marca, chrome=chrome)

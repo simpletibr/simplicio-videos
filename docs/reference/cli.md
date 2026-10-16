@@ -386,6 +386,12 @@ Subcomandos:
                                                copia só o aprovado para aquele pedido (nunca sobrescreve bytes diferentes) e acrescenta
                                                a linha de crédito a CREDITS-openverse.md; contrato = assets/openverse ao lado dele
   library credits [--para PASTA]               bloco de créditos de tudo o que foi exportado
+  library verify <contrato>                    confere, sem rede, os assets do contrato que vêm do Openverse (bloco openverse: {id, pedido}):
+                                               id na biblioteca, sha256 do arquivo, veredito aprovado para o pedido, aceite da restrição e crédito;
+                                               lista o que falta (o mesmo portão do validate e do render); sai com 1 se algo falta
+
+No contrato: o export deixa o arquivo em assets/openverse/ e o asset declara a procedência com `openverse: {id: <uuid>, pedido: "..."}`;
+arquivo em assets/openverse/ sem esse bloco é recusado. O render grava a procedência no render.manifest.json e os créditos ao lado do MP4.
 
 Licenças: padrão cc0, pdm e by (seguras para uso comercial e edição). by-sa, by-nc e by-nd (e by-nc-sa, by-nc-nd) só por
 opção explícita em --licencas, com aviso do que implicam; nc e nd nunca entram por padrão e o export de nc, nd e sa exige --aceito-restricao.
@@ -413,6 +419,7 @@ exemplos:
   simplicio-video openverse library export 9d8abc2c-c4dd-4dce-8164-cadd775befcf --pedido "nascer do sol para a abertura" \
       --contrato clients/acme/video-01/contract.yaml
   simplicio-video openverse library credits
+  simplicio-video openverse library verify clients/acme/video-01/contract.yaml
 ```
 
 ## simplicio-video render
@@ -429,6 +436,8 @@ assets numa composição HyperFrames (build/simplicio-video/), sintetiza trilha/
 (engine build.mjs, semente fixa), renderiza os frames (hyperframes@0.8.97) e masteriza com ffmpeg
 (loudnorm 2 passes, alvo trilha.master: -14 LUFS / TP -1,5). Grava render.manifest.json ao lado do
 contrato: hash do contrato, de cada input compilado, das ferramentas e do vídeo/áudio decodificados.
+Com ativos do Openverse (asset com openverse: {id, pedido}), o manifesto traz a procedência de cada um (chave openverse)
+e os créditos vão para <saida>.CREDITS-openverse.md ao lado do MP4.
 backends (todos sem navegador, exceto colab):
   local      PADRÃO. Renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver).
              Referência de hash, sem custo (WJR 600 frames: 76,5 s em 8 núcleos).
@@ -678,6 +687,8 @@ Valida o contrato contra o JSON Schema (src/simplicio_video/data/schema/contract
   - template existe e tem composição renderizável; ids de cena batem com a composição
   - padrões de motion existem em motion/patterns/ (bloco exige block.html)
   - todos os assets/logo existem (caminhos relativos ao contrato)
+  - asset do Openverse (bloco openverse: {id, pedido}): id na biblioteca, sha256 do arquivo, veredito aprovado para o pedido,
+    aceite da restrição e crédito em CREDITS-openverse.md, sem rede; arquivo em assets/openverse/ sem o bloco é recusado
   - soma de cenas[].duracao_s == formato.duracao_s
   - cada fala: inicio_s + max_s cabe na cena (+ J-cut voz.jcut_max_s, padrão 0,15 s);
     com timing.lock.json, a duração real <= max_s (a voz NUNCA é acelerada)

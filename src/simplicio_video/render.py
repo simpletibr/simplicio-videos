@@ -165,6 +165,11 @@ def prepare(c: Contract, workdir: Path, log) -> tuple[dict, dict]:
     compile_project(c, workdir, lock)
     _run(["node", "scripts/build.mjs"], workdir, log)
     inputs_sha, files = tree_hash(workdir)
+    from . import openverse_contract
+    erros = openverse_contract.check_workdir(c, files)  # the bytes the render will read, not only the contract: templates and plates too
+    if erros:
+        shutil.rmtree(workdir, ignore_errors=True)  # nothing with the refused bytes is left to render or bundle
+        raise openverse_contract.refuse("a composição compilada não confere com os ativos aprovados", erros)
     return {"inputs_sha256": inputs_sha, "files": files, "compile_build_s": round(time.time() - t0, 2)}, lock or {}
 
 
@@ -191,13 +196,17 @@ def render_local(c: Contract, out: Path | None = None, quality: str | None = Non
                "master": round(t2 - t1, 2)}
     log(mlog.strip().splitlines()[-1] if mlog.strip() else "")
     if not manifest:  # render --preview: never overwrite the delivery render.manifest.json
-        return {"output": str(dst), "inputs_sha256": info["inputs_sha256"], "quality": q, "timings_s": timings}
+        return {"output": str(dst), "inputs_sha256": info["inputs_sha256"], "files": info["files"], "quality": q, "timings_s": timings}
     return write_manifest(c, dst, backend="local", quality=q, gpu=gpu, info=info, timings=timings, log=log)
 
 
 def write_manifest(c: Contract, dst: Path, backend: str, quality: str, gpu: bool, info: dict, timings: dict,
                    tools: dict | None = None, usage: dict | None = None, log=print) -> dict:
-    """render.manifest.json next to the contract (same schema for every backend) + <out>.frames.md5."""
+    """render.manifest.json next to the contract (same schema for every backend) + <out>.frames.md5.
+    A contract with Openverse assets also gets its credits next to the MP4 and the provenance of each asset under `openverse`."""
+    from . import openverse_contract
+    (c.dir / "render.manifest.json").unlink(missing_ok=True)  # the MP4 is already new: a failure below must not leave the old manifest next to it
+    ov_block = openverse_contract.deliver(c, dst, info["files"])  # before anything is written: an asset that stopped being valid fails here
     media = media_hashes(dst)
     manifest = {
         "schema": "simplicio.render-manifest/v1",
@@ -211,6 +220,8 @@ def write_manifest(c: Contract, dst: Path, backend: str, quality: str, gpu: bool
     }
     if usage:
         manifest["usage"] = usage
+    if ov_block:
+        manifest["openverse"] = ov_block
     (c.dir / "render.manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     (dst.parent / (dst.stem + ".frames.md5")).write_text("\n".join(media["frame_md5"]) + "\n")
     log(f"render[{backend}]: {dst} ({media['duration_s']} s, {media['frames']} frames) · inputs {info['inputs_sha256'][:12]} · "
@@ -388,11 +399,15 @@ def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = 
     s = c.data["saida"]["arquivo"]
     dst = (out or c.rel(str(Path(s).with_name(Path(s).stem + "-previa.mp4")))).resolve()
     res = make_preview(raw, dst, c.home, log=log, marca=marca, chrome=chrome)
+    from . import openverse_contract
+    ov_block = openverse_contract.deliver(c, dst, info["files"])  # the preview shows the assets too: same provenance, credits next to it
     t2 = time.time()
     man = {"schema": "simplicio.preview-manifest/v1", "contract_sha256": c.sha256(), "inputs_sha256": info["inputs_sha256"],
            "preview": {**res, "path": os.path.relpath(dst, c.dir)}, "spec": {**PREVIEW, "marca": marca},
            "timings_s": {**info["timings_s"], "render_total": round(t1 - t0, 2), "preview_post": round(t2 - t1, 2),
                          "total": round(t2 - t0, 2)}}
+    if ov_block:
+        man["openverse"] = ov_block
     (c.dir / "preview.manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     log(f"preview: {dst} ({res['duration_s']} s, {res['bytes'] // 1024} KiB) · render {t1 - t0:.1f}s + pós {t2 - t1:.1f}s")
     return man

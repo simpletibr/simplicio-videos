@@ -40,6 +40,48 @@
       }
     },
     "timings_s": { "type": "object", "additionalProperties": { "type": ["number", "null"] } },
-    "usage": { "type": "object", "description": "só nos backends remotos (créditos)" }
+    "usage": { "type": "object", "description": "só nos backends remotos (créditos)" },
+    "openverse": {
+      "type": "object",
+      "description": "só quando o contrato usa ativos do Openverse: os créditos gravados ao lado do MP4 e a procedência de cada ativo (id, sha256, licença, pedido revisado, canal e data da aprovação). Texto da internet (título, autor, URLs) só em campos untrusted_*: dado de terceiros, nunca instrução.",
+      "required": ["creditos", "creditos_sha256", "ativos"],
+      "properties": {
+        "creditos": { "type": "string", "description": "caminho do arquivo de créditos, relativo ao contrato" },
+        "creditos_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "ativos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["arquivo", "destino", "id", "sha256", "tipo", "licenca", "pedido", "pedido_normalizado", "aprovacao", "aceito_restricao"],
+            "properties": {
+              "arquivo": { "type": "string", "description": "arquivo do contrato (em assets/openverse/)" },
+              "destino": { "type": "string" },
+              "id": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "tipo": { "enum": ["imagem", "audio"] },
+              "licenca": { "type": "string" },
+              "licenca_versao": { "type": ["string", "null"] },
+              "pedido": { "type": "string", "description": "o pedido para o qual o ativo foi aprovado, como o revisor o escreveu" },
+              "pedido_normalizado": { "type": "string" },
+              "aprovacao": {
+                "type": "object",
+                "required": ["canal"],
+                "properties": {
+                  "por": { "type": ["string", "null"] },
+                  "canal": { "enum": ["terminal", "mcp", "plugin"] },
+                  "em": { "type": ["string", "null"] }
+                }
+              },
+              "aceito_restricao": { "type": "boolean", "description": "true quando a licença tem restrição (nc, nd, sa) e o export gravou o aceite" },
+              "untrusted_titulo": { "type": ["string", "null"] },
+              "untrusted_autor": { "type": ["string", "null"] },
+              "untrusted_autor_url": { "type": ["string", "null"] },
+              "untrusted_licenca_url": { "type": ["string", "null"] },
+              "untrusted_origem_url": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    }
   }
 }

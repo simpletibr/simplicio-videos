@@ -27,6 +27,11 @@
       "required": ["marca"],
       "properties": { "marca": { "type": "object" } }
     },
-    "timings_s": { "type": "object", "additionalProperties": { "type": ["number", "null"] } }
+    "timings_s": { "type": "object", "additionalProperties": { "type": ["number", "null"] } },
+    "openverse": {
+      "type": "object",
+      "description": "só quando o contrato usa ativos do Openverse: o mesmo bloco do render.manifest.json (créditos ao lado da prévia e procedência de cada ativo).",
+      "required": ["creditos", "creditos_sha256", "ativos"]
+    }
   }
 }

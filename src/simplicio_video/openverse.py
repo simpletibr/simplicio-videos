@@ -25,6 +25,8 @@ Rules that do not bend:
   a strict pattern, and an index that does not fit is refused with a clear message. index.json is not a security boundary.
 - MCP (`video.openverse`) only searches, lists, shows, builds the sheet and records the verdict (channel "mcp"; the plugin.json
   verbs record "plugin"). Download and export are terminal-only: the agent does not choose where anything is written.
+- A contract asset may declare `openverse: {id, pedido}` (see openverse_contract.py): `verify_asset` is the offline gate behind
+  `validate`/`render`. It reuses the review, rights and credit rules above and adds none of its own; nothing is written, no network.
 """
 from __future__ import annotations
 
@@ -53,7 +55,8 @@ from .swap_providers import http as _api_http
 
 __all__ = ["OpenverseError", "search", "get", "library_list", "library_show", "review_sheet", "review", "review_status", "export",
            "credits", "export_name", "text_score", "normalize_pedido", "parse_licenses", "status_summary", "run_openverse", "untrusted",
-           "search_view", "get_view", "list_view", "show_view", "credits_view", "UNTRUSTED_NOTICE"]
+           "search_view", "get_view", "list_view", "show_view", "credits_view", "UNTRUSTED_NOTICE", "load_index", "verify_asset",
+           "credits_markdown"]
 
 API_BASE = "https://api.openverse.org/v1"
 SCHEMA_INDEX = "simplicio.openverse-library/v1"
@@ -266,6 +269,10 @@ def _validate_index(doc: dict) -> None:
             raise _bad_index(where, f"arquivo {str(e.get('arquivo'))[:60]!r} não é um nome <titulo>-<sha8>.<ext>")
         if not isinstance(e.get("destino"), str) or not isinstance(e.get("pedido_normalizado"), str):
             raise _bad_index(where, "destino e pedido_normalizado precisam ser texto")
+        if "aceito_restricao" in e and not isinstance(e["aceito_restricao"], bool):
+            raise _bad_index(where, "aceito_restricao precisa ser verdadeiro ou falso")
+        if "licenca" in e and not isinstance(e["licenca"], str):
+            raise _bad_index(where, "licenca (a licença aceita no export) precisa ser texto")
 
 
 def _load_index() -> dict:
@@ -284,6 +291,11 @@ def _load_index() -> dict:
         raise _bad_index("revisoes/exportacoes", "precisam ser listas")
     _validate_index(doc)
     return doc
+
+
+def load_index() -> dict:
+    """The validated library index (read only). Raises OpenverseError when it is unreadable or does not fit the schema."""
+    return _load_index()
 
 
 @contextlib.contextmanager
@@ -927,11 +939,17 @@ def _vale(r: dict, rec: dict) -> bool:
     return r["id"] == rec["id"] and r["sha256"] == rec["sha256"] and r["proveniencia_sha256"] == _proveniencia(rec)
 
 
-def _status_in(idx: dict, rec: dict, norm: str) -> str:
+def _revisao(idx: dict, rec: dict, norm: str) -> dict | None:
+    """The last review that counts for this record and this normalized request (the last verdict of the pair wins)."""
     for r in reversed(idx["revisoes"]):
         if _vale(r, rec) and r["pedido_normalizado"] == norm:
-            return r["veredito"]
-    return "nao_revisado"
+            return r
+    return None
+
+
+def _status_in(idx: dict, rec: dict, norm: str) -> str:
+    r = _revisao(idx, rec, norm)
+    return r["veredito"] if r else "nao_revisado"
 
 
 def review_status(id_, pedido) -> str:
@@ -1057,6 +1075,11 @@ def _md(text, limite: int = MAX_TITLE_CHARS) -> str:
     return _MD_SPECIAL_RE.sub(r"\\\1", " ".join(t.split())[:limite])
 
 
+def _credit_marker(rec: dict) -> str:
+    """The text that identifies an asset's credit line (id and bytes): export looks for it to stay idempotent, verify to find the credit."""
+    return f"id `{rec['id']}`, sha256 `{rec['sha256']}`"
+
+
 def _credit_line(rec: dict, nome: str) -> str:
     if not EXPORT_NAME_RE.fullmatch(str(nome)):
         raise OpenverseError(f"nome de arquivo fora do padrão <titulo>-<sha8>.<ext> no crédito: {str(nome)[:60]!r}")
@@ -1067,7 +1090,7 @@ def _credit_line(rec: dict, nome: str) -> str:
     licenca_url = _license_url(rec.get("licenca_url"))
     lic = f"[{label}]({licenca_url})" if licenca_url else label
     return (f'- `{nome}`: "{_md(rec.get("titulo")) or "(sem título)"}" por {autor_txt}, licença {lic}. '
-            f'Origem: {_safe_url(rec.get("origem_url")) or "não informada"}. id `{rec["id"]}`, sha256 `{rec["sha256"]}`.')
+            f'Origem: {_safe_url(rec.get("origem_url")) or "não informada"}. {_credit_marker(rec)}.')
 
 
 CREDITS_HEADER = (
@@ -1102,7 +1125,7 @@ def _check_export_rights(rec: dict, aceito_restricao: bool) -> None:
         raise OpenverseError(f"recusado: a licença {license_label(lic, rec.get('licenca_versao'))} exige atribuição e o autor não está registrado; "
                              f"confira o autor na origem ({rec.get('origem_url')})")
     if table[lic].get("aviso") and not aceito_restricao:  # nc, nd and sa: each one restricts what the video may be
-        raise OpenverseError(f"recusado: {lic}: {table[lic]['aviso']} Se isso serve a esta peça, repita com --aceito-restricao")
+        raise OpenverseError(f"recusado: {lic}: {table[lic]['aviso']} Se isso serve a esta peça, repita o export com --aceito-restricao")
 
 
 def export(id_, pedido, para=None, contrato=None, aceito_restricao=False) -> dict:
@@ -1142,14 +1165,20 @@ def export(id_, pedido, para=None, contrato=None, aceito_restricao=False) -> dic
             copiado = True
         creditos = dest / CREDITS_NAME
         existing = creditos.read_text(encoding="utf8") if creditos.is_file() else CREDITS_HEADER
-        if f"id `{rec['id']}`, sha256 `{rec['sha256']}`" not in existing:  # same bytes under another id still gets its own credit
+        if _credit_marker(rec) not in existing:  # same bytes under another id still gets its own credit
             text = existing if existing.endswith("\n") else existing + "\n"
             _atomic_write(creditos, _guard(text + _credit_line(rec, target.name) + "\n"))
-        entry = {"id": id_, "sha256": rec["sha256"], "pedido_normalizado": norm, "destino": str(dest), "arquivo": target.name, "em": _stamp()}
-        key = ("id", "sha256", "destino", "pedido_normalizado")  # one audit record per approved request
-        if not any(all(e.get(k) == entry[k] for k in key) for e in idx["exportacoes"]):
-            idx["exportacoes"].append(entry)
         aviso = _licenses()[rec["licenca"]].get("aviso")
+        entry = {"id": id_, "sha256": rec["sha256"], "pedido_normalizado": norm, "destino": str(dest), "arquivo": target.name, "em": _stamp()}
+        if aviso and aceito_restricao:  # `verify_asset` needs proof that the restriction was accepted for this asset and request
+            entry["aceito_restricao"] = True
+            entry["licenca"] = rec["licenca"]  # ... and for THIS license: `get --atualizar` may bring the same bytes under another one
+        key = ("id", "sha256", "destino", "pedido_normalizado", "licenca")  # one audit record per approved request and accepted license
+        antigo = next((e for e in idx["exportacoes"] if all(e.get(k) == entry.get(k) for k in key)), None)
+        if antigo is None:
+            idx["exportacoes"].append(entry)
+        elif entry.get("aceito_restricao") and not antigo.get("aceito_restricao"):  # same license, record without the acceptance
+            antigo["aceito_restricao"] = True
     return {"arquivo": str(target), "creditos": str(creditos), "copiado": copiado, "ja_existia": not copiado,
             "avisos": [f"{rec['licenca']}: {aviso}"] if aviso else []}
 
@@ -1170,6 +1199,99 @@ def credits(para=None) -> dict:
     itens = list(vistos.values())
     corpo = "\n".join(i["linha"] for i in itens) if itens else "Nenhum ativo do Openverse exportado ainda."
     return {"itens": [{k: v for k, v in i.items() if k != "linha"} for i in itens], "markdown": CREDITS_HEADER + corpo + "\n"}
+
+
+def credits_markdown(pares, idx: dict | None = None) -> str:
+    """The credits text of one video: the header and the credit line of each asset given as (id, sha256), once each, in order.
+    Built from the index record (never from the user-editable CREDITS file), so it carries the same sanitizing as the export."""
+    idx = idx if idx is not None else _load_index()
+    linhas: list[str] = []
+    vistos: set[tuple] = set()
+    for id_, sha in pares:
+        rec = idx["itens"].get(id_)
+        if rec is None or rec["sha256"] != sha:
+            raise OpenverseError(f"o ativo {id_} (sha256 {str(sha)[:12]}) não está na biblioteca com esses bytes: não há crédito a gravar")
+        if (id_, sha) not in vistos:
+            vistos.add((id_, sha))
+            linhas.append(_credit_line(rec, export_name(rec)))
+    return CREDITS_HEADER + "\n".join(linhas) + "\n"
+
+
+# ---------------------------------------------------------------------------------------------------------- the gate behind validate/render
+
+def verify_asset(arquivo, bloco=None, idx: dict | None = None) -> dict:
+    """Offline check of ONE contract asset against the library: no network, no LLM, nothing is written. A refusal is not an
+    exception: it comes back in `erros` (every problem found, in plain words), so `validate` can list them all.
+
+    With the declared block `{id, pedido}` it needs: the id in the library; the file with the sha256 the library has; a verdict
+    APPROVED for the exact pair (id, sha256, request, provenance), which is `_revisao`; the rights check of the export
+    (`_check_export_rights`), with the restriction accepted at the export; and the credit line next to the file. Without the block
+    it only refuses a file whose bytes are those of a library asset (copying a file by hand does not skip the gate).
+    Returns {"ok", "declarado", "erros", "proveniencia"}; `proveniencia` (what the render records) only when ok."""
+    res = {"ok": False, "declarado": bloco is not None, "erros": [], "proveniencia": None}
+    erros = res["erros"]
+    arquivo = Path(arquivo)
+    try:
+        if not arquivo.is_file():
+            raise OpenverseError(f"arquivo ausente: {arquivo.name}")
+        idx = idx if idx is not None else _load_index()
+    except OpenverseError as e:
+        erros.append(str(e))
+        return res
+    if bloco is None:
+        sha = sha256_file(arquivo) if idx["itens"] else None
+        ids = sorted(k for k, r in idx["itens"].items() if r["sha256"] == sha)
+        if ids:
+            erros.append(f"o arquivo tem os mesmos bytes do ativo {ids[0]} da biblioteca do Openverse e o asset não declara o bloco openverse: "
+                         f"declare openverse: {{id: {ids[0]}, pedido: \"...\"}} (a revisão aprovada para o pedido e o crédito valem para o ativo, não para a cópia)")
+        res["ok"] = not erros
+        return res
+    sha = sha256_file(arquivo)
+    try:
+        id_ = _check_id(bloco.get("id") if isinstance(bloco, dict) else None)
+        original, norm = _clean_pedido(bloco.get("pedido"))
+    except OpenverseError as e:
+        erros.append(str(e))
+        return res
+    rec = idx["itens"].get(id_)
+    if rec is None:
+        erros.append(f"o id {id_} não existe na biblioteca: baixe com `simplicio-video openverse get {id_}`, revise para o pedido e exporte antes de declarar")
+        return res
+    if sha != rec["sha256"]:
+        erros.append(f"arquivo trocado ou alterado: o sha256 do arquivo do contrato é {sha} e o do ativo {id_} na biblioteca é {rec['sha256']}; "
+                     "refaça o `library export` para copiar o ativo aprovado")
+    rev = _revisao(idx, rec, norm)
+    if rev is None or rev["veredito"] != "aprovado":
+        estado = rev["veredito"] if rev else "nao_revisado"
+        msg = f"o ativo {id_} está {estado} para o pedido {original!r}: falta o veredito aprovado para o par (id, sha256, pedido)"
+        outros = _aprovado_para(idx, rec)
+        if outros:
+            msg += f"; aprovado só para: {'; '.join(repr(p) for p in outros)}"
+        if any(r["id"] == id_ and r["pedido_normalizado"] == norm and r["veredito"] == "aprovado" and not _vale(r, rec) for r in idx["revisoes"]):
+            msg += "; a aprovação que existe para este pedido não vale mais porque o arquivo ou a proveniência (licença, autor, origem) mudou, revise de novo"
+        erros.append(msg + f". Revise com `simplicio-video openverse library review {id_} --pedido {shlex.quote(original)} --folha`")
+    aceito = any(e.get("aceito_restricao") is True and e["id"] == id_ and e["sha256"] == rec["sha256"] and e["pedido_normalizado"] == norm
+                 and e.get("licenca") == rec["licenca"] for e in idx["exportacoes"])  # the license accepted at the export is the record's today
+    try:
+        _check_export_rights(rec, aceito)
+    except OpenverseError as e:
+        erros.append(f"licença: {e}")
+    creditos = arquivo.parent / CREDITS_NAME
+    try:
+        tem_credito = creditos.is_file() and _credit_marker(rec) in creditos.read_text(encoding="utf8", errors="replace")
+    except OSError:
+        tem_credito = False
+    if not tem_credito:
+        erros.append(f"crédito ausente: não há a linha do ativo {id_} em {CREDITS_NAME} ao lado do arquivo; o `library export` a grava, refaça o export")
+    if erros:
+        return res
+    res["ok"] = True
+    res["proveniencia"] = {**{k: rec.get(k) for k in ("id", "sha256", "tipo", "licenca", "licenca_versao")},
+                           "pedido": rev.get("pedido") or original, "pedido_normalizado": norm,
+                           "aprovacao": {"por": rev.get("por"), "canal": rev["canal"], "em": rev.get("em")},
+                           "aceito_restricao": bool(aceito and _licenses()[rec["licenca"]].get("aviso")),
+                           **untrusted({k: rec.get(k) for k in ("titulo", "autor", "autor_url", "licenca_url", "origem_url")})}
+    return res
 
 
 # ---------------------------------------------------------------------------------------------------------- what the agent sees
@@ -1241,7 +1363,12 @@ HELP_DESC = (
     "  library export <id> --pedido \"...\" --para PASTA | --contrato contract.yaml\n"
     "                                               copia só o aprovado para aquele pedido (nunca sobrescreve bytes diferentes) e acrescenta\n"
     f"                                               a linha de crédito a {CREDITS_NAME}; contrato = assets/openverse ao lado dele\n"
-    "  library credits [--para PASTA]               bloco de créditos de tudo o que foi exportado\n\n"
+    "  library credits [--para PASTA]               bloco de créditos de tudo o que foi exportado\n"
+    "  library verify <contrato>                    confere, sem rede, os assets do contrato que vêm do Openverse (bloco openverse: {id, pedido}):\n"
+    "                                               id na biblioteca, sha256 do arquivo, veredito aprovado para o pedido, aceite da restrição e crédito;\n"
+    "                                               lista o que falta (o mesmo portão do validate e do render); sai com 1 se algo falta\n\n"
+    "No contrato: o export deixa o arquivo em assets/openverse/ e o asset declara a procedência com `openverse: {id: <uuid>, pedido: \"...\"}`;\n"
+    "arquivo em assets/openverse/ sem esse bloco é recusado. O render grava a procedência no render.manifest.json e os créditos ao lado do MP4.\n\n"
     "Licenças: padrão cc0, pdm e by (seguras para uso comercial e edição). by-sa, by-nc e by-nd (e by-nc-sa, by-nc-nd) só por\n"
     "opção explícita em --licencas, com aviso do que implicam; nc e nd nunca entram por padrão e o export de nc, nd e sa exige --aceito-restricao.\n"
     "A licença que o Openverse devolve vem das fontes e ele mesmo manda conferir na origem (foreign_landing_url, gravada em cada\n"
@@ -1260,7 +1387,8 @@ HELP_EPILOG = (
     "      --aprovar --motivo \"o sol aparece no centro, sem marca\" --por \"Wesley\"\n"
     "  simplicio-video openverse library export 9d8abc2c-c4dd-4dce-8164-cadd775befcf --pedido \"nascer do sol para a abertura\" \\\n"
     "      --contrato clients/acme/video-01/contract.yaml\n"
-    "  simplicio-video openverse library credits")
+    "  simplicio-video openverse library credits\n"
+    "  simplicio-video openverse library verify clients/acme/video-01/contract.yaml")
 
 
 def _opt_int(text):
@@ -1334,6 +1462,14 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true")
     p = ls.add_parser("credits", formatter_class=fmt, help="bloco de créditos dos ativos exportados")
     p.add_argument("--para", help="só os exportados para esta pasta")
+    p.add_argument("--json", action="store_true")
+    p = ls.add_parser("verify", formatter_class=fmt, help="confere, sem rede, os assets do contrato que vêm do Openverse",
+                      description="Roda o mesmo portão do validate e do render para os assets do contrato: bloco openverse (id, pedido), id na biblioteca, "
+                                  "sha256 do arquivo, veredito aprovado para o par (id, sha256, pedido, proveniência), aceite da restrição gravado no export e "
+                                  "crédito em CREDITS-openverse.md. Arquivo em assets/openverse/ sem o bloco também é recusado. Sem rede, sem LLM, nada é gravado. "
+                                  "Sai com 1 se algo falta.",
+                      epilog="exemplo:\n  simplicio-video openverse library verify clients/acme/video-01/contract.yaml")
+    p.add_argument("contrato", help="contract.yaml")
     p.add_argument("--json", action="store_true")
     return ap
 
@@ -1452,9 +1588,16 @@ def _run(a) -> int:
         return 0
     if a.lcmd == "export":
         r = export(a.id, a.pedido, a.para, a.contrato, a.aceito_restricao)
+        proximo = (f"\npróximo passo: declare o arquivo em assets do contrato com `openverse: {{id: {a.id.strip().lower()}, pedido: \"<o mesmo pedido>\"}}` "
+                   f"e confira com `simplicio-video openverse library verify {a.contrato}`") if a.contrato else ""
         _emit(r, a.json, f"{'exportado' if r['copiado'] else 'já estava lá (mesmos bytes)'}: {r['arquivo']}\ncréditos: {r['creditos']}"
-              + "".join(f"\nAVISO {w}" for w in r["avisos"]))
+              + "".join(f"\nAVISO {w}" for w in r["avisos"]) + proximo)
         return 0
+    if a.lcmd == "verify":
+        from . import openverse_contract
+        doc = openverse_contract.verify_report(a.contrato)
+        _emit(doc, a.json, openverse_contract.verify_text(doc))
+        return 0 if doc["ok"] else 1
     r = credits(a.para)
     _emit(credits_view(r), a.json, r["markdown"])
     return 0
