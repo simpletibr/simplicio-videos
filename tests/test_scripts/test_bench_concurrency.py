@@ -33,8 +33,11 @@ def test_bench_mede_serial_contra_paralelo_com_saida_identica():
     assert s["chunks"] == 3 and s["concurrency"] == 3 and v["lines"] == 4 and v["concurrency"] == 4
     assert s["identical_output"] is True and v["identical_lock"] is True
     for r in (s, v):
-        assert set(r) >= {"serial_s", "parallel_s", "speedup"}
-        assert r["parallel_s"] < r["serial_s"] and r["speedup"] > 1.2
+        # the time gain is only a number the script reports: a clock assertion is flaky under CPU load (it failed 4 of 5 runs
+        # with 8 busy loops on 4 cores). The proof of parallelism is deterministic: the most calls in flight at once.
+        assert set(r) >= {"serial_s", "parallel_s", "speedup"} and r["serial_s"] > 0 and r["parallel_s"] > 0
+    assert s["max_in_flight"] == {"serial": 1, "parallel": 3}
+    assert v["max_in_flight"] == {"serial": 1, "parallel": 4}
     assert any("render" in n and "serial" in n for n in rep["notes"])
 
 
