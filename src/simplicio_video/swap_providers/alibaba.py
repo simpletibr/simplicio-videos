@@ -21,7 +21,7 @@ class AlibabaAdapter(UnverifiedAdapter):
     version = "1-unverified"
     model = MODEL
     capabilities = Capabilities(resolutions=("720p",), max_input_s=30.0, max_output_s=30.0, max_ref_images=1,
-                                keeps_audio=False, bills_input=False, min_input_s=2.0)
+                                keeps_audio=False, bills_input=False, min_input_s=2.0, max_concurrency=2)  # UNVERIFIED: conservative until checked against the real API
     prices = (PriceRow(MODEL, "720p", 0.18, "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
                        "2026-10-15", "media", note="região Singapura"),)
     notes = "UNVERIFIED: campos de entrada e saída não conferidos na API real; a API costuma pedir URL pública."

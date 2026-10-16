@@ -1,8 +1,8 @@
 """MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
 
 Tools: video.init, video.validate, video.voice, video.render, video.run, video.list, video.clone, video.montage,
-video.edit, video.opencut, video.toonflow. Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
-Long steps (render on kaggle/colab-cli) block until done. O upload no Drive não é tool deste servidor.
+video.edit, video.opencut, video.toonflow, video.swap, video.formats, video.jobs. Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
+Long steps (render on kaggle/colab-cli) block until done; video.jobs runs a local voice task in the background instead. O upload no Drive não é tool deste servidor.
 
 Run: `simplicio-video mcp` or `simplicio-video-mcp` (needs `pip install -e .[mcp]`).
 """
@@ -157,6 +157,28 @@ def video_swap(acao: str = "providers", provider: str | None = None, video: str 
         return {"ok": False, "error": str(e)}
 
 
+def video_jobs(acao: str = "list", id: str | None = None, kind: str | None = None, params: dict | None = None,
+               state: str | None = None) -> dict:
+    """Background tasks over MCP: `list`, `status`, `result`, `cancel` for any task, and `submit` ONLY for `voice` with a
+    local provider (no money). There is no way to confirm a spend here: `swap-run` and network voice are submitted in the
+    terminal (`simplicio-video jobs submit ... --yes`). The function has no `yes` argument on purpose."""
+    from . import jobs
+    try:
+        if acao == "list":
+            return {"ok": True, "jobs": [jobs.summary(s) for s in jobs.list_jobs(state)]}
+        if acao == "status":
+            return {"ok": True, "job": jobs.summary(jobs.status(id or ""))}
+        if acao == "result":
+            return {"ok": True, **jobs.result(id or "")}
+        if acao == "cancel":
+            return {"ok": True, "job": jobs.summary(jobs.cancel(id or ""))}
+        if acao == "submit":
+            return {"ok": True, "job": jobs.summary(jobs.submit(kind or "", dict(params or {}), confirm_yes=False, origin="mcp"))}
+        return {"ok": False, "error": f"acao desconhecida: {acao} (list|status|result|cancel|submit)"}
+    except jobs.JobError as e:
+        return {"ok": False, "error": str(e)}
+
+
 def video_toonflow(args: str = "") -> dict:
     """Toonflow over MCP: `where` and `clone` into the default folder only. `serve` runs a server that never ends, and
     `clone <dir>` is refused because an agent does not choose where a git checkout is written. Captures its own output
@@ -191,6 +213,7 @@ TOOLS = [
     ("video.opencut", video_opencut, "OpenCut editor (clone|dev|where) for manual finishing (https://github.com/OpenCut-app/OpenCut)."),
     ("video.formats", video_formats, "Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format."),
     ("video.swap", video_swap, "Character swap, read-only: providers (adapters, capabilities, price, confidence) and estimate (cost before spending). Never runs a paid swap; run is terminal-only."),
+    ("video.jobs", video_jobs, "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes)."),
     ("video.toonflow", video_toonflow, "Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app)."),
 ]
 

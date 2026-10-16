@@ -187,13 +187,19 @@ def test_escrita_atomica_usa_replace(monkeypatch, tmp_path):
     assert seen and seen[0][1] == "x.json" and seen[0][0] != "x.json"
 
 
-def test_estado_recusa_e_apaga_a_chave(monkeypatch, mini, stub_spawn):
+def test_argumento_com_chave_e_recusado_e_nada_e_gravado(monkeypatch, mini, stub_spawn):
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    st = jobs.submit("voice", {"contrato": str(mini), "provider": "file", "only": [FAKE_KEY]})
-    text = "".join(p.read_text() for p in jobs.job_dir(st["id"]).rglob("*") if p.is_file())
-    assert FAKE_KEY not in text and "***" in text
+    with pytest.raises(jobs.JobError, match="chave"):
+        jobs.submit("voice", {"contrato": str(mini), "provider": "file", "only": [FAKE_KEY]})
+    assert stub_spawn == [] and not jobs.jobs_dir().exists()
+
+
+def test_escrita_do_estado_apaga_a_chave(monkeypatch, mini, stub_spawn):
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+    st = jobs.submit("voice", {"contrato": str(mini), "provider": "file"})
     jobs.update(st["id"], error=f"falhou com {FAKE_KEY}")
-    assert FAKE_KEY not in (jobs.job_dir(st["id"]) / "job.json").read_text()
+    text = (jobs.job_dir(st["id"]) / "job.json").read_text()
+    assert FAKE_KEY not in text and "***" in text
 
 
 def todos_os_arquivos(root: Path) -> str:
@@ -277,15 +283,18 @@ def test_swap_run_recusa_saida_existente_na_submissao(media, stub_spawn):
     jobs.submit("swap-run", swap_params(media, force=True), confirm_yes=True)
 
 
-@needs_ffmpeg
-def test_chave_no_argumento_nao_vai_para_estado_nem_log(media, monkeypatch):
+def test_chave_na_saida_da_tarefa_nao_vai_para_o_log(mini, monkeypatch):
+    """A fala do contrato contém a chave (falsa): o `voice` a imprime no log; o runner a apaga antes de gravar."""
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    st = jobs.submit("swap-run", swap_params(media, prompt=f"use {FAKE_KEY} aqui"), confirm_yes=True)
+    txt = mini.read_text().replace("tom de teste", f"tom {FAKE_KEY}")
+    mini.write_text(txt)
+    st = jobs.submit("voice", {"contrato": str(mini), "provider": "file", "force": True})
     fim = wait_for(st["id"], FINAL)
-    assert fim["state"] == "failed"  # o swap recusa gravar a chave no manifesto
+    assert fim["state"] in ("done", "failed")
+    log = jobs.read_log(st["id"])
+    assert "tom ***" in log and FAKE_KEY not in log
     assert FAKE_KEY not in todos_os_arquivos(jobs.jobs_dir())
     assert FAKE_KEY not in json.dumps(jobs.status(st["id"]))
-    assert FAKE_KEY not in jobs.read_log(st["id"])
 
 
 def test_voz_local_em_segundo_plano(mini):

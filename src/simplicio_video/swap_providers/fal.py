@@ -20,7 +20,7 @@ class FalAdapter(UnverifiedAdapter):
     version = "1-unverified"
     model = MODEL
     capabilities = Capabilities(resolutions=("720p",), max_input_s=10.0, max_output_s=10.0, max_ref_images=1,
-                                keeps_audio=False, bills_input=False)
+                                keeps_audio=False, bills_input=False, max_concurrency=2)  # UNVERIFIED: conservative until checked against the real API
     prices = (PriceRow(MODEL, "720p", 0.08, PAGE, "2026-10-15", "media",
                        note="fal cobra por quadros a 16 fps: com fonte a 24 fps pode custar 1,5x"),)
     notes = "UNVERIFIED: campos de entrada e saída não conferidos na API real."

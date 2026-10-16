@@ -6,6 +6,7 @@ its max_s is an error (after one retry with the tighter silence trim TRIM_TIGHT)
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -15,7 +16,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import paths, voice_clone, words as wordsmod
+from . import aio, paths, voice_clone, words as wordsmod
 from .contract import Contract, r4
 
 DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,"
@@ -41,6 +42,17 @@ PROVIDERS = {
     "elevenlabs": "stub in v0.2 (generate elsewhere, then use provider=file)",
     "xai": "stub in v0.2 (generate elsewhere, then use provider=file)",
 }
+
+
+# Lines are generated concurrently only for providers that WAIT on the network; local providers burn CPU, so they stay
+# serial (asyncio does not speed up CPU work). The ffmpeg processing of every line stays serial as well.
+NETWORK_PROVIDERS = ("gemini",)
+DEFAULT_CONCURRENCY = 4
+
+
+def effective_concurrency(prov: str, requested: int | None = None) -> int:
+    """How many lines may be generated at once: 1 for local providers, else the request (default DEFAULT_CONCURRENCY)."""
+    return aio.clamp(requested, DEFAULT_CONCURRENCY) if prov in NETWORK_PROVIDERS else 1
 
 
 class VoiceError(SystemExit):
@@ -225,7 +237,58 @@ def _gemini(S: dict, text: str, dst: Path, retries: int = 4) -> dict:
             "usage": res.get("usage") or res.get("usageMetadata")}
 
 
-def run(c: Contract, provider: str | None = None, force: bool = False, only: list[str] | None = None, log=print) -> dict:
+def _digest(ident: list) -> str:
+    return hashlib.sha256(json.dumps(ident, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def _is_cached(final: Path, force: bool, only: list[str] | None, line_id: str) -> bool:
+    return final.is_file() and not force and not (only and line_id in only)
+
+
+async def _generate_all(c: Contract, prov: str, S: dict, jobs: list[tuple[int, str, Path]], concurrency: int) -> dict:
+    """Generate the raw takes of `jobs` [(index, text, dst)] with at most `concurrency` requests in flight. The first failure
+    cancels the requests that have not started and is re-raised (the lowest line index when several fail together)."""
+    sem = asyncio.Semaphore(concurrency)
+    out: dict = {}
+
+    async def one(idx: int, text: str, dst: Path) -> None:
+        async with sem:
+            out[idx] = await aio.athread(_generate, c, prov, S, text, dst, None)
+
+    tasks = [asyncio.create_task(one(*j)) for j in jobs]  # in line order
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+        failed = [t for t in tasks if t.done() and not t.cancelled() and t.exception() is not None]
+        if failed:
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise failed[0].exception()
+    except asyncio.CancelledError:
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+    return out
+
+
+def _prefetch(c: Contract, prov: str, S: dict, chain: str, cache: Path, fdir: Path, lines: list[dict], force: bool,
+              only: list[str] | None, concurrency: int) -> dict:
+    """Phase 1 (network providers only): generate every raw take that is not cached, concurrently. Phase 2 (the loop in
+    `run`) then processes the lines in order exactly as the serial mode does, so outputs and timing.lock.json are identical."""
+    todo = []
+    for idx, line in enumerate(lines):
+        say = line.get("say", line["texto"])
+        final = cache / f"{line['id']}-{_digest([prov, S, chain, say])}.wav"
+        if not _is_cached(final, force, only, line["id"]):
+            todo.append((idx, say, keep_path(fdir, prov, idx)))
+    if concurrency < 2 or len(todo) < 2:
+        return {}
+    return aio.run_sync(_generate_all(c, prov, S, todo, concurrency))
+
+
+def run(c: Contract, provider: str | None = None, force: bool = False, only: list[str] | None = None, log=print,
+        concurrency: int | None = None) -> dict:
     v = c.data["voz"]
     prov = provider or v["provider"]
     if prov in ("elevenlabs", "xai"):
@@ -243,6 +306,8 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
     lang = (v.get("idioma") or "pt-BR").split("-")[0]
     fdir = c.rel(settings_for(c, "file")["dir"])
     tts_chars = 0
+    workers = effective_concurrency(prov, concurrency)
+    pre = _prefetch(c, prov, S, chain, cache, fdir, lines, force, only, workers) if workers > 1 else {}
     for idx, line in enumerate(lines):
         gen = None
         say = line.get("say", line["texto"])
@@ -251,9 +316,9 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
         if ref is not None and not ref.is_file():
             raise VoiceError(f"provider={prov}: reference_audio not found: {S['reference_audio']}")
         ident = [prov, S, chain, say] + ([sha256_file(src)] if src else []) + ([sha256_file(ref)] if ref else [])
-        h = hashlib.sha256(json.dumps(ident, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:12]
+        h = _digest(ident)
         final = cache / f"{line['id']}-{h}.wav"
-        if final.is_file() and not force and not (only and line["id"] in only):
+        if _is_cached(final, force, only, line["id"]):
             status = "cached"
         else:
             with tempfile.TemporaryDirectory() as td:
@@ -264,7 +329,7 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
                     _local(S, say, raw)
                 else:  # generative: keep the raw take (gemini next to the AI Studio files) so the run is reproducible
                     keep = keep_path(fdir, prov, idx)
-                    gen = _generate(c, prov, S, say, keep, ref)
+                    gen = pre[idx] if idx in pre else _generate(c, prov, S, say, keep, ref)
                     tts_chars += len(say)
                     sh("ffmpeg", "-y", "-v", "error", "-i", str(keep), "-ac", "1", "-ar", "48000", str(raw))
                 sh("ffmpeg", "-y", "-v", "error", "-i", str(raw), "-af", TRIM, str(cut))
@@ -278,7 +343,7 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
         trim = "normal"
         take = src if prov == "file" else (keep_path(fdir, prov, idx) if prov in GENERATIVE else None)
         if dur > line["max_s"] + 1e-6 and take is not None and take.is_file():
-            ht = hashlib.sha256(json.dumps(ident + ["trim-tight"], ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:12]
+            ht = _digest(ident + ["trim-tight"])
             tight = cache / f"{line['id']}-{ht}.wav"
             if not tight.is_file() or force or (only and line["id"] in only):
                 with tempfile.TemporaryDirectory() as td:
