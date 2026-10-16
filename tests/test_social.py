@@ -24,7 +24,7 @@ needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("
 CAPTION = "Aprenda a montar o seu primeiro anúncio em vídeo. #marketing #video #reels"
 PROBE_OK = {"duration_s": 20.0, "width": 1080, "height": 1920, "fps": 30.0, "video_codec": "h264",
             "audio_codec": "aac", "container": "mov,mp4,m4a,3gp,3g2,mj2"}
-REDES = ["youtube", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky"]
+REDES = ["youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky"]
 PROVEDORES = ["realoficial", "zernio"]
 ID_RO = "01HZX3K9Q2M4N5P6R7S8T9V0WA"  # 26 caracteres, no formato dos ids do Real Oficial (valor inventado)
 CLIP_RO = "01HZX3K9Q2M4N5P6R7S8T9V0WB"
@@ -252,8 +252,8 @@ def test_agendamento_invalido_e_recusado(video, kw, msg):
 def test_duracao_acima_do_limite_oficial_recusa_e_nao_aceita_bypass(video, monkeypatch):
     monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 200.0})
     for kw in ({}, {"accept_unverified": True}):
-        with pytest.raises(social.SocialError, match="youtube.*duration_max_s"):
-            plano(video, targets=["youtube"], **kw)
+        with pytest.raises(social.SocialError, match="youtube_shorts.*duration_max_s"):
+            plano(video, targets=["youtube_shorts"], **kw)
 
 
 def test_limite_unverified_recusa_e_so_passa_com_aceite_explicito(video, monkeypatch):
@@ -880,3 +880,45 @@ def test_realoficial_sem_clip_id_bloqueia_no_mcp(video):
     assert rec["ok"] is False and rec["blocked"] is True
     assert "MP4 local" in rec["error"] and _sem_cotar_nem_publicar(rec["steps"])
     assert mcp_server.video_social("recipe", plano=r["path"], clip_id=CLIP_RO)["ok"] is True
+
+
+# ------------------------------------------------------------------------------------------------ achado 4: youtube (vídeo) separado de youtube_shorts
+
+def test_limite_de_180_s_e_so_do_shorts_e_o_youtube_comum_aceita_video_longo(video, monkeypatch):
+    linhas = [r for r in social.limits_table()["rows"] if r["confidence"] == "official" and r["field"] == "duration_max_s"]
+    assert [r["network"] for r in linhas] == ["youtube_shorts"] and linhas[0]["value"] == 180
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "width": 1920, "height": 1080, "duration_s": 240.0})
+    p = ler(plano(video, targets=["youtube"])["path"])
+    assert p["targets"] == [{"network": "youtube", "account": None}]
+    assert not [c for c in p["checks"] if c["status"] == "violation"]
+    assert social.check_plan(str(Path(video).parent / "social.plan.json"))["ok"] is True
+    with pytest.raises(social.SocialError, match="youtube_shorts.*duration_max_s"):
+        plano(video, targets=["youtube_shorts"], force=True)
+
+
+def test_shorts_aceita_vertical_e_quadrado_e_recusa_horizontal(video, monkeypatch):
+    for w, h, ok in ((1080, 1920, True), (1080, 1080, True), (1920, 1080, False)):
+        monkeypatch.setattr(social, "_probe", lambda p, w=w, h=h: {**PROBE_OK, "width": w, "height": h})
+        if ok:
+            plano(video, targets=["youtube_shorts"], force=True)
+        else:
+            with pytest.raises(social.SocialError, match="youtube_shorts.*aspect_ratios"):
+                plano(video, targets=["youtube_shorts"], force=True, accept_unverified=False)
+
+
+def test_shorts_de_tres_minutos_exportado_com_um_quadro_a_mais_passa(video, monkeypatch):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 180.02, "fps": 30.0})
+    plano(video, targets=["youtube_shorts"])
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 180.2, "fps": 30.0})
+    with pytest.raises(social.SocialError, match="duration_max_s"):
+        plano(video, targets=["youtube_shorts"], force=True)
+
+
+def test_receita_manda_youtube_ao_provedor_tanto_para_shorts_quanto_para_video(video):
+    for alvo in ("youtube", "youtube_shorts"):
+        path = plano(video, targets=[alvo, "tiktok"], force=True)["path"]
+        rec = social.recipe(path, provider="zernio")
+        post = next(s for s in rec["steps"] if s.get("tool") == "posts_create")
+        assert "youtube" in post["args"]["platforms"] and "youtube_shorts" not in post["args"]["platforms"]
+        ro = social.recipe(path, clip_id=CLIP_RO)
+        assert any(s.get("tool") == "ro_preview_publication" and "youtube_visibility" in s["args"] for s in ro["steps"])
