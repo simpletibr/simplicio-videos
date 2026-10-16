@@ -466,7 +466,8 @@ def test_serve_escalates_to_sigkill_when_a_server_ignores_sigint(checkout, venv,
 def test_serve_when_one_server_dies_the_other_group_is_stopped_too(checkout, venv, server):
     server.exit_codes = {0: 3}  # the WebUI exits with 3 while the API keeps running
     assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 3
-    assert server.signals == [(4243, signal.SIGINT), (4243, signal.SIGKILL)]
+    # the one that exited is swept too (a helper it left behind), the other is stopped
+    assert server.signals == [(4242, signal.SIGKILL), (4243, signal.SIGINT), (4243, signal.SIGKILL)]
 
 
 def test_serve_sigterm_is_handled_like_ctrl_c_and_restored_afterwards(checkout, venv, server):
@@ -477,6 +478,48 @@ def test_serve_sigterm_is_handled_like_ctrl_c_and_restored_afterwards(checkout, 
     with pytest.raises(KeyboardInterrupt):
         handler(signal.SIGTERM, None)
     assert signal.getsignal(signal.SIGTERM) is before
+
+
+def test_serve_a_second_signal_during_the_stop_does_not_leave_a_server_running(checkout, venv, server):
+    # Ctrl+C twice (or SIGTERM then Ctrl+C): the first stop wait is cut short, yet both groups must be stopped
+    server.interrupt = True
+    server.wait_interrupts = 1
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 0
+    stopped = {pgid for pgid, sig in server.signals if sig == signal.SIGKILL}
+    assert stopped == {4242, 4243}
+    assert (4243, signal.SIGINT) in server.signals
+
+
+def test_serve_ignores_further_signals_while_stopping_and_restores_the_handlers(checkout, venv, server):
+    before = [signal.getsignal(n) for n in _STOP_SIGNALS]
+    server.interrupt = True
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 0
+    assert server.stop_handlers and all(h == (signal.SIG_IGN,) * len(_STOP_SIGNALS) for h in server.stop_handlers)
+    assert [signal.getsignal(n) for n in _STOP_SIGNALS] == before
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGHUP"), reason="sem SIGHUP nesta plataforma")
+def test_serve_sighup_stops_the_servers_like_ctrl_c_and_is_restored(checkout, venv, server):
+    before = signal.getsignal(signal.SIGHUP)
+    assert moneyprinter.run_moneyprinter(["serve"]) == 0
+    handler = server.hup_handler
+    assert callable(handler) and handler is not before  # the default action would end the parent and orphan the servers
+    with pytest.raises(KeyboardInterrupt):
+        handler(signal.SIGHUP, None)
+    assert signal.getsignal(signal.SIGHUP) is before
+
+
+def test_serve_names_the_server_that_exited_by_itself_and_never_returns_0(checkout, venv, server, capsys):
+    server.exit_codes = {1: 0}  # the API ends by itself with 0 (e.g. port taken and handled): not a requested stop
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 1
+    err = capsys.readouterr().err
+    assert "API" in err and "saiu" in err and "parando" in err
+
+
+def test_serve_a_server_killed_by_a_signal_returns_a_positive_code(checkout, venv, server, capsys):
+    server.exit_codes = {0: -9}
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 9 + 128
+    assert "WebUI" in capsys.readouterr().err
 
 
 @pytest.mark.skipif(not Path("/proc").is_dir(), reason="o teste lê /proc (Linux)")
