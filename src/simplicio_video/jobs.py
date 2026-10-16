@@ -568,28 +568,65 @@ async def _stop_group(proc, grace_s: float) -> None:
     _kill_group(proc.pid)
 
 
+READ_CHUNK = 65536
+MAX_LINE = 65536   # a "line" longer than this without a separator is cut here (a log line, not a whole progress bar)
+OVERLAP = 256      # kept when cutting, so a key split by the cut is still whole in the next piece and gets scrubbed
+LINE_END = re.compile(rb"\r\n|\r|\n")
+
+
 async def _pump(stream, jid: str, box: dict) -> None:
-    """Task output -> scrubbed log file (capped) and the last JSON line (the task result)."""
+    """Task output -> scrubbed log file (capped) and the last JSON line (the task result).
+    The pipe is read in blocks, never waiting for a newline: a progress bar made of `\\r` (tqdm, ffmpeg -stats) or any
+    line over 64 KiB cannot stop the drain, which would block the task on a full pipe and hang the runner."""
     log = job_dir(jid) / "output.log"
-    size = 0
-    with open(log, "a", encoding="utf8") as f:
-        while True:
-            raw = await stream.readline()
-            if not raw:
-                return
-            line = _scrub(raw.decode("utf8", "replace").rstrip("\r\n"))
-            box["tail"].append(line)
-            del box["tail"][:-30]
-            s = line.strip()
-            if s.startswith("{") and s.endswith("}"):
-                with contextlib.suppress(ValueError):
-                    box["json"] = json.loads(s)
-            if size < LOG_CAP:
+    state = {"size": 0}
+
+    def emit(raw: bytes, f, progress: bool = False) -> None:
+        line = _scrub(raw.decode("utf8", "replace"))
+        if progress:  # `\\r` rewrote the line in place: keep only the latest one, not thousands of them in the log
+            box["progress"] = line
+            return
+        box["tail"].append(line)
+        del box["tail"][:-30]
+        s = line.strip()
+        if s.startswith("{") and s.endswith("}"):
+            with contextlib.suppress(ValueError):
+                box["json"] = json.loads(s)
+        if state["size"] < LOG_CAP:
+            with contextlib.suppress(OSError):  # a full disk must not stop the drain: the task would block on a full pipe
                 f.write(line + "\n")
                 f.flush()
-                size += len(line) + 1
-                if size >= LOG_CAP:
+                state["size"] += len(line) + 1
+                if state["size"] >= LOG_CAP:
                     f.write("[... saída cortada em 1 MB]\n")
+
+    buf = b""
+    with open(log, "a", encoding="utf8") as f:
+        while True:
+            chunk = await stream.read(READ_CHUNK)
+            if not chunk:
+                if buf:
+                    emit(buf, f)
+                if box.get("progress"):
+                    emit(box.pop("progress").encode("utf8"), f)
+                return
+            buf += chunk
+            pos = 0
+            for m in LINE_END.finditer(buf):
+                if m.group() == b"\r" and m.end() == len(buf):
+                    break  # a lone \r at the very end may be the first half of \r\n: decide with the next block
+                emit(buf[pos:m.start()], f, progress=m.group() == b"\r")
+                pos = m.end()
+            buf = buf[pos:]
+            while len(buf) > MAX_LINE:
+                # scrub the whole buffer BEFORE cutting, so a key that straddles the cut is already hidden; a key that is
+                # still incomplete at the end stays in the last OVERLAP bytes, which are never emitted yet
+                buf = _scrub(buf.decode("latin-1")).encode("latin-1")
+                if len(buf) <= MAX_LINE:
+                    break
+                cut = min(MAX_LINE, len(buf) - OVERLAP)
+                emit(buf[:cut], f)
+                buf = buf[cut:]
 
 
 async def _heartbeat(jid: str) -> None:
