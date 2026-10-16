@@ -689,6 +689,17 @@ def test_texto_feito_para_travar_regex_e_limpo_em_poucos_segundos(env, hostil):
     assert len(p["untrusted_conteudo"].encode("utf8")) <= 20480 and len(r["resultados"][0]["untrusted_trecho"]) <= 1000
 
 
+@pytest.mark.parametrize("sujo", ["<<b>script>alert(1)</script>", "<scr<b>ipt>alert(1)</scr</b>ipt>", "<<<b>b>b>script src=x>", "<img src=x on<b></b>error=alert(1)>",
+                                   "<!<!-- -->-- <script>alert(1)</script> -->", "[a](java[b](c)script:alert(1))"])
+def test_limpeza_nao_deixa_tag_nascer_da_remocao_de_outra(env, sujo):
+    env.fake.set(fetch={"stdout": jt({"results": [{"url": "https://example.com", "final_url": None, "title": sujo, "format": "markdown", "text": f"x {sujo} y"}],
+                                      "errors": []})})
+    r = env.b.pagina("https://example.com")
+    for campo in (r["untrusted_conteudo"], r["untrusted_titulo"] or ""):
+        assert not re.search(r"<[A-Za-z!/?]", campo), campo
+        assert "javascript:" not in campo and "onerror" not in campo.replace("on error", "")
+
+
 def test_pagina_marca_tudo_como_untrusted(env):
     marca = "MARCA-PAGINA"
     env.fake.set(fetch={"stdout": jt({"results": [{"url": "https://example.com/p", "final_url": f"https://example.com/{marca}", "title": f"{marca}-t",

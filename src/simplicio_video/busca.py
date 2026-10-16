@@ -124,6 +124,7 @@ _CDATA_RE = re.compile(r"<!\[CDATA\[.*?(?:\]\]>|\Z)", re.S)
 _AUTOLINK_RE = re.compile(r"<(https?://[^\s<>]+)>")
 _TAG_RE = re.compile(r"</?[A-Za-z!?][^<>]{0,2000}>")
 _MD_LINK_RE = re.compile(r"!?\[([^\]\n]{0,500})\]\(\s*<?((?:[^()\s<>]|\([^()\s<>]{0,500}\)){0,2100})>?(?:\s+(?:\"[^\"\n]{0,500}\"|'[^'\n]{0,500}'))?\s*\)")
+_ABRE_TAG_RE = re.compile(r"<(?=[A-Za-z!/?])")
 _MD_DEF_PERIGOSA_RE = re.compile(r"^[ \t]*\[[^\]\n]+\]:[ \t]*(?:javascript|vbscript|data|file):.*$", re.I | re.M)
 
 
@@ -425,7 +426,7 @@ def _md_link(m) -> str:
     return texto  # javascript:, data:, relative and other targets are dropped, the words stay
 
 
-def _limpa_html(s: str) -> str:
+def _limpa_uma_vez(s: str) -> str:
     s = _BLOCOS_RE.sub(" ", s)
     s = _COMENTARIO_RE.sub(" ", s)
     s = _CDATA_RE.sub(" ", s)
@@ -433,6 +434,17 @@ def _limpa_html(s: str) -> str:
     s = _TAG_RE.sub("", s)
     s = _MD_LINK_RE.sub(_md_link, s)
     return _MD_DEF_PERIGOSA_RE.sub("", s)
+
+
+def _limpa_html(s: str) -> str:
+    """Remove active HTML and non-http(s) link targets. Removing a tag can join the pieces around it into a new one
+    (`<<b>script>`), so it repeats until nothing changes; whatever is left of an opening `<` is then dropped, so no tag can survive."""
+    for _ in range(5):
+        novo = _limpa_uma_vez(s)
+        if novo == s:
+            break
+        s = novo
+    return _ABRE_TAG_RE.sub("", s)
 
 
 def _linha(valor, limite: int) -> str:
