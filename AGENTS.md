@@ -44,6 +44,7 @@ simplicio-video mcp                                 # servidor MCP stdio (pip in
 simplicio-video list templates|motion|voices
 simplicio-video edit setup|transcribe|pack|render|verify   # edição por EDL com video-use (tools/video-use)
 simplicio-video opencut clone|dev|where            # editor OpenCut para acabamento manual
+simplicio-video swap providers|estimate|run|status # troca o personagem de um vídeo por um avatar (agnóstico de fornecedor); run exige --autorizo, gasta só com --yes e abaixo de --max-usd
 simplicio-video toonflow clone|serve|where         # Toonflow (MIT): estúdio de séries e vídeos com IA; serve exige --lan (escuta em 0.0.0.0:3000 sem login)
 simplicio-video moneyprinter clone|setup|serve|where|status   # MoneyPrinterTurbo (MIT): tema vira vídeo curto; trilha externa de apoio, como toonflow e opencut; serve só em 127.0.0.1, --lan abre para a rede
 simplicio-video status [--json] [contrato]         # ferramentas instaladas, versões fixadas e estado do render
@@ -59,7 +60,7 @@ python -m pytest                                   # schema, validate, --help, d
 | Pasta | O quê | Entrada principal |
 |---|---|---|
 | `schema/` | `contract.schema.json` (`simplicio.video-contract/v1`, entrada do CLI) | [receita](docs/receita-video-cliente.md) |
-| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local + bundle, `render.manifest.json`), `remote.py` (Kaggle, Colab CLI), `publish.py` (Drive/rclone), `pipeline.py` (`run`), `prospect.py` (venda ativa: coleta pública, setor → modelo, contrato, lote), `venda.py` (cobrança Pix AbacatePay, webhook de pagamento, entrega HD, `venda.json`), `clone.py` (Hypit AI), `montage.py` (OpenMontage), `mcp_server.py` (tools `video.*`), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`, `remote_render.py` = script headless dos backends remotos) | `simplicio-video --help` |
+| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local + bundle, `render.manifest.json`), `remote.py` (Kaggle, Colab CLI), `publish.py` (Drive/rclone), `pipeline.py` (`run`), `prospect.py` (venda ativa: coleta pública, setor → modelo, contrato, lote), `venda.py` (cobrança Pix AbacatePay, webhook de pagamento, entrega HD, `venda.json`), `clone.py` (Hypit AI), `montage.py` (OpenMontage), `swap.py` + `swap_providers/` (troca de personagem: orquestração única, adaptadores gemini/fal/wavespeed/kie/alibaba/fake, `swap.manifest.json`; fal, wavespeed, kie e alibaba UNVERIFIED), `mcp_server.py` (tools `video.*`), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`, `remote_render.py` = script headless dos backends remotos) | `simplicio-video --help` |
 
 | `skills/simplicio-video/` | `SKILL.md`: como um LLM escolhe template/motion/voz/tempos e escreve o contrato | [SKILL.md](skills/simplicio-video/SKILL.md) |
 | `colab/` | `render.ipynb` (render do bundle na GPU, tempos por etapa) + README | [colab/README.md](colab/README.md) |

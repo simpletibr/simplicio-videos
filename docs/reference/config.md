@@ -9,7 +9,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `ABACATEPAY_API_KEY` | Chave da API AbacatePay (cobrança Pix da trilha de venda). Só no ambiente. | `src/simplicio_video/venda.py:119` |
 | `ABACATEPAY_WEBHOOK_SECRET` | Segredo que valida o webhook de pagamento da trilha de venda. | `src/simplicio_video/venda.py:168`<br>`src/simplicio_video/venda.py:196` |
 | `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:387` |
-| `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`). Só no ambiente; nunca no repo. | `src/simplicio_video/prospect.py:811`<br>`src/simplicio_video/voice.py:196` |
+| `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo. | `src/simplicio_video/prospect.py:811`<br>`src/simplicio_video/voice.py:196` |
 | `HYPERFRAMES_BROWSER_PATH` | Chrome headless que o HyperFrames usa na captura. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:155` |
 | `HYPERFRAMES_FFMPEG_PATH` | ffmpeg que o HyperFrames usa. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:179` |
 | `HYPERFRAMES_FFPROBE_PATH` | ffprobe que o HyperFrames usa. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:182` |
@@ -27,10 +27,11 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SIMPLICIO_COLAB_AUTH` | Modo de autenticação do Colab CLI, repassado a `--auth`. | `src/simplicio_video/remote.py:183`<br>`src/simplicio_video/remote.py:184` |
 | `SIMPLICIO_DRIVE_DESTINO` | JSON com `caminho` e `arquivo` da entrega no Drive da trilha de venda. | `src/simplicio_video/venda.py:239` |
 | `SIMPLICIO_DRIVE_REMOTE` | Nome do remote do rclone para o Drive (padrão: `gdrive`). | `src/simplicio_video/publish.py:108` |
+| `SIMPLICIO_FFMPEG_DIR` | Pasta do ffmpeg/ffprobe fixados (render local e `swap`). | `src/simplicio_video/swap.py:100` |
 | `SIMPLICIO_FFMPEG_SHA256` | SHA-256 esperado do ffmpeg estático de `SIMPLICIO_FFMPEG_URL`. | `src/simplicio_video/render.py:235` |
 | `SIMPLICIO_FFMPEG_URL` | URL de um ffmpeg estático fixado, baixado e verificado pelos renders remotos. | `src/simplicio_video/render.py:233`<br>`src/simplicio_video/render.py:234` |
-| `SIMPLICIO_GEMINI_BASE` | Base da API Gemini (padrão: a oficial). Para proxies e testes. | `src/simplicio_video/voice.py:137` |
-| `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline. O gate (`make check`) roda com `1`. | `src/simplicio_video/montage.py:24`<br>`src/simplicio_video/toonflow.py:43` |
+| `SIMPLICIO_GEMINI_BASE` | Base da API Gemini (padrão: a oficial). Para proxies e testes. | `src/simplicio_video/swap_providers/gemini.py:60`<br>`src/simplicio_video/voice.py:137` |
+| `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline. O gate (`make check`) roda com `1`. | `src/simplicio_video/montage.py:24`<br>`src/simplicio_video/swap_providers/http.py:29`<br>`src/simplicio_video/toonflow.py:43` |
 | `SIMPLICIO_OPENMONTAGE_DIR` | Pasta do OpenMontage (alternativa a `OPENMONTAGE_DIR`). | `src/simplicio_video/montage.py:32` |
 | `SIMPLICIO_RCLONE_BIN` | Caminho do binário do rclone (padrão: o `rclone` do PATH). | `src/simplicio_video/publish.py:116` |
 | `SIMPLICIO_STT_PY` | Python com o motor de transcrição (STT). Padrão: o Python do TTS local. | `src/simplicio_video/words.py:36` |

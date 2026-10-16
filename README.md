@@ -22,6 +22,8 @@ Every external tool is a **track** with one CLI command, one MCP verb (`plugin.j
 | [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | MIT | Topic-to-short-video generator (LLM script, synthesized voice, stock footage; Python 3.11+) | `simplicio-video moneyprinter clone\|setup\|serve\|where\|status` | `video.moneyprinter` (clone, where) | [docs/recursos.md](docs/recursos.md) |
 | [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | Open-source AI studio for short dramas, comic dramas and videos (local web app on Bun) | `simplicio-video toonflow clone\|serve\|where` | `video.toonflow` (clone, where) | [docs/recursos.md](docs/recursos.md) |
 
+| Troca de personagem (`swap`) | n/a | Troca o personagem de um vídeo por um avatar de referência, agnóstico de fornecedor (gemini, fal, wavespeed, kie, alibaba) | `simplicio-video swap providers\|estimate\|run\|status` | `video.swap` (providers, estimate) | [docs/recursos.md](docs/recursos.md) |
+
 Toonflow runs from a pinned checkout, as its own program:
 
 ```bash
@@ -75,6 +77,20 @@ simplicio-videos/
 ├── docs/                   # ADRs, pipeline, setup — index in docs/README.md
 └── clients/<client>/       # example videos only: <video>/contract.yaml, preview/, assets
 ```
+
+### Troca de personagem (`swap`)
+
+Troca o personagem de um vídeo existente por um avatar de referência. Cada fornecedor entra por um adaptador (`gemini`, `fal`, `wavespeed`, `kie`, `alibaba`, mais `fake` para testes); a orquestração é uma só: valida, corta em pedaços, estima, submete, espera, baixa, remonta o áudio original e emenda.
+
+```bash
+simplicio-video swap providers                                   # adaptadores, capacidades, preço (US$ e R$) e confiança
+simplicio-video swap estimate --provider gemini --video in.mp4 --ref avatar.png
+simplicio-video swap run --provider gemini --video in.mp4 --ref avatar.png --out out/swap.mp4 --autorizo            # dry-run: só estima
+GEMINI_API_KEY=... simplicio-video swap run --provider gemini --video in.mp4 --ref avatar.png --out out/swap.mp4 --autorizo --yes --max-usd 2
+simplicio-video swap status out/swap.manifest.json
+```
+
+`--autorizo` é obrigatório (você confirma ter direito sobre o vídeo e as imagens). Sem `--yes` nada é enviado; `--max-usd` aborta antes de submeter. A chave só entra pela variável de ambiente do provedor. Só o `gemini` foi conferido contra a documentação real; `fal`, `wavespeed`, `kie` e `alibaba` estão **UNVERIFIED** e pedem `--aceito-unverified` para gastar. O MCP (`video.swap`) só faz `providers` e `estimate`: gastar é só pelo terminal. Detalhes em [docs/recursos.md](docs/recursos.md).
 
 ## Catalogs
 

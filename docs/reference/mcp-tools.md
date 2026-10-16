@@ -15,5 +15,6 @@
 | `video.edit` | video-use EDL editing over any MP4 (setup\|transcribe\|pack\|render\|verify). |
 | `video.opencut` | OpenCut editor (clone\|dev\|where) for manual finishing (https://github.com/OpenCut-app/OpenCut). |
 | `video.formats` | Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format. |
+| `video.swap` | Character swap, read-only: providers (adapters, capabilities, price, confidence) and estimate (cost before spending). Never runs a paid swap; run is terminal-only. |
 | `video.toonflow` | Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app). |
 | `video.moneyprinter` | MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder and where only (setup and serve run in the terminal) (https://github.com/harry0703/MoneyPrinterTurbo). |

@@ -4,6 +4,17 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+### Troca de personagem (swap)
+- `simplicio-video swap providers|estimate|run|status` e a tool MCP `video.swap` (só `providers` e `estimate`; gastar é só pelo terminal). Orquestração única em `src/simplicio_video/swap.py` e um adaptador por fornecedor em `src/simplicio_video/swap_providers/`: `gemini` (Interactions API, conferido na documentação), `fal`, `wavespeed`, `kie` e `alibaba` (**UNVERIFIED**: escritos da documentação pública, sem conferência na API real) e `fake` para testes.
+- `--autorizo` é obrigatório; sem `--yes` só estima (dry-run, sem rede); `--max-usd` (padrão US$ 2) aborta antes de submeter; adaptador UNVERIFIED pede `--aceito-unverified`. A chave só entra pela variável de ambiente do provedor e nunca vai a argumento, log ou manifesto.
+- Corta o vídeo em pedaços do tamanho que o provedor aceita, remonta o áudio original quando o provedor não o preserva, normaliza fps e duração e emenda. Grava `swap.manifest.json` com hashes, custo previsto e medido, latência por etapa, tentativas e o texto da autorização.
+- Tabela de preços por adaptador com `source_url`, `read_on` (2026-10-15) e `confidence`, e câmbio de referência (R$ 5,0521 por US$, PTAX de 2026-10-15) em campo separado. `status` lista quais provedores têm a variável da chave definida (nunca o valor).
+
+- Revisão independente do PR #103: a emenda usa nomes relativos e escapa apóstrofo no caminho; se algo falhar depois do download, os pedaços já gerados e pagos ficam numa pasta `<saída>.swap-recovery` (caminho na mensagem de erro e em `recovery_dir` do manifesto), nunca apagados; o manifesto é gravado logo após cada `submit` (com o handle) e também em Ctrl+C (`interrupted`, código 130) e em qualquer exceção, sem traceback.
+- `submit` não é repetido após erro de rede nem após resposta 2xx sem JSON (a requisição pode ter sido aceita e cobrada; nenhum provedor tem chave de idempotência aqui): o erro avisa do risco e o pedaço fica com `possibly_charged: true` no manifesto. Respostas 429/5xx continuam com nova tentativa. Erro de cota ("You exceeded your current quota") e de plano grátis (`limit: 0`, qualquer redação) nunca repetem.
+- A redação de segredos reconhece chaves pelo formato (`AIzaSy...`, `AQ....`) além das variáveis de ambiente, em log, manifesto e mensagem de erro. Chave com espaço ou caractere de controle é recusada. A chave do Gemini só vai a `*.googleapis.com` por https, e `SIMPLICIO_GEMINI_BASE` exige https (http só em localhost). `--max-usd` recusa `nan`, `inf` e negativo.
+- `plugin.json`: o verbo `video.swap` deixou de aceitar `args` livre (que permitia `run` pago pelo runtime). Agora são dois verbos fechados e sem gasto: `video.swap` (só `estimate`, com `provider`, `video`, `ref`) e `video.swap.providers`.
+
 ### Formatos de anúncio
 - `simplicio-video formats list|show|prompt` e o tool MCP `video.formats`. Biblioteca dos 50 formatos da pasta "Swipe File - 50 Formatos" do Drive (`src/simplicio_video/data/formats/formats.json`): cada um com a descrição, a estrutura, os limites, o objetivo e o link da pasta com o nome do arquivo de exemplo.
 - `formats prompt <id> --copia <arquivo|->` monta o pedido para adaptar uma copy ao formato (instruções em `data/formats/instrucoes.md` + copy + formato). O CLI não chama modelo: quem adapta é o LLM.

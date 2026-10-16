@@ -28,9 +28,10 @@ Fluxo completo:
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
+  swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow/moneyprinter
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/toonflow/moneyprinter
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -264,6 +265,11 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video formats list --objetivo venda\n  simplicio-video formats show caixinha\n  simplicio-video formats prompt caixinha --copia roteiro.txt")
     p.add_argument("args", nargs=argparse.REMAINDER, help="list [--objetivo ...] | show <id> | prompt <id> --copia <arquivo|->")
 
+    from . import swap as _swap
+    p = sub.add_parser("swap", formatter_class=Fmt, help="troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)",
+        description=_swap.HELP_DESC, epilog=_swap.HELP_EPILOG)
+    p.add_argument("args", nargs=argparse.REMAINDER, help="providers | estimate | run | status <manifesto>")
+
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
                     "video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
@@ -418,7 +424,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats", "swap"):
         if any(h in args_list for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
@@ -448,6 +454,9 @@ def main(argv: list[str] | None = None) -> int:
             except opencut.OpenCutError as e:
                 print(f"opencut: {e}", file=sys.stderr)
                 return 1
+        if cmd == "swap":
+            from . import swap
+            return swap.run_swap(sub_args)
         if cmd == "formats":
             from . import formats
             try:
