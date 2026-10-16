@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import swap_providers
-from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError
+from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError, redact
 
 __all__ = ["Job", "SwapError", "SwapTimeout", "run_swap", "plan_chunks", "estimate_report", "providers_report"]
 
@@ -85,7 +85,7 @@ def _secrets() -> list[str]:
 def scrub(text: str) -> str:
     for v in _secrets():
         text = text.replace(v, "***")
-    return text
+    return redact(text)
 
 
 def sha256_file(path: Path) -> str:
@@ -165,6 +165,7 @@ def write_manifest(path: Path, data: dict) -> None:
     for v in _secrets():
         if v in text:
             raise SwapError("segredo (chave de API) encontrado no manifesto: não gravado")
+    text = redact(text)  # a key-shaped string (e.g. pasted in --prompt) is hidden even when it is not in the environment
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf8")
 

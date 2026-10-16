@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,14 @@ from . import http
 FX = {"brl_per_usd": 5.0521, "source": "PTAX de 2026-10-15 (Banco Central do Brasil)"}
 PRICES_READ_ON = "2026-10-15"
 UNVERIFIED = "UNVERIFIED"
+
+
+KEY_PATTERN = re.compile(r"AIzaSy[A-Za-z0-9_-]{25,}|AQ\.[A-Za-z0-9_.-]{30,}")  # Google API key and OAuth-style token shapes
+
+
+def redact(text: str) -> str:
+    """Hide anything shaped like an API key, whether or not it is in the environment."""
+    return KEY_PATTERN.sub("***", text)
 
 
 class SwapError(Exception):
@@ -139,7 +148,7 @@ class Adapter:
         if isinstance(data, dict):
             err = data.get("error")
             msg = (err.get("message") if isinstance(err, dict) else err) or data.get("message") or data.get("msg") or ""
-        msg = str(msg or res.body[:200].decode("utf8", "replace"))
+        msg = redact(str(msg or res.body[:200].decode("utf8", "replace")))
         quota = res.status == 429 and "quota" in msg.lower()  # an exhausted quota does not come back in seconds
         return ProviderError(f"{self.name}: HTTP {res.status}: {msg}", retryable=(res.status == 429 and not quota) or res.status >= 500)
 
