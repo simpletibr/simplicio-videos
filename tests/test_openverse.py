@@ -1,0 +1,1432 @@
+"""Módulo `openverse` (`simplicio-video openverse search|get|library ...`): hermético, sem rede e sem chave.
+
+A API do Openverse (https://api.openverse.org/v1/) e os servidores de mídia são trocados por fakes: a API responde com as
+fixtures sanitizadas de tests/fixtures/openverse/ (respostas reais anônimas de 2026-10-16) e o download passa por um
+transporte falso, com a resolução de DNS também falsa. O ffmpeg real só entra nos testes da folha de revisão.
+
+Provas centrais: o parâmetro de licença vai certo para a API e nc/nd nunca entram por padrão; o download recusa
+endereço privado, redirecionamento para host privado, tipo falso e arquivo grande; a revisão vale por par
+(sha256 do ativo, pedido); o export recusa o que não foi aprovado para aquele pedido, o que não tem autor/licença e a
+sobrescrita divergente; nenhuma chave vai para o índice, a saída ou os créditos.
+"""
+from __future__ import annotations
+
+import ast
+import copy
+import hashlib
+import inspect
+import io
+import json
+import re
+import shutil
+import socket
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+
+from conftest import ROOT
+from simplicio_video import mcp_server, openverse as ov, paths
+from simplicio_video.cli import main
+from simplicio_video.swap_providers import http
+
+FIX = ROOT / "tests" / "fixtures" / "openverse"
+IMG = json.loads((FIX / "search_images.json").read_text(encoding="utf8"))
+AUD = json.loads((FIX / "search_audio.json").read_text(encoding="utf8"))
+ID_IMG = IMG["results"][0]["id"]
+ID_IMG2 = IMG["results"][1]["id"]
+ID_AUD = AUD["results"][0]["id"]
+URL_IMG = IMG["results"][0]["url"]
+URL_IMG2 = IMG["results"][1]["url"]
+URL_AUD = AUD["results"][0]["url"]
+PEDIDO = "nascer do sol sobre o mar para a abertura do vídeo"
+OUTRO_PEDIDO = "foto de um consultório odontológico"
+SEGREDO = "sk-fake-openverse-secret-0123456789abcdef"
+TOKEN = "tok-FAKE-0123456789abcdefghij"
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64 + b"conteudo-sintetico-a"
+PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64 + b"conteudo-sintetico-b"
+MP3 = b"ID3\x04\x00\x00\x00\x00\x00\x00" + b"\xff\xfb\x90\x00" + b"\x00" * 200
+
+REAL_REQUEST = http.request  # guardado antes do fixture trocar por FakeApi
+needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
+
+
+# ------------------------------------------------------------------------------------------------ fakes
+
+class FakeApi:
+    """Troca `swap_providers.http.request`: responde com as fixtures e registra cada chamada."""
+
+    def __init__(self):
+        self.images = copy.deepcopy(IMG)
+        self.audio = copy.deepcopy(AUD)
+        self.calls: list[dict] = []
+        self.status = 200
+        self.token_body = {"access_token": TOKEN, "scope": "read write groups", "expires_in": 36000, "token_type": "Bearer"}
+        self.token_status = 200
+
+    def __call__(self, method, url, headers=None, json_body=None, timeout=60, form=None):
+        u = urlparse(url)
+        self.calls.append({"method": method, "url": url, "path": u.path, "query": {k: v[0] for k, v in parse_qs(u.query).items()},
+                           "headers": dict(headers or {}), "form": dict(form or {})})
+        if u.path.endswith("/auth_tokens/token/"):
+            return http.Response(self.token_status, json.dumps(self.token_body).encode(), {})
+        if self.status != 200:
+            return http.Response(self.status, json.dumps({"detail": f"erro simulado, credencial {SEGREDO}"}).encode(),
+                                 {"retry-after": "60"})
+        base = self.images if "/images/" in u.path else self.audio
+        parts = [p for p in u.path.split("/") if p]
+        if len(parts) == 3:  # /v1/images/<id>/
+            for r in base["results"]:
+                if r["id"] == parts[2]:
+                    return http.Response(200, json.dumps(r).encode(), {})
+            return http.Response(404, b'{"detail": "Not found."}', {})
+        return http.Response(200, json.dumps(base).encode(), {"x-ratelimit-available-anon_burst": "19"})
+
+    def searches(self):
+        return [c for c in self.calls if c["method"] == "GET" and c["path"].rstrip("/") in ("/v1/images", "/v1/audio")]
+
+    def details(self):
+        return [c for c in self.calls if c["method"] == "GET" and len([p for p in c["path"].split("/") if p]) == 3]
+
+
+class FakeResp:
+    def __init__(self, status=200, headers=None, body=b""):
+        self.status, self.headers, self._buf, self.sent = status, {k.lower(): v for k, v in (headers or {}).items()}, io.BytesIO(body), 0
+
+    def read(self, n=-1):
+        data = self._buf.read(n)
+        self.sent += len(data)
+        return data
+
+    def close(self):
+        pass
+
+
+class FakeNet:
+    """Troca `openverse._resolve` e `openverse._http_get`: nenhum socket é aberto."""
+
+    def __init__(self):
+        self.hosts: dict[str, list[str]] = {}
+        self.routes: dict[str, FakeResp | list] = {}
+        self.gets: list[tuple[str, str]] = []
+        self.resolved: list[str] = []
+
+    def resolve(self, host):
+        self.resolved.append(host)
+        if host in self.hosts:
+            return self.hosts[host]
+        try:
+            import ipaddress
+            ipaddress.ip_address(host)
+            return [host]
+        except ValueError:
+            raise ov.OpenverseError(f"não consegui resolver {host}") from None
+
+    def http_get(self, url, ip, timeout=30):
+        self.gets.append((url, ip))
+        if url not in self.routes:
+            return FakeResp(404, {}, b"")
+        route = self.routes[url]
+        return route() if callable(route) else route
+
+    def serve(self, url, body, status=200, headers=None, host_ip="151.101.1.1"):
+        host = urlparse(url).hostname
+        self.hosts.setdefault(host, [host_ip])
+        self.routes[url] = FakeResp(status, headers or {"Content-Type": "image/png"}, body)
+
+    def redirect(self, url, to, status=302):
+        host = urlparse(url).hostname
+        self.hosts.setdefault(host, ["151.101.1.1"])
+        self.routes[url] = FakeResp(status, {"Location": to}, b"")
+
+
+@pytest.fixture(autouse=True)
+def amb(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENVERSE_LIBRARY_DIR", str(tmp_path / "biblioteca"))
+    monkeypatch.delenv("OPENVERSE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("OPENVERSE_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr(ov, "_now", lambda: datetime(2026, 10, 16, 12, 0, 0, tzinfo=timezone.utc))
+    monkeypatch.setattr(ov, "_TOKEN", {}, raising=False)
+    api, net = FakeApi(), FakeNet()
+    monkeypatch.setattr(http, "request", api)
+    monkeypatch.setattr(ov, "_resolve", net.resolve)
+    monkeypatch.setattr(ov, "_http_get", net.http_get)
+    return type("Amb", (), {"api": api, "net": net, "lib": tmp_path / "biblioteca", "tmp": tmp_path})
+
+
+@pytest.fixture
+def env(amb):
+    return amb
+
+
+def baixar(env, tipo="imagem", idx=0, body=None, consulta="sunrise over the sea", atualizar=False):
+    """Busca (cacheia) e baixa o resultado `idx` com bytes sintéticos. Devolve o registro da biblioteca."""
+    base = IMG if tipo == "imagem" else AUD
+    res = ov.search(tipo, consulta)
+    item = res["resultados"][idx]
+    default = PNG if tipo == "imagem" else MP3
+    env.net.serve(base["results"][idx]["url"], body if body is not None else default,
+                  headers={"Content-Type": "application/octet-stream"})
+    return ov.get(item["id"], atualizar=atualizar)["item"]
+
+
+def cli(argv, capsys):
+    try:
+        rc = main(["openverse", *argv])
+    except SystemExit as e:
+        rc = e.code
+    out, err = capsys.readouterr()
+    return rc, out, err
+
+
+def arquivos_sob(pasta: Path):
+    return [p for p in Path(pasta).rglob("*") if p.is_file()]
+
+
+# ------------------------------------------------------------------------------------------------ licenças e busca
+
+def test_licencas_padrao_sao_as_seguras_para_uso_comercial_e_edicao():
+    assert ov.DEFAULT_LICENSES == ("cc0", "pdm", "by")
+    for nao in ("by-nc", "by-nd", "by-nc-sa", "by-nc-nd", "by-sa"):
+        assert nao not in ov.DEFAULT_LICENSES
+
+
+def test_busca_de_imagem_manda_a_licenca_certa_para_a_api(env):
+    res = ov.search("imagem", "sunrise over the sea")
+    (c,) = env.api.searches()
+    assert c["path"] == "/v1/images/" and c["url"].startswith("https://api.openverse.org/v1/images/")
+    q = c["query"]
+    assert q["q"] == "sunrise over the sea"
+    assert q["license"] == "cc0,pdm,by"
+    assert q["license_type"] == "commercial,modification"
+    assert q["page_size"] == "10" and q["page"] == "1" and q["mature"] == "false"
+    assert "Authorization" not in c["headers"]
+    assert c["headers"]["User-Agent"].startswith("simplicio-video/")
+    assert res["tipo"] == "imagem" and res["licencas"] == ["cc0", "pdm", "by"] and res["do_cache"] is False
+
+
+def test_busca_de_audio_usa_o_endpoint_de_audio(env):
+    res = ov.search("audio", "rain")
+    (c,) = env.api.searches()
+    assert c["path"] == "/v1/audio/" and c["query"]["license"] == "cc0,pdm,by"
+    assert res["tipo"] == "audio" and len(res["resultados"]) == 3
+
+
+def test_busca_normaliza_os_campos_da_imagem(env):
+    r = ov.search("imagem", "sunrise over the sea")["resultados"][0]
+    assert r["id"] == ID_IMG and r["tipo"] == "imagem"
+    assert r["titulo"] == "HDR Sunrise over the sea XOKA1917bs2-hdr" and r["autor"] == "Phuketian.S"
+    assert r["autor_url"] == "https://www.flickr.com/photos/124790945@N06"
+    assert (r["licenca"], r["licenca_versao"]) == ("by", "2.0")
+    assert r["licenca_url"] == "https://creativecommons.org/licenses/by/2.0/"
+    assert r["atribuicao"].startswith('"HDR Sunrise over the sea')
+    assert r["origem_url"] == "https://www.flickr.com/photos/124790945@N06/14855236671"
+    assert r["url_arquivo"] == URL_IMG and r["provedor"] == "flickr"
+    assert (r["largura"], r["altura"]) == (1024, 606) and r["mature"] is False
+    assert r["tags"][:2] == [t["name"] for t in IMG["results"][0]["tags"][:2]]
+
+
+def test_busca_normaliza_os_campos_do_audio(env):
+    r = ov.search("audio", "rain")["resultados"][0]
+    assert r["id"] == ID_AUD and r["tipo"] == "audio" and r["licenca_versao"] == "4.0"
+    assert r["duracao_s"] == pytest.approx(60.116) and r["bit_rate"] == 128000 and r["filetype"] == "mp3"
+    assert r["url_arquivo"] == URL_AUD and r["provedor"] == "freesound"
+
+
+def test_tags_ficam_limitadas_e_sem_duplicata(env):
+    env.api.images["results"][0]["tags"] = [{"name": f"t{i % 40}", "accuracy": None} for i in range(200)]
+    r = ov.search("imagem", "x")["resultados"][0]
+    assert 0 < len(r["tags"]) <= 20 and len(r["tags"]) == len(set(r["tags"]))
+
+
+def test_licencas_explicitas_by_sa_nc_nd_voltam_com_aviso(env):
+    res = ov.search("imagem", "x", licencas="cc0,by,by-nc,by-nd,by-sa")
+    avisos = res["avisos"]
+    achou = {lic: [a.lower() for a in avisos if a.lower().startswith(lic)] for lic in ("by-nc", "by-nd", "by-sa")}
+    assert achou["by-nc"] and "comercial" in achou["by-nc"][0]
+    assert achou["by-nd"] and "derivad" in achou["by-nd"][0]
+    assert achou["by-sa"] and "mesma licença" in achou["by-sa"][0]
+    assert len(avisos) == 3  # cc0 e by não geram aviso
+    (c,) = env.api.searches()
+    assert c["query"]["license"] == "cc0,by,by-nc,by-nd,by-sa"
+    assert "license_type" not in c["query"]  # commercial/modification só quando todas as licenças são seguras
+
+
+def test_busca_padrao_nao_tem_aviso_de_licenca(env):
+    assert ov.search("imagem", "x")["avisos"] == []
+
+
+def test_license_type_so_vai_quando_todas_as_licencas_permitem_uso_comercial_e_modificacao(env):
+    ov.search("imagem", "x", licencas="cc0,by,by-sa")
+    assert env.api.searches()[0]["query"]["license_type"] == "commercial,modification"
+
+
+@pytest.mark.parametrize("ruim", ["gpl", "by-xx", "sampling+", "", "cc0,,by"])
+def test_licenca_desconhecida_e_recusada_antes_da_rede(env, ruim):
+    with pytest.raises(ov.OpenverseError, match="licen"):
+        ov.search("imagem", "x", licencas=ruim)
+    assert env.api.calls == []
+
+
+def test_parse_licenses_ordem_canonica_sem_duplicata():
+    lic, avisos = ov.parse_licenses("by, CC0,pdm,by")
+    assert lic == ["cc0", "pdm", "by"] and avisos == []
+
+
+def test_resultado_fora_do_pedido_sem_licenca_sem_url_ou_mature_e_descartado(env):
+    r = env.api.images["results"]
+    r[0]["license"] = "by-nc"   # a API devolveu uma licença que não foi pedida
+    r[1]["license"] = None      # sem licença conhecida
+    r[2]["url"] = None          # nada para baixar
+    res = ov.search("imagem", "x")
+    assert res["resultados"] == []
+    assert res["descartados"]["licenca_fora_do_pedido"] == 1
+    assert res["descartados"]["sem_licenca"] == 1 and res["descartados"]["sem_url"] == 1
+    env.api.images["results"] = copy.deepcopy(IMG["results"])
+    env.api.images["results"][0]["mature"] = True
+    res = ov.search("imagem", "outra")
+    assert res["descartados"]["mature"] == 1 and len(res["resultados"]) == 2
+
+
+def test_filtro_local_de_largura_minima(env):
+    res = ov.search("imagem", "x", minimo_largura=2000)
+    assert res["resultados"] == [] and res["descartados"]["filtro_local"] == 3
+    assert len(ov.search("imagem", "x", minimo_largura=1000)["resultados"]) == 3
+
+
+def test_filtro_local_de_duracao_do_audio(env):
+    assert len(ov.search("audio", "rain", duracao_min=60, duracao_max=61)["resultados"]) == 3
+    assert ov.search("audio", "rain", duracao_min=61)["resultados"] == []
+    assert ov.search("audio", "rain", duracao_max=30)["resultados"] == []
+
+
+def test_filtro_de_audio_em_imagem_e_o_inverso_sao_recusados(env):
+    with pytest.raises(ov.OpenverseError, match="duração"):
+        ov.search("imagem", "x", duracao_min=1)
+    with pytest.raises(ov.OpenverseError, match="largura"):
+        ov.search("audio", "x", minimo_largura=100)
+
+
+def test_paginacao_manda_page_e_page_size(env):
+    ov.search("imagem", "x", limite=5, pagina=2)
+    q = env.api.searches()[0]["query"]
+    assert q["page_size"] == "5" and q["page"] == "2"
+
+
+def test_limite_anonimo_e_20_e_zero_ou_negativo_e_recusado(env):
+    with pytest.raises(ov.OpenverseError, match="20"):
+        ov.search("imagem", "x", limite=21)
+    for ruim in (0, -1):
+        with pytest.raises(ov.OpenverseError):
+            ov.search("imagem", "x", limite=ruim)
+    with pytest.raises(ov.OpenverseError, match="página"):
+        ov.search("imagem", "x", pagina=0)
+    assert env.api.calls == []
+
+
+def test_consulta_vazia_ou_acima_de_200_caracteres_e_recusada(env):
+    for ruim in ("", "   ", "a" * 201):
+        with pytest.raises(ov.OpenverseError, match="consulta"):
+            ov.search("imagem", ruim)
+    assert env.api.calls == []
+
+
+def test_tipo_invalido(env):
+    with pytest.raises(ov.OpenverseError, match="tipo"):
+        ov.search("video", "x")
+
+
+# ------------------------------------------------------------------------------------------------ cache
+
+def test_repetir_a_busca_sai_do_cache_sem_chamar_a_api(env):
+    a = ov.search("imagem", "sunrise over the sea")
+    b = ov.search("imagem", "sunrise over the sea")
+    assert len(env.api.searches()) == 1
+    assert b["do_cache"] is True and b["consultado_em"] == a["consultado_em"] == "2026-10-16T12:00:00Z"
+    assert [r["id"] for r in b["resultados"]] == [r["id"] for r in a["resultados"]]
+
+
+def test_cache_e_nomeado_pelo_hash_da_consulta_e_tem_data(env):
+    ov.search("imagem", "sunrise over the sea")
+    (f,) = (env.lib / "cache").glob("*.json")
+    assert re.fullmatch(r"[0-9a-f]{64}", f.stem)
+    doc = json.loads(f.read_text(encoding="utf8"))
+    assert doc["schema"] == "simplicio.openverse-search/v1" and doc["consultado_em"] == "2026-10-16T12:00:00Z"
+    assert doc["parametros"]["q"] == "sunrise over the sea" and doc["parametros"]["license"] == "cc0,pdm,by"
+
+
+def test_busca_repetida_funciona_offline(env, monkeypatch):
+    ov.search("audio", "rain")
+
+    def sem_rede(*a, **k):
+        raise AssertionError("não pode chamar a rede")
+    monkeypatch.setattr(http, "request", sem_rede)
+    assert ov.search("audio", "rain")["do_cache"] is True
+
+
+def test_atualizar_ignora_o_cache_e_pagina_ou_licenca_diferentes_sao_outra_consulta(env):
+    ov.search("imagem", "x")
+    ov.search("imagem", "x", atualizar=True)
+    assert len(env.api.searches()) == 2
+    ov.search("imagem", "x", pagina=2)
+    ov.search("imagem", "x", licencas="cc0")
+    assert len(env.api.searches()) == 4
+    assert len(list((env.lib / "cache").glob("*.json"))) == 3
+
+
+def test_filtros_locais_reaproveitam_o_mesmo_cache(env):
+    ov.search("imagem", "x")
+    ov.search("imagem", "x", minimo_largura=2000)
+    assert len(env.api.searches()) == 1
+
+
+def test_sem_cache_e_sem_rede_da_erro_claro(env, monkeypatch):
+    monkeypatch.setattr(http, "request", lambda *a, **k: (_ for _ in ()).throw(http.NetworkError("falha de rede: URLError")))
+    with pytest.raises(ov.OpenverseError, match="rede"):
+        ov.search("imagem", "x")
+
+
+def test_erro_da_api_traz_o_status_e_o_retry_after_sem_vazar_segredo(env):
+    env.api.status = 429
+    with pytest.raises(ov.OpenverseError) as e:
+        ov.search("imagem", "x")
+    msg = str(e.value)
+    assert "429" in msg and "60" in msg and SEGREDO not in msg
+    assert not list((env.lib / "cache").glob("*.json"))
+
+
+# ------------------------------------------------------------------------------------------------ credenciais OAuth
+
+def test_sem_credencial_nao_pede_token(env):
+    ov.search("imagem", "x")
+    assert all("auth_tokens" not in c["path"] for c in env.api.calls)
+
+
+def test_com_credencial_pede_token_por_formulario_e_manda_bearer(env, monkeypatch):
+    monkeypatch.setenv("OPENVERSE_CLIENT_ID", "meu-id-fake")
+    monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", SEGREDO)
+    ov.search("imagem", "x")
+    tok, busca = env.api.calls[0], env.api.calls[1]
+    assert tok["method"] == "POST" and tok["url"] == "https://api.openverse.org/v1/auth_tokens/token/"
+    assert tok["form"] == {"grant_type": "client_credentials", "client_id": "meu-id-fake", "client_secret": SEGREDO}
+    assert busca["headers"]["Authorization"] == f"Bearer {TOKEN}"
+    ov.search("imagem", "y")
+    assert sum("auth_tokens" in c["path"] for c in env.api.calls) == 1  # token reaproveitado no processo
+
+
+def test_com_credencial_o_limite_por_pagina_sobe_para_50(env, monkeypatch):
+    monkeypatch.setenv("OPENVERSE_CLIENT_ID", "meu-id-fake")
+    monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", SEGREDO)
+    ov.search("imagem", "x", limite=50)
+    assert env.api.searches()[0]["query"]["page_size"] == "50"
+    with pytest.raises(ov.OpenverseError, match="50"):
+        ov.search("imagem", "x", limite=51)
+
+
+@pytest.mark.parametrize("so", ["OPENVERSE_CLIENT_ID", "OPENVERSE_CLIENT_SECRET"])
+def test_definir_so_uma_das_duas_variaveis_e_erro(env, monkeypatch, so):
+    monkeypatch.setenv(so, "valor-fake")
+    with pytest.raises(ov.OpenverseError, match="OPENVERSE_CLIENT_ID"):
+        ov.search("imagem", "x")
+    assert env.api.calls == []
+
+
+def test_token_recusado_nao_vaza_o_segredo(env, monkeypatch):
+    monkeypatch.setenv("OPENVERSE_CLIENT_ID", "meu-id-fake")
+    monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", SEGREDO)
+    env.api.token_status = 401
+    env.api.token_body = {"detail": f"credenciais inválidas: {SEGREDO}"}
+    with pytest.raises(ov.OpenverseError) as e:
+        ov.search("imagem", "x")
+    assert SEGREDO not in str(e.value) and "401" in str(e.value)
+
+
+def test_nenhuma_chave_vai_para_arquivo_ou_saida(env, monkeypatch, capsys, midia):
+    monkeypatch.setenv("OPENVERSE_CLIENT_ID", "meu-id-fake")
+    monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", SEGREDO)
+    saidas = []
+    rc, out, err = cli(["search", "--tipo", "imagem", "--consulta", "sunrise over the sea", "--json"], capsys)
+    saidas += [out, err]
+    assert rc == 0
+    env.net.serve(URL_IMG, midia.get("nitida", PNG), headers={"Content-Type": "image/png"})
+    rc, out, err = cli(["get", ID_IMG, "--json"], capsys)
+    saidas += [out, err]
+    assert rc == 0
+    if midia:
+        rc, out, err = cli(["library", "review", ID_IMG, "--pedido", PEDIDO, "--folha", "--json"], capsys)
+        saidas += [out, err]
+        assert rc == 0
+        rc, out, err = cli(["library", "review", ID_IMG, "--pedido", PEDIDO, "--aprovar", "--motivo", "serve", "--por", "t", "--json"], capsys)
+        saidas += [out, err]
+        rc, out, err = cli(["library", "export", ID_IMG, "--pedido", PEDIDO, "--para", str(env.tmp / "saida"), "--json"], capsys)
+        saidas += [out, err]
+        assert rc == 0
+    rc, out, err = cli(["library", "show", ID_IMG, "--json"], capsys)
+    saidas += [out, err]
+    texto = "\n".join(saidas)
+    for pasta in (env.lib, env.tmp / "saida"):
+        for f in arquivos_sob(pasta):
+            if f.suffix in (".json", ".md", ".txt"):
+                texto += f.read_text(encoding="utf8", errors="ignore")
+    for proibido in (SEGREDO, TOKEN, "meu-id-fake"):
+        assert proibido not in texto
+
+
+def test_texto_gravado_com_a_chave_do_ambiente_e_recusado(env, monkeypatch):
+    monkeypatch.setenv("OPENVERSE_CLIENT_ID", "meu-id-fake")
+    monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", SEGREDO)
+    item = baixar(env)
+    with pytest.raises(ov.OpenverseError, match="segredo"):
+        ov.review(item["id"], f"pedido com {SEGREDO}", "reprovado", "motivo", "teste")
+
+
+def test_texto_com_formato_de_chave_e_mascarado_no_motivo(env):
+    item = baixar(env)
+    rev = ov.review(item["id"], PEDIDO, "reprovado", "ver AIzaSyA1234567890abcdefghijklmnopqrstuvwx no chat", "teste")
+    assert "AIzaSyA1234567890" not in json.dumps(rev) and "***" in rev["motivo"]
+    assert "AIzaSyA1234567890" not in (env.lib / "index.json").read_text(encoding="utf8")
+
+
+# ------------------------------------------------------------------------------------------------ download seguro
+
+def test_download_grava_pelo_sha256_e_confere_o_hash(env):
+    item = baixar(env)
+    sha = hashlib.sha256(PNG).hexdigest()
+    assert item["sha256"] == sha and item["formato"] == "png" and item["tamanho_bytes"] == len(PNG)
+    f = env.lib / "files" / f"{sha}.png"
+    assert f.read_bytes() == PNG
+    assert item["arquivo"] == f"files/{sha}.png"
+    assert item["baixado_em"] == "2026-10-16T12:00:00Z" and item["consultado_em"] == "2026-10-16T12:00:00Z"
+    assert item["titulo"] and item["autor"] == "Phuketian.S" and item["origem_url"].startswith("https://www.flickr.com/")
+
+
+def test_nome_do_arquivo_nunca_vem_do_servidor(env):
+    env.net.serve(URL_IMG, PNG, headers={"Content-Disposition": 'attachment; filename="../../evil.exe"', "Content-Type": "image/png"})
+    ov.search("imagem", "x")
+    ov.get(ID_IMG)
+    nomes = {p.name for p in arquivos_sob(env.lib / "files")}
+    assert nomes == {f"{hashlib.sha256(PNG).hexdigest()}.png"}
+    assert not (env.tmp / "evil.exe").exists()
+
+
+def test_download_so_conecta_no_ip_validado(env):
+    env.net.serve(URL_IMG, PNG, host_ip="151.101.65.1")
+    ov.search("imagem", "x")
+    ov.get(ID_IMG)
+    assert env.net.gets == [(URL_IMG, "151.101.65.1")]
+
+
+@pytest.mark.parametrize("ip", ["127.0.0.1", "10.0.0.5", "172.16.3.4", "192.168.1.2", "169.254.169.254", "100.64.0.1", "0.0.0.0",
+                                "::1", "fe80::1", "fc00::1", "::ffff:127.0.0.1", "::ffff:10.1.2.3", "224.0.0.1"])
+def test_ssrf_recusa_host_que_resolve_para_endereco_nao_publico(env, ip):
+    env.net.serve(URL_IMG, PNG, host_ip=ip)
+    ov.search("imagem", "x")
+    with pytest.raises(ov.OpenverseError, match="não público"):
+        ov.get(ID_IMG)
+    assert env.net.gets == []
+    assert not (env.lib / "files").exists() or not list((env.lib / "files").iterdir())
+
+
+def test_ssrf_recusa_se_qualquer_endereco_do_host_for_privado(env):
+    env.net.hosts["live.staticflickr.com"] = ["8.8.8.8", "10.0.0.1"]
+    env.net.routes[URL_IMG] = FakeResp(200, {}, PNG)
+    ov.search("imagem", "x")
+    with pytest.raises(ov.OpenverseError, match="não público"):
+        ov.get(ID_IMG)
+    assert env.net.gets == []
+
+
+@pytest.mark.parametrize("url,msg", [
+    ("http://live.staticflickr.com/a.jpg", "https"),
+    ("ftp://live.staticflickr.com/a.jpg", "https"),
+    ("file:///etc/passwd", "https"),
+    ("https://127.0.0.1/a.jpg", "não público"),
+    ("https://localhost/a.jpg", "não público"),
+    ("https://[::1]/a.jpg", "não público"),
+    ("https://user:senha@live.staticflickr.com/a.jpg", "credencial"),
+    ("https://live.staticflickr.com:8443/a.jpg", "porta"),
+    ("https:///a.jpg", "host"),
+])
+def test_url_do_ativo_invalida_e_recusada_antes_de_conectar(env, url, msg):
+    env.net.hosts.setdefault("localhost", ["127.0.0.1"])
+    env.api.images["results"][0]["url"] = url
+    ov.search("imagem", "x")
+    with pytest.raises(ov.OpenverseError, match=msg):
+        ov.get(ID_IMG)
+    assert env.net.gets == []
+
+
+def test_redirecionamento_para_host_privado_e_recusado_depois_do_redirect(env):
+    env.net.redirect(URL_IMG, "https://interno.example/segredo.png")
+    env.net.hosts["interno.example"] = ["10.0.0.9"]
+    env.net.routes["https://interno.example/segredo.png"] = FakeResp(200, {}, PNG)
+    ov.search("imagem", "x")
+    with pytest.raises(ov.OpenverseError, match="não público"):
+        ov.get(ID_IMG)
+    assert [u for u, _ in env.net.gets] == [URL_IMG]  # nunca conectou no destino privado
+
+
+def test_redirecionamento_para_http_e_para_metadados_da_nuvem_sao_recusados(env):
+    ov.search("imagem", "x")
+    env.net.redirect(URL_IMG, "http://cdn.example/a.png")
+    with pytest.raises(ov.OpenverseError, match="https"):
+        ov.get(ID_IMG)
+    env.net.redirect(URL_IMG, "https://169.254.169.254/latest/meta-data/")
+    with pytest.raises(ov.OpenverseError, match="não público"):
+        ov.get(ID_IMG)
+
+
+def test_redirecionamento_para_host_publico_e_seguido_inclusive_relativo(env):
+    env.net.redirect(URL_IMG, "/outra/foto.png")
+    env.net.serve("https://live.staticflickr.com/outra/foto.png", PNG)
+    ov.search("imagem", "x")
+    item = ov.get(ID_IMG)["item"]
+    assert item["sha256"] == hashlib.sha256(PNG).hexdigest()
+    assert [u for u, _ in env.net.gets] == [URL_IMG, "https://live.staticflickr.com/outra/foto.png"]
+
+
+def test_limite_de_redirecionamentos(env):
+    assert ov.MAX_REDIRECTS == 5
+    for i in range(10):
+        env.net.redirect(f"https://live.staticflickr.com/r{i}.png", f"https://live.staticflickr.com/r{i + 1}.png")
+    env.net.redirect(URL_IMG, "https://live.staticflickr.com/r0.png")
+    ov.search("imagem", "x")
+    with pytest.raises(ov.OpenverseError, match="redirecionamentos"):
+        ov.get(ID_IMG)
+    assert len(env.net.gets) <= ov.MAX_REDIRECTS + 1
+
+
+def test_tipo_vem_dos_bytes_e_nao_do_content_type(env):
+    ov.search("imagem", "x")
+    env.net.serve(URL_IMG, b"<html><script>alert(1)</script></html>", headers={"Content-Type": "image/png"})
+    with pytest.raises(ov.OpenverseError, match="assinatura"):
+        ov.get(ID_IMG)
+    env.net.serve(URL_IMG, b"MZ\x90\x00" + b"\x00" * 100, headers={"Content-Type": "image/jpeg"})
+    with pytest.raises(ov.OpenverseError, match="assinatura"):
+        ov.get(ID_IMG)
+    env.net.serve(URL_IMG, b"<svg xmlns='http://www.w3.org/2000/svg'><script/></svg>", headers={"Content-Type": "image/svg+xml"})
+    with pytest.raises(ov.OpenverseError, match="assinatura"):
+        ov.get(ID_IMG)
+    env.net.serve(URL_IMG, PNG, headers={"Content-Type": "text/html"})  # Content-Type mentiroso, bytes de PNG: vale o byte
+    assert ov.get(ID_IMG)["item"]["formato"] == "png"
+    assert not list((env.lib / "files").glob("*.html"))
+
+
+@pytest.mark.parametrize("corpo,formato", [
+    (b"\xff\xd8\xff\xe0" + b"\x00" * 50, "jpeg"),
+    (b"\x89PNG\r\n\x1a\n" + b"\x00" * 50, "png"),
+    (b"GIF89a" + b"\x00" * 50, "gif"),
+    (b"GIF87a" + b"\x00" * 50, "gif"),
+    (b"RIFF\x24\x00\x00\x00WEBPVP8 " + b"\x00" * 50, "webp"),
+])
+def test_formatos_de_imagem_aceitos_por_assinatura(env, corpo, formato):
+    ov.search("imagem", "x")
+    env.net.serve(URL_IMG, corpo, headers={"Content-Type": "application/octet-stream"})
+    it = ov.get(ID_IMG)["item"]
+    assert it["formato"] == formato
+    ext = {"jpeg": "jpg"}.get(formato, formato)
+    assert it["arquivo"].endswith("." + ext)
+
+
+@pytest.mark.parametrize("corpo", [b"BM" + b"\x00" * 50, b"%PDF-1.7" + b"\x00" * 50, b"\x7fELF" + b"\x00" * 50, b"PK\x03\x04" + b"\x00" * 50,
+                                    b"RIFF\x24\x00\x00\x00WAVEfmt " + b"\x00" * 50, b"", b"\x00" * 100])
+def test_imagem_recusa_formato_fora_da_lista(env, corpo):
+    ov.search("imagem", "x")
+    env.net.serve(URL_IMG, corpo)
+    with pytest.raises(ov.OpenverseError):
+        ov.get(ID_IMG)
+    assert not (env.lib / "files").exists() or not list((env.lib / "files").iterdir())
+
+
+@pytest.mark.parametrize("corpo,formato", [
+    (MP3, "mp3"),
+    (b"\xff\xfb\x90\x00" + b"\x00" * 100, "mp3"),
+    (b"OggS\x00\x02" + b"\x00" * 50, "ogg"),
+    (b"RIFF\x24\x00\x00\x00WAVEfmt " + b"\x00" * 50, "wav"),
+    (b"fLaC\x00\x00\x00\x22" + b"\x00" * 50, "flac"),
+    (b"\x00\x00\x00\x20ftypM4A \x00\x00\x00\x00" + b"\x00" * 50, "m4a"),
+])
+def test_formatos_de_audio_aceitos_por_assinatura(env, corpo, formato):
+    ov.search("audio", "rain")
+    env.net.serve(URL_AUD, corpo)
+    assert ov.get(ID_AUD)["item"]["formato"] == formato
+
+
+def test_audio_recusa_imagem_e_imagem_recusa_audio(env):
+    ov.search("audio", "rain")
+    env.net.serve(URL_AUD, PNG)
+    with pytest.raises(ov.OpenverseError, match="áudio"):
+        ov.get(ID_AUD)
+    ov.search("imagem", "x")
+    env.net.serve(URL_IMG, MP3)
+    with pytest.raises(ov.OpenverseError, match="imagem"):
+        ov.get(ID_IMG)
+
+
+def test_limites_de_tamanho_padrao():
+    assert ov.MAX_BYTES == {"imagem": 25 * 1024 * 1024, "audio": 50 * 1024 * 1024}
+
+
+def test_arquivo_acima_do_limite_pelo_content_length_nem_e_lido(env, monkeypatch):
+    monkeypatch.setattr(ov, "MAX_BYTES", {"imagem": 1000, "audio": 2000})
+    resp = FakeResp(200, {"Content-Length": "5000"}, PNG + b"\x00" * 5000)
+    env.net.hosts["live.staticflickr.com"] = ["151.101.1.1"]
+    env.net.routes[URL_IMG] = resp
+    ov.search("imagem", "x")
+    with pytest.raises(ov.OpenverseError, match="limite"):
+        ov.get(ID_IMG)
+    assert resp.sent == 0
+
+
+def test_arquivo_acima_do_limite_sem_content_length_e_cortado_na_leitura_em_blocos(env, monkeypatch):
+    monkeypatch.setattr(ov, "MAX_BYTES", {"imagem": 1000, "audio": 2000})
+    monkeypatch.setattr(ov, "READ_BLOCK", 256)
+    resp = FakeResp(200, {}, PNG + b"\x00" * 100000)
+    env.net.hosts["live.staticflickr.com"] = ["151.101.1.1"]
+    env.net.routes[URL_IMG] = resp
+    ov.search("imagem", "x")
+    with pytest.raises(ov.OpenverseError, match="limite"):
+        ov.get(ID_IMG)
+    assert resp.sent <= 1000 + 256
+    assert not (env.lib / "files").exists() or not list((env.lib / "files").iterdir())
+    assert not list((env.lib).rglob("*.part")) and not list((env.lib).rglob("*.tmp"))
+    assert not (env.lib / "index.json").exists() or ID_IMG not in json.loads((env.lib / "index.json").read_text())["itens"]
+
+
+def test_status_http_diferente_de_200_e_recusado(env):
+    ov.search("imagem", "x")
+    for st in (404, 403, 500, 206):
+        env.net.serve(URL_IMG, PNG, status=st)
+        with pytest.raises(ov.OpenverseError, match=str(st)):
+            ov.get(ID_IMG)
+
+
+def test_get_recusa_item_sem_licenca_conhecida_ou_mature_pelo_detalhe(env):
+    env.api.images["results"][0]["license"] = None
+    with pytest.raises(ov.OpenverseError, match="licen"):
+        ov.get(ID_IMG, tipo="imagem")
+    env.api.images["results"][0]["license"] = "gpl"
+    with pytest.raises(ov.OpenverseError, match="licen"):
+        ov.get(ID_IMG, tipo="imagem")
+    env.api.images["results"][0]["license"] = "by"
+    env.api.images["results"][0]["mature"] = True
+    with pytest.raises(ov.OpenverseError, match="mature"):
+        ov.get(ID_IMG, tipo="imagem")
+    assert env.net.gets == []
+
+
+def test_get_sem_cache_exige_tipo_e_usa_o_endpoint_de_detalhe(env):
+    with pytest.raises(ov.OpenverseError, match="--tipo"):
+        ov.get(ID_IMG)
+    env.net.serve(URL_IMG, PNG)
+    ov.get(ID_IMG, tipo="imagem")
+    (d,) = env.api.details()
+    assert d["url"] == f"https://api.openverse.org/v1/images/{ID_IMG}/"
+
+
+def test_get_recusa_id_que_nao_e_uuid(env):
+    for ruim in ("../../etc/passwd", "abc", "9d8abc2c-c4dd-4dce-8164-cadd775befcf/x", ""):
+        with pytest.raises(ov.OpenverseError, match="id"):
+            ov.get(ruim, tipo="imagem")
+    assert env.api.calls == []
+
+
+def test_get_e_idempotente_e_atualizar_baixa_de_novo(env):
+    item = baixar(env)
+    n = len(env.net.gets)
+    again = ov.get(item["id"])
+    assert again["ja_na_biblioteca"] is True and len(env.net.gets) == n
+    refeito = ov.get(item["id"], atualizar=True)
+    assert refeito["ja_na_biblioteca"] is False and len(env.net.gets) == n + 1
+
+
+def test_get_baixa_de_novo_se_o_arquivo_sumiu(env):
+    item = baixar(env)
+    (env.lib / item["arquivo"]).unlink()
+    n = len(env.net.gets)
+    ov.get(item["id"])
+    assert len(env.net.gets) == n + 1 and (env.lib / item["arquivo"]).is_file()
+
+
+def test_get_de_item_com_licenca_restritiva_baixa_com_aviso(env):
+    env.api.images["results"][0]["license"] = "by-nc"
+    ov.search("imagem", "x", licencas="by-nc")
+    env.net.serve(URL_IMG, PNG)
+    res = ov.get(ID_IMG)
+    assert any("by-nc" in a for a in res["avisos"])
+
+
+def test_http_get_real_conecta_no_ip_fixado_e_respeita_o_modo_offline(monkeypatch):
+    chamadas = []
+
+    def falso(endereco, timeout=None, source_address=None):
+        chamadas.append(endereco)
+        raise OSError("sem rede nos testes")
+    monkeypatch.setattr(socket, "create_connection", falso)
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+    real = ov.__dict__["_real_http_get"]
+    with pytest.raises(ov.OpenverseError):
+        real("https://exemplo.com/a.png", "93.184.216.34", 5)
+    assert chamadas == [("93.184.216.34", 443)]
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    chamadas.clear()
+    with pytest.raises(ov.OpenverseError, match="OFFLINE"):
+        real("https://exemplo.com/a.png", "93.184.216.34", 5)
+    assert chamadas == []
+
+
+# ------------------------------------------------------------------------------------------------ biblioteca e índice
+
+def test_pasta_da_biblioteca_padrao(monkeypatch, tmp_path):
+    monkeypatch.delenv("OPENVERSE_LIBRARY_DIR", raising=False)
+    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path / "dados"))
+    assert ov.library_dir() == (tmp_path / "dados" / "openverse-library").resolve()
+    monkeypatch.delenv("SIMPLICIO_VIDEO_DATA")
+    assert ov.library_dir() == (Path.home() / ".simplicio-video" / "openverse-library").resolve()
+    monkeypatch.setenv("OPENVERSE_LIBRARY_DIR", str(tmp_path / "outra"))
+    assert ov.library_dir() == (tmp_path / "outra").resolve()
+
+
+def test_indice_tem_schema_versionado_e_valida(env):
+    jsonschema = pytest.importorskip("jsonschema")
+    baixar(env)
+    baixar(env, "audio")
+    doc = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    assert doc["schema"] == "simplicio.openverse-library/v1" and set(doc["itens"]) == {ID_IMG, ID_AUD}
+    esquema = json.loads((paths.data_dir() / "openverse" / "library.schema.json").read_text(encoding="utf8"))
+    jsonschema.validate(doc, esquema)
+
+
+def test_registro_guarda_todos_os_campos_pedidos(env):
+    it = baixar(env)
+    for campo in ("id", "titulo", "autor", "autor_url", "licenca", "licenca_versao", "licenca_url", "atribuicao", "origem_url",
+                  "provedor", "tags", "tipo", "largura", "altura", "baixado_em", "sha256", "tamanho_bytes", "consultado_em", "formato"):
+        assert campo in it, campo
+    au = baixar(env, "audio")
+    assert au["duracao_s"] == pytest.approx(60.116) and au["taxa_amostragem_hz"] is None and au["bit_rate"] == 128000
+
+
+def test_indice_nao_tem_chave_falsa_nem_caminho_do_servidor(env, monkeypatch):
+    monkeypatch.setenv("OPENVERSE_CLIENT_ID", "meu-id-fake")
+    monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", SEGREDO)
+    baixar(env)
+    texto = (env.lib / "index.json").read_text(encoding="utf8")
+    for f in (env.lib / "cache").glob("*.json"):
+        texto += f.read_text(encoding="utf8")
+    assert SEGREDO not in texto and TOKEN not in texto and "meu-id-fake" not in texto and "Bearer" not in texto
+
+
+def test_library_list_e_show(env, capsys):
+    baixar(env)
+    baixar(env, "audio")
+    rc, out, _ = cli(["library", "list", "--json"], capsys)
+    assert rc == 0 and {i["id"] for i in json.loads(out)["itens"]} == {ID_IMG, ID_AUD}
+    rc, out, _ = cli(["library", "list", "--tipo", "audio", "--json"], capsys)
+    assert [i["id"] for i in json.loads(out)["itens"]] == [ID_AUD]
+    rc, out, _ = cli(["library", "show", ID_IMG, "--pedido", PEDIDO, "--json"], capsys)
+    doc = json.loads(out)
+    assert rc == 0 and doc["item"]["id"] == ID_IMG and doc["integridade"] == "ok" and doc["status"] == "nao_revisado"
+    rc, out, _ = cli(["library", "list"], capsys)
+    assert ID_IMG in out and "CC BY 2.0" in out and "nao_revisado" not in out
+
+
+def test_show_acusa_arquivo_alterado_ou_ausente(env):
+    item = baixar(env)
+    f = env.lib / item["arquivo"]
+    assert ov.library_show(item["id"])["integridade"] == "ok"
+    f.write_bytes(PNG_B)
+    assert ov.library_show(item["id"])["integridade"] == "alterado"
+    f.unlink()
+    assert ov.library_show(item["id"])["integridade"] == "ausente"
+
+
+def test_show_de_id_desconhecido(env):
+    with pytest.raises(ov.OpenverseError, match="biblioteca"):
+        ov.library_show(ID_IMG)
+
+
+# ------------------------------------------------------------------------------------------------ revisão por par
+
+@needs_ffmpeg
+def test_item_novo_e_nao_revisado_e_aprovar_exige_a_folha_do_par(env, midia):
+    item = baixar(env, body=midia["nitida"])
+    assert ov.review_status(item["id"], PEDIDO) == "nao_revisado"
+    with pytest.raises(ov.OpenverseError, match="folha"):
+        ov.review(item["id"], PEDIDO, "aprovado", "serve", "teste")
+    ov.review_sheet(item["id"], PEDIDO)
+    rev = ov.review(item["id"], PEDIDO, "aprovado", "o nascer do sol aparece no centro", "agente-teste")
+    assert rev["veredito"] == "aprovado" and ov.review_status(item["id"], PEDIDO) == "aprovado"
+
+
+@needs_ffmpeg
+def test_aprovar_para_um_pedido_nao_vale_para_outro(env, midia):
+    item = baixar(env, body=midia["nitida"])
+    ov.review_sheet(item["id"], PEDIDO)
+    ov.review(item["id"], PEDIDO, "aprovado", "serve", "teste")
+    assert ov.review_status(item["id"], PEDIDO) == "aprovado"
+    assert ov.review_status(item["id"], OUTRO_PEDIDO) == "nao_revisado"
+
+
+@needs_ffmpeg
+def test_pedido_e_comparado_normalizado_sem_acento_caixa_e_pontuacao(env, midia):
+    item = baixar(env, body=midia["nitida"])
+    ov.review_sheet(item["id"], PEDIDO)
+    ov.review(item["id"], PEDIDO, "aprovado", "serve", "teste")
+    assert ov.review_status(item["id"], "  NASCER do sol, sobre o mar... para a ABERTURA do video! ") == "aprovado"
+    assert ov.normalize_pedido("Pôr do Sol  na PRAIA!") == "por do sol na praia"
+
+
+@needs_ffmpeg
+def test_ultimo_veredito_do_par_vale(env, midia):
+    item = baixar(env, body=midia["nitida"])
+    ov.review_sheet(item["id"], PEDIDO)
+    ov.review(item["id"], PEDIDO, "aprovado", "serve", "a")
+    ov.review(item["id"], PEDIDO, "reprovado", "vi uma marca d'água", "b")
+    assert ov.review_status(item["id"], PEDIDO) == "reprovado"
+    ov.review(item["id"], PEDIDO, "aprovado", "era só uma sombra", "b")
+    assert ov.review_status(item["id"], PEDIDO) == "aprovado"
+    assert len(ov.library_show(item["id"])["revisoes"]) == 3
+
+
+def test_reprovar_nao_exige_a_folha(env):
+    item = baixar(env)
+    rev = ov.review(item["id"], PEDIDO, "reprovado", "não é o que o vídeo pede", "teste")
+    assert ov.review_status(item["id"], PEDIDO) == "reprovado" and rev["veredito"] == "reprovado"
+
+
+def test_registro_da_revisao_tem_os_campos_pedidos(env):
+    item = baixar(env)
+    rev = ov.review(item["id"], PEDIDO, "reprovado", "fora do tema", "Wesley", canal="terminal")
+    assert rev["sha256"] == item["sha256"] and rev["id"] == item["id"]
+    assert rev["pedido"] == PEDIDO and rev["pedido_normalizado"] == "nascer do sol sobre o mar para a abertura do video"
+    assert (rev["veredito"], rev["motivo"], rev["por"], rev["canal"]) == ("reprovado", "fora do tema", "Wesley", "terminal")
+    assert rev["em"] == "2026-10-16T12:00:00Z"
+    gravado = json.loads((env.lib / "index.json").read_text(encoding="utf8"))["revisoes"]
+    assert gravado == [rev]
+
+
+def test_revisao_exige_motivo_por_pedido_e_veredito_validos(env):
+    item = baixar(env)
+    for pedido, ver, motivo, por in [("", "reprovado", "m", "p"), (PEDIDO, "talvez", "m", "p"), (PEDIDO, "reprovado", "", "p"),
+                                      (PEDIDO, "reprovado", "m", ""), (PEDIDO, "reprovado", "   ", "p"), ("x" * 501, "reprovado", "m", "p")]:
+        with pytest.raises(ov.OpenverseError):
+            ov.review(item["id"], pedido, ver, motivo, por)
+    assert ov.library_show(item["id"])["revisoes"] == []
+
+
+def test_review_de_id_fora_da_biblioteca(env):
+    with pytest.raises(ov.OpenverseError, match="biblioteca"):
+        ov.review(ID_IMG, PEDIDO, "reprovado", "m", "p")
+
+
+def test_arquivo_novo_com_outro_sha256_invalida_a_aprovacao_anterior(env, midia):
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg ausente")
+    item = baixar(env, body=midia["nitida"])
+    ov.review_sheet(item["id"], PEDIDO)
+    ov.review(item["id"], PEDIDO, "aprovado", "serve", "teste")
+    assert ov.review_status(item["id"], PEDIDO) == "aprovado"
+    env.net.serve(URL_IMG, midia["borrada"], headers={"Content-Type": "image/png"})
+    novo = ov.get(item["id"], atualizar=True)["item"]
+    assert novo["sha256"] != item["sha256"]
+    assert ov.review_status(item["id"], PEDIDO) == "nao_revisado"
+    assert len(ov.library_show(item["id"])["revisoes"]) == 1  # o histórico fica, mas não vale para o novo sha256
+
+
+def test_review_recusa_arquivo_alterado_no_disco(env):
+    item = baixar(env)
+    (env.lib / item["arquivo"]).write_bytes(PNG_B)
+    with pytest.raises(ov.OpenverseError, match="alterad"):
+        ov.review(item["id"], PEDIDO, "reprovado", "m", "p")
+
+
+# ------------------------------------------------------------------------------------------------ folha de revisão
+
+@pytest.fixture(scope="module")
+def midia(tmp_path_factory):
+    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
+        return {}
+    d = tmp_path_factory.mktemp("midia")
+
+    def ff(*args):
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", *[str(a) for a in args]], check=True)
+    ff("-f", "lavfi", "-i", "testsrc=size=320x240:rate=1", "-frames:v", "1", d / "nitida.png")
+    ff("-f", "lavfi", "-i", "testsrc=size=320x240:rate=1", "-vf", "boxblur=12", "-frames:v", "1", d / "borrada.png")
+    ff("-f", "lavfi", "-i", "color=c=black:size=320x240", "-frames:v", "1", d / "preta.png")
+    ff("-f", "lavfi", "-i", "color=c=white:size=320x240", "-frames:v", "1", d / "branca.png")
+    ff("-f", "lavfi", "-i", "sine=frequency=440:duration=2:sample_rate=44100", "-af", "volume=0.5,apad=whole_dur=4", "-t", "4",
+       "-c:a", "pcm_s16le", d / "tom.wav")
+    ff("-f", "lavfi", "-i", "sine=frequency=440:duration=3:sample_rate=44100", "-af", "volume=8", "-c:a", "pcm_s16le", d / "estourado.wav")
+    return {n.stem: (d / n).read_bytes() for n in d.iterdir()}
+
+
+@needs_ffmpeg
+def test_folha_de_imagem_tem_sinais_objetivos_e_miniatura(env, midia):
+    item = baixar(env, body=midia["nitida"])
+    folha = ov.review_sheet(item["id"], PEDIDO)
+    s = folha["sinais"]
+    assert folha["schema"] == "simplicio.openverse-review-sheet/v1" and folha["ativo"]["sha256"] == item["sha256"]
+    assert (s["largura"], s["altura"]) == (320, 240) and s["proporcao_texto"] == "4:3" and s["proporcao"] == pytest.approx(4 / 3)
+    assert s["formato"] == "png" and s["tamanho_bytes"] == len(midia["nitida"]) and s["mature"] is False
+    assert isinstance(s["nitidez"], float) and s["nitidez"] > 0 and 0 <= s["brilho_medio"] <= 255
+    mini = Path(folha["arquivos"]["miniatura"])
+    assert mini.is_file() and mini.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    assert folha["falta_conferir"] and folha["status"] == "nao_revisado"
+    assert any("aprovar" in c and "--pedido" in c for c in folha["como_decidir"])
+
+
+@needs_ffmpeg
+def test_nitidez_e_brilho_distinguem_imagens(env, midia):
+    nit = ov.review_sheet(baixar(env, idx=0, body=midia["nitida"])["id"], PEDIDO)["sinais"]
+    bor = ov.review_sheet(baixar(env, idx=1, body=midia["borrada"])["id"], PEDIDO)["sinais"]
+    assert nit["nitidez"] > 10 * bor["nitidez"]
+    preta = ov.review_sheet(baixar(env, idx=2, body=midia["preta"])["id"], PEDIDO)["sinais"]
+    branca = ov.review_sheet(baixar(env, idx=0, body=midia["branca"], atualizar=True)["id"], PEDIDO)["sinais"]
+    assert preta["brilho_medio"] < 30 and branca["brilho_medio"] > 220 and preta["nitidez"] == pytest.approx(0, abs=1e-6)
+
+
+@needs_ffmpeg
+def test_folha_e_deterministica_e_sem_data(env, midia):
+    item = baixar(env, body=midia["nitida"])
+    a = ov.review_sheet(item["id"], PEDIDO)
+    b = ov.review_sheet(item["id"], PEDIDO)
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+    assert not re.search(r"\d{4}-\d{2}-\d{2}T", json.dumps(a))
+
+
+@needs_ffmpeg
+def test_folha_cai_numa_pasta_da_biblioteca_por_par(env, midia):
+    item = baixar(env, body=midia["nitida"])
+    a = ov.review_sheet(item["id"], PEDIDO)
+    b = ov.review_sheet(item["id"], OUTRO_PEDIDO)
+    assert Path(a["pasta"]) != Path(b["pasta"])
+    assert Path(a["pasta"]).is_relative_to(env.lib / "sheets") and (Path(a["pasta"]) / "folha.json").is_file()
+
+
+@needs_ffmpeg
+def test_folha_de_imagem_traz_a_pista_textual(env, midia):
+    item = baixar(env, body=midia["nitida"])
+    folha = ov.review_sheet(item["id"], "sunrise over the sea at the beginning of the video")
+    t = folha["texto"]
+    assert {"sunrise", "sea"} <= set(t["em_comum"]) and 0 < t["pontuacao"] <= 1
+    assert "pista" in t["aviso"].lower() and "não é veredito" in t["aviso"].lower()
+
+
+@needs_ffmpeg
+def test_folha_de_audio_tem_loudness_silencio_clipping_e_espectrograma(env, midia):
+    item = baixar(env, "audio", body=midia["tom"])
+    folha = ov.review_sheet(item["id"], "som de chuva para a cena 2")
+    s = folha["sinais"]
+    assert s["duracao_s"] == pytest.approx(4.0, abs=0.1) and s["taxa_amostragem_hz"] == 44100 and s["formato"] == "wav"
+    assert -60 < s["loudness_lufs"] < 0
+    assert s["fracao_silencio"] == pytest.approx(0.5, abs=0.08)
+    assert s["clipping"]["suspeita"] is False and s["tem_video"] is False
+    esp = Path(folha["arquivos"]["espectrograma"])
+    assert esp.is_file() and esp.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+@needs_ffmpeg
+def test_folha_de_audio_detecta_clipping(env, midia):
+    item = baixar(env, "audio", body=midia["estourado"])
+    s = ov.review_sheet(item["id"], "som de chuva")["sinais"]
+    assert s["clipping"]["suspeita"] is True and s["clipping"]["pico_dbfs"] >= -0.5
+    assert s["fracao_silencio"] == pytest.approx(0.0, abs=0.05)
+
+
+@needs_ffmpeg
+def test_folha_nao_executa_nada_do_arquivo_e_trava_o_demuxer(env, midia, monkeypatch):
+    comandos = []
+    real = subprocess.run
+
+    def espia(cmd, *a, **k):
+        comandos.append(list(cmd))
+        return real(cmd, *a, **k)
+    monkeypatch.setattr(subprocess, "run", espia)
+    item = baixar(env, body=midia["nitida"])
+    ov.review_sheet(item["id"], PEDIDO)
+    ff = [c for c in comandos if Path(c[0]).name in ("ffmpeg", "ffprobe")]
+    assert ff
+    for c in ff:
+        assert "-protocol_whitelist" in c and c[c.index("-protocol_whitelist") + 1] == "file"
+        assert "-f" in c  # demuxer forçado, o ffmpeg não adivinha playlist/concat
+        assert not any(str(a).startswith(("http", "tcp", "concat:")) for a in c)
+
+
+def test_pontuacao_textual_e_deterministica_sem_acento_e_sem_palavras_vazias():
+    r = ov.text_score("Nascer do sol na praia", "Sunrise at the beach", ["sol", "praia", "mar"])
+    assert r["tokens_pedido"] == ["nascer", "sol", "praia"] and r["em_comum"] == ["sol", "praia"] and r["faltando"] == ["nascer"]
+    assert r["pontuacao"] == pytest.approx(2 / 3)
+    por = ov.text_score("PÔR DO SOL", "por-do-sol", [])
+    assert por["tokens_pedido"] == ["sol"] and por["pontuacao"] == pytest.approx(1.0)
+    zero = ov.text_score("o a de", "x", [])
+    assert zero["tokens_pedido"] == [] and zero["pontuacao"] == 0.0
+    assert ov.text_score("praia", "praia", ["praia"]) == ov.text_score("praia", "praia", ["praia"])
+
+
+# ------------------------------------------------------------------------------------------------ export
+
+@pytest.fixture
+def aprovado(env, midia):
+    if not midia:
+        pytest.skip("ffmpeg ausente")
+    item = baixar(env, body=midia["nitida"])
+    ov.review_sheet(item["id"], PEDIDO)
+    ov.review(item["id"], PEDIDO, "aprovado", "o nascer do sol aparece", "revisor")
+    return item
+
+
+def test_export_recusa_nao_revisado_reprovado_e_aprovado_para_outro_pedido(env, aprovado):
+    dest = env.tmp / "saida"
+    with pytest.raises(ov.OpenverseError, match="nao_revisado"):
+        ov.export(aprovado["id"], OUTRO_PEDIDO, para=dest)
+    ov.review(aprovado["id"], OUTRO_PEDIDO, "reprovado", "fora do tema", "revisor")
+    with pytest.raises(ov.OpenverseError, match="reprovado"):
+        ov.export(aprovado["id"], OUTRO_PEDIDO, para=dest)
+    assert not dest.exists() or not list(dest.iterdir())
+
+
+def test_export_copia_o_ativo_aprovado_e_escreve_o_credito(env, aprovado):
+    dest = env.tmp / "cliente" / "assets" / "openverse"
+    res = ov.export(aprovado["id"], PEDIDO, para=dest)
+    arq = Path(res["arquivo"])
+    assert arq.parent == dest.resolve() and arq.name == ov.export_name(aprovado) and arq.suffix == ".png"
+    assert hashlib.sha256(arq.read_bytes()).hexdigest() == aprovado["sha256"]
+    cred = (dest / "CREDITS-openverse.md").read_text(encoding="utf8")
+    for trecho in (aprovado["titulo"], "Phuketian.S", "CC BY 2.0", "https://creativecommons.org/licenses/by/2.0/",
+                   "https://www.flickr.com/photos/124790945@N06", aprovado["origem_url"], arq.name, aprovado["sha256"]):
+        assert trecho in cred, trecho
+    assert "parecer jurídico" in cred and "Openverse" in cred
+    assert json.loads((env.lib / "index.json").read_text(encoding="utf8"))["exportacoes"][0]["sha256"] == aprovado["sha256"]
+
+
+def test_export_e_idempotente(env, aprovado):
+    dest = env.tmp / "saida"
+    a = ov.export(aprovado["id"], PEDIDO, para=dest)
+    antes = (dest / "CREDITS-openverse.md").read_text(encoding="utf8")
+    b = ov.export(aprovado["id"], PEDIDO, para=dest)
+    assert a["copiado"] is True and b["copiado"] is False
+    assert (dest / "CREDITS-openverse.md").read_text(encoding="utf8") == antes
+    assert antes.count(aprovado["sha256"]) == 1
+    assert len(json.loads((env.lib / "index.json").read_text(encoding="utf8"))["exportacoes"]) == 1
+
+
+def test_export_recusa_sobrescrever_arquivo_com_bytes_diferentes(env, aprovado):
+    dest = env.tmp / "saida"
+    dest.mkdir()
+    (dest / ov.export_name(aprovado)).write_bytes(b"outro conteudo qualquer")
+    with pytest.raises(ov.OpenverseError, match="sobrescrever"):
+        ov.export(aprovado["id"], PEDIDO, para=dest)
+    assert (dest / ov.export_name(aprovado)).read_bytes() == b"outro conteudo qualquer"
+    assert not (dest / "CREDITS-openverse.md").exists()
+
+
+def test_export_recusa_cc_by_sem_autor_ou_sem_licenca(env, aprovado):
+    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    dest = env.tmp / "saida"
+    for campo, valor in (("autor", None), ("autor", "  "), ("licenca", None), ("licenca", "gpl"), ("licenca_url", None)):
+        novo = copy.deepcopy(idx)
+        novo["itens"][aprovado["id"]][campo] = valor
+        (env.lib / "index.json").write_text(json.dumps(novo), encoding="utf8")
+        with pytest.raises(ov.OpenverseError, match="atribuição|licença|autor"):
+            ov.export(aprovado["id"], PEDIDO, para=dest)
+    assert not dest.exists() or not list(dest.iterdir())
+
+
+def test_export_de_cc0_sem_autor_e_permitido_e_o_credito_diz_que_nao_ha_autor(env, aprovado):
+    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    it = idx["itens"][aprovado["id"]]
+    it.update(licenca="cc0", licenca_versao="1.0", licenca_url="https://creativecommons.org/publicdomain/zero/1.0/", autor=None, autor_url=None)
+    (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")
+    res = ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
+    cred = Path(res["creditos"]).read_text(encoding="utf8")
+    assert "CC0" in cred and "autor não informado" in cred
+
+
+def test_export_de_licenca_nc_ou_nd_exige_aceite_explicito(env, aprovado):
+    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    idx["itens"][aprovado["id"]].update(licenca="by-nc", licenca_url="https://creativecommons.org/licenses/by-nc/2.0/")
+    (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")
+    dest = env.tmp / "saida"
+    with pytest.raises(ov.OpenverseError, match="aceito-restricao"):
+        ov.export(aprovado["id"], PEDIDO, para=dest)
+    res = ov.export(aprovado["id"], PEDIDO, para=dest, aceito_restricao=True)
+    assert "CC BY-NC 2.0" in Path(res["creditos"]).read_text(encoding="utf8")
+
+
+def test_export_recusa_arquivo_alterado_na_biblioteca(env, aprovado):
+    (env.lib / aprovado["arquivo"]).write_bytes(PNG_B)
+    with pytest.raises(ov.OpenverseError, match="alterad"):
+        ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
+
+
+def test_export_pede_exatamente_um_destino_e_o_contrato_define_a_pasta(env, aprovado):
+    with pytest.raises(ov.OpenverseError, match="--para"):
+        ov.export(aprovado["id"], PEDIDO)
+    contrato = env.tmp / "clients" / "acme" / "video-01" / "contract.yaml"
+    contrato.parent.mkdir(parents=True)
+    contrato.write_text("x: 1\n", encoding="utf8")
+    with pytest.raises(ov.OpenverseError, match="--para"):
+        ov.export(aprovado["id"], PEDIDO, para=env.tmp / "a", contrato=contrato)
+    res = ov.export(aprovado["id"], PEDIDO, contrato=contrato)
+    assert Path(res["arquivo"]).parent == (contrato.parent / "assets" / "openverse").resolve()
+    with pytest.raises(ov.OpenverseError, match="contrato"):
+        ov.export(aprovado["id"], PEDIDO, contrato=env.tmp / "nao-existe.yaml")
+
+
+def test_export_destino_que_e_arquivo_e_recusado(env, aprovado):
+    alvo = env.tmp / "arquivo"
+    alvo.write_text("x")
+    with pytest.raises(ov.OpenverseError, match="pasta"):
+        ov.export(aprovado["id"], PEDIDO, para=alvo)
+
+
+def test_credits_junta_os_ativos_exportados_sem_duplicar(env, aprovado, midia):
+    a2 = baixar(env, idx=1, body=midia["borrada"])
+    ov.review_sheet(a2["id"], PEDIDO)
+    ov.review(a2["id"], PEDIDO, "aprovado", "serve", "revisor")
+    ov.export(aprovado["id"], PEDIDO, para=env.tmp / "p1")
+    ov.export(a2["id"], PEDIDO, para=env.tmp / "p2")
+    ov.export(aprovado["id"], PEDIDO, para=env.tmp / "p2")
+    tudo = ov.credits()
+    assert {i["id"] for i in tudo["itens"]} == {aprovado["id"], a2["id"]}
+    assert aprovado["titulo"] in tudo["markdown"] and a2["titulo"] in tudo["markdown"] and tudo["markdown"].count(a2["sha256"]) == 1
+    so_p1 = ov.credits(para=env.tmp / "p1")
+    assert [i["id"] for i in so_p1["itens"]] == [aprovado["id"]]
+    assert "parecer jurídico" in tudo["markdown"] and "não endoss" in tudo["markdown"].lower()
+
+
+def test_credits_sem_exportacao_diz_que_nao_ha_nada(env):
+    r = ov.credits()
+    assert r["itens"] == [] and "nenhum" in r["markdown"].lower()
+
+
+# ------------------------------------------------------------------------------------------------ CLI
+
+def test_cli_busca_em_texto_e_json(env, capsys):
+    rc, out, _ = cli(["search", "--tipo", "imagem", "--consulta", "sunrise over the sea", "--limite", "3"], capsys)
+    assert rc == 0 and ID_IMG in out and "CC BY 2.0" in out and "1024x606" in out and "Phuketian.S" in out
+    rc, out, _ = cli(["search", "--tipo", "imagem", "--consulta", "sunrise over the sea", "--limite", "3", "--json"], capsys)
+    doc = json.loads(out)
+    assert rc == 0 and doc["do_cache"] is True and len(doc["resultados"]) == 3
+
+
+def test_cli_get_review_export_credits_de_ponta_a_ponta(env, capsys, midia):
+    if not midia:
+        pytest.skip("ffmpeg ausente")
+    cli(["search", "--tipo", "imagem", "--consulta", "sunrise over the sea", "--json"], capsys)
+    env.net.serve(URL_IMG, midia["nitida"])
+    rc, out, _ = cli(["get", ID_IMG, "--json"], capsys)
+    assert rc == 0 and json.loads(out)["item"]["id"] == ID_IMG
+    rc, out, err = cli(["library", "export", ID_IMG, "--pedido", PEDIDO, "--para", str(env.tmp / "saida")], capsys)
+    assert rc == 1 and "nao_revisado" in err and not (env.tmp / "saida").exists()
+    rc, out, _ = cli(["library", "review", ID_IMG, "--pedido", PEDIDO, "--folha"], capsys)
+    assert rc == 0 and "nitidez" in out.lower() and "falta conferir" in out.lower()
+    rc, out, _ = cli(["library", "review", ID_IMG, "--pedido", PEDIDO, "--aprovar", "--motivo", "serve", "--por", "Wesley", "--json"], capsys)
+    assert rc == 0 and json.loads(out)["veredito"] == "aprovado"
+    rc, out, _ = cli(["library", "export", ID_IMG, "--pedido", PEDIDO, "--para", str(env.tmp / "saida"), "--json"], capsys)
+    assert rc == 0 and Path(json.loads(out)["arquivo"]).is_file()
+    rc, out, _ = cli(["library", "credits"], capsys)
+    assert rc == 0 and "Phuketian.S" in out and "CC BY 2.0" in out
+
+
+def test_cli_exige_um_unico_veredito_e_motivo_e_por(env, capsys):
+    baixar(env)
+    base = ["library", "review", ID_IMG, "--pedido", PEDIDO]
+    for extra in ([], ["--aprovar", "--reprovar", "--motivo", "m", "--por", "p"], ["--reprovar", "--por", "p"], ["--reprovar", "--motivo", "m"],
+                  ["--folha", "--aprovar", "--motivo", "m", "--por", "p"]):
+        rc, out, err = cli(base + extra, capsys)
+        assert rc != 0, extra
+    rc, out, err = cli(base + ["--reprovar", "--motivo", "fora do tema", "--por", "agente"], capsys)
+    assert rc == 0
+
+
+def test_cli_erros_saem_sem_traceback_e_com_codigo_1(env, capsys):
+    rc, out, err = cli(["search", "--tipo", "imagem", "--consulta", "x", "--licencas", "gpl"], capsys)
+    assert rc == 1 and err.startswith("openverse:") and "Traceback" not in err
+    rc, out, err = cli(["get", "nao-e-uuid", "--tipo", "imagem"], capsys)
+    assert rc == 1 and "Traceback" not in err
+
+
+def test_cli_sem_cache_e_offline_diz_que_faltou_rede(env, capsys, monkeypatch):
+    monkeypatch.setattr(http, "request", REAL_REQUEST)  # o `http.request` real: SIMPLICIO_OFFLINE=1 do conftest bloqueia a rede
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    rc, out, err = cli(["search", "--tipo", "imagem", "--consulta", "x"], capsys)
+    assert rc == 1 and "rede" in err and "Traceback" not in err
+
+
+HELP_MUST = ["search", "get", "library", "list", "show", "review", "export", "credits", "--tipo", "--consulta", "--licencas",
+             "cc0,pdm,by", "--minimo-largura", "--duracao-min", "--duracao-max", "--limite", "--folha", "--aprovar", "--reprovar",
+             "--motivo", "--por", "--pedido", "--para", "--contrato", "OPENVERSE_LIBRARY_DIR", "OPENVERSE_CLIENT_ID",
+             "OPENVERSE_CLIENT_SECRET", "parecer jurídico", "foreign_landing_url", "by-nc", "by-nd", "by-sa", "não endossa", "exemplos:",
+             "simplicio-video openverse", "sha256", "revisão"]
+
+
+def test_help_do_openverse_e_completo(capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["openverse", "--help"])
+    assert e.value.code == 0
+    out = capsys.readouterr().out
+    for m in HELP_MUST:
+        assert m in out, f"openverse --help sem {m!r}"
+
+
+@pytest.mark.parametrize("argv,must", [
+    (["search"], ["--tipo", "--consulta", "--licencas", "cc0,pdm,by", "--minimo-largura", "--duracao-min", "--limite", "--pagina", "--atualizar", "--json"]),
+    (["get"], ["id", "--tipo", "--atualizar", "--json"]),
+    (["library", "review"], ["--pedido", "--folha", "--aprovar", "--reprovar", "--motivo", "--por", "--json"]),
+    (["library", "export"], ["--pedido", "--para", "--contrato", "--aceito-restricao", "--json"]),
+    (["library", "credits"], ["--para", "--json"]),
+    (["library", "show"], ["id", "--pedido", "--json"]),
+    (["library", "list"], ["--tipo", "--json"]),
+])
+def test_help_de_cada_subcomando(argv, must, capsys):
+    with pytest.raises(SystemExit) as e:
+        ov.run_openverse([*argv, "--help"])
+    assert e.value.code == 0
+    out = capsys.readouterr().out
+    for m in must:
+        assert m in out, f"{argv} --help sem {m!r}"
+
+
+def test_ajuda_principal_lista_o_comando(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    out = capsys.readouterr().out
+    assert "    openverse" in out and "/openverse" in out
+
+
+# ------------------------------------------------------------------------------------------------ MCP e plugin
+
+def test_mcp_search_list_show_folha_e_review(env, midia):
+    if not midia:
+        pytest.skip("ffmpeg ausente")
+    r = mcp_server.video_openverse("search", tipo="imagem", consulta="sunrise over the sea")
+    assert r["ok"] is True and len(r["resultados"]) == 3
+    env.net.serve(URL_IMG, midia["nitida"])
+    ov.get(ID_IMG)
+    assert [i["id"] for i in mcp_server.video_openverse("list")["itens"]] == [ID_IMG]
+    assert mcp_server.video_openverse("show", id=ID_IMG, pedido=PEDIDO)["status"] == "nao_revisado"
+    f = mcp_server.video_openverse("folha", id=ID_IMG, pedido=PEDIDO)
+    assert f["ok"] is True and Path(f["arquivos"]["miniatura"]).is_file()
+    v = mcp_server.video_openverse("review", id=ID_IMG, pedido=PEDIDO, veredito="aprovado", motivo="serve", por="agente")
+    assert v["ok"] is True and v["canal"] == "mcp"
+    assert mcp_server.video_openverse("show", id=ID_IMG, pedido=PEDIDO)["status"] == "aprovado"
+
+
+@pytest.mark.parametrize("acao", ["get", "download", "baixar", "export", "exportar", "credits", "creditos", "nada"])
+def test_mcp_nao_baixa_nem_exporta(env, acao):
+    r = mcp_server.video_openverse(acao)
+    assert r["ok"] is False and env.api.calls == [] and env.net.gets == []
+    if acao in ("get", "download", "baixar", "export", "exportar"):
+        assert "terminal" in r["error"]
+
+
+def test_mcp_nao_deixa_o_agente_escolher_onde_grava_nem_atualizar_a_busca():
+    params = set(inspect.signature(mcp_server.video_openverse).parameters)
+    assert not params & {"para", "contrato", "out", "destino", "pasta", "url", "atualizar", "force", "yes", "aceito_restricao"}
+    assert [n for n, _, _ in mcp_server.TOOLS].count("video.openverse") == 1
+    assert not [n for n, _, _ in mcp_server.TOOLS if re.search(r"openverse.*(get|export|download)", n)]
+
+
+def test_mcp_erros_voltam_como_json(env):
+    assert mcp_server.video_openverse("search", tipo="imagem")["ok"] is False
+    assert mcp_server.video_openverse("search", tipo="imagem", consulta="x", licencas="gpl")["ok"] is False
+    assert mcp_server.video_openverse("show", id=ID_IMG)["ok"] is False
+    assert mcp_server.video_openverse("review", id=ID_IMG, pedido=PEDIDO, veredito="aprovado", motivo="m", por="p")["ok"] is False
+
+
+def test_plugin_json_tem_verbos_fechados_do_openverse_sem_get_nem_export():
+    data = json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))
+    verbos = {c["verb"]: c for c in data["commands"]}
+    ov_verbs = {v for v in verbos if v.startswith("video.openverse")}
+    assert ov_verbs == {"video.openverse.search", "video.openverse.list", "video.openverse.show", "video.openverse.folha",
+                        "video.openverse.aprovar", "video.openverse.reprovar"}
+    for v in ov_verbs:
+        c = verbos[v]
+        assert c["argv"][:2] == ["simplicio-video", "openverse"] and c["args_schema"]["additionalProperties"] is False
+        assert "{args}" not in c["argv"]
+        assert not {"get", "export", "credits", "--atualizar", "--para", "--contrato", "--aceito-restricao"} & set(c["argv"]), v
+        marcadores = set(re.findall(r"\{(\w+)\}", " ".join(c["argv"])))
+        assert marcadores <= set(c["args_schema"].get("properties", {})), v
+    assert "video.openverse" in data["mcp"]["tools"]
+    assert "--json" in verbos["video.openverse.search"]["argv"]
+
+
+# ------------------------------------------------------------------------------------------------ status, dados, docs
+
+def test_status_json_mostra_a_biblioteca_e_se_as_credenciais_existem_sem_o_valor(env, capsys, monkeypatch):
+    baixar(env)
+    monkeypatch.setenv("OPENVERSE_CLIENT_ID", "meu-id-fake")
+    monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", SEGREDO)
+    monkeypatch.setenv("PATH", str(env.tmp))  # sem ferramentas: o status não roda nada
+    rc = main(["status", "--json"])
+    out = capsys.readouterr().out
+    assert rc == 0 and SEGREDO not in out and "meu-id-fake" not in out
+    o = json.loads(out)["openverse"]
+    assert o["itens"] == 1 and o["credenciais"] == {"OPENVERSE_CLIENT_ID": True, "OPENVERSE_CLIENT_SECRET": True}
+    assert o["biblioteca"] == str(env.lib.resolve())
+    rc = main(["status"])
+    assert "openverse" in capsys.readouterr().out.lower()
+
+
+def test_dados_do_openverse_existem_e_batem_com_os_schemas():
+    jsonschema = pytest.importorskip("jsonschema")
+    base = paths.data_dir() / "openverse"
+    for dado, esquema in (("licenses.json", "licenses.schema.json"), ("api.json", "api.schema.json")):
+        jsonschema.validate(json.loads((base / dado).read_text(encoding="utf8")), json.loads((base / esquema).read_text(encoding="utf8")))
+    assert (base / "library.schema.json").is_file()
+
+
+def test_tabela_de_licencas_tem_fonte_e_implicacoes():
+    tab = json.loads((paths.data_dir() / "openverse" / "licenses.json").read_text(encoding="utf8"))
+    ids = {r["id"] for r in tab["licencas"]}
+    assert ids == {"cc0", "pdm", "by", "by-sa", "by-nc", "by-nd", "by-nc-sa", "by-nc-nd"}
+    por_id = {r["id"]: r for r in tab["licencas"]}
+    assert {i for i, r in por_id.items() if r["padrao"]} == {"cc0", "pdm", "by"}
+    for i in ("by-nc", "by-nd", "by-nc-sa", "by-nc-nd"):
+        assert por_id[i]["padrao"] is False and por_id[i]["aviso"]
+    assert por_id["by-sa"]["padrao"] is False and por_id["by-sa"]["aviso"]
+    assert por_id["by"]["atribuicao_obrigatoria"] is True and por_id["cc0"]["atribuicao_obrigatoria"] is False
+    assert all(r["uso_comercial"] for r in por_id.values() if "nc" not in r["id"]) and not any(por_id[i]["uso_comercial"] for i in ("by-nc", "by-nc-nd", "by-nc-sa"))
+    assert tab["source_url"].startswith("https://") and re.fullmatch(r"\d{4}-\d{2}-\d{2}", tab["read_on"])
+
+
+def test_fatos_da_api_tem_fonte_data_e_confianca():
+    doc = json.loads((paths.data_dir() / "openverse" / "api.json").read_text(encoding="utf8"))
+    assert doc["base"] == "https://api.openverse.org/v1"
+    assert doc["fatos"]
+    for f in doc["fatos"]:
+        assert f["source_url"].startswith("https://") and re.fullmatch(r"\d{4}-\d{2}-\d{2}", f["read_on"]), f
+        assert f["confidence"] in {"official", "observed", "source-code", "UNVERIFIED"}, f
+    assert any(f["confidence"] == "UNVERIFIED" for f in doc["fatos"])
+
+
+def test_modulo_nao_importa_cliente_de_llm_nem_biblioteca_de_rede_de_terceiros():
+    arvore = ast.parse((ROOT / "src" / "simplicio_video" / "openverse.py").read_text(encoding="utf8"))
+    importados = set()
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.Import):
+            importados |= {a.name.split(".")[0] for a in no.names}
+        elif isinstance(no, ast.ImportFrom) and no.module and no.level == 0:
+            importados.add(no.module.split(".")[0])
+    assert not importados & {"anthropic", "openai", "requests", "httpx", "aiohttp", "google", "torch", "PIL", "numpy", "open_clip"}
+
+
+def test_docs_dizem_o_que_o_pedido_exige():
+    readme = (ROOT / "README.md").read_text(encoding="utf8")
+    assert "### Openverse: biblioteca de imagens e áudio revisada" in readme
+    secao = readme.split("### Openverse: biblioteca de imagens e áudio revisada", 1)[1].split("\n### ", 1)[0]
+    for trecho in ("openverse search", "openverse get", "library review", "--folha", "--aprovar", "library export", "library credits",
+                   "cc0,pdm,by", "parecer jurídico", "foreign_landing_url", "OPENVERSE_LIBRARY_DIR", "OPENVERSE_CLIENT_ID", "video.openverse",
+                   "não endossa", "contract.yaml"):
+        assert trecho in secao, trecho
+    ag = (ROOT / "AGENTS.md").read_text(encoding="utf8")
+    assert "openverse.py" in ag and "revisão aprovada para aquele pedido" in ag and "crédito" in ag
+    assert "Openverse" in (ROOT / "CHANGELOG.md").read_text(encoding="utf8").split("## Unreleased", 1)[1][:6000]
+    assert "parecer jurídico" in (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
+    assert "openverse" in (ROOT / "docs" / "recursos.md").read_text(encoding="utf8").lower()
+    gen = (ROOT / "scripts" / "gen_reference.py").read_text(encoding="utf8")
+    for var in ("OPENVERSE_LIBRARY_DIR", "OPENVERSE_CLIENT_ID", "OPENVERSE_CLIENT_SECRET"):
+        assert f'"{var}"' in gen, var

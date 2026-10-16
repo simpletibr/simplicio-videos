@@ -1,0 +1,10 @@
+{
+  "_nota": "Cabeçalhos de limite observados em respostas anônimas de api.openverse.org em 2026-10-16 (nenhum cabeçalho de credencial).",
+  "busca": {
+    "x-ratelimit-limit-anon_burst": "20/min",
+    "x-ratelimit-limit-anon_sustained": "200/day"
+  },
+  "miniatura": {
+    "x-ratelimit-limit-anon_thumbnail": "1000/day"
+  }
+}
