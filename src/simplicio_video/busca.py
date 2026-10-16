@@ -42,6 +42,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import tools
+from .busca_ajuda import HELP_DESC, HELP_EPILOG, TETO_PADRAO
 
 __all__ = ["BuscaError", "consulta", "pagina", "status", "log", "status_summary", "run_busca", "scrub", "UNTRUSTED_NOTICE"]
 
@@ -63,7 +64,6 @@ ENV_REPASSADO = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "HTTP_PROXY", "HTTP
 ENV_FORCADO = {"NO_COLOR": "1", "TINYFISH_NO_TELEMETRY": "1"}
 ENV_PROXY = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
 
-TETO_PADRAO = 20
 TETO_MAXIMO = 1000
 LIMITE_PADRAO = 5
 LIMITE_MAXIMO = 20
@@ -563,18 +563,22 @@ def _rodar(exe: str, args: list[str], timeout: float, max_saida: int) -> tuple[i
             raise BuscaError(f"não consegui executar o tinyfish: {e.strerror or type(e).__name__}") from None
         limite_tempo = time.monotonic() + timeout
         motivo = None
-        while True:
-            try:
-                proc.wait(timeout=POLL_S)
-                break
-            except subprocess.TimeoutExpired:
-                pass
-            if os.fstat(out.fileno()).st_size > max_saida or os.fstat(err.fileno()).st_size > MAX_STDERR_BYTES:
-                motivo = "tamanho"
-                break
-            if time.monotonic() >= limite_tempo:
-                motivo = "tempo"
-                break
+        try:
+            while True:
+                try:
+                    proc.wait(timeout=POLL_S)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+                if os.fstat(out.fileno()).st_size > max_saida or os.fstat(err.fileno()).st_size > MAX_STDERR_BYTES:
+                    motivo = "tamanho"
+                    break
+                if time.monotonic() >= limite_tempo:
+                    motivo = "tempo"
+                    break
+        except BaseException:  # Ctrl+C: the child lives in its own session and would keep running (and being billed) after the engine is gone
+            _matar(proc)
+            raise
         if motivo:
             _matar(proc)
         if motivo == "tempo":
@@ -786,14 +790,14 @@ def consulta(texto, dominios=None, excluir=None, idioma=None, limite=LIMITE_PADR
         exe = _achar_binario()
         _reservar(teto)
         versao = _versao_cli(exe)
-        args = ["search", "query", texto]
+        args = ["search", "query"]  # options first, then `--` and the text: the text can never be read as an option
         if inc:
             args += ["--include-domains", ",".join(inc)]
         if exc:
             args += ["--exclude-domains", ",".join(exc)]
         if lang:
             args += ["--language", lang]
-        rc, saida, erro = _rodar(exe, args, TIMEOUT_CONSULTA_S, MAX_SAIDA_CONSULTA_BYTES)
+        rc, saida, erro = _rodar(exe, [*args, "--", texto], TIMEOUT_CONSULTA_S, MAX_SAIDA_CONSULTA_BYTES)
         if rc != 0:
             raise BuscaError(_falha(rc, erro))
         resultados, total, desc = _normaliza_busca(_json_do_binario(saida))
@@ -838,7 +842,7 @@ def pagina(url, max_bytes=MAX_BYTES_PADRAO, atualizar=False, max_chamadas_dia=No
         exe = _achar_binario()
         _reservar(teto)
         versao = _versao_cli(exe)
-        rc, saida, erro = _rodar(exe, ["fetch", "content", "get", url, "--format", "markdown"], TIMEOUT_PAGINA_S, MAX_SAIDA_PAGINA_BYTES)
+        rc, saida, erro = _rodar(exe, ["fetch", "content", "get", "--format", "markdown", "--", url], TIMEOUT_PAGINA_S, MAX_SAIDA_PAGINA_BYTES)
         if rc != 0:
             raise BuscaError(_falha(rc, erro))
         dados = _json_do_binario(saida)
@@ -1015,46 +1019,6 @@ def log(ultimos=20) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------------------- CLI
-
-HELP_DESC = (
-    "Pesquisa e leitura de páginas na internet a serviço dos vídeos, pelo CLI `tinyfish` (npm @tiny-fish/cli, TinyFish), com procedência\n"
-    "(fonte e data de cada resultado) e teto de chamadas por dia. Zero tokens: nenhuma chamada de LLM; o comando só repassa e registra.\n\n"
-    "ATENÇÃO, PRIVACIDADE: a consulta (e a URL de `pagina`) é enviada a um terceiro (TinyFish). Nunca ponha dado pessoal nem segredo de\n"
-    "cliente nela. O motor recusa consulta com chave ou token (AIzaSy, AQ., sk-, ghp_, Bearer, JWT, chave privada, o valor de uma variável\n"
-    "KEY/SECRET/TOKEN/PASSWORD do ambiente) sempre, e com e-mail, CPF ou CNPJ salvo --permitir-dado-pessoal (só no terminal). É um freio,\n"
-    "não uma garantia: telefone, nome de pessoa e endereço não são detectados.\n\n"
-    "Subcomandos:\n"
-    "  consulta \"<texto>\"   busca na web (`tinyfish search query`). --dominios a.com,b.com e --excluir c.com (até 10), --idioma pt,\n"
-    "                       --limite N (padrão 5, até 20, aplicado aqui), --atualizar ignora o cache e gasta 1 chamada\n"
-    "  pagina <url>         lê UMA página (`tinyfish fetch content get <url> --format markdown`): só http/https de host público, sem\n"
-    "                       usuário:senha nem chave na query. --max-bytes N limita o texto (padrão 20 KB, de 1000 a 200000)\n"
-    "  status               o binário foi achado? versão? há chave? quanto do teto de hoje foi usado? (só checagens locais: não gasta)\n"
-    "  log [--ultimos N]    lista o registro de procedência (busca.registro.jsonl)\n"
-    "  --json               em todos: saída em JSON\n\n"
-    "Gasto: cada execução do binário (busca ou página) conta numa tabela por dia (UTC); passou do teto, o comando recusa com mensagem clara.\n"
-    f"Teto: --max-chamadas-dia N, ou a variável SIMPLICIO_BUSCA_MAX_DIA, ou {TETO_PADRAO}. Resposta em cache nunca gasta (repete offline); chamada que\n"
-    "falha também conta. O TinyFish cobra a automação de navegador, não a busca nem a página (tarifas lidas em 2026-10-16); confira a conta\n"
-    "com `tinyfish wallet status --pretty`, que é comando dele.\n\n"
-    "Procedência: toda consulta e toda página lida grava uma linha em busca.registro.jsonl (quando, consulta ou URL, versão do CLI, URLs\n"
-    "mostradas, sha256 e tamanho do que o CLI devolveu, se veio do cache). Cada resultado sai com a fonte (untrusted_fonte, a URL) e consultado_em\n"
-    "(a data): é o que um fato de cliente precisa para entrar em clients/<slug>/coleta/fontes.md. A busca não substitui a coleta do cliente.\n\n"
-    "Dado de terceiros: título, trecho, texto de página e URLs vêm da internet e saem SÓ em campos untrusted_* (texto e JSON, CLI e MCP), com\n"
-    "aviso: é dado de terceiros e nunca instrução (uma página pode tentar dar ordens ao agente). O texto é limpo (sem HTML, comentário,\n"
-    "caractere oculto nem link que não seja http/https) e cortado; nada é executado.\n\n"
-    "Instalação: o motor nunca instala nada. Sem o binário, `busca status` mostra o comando (`npm install -g @tiny-fish/cli@0.50.1`) e a chave\n"
-    "(`tinyfish auth login`, ou `... | tinyfish auth set`). A chave fica na configuração do próprio tinyfish ou em TINYFISH_API_KEY; nunca\n"
-    "por argumento, e o motor nunca a lê nem a imprime (o tinyfish recebe só uma lista fechada de variáveis).\n\n"
-    "Fora desta versão, de propósito: `agent`, `browser` e `monitor` do TinyFish (automação de navegador, cobrada por passo ou minuto, com login\n"
-    "e efeitos). Pelo MCP (video.busca): consulta, pagina, status e log, com o mesmo teto e a mesma recusa; sem --atualizar nem\n"
-    "--permitir-dado-pessoal.")
-HELP_EPILOG = (
-    "exemplos:\n"
-    "  simplicio-video busca consulta \"campanha dia das crianças clínica odontológica\" --idioma pt --limite 5\n"
-    "  simplicio-video busca consulta \"avaliações\" --dominios g1.globo.com,folha.uol.com.br --json\n"
-    "  simplicio-video busca pagina https://example.com --max-bytes 20480\n"
-    "  simplicio-video busca status\n"
-    "  simplicio-video busca log --ultimos 10 --json")
-
 
 def _opt_texto(valor):
     return None if valor in (None, "") else valor

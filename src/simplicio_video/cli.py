@@ -292,7 +292,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=_openverse.HELP_DESC, epilog=_openverse.HELP_EPILOG)
     p.add_argument("args", nargs=argparse.REMAINDER, help="search | get <id> | library list|show|review|export|credits")
 
-    from . import busca as _busca
+    from . import busca_ajuda as _busca  # the help text only: `busca` itself is imported when the command runs
     p = sub.add_parser("busca", formatter_class=Fmt, help="pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário",
         description=_busca.HELP_DESC, epilog=_busca.HELP_EPILOG)
     p.add_argument("args", nargs=argparse.REMAINDER, help="consulta \"<texto>\" | pagina <url> | status | log")
@@ -452,7 +452,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
     if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats", "swap", "jobs", "social", "openverse", "busca"):
-        if any(h in args_list for h in ("-h", "--help")):
+        antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
+        if any(h in antes_do_traco for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
         cmd = args_list[0]
