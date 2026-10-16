@@ -11,6 +11,10 @@ How the latency is simulated, so the numbers are not mistaken for real provider 
 - voice: `voice._gemini` is replaced by a function that sleeps `--latency` seconds and writes a deterministic WAV. The
   per-line ffmpeg processing (trim, filter chain) runs for real and stays serial in both modes.
 
+The time gain is only REPORTED (it depends on the machine load). The proof of parallelism is `max_in_flight`: the most
+calls in flight at once, 1 in the serial run and the requested concurrency in the parallel one; in the parallel runs a job
+does not finish before all of its siblings are in flight, so that number does not depend on the clock either.
+
 Real providers have their own latency, queue and rate limits: run it against them only on purpose and by hand.
 
 Usage:
@@ -30,6 +34,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import wave
 from pathlib import Path
@@ -78,10 +83,13 @@ def bench_swap(chunks: int, latency: float, repeat: int, work: Path) -> dict:
     times: dict[str, list[float]] = {"serial": [], "parallel": []}
     outputs: dict[str, list[str]] = {"serial": [], "parallel": []}
     timing = None
+    in_flight = {"serial": 0, "parallel": 0}
     try:
         for r in range(repeat):
             for mode, conc in (("serial", 1), ("parallel", SWAP_CONCURRENCY)):
                 fake.FakeAdapter.reset()
+                if conc > 1:  # no job finishes before all `conc` chunks were submitted: the overlap does not depend on the clock
+                    fake.FakeAdapter.hold_until_submits = min(conc, chunks)
                 fake.FakeAdapter.generation_s = latency
                 fake.FakeAdapter.submit_delay_s = latency / 5
                 fake.FakeAdapter.fetch_delay_s = latency / 5
@@ -91,6 +99,7 @@ def bench_swap(chunks: int, latency: float, repeat: int, work: Path) -> dict:
                 t0 = time.perf_counter()
                 rc = _silent(swap.run_swap, argv)
                 times[mode].append(time.perf_counter() - t0)
+                in_flight[mode] = max(in_flight[mode], fake.FakeAdapter.max_in_flight)
                 if rc != 0:
                     raise SystemExit(f"bench: swap {mode} falhou ({rc})")
                 man = json.loads((out.parent / swap.MANIFEST_NAME).read_text())
@@ -104,6 +113,7 @@ def bench_swap(chunks: int, latency: float, repeat: int, work: Path) -> dict:
     return {"chunks": chunks, "concurrency": SWAP_CONCURRENCY, "latency_s": latency, "repeat": repeat,
             "serial_s": s, "parallel_s": p, "speedup": round(s / p, 3), "saved_s": round(s - p, 3),
             "identical_output": len(set(outputs["serial"] + outputs["parallel"])) == 1,
+            "max_in_flight": in_flight,
             "runs": {k: [round(x, 3) for x in v] for k, v in times.items()},
             "manifest_timing_last_parallel_run": timing}
 
@@ -142,9 +152,21 @@ def bench_voice(lines: int, latency: float, repeat: int, work: Path) -> dict:
     from simplicio_video import contract as ct
     from simplicio_video import voice
 
+    gate = {"lock": threading.Lock(), "now": 0, "max": 0, "target": 1, "open": threading.Event()}
+
     def simulated(S, text, dst, retries=4):
         n = int(text.rsplit(" ", 1)[1])
-        time.sleep(latency)
+        with gate["lock"]:
+            gate["now"] += 1
+            gate["max"] = max(gate["max"], gate["now"])
+            if gate["now"] >= gate["target"]:
+                gate["open"].set()
+        try:
+            gate["open"].wait(timeout=10)  # every call of the round is in flight before any returns: deterministic overlap
+            time.sleep(latency)
+        finally:
+            with gate["lock"]:
+                gate["now"] -= 1
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_bytes(_wav_bytes(n))
         return {"api": "interactions", "model": S["model"], "voice": S["voice"], "mime": "audio/wav", "chars": len(text),
@@ -154,13 +176,17 @@ def bench_voice(lines: int, latency: float, repeat: int, work: Path) -> dict:
     voice._gemini = simulated
     times: dict[str, list[float]] = {"serial": [], "parallel": []}
     locks: dict[str, list[bytes]] = {"serial": [], "parallel": []}
+    in_flight = {"serial": 0, "parallel": 0}
     try:
         for r in range(repeat):
             for mode, conc in (("serial", 1), ("parallel", VOICE_CONCURRENCY)):
+                gate.update(now=0, max=0, target=min(conc, lines))
+                gate["open"].clear()
                 path = _voice_contract(work / f"voice-{mode}-{r}", lines)
                 t0 = time.perf_counter()
                 _silent(voice.run, ct.load(path), provider="gemini", log=lambda *_: None, concurrency=conc)
                 times[mode].append(time.perf_counter() - t0)
+                in_flight[mode] = max(in_flight[mode], gate["max"])
                 locks[mode].append((path.parent / "timing.lock.json").read_bytes())
     finally:
         voice._gemini = real
@@ -168,6 +194,7 @@ def bench_voice(lines: int, latency: float, repeat: int, work: Path) -> dict:
     return {"lines": lines, "concurrency": VOICE_CONCURRENCY, "latency_s": latency, "repeat": repeat,
             "serial_s": s, "parallel_s": p, "speedup": round(s / p, 3), "saved_s": round(s - p, 3),
             "identical_lock": len(set(locks["serial"] + locks["parallel"])) == 1,
+            "max_in_flight": in_flight,
             "runs": {k: [round(x, 3) for x in v] for k, v in times.items()}}
 
 
@@ -188,10 +215,10 @@ def _text(rep: dict) -> str:
         "Benchmark de concorrência (latência SIMULADA, sem rede)",
         f"swap  {s['chunks']} pedaços, concurrency {s['concurrency']}, latência {s['latency_s']} s por pedaço, mediana de {s['repeat']}",
         f"      serial {s['serial_s']} s  paralelo {s['parallel_s']} s  ganho {s['speedup']}x  (economiza {s['saved_s']} s)  "
-        f"saída idêntica: {s['identical_output']}",
+        f"saída idêntica: {s['identical_output']}  máx. em voo: {s['max_in_flight']['serial']} contra {s['max_in_flight']['parallel']}",
         f"voice {v['lines']} falas, concurrency {v['concurrency']}, latência {v['latency_s']} s por fala, mediana de {v['repeat']}",
         f"      serial {v['serial_s']} s  paralelo {v['parallel_s']} s  ganho {v['speedup']}x  (economiza {v['saved_s']} s)  "
-        f"lock idêntico: {v['identical_lock']}",
+        f"lock idêntico: {v['identical_lock']}  máx. em voo: {v['max_in_flight']['serial']} contra {v['max_in_flight']['parallel']}",
         "", *[f"- {n}" for n in rep["notes"]],
     ]
     return "\n".join(rows)
