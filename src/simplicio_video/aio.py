@@ -4,6 +4,11 @@ Asyncio does not speed up CPU work (render, ffmpeg encodes stay serial). The HTT
 (urllib, blocking), so each blocking call runs in a short-lived DAEMON thread (`athread`) and the event loop only
 coordinates. A daemon thread, not `asyncio.to_thread`, on purpose: after Ctrl+C the interpreter must not wait for a
 request that is still open (up to the HTTP timeout) before it exits.
+
+Known limit: after a cancel or a failure, a daemon thread keeps running its HTTP request to the end (a thread cannot be
+interrupted). Callers must therefore not assume "cancelled" means "stopped at the provider": swap waits a bounded time for an
+in-flight submit and records the handle (or `possibly_charged`), and voice lets in-flight requests finish and keeps their takes.
+In a long-lived process (the MCP server) such a thread may still write its raw take after `voice.run` already returned.
 """
 from __future__ import annotations
 
