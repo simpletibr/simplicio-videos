@@ -4,6 +4,10 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+## 0.4.0 — 2026-10-16
+
+Resumo: troca de personagem agnóstica de fornecedor (`swap`), paralelismo com asyncio e tarefas em segundo plano (`jobs`), trilhas MoneyPrinterTurbo e Toonflow, catálogos de 50 formatos e 50 ângulos de anúncio, plano de postagem sem postar (`social`), biblioteca do Openverse com revisão por pedido e ativo no contrato, busca na internet pelo TinyFish (`busca`) e kit para medir a troca em GPU de 6 GB. A fábrica (kernel, host de plugins, board, studio, media) saiu do motor.
+
 ### Openverse no contrato e no render
 - **Campo novo e opcional no contrato:** um asset (`assets[]` ou `marca.logo`, imagem ou áudio) pode declarar `openverse: {id, pedido}`. O schema `simplicio.video-contract/v1` continua v1 (campo aditivo, só aceita `id` UUID e `pedido` de 1 a 500 caracteres, sem chave extra). Contrato sem o campo se comporta exatamente como antes (o `validate` nem abre a biblioteca; o render lê o índice uma vez, depois de compilar, para comparar os bytes da composição).
 - **`validate` (e por isso `run` e `render`) passa a recusar, offline e com mensagem clara:** id que não existe na biblioteca; arquivo com sha256 diferente do da biblioteca (trocado ou alterado); sem veredito aprovado para o par exato (id, sha256, pedido, proveniência), com a dica quando a aprovação existe para outro pedido ou deixou de valer porque autor, licença ou origem mudaram; índice inválido; licença com restrição (`nc`, `nd`, `sa`) sem o `--aceito-restricao` gravado no export; crédito ausente em `CREDITS-openverse.md`; **arquivo em `assets/openverse/` sem o bloco** (copiar à mão não burla o portão) e qualquer asset com os mesmos bytes de um ativo da biblioteca sem o bloco; bloco em arquivo fora de `assets/openverse/`. Sem rede, sem LLM, nada gravado na biblioteca. A regra de aprovação não foi duplicada: `openverse.verify_asset` (nova, pública) reaproveita `_revisao` (o último veredito do par), `_check_export_rights` e o marcador do crédito; o glue do contrato fica em `openverse_contract.py`.
