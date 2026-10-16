@@ -47,6 +47,8 @@ _AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 _HASHTAG_RE = re.compile(r"(?<![\w#])#(\w+)")
 _STEP_TOKEN = re.compile(r"\{step\.([a-z_]+)\}")
 PUBLISH_WORDS = ("publish", "post", "confirm", "run", "send")
+RO_NO_CLIP_REASON = ("o MCP do Real Oficial não recebe um MP4 local: sem o clip_id de um vídeo já no Real Oficial não há o que cotar nem publicar. "
+                     "Suba o MP4 no app do Real Oficial, ache o clip e rode de novo com --clip-id <id>")
 
 
 class SocialError(Exception):
@@ -650,7 +652,12 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     _assert_safe(_flat(prov["recipe"]), prov, "providers.json completo")
     _assert_safe(steps, prov, "passos emitidos")
     blocked = [subs(t["blocks"]) for t in templates if t.get("blocks")]
+    reason = RO_NO_CLIP_REASON if pid == "realoficial" and clip_id is None else ""
+    if reason:  # bloqueada de verdade: só o passo manual sai; nada de cotar, mostrar, pedir o sim ou publicar com placeholder
+        steps = [s for s in steps if s["id"] == "clip" and s["kind"] == "manual"] or [{"n": 1, "id": "clip", "kind": "manual", "text": reason}]
+        blocked = blocked or ["clip_id do vídeo no Real Oficial"]
     return {"schema": SCHEMA_RECIPE, "provider": pid, "label": prov["label"], "plan_id": plan["plan_id"], "mcp_url": prov["mcp_url"],
+            "blocked": bool(reason), "blocked_reason": reason,
             "steps": steps, "blocked_until": blocked, "publish_tools": prov["publish_tools"], "rules": doc["rules"],
             "unverified": prov["unverified"], "gaps": prov["gaps"]}
 
@@ -659,7 +666,8 @@ KIND_LABEL = {"call": "chamada", "manual": "manual", "show": "mostrar", "consent
 
 
 def recipe_text(rec: dict) -> str:
-    lines = [f"Receita para {rec['label']} ({rec['provider']}) do plano {rec['plan_id'][:12]}",
+    lines = ([f"BLOQUEADO: {rec['blocked_reason']}", ""] if rec.get("blocked") else [])
+    lines += [f"Receita para {rec['label']} ({rec['provider']}) do plano {rec['plan_id'][:12]}",
              f"MCP: {rec['mcp_url']}",
              "O motor não executa nada disto: você, agente, chama as ferramentas do provedor, na ordem, e só publica depois do sim explícito do usuário.", ""]
     for s in rec["steps"]:
@@ -809,7 +817,7 @@ def run_social(argv: list[str]) -> int:
             return 0 if rep["ok"] else 1
         rec = recipe(a.plan, provider=a.provider, clip_id=a.clip_id)
         print(json.dumps(rec, indent=2, ensure_ascii=False) if a.json else recipe_text(rec))
-        return 0
+        return 1 if rec["blocked"] else 0
     except SocialError as e:
         print(f"social: {e}", file=sys.stderr)
         return 1

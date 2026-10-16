@@ -511,7 +511,7 @@ def test_cli_in_process_fluxo_completo(video, capsys):
     path = saida["path"]
     assert social.run_social(["check", path, "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["ok"] is True
-    assert social.run_social(["recipe", path]) == 0
+    assert social.run_social(["recipe", path, "--clip-id", CLIP_RO]) == 0
     texto = capsys.readouterr().out
     assert "ro_preview_publication" in texto and "consentimento" in texto
     video.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"mudou")
@@ -860,14 +860,14 @@ def test_realoficial_sem_clip_id_bloqueia_em_texto(video):
     rec = social.recipe(plano(video)["path"])
     texto = social.recipe_text(rec)
     assert texto.splitlines()[0].startswith("BLOQUEADO") and "MP4 local" in texto.splitlines()[0]
-    assert "ro_confirm_publishing" not in texto and "ro_preview_publication" not in texto
+    assert not re.search(r"\[(chamada|mostrar|consentimento)\]", texto) and "ro_confirm_publishing  (publish)" not in texto
 
 
 def test_realoficial_sem_clip_id_bloqueia_no_cli_texto_e_json(video, capsys):
     path = plano(video)["path"]
     assert social.run_social(["recipe", path]) == 1
     saida = capsys.readouterr()
-    assert saida.out.startswith("BLOQUEADO") and "ro_confirm_publishing" not in saida.out
+    assert saida.out.startswith("BLOQUEADO") and not re.search(r"\[(chamada|mostrar|consentimento)\]", saida.out)
     assert social.run_social(["recipe", path, "--json"]) == 1
     js = json.loads(capsys.readouterr().out)
     assert js["blocked"] is True and "MP4 local" in js["blocked_reason"] and _sem_cotar_nem_publicar(js["steps"])

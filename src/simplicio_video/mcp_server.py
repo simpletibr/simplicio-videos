@@ -177,7 +177,10 @@ def video_social(acao: str = "providers", plano: str | None = None, video: str |
         if acao == "check":
             return social.check_plan(plano)
         if acao == "recipe":
-            return {"ok": True, **social.recipe(plano, provider=provider, clip_id=clip_id)}
+            rec = social.recipe(plano, provider=provider, clip_id=clip_id)
+            if rec["blocked"]:
+                return {**rec, "ok": False, "error": "BLOQUEADO: " + rec["blocked_reason"]}
+            return {"ok": True, **rec}
         if acao in social.PUBLISH_WORDS:
             return {"ok": False, "error": "publicar não existe pelo MCP do motor: o motor só planeja. Poste com as ferramentas MCP do "
                                          "provedor (veja a receita: acao=recipe), com o sim explícito do usuário para cada postagem"}
