@@ -447,8 +447,6 @@ def test_receita_realoficial_sem_clip_id_bloqueia_com_passo_manual(video):
     rec = social.recipe(path)
     assert rec["steps"][0]["kind"] == "manual" and "clip_id" in rec["steps"][0]["text"]
     assert rec["blocked_until"] and "clip_id" in rec["blocked_until"][0]
-    prev = next(s for s in rec["steps"] if s.get("tool") == "ro_preview_publication")
-    assert prev["args"]["items"][0]["clip_id"].startswith("<")
 
 
 def test_receita_zernio_marca_o_que_nao_foi_conferido(video):
@@ -836,3 +834,49 @@ def test_requires_vai_para_o_passo_e_e_executado(video, provedor):
     com_requires = [s for s in rec["steps"] if s.get("requires")]
     assert com_requires and all(s["requires"] == "consent" for s in com_requires)
     assert all(s.get("requires_step") for s in com_requires)
+
+
+# ------------------------------------------------------------------------------------------------ achado 3: Real Oficial sem clip_id bloqueia
+
+def _sem_cotar_nem_publicar(steps):
+    return not [s for s in steps if s["kind"] in ("show", "consent") or (s["kind"] == "call" and s["effect"] in ("quote", "publish"))]
+
+
+def test_realoficial_sem_clip_id_bloqueia_a_receita_com_o_motivo(video):
+    rec = social.recipe(plano(video, targets=["youtube"])["path"])
+    assert rec["blocked"] is True
+    assert "MP4 local" in rec["blocked_reason"] and "clip_id" in rec["blocked_reason"]
+    assert _sem_cotar_nem_publicar(rec["steps"]), [s["id"] for s in rec["steps"]]
+    com = social.recipe(plano(video, targets=["youtube"], force=True)["path"], clip_id=CLIP_RO)
+    assert com["blocked"] is False and com["blocked_reason"] == "" and not _sem_cotar_nem_publicar(com["steps"])
+
+
+def test_zernio_sem_clip_id_nao_bloqueia(video):
+    rec = social.recipe(plano(video)["path"], provider="zernio")
+    assert rec["blocked"] is False and not _sem_cotar_nem_publicar(rec["steps"])
+
+
+def test_realoficial_sem_clip_id_bloqueia_em_texto(video):
+    rec = social.recipe(plano(video)["path"])
+    texto = social.recipe_text(rec)
+    assert texto.splitlines()[0].startswith("BLOQUEADO") and "MP4 local" in texto.splitlines()[0]
+    assert "ro_confirm_publishing" not in texto and "ro_preview_publication" not in texto
+
+
+def test_realoficial_sem_clip_id_bloqueia_no_cli_texto_e_json(video, capsys):
+    path = plano(video)["path"]
+    assert social.run_social(["recipe", path]) == 1
+    saida = capsys.readouterr()
+    assert saida.out.startswith("BLOQUEADO") and "ro_confirm_publishing" not in saida.out
+    assert social.run_social(["recipe", path, "--json"]) == 1
+    js = json.loads(capsys.readouterr().out)
+    assert js["blocked"] is True and "MP4 local" in js["blocked_reason"] and _sem_cotar_nem_publicar(js["steps"])
+    assert social.run_social(["recipe", path, "--clip-id", CLIP_RO]) == 0
+
+
+def test_realoficial_sem_clip_id_bloqueia_no_mcp(video):
+    r = mcp_server.video_social("plan", video=str(video), caption=CAPTION, targets=["youtube"])
+    rec = mcp_server.video_social("recipe", plano=r["path"])
+    assert rec["ok"] is False and rec["blocked"] is True
+    assert "MP4 local" in rec["error"] and _sem_cotar_nem_publicar(rec["steps"])
+    assert mcp_server.video_social("recipe", plano=r["path"], clip_id=CLIP_RO)["ok"] is True
