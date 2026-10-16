@@ -351,13 +351,84 @@ def test_runner_morto_vira_lost(stub_spawn, mini):
 def test_lost_mata_a_tarefa_que_sobrou(stub_spawn, mini):
     sobra = subprocess.Popen(["sleep", "60"], start_new_session=True)
     try:
-        jid = fabrica(stub_spawn, mini, state="running", runner_pid=morto(), task_pid=sobra.pid, task_pgid=sobra.pid)
+        jid = fabrica(stub_spawn, mini, state="running", runner_pid=morto(), task_pid=sobra.pid, task_pgid=sobra.pid,
+                      task_start=jobs.proc_start(sobra.pid), task_boot=jobs.boot_id())
         assert jobs.status(jid)["state"] == "lost"
         sobra.wait(timeout=10)
         assert sobra.returncode is not None
     finally:
         if sobra.poll() is None:
             os.killpg(sobra.pid, signal.SIGKILL)
+
+
+def test_b2_pgid_reciclado_nao_leva_sigkill(stub_spawn, mini):
+    """O pgid gravado hoje pertence a um grupo alheio: o start time gravado não confere, então nada é sinalizado."""
+    alheio = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    try:
+        jid = fabrica(stub_spawn, mini, state="running", runner_pid=morto(), task_pid=alheio.pid, task_pgid=alheio.pid,
+                      task_start="1", task_boot=jobs.boot_id())
+        st = jobs.status(jid)
+        assert st["state"] == "lost"
+        time.sleep(0.3)
+        assert alheio.poll() is None, "um status de leitura matou um grupo que não é o da tarefa"
+    finally:
+        if alheio.poll() is None:
+            os.killpg(alheio.pid, signal.SIGKILL)
+
+
+def test_b2_sem_identidade_gravada_nao_mata_e_marca_lost(stub_spawn, mini):
+    alheio = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    try:
+        jid = fabrica(stub_spawn, mini, state="running", runner_pid=morto(), task_pid=alheio.pid, task_pgid=alheio.pid)
+        assert jobs.status(jid)["state"] == "lost"
+        time.sleep(0.3)
+        assert alheio.poll() is None
+    finally:
+        if alheio.poll() is None:
+            os.killpg(alheio.pid, signal.SIGKILL)
+
+
+def test_b2_boot_diferente_nao_mata(stub_spawn, mini):
+    if jobs.boot_id() is None:
+        pytest.skip("sem boot id neste sistema")
+    alheio = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    try:
+        jid = fabrica(stub_spawn, mini, state="running", runner_pid=morto(), task_pid=alheio.pid, task_pgid=alheio.pid,
+                      task_start=jobs.proc_start(alheio.pid), task_boot="outro-boot")
+        assert jobs.status(jid)["state"] == "lost"
+        time.sleep(0.3)
+        assert alheio.poll() is None
+    finally:
+        if alheio.poll() is None:
+            os.killpg(alheio.pid, signal.SIGKILL)
+
+
+def test_b2_cancelar_com_runner_morto_nao_mata_pgid_reciclado(stub_spawn, mini):
+    alheio = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    try:
+        jid = fabrica(stub_spawn, mini, state="running", runner_pid=morto(), task_pid=alheio.pid, task_pgid=alheio.pid,
+                      task_start="1", task_boot=jobs.boot_id())
+        assert jobs.cancel(jid)["state"] in ("cancelled", "lost")
+        time.sleep(0.3)
+        assert alheio.poll() is None
+    finally:
+        if alheio.poll() is None:
+            os.killpg(alheio.pid, signal.SIGKILL)
+
+
+def test_b2_runner_grava_a_identidade_da_tarefa(media, monkeypatch):
+    monkeypatch.setenv("SIMPLICIO_FAKE_STUCK", "1")
+    st = jobs.submit("swap-run", swap_params(media, timeout=120, poll_interval=0.05), confirm_yes=True)
+    try:
+        run = wait_for(st["id"], ("running",))
+        t0 = time.monotonic()
+        while not run.get("task_start") and time.monotonic() - t0 < 20:
+            time.sleep(0.05)
+            run = jobs.status(st["id"])
+        assert run["task_start"] == jobs.proc_start(run["task_pid"])
+        assert run["task_boot"] == jobs.boot_id()
+    finally:
+        jobs.cancel(st["id"])
 
 
 def test_job_vivo_nao_vira_lost(stub_spawn, mini):
