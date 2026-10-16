@@ -7,7 +7,6 @@ carregam fonte, data e confiança; e nenhuma saída do motor chama "confirmar" s
 """
 from __future__ import annotations
 
-import ast
 import json
 import re
 import shutil
@@ -1129,3 +1128,100 @@ def test_arquivo_qt_renomeado_para_mp4_e_recusado(tmp_path):
     mov.write_bytes(b"\x00\x00\x00\x14ftypqt  \x00\x00\x00\x00qt  conteudo")
     with pytest.raises(social.SocialError, match="MP4"):
         social.make_plan(str(mov), ["tiktok"], caption="x")
+
+
+# ------------------------------------------------------------------------------------------------ texto do usuário é dado, nunca modelo
+
+# Legenda e título aprovados pelo usuário entram na receita como DADO. Só os modelos do providers.json têm marcadores
+# ({plan}, {step.x}, {video_name}, {video_sha256_short}); um marcador que apareça DENTRO da legenda não pode ser reescrito,
+# senão o que o usuário aprovou não é o que vai ao ar. Cada legenda abaixo traz marcadores, chaves, %s, $(...), quebra de
+# linha, tab e emoji.
+LEGENDAS_HOSTIS = [
+    "Oi {plan} e {step.x} {step.preview} {step.accounts} {video_name} {video_sha256_short} {{ }} {{plan}} %s %(x)s $(ls) `id` ${HOME}\n"
+    "linha 2\tcom tab \U0001F600 ção",
+    "$caption e $(rm -rf /) {plan} {step.preview}\U0001F680",  # começa com `$`: não é referência a nenhum campo do contexto
+]
+TITULO_HOSTIL = "T {plan} {step.accounts} {{x}} %s $(id) \U0001F600"
+
+
+def dados_entregues(args):
+    """Legenda e título dentro dos argumentos da chamada que o agente faz (Real Oficial: items[0]; Zernio: content)."""
+    if "items" in args:
+        return {"legenda": args["items"][0]["description"], "titulo": args["items"][0].get("title")}
+    return {"legenda": args["content"], "titulo": None}
+
+
+def argumentos_do_texto(texto):
+    """Lê a saída em texto: os argumentos de cada chamada, na ordem, como o agente os lê (JSON na linha `argumentos:`)."""
+    return [json.loads(linha.split("argumentos: ", 1)[1]) for linha in texto.splitlines() if linha.lstrip().startswith("argumentos: ")]
+
+
+def saidas_da_receita(path, provedor, capsys):
+    """A mesma receita pelas quatro portas: função, CLI em JSON, CLI em texto e MCP. Devolve {porta: (saída bruta, argumentos)}."""
+    clip = CLIP_RO if provedor == "realoficial" else None
+    argv = ["recipe", path, "--provider", provedor] + (["--clip-id", clip] if clip else [])
+    direto = social.recipe(path, provider=provedor, clip_id=clip)
+    assert social.run_social(argv + ["--json"]) == 0
+    bruto_json = capsys.readouterr().out
+    assert social.run_social(argv) == 0
+    texto = capsys.readouterr().out
+    mcp = mcp_server.video_social("recipe", plano=path, provider=provedor, clip_id=clip)
+    assert mcp["ok"] is True
+
+    def da_chamada(steps):
+        return next(s["args"] for s in steps if s["kind"] == "call" and ("items" in s["args"] or "content" in s["args"]))
+
+    return {"função": (json.dumps(direto, ensure_ascii=False), da_chamada(direto["steps"])),
+            "cli-json": (bruto_json, da_chamada(json.loads(bruto_json)["steps"])),
+            "mcp": (json.dumps(mcp, ensure_ascii=False), da_chamada(mcp["steps"])),
+            "cli-texto": (texto, next(a for a in argumentos_do_texto(texto) if "items" in a or "content" in a))}
+
+
+@pytest.mark.parametrize("provedor", PROVEDORES)
+@pytest.mark.parametrize("legenda", LEGENDAS_HOSTIS, ids=["marcadores", "cifrao"])
+def test_legenda_e_titulo_saem_identicos_byte_a_byte_em_texto_json_e_mcp(video, provedor, legenda, capsys):
+    p = plano(video, targets=["youtube", "tiktok"], caption=legenda, title=TITULO_HOSTIL)
+    assert p["plan"]["caption"] == legenda and p["plan"]["title"] == TITULO_HOSTIL  # o que o usuário aprovou
+    esperado = {"legenda": legenda, "titulo": TITULO_HOSTIL if provedor == "realoficial" else None}  # o Zernio não leva título
+    for porta, (bruto, args) in saidas_da_receita(p["path"], provedor, capsys).items():
+        entregue = dados_entregues(args)
+        assert {k: v and v.encode("utf8") for k, v in entregue.items()} == {k: v and v.encode("utf8") for k, v in esperado.items()}, porta
+        for dado in filter(None, esperado.values()):  # e o texto bruto da saída traz o dado como o JSON o escreve
+            assert json.dumps(dado, ensure_ascii=False) in bruto, porta
+
+
+def neutra(rec, *dados):
+    """A receita sem o plan_id e com cada dado do usuário trocado por um marcador neutro: o que sobra é só o motor."""
+    s = json.dumps({k: v for k, v in rec.items() if k != "plan_id"}, ensure_ascii=False, sort_keys=True)
+    for d in dados:
+        s = s.replace(json.dumps(d, ensure_ascii=False)[1:-1], "<DADO>")
+    return s
+
+
+@pytest.mark.parametrize("provedor", PROVEDORES)
+def test_o_texto_do_usuario_nao_muda_nenhum_outro_trecho_da_receita(video, provedor):
+    """A receita com legenda e título hostis é igual à receita com texto comum, a não ser pelos próprios dados."""
+    clip = CLIP_RO if provedor == "realoficial" else None
+    comum = social.recipe(plano(video, targets=["youtube", "tiktok"], caption="legenda comum", title="titulo comum")["path"], provider=provedor, clip_id=clip)
+    path = plano(video, targets=["youtube", "tiktok"], caption=LEGENDAS_HOSTIS[0], title=TITULO_HOSTIL, force=True)["path"]
+    hostil = social.recipe(path, provider=provedor, clip_id=clip)
+    assert neutra(hostil, LEGENDAS_HOSTIS[0], TITULO_HOSTIL) == neutra(comum, "legenda comum", "titulo comum")
+
+
+def test_marcadores_no_nome_do_video_e_na_pasta_do_plano_tambem_sao_dado(tmp_path):
+    """O nome do arquivo e o caminho do plano vêm do usuário: `{plan}` no nome não vira o caminho, e o resultado de uma
+    substituição não é substituído de novo (pasta `{video_name}`, arquivo `{video_sha256_short}`)."""
+    mp4 = fazer_mp4(tmp_path / "{video_name}" / "{plan}-{step.x}-{video_sha256_short}.mp4")
+    p = social.make_plan(str(mp4), ["youtube"], caption=CAPTION)
+    sha12 = p["plan"]["video"]["sha256"][:12]
+    for provedor in PROVEDORES:
+        rec = social.recipe(p["path"], provider=provedor, clip_id=CLIP_RO if provedor == "realoficial" else None)
+        verificar = next(s for s in rec["steps"] if s["id"] == "check")
+        assert f"social check {p['path']}`" in verificar["text"], provedor
+        if provedor == "zernio":
+            upload = next(s for s in rec["steps"] if s.get("tool") == "media_generate_upload_link")
+            assert upload["args"]["filename"] == mp4.name
+            mostrar = next(s for s in rec["steps"] if s["kind"] == "show")
+            assert mostrar["items"][0].startswith(f"o arquivo `{mp4.name}` (sha256 {sha12}) ")
+    bloqueada = social.recipe(p["path"])
+    assert f"`{mp4.name}` (sha256 {sha12})" in bloqueada["steps"][0]["text"]
