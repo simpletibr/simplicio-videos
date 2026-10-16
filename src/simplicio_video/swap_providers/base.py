@@ -140,7 +140,8 @@ class Adapter:
             err = data.get("error")
             msg = (err.get("message") if isinstance(err, dict) else err) or data.get("message") or data.get("msg") or ""
         msg = str(msg or res.body[:200].decode("utf8", "replace"))
-        return ProviderError(f"{self.name}: HTTP {res.status}: {msg}", retryable=res.status == 429 or res.status >= 500)
+        quota = res.status == 429 and "quota" in msg.lower()  # an exhausted quota does not come back in seconds
+        return ProviderError(f"{self.name}: HTTP {res.status}: {msg}", retryable=(res.status == 429 and not quota) or res.status >= 500)
 
     # -- price ----------------------------------------------------------------------------------------------------
     def price_row(self, resolution: str) -> PriceRow:

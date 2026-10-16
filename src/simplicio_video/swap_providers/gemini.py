@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from urllib.parse import urlparse
 
 from .base import Adapter, Capabilities, PriceRow, ProviderError, Status, b64_file, mime_of
@@ -27,6 +28,10 @@ IN_USD_PER_TOKEN = 1.5e-6    # US$ 1,50 per 1M input tokens
 FREE_PLAN_MSG = (
     "gemini: o plano grátis não tem cota para o modelo gemini-omni-1.1-flash (Rate limit exceeded ... limit: 0). "
     "Use uma chave de um projeto com faturamento ativo no Google AI Studio / Google Cloud. Não adianta tentar de novo."
+)
+QUOTA_MSG = (
+    "gemini: cota excedida (You exceeded your current quota). Confira o plano e o faturamento do projeto no Google AI Studio / "
+    "Google Cloud. Não adianta tentar de novo agora."
 )
 FAILED_STATES = ("failed", "cancelled", "canceled", "expired", "incomplete")  # UNVERIFIED: only completed/in_progress are documented
 
@@ -62,9 +67,11 @@ class GeminiAdapter(Adapter):
         if res.status >= 400 or (isinstance(data, dict) and "error" in data and "steps" not in data and "status" not in data):
             err = data.get("error") if isinstance(data, dict) else None
             msg = (err.get("message") if isinstance(err, dict) else str(err or "")) or ""
-            low = msg.lower()
-            if "rate limit exceeded" in low and "limit: 0" in low:
+            low = (msg or res.body[:400].decode("utf8", "replace")).lower()
+            if res.status == 429 and re.search(r"limit:\s*0\b", low):  # free plan: no quota at all, whatever the wording
                 raise ProviderError(FREE_PLAN_MSG, retryable=False)
+            if res.status == 429 and "quota" in low:  # an exhausted quota does not come back by waiting seconds
+                raise ProviderError(QUOTA_MSG, retryable=False)
             raise self._error(res)
         if not isinstance(data, dict):
             raise ProviderError("gemini: resposta que não é JSON", retryable=True)
