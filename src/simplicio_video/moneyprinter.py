@@ -331,24 +331,53 @@ def _serve(d: Path, args: list[str]) -> int:
         reach = "todas as interfaces" if host in ("0.0.0.0", "::") else host
         print(f"MoneyPrinterTurbo: {' e '.join(where)}, escutando em {reach}: alcançável pela rede e sem login "
               "(a API só pede chave se app.api_key estiver preenchida). Ctrl+C para parar.")
-    previous = signal.signal(signal.SIGTERM, _on_term)
+    labels = (["WebUI"] if webui else []) + (["API"] if api else [])
+    # SIGTERM and SIGHUP (terminal closed, ssh dropped) stop the servers like Ctrl+C. Their default action would end
+    # this process and leave both servers, which live in their own sessions, listening with nobody to stop them.
+    catch = [n for n in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None)) if n is not None]
+    original = {n: signal.getsignal(n) for n in (signal.SIGINT, *catch)}
+    for n in catch:
+        signal.signal(n, _on_term)
     procs: list[subprocess.Popen] = []
     try:
         for cmd in cmds:
             procs.append(subprocess.Popen(cmd, cwd=d, env=env, start_new_session=True))
         while True:
-            for p in procs:
+            for p, label in zip(procs, labels):
                 rc = p.poll()
                 if rc is not None:  # one server ended: the other one is stopped below, never left running
-                    return rc
+                    print(f"moneyprinter: {label} saiu com código {rc}; parando o outro servidor. "
+                          "Veja o log acima (porta ocupada?).", file=sys.stderr)
+                    return rc if rc > 0 else (128 - rc if rc < 0 else 1)
             time.sleep(0.5)
     except KeyboardInterrupt:  # Ctrl+C is how the user stops the servers: not an error
         return 0
     finally:
+        _stop_all(procs, original)
+
+
+def _stop_all(procs: list, original: dict) -> None:
+    """Stop every server group, then put the signal handlers back. A further Ctrl+C or SIGTERM while this runs must
+    not abort it (that is what left the second server running), so the signals are ignored here and the stop of each
+    group is repeated if one gets through anyway. Each group also gets the final SIGKILL sweep when its leader had
+    already exited: a helper it left behind must not keep a port open."""
+    for n in original:
+        signal.signal(n, signal.SIG_IGN)
+    try:
         for p in procs:
-            if p.poll() is None:
-                _stop_group(p)
-        signal.signal(signal.SIGTERM, previous)
+            while True:
+                try:
+                    if p.poll() is None:
+                        _stop_group(p)
+                    else:
+                        with contextlib.suppress(ProcessLookupError):
+                            os.killpg(p.pid, signal.SIGKILL)
+                    break
+                except KeyboardInterrupt:
+                    continue
+    finally:
+        for n, handler in original.items():
+            signal.signal(n, handler)
 
 
 def run_moneyprinter(args: list[str]) -> int:
