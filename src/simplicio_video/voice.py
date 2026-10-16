@@ -245,45 +245,57 @@ def _is_cached(final: Path, force: bool, only: list[str] | None, line_id: str) -
     return final.is_file() and not force and not (only and line_id in only)
 
 
-async def _generate_all(c: Contract, prov: str, S: dict, jobs: list[tuple[int, str, Path]], concurrency: int) -> dict:
-    """Generate the raw takes of `jobs` [(index, text, dst)] with at most `concurrency` requests in flight. The first failure
-    cancels the requests that have not started and is re-raised (the lowest line index when several fail together)."""
+def _line_ident(c: Contract, prov: str, S: dict, chain: str, line: dict, idx: int) -> list:
+    """The cache identity of one line. ONE function for the prefetch and for the real loop, so they cannot drift apart."""
+    say = line.get("say", line["texto"])
+    src = _file_source(c, S, idx, line) if prov == "file" else None
+    ref = c.rel(S["reference_audio"]) if S.get("reference_audio") else None
+    if ref is not None and not ref.is_file():
+        raise VoiceError(f"provider={prov}: reference_audio not found: {S['reference_audio']}")
+    return [prov, S, chain, say] + ([sha256_file(src)] if src else []) + ([sha256_file(ref)] if ref else [])
+
+
+async def _generate_all(c: Contract, prov: str, S: dict, jobs: list[tuple[int, str, Path]], concurrency: int) -> tuple[dict, dict]:
+    """Generate the raw takes of `jobs` [(index, text, dst)] with at most `concurrency` requests in flight.
+    Returns (done, errors) by line index. After the first failure no new request starts, but the ones already in flight
+    are awaited and kept: the provider charged them, so the next round must not pay for them again."""
     sem = asyncio.Semaphore(concurrency)
     out: dict = {}
+    errors: dict = {}
 
     async def one(idx: int, text: str, dst: Path) -> None:
         async with sem:
-            out[idx] = await aio.athread(_generate, c, prov, S, text, dst, None)
+            if errors:
+                return  # a line failed: do not start (and pay for) more
+            try:
+                out[idx] = await aio.athread(_generate, c, prov, S, text, dst, None)
+            except (Exception, SystemExit) as e:  # noqa: BLE001 (VoiceError is a SystemExit: keep it per line, not first-come)
+                errors[idx] = e
 
     tasks = [asyncio.create_task(one(*j)) for j in jobs]  # in line order
     try:
-        await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
-        failed = [t for t in tasks if t.done() and not t.cancelled() and t.exception() is not None]
-        if failed:
-            for t in tasks:
-                t.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-            raise failed[0].exception()
+        await asyncio.gather(*tasks)
     except asyncio.CancelledError:
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         raise
-    return out
+    return out, errors
 
 
 def _prefetch(c: Contract, prov: str, S: dict, chain: str, cache: Path, fdir: Path, lines: list[dict], force: bool,
-              only: list[str] | None, concurrency: int) -> dict:
+              only: list[str] | None, concurrency: int) -> tuple[dict, dict]:
     """Phase 1 (network providers only): generate every raw take that is not cached, concurrently. Phase 2 (the loop in
-    `run`) then processes the lines in order exactly as the serial mode does, so outputs and timing.lock.json are identical."""
+    `run`) then processes the lines in order exactly as the serial mode does, so outputs and timing.lock.json are identical.
+    Returns (takes, errors) by line index."""
     todo = []
     for idx, line in enumerate(lines):
         say = line.get("say", line["texto"])
-        final = cache / f"{line['id']}-{_digest([prov, S, chain, say])}.wav"
+        final = cache / f"{line['id']}-{_digest(_line_ident(c, prov, S, chain, line, idx))}.wav"
         if not _is_cached(final, force, only, line["id"]):
             todo.append((idx, say, keep_path(fdir, prov, idx)))
     if concurrency < 2 or len(todo) < 2:
-        return {}
+        return {}, {}
     return aio.run_sync(_generate_all(c, prov, S, todo, concurrency))
 
 
@@ -307,19 +319,20 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
     fdir = c.rel(settings_for(c, "file")["dir"])
     tts_chars = 0
     workers = effective_concurrency(prov, concurrency)
-    pre = _prefetch(c, prov, S, chain, cache, fdir, lines, force, only, workers) if workers > 1 else {}
+    pre, perr = _prefetch(c, prov, S, chain, cache, fdir, lines, force, only, workers) if workers > 1 else ({}, {})
+    first_error = perr[min(perr)] if perr else None  # the lowest line index, like the serial mode would have hit first
     for idx, line in enumerate(lines):
         gen = None
         say = line.get("say", line["texto"])
         src = _file_source(c, S, idx, line) if prov == "file" else None
         ref = c.rel(S["reference_audio"]) if S.get("reference_audio") else None
-        if ref is not None and not ref.is_file():
-            raise VoiceError(f"provider={prov}: reference_audio not found: {S['reference_audio']}")
-        ident = [prov, S, chain, say] + ([sha256_file(src)] if src else []) + ([sha256_file(ref)] if ref else [])
+        ident = _line_ident(c, prov, S, chain, line, idx)
         h = _digest(ident)
         final = cache / f"{line['id']}-{h}.wav"
         if _is_cached(final, force, only, line["id"]):
             status = "cached"
+        elif first_error is not None and idx not in pre:
+            continue  # phase 1 failed: finalize into the cache every line that WAS generated (and paid), skip the rest
         else:
             with tempfile.TemporaryDirectory() as td:
                 raw, cut = Path(td) / "raw.wav", Path(td) / "cut.wav"
@@ -377,6 +390,8 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
         log(f"{line['id']} {status:8s} {dur:.2f}s / {line['max_s']}s  {line['texto']}")
         if dur > line["max_s"] + 1e-6:
             over.append(f"{line['id']}: {dur:.3f}s > max_s {line['max_s']}s")
+    if first_error is not None:  # every generated line is in the cache now: the next round only pays for what is missing
+        raise first_error
     lock = {"schema": "simplicio.timing-lock/v1", "provider": prov, "settings": S, "processing": chain,
             "cache_dir": v.get("cache_dir", "assets/audio/voz"), "lines": lock_lines}
     if prov in ("gemini", "elevenlabs", "xai"):  # metering for credits (ADR-0002): only lines synthesized in this run
