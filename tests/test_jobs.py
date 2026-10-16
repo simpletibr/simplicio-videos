@@ -6,6 +6,7 @@ ponta sobem o runner de verdade (subprocesso), por isso rodam com ffmpeg e esper
 from __future__ import annotations
 
 import inspect
+import shutil
 import json
 import os
 import signal
@@ -544,6 +545,50 @@ def test_i3_jobs_no_windows_recusa_com_mensagem_clara(monkeypatch, capsys):
 
 def test_i3_fcntl_so_e_importado_onde_e_usado():
     assert not hasattr(jobs, "fcntl")
+
+
+# ---------------------------------------------------------------- I4: sem /proc (macOS)
+
+@pytest.fixture
+def sem_proc(monkeypatch, tmp_path):
+    if not shutil.which("ps"):
+        pytest.skip("sem ps")
+    monkeypatch.setattr(jobs, "PROC", tmp_path / "sem-proc")
+
+
+def test_i4_start_time_sem_proc_vem_do_ps(sem_proc):
+    a = subprocess.Popen(["sleep", "30"])
+    try:
+        s1 = jobs.proc_start(a.pid)
+        assert s1 is not None, "sem /proc o start time precisa vir do ps"
+        assert s1 == jobs.proc_start(a.pid)
+    finally:
+        a.kill()
+        a.wait()
+
+
+def test_i4_pid_reaproveitado_e_detectado_sem_proc(sem_proc, stub_spawn, mini):
+    jid = fabrica(stub_spawn, mini, state="running", runner_pid=os.getpid(), runner_start="ps:Mon Jan  1 00:00:00 2001")
+    assert jobs.status(jid)["state"] == "lost"
+
+
+def test_i4_job_vivo_sem_proc_continua_running(sem_proc, stub_spawn, mini):
+    jid = fabrica(stub_spawn, mini, state="running", runner_pid=os.getpid(), runner_start=jobs.proc_start(os.getpid()))
+    assert jobs.status(jid)["state"] == "running"
+
+
+def test_i4_cancel_sem_prova_de_identidade_nao_sinaliza(monkeypatch, stub_spawn, mini):
+    alheio = subprocess.Popen(["sleep", "30"])
+    try:
+        monkeypatch.setattr(jobs, "proc_start", lambda pid: None)  # nem /proc nem ps: nenhuma prova
+        jid = fabrica(stub_spawn, mini, state="running", runner_pid=alheio.pid, runner_start="x")
+        with pytest.raises(jobs.JobError, match="provar"):
+            jobs.cancel(jid, wait_s=0.2)
+        time.sleep(0.2)
+        assert alheio.poll() is None
+    finally:
+        alheio.kill()
+        alheio.wait()
 
 
 # ---------------------------------------------------------------- CLI
