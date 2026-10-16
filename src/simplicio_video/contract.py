@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import posixpath
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -180,8 +181,20 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
     for a in items:
         if not c.rel(a["arquivo"]).is_file():
             rep.errors.append(f"assets: missing file {a['arquivo']} (-> {a['destino']})")
+    # one file per destination: the last copy wins, so the file in the video would not be the one that was checked
+    onde: dict[str, list[str]] = {}
+    for i, a in enumerate(d.get("assets", [])):
+        onde.setdefault(posixpath.normpath(a["destino"]), []).append(f"assets[{i}]")
+    if logo:
+        onde.setdefault(posixpath.normpath(logo["destino"]), []).append("marca.logo")
+    for slot in d.get("placas_video", []):
+        onde.setdefault(posixpath.normpath(slot["file"]), []).append(f"placas_video[{slot['id']}].file")
+    for destino, quem in onde.items():
+        if len(quem) > 1:
+            rep.errors.append(f"assets: duplicated destino {destino} ({', '.join(quem)}): the last copy wins; give each file its own destino")
     # ---- assets from the Openverse library: declared provenance, review for the request, rights and credit (offline) ----
-    from . import openverse_contract  # lazy: a contract with no asset never loads it
+    # imported here so the module loads only when a contract is validated; the library index is opened only if an asset file exists
+    from . import openverse_contract
     ov = openverse_contract.verify(c)
     rep.errors += ov.errors
     rep.warnings += ov.warnings

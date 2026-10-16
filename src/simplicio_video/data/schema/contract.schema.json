@@ -55,7 +55,7 @@
     "assets": { "type": "array", "items": { "$ref": "#/$defs/asset" }, "description": "extra client files copied into the composition (photos, logo variants)" },
     "variaveis": { "type": "object", "description": "raw HyperFrames variables merged after the scene textos (e.g. asset paths, colors the template declares)" },
     "placas_video": {
-      "type": "array", "description": "optional full-bleed video plates (engine clips); missing file => black stand-in + <id>_on=false",
+      "type": "array", "description": "optional full-bleed video plates (engine clips); missing file => black stand-in + <id>_on=false. A plate never carries the openverse block: a file from the Openverse library (assets/openverse/ or the same bytes) is refused here, declare it in assets[] with the block",
       "items": {
         "type": "object", "required": ["id", "file", "out", "start", "duration"],
         "properties": { "id": { "type": "string" }, "file": { "type": "string" }, "out": { "type": "string" }, "scene": { "type": "string" },

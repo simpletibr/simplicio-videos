@@ -271,6 +271,8 @@ def _validate_index(doc: dict) -> None:
             raise _bad_index(where, "destino e pedido_normalizado precisam ser texto")
         if "aceito_restricao" in e and not isinstance(e["aceito_restricao"], bool):
             raise _bad_index(where, "aceito_restricao precisa ser verdadeiro ou falso")
+        if "licenca" in e and not isinstance(e["licenca"], str):
+            raise _bad_index(where, "licenca (a licença aceita no export) precisa ser texto")
 
 
 def _load_index() -> dict:
@@ -1170,11 +1172,12 @@ def export(id_, pedido, para=None, contrato=None, aceito_restricao=False) -> dic
         entry = {"id": id_, "sha256": rec["sha256"], "pedido_normalizado": norm, "destino": str(dest), "arquivo": target.name, "em": _stamp()}
         if aviso and aceito_restricao:  # `verify_asset` needs proof that the restriction was accepted for this asset and request
             entry["aceito_restricao"] = True
-        key = ("id", "sha256", "destino", "pedido_normalizado")  # one audit record per approved request
-        antigo = next((e for e in idx["exportacoes"] if all(e.get(k) == entry[k] for k in key)), None)
+            entry["licenca"] = rec["licenca"]  # ... and for THIS license: `get --atualizar` may bring the same bytes under another one
+        key = ("id", "sha256", "destino", "pedido_normalizado", "licenca")  # one audit record per approved request and accepted license
+        antigo = next((e for e in idx["exportacoes"] if all(e.get(k) == entry.get(k) for k in key)), None)
         if antigo is None:
             idx["exportacoes"].append(entry)
-        elif entry.get("aceito_restricao") and not antigo.get("aceito_restricao"):  # a record from before this field existed
+        elif entry.get("aceito_restricao") and not antigo.get("aceito_restricao"):  # same license, record without the acceptance
             antigo["aceito_restricao"] = True
     return {"arquivo": str(target), "creditos": str(creditos), "copiado": copiado, "ja_existia": not copiado,
             "avisos": [f"{rec['licenca']}: {aviso}"] if aviso else []}
@@ -1268,7 +1271,7 @@ def verify_asset(arquivo, bloco=None, idx: dict | None = None) -> dict:
             msg += "; a aprovação que existe para este pedido não vale mais porque o arquivo ou a proveniência (licença, autor, origem) mudou, revise de novo"
         erros.append(msg + f". Revise com `simplicio-video openverse library review {id_} --pedido {shlex.quote(original)} --folha`")
     aceito = any(e.get("aceito_restricao") is True and e["id"] == id_ and e["sha256"] == rec["sha256"] and e["pedido_normalizado"] == norm
-                 for e in idx["exportacoes"])
+                 and e.get("licenca") == rec["licenca"] for e in idx["exportacoes"])  # the license accepted at the export is the record's today
     try:
         _check_export_rights(rec, aceito)
     except OpenverseError as e:
