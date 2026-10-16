@@ -1612,6 +1612,136 @@ def test_plugin_json_tem_verbos_fechados_do_openverse_sem_get_nem_export():
     assert "--json" in verbos["video.openverse.search"]["argv"]
 
 
+# ------------------------------------------------------------------------------------------------ índice forjado (achado 1 da revisão do PR #108)
+
+OUTRO_UUID = "11111111-2222-4333-8444-555555555555"
+
+
+def _forjar(env, fn):
+    """Edita o index.json à mão, como um usuário (ou um agente com acesso ao disco) poderia."""
+    p = env.lib / "index.json"
+    doc = json.loads(p.read_text(encoding="utf8"))
+    fn(doc)
+    p.write_text(json.dumps(doc), encoding="utf8")
+
+
+def _fora_da_biblioteca(env):
+    return sorted(p for p in env.tmp.rglob("*") if env.lib not in p.parents and p.is_file())
+
+
+def _forja_item(campo, valor):
+    def f(item_id):
+        def forja(doc):
+            doc["itens"][item_id][campo] = valor
+        return forja
+    return f
+
+
+FORJAS_DO_ITEM = [
+    pytest.param("id", "../../FORA_DA_BIBLIOTECA", id="id-com-traversal"),
+    pytest.param("id", OUTRO_UUID, id="id-diferente-da-chave"),
+    pytest.param("id", "9d8abc2c-c4dd-4dce-8164-cadd775befcf\n", id="id-com-quebra-de-linha"),
+    pytest.param("tipo", "../../ESCAPOU", id="tipo-com-traversal"),
+    pytest.param("tipo", "video", id="tipo-fora-da-lista"),
+    pytest.param("formato", "../x", id="formato-com-traversal"),
+    pytest.param("formato", "mp3", id="formato-de-audio-em-imagem"),
+    pytest.param("arquivo", "/etc/passwd", id="arquivo-absoluto"),
+    pytest.param("arquivo", "files/../../x.png", id="arquivo-com-ponto-ponto"),
+]
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("campo,valor", FORJAS_DO_ITEM)
+def test_indice_forjado_nos_campos_que_viram_caminho_e_recusado_em_toda_operacao(env, aprovado, campo, valor):
+    antes = _fora_da_biblioteca(env)
+    _forjar(env, _forja_item(campo, valor)(aprovado["id"]))
+    operacoes = {
+        "show": lambda: ov.library_show(aprovado["id"]),
+        "list": lambda: ov.library_list(),
+        "folha": lambda: ov.review_sheet(aprovado["id"], PEDIDO),
+        "review": lambda: ov.review(aprovado["id"], PEDIDO, "reprovado", "m", "p"),
+        "export": lambda: ov.export(aprovado["id"], PEDIDO, para=env.tmp / "cliente" / "assets" / "openverse"),
+        "credits": lambda: ov.credits(),
+        "search": lambda: ov.search("imagem", "outra consulta"),
+    }
+    for nome, op in operacoes.items():
+        with pytest.raises(ov.OpenverseError, match="índice inválido"):
+            op()
+    assert _fora_da_biblioteca(env) == antes
+    assert not (env.tmp / "FORA_DA_BIBLIOTECA").exists() and not list(env.tmp.rglob("ESCAPOU*"))
+
+
+@needs_ffmpeg
+def test_indice_forjado_com_chave_que_nao_e_uuid_e_recusado(env, aprovado):
+    def forja(doc):
+        doc["itens"]["../../FORA"] = doc["itens"].pop(aprovado["id"])
+    _forjar(env, forja)
+    with pytest.raises(ov.OpenverseError, match="índice inválido"):
+        ov.library_list()
+
+
+@needs_ffmpeg
+def test_indice_forjado_na_revisao_ou_na_exportacao_e_recusado(env, aprovado):
+    ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
+    original = (env.lib / "index.json").read_text(encoding="utf8")
+    for forja in (lambda d: d["revisoes"][0].update(id="../../FORA"), lambda d: d["revisoes"][0].update(sha256="../x"),
+                  lambda d: d["exportacoes"][0].update(id="../../FORA"), lambda d: d["exportacoes"][0].update(arquivo="../../x.png"),
+                  lambda d: d["exportacoes"][0].update(arquivo="a`b.png")):
+        (env.lib / "index.json").write_text(original, encoding="utf8")
+        _forjar(env, forja)
+        with pytest.raises(ov.OpenverseError, match="índice inválido"):
+            ov.credits()
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("onde", ["arquivo", "pasta-files"])
+def test_symlink_que_leva_a_biblioteca_para_fora_e_recusado(env, aprovado, onde):
+    fora = env.tmp / "fora"
+    fora.mkdir()
+    alvo = env.lib / aprovado["arquivo"]
+    if onde == "arquivo":
+        (fora / alvo.name).write_bytes(alvo.read_bytes())  # mesmos bytes: o sha256 confere, mas o arquivo mora fora
+        alvo.unlink()
+        alvo.symlink_to(fora / alvo.name)
+    else:
+        for f in alvo.parent.iterdir():
+            shutil.move(str(f), fora / f.name)
+        alvo.parent.rmdir()
+        alvo.parent.symlink_to(fora, target_is_directory=True)
+    with pytest.raises(ov.OpenverseError, match="fora da biblioteca"):
+        ov.library_show(aprovado["id"])
+    with pytest.raises(ov.OpenverseError, match="fora da biblioteca"):
+        ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
+
+
+def test_indice_forjado_tambem_falha_no_schema_publicado(env):
+    jsonschema = pytest.importorskip("jsonschema")
+    item = baixar(env)
+    esquema = json.loads((paths.data_dir() / "openverse" / "library.schema.json").read_text(encoding="utf8"))
+    for campo, valor in (("id", "../../FORA"), ("tipo", "../../ESCAPOU")):
+        doc = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+        doc["itens"][item["id"]][campo] = valor
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(doc, esquema)
+    doc = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    doc["itens"]["../../FORA"] = doc["itens"].pop(item["id"])
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(doc, esquema)
+
+
+def test_nome_de_exportacao_nunca_usa_o_tipo_cru_como_texto_de_caminho():
+    rec = {"titulo": "!!!", "tipo": "../../ESCAPOU", "sha256": "a" * 64, "arquivo": "files/" + "a" * 64 + ".png"}
+    nome = ov.export_name(rec)
+    assert "/" not in nome and ".." not in nome.replace(".png", "") and nome.endswith("-aaaaaaaa.png")
+
+
+def test_status_diz_quando_o_indice_e_invalido(env):
+    item = baixar(env)
+    _forjar(env, lambda d: d["itens"][item["id"]].update(tipo="../../ESCAPOU"))
+    resumo = ov.status_summary()
+    assert resumo["itens"] is None and "índice inválido" in resumo["indice_erro"]
+
+
 # ------------------------------------------------------------------------------------------------ status, dados, docs
 
 def test_status_json_mostra_a_biblioteca_e_se_as_credenciais_existem_sem_o_valor(env, capsys, monkeypatch):
