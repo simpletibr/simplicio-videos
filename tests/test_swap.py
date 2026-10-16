@@ -767,6 +767,30 @@ def test_i3_resposta_5xx_do_submit_continua_com_nova_tentativa(media, monkeypatc
     assert [c["method"] for c in rota.calls[:2]] == ["POST", "POST"]
 
 
+def _swap_verbs():
+    plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
+    return [v for v in plugin["commands"] if v["argv"][:2] == ["simplicio-video", "swap"]]
+
+
+def test_i5_plugin_nao_expoe_run_nem_args_livre():
+    verbs = _swap_verbs()
+    assert {v["verb"] for v in verbs} >= {"video.swap"}
+    for v in verbs:
+        assert v["argv"][2] in ("providers", "estimate"), v["verb"]  # literal: o agente não escolhe o subcomando
+        assert "{args}" not in v["argv"] and "args" not in v["args_schema"].get("properties", {}), v["verb"]
+        assert v["args_schema"].get("additionalProperties") is False
+        proibidos = {"run", "--autorizo", "--yes", "--max-usd", "--aceito-unverified", "--force", "--out", "--prompt"}
+        assert not proibidos & set(v["argv"]), v["verb"]
+        for placeholder in (a for a in v["argv"] if a.startswith("{")):
+            assert placeholder.strip("{}") in v["args_schema"]["properties"], placeholder
+
+
+def test_i5_verbo_estimate_exige_provider_video_e_ref():
+    v = next(v for v in _swap_verbs() if v["argv"][2] == "estimate")
+    assert {"provider", "video", "ref"} <= set(v["args_schema"]["required"])
+    assert "run" not in json.dumps(v["args_schema"]["properties"])
+
+
 @needs_ffmpeg
 def test_i1_sucesso_limpa_a_pasta_de_trabalho(media):
     assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
