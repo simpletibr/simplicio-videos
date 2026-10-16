@@ -2191,6 +2191,51 @@ def test_aprovar_pelo_mcp_e_pelo_plugin_continua_exigindo_a_folha_do_par(env, mi
     assert [r["canal"] for r in _revisoes(env)] == ["mcp", "plugin"]
 
 
+# ------------------------------------------------------------------------------------------------ menores da revisão do PR #108
+
+class _RespQueQuebra(FakeResp):
+    """Entrega o começo do corpo e depois falha como um socket de verdade falharia no meio da leitura."""
+
+    def __init__(self, erro, body=PNG):
+        super().__init__(200, {"Content-Length": "100000"}, body)
+        self.erro, self.lido = erro, False
+
+    def read(self, n=-1):
+        if self.lido:
+            raise self.erro
+        self.lido = True
+        return super().read(n)
+
+
+@pytest.mark.parametrize("erro", [TimeoutError("timed out"), ConnectionResetError("reset"), __import__("http.client").client.IncompleteRead(b"x", 10)])
+def test_erro_de_leitura_no_meio_do_corpo_vira_erro_claro_e_nao_deixa_parcial(env, erro):
+    with pytest.raises(ov.OpenverseError, match="falha de rede no download"):
+        ov._stream_to_file(_RespQueQuebra(erro), "imagem", 100000)
+    assert not list((env.lib / "tmp").glob("*.part")) and not (env.lib / "files").exists()
+
+
+def test_cli_get_com_leitura_que_quebra_diz_falha_de_rede_e_nao_erro_inesperado(env, capsys):
+    ov.search("imagem", "x")
+    env.net.serve(URL_IMG, PNG)
+    env.net.routes[URL_IMG] = lambda: _RespQueQuebra(TimeoutError("timed out"))
+    rc, _out, err = cli(["get", ID_IMG], capsys)
+    assert rc == 1 and "falha de rede no download" in err and "inesperado" not in err
+
+
+@needs_ffmpeg
+def test_export_nao_segue_um_symlink_no_nome_temporario_previsivel(env, aprovado):
+    import os
+    dest = env.tmp / "saida"
+    dest.mkdir()
+    vitima = env.tmp / "vitima.txt"
+    vitima.write_bytes(b"nao toque")
+    (dest / f".{ov.export_name(aprovado)}.{os.getpid()}.tmp").symlink_to(vitima)  # o nome que o motor usava antes
+    res = ov.export(aprovado["id"], PEDIDO, para=dest)
+    assert vitima.read_bytes() == b"nao toque"
+    assert hashlib.sha256(Path(res["arquivo"]).read_bytes()).hexdigest() == aprovado["sha256"]
+    assert [p.name for p in dest.iterdir() if p.name.endswith(".tmp")] == [f".{ov.export_name(aprovado)}.{os.getpid()}.tmp"]  # só o symlink alheio ficou
+
+
 # ------------------------------------------------------------------------------------------------ status, dados, docs
 
 def test_status_json_mostra_a_biblioteca_e_se_as_credenciais_existem_sem_o_valor(env, capsys, monkeypatch):
