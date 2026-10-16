@@ -7,12 +7,15 @@ carregam fonte, data e confiança; e nenhuma saída do motor chama "confirmar" s
 """
 from __future__ import annotations
 
+import ast
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import threading
+import tokenize
 from pathlib import Path
 
 import pytest
@@ -1298,3 +1301,38 @@ def test_chave_de_aceite_truncada_vira_erro_claro_e_nao_traceback():
     with pytest.raises(social.SocialError, match="chave de aceite.*incompleta"):
         social._accept_key(create=True)
     assert kp.read_bytes() == b"curta"  # nunca sobrescreve: quem decide é a pessoa
+
+
+# ------------------------------------------------------------------------------------------------ comentários de código em inglês
+
+PT_ACENTOS = re.compile("[áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ]")
+PT_PALAVRAS = {"de", "do", "da", "dos", "das", "que", "para", "não", "nunca", "sem", "uma", "um", "ou", "em", "na", "ao", "pelo", "pela",
+               "só", "quando", "antes", "depois", "tudo", "nada", "porque", "isto", "isso", "são", "está", "vídeo", "plano", "receita",
+               "dados", "chave", "legenda", "posta"}
+
+
+def comentarios_e_docstrings(path):
+    """[(linha, texto)] de todo comentário e docstring do arquivo. Mensagens de erro e textos de ajuda não entram: são
+    texto para o usuário, em pt-BR (AGENTS.md: docs em pt-BR, comentários de código em inglês)."""
+    src = Path(path).read_text(encoding="utf8")
+    achados = [(t.start[0], t.string) for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type == tokenize.COMMENT]
+    for no in ast.walk(ast.parse(src)):
+        if isinstance(no, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and ast.get_docstring(no, clean=False):
+            achados.append((no.body[0].lineno, ast.get_docstring(no, clean=False)))
+    return sorted(achados)
+
+
+def test_comentarios_e_docstrings_do_social_estao_em_ingles():
+    em_portugues = [(linha, texto.strip().splitlines()[0][:90]) for linha, texto in comentarios_e_docstrings(social.__file__)
+                    if PT_ACENTOS.search(texto) or PT_PALAVRAS & set(re.findall(r"[a-zà-ÿ]+", texto.lower()))]
+    assert not em_portugues, "comentário ou docstring em português (AGENTS.md manda inglês): " + "; ".join(f"linha {n}: {t}" for n, t in em_portugues)
+
+
+def test_o_detector_de_portugues_pega_comentario_e_docstring_e_deixa_o_ingles(tmp_path):
+    f = tmp_path / "amostra.py"
+    f.write_text('"""Módulo em português."""\n# nunca segue symlink\nx = "mensagem para o usuário"\n\n\ndef g():\n    """Chave local."""\n'
+                 "    # the key is written whole\n    return 1\n", encoding="utf8")
+    achados = comentarios_e_docstrings(f)
+    assert [t.strip() for _, t in achados] == ["Módulo em português.", "# nunca segue symlink", "Chave local.", "# the key is written whole"]
+    ruins = [t for _, t in achados if PT_ACENTOS.search(t) or PT_PALAVRAS & set(re.findall(r"[a-zà-ÿ]+", t.lower()))]
+    assert [t.strip() for t in ruins] == ["Módulo em português.", "# nunca segue symlink", "Chave local."]
