@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "simplicio.openverse-library/v1",
-  "description": "Índice da biblioteca local do Openverse (index.json): itens baixados, revisões por par (ativo, pedido) e exportações. Todo campo que vira caminho (id, tipo, formato, arquivo) segue uma lista fechada ou um padrão estrito; o motor recusa o índice que não bate (não é uma fronteira de segurança: quem edita o disco edita tudo).",
+  "description": "Índice da biblioteca local do Openverse (index.json): itens baixados, revisões por trio (id, sha256, pedido) mais a proveniência, e exportações. Todo campo que vira caminho (id, tipo, formato, arquivo) segue uma lista fechada ou um padrão estrito; o motor recusa o índice que não bate (não é uma fronteira de segurança: quem edita o disco edita tudo).",
   "type": "object",
   "additionalProperties": false,
   "required": [

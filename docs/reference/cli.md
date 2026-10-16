@@ -380,7 +380,8 @@ Subcomandos:
   library review <id> --pedido "..." --folha    gera a FOLHA de revisão: dimensões, nitidez, brilho, miniatura (imagem); duração,
                                                taxa de amostragem, loudness, silêncio, clipping, espectrograma (áudio); pista textual
   library review <id> --pedido "..." --aprovar|--reprovar --motivo "..." --por "nome"
-                                               grava o veredito do par (sha256 do ativo, pedido); aprovar exige a folha antes
+                                               grava o veredito do par (id, sha256 do ativo, pedido, proveniência); aprovar exige a folha antes;
+                                               --canal terminal|plugin grava de onde veio (o servidor MCP grava mcp)
   library export <id> --pedido "..." --para PASTA | --contrato contract.yaml
                                                copia só o aprovado para aquele pedido (nunca sobrescreve bytes diferentes) e acrescenta
                                                a linha de crédito a CREDITS-openverse.md; contrato = assets/openverse ao lado dele
