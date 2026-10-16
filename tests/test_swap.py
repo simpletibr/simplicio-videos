@@ -584,3 +584,45 @@ def test_mcp_registrado():
     plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
     assert any(v["verb"] == "video.swap" for v in plugin["commands"])
     assert "video.swap" in plugin["mcp"]["tools"]
+
+
+# ---------------------------------------------------------------- revisão do PR #103 (I1 a I6)
+
+def dois_pedacos(monkeypatch):
+    monkeypatch.setattr(fake.FakeAdapter, "capabilities", fake.FakeAdapter.capabilities.__class__(
+        **{**fake.FakeAdapter.capabilities.__dict__, "max_input_s": 5.0}))
+
+
+@needs_ffmpeg
+def test_i1_caminho_com_apostrofo_e_espaco_emenda(media, monkeypatch):
+    dois_pedacos(monkeypatch)
+    out = media["dir"] / "Joana's dir" / "out.mp4"
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5", out=out)) == 0
+    assert out.is_file() and len(fake.FakeAdapter.submits) == 2
+
+
+@needs_ffmpeg
+def test_i1_falha_na_emenda_nao_apaga_os_pedacos_pagos(media, monkeypatch, capsys):
+    dois_pedacos(monkeypatch)
+    real = swap._run
+
+    def run(cmd):
+        if "concat" in cmd:
+            raise swap.SwapError("ffmpeg falhou (simulado)")
+        return real(cmd)
+
+    monkeypatch.setattr(swap, "_run", run)
+    out = media["dir"] / "out" / "swapped.mp4"
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5", out=out)) == 1
+    man = json.loads((out.parent / "swap.manifest.json").read_text())
+    rec = Path(man["recovery_dir"])
+    assert rec.is_dir() and str(rec) in capsys.readouterr().err
+    assert sorted(p.name for p in rec.glob("raw-*.mp4")) == ["raw-00.mp4", "raw-01.mp4"]
+    assert [Path(c["raw_path"]).is_file() for c in man["chunks"]] == [True, True]
+    assert not list(out.parent.glob(".swap-work-*"))
+
+
+@needs_ffmpeg
+def test_i1_sucesso_limpa_a_pasta_de_trabalho(media):
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
+    assert not list((media["dir"] / "out").glob(".swap-work-*")) and not list((media["dir"] / "out").glob("*recovery*"))
