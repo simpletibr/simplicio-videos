@@ -37,9 +37,10 @@ def fazer_mp4(path: Path, extra: bytes = b"") -> Path:
 
 
 @pytest.fixture(autouse=True)
-def sonda(monkeypatch):
+def sonda(monkeypatch, tmp_path):
     from datetime import datetime, timezone
     monkeypatch.setattr(social, "_probe", lambda p: dict(PROBE_OK))
+    monkeypatch.setattr(social, "_accept_key_path", lambda: tmp_path / "chave-de-aceite" / "social-accept.key", raising=False)
     monkeypatch.setattr(social, "_now", lambda: datetime(2026, 10, 16, 12, tzinfo=timezone.utc))  # relógio fixo: agendas dos testes
 
 
@@ -684,3 +685,92 @@ def test_publicar_so_aparece_como_chamada_com_requires_nas_duas_receitas():
         for s in p["recipe"]:
             if s["kind"] == "call" and s["tool"] in p["publish_tools"]:
                 assert s["requires"] == "consent", s["id"]
+
+
+# ------------------------------------------------------------------------------------------------ achado 1: o plano é revalidado, nunca confiado
+
+def reforjar(path, mutar):
+    """Edita o plano e RECALCULA o plan_id, como faria quem sabe como o id é calculado (o id não é autenticação)."""
+    pl = ler(path)
+    mutar(pl)
+    corpo = {k: v for k, v in pl.items() if k not in ("plan_id", "accept_proof")}
+    pl["plan_id"] = social.plan_id(corpo)
+    Path(path).write_text(json.dumps(pl), encoding="utf8")
+
+
+def test_plano_forjado_com_id_recalculado_nao_fura_o_limite_oficial(video, monkeypatch):
+    path = plano(video, targets=["youtube"])["path"]
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 200.0})  # o arquivo de verdade tem 200 s
+    reforjar(path, lambda pl: None)  # só recalcula o id: o plano continua dizendo 20 s
+    rep = social.check_plan(path)
+    assert rep["ok"] is False and any("duration_max_s" in p for p in rep["problems"]), rep
+    with pytest.raises(social.SocialError, match="duration_max_s|não confere"):
+        social.recipe(path, clip_id=CLIP_RO)
+    forjar_duracao = lambda pl: pl["video"].update(duration_s=200.0)  # noqa: E731
+    reforjar(path, forjar_duracao)
+    assert social.check_plan(path)["ok"] is False  # 200 s com o limite oficial de 180 s: nem com o plano coerente passa
+
+
+def test_plano_forjado_nao_ganha_o_aceite_unverified(video, monkeypatch):
+    path = plano(video, targets=["tiktok"])["path"]
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 700.0})
+    def forjar(pl):
+        pl["video"]["duration_s"] = 700.0
+        pl["accepted_unverified"] = ["tiktok:duration_max_s"]
+    reforjar(path, forjar)
+    rep = social.check_plan(path)
+    assert rep["ok"] is False and any("aceite" in p or "UNVERIFIED" in p for p in rep["problems"]), rep
+    with pytest.raises(social.SocialError):
+        social.recipe(path, clip_id=CLIP_RO)
+
+
+def test_aceite_unverified_legitimo_passa_no_check_e_na_receita(video, monkeypatch):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 700.0})
+    path = plano(video, targets=["tiktok"], accept_unverified=True)["path"]
+    assert ler(path)["accepted_unverified"] == ["tiktok:duration_max_s"]
+    assert social.check_plan(path)["ok"] is True
+    assert social.recipe(path, clip_id=CLIP_RO)["steps"]
+
+
+def test_aceite_unverified_nao_vale_sem_a_chave_local_de_quem_aceitou(video, monkeypatch, tmp_path):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 700.0})
+    path = plano(video, targets=["tiktok"], accept_unverified=True)["path"]
+    monkeypatch.setattr(social, "_accept_key_path", lambda: tmp_path / "outra-maquina" / "social-accept.key", raising=False)
+    rep = social.check_plan(path)
+    assert rep["ok"] is False and any("aceite" in p for p in rep["problems"])
+
+
+def test_plano_forjado_com_conta_que_parece_segredo_e_recusado(video):
+    path = plano(video, targets=["tiktok"])["path"]
+    reforjar(path, lambda pl: pl["targets"].__setitem__(0, {"network": "tiktok", "account": "AIzaSyTESTE_nao_real_000000000000000"}))
+    assert social.check_plan(path)["ok"] is False
+    with pytest.raises(social.SocialError):
+        social.recipe(path, provider="zernio")
+
+
+def test_plano_forjado_com_conteudo_diferente_do_que_o_plan_geraria_e_recusado(video):
+    path = plano(video)["path"]
+    reforjar(path, lambda pl: pl["checks"].clear())
+    assert social.check_plan(path)["ok"] is False
+    path2 = plano(video, force=True)["path"]
+    reforjar(path2, lambda pl: pl.update(hashtags=["#inventada"]))
+    assert social.check_plan(path2)["ok"] is False
+    reforjar(path2, lambda pl: pl.update(extra="campo que o plan nunca gera"))
+    assert social.check_plan(path2)["ok"] is False
+
+
+def test_plano_malformado_vira_erro_do_social_e_nao_traceback(video):
+    path = plano(video)["path"]
+    for chave in ("caption", "targets", "checks"):
+        reforjar(path, lambda pl, chave=chave: pl.pop(chave))
+        for chamada in (lambda: social.check_plan(path), lambda: social.recipe(path)):
+            try:
+                rep = chamada()
+            except social.SocialError:
+                continue
+            assert rep["ok"] is False
+        r = mcp_server.video_social("recipe", plano=path)
+        assert r["ok"] is False and "error" in r
+        r = mcp_server.video_social("check", plano=path)
+        assert r["ok"] is False
+        plano(video, force=True)
