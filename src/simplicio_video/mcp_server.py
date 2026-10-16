@@ -237,6 +237,8 @@ def video_openverse(acao: str = "list", tipo: str | None = None, consulta: str |
         return {"ok": False, "error": f"acao desconhecida: {acao} (search|list|show|folha|review)"}
     except openverse.OpenverseError as e:
         return {"ok": False, "error": str(e)}
+    except Exception as e:  # noqa: BLE001 - report, don't kill the server (and never echo a credential)
+        return {"ok": False, "error": openverse.scrub(f"{type(e).__name__}: {e}")}
 
 
 def video_toonflow(args: str = "") -> dict:

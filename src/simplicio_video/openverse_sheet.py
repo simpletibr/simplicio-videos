@@ -1,8 +1,8 @@
-"""Sinais objetivos da folha de revisão do Openverse (ffmpeg e ffprobe, sem rede e sem LLM).
+"""Objective signals of the Openverse review sheet (ffmpeg and ffprobe; no network, no LLM).
 
-O arquivo vem de um servidor não confiável. Por isso o ffmpeg nunca adivinha o formato: o demuxer é forçado a partir da
-assinatura já conferida no download (`-f`), só o protocolo `file` é liberado (`-protocol_whitelist file`, sem http, tcp,
-concat ou playlist) e o caminho é sempre o da biblioteca (nome derivado do sha256). Nada do arquivo é executado.
+The file comes from an untrusted server. So ffmpeg never guesses the format: the demuxer is forced from the signature already
+checked at download time (`-f`), only the `file` protocol is allowed (`-protocol_whitelist file`: no http, tcp, concat or
+playlist) and the path is always the library one (a name derived from the sha256). Nothing from the file is executed.
 """
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ DEMUXER = {"jpeg": "image2", "png": "image2", "webp": "image2", "gif": "gif", "m
            "flac": "flac", "m4a": "mov"}
 STANDARD_RATIOS = {"1:1": 1.0, "4:3": 4 / 3, "3:2": 3 / 2, "16:9": 16 / 9, "21:9": 21 / 9, "2:1": 2.0, "5:4": 5 / 4, "3:4": 3 / 4,
                    "2:3": 2 / 3, "9:16": 9 / 16, "4:5": 4 / 5, "9:21": 9 / 21}
-MAX_PIXELS = 100_000_000  # acima disso o ffmpeg não decodifica (bomba de descompressão: poucos KB declarando 60000x60000)
-ANALYSIS_SIDE = 512      # a nitidez e o brilho saem de uma versão com no máximo 512 px no lado maior
+MAX_PIXELS = 100_000_000  # above this ffmpeg is not asked to decode (decompression bomb: a few KB declaring 60000x60000)
+ANALYSIS_SIDE = 512      # sharpness and brightness are measured on a copy with at most 512 px on the long side
 SILENCE_DB = -50
 SILENCE_MIN_S = 0.3
 TOOL_TIMEOUT_S = 180
@@ -35,16 +35,19 @@ def _bin(name: str) -> str:
 
 def _run(cmd: list[str], binary: bool = False) -> subprocess.CompletedProcess:
     try:
-        r = subprocess.run(cmd, capture_output=True, text=not binary, timeout=TOOL_TIMEOUT_S)
+        r = subprocess.run(cmd, capture_output=True, timeout=TOOL_TIMEOUT_S)
     except FileNotFoundError:
         raise OpenverseError(f"{Path(cmd[0]).name} não encontrado: instale o ffmpeg (ffmpeg e ffprobe no PATH) para gerar a folha") from None
     except subprocess.TimeoutExpired:
         raise OpenverseError(f"{Path(cmd[0]).name} passou de {TOOL_TIMEOUT_S} s: arquivo recusado pela folha") from None
-    return r
+    if binary:
+        return r
+    # the tool echoes the file's own metadata tags to stderr: bytes of any encoding, never an exception
+    return subprocess.CompletedProcess(r.args, r.returncode, (r.stdout or b"").decode("utf8", "replace"), (r.stderr or b"").decode("utf8", "replace"))
 
 
 def _input(path: Path, formato: str) -> list[str]:
-    """Entrada travada: demuxer forçado, só o protocolo file, caminho absoluto da biblioteca."""
+    """Locked input: forced demuxer, only the file protocol, absolute library path."""
     if formato not in DEMUXER:
         raise OpenverseError(f"formato sem demuxer conhecido: {formato}")
     return ["-protocol_whitelist", "file", "-f", DEMUXER[formato], "-i", str(Path(path).resolve())]
@@ -86,7 +89,7 @@ def _gray_pixels(path: Path, formato: str, w: int, h: int) -> tuple[bytes, int, 
 
 
 def laplacian_variance(px: bytes, w: int, h: int) -> float:
-    """Variância do Laplaciano (4*c - cima - baixo - esquerda - direita): quanto maior, mais nítida a imagem."""
+    """Variance of the Laplacian (4*c - up - down - left - right): the higher, the sharper the image."""
     if w < 3 or h < 3:
         return 0.0
     n = s = s2 = 0
@@ -127,7 +130,7 @@ def thumbnail(path: Path, formato: str, out: Path) -> Path:
 
 
 def spectrogram(path: Path, formato: str, out: Path) -> Path:
-    for legend in (1, 0):  # a legenda precisa de freetype no ffmpeg; sem ela o espectrograma sai sem eixos
+    for legend in (1, 0):  # the legend needs freetype in ffmpeg; without it the spectrogram comes out without axes
         r = _run(_ffmpeg("-y", "-v", "error", *_input(path, formato), "-lavfi", f"showspectrumpic=s=1024x512:legend={legend}",
                          "-frames:v", "1", str(out)))
         if r.returncode == 0 and out.is_file():
@@ -145,9 +148,29 @@ def _num(text: str | None) -> float | None:
     return v if math.isfinite(v) else None
 
 
-def _grep(pattern: str, text: str) -> float | None:
-    m = re.search(pattern, text)
+def _grep(pattern: str, text: str, flags: int = 0) -> float | None:
+    m = re.search(pattern, text, flags)
     return _num(m.group(1)) if m else None
+
+
+def _last_block(log: str, header: str, prefix: str | None = None) -> str:
+    """Text after the LAST line matching `header` (filter logs come after the input's own log).
+    With `prefix`, the filter's "[name @ 0x...] " prefix is stripped from each following line of the block, up to the next
+    line that does not carry it."""
+    heads = list(re.finditer(header, log, re.M))
+    if not heads:
+        return ""
+    rest = log[heads[-1].end():]
+    if prefix is None:
+        nxt = re.search(r"^\[", rest, re.M)
+        return rest[:nxt.start()] if nxt else rest
+    lines: list[str] = []
+    for line in rest.split("\n"):
+        m = re.match(prefix, line)
+        if not m:
+            break
+        lines.append(line[m.end():])
+    return "\n".join(lines)
 
 
 def audio_signals(path: Path, formato: str, rec: dict) -> dict:
@@ -165,20 +188,23 @@ def audio_signals(path: Path, formato: str, rec: dict) -> dict:
     if r.returncode != 0:
         raise OpenverseError(f"o ffmpeg não conseguiu analisar o áudio: {(r.stderr or '').strip()[-300:]}")
     log = r.stderr or ""
-    lufs = re.findall(r"Integrated loudness:\s*\n\s*I:\s*(\S+)\s*LUFS", log)
-    lra = re.findall(r"Loudness range:\s*\n\s*LRA:\s*(\S+)\s*LU", log)
-    tp = re.findall(r"True peak:\s*\n\s*Peak:\s*(\S+)\s*dBFS", log)
-    starts = [float(x) for x in re.findall(r"silence_start:\s*(-?[\d.]+)", log)]
-    spans = [float(x) for x in re.findall(r"silence_duration:\s*([\d.]+)", log)]
+    # Only lines that start with the filter's own "[name @ 0x...]" prefix count. The input's metadata tags are echoed in the same
+    # log, but ffmpeg indents every line of a tag value, so a hostile tag cannot start a line with that prefix.
+    summary = _last_block(log, r"^\[Parsed_ebur128_\d+ @ [^\]\n]+\] Summary:\n")
+    lufs = _grep(r"Integrated loudness:\s*\n\s*I:\s*(\S+)\s*LUFS", summary)
+    lra = _grep(r"Loudness range:\s*\n\s*LRA:\s*(\S+)\s*LU", summary)
+    tp = _grep(r"True peak:\s*\n\s*Peak:\s*(\S+)\s*dBFS", summary)
+    starts = [float(x) for x in re.findall(r"^\[silencedetect @ [^\]\n]+\] silence_start: (-?[\d.]+)\s*$", log, re.M)]
+    spans = [float(x) for x in re.findall(r"^\[silencedetect @ [^\]\n]+\] silence_end: -?[\d.]+ \| silence_duration: ([\d.]+)\s*$", log, re.M)]
     silencio = sum(spans) + (max(0.0, duracao - starts[-1]) if len(starts) > len(spans) else 0.0)
-    overall = log.rsplit("Overall", 1)[-1]
-    pico = _grep(r"Peak level dB:\s*(\S+)", overall)
-    plano = _grep(r"Flat factor:\s*(\S+)", overall) or 0.0
-    contagem = int(_grep(r"Peak count:\s*(\S+)", overall) or 0)
+    overall = _last_block(log, r"^\[Parsed_astats_\d+ @ [^\]\n]+\] Overall\n", prefix=r"^\[Parsed_astats_\d+ @ [^\]\n]+\] ")
+    pico = _grep(r"^Peak level dB:\s*(\S+)", overall, re.M)
+    plano = _grep(r"^Flat factor:\s*(\S+)", overall, re.M) or 0.0
+    contagem = int(_grep(r"^Peak count:\s*(\S+)", overall, re.M) or 0)
     return {"duracao_s": round(duracao, 3), "taxa_amostragem_hz": int(audio["sample_rate"]) if audio.get("sample_rate") else None,
             "canais": audio.get("channels"), "formato": formato, "codec": audio.get("codec_name"),
-            "tamanho_bytes": Path(path).stat().st_size, "loudness_lufs": _num(lufs[-1]) if lufs else None,
-            "faixa_de_loudness_lu": _num(lra[-1]) if lra else None, "pico_verdadeiro_dbfs": _num(tp[-1]) if tp else None,
+            "tamanho_bytes": Path(path).stat().st_size, "loudness_lufs": lufs,
+            "faixa_de_loudness_lu": lra, "pico_verdadeiro_dbfs": tp,
             "fracao_silencio": round(min(1.0, silencio / duracao), 4),
             "clipping": {"pico_dbfs": pico, "amostras_no_pico": contagem, "fator_plano": plano,
                          "suspeita": bool(pico is not None and pico >= -0.1 and (plano > 0 or contagem >= 3))},
@@ -186,7 +212,7 @@ def audio_signals(path: Path, formato: str, rec: dict) -> dict:
 
 
 def checklist(rec: dict, sinais: dict) -> list[str]:
-    """O que o motor não consegue saber e o revisor precisa conferir, mais os alertas dos sinais."""
+    """What the engine cannot know and the reviewer has to check, plus the alerts raised by the signals."""
     out: list[str] = []
     if rec["tipo"] == "imagem":
         out += ["O assunto do pedido aparece de verdade na imagem? (veja a miniatura e, se preciso, o arquivo inteiro)",

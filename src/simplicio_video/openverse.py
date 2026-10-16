@@ -1,24 +1,25 @@
-"""Openverse: biblioteca local de imagens e áudio, buscada na API pública e revisada por pedido.
+"""Openverse: a local library of images and audio, searched on the public API and reviewed per request.
 
-Fluxo: `search` (cacheado) -> `get` (download seguro para a biblioteca) -> `library review --folha` (sinais objetivos para
-o revisor ver) -> `library review --aprovar|--reprovar` (veredito por par ativo+pedido) -> `library export` (copia só o que
-foi aprovado para aquele pedido, com a linha de crédito).
+Flow: `search` (cached) -> `get` (safe download into the library) -> `library review --folha` (objective signals for the
+reviewer to LOOK at) -> `library review --aprovar|--reprovar` (verdict per pair asset+request) -> `library export` (copies
+only what was approved for that request, with its credit line).
 
-Regras que não dobram:
-- Zero tokens: nenhuma chamada de LLM. O motor NÃO decide se o ativo corresponde ao pedido; gera uma folha determinística
-  (dimensões, nitidez, brilho, loudness, silêncio, clipping, miniatura, espectrograma, pista textual) e grava o veredito
-  de quem revisou, por par (sha256 do ativo, texto normalizado do pedido).
-- Licença: só cc0, pdm e by por padrão (seguras para uso comercial e edição). by-sa, by-nc e by-nd só por opção explícita,
-  com aviso. A licença vem das fontes e o Openverse manda conferir na origem (`foreign_landing_url`): isto não é parecer
-  jurídico. Item sem licença conhecida nunca é baixado; CC BY sem autor nunca é exportado.
-- O download trata o servidor como não confiável: só https na porta 443, resolve o host e recusa endereço não público
-  (privado, loopback, link-local, reservado) antes e depois de cada redirecionamento, conecta no IP validado, limita o
-  tamanho (25 MB imagem, 50 MB áudio) lendo em blocos, decide o tipo pelos bytes (assinatura) e nunca pelo Content-Type,
-  nomeia o arquivo pelo sha256 e nunca executa nada dele.
-- Credenciais OAuth2 opcionais só por variável de ambiente (OPENVERSE_CLIENT_ID e OPENVERSE_CLIENT_SECRET); nunca em
-  argumento, log, índice, cache, folha ou saída.
-- O MCP (`video.openverse`) só busca, lista, mostra, gera a folha e grava o veredito. Baixar e exportar são só do terminal:
-  o agente não escolhe onde nada é gravado.
+Rules that do not bend:
+- Zero tokens: no LLM call. The engine does NOT decide whether an asset matches a request; it builds a deterministic sheet
+  (dimensions, sharpness, brightness, loudness, silence, clipping, thumbnail, spectrogram, text hint) and records the verdict
+  of whoever reviewed, per pair (sha256 of the asset, normalized text of the request).
+- License: only cc0, pdm and by by default (safe for commercial use and editing). by-sa, by-nc and by-nd only by explicit
+  option, with a warning. The license comes from the sources and Openverse itself says to check the origin
+  (`foreign_landing_url`): this is not legal advice. An item without a known license is never downloaded; CC BY without an
+  author is never exported.
+- The download treats the server as untrusted: https on port 443 only, resolves the host and refuses non-public addresses
+  (private, loopback, link-local, reserved) before and after every redirect, connects to the validated IP, caps the size
+  (25 MB image, 50 MB audio), decides the type from the bytes (signature) and never from Content-Type, names the file by its
+  sha256 and never runs anything from it.
+- Optional OAuth2 credentials only through environment variables (OPENVERSE_CLIENT_ID and OPENVERSE_CLIENT_SECRET); never in
+  an argument, log, index, cache, sheet or output.
+- MCP (`video.openverse`) only searches, lists, shows, builds the sheet and records the verdict. Download and export are
+  terminal-only: the agent does not choose where anything is written.
 """
 from __future__ import annotations
 
@@ -67,26 +68,28 @@ MAX_BYTES = {"imagem": 25 * 1024 * 1024, "audio": 50 * 1024 * 1024}
 MAX_REDIRECTS = 5
 READ_BLOCK = 64 * 1024
 HTTP_TIMEOUT = 30
-DOWNLOAD_DEADLINE_S = 300  # prazo total de um download (o timeout do socket não pega quem manda um byte por vez)
+API_MAX_BYTES = 8 * 1024 * 1024  # a search page is a few hundred KB; anything bigger is not the API we know
+DOWNLOAD_DEADLINE_S = 300  # total time of one download (the socket timeout does not catch a server that drips one byte at a time)
+STALE_DAYS = 30  # `get` warns when the search metadata it uses is older than this
 CREDITS_NAME = "CREDITS-openverse.md"
 USER_AGENT = f"simplicio-video/{__version__} (openverse client)"
 UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-_SECRET_TEXT_RE = re.compile(r"(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
+_SECRET_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_])(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
                              r"eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AQ\.[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._-]{16,})")
 STOPWORDS = frozenset("""a o as os um uma uns umas de da do das dos em no na nos nas ao aos para por com sem que e ou se
 the an of and in on at to for with by or is are be""".split())
 
-_TOKEN: dict = {}  # token OAuth2 só na memória do processo: nunca vai para disco
+_TOKEN: dict = {}  # OAuth2 token lives in process memory only: it never goes to disk
 
 
 class OpenverseError(Exception):
-    """Erro de uso ou de rede. A mensagem passa pelo filtro de redação na criação: nenhuma credencial sai por ela."""
+    """Usage or network error. The message goes through the redaction filter on creation, so no credential leaves through it."""
 
     def __init__(self, message: str):
         super().__init__(scrub(str(message)))
 
 
-# ---------------------------------------------------------------------------------------------------------- segredos
+# ---------------------------------------------------------------------------------------------------------- secrets
 
 def _secret_values() -> list[str]:
     vals = [os.environ.get(ENV_ID, "").strip(), os.environ.get(ENV_SECRET, "").strip(), str(_TOKEN.get("valor") or "")]
@@ -94,14 +97,14 @@ def _secret_values() -> list[str]:
 
 
 def scrub(text: str) -> str:
-    """Esconde as credenciais do ambiente, o token e qualquer coisa com formato de chave."""
+    """Hide the environment credentials, the token and anything shaped like a key."""
     for v in _secret_values():
         text = text.replace(v, "***")
     return _SECRET_TEXT_RE.sub("***", text)
 
 
 def _clean_text(value, campo: str, limite: int = MAX_TEXT_CHARS) -> str:
-    """Texto livre do usuário (pedido, motivo, revisor): recusa a credencial do ambiente, mascara formato de chave."""
+    """Free text typed by the user (request, reason, reviewer): refuses the environment credential, masks key-shaped text."""
     text = " ".join(str(value or "").split())
     for v in _secret_values():
         if v in text:
@@ -111,7 +114,7 @@ def _clean_text(value, campo: str, limite: int = MAX_TEXT_CHARS) -> str:
     return _SECRET_TEXT_RE.sub("***", text)
 
 
-# ---------------------------------------------------------------------------------------------------------- licenças
+# ---------------------------------------------------------------------------------------------------------- licenses
 
 def _licenses() -> dict:
     doc = json.loads((paths.data_dir() / "openverse" / "licenses.json").read_text(encoding="utf8"))
@@ -119,7 +122,7 @@ def _licenses() -> dict:
 
 
 def parse_licenses(text) -> tuple[list[str], list[str]]:
-    """`cc0,pdm,by` -> (ids na ordem canônica, avisos do que cada licença restritiva implica)."""
+    """`cc0,pdm,by` -> (ids in canonical order, warnings about what each restrictive license implies)."""
     pieces = [p.strip().lower() for p in (text if isinstance(text, (list, tuple)) else str(text).split(","))]
     if not pieces or any(not p for p in pieces):
         raise OpenverseError("--licencas vazia ou com vírgula sobrando (exemplo: cc0,pdm,by)")
@@ -138,7 +141,7 @@ def license_label(lic: str | None, versao: str | None) -> str:
     return f"{nome} {v}" if v else nome
 
 
-# ---------------------------------------------------------------------------------------------------------- pasta e índice
+# ---------------------------------------------------------------------------------------------------------- folder and index
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -149,7 +152,7 @@ def _stamp() -> str:
 
 
 def library_dir() -> Path:
-    """OPENVERSE_LIBRARY_DIR, senão <SIMPLICIO_VIDEO_DATA ou ~/.simplicio-video>/openverse-library."""
+    """OPENVERSE_LIBRARY_DIR, else <SIMPLICIO_VIDEO_DATA or ~/.simplicio-video>/openverse-library."""
     explicit = os.environ.get("OPENVERSE_LIBRARY_DIR")
     if explicit:
         return Path(explicit).expanduser().resolve()
@@ -174,12 +177,16 @@ def _atomic_write(path: Path, text: str) -> None:
 
 
 def _dump(obj) -> str:
-    """JSON para disco: recusa a credencial do ambiente e mascara formato de chave."""
-    text = json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
+    """JSON for disk. Refuses to write if a credential from the environment is in it. Key-shaped text is NOT masked here:
+    API data (URLs, titles) must stay exact; free text typed by the user is masked in `_clean_text` before it gets here."""
+    return _guard(json.dumps(obj, indent=2, ensure_ascii=False) + "\n")
+
+
+def _guard(text: str) -> str:
     for v in _secret_values():
         if v in text:
             raise OpenverseError("segredo (credencial do Openverse) encontrado no texto a gravar: nada foi gravado")
-    return _SECRET_TEXT_RE.sub("***", text)
+    return text
 
 
 def _empty_index() -> dict:
@@ -219,7 +226,7 @@ def _locked(path: Path):
 
 @contextlib.contextmanager
 def _index_tx():
-    """Lê, deixa alterar e grava o índice de uma vez só (com trava entre processos). Erro no meio = nada gravado."""
+    """Read, let the caller change, and write the index in one go (with a cross-process lock). An error in the middle writes nothing."""
     lib = library_dir()
     with _locked(lib / ".index.lock"):
         idx = _load_index()
@@ -270,10 +277,10 @@ def _require_integridade(rec: dict) -> Path:
     return library_dir() / rec["arquivo"]
 
 
-# ---------------------------------------------------------------------------------------------------------- pedido e texto
+# ---------------------------------------------------------------------------------------------------------- request and text
 
 def normalize_pedido(text) -> str:
-    """Minúsculas, sem acento, sem pontuação, espaços colapsados: a chave do pedido na revisão."""
+    """Lowercase, no accents, no punctuation, collapsed spaces: the key of a request in the review."""
     t = unicodedata.normalize("NFKD", str(text or ""))
     t = "".join(c for c in t if not unicodedata.combining(c)).lower()
     return " ".join(re.sub(r"[\W_]+", " ", t).split())
@@ -301,7 +308,7 @@ def _tokens(text: str) -> list[str]:
 
 
 def text_score(pedido: str, titulo: str | None, tags) -> dict:
-    """Pista textual determinística: fração das palavras do pedido que aparecem no título e nas tags do Openverse."""
+    """Deterministic text hint: the fraction of the request words that appear in the Openverse title and tags."""
     pedido_t = _tokens(pedido)
     alvo = set(_tokens(f"{titulo or ''} {' '.join(tags or [])}"))
     comum = [t for t in pedido_t if t in alvo]
@@ -339,10 +346,11 @@ def _bearer() -> str | None:
 def _call(method: str, url: str, headers: dict | None = None, form: dict | None = None):
     base = {"Accept": "application/json", "User-Agent": USER_AGENT}
     base.update(headers or {})
+    kw = {"timeout": HTTP_TIMEOUT, "follow_redirects": False, "max_bytes": API_MAX_BYTES}  # urllib would forward the bearer token on a redirect
     try:
         if form is not None:
-            return _api_http.request(method, url, headers=base, timeout=HTTP_TIMEOUT, form=form)
-        return _api_http.request(method, url, headers=base, timeout=HTTP_TIMEOUT)
+            return _api_http.request(method, url, headers=base, form=form, **kw)
+        return _api_http.request(method, url, headers=base, **kw)
     except _api_http.NetworkError as e:
         raise OpenverseError(f"sem rede para falar com o Openverse ({e}). Repita quando houver rede, "
                              "ou repita uma busca que já esteja no cache") from None
@@ -360,6 +368,8 @@ def _api_error(resp, o_que: str) -> OpenverseError:
             " A busca repetida sai do cache; credenciais OAuth2 (OPENVERSE_CLIENT_ID e OPENVERSE_CLIENT_SECRET) aumentam o limite."
     elif resp.status == 401:
         extra = " Credencial recusada ou token expirado."
+    elif 300 <= resp.status < 400:
+        extra = " A API não deveria redirecionar: o redirecionamento não foi seguido (a credencial não é enviada a outro host)."
     return OpenverseError(f"o Openverse recusou {o_que} (HTTP {resp.status}){': ' + detalhe if detalhe else ''}.{extra}")
 
 
@@ -377,7 +387,7 @@ def _api_get(path: str, params: dict | None = None):
 def _s(value, limite: int = 2000) -> str | None:
     if value is None:
         return None
-    # uma linha só, sem controle (ESC, DEL, C1): o texto da API vai para o terminal e para o arquivo de créditos
+    # one line, no control characters (ESC, DEL, C1): API text goes to the terminal and to the credits file
     text = "".join(c for c in " ".join(str(value).split()) if c.isprintable())
     return text[:limite] or None
 
@@ -467,7 +477,7 @@ def _read_cache(path: Path) -> dict | None:
 
 
 def _safe_results(raw_results, tipo: str, lic: list[str]) -> tuple[list[dict], dict]:
-    """Defesa em profundidade: a API pode devolver o que não foi pedido. Fica só o que tem id, licença pedida, URL e não é mature."""
+    """Defense in depth: the API may return what was not asked for. Keep only what has an id, a requested license, a URL and is not mature."""
     desc = {"licenca_fora_do_pedido": 0, "sem_licenca": 0, "sem_url": 0, "mature": 0, "id_invalido": 0}
     ok: list[dict] = []
     for raw in raw_results or []:
@@ -492,7 +502,7 @@ def _safe_results(raw_results, tipo: str, lic: list[str]) -> tuple[list[dict], d
 
 def search(tipo, consulta, licencas="cc0,pdm,by", minimo_largura=None, duracao_min=None, duracao_max=None, limite=10, pagina=1,
            atualizar=False) -> dict:
-    """Busca imagens ou áudio no Openverse. A mesma consulta sai do cache (sem rede) até `atualizar`."""
+    """Search images or audio on Openverse. The same query comes from the cache (no network) until `atualizar`."""
     consulta, lic, avisos = _check_search_args(tipo, consulta, licencas, minimo_largura, duracao_min, duracao_max, limite, pagina)
     params = _api_params(consulta, lic, limite, pagina)
     path = _cache_path(tipo, params)
@@ -540,10 +550,10 @@ def _find_in_cache(id_: str) -> tuple[dict, str] | None:
     return best
 
 
-# ---------------------------------------------------------------------------------------------------------- download seguro
+# ---------------------------------------------------------------------------------------------------------- safe download
 
 def detect_format(head: bytes) -> tuple[str, str, str] | None:
-    """(formato, tipo de mídia, extensão) pelos primeiros bytes. Content-Type e extensão do servidor não entram."""
+    """(format, media type, extension) from the first bytes. The server's Content-Type and extension do not count."""
     if head.startswith(b"\xff\xd8\xff"):
         return "jpeg", "imagem", "jpg"
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -576,7 +586,7 @@ def _is_public(ip_text: str) -> bool:
     if isinstance(ip, ipaddress.IPv6Address):
         if ip.ipv4_mapped is not None:
             ip = ip.ipv4_mapped
-        elif ip in ipaddress.ip_network("64:ff9b::/96"):  # NAT64: o IPv4 embutido é quem conta
+        elif ip in ipaddress.ip_network("64:ff9b::/96"):  # NAT64: the embedded IPv4 is what counts
             ip = ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
     return bool(ip.is_global and not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast
                                        or ip.is_reserved or ip.is_unspecified))
@@ -596,7 +606,7 @@ def _resolve(host: str) -> list[str]:
 
 
 def _validate_url(url: str) -> tuple[str, str]:
-    """Esquema https, sem credencial na URL, porta 443, host que resolve só para endereços públicos. Devolve (host, ip)."""
+    """https scheme, no credentials in the URL, port 443, a host that resolves only to public addresses. Returns (host, ip)."""
     u = urlparse(url)
     if u.scheme != "https":
         raise OpenverseError(f"recusado: só https é aceito para baixar (recebi {u.scheme or 'URL sem esquema'})")
@@ -611,7 +621,7 @@ def _validate_url(url: str) -> tuple[str, str]:
         raise OpenverseError("recusado: porta inválida na URL") from None
     if port not in (None, 443):
         raise OpenverseError(f"recusado: porta {port} não permitida (só 443)")
-    ips = sorted(_resolve(host), key=lambda x: ":" in x)  # IPv4 primeiro: a conexão vai no primeiro endereço validado
+    ips = sorted(_resolve(host), key=lambda x: ":" in x)  # IPv4 first: the connection goes to the first validated address
     if not ips:
         raise OpenverseError(f"não consegui resolver o host {host}")
     for ip in ips:
@@ -627,7 +637,9 @@ class _Resp:
         self.headers = {k.lower(): v for k, v in r.getheaders()}
 
     def read(self, n: int = -1) -> bytes:
-        return self._r.read(n)
+        # read1 returns as soon as some bytes arrive, so the total deadline is checked even for a server that drips bytes
+        r1 = getattr(self._r, "read1", None)
+        return r1(n) if r1 is not None and n and n > 0 else self._r.read(n)
 
     def close(self) -> None:
         with contextlib.suppress(Exception):
@@ -635,7 +647,7 @@ class _Resp:
 
 
 class _PinnedHTTPS(http.client.HTTPSConnection):
-    """HTTPS que conecta no IP já validado (sem nova resolução de DNS) e verifica o certificado pelo nome do host."""
+    """HTTPS that connects to the already validated IP (no second DNS lookup) and verifies the certificate against the host name."""
 
     def __init__(self, host: str, ip: str, **kw):
         super().__init__(host, **kw)
@@ -663,9 +675,10 @@ def _real_http_get(url: str, ip: str, timeout: float = HTTP_TIMEOUT):
 _http_get = _real_http_get
 
 
-def _stream_to_file(resp, tipo: str, declarado: int | None = None) -> dict:
+def _stream_to_file(resp, tipo: str, declarado: int | None = None, deadline: float | None = None) -> dict:
     limite = MAX_BYTES[tipo]
-    inicio = time.monotonic()
+    if deadline is None:
+        deadline = time.monotonic() + DOWNLOAD_DEADLINE_S
     tmp_dir = library_dir() / "tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=tmp_dir, suffix=".part")
@@ -678,7 +691,7 @@ def _stream_to_file(resp, tipo: str, declarado: int | None = None) -> dict:
                 if not block:
                     break
                 total += len(block)
-                if time.monotonic() - inicio > DOWNLOAD_DEADLINE_S:
+                if time.monotonic() > deadline:
                     raise OpenverseError(f"o download passou do prazo de {DOWNLOAD_DEADLINE_S} s: interrompido")
                 if total > limite:
                     raise OpenverseError(f"arquivo acima do limite de {limite // (1024 * 1024)} MB para {TIPO_PT[tipo]}: download interrompido")
@@ -703,7 +716,7 @@ def _stream_to_file(resp, tipo: str, declarado: int | None = None) -> dict:
         final = library_dir() / "files" / f"{sha}.{ext}"
         final.parent.mkdir(parents=True, exist_ok=True)
         os.replace(tmp, final)
-        if sha256_file(final) != sha:  # confere o que foi para o disco
+        if sha256_file(final) != sha:  # check what actually reached the disk
             final.unlink(missing_ok=True)
             raise OpenverseError("o sha256 do arquivo gravado não confere com o dos bytes recebidos: descartado")
         return {"sha256": sha, "arquivo": f"files/{sha}.{ext}", "formato": formato, "tamanho_bytes": total}
@@ -712,9 +725,17 @@ def _stream_to_file(resp, tipo: str, declarado: int | None = None) -> dict:
             tmp.unlink()
 
 
+def _declared_length(headers: dict) -> int | None:
+    v = str(headers.get("content-length", "")).strip()
+    return int(v) if v.isascii() and v.isdigit() else None  # str.isdigit() also accepts "²" and Arabic digits, which int() rejects
+
+
 def _download(url: str, tipo: str) -> dict:
+    deadline = time.monotonic() + DOWNLOAD_DEADLINE_S  # connect, TLS, redirects and body all count
     current = url
     for hop in range(MAX_REDIRECTS + 1):
+        if time.monotonic() > deadline:
+            raise OpenverseError(f"o download passou do prazo de {DOWNLOAD_DEADLINE_S} s: interrompido")
         _host, ip = _validate_url(current)
         resp = _http_get(current, ip, HTTP_TIMEOUT)
         try:
@@ -728,16 +749,16 @@ def _download(url: str, tipo: str) -> dict:
                 continue
             if resp.status != 200:
                 raise OpenverseError(f"o servidor da fonte respondeu HTTP {resp.status}")
-            length = resp.headers.get("content-length", "")
-            if length.isdigit() and int(length) > MAX_BYTES[tipo]:
-                raise OpenverseError(f"arquivo de {int(length)} bytes acima do limite de {MAX_BYTES[tipo] // (1024 * 1024)} MB para {TIPO_PT[tipo]}")
-            return _stream_to_file(resp, tipo, int(length) if length.isdigit() else None)
+            length = _declared_length(resp.headers)
+            if length is not None and length > MAX_BYTES[tipo]:
+                raise OpenverseError(f"arquivo de {length} bytes acima do limite de {MAX_BYTES[tipo] // (1024 * 1024)} MB para {TIPO_PT[tipo]}")
+            return _stream_to_file(resp, tipo, length, deadline)
         finally:
             resp.close()
     raise OpenverseError(f"redirecionamentos demais (mais de {MAX_REDIRECTS}): recusado")
 
 
-# ---------------------------------------------------------------------------------------------------------- biblioteca
+# ---------------------------------------------------------------------------------------------------------- library
 
 def _check_downloadable(item: dict) -> list[str]:
     lic = item.get("licenca")
@@ -754,15 +775,18 @@ def _check_downloadable(item: dict) -> list[str]:
 
 
 def get(id_, tipo=None, atualizar=False) -> dict:
-    """Baixa o item para a biblioteca. Idempotente: item já baixado e íntegro não vai à rede (a menos de `atualizar`)."""
+    """Download the item into the library. Idempotent: an item already downloaded and intact does not touch the network (unless `atualizar`)."""
     id_ = _check_id(id_)
     if tipo is not None and tipo not in TIPOS:
         raise OpenverseError(f"tipo inválido: {tipo!r} (use imagem ou audio)")
     idx = _load_index()
     rec = idx["itens"].get(id_)
     if rec and not atualizar:
-        f = library_dir() / rec["arquivo"]
-        if f.is_file() and f.stat().st_size == rec["tamanho_bytes"]:
+        try:
+            ok = _FILE_RE.match(str(rec.get("arquivo"))) and _integridade(rec) == "ok"
+        except KeyError:
+            ok = False
+        if ok:  # the sha256 of the file on disk, not only its size
             return {"item": rec, "ja_na_biblioteca": True, "avisos": _check_downloadable(rec)}
     found = None if atualizar else _find_in_cache(id_)
     if found is not None:
@@ -782,6 +806,9 @@ def get(id_, tipo=None, atualizar=False) -> dict:
             raise OpenverseError("o Openverse devolveu outro id no detalhe: recusado")
         item["id"] = id_
     avisos = _check_downloadable(item)
+    dias = (_now() - datetime.strptime(consultado, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)).days
+    if dias > STALE_DAYS:
+        avisos.append(f"metadados consultados há {dias} dias: a licença e a disponibilidade podem ter mudado; repita com --atualizar para reconferir na API")
     dl = _download(item["url_arquivo"], item["tipo"])
     record = {**item, **dl, "baixado_em": _stamp(), "consultado_em": consultado}
     with _index_tx() as idx:
@@ -828,7 +855,7 @@ def library_show(id_, pedido=None) -> dict:
             "exportacoes": [e for e in idx["exportacoes"] if e["id"] == id_]}
 
 
-# ---------------------------------------------------------------------------------------------------------- revisão
+# ---------------------------------------------------------------------------------------------------------- review
 
 def _sheet_dir(rec: dict, norm: str) -> Path:
     key = hashlib.sha256(norm.encode("utf8")).hexdigest()[:12]
@@ -836,7 +863,7 @@ def _sheet_dir(rec: dict, norm: str) -> Path:
 
 
 def review_sheet(id_, pedido) -> dict:
-    """Folha determinística para o revisor decidir: sinais objetivos, imagem para ver, pista textual e o que falta conferir."""
+    """Deterministic sheet for the reviewer to decide: objective signals, an image to look at, a text hint and what is left to check."""
     from . import openverse_sheet as sheet
     id_ = _check_id(id_)
     original, norm = _clean_pedido(pedido)
@@ -864,7 +891,7 @@ def review_sheet(id_, pedido) -> dict:
 
 
 def review(id_, pedido, veredito, motivo, por, canal="terminal") -> dict:
-    """Grava o veredito de quem revisou para o par (sha256 do ativo, pedido). O último veredito do par vale."""
+    """Record the reviewer's verdict for the pair (sha256 of the asset, request). The last verdict of the pair wins."""
     id_ = _check_id(id_)
     if veredito not in ("aprovado", "reprovado"):
         raise OpenverseError("veredito inválido: use aprovado ou reprovado")
@@ -887,7 +914,7 @@ def review(id_, pedido, veredito, motivo, por, canal="terminal") -> dict:
     return entry
 
 
-# ---------------------------------------------------------------------------------------------------------- export e créditos
+# ---------------------------------------------------------------------------------------------------------- export and credits
 
 def _slug(text: str | None, fallback: str) -> str:
     t = normalize_pedido(text or "").replace(" ", "-")[:40].strip("-")
@@ -903,7 +930,7 @@ def _md(text) -> str:
 
 
 def _link(url) -> str | None:
-    """URL que cabe com segurança num link markdown; qualquer outra coisa vira texto simples."""
+    """A URL that fits safely in a markdown link; anything else becomes plain text."""
     return url if isinstance(url, str) and re.fullmatch(r"https?://[^\s<>()\[\]`]+", url) else None
 
 
@@ -913,7 +940,7 @@ def _credit_line(rec: dict, nome: str) -> str:
     label = license_label(rec.get("licenca"), rec.get("licenca_versao"))
     lic = f"[{label}]({_link(rec.get('licenca_url'))})" if _link(rec.get("licenca_url")) else label
     return (f'- `{nome}`: "{_md(rec.get("titulo")) or "(sem título)"}" por {autor_txt}, licença {lic}. '
-            f'Origem: {_md(rec.get("origem_url")) or "não informada"}. sha256 `{rec["sha256"]}`.')
+            f'Origem: {_md(rec.get("origem_url")) or "não informada"}. id `{rec["id"]}`, sha256 `{rec["sha256"]}`.')
 
 
 CREDITS_HEADER = (
@@ -946,74 +973,69 @@ def _check_export_rights(rec: dict, aceito_restricao: bool) -> None:
     if table[lic]["atribuicao_obrigatoria"] and not (rec.get("autor") or "").strip():
         raise OpenverseError(f"recusado: a licença {license_label(lic, rec.get('licenca_versao'))} exige atribuição e o autor não está registrado; "
                              f"confira o autor na origem ({rec.get('origem_url')})")
-    if (not table[lic]["uso_comercial"] or not table[lic]["permite_modificacao"]) and not aceito_restricao:
-        raise OpenverseError(f"recusado: {lic} {table[lic]['aviso']} Se isso serve a esta peça, repita com --aceito-restricao")
+    if table[lic].get("aviso") and not aceito_restricao:  # nc, nd and sa: each one restricts what the video may be
+        raise OpenverseError(f"recusado: {lic}: {table[lic]['aviso']} Se isso serve a esta peça, repita com --aceito-restricao")
 
 
 def export(id_, pedido, para=None, contrato=None, aceito_restricao=False) -> dict:
-    """Copia o ativo APROVADO para este pedido e acrescenta o crédito. Idempotente; nunca sobrescreve bytes diferentes."""
+    """Copy the asset APPROVED for this request and add its credit line. Idempotent; never overwrites different bytes.
+    The whole operation runs under the library lock, so concurrent exports cannot lose credit lines."""
     id_ = _check_id(id_)
     original, norm = _clean_pedido(pedido)
     dest = _destino(para, contrato)
-    idx = _load_index()
-    rec = _item(idx, id_)
-    status = _status_in(idx, rec, norm)
-    if status != "aprovado":
-        raise OpenverseError(f"recusado: o ativo está {status} para este pedido. Só sai da biblioteca o que foi aprovado para o pedido: "
-                             f"gere a folha e registre o veredito com `simplicio-video openverse library review {id_} --pedido {shlex.quote(original)}`")
-    src = _require_integridade(rec)
-    _check_export_rights(rec, aceito_restricao)
-    target = dest / export_name(rec)
-    copiado = False
-    if target.exists():
-        if not target.is_file() or sha256_file(target) != rec["sha256"]:
-            raise OpenverseError(f"recusado: já existe {target} com bytes diferentes; não vou sobrescrever (mesma regra do publish). "
-                                 "Apague ou renomeie o arquivo de lá")
-    else:
-        dest.mkdir(parents=True, exist_ok=True)
-        tmp = dest / f".{target.name}.{os.getpid()}.tmp"
-        try:
-            shutil.copyfile(src, tmp)
-            if sha256_file(tmp) != rec["sha256"]:
-                raise OpenverseError("a cópia não confere com o sha256 do índice: descartada")
-            os.replace(tmp, target)
-        finally:
-            with contextlib.suppress(OSError):
-                tmp.unlink()
-        copiado = True
-    creditos = dest / CREDITS_NAME
-    line = _credit_line(rec, target.name)
-    existing = creditos.read_text(encoding="utf8") if creditos.is_file() else CREDITS_HEADER
-    if f"sha256 `{rec['sha256']}`" not in existing:
-        text = existing if existing.endswith("\n") else existing + "\n"
-        _atomic_write(creditos, _dump_text(text + line + "\n"))
-    with _index_tx() as idx2:
+    with _index_tx() as idx:
+        rec = _item(idx, id_)
+        status = _status_in(idx, rec, norm)
+        if status != "aprovado":
+            raise OpenverseError(f"recusado: o ativo está {status} para este pedido. Só sai da biblioteca o que foi aprovado para o pedido: "
+                                 f"gere a folha e registre o veredito com `simplicio-video openverse library review {id_} --pedido {shlex.quote(original)}`")
+        src = _require_integridade(rec)
+        _check_export_rights(rec, aceito_restricao)
+        target = dest / export_name(rec)
+        copiado = False
+        if target.exists():
+            if not target.is_file() or sha256_file(target) != rec["sha256"]:
+                raise OpenverseError(f"recusado: já existe {target} com bytes diferentes; não vou sobrescrever (mesma regra do publish). "
+                                     "Apague ou renomeie o arquivo de lá")
+        else:
+            dest.mkdir(parents=True, exist_ok=True)
+            tmp = dest / f".{target.name}.{os.getpid()}.tmp"
+            try:
+                shutil.copyfile(src, tmp)
+                if sha256_file(tmp) != rec["sha256"]:
+                    raise OpenverseError("a cópia não confere com o sha256 do índice: descartada")
+                os.replace(tmp, target)
+            finally:
+                with contextlib.suppress(OSError):
+                    tmp.unlink()
+            copiado = True
+        creditos = dest / CREDITS_NAME
+        existing = creditos.read_text(encoding="utf8") if creditos.is_file() else CREDITS_HEADER
+        if f"id `{rec['id']}`, sha256 `{rec['sha256']}`" not in existing:  # same bytes under another id still gets its own credit
+            text = existing if existing.endswith("\n") else existing + "\n"
+            _atomic_write(creditos, _guard(text + _credit_line(rec, target.name) + "\n"))
         entry = {"id": id_, "sha256": rec["sha256"], "pedido_normalizado": norm, "destino": str(dest), "arquivo": target.name, "em": _stamp()}
-        if not any(e["sha256"] == entry["sha256"] and e["destino"] == entry["destino"] for e in idx2["exportacoes"]):
-            idx2["exportacoes"].append(entry)
+        key = ("id", "sha256", "destino", "pedido_normalizado")  # one audit record per approved request
+        if not any(all(e.get(k) == entry[k] for k in key) for e in idx["exportacoes"]):
+            idx["exportacoes"].append(entry)
+        aviso = _licenses()[rec["licenca"]].get("aviso")
     return {"arquivo": str(target), "creditos": str(creditos), "copiado": copiado, "ja_existia": not copiado,
-            "avisos": [f"{rec['licenca']}: {_licenses()[rec['licenca']]['aviso']}"] if _licenses()[rec["licenca"]].get("aviso") else []}
-
-
-def _dump_text(text: str) -> str:
-    for v in _secret_values():
-        if v in text:
-            raise OpenverseError("segredo (credencial do Openverse) encontrado no texto a gravar: nada foi gravado")
-    return _SECRET_TEXT_RE.sub("***", text)
+            "avisos": [f"{rec['licenca']}: {aviso}"] if aviso else []}
 
 
 def credits(para=None) -> dict:
-    """Bloco de créditos de todos os ativos exportados (ou só os de uma pasta), sem duplicar o mesmo arquivo."""
+    """Credit block for every exported asset (or only those exported to one folder), once per asset (id + sha256)."""
     idx = _load_index()
     alvo = str(Path(para).expanduser().resolve()) if para is not None else None
-    vistos: dict[str, dict] = {}
+    vistos: dict[tuple, dict] = {}
     for e in idx["exportacoes"]:
         if alvo is not None and e["destino"] != alvo:
             continue
         rec = idx["itens"].get(e["id"])
-        if rec and rec["sha256"] == e["sha256"] and e["sha256"] not in vistos:
-            vistos[e["sha256"]] = {"id": e["id"], "sha256": e["sha256"], "arquivo": e["arquivo"], "destino": e["destino"],
-                                   "linha": _credit_line(rec, e["arquivo"])}
+        key = (e["id"], e["sha256"])
+        if rec and rec["sha256"] == e["sha256"] and key not in vistos:
+            vistos[key] = {"id": e["id"], "sha256": e["sha256"], "arquivo": e["arquivo"], "destino": e["destino"],
+                           "linha": _credit_line(rec, e["arquivo"])}
     itens = list(vistos.values())
     corpo = "\n".join(i["linha"] for i in itens) if itens else "Nenhum ativo do Openverse exportado ainda."
     return {"itens": [{k: v for k, v in i.items() if k != "linha"} for i in itens], "markdown": CREDITS_HEADER + corpo + "\n"}
@@ -1054,7 +1076,7 @@ HELP_DESC = (
     f"                                               a linha de crédito a {CREDITS_NAME}; contrato = assets/openverse ao lado dele\n"
     "  library credits [--para PASTA]               bloco de créditos de tudo o que foi exportado\n\n"
     "Licenças: padrão cc0, pdm e by (seguras para uso comercial e edição). by-sa, by-nc e by-nd (e by-nc-sa, by-nc-nd) só por\n"
-    "opção explícita em --licencas, com aviso do que implicam; nc e nd nunca entram por padrão e o export exige --aceito-restricao.\n"
+    "opção explícita em --licencas, com aviso do que implicam; nc e nd nunca entram por padrão e o export de nc, nd e sa exige --aceito-restricao.\n"
     "A licença que o Openverse devolve vem das fontes e ele mesmo manda conferir na origem (foreign_landing_url, gravada em cada\n"
     "item): isto não é parecer jurídico. Item sem licença conhecida nunca é baixado; CC BY sem autor nunca é exportado.\n\n"
     "Biblioteca em OPENVERSE_LIBRARY_DIR (padrão ~/.simplicio-video/openverse-library): index.json (schema versionado), files/<sha256>.<ext>,\n"
@@ -1139,7 +1161,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--pedido", required=True)
     p.add_argument("--para", help="pasta de destino (exemplo: clients/acme/video-01/assets/openverse)")
     p.add_argument("--contrato", help="contract.yaml: o destino vira assets/openverse ao lado dele")
-    p.add_argument("--aceito-restricao", action="store_true", help="aceita exportar licença nc ou nd (não comercial / sem derivadas)")
+    p.add_argument("--aceito-restricao", action="store_true", help="aceita exportar licença com restrição: nc (não comercial), nd (sem derivadas) ou sa (mesma licença)")
     p.add_argument("--json", action="store_true")
     p = ls.add_parser("credits", formatter_class=fmt, help="bloco de créditos dos ativos exportados")
     p.add_argument("--para", help="só os exportados para esta pasta")
@@ -1273,7 +1295,7 @@ def run_openverse(argv: list[str]) -> int:
         return 1
     try:
         rc = _run(a)
-        if rc == -1:  # `library` sem subcomando
+        if rc == -1:  # `library` without a subcommand
             ap.library_parser.print_help(sys.stderr)
             return 1
         return rc
@@ -1283,6 +1305,6 @@ def run_openverse(argv: list[str]) -> int:
     except KeyboardInterrupt:
         print("openverse: interrompido (Ctrl+C); o índice só é gravado ao fim de cada operação", file=sys.stderr)
         return 130
-    except Exception as e:  # noqa: BLE001 (sem traceback: ele poderia carregar uma credencial)
+    except Exception as e:  # noqa: BLE001 (no traceback: it could carry a credential)
         print(f"openverse: erro inesperado: {scrub(f'{type(e).__name__}: {e}')}", file=sys.stderr)
         return 1

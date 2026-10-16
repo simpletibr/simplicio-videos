@@ -387,7 +387,7 @@ Subcomandos:
   library credits [--para PASTA]               bloco de créditos de tudo o que foi exportado
 
 Licenças: padrão cc0, pdm e by (seguras para uso comercial e edição). by-sa, by-nc e by-nd (e by-nc-sa, by-nc-nd) só por
-opção explícita em --licencas, com aviso do que implicam; nc e nd nunca entram por padrão e o export exige --aceito-restricao.
+opção explícita em --licencas, com aviso do que implicam; nc e nd nunca entram por padrão e o export de nc, nd e sa exige --aceito-restricao.
 A licença que o Openverse devolve vem das fontes e ele mesmo manda conferir na origem (foreign_landing_url, gravada em cada
 item): isto não é parecer jurídico. Item sem licença conhecida nunca é baixado; CC BY sem autor nunca é exportado.
 
