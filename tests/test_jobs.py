@@ -287,6 +287,14 @@ def test_falha_vira_estado_failed_com_o_erro(media, monkeypatch):
 
 
 @needs_ffmpeg
+def test_i5_segundo_swap_run_na_mesma_pasta_de_saida_e_recusado(media, stub_spawn):
+    jobs.submit("swap-run", swap_params(media, out=str(media["dir"] / "out" / "a.mp4")), confirm_yes=True)
+    with pytest.raises(jobs.JobError, match="mesma pasta"):
+        jobs.submit("swap-run", swap_params(media, out=str(media["dir"] / "out" / "b.mp4")), confirm_yes=True)
+    jobs.submit("swap-run", swap_params(media, out=str(media["dir"] / "outra" / "b.mp4")), confirm_yes=True)
+
+
+@needs_ffmpeg
 def test_swap_run_recusa_saida_existente_na_submissao(media, stub_spawn):
     (media["dir"] / "out").mkdir(parents=True)
     (media["dir"] / "out" / "s.mp4").write_bytes(b"ja existe")

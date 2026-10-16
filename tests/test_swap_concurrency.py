@@ -272,3 +272,40 @@ def test_b1_submit_que_nao_termina_fica_possivelmente_cobrado(longo, monkeypatch
     c = manifest(longo)["chunks"][1]
     assert c["handle"] is None and c["possibly_charged"] is True
     assert c["state"] == "cancelled_during_submit"
+
+
+# ---------------------------------------------------------------- I5: duas execuções na mesma pasta de saída
+
+def test_i5_segunda_execucao_na_mesma_pasta_e_recusada_e_nao_pisa_no_manifesto(longo, capsys):
+    fake.FakeAdapter.generation_s = 1.0
+    rc_a: list = []
+    a = threading.Thread(target=lambda: rc_a.append(swap.run_swap(argv(longo, out="out/a.mp4"))))
+    a.start()
+    try:
+        t0 = time.monotonic()
+        while not list((longo["dir"] / "out").glob(".swap-work-*")) and time.monotonic() - t0 < 15:
+            time.sleep(0.02)
+        capsys.readouterr()
+        assert swap.run_swap(argv(longo, out="out/b.mp4")) == 1
+        assert "outra execução" in capsys.readouterr().err
+    finally:
+        a.join(timeout=60)
+    assert rc_a == [0]
+    m = manifest(longo)
+    assert m["state"] == "done" and m["output"]["path"].endswith("a.mp4")
+    assert not (longo["dir"] / "out" / "b.mp4").exists()
+
+
+def test_i5_depois_que_a_primeira_termina_a_pasta_e_liberada(longo):
+    assert swap.run_swap(argv(longo, out="out/a.mp4")) == 0
+    assert swap.run_swap(argv(longo, out="out/b.mp4")) == 0
+    assert manifest(longo)["output"]["path"].endswith("b.mp4")
+
+
+def test_i5_manifesto_e_gravado_com_temp_e_replace(tmp_path, monkeypatch):
+    chamadas = []
+    real = os.replace
+    monkeypatch.setattr(swap.os, "replace", lambda a, b: chamadas.append((Path(a).name, Path(b).name)) or real(a, b))
+    swap.write_manifest(tmp_path / "x" / "swap.manifest.json", {"state": "running"})
+    assert chamadas and chamadas[0][1] == "swap.manifest.json" and chamadas[0][0] != "swap.manifest.json"
+    assert [p.name for p in (tmp_path / "x").iterdir()] == ["swap.manifest.json"]
