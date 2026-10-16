@@ -232,10 +232,10 @@ def _validate_index(doc: dict) -> None:
         where = f"revisoes[{i}]"
         if not isinstance(r, dict):
             raise _bad_index(where, "a revisão precisa ser um objeto")
-        if not (isinstance(r.get("id"), str) and ID_RE.fullmatch(r["id"])):
-            raise _bad_index(where, "a revisão precisa ter o id do ativo (o veredito vale por id, sha256 e pedido)")
-        if not (isinstance(r.get("sha256"), str) and SHA_RE.fullmatch(r["sha256"])):
-            raise _bad_index(where, "sha256 precisa ter 64 caracteres hexadecimais minúsculos")
+        if not (isinstance(r.get("id"), str) and ID_RE.fullmatch(r["id"]) and isinstance(r.get("sha256"), str) and SHA_RE.fullmatch(r["sha256"])
+                and isinstance(r.get("proveniencia_sha256"), str) and SHA_RE.fullmatch(r["proveniencia_sha256"])):
+            raise _bad_index(where, "a revisão precisa ter id, sha256 e proveniencia_sha256 válidos: o veredito vale por (id, sha256, pedido, proveniência) "
+                                    "e um registro antigo só com o sha256 não vale; apague a entrada e revise de novo")
         if not isinstance(r.get("pedido_normalizado"), str) or r.get("veredito") not in ("aprovado", "reprovado") or r.get("canal") not in CANAIS:
             raise _bad_index(where, "pedido_normalizado, veredito (aprovado|reprovado) e canal precisam ser válidos")
     for i, e in enumerate(doc["exportacoes"]):
@@ -871,9 +871,21 @@ def get(id_, tipo=None, atualizar=False) -> dict:
     return {"item": record, "ja_na_biblioteca": False, "avisos": avisos}
 
 
+def _proveniencia(rec: dict) -> str:
+    """Hash of what a reviewer vouches for besides the bytes: the license, the author and the origin. If `get --atualizar`
+    brings the same bytes under another author or license, the old approval no longer applies."""
+    campos = [rec.get(k) for k in ("licenca", "licenca_versao", "licenca_url", "autor", "autor_url", "origem_url")]
+    return hashlib.sha256(json.dumps(campos, ensure_ascii=False).encode("utf8")).hexdigest()
+
+
+def _vale(r: dict, rec: dict) -> bool:
+    """A review counts for a record only if it was made for THIS id, THIS file and THIS provenance (the request is matched apart)."""
+    return r["id"] == rec["id"] and r["sha256"] == rec["sha256"] and r["proveniencia_sha256"] == _proveniencia(rec)
+
+
 def _status_in(idx: dict, rec: dict, norm: str) -> str:
     for r in reversed(idx["revisoes"]):
-        if r["sha256"] == rec["sha256"] and r["pedido_normalizado"] == norm:
+        if _vale(r, rec) and r["pedido_normalizado"] == norm:
             return r["veredito"]
     return "nao_revisado"
 
@@ -887,7 +899,7 @@ def review_status(id_, pedido) -> str:
 def _aprovado_para(idx: dict, rec: dict) -> list[str]:
     vistos: dict[str, str] = {}
     for r in idx["revisoes"]:
-        if r["sha256"] == rec["sha256"]:
+        if _vale(r, rec):
             vistos[r["pedido_normalizado"]] = r["veredito"]
     return [p for p, v in vistos.items() if v == "aprovado"]
 
@@ -904,7 +916,7 @@ def library_show(id_, pedido=None) -> dict:
     id_ = _check_id(id_)
     idx = _load_index()
     rec = _item(idx, id_)
-    revs = [{**r, "vale_para_o_arquivo_atual": r["sha256"] == rec["sha256"]} for r in idx["revisoes"] if r["id"] == id_]
+    revs = [{**r, "vale_para_o_arquivo_atual": _vale(r, rec)} for r in idx["revisoes"] if r["id"] == id_]
     return {"item": rec, "integridade": _integridade(rec), "revisoes": revs, "aprovado_para": _aprovado_para(idx, rec),
             "status": _status_in(idx, rec, _clean_pedido(pedido)[1]) if pedido else None,
             "exportacoes": [e for e in idx["exportacoes"] if e["id"] == id_]}
@@ -966,8 +978,8 @@ def review(id_, pedido, veredito, motivo, por, canal="terminal") -> dict:
         if veredito == "aprovado" and not (_sheet_dir(rec, norm) / "folha.json").is_file():
             raise OpenverseError("aprovar exige a folha de revisão deste par ativo+pedido: gere antes com "
                                  f"`simplicio-video openverse library review {id_} --pedido {shlex.quote(original)} --folha`")
-        entry = {"id": id_, "sha256": rec["sha256"], "pedido": original, "pedido_normalizado": norm, "veredito": veredito,
-                 "motivo": motivo, "por": por, "canal": canal, "em": _stamp()}
+        entry = {"id": id_, "sha256": rec["sha256"], "proveniencia_sha256": _proveniencia(rec), "pedido": original,
+                 "pedido_normalizado": norm, "veredito": veredito, "motivo": motivo, "por": por, "canal": canal, "em": _stamp()}
         idx["revisoes"].append(entry)
     return entry
 
@@ -1297,7 +1309,7 @@ def _show_text(d: dict) -> str:
     lines.append(f"  aprovado para: {', '.join(d['aprovado_para']) or '(nenhum pedido)'}")
     for r in d["revisoes"]:
         lines.append(f"  revisão {r['em']} por {r['por']} ({r['canal']}): {r['veredito']} para \"{r['pedido']}\" - {r['motivo']}"
-                     f"{'' if r['vale_para_o_arquivo_atual'] else ' [arquivo antigo: não vale]'}")
+                     f"{'' if r['vale_para_o_arquivo_atual'] else ' [não vale mais: o arquivo ou a proveniência (licença, autor, origem) mudou]'}")
     return "\n".join(lines)
 
 

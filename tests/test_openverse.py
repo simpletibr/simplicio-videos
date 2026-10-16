@@ -1305,12 +1305,16 @@ def test_host_com_ipv4_e_ipv6_conecta_no_ipv4_validado(env):
     assert env.net.gets == [(URL_IMG, "151.101.1.1")]
 
 
+def _mudar_e_reaprovar(env, item_id, **campos):
+    """Muda o registro no índice (como um `get --atualizar` com outros metadados) e aprova de novo: a aprovação antiga não vale mais."""
+    _forjar(env, lambda d: d["itens"][item_id].update(campos))
+    ov.review_sheet(item_id, PEDIDO)
+    ov.review(item_id, PEDIDO, "aprovado", "conferi de novo", "revisor")
+
+
 def test_credito_nao_deixa_o_texto_da_api_criar_linhas_nem_links_falsos(env, aprovado):
-    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
-    it = idx["itens"][aprovado["id"]]
-    it.update(autor="Fulano](http://evil.example) [clique", titulo="Titulo\n- `falso.png`: x", autor_url="javascript:alert(1)",
-              origem_url="https://exemplo.org/a b")
-    (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")
+    _mudar_e_reaprovar(env, aprovado["id"], autor="Fulano](http://evil.example) [clique", titulo="Titulo\n- `falso.png`: x",
+                       autor_url="javascript:alert(1)", origem_url="https://exemplo.org/a b")
     res = ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
     linhas = [ln for ln in Path(res["creditos"]).read_text(encoding="utf8").splitlines() if ln.startswith("- ")]
     assert len(linhas) == 1
@@ -1342,19 +1346,16 @@ def test_export_recusa_cc_by_sem_autor_ou_sem_licenca(env, aprovado):
     idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
     dest = env.tmp / "saida"
     for campo, valor in (("autor", None), ("autor", "  "), ("licenca", None), ("licenca", "gpl"), ("licenca_url", None)):
-        novo = copy.deepcopy(idx)
-        novo["itens"][aprovado["id"]][campo] = valor
-        (env.lib / "index.json").write_text(json.dumps(novo), encoding="utf8")
+        (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")  # volta ao estado aprovado e muda um campo por vez
+        _mudar_e_reaprovar(env, aprovado["id"], **{campo: valor})
         with pytest.raises(ov.OpenverseError, match="atribuição|licença|autor"):
             ov.export(aprovado["id"], PEDIDO, para=dest)
     assert not dest.exists() or not list(dest.iterdir())
 
 
 def test_export_de_cc0_sem_autor_e_permitido_e_o_credito_diz_que_nao_ha_autor(env, aprovado):
-    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
-    it = idx["itens"][aprovado["id"]]
-    it.update(licenca="cc0", licenca_versao="1.0", licenca_url="https://creativecommons.org/publicdomain/zero/1.0/", autor=None, autor_url=None)
-    (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")
+    _mudar_e_reaprovar(env, aprovado["id"], licenca="cc0", licenca_versao="1.0", licenca_url="https://creativecommons.org/publicdomain/zero/1.0/",
+                       autor=None, autor_url=None)
     res = ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
     cred = Path(res["creditos"]).read_text(encoding="utf8")
     assert "CC0" in cred and "autor não informado" in cred
@@ -1362,9 +1363,7 @@ def test_export_de_cc0_sem_autor_e_permitido_e_o_credito_diz_que_nao_ha_autor(en
 
 @pytest.mark.parametrize("lic,rotulo", [("by-nc", "CC BY-NC 2.0"), ("by-nd", "CC BY-ND 2.0"), ("by-sa", "CC BY-SA 2.0"), ("by-nc-sa", "CC BY-NC-SA 2.0")])
 def test_export_de_licenca_com_restricao_nc_nd_ou_sa_exige_aceite_explicito(env, aprovado, lic, rotulo):
-    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
-    idx["itens"][aprovado["id"]].update(licenca=lic, licenca_url=f"https://creativecommons.org/licenses/{lic}/2.0/")
-    (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")
+    _mudar_e_reaprovar(env, aprovado["id"], licenca=lic, licenca_url=f"https://creativecommons.org/licenses/{lic}/2.0/")
     dest = env.tmp / "saida"
     with pytest.raises(ov.OpenverseError, match="aceito-restricao"):
         ov.export(aprovado["id"], PEDIDO, para=dest)

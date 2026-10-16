@@ -196,6 +196,7 @@
         "required": [
           "id",
           "sha256",
+          "proveniencia_sha256",
           "pedido",
           "pedido_normalizado",
           "veredito",
@@ -212,6 +213,11 @@
           "sha256": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          },
+          "proveniencia_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Hash da licença, do autor e da origem vistos na revisão: se mudarem (get --atualizar), a aprovação não vale mais."
           },
           "pedido": {
             "type": "string"
