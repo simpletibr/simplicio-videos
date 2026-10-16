@@ -98,7 +98,7 @@ def server(monkeypatch):
     state.exit_codes: None = every process exits 0 once the loop has slept once; a dict = only those processes
     (index -> exit code) exit, the others keep running."""
     state = SimpleNamespace(started=[], signals=[], interrupt=False, ignore_sigint=False, term_handler=None,
-                            exit_codes=None, slept=0)
+                            hup_handler=None, exit_codes=None, slept=0, stop_handlers=[], wait_interrupts=0)
 
     class Proc:
         def __init__(self, cmd, cwd=None, env=None, start_new_session=False):
@@ -109,6 +109,11 @@ def server(monkeypatch):
             state.started.append(self)
 
         def wait(self, timeout=None):
+            if timeout is not None:
+                state.stop_handlers.append(tuple(signal.getsignal(n) for n in _STOP_SIGNALS))
+                if state.wait_interrupts:
+                    state.wait_interrupts -= 1
+                    raise KeyboardInterrupt  # a second signal arrives while the group is being stopped
             if timeout is not None and state.ignore_sigint and any(sig == signal.SIGINT for _, sig in state.signals):
                 raise subprocess.TimeoutExpired(self.cmd, timeout)
             self.returncode = 0 if self.returncode is None else self.returncode
@@ -117,14 +122,16 @@ def server(monkeypatch):
         def poll(self):
             if self.returncode is None and state.slept:
                 if state.exit_codes is None:
-                    self.returncode = 0
+                    pass
                 elif self.index in state.exit_codes:
                     self.returncode = state.exit_codes[self.index]
             return self.returncode
 
     def fake_sleep(seconds):
         state.term_handler = signal.getsignal(signal.SIGTERM)
-        if state.interrupt:
+        if hasattr(signal, "SIGHUP"):
+            state.hup_handler = signal.getsignal(signal.SIGHUP)
+        if state.interrupt or (state.exit_codes is None and state.slept):
             state.interrupt = False
             raise KeyboardInterrupt
         state.slept += 1
@@ -133,6 +140,9 @@ def server(monkeypatch):
     monkeypatch.setattr(moneyprinter.time, "sleep", fake_sleep)
     monkeypatch.setattr(os, "killpg", lambda pgid, sig: state.signals.append((pgid, sig)))
     return state
+
+
+_STOP_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIGHUP") if hasattr(signal, n))
 
 
 def _alive(pid: int) -> bool:
@@ -352,15 +362,19 @@ def test_status_without_config(checkout, capsys):
 
 def test_no_command_leaks_a_key_to_stdout_or_stderr(checkout, venv, calls, server, capsys):
     (checkout / "config.toml").write_text(CONFIG_WITH_KEYS)
+    started = []
     for args in (["where"], ["status"], ["setup"], ["serve"], ["serve", "--api", "--lan"], ["--help"]):
         server.started.clear()
         moneyprinter.run_moneyprinter(args)
+        started += server.started
+    assert len(started) == 2  # the WebUI, then the API: the checks below must have something to check
     out = capsys.readouterr()
     for stream in (out.out, out.err):
         assert FAKE_KEY not in stream and FAKE_KEY_2 not in stream
-    for p in server.started:  # nor does it hand a key to the server through the command line or the environment
-        assert FAKE_KEY not in " ".join(p.cmd)
-        assert FAKE_KEY not in json.dumps({k: v for k, v in p.env.items() if k != "PATH"}, default=str)
+    for p in started:  # nor does it hand a key to the server through the command line or the environment
+        assert FAKE_KEY not in " ".join(p.cmd) and FAKE_KEY_2 not in " ".join(p.cmd)
+        env_text = json.dumps(p.env, default=str)  # the whole environment, PATH included
+        assert FAKE_KEY not in env_text and FAKE_KEY_2 not in env_text
 
 
 # ---- serve --------------------------------------------------------------------------------------------------------
