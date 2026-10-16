@@ -619,11 +619,7 @@ async def _pump(stream, jid: str, box: dict) -> None:
     log = job_dir(jid) / "output.log"
     state = {"size": 0}
 
-    def emit(raw: bytes, f, progress: bool = False) -> None:
-        line = _scrub(raw.decode("utf8", "replace"))
-        if progress:  # `\\r` rewrote the line in place: keep only the latest one, not thousands of them in the log
-            box["progress"] = line
-            return
+    def write(line: str, f) -> None:
         box["tail"].append(line)
         del box["tail"][:-30]
         s = line.strip()
@@ -638,6 +634,15 @@ async def _pump(stream, jid: str, box: dict) -> None:
                 if state["size"] >= LOG_CAP:
                     f.write("[... saída cortada em 1 MB]\n")
 
+    def emit(raw: bytes, f, progress: bool = False) -> None:
+        line = _scrub(raw.decode("utf8", "replace"))
+        if progress:  # `\\r` rewrote the line in place: keep only the latest one, not thousands of them in the log
+            box["progress"] = line
+            return
+        if box.get("progress"):  # the held progress line came BEFORE this one in the output: write it first, in order
+            write(box.pop("progress"), f)
+        write(line, f)
+
     buf = b""
     with open(log, "a", encoding="utf8") as f:
         while True:
@@ -646,7 +651,7 @@ async def _pump(stream, jid: str, box: dict) -> None:
                 if buf:
                     emit(buf, f)
                 if box.get("progress"):
-                    emit(box.pop("progress").encode("utf8"), f)
+                    write(box.pop("progress"), f)
                 return
             buf += chunk
             pos = 0
