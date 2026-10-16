@@ -254,6 +254,30 @@ def _normalize(raw: Path, dst: Path, info: dict, length: float, keep_audio: bool
           "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", *audio, str(dst)])
 
 
+def _concat_escape(name: str) -> str:
+    """Escape a name for the ffmpeg concat list (inside single quotes a `'` is written as `'\\''`)."""
+    return name.replace("'", "'\\''")
+
+
+def _preserve_paid(work: Path, out: Path, recs: list[dict], manifest: dict) -> str | None:
+    """On failure, keep the chunks already generated (and paid) in a recovery folder next to the output."""
+    raws = sorted(work.glob("raw-*.mp4"))
+    if not raws:
+        return None
+    dest = out.parent / f"{out.stem}.swap-recovery"
+    if dest.exists():
+        dest = out.parent / f"{out.stem}.swap-recovery-{os.getpid()}"
+    shutil.move(str(work), str(dest))
+    for f in dest.iterdir():
+        if not f.name.startswith("raw-"):
+            f.unlink(missing_ok=True)
+    for r in recs:
+        if r.get("raw_path"):
+            r["raw_path"] = str(dest / Path(r["raw_path"]).name)
+    manifest["recovery_dir"] = str(dest)
+    return str(dest)
+
+
 def _poll_until_done(adapter, handle: dict, rec: dict, timeout: float, interval: float) -> None:
     t0 = _now()
     wait = interval
@@ -340,6 +364,7 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
             raw = work / f"raw-{i:02d}.mp4"
             raw.write_bytes(data)
             raws.append(raw)
+            rec["raw_path"] = str(raw)
             rec["state"] = "done"
             try:
                 rec["measured_usd"] = adapter.measured_usd(handle)
@@ -357,7 +382,7 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         joined = norm[0]
         if len(norm) > 1:
             lst = work / "list.txt"
-            lst.write_text("".join(f"file '{n}'\n" for n in norm), encoding="utf8")
+            lst.write_text("".join(f"file '{_concat_escape(n.name)}'\n" for n in norm), encoding="utf8")  # relative: ffmpeg resolves it next to list.txt
             joined = work / "joined.mp4"
             _run([_bin("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(joined)])
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -374,6 +399,9 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         write_manifest(manifest_path, manifest)
         return manifest
     except SwapError as e:
+        kept = _preserve_paid(work, out, recs, manifest)
+        if kept:
+            e.args = (f"{e} Os pedaços já gerados e pagos ficaram em {kept} (nada foi apagado).",)
         manifest["state"] = "timeout" if isinstance(e, SwapTimeout) else "failed"
         manifest["error"] = scrub(str(e))
         for r in recs:
