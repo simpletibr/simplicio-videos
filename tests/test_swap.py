@@ -769,7 +769,7 @@ def test_i3_resposta_5xx_do_submit_continua_com_nova_tentativa(media, monkeypatc
 
 def _swap_verbs():
     plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
-    return [v for v in plugin["commands"] if v["argv"][:2] == ["simplicio-video", "swap"]]
+    return [v for v in plugin["commands"] if v.get("argv", [])[:2] == ["simplicio-video", "swap"]]
 
 
 def test_i5_plugin_nao_expoe_run_nem_args_livre():
