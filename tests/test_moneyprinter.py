@@ -522,6 +522,55 @@ def test_serve_a_server_killed_by_a_signal_returns_a_positive_code(checkout, ven
     assert "WebUI" in capsys.readouterr().err
 
 
+# Upstream at the pinned commit (app/asgi.py): CORS is closed by default (CORS_ALLOWED_ORIGINS empty = same origin
+# only), so a page in the browser cannot read the API. With app.api_key empty the API still has no login at all, for
+# any other program on this computer, a DNS-rebinding page, or (with --lan) the network.
+
+def test_serve_api_without_an_api_key_warns_clearly_and_still_starts(checkout, venv, server, capsys):
+    (checkout / "config.toml").write_text(CONFIG_WITH_KEYS)  # app.api_key = ""
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+    err = capsys.readouterr().err
+    assert "app.api_key" in err and "sem chave" in err and "LLM" in err
+    assert len(server.started) == 1
+
+
+def test_serve_api_without_a_config_file_warns_too(checkout, venv, server, capsys):
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+    assert "app.api_key" in capsys.readouterr().err
+
+
+def test_serve_api_with_an_api_key_does_not_warn_and_never_prints_it(checkout, venv, server, capsys):
+    (checkout / "config.toml").write_text(f'[app]\napi_key = "{FAKE_KEY}"\n')
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+    out = capsys.readouterr()
+    assert "sem chave" not in out.err
+    assert FAKE_KEY not in out.out and FAKE_KEY not in out.err
+
+
+def test_serve_webui_only_does_not_warn_about_the_api_key(checkout, venv, server, capsys):
+    assert moneyprinter.run_moneyprinter(["serve"]) == 0
+    assert "app.api_key" not in capsys.readouterr().err
+
+
+def test_serve_api_refuses_open_cors_without_an_api_key(checkout, venv, server, monkeypatch):
+    # the combination upstream itself flags: any web page could then call the API with the user's paid keys
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:8501, *")
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="CORS_ALLOWED_ORIGINS"):
+        moneyprinter.run_moneyprinter(["serve", "--api"])
+    assert server.started == []
+
+
+def test_serve_api_accepts_open_cors_when_the_api_key_is_filled(checkout, venv, server, monkeypatch):
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "*")
+    (checkout / "config.toml").write_text(f'[app]\napi_key = "{FAKE_KEY}"\n')
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+
+
+def test_help_says_the_api_has_no_login_without_an_api_key():
+    text = moneyprinter.USAGE
+    assert "app.api_key" in text and "CORS_ALLOWED_ORIGINS" in text
+
+
 @pytest.mark.skipif(not Path("/proc").is_dir(), reason="o teste lê /proc (Linux)")
 def test_stop_group_kills_grandchildren_too(tmp_path):
     # Real processes, no network: the server starts a helper, and stopping the group must kill the helper as well.
