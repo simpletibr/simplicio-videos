@@ -72,7 +72,7 @@ class Gemini:
             self.max_in_flight = max(self.max_in_flight, self.in_flight)
         try:
             time.sleep(self.delay * ((N - n + 1) if self.reverse else 1))
-            if self.fail_on == n:
+            if n in (self.fail_on if isinstance(self.fail_on, (set, tuple, list)) else {self.fail_on}):
                 raise voice.VoiceError(f"provider=gemini: HTTP 400 simulado na fala {n}")
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_bytes(_wav(n))
@@ -244,3 +244,47 @@ def test_dentro_de_um_loop_ja_rodando(mini, api):
         return run(c, concurrency=3)
 
     assert len(asyncio.run(go())["lines"]) == N
+
+
+# ---------------------------------------------------------------- I2: falha no meio não faz a próxima rodada pagar tudo de novo
+
+def test_i2_depois_de_uma_falha_a_proxima_rodada_so_paga_o_que_falta(mini, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyFAKE-KEY-for-tests-0000000000")
+    g1 = Gemini(delay=0.02, reverse=False, fail_on=N)
+    monkeypatch.setattr(voice, "_gemini", g1)
+    c = make_contract(mini)
+    with pytest.raises(voice.VoiceError, match=f"fala {N}"):
+        run(c, concurrency=4)
+    pagas = set(g1.calls) - {f"fala numero {N}"}
+    assert pagas, "as falas anteriores à que falhou foram geradas"
+    g2 = Gemini(delay=0.0, reverse=False)
+    monkeypatch.setattr(voice, "_gemini", g2)
+    run(c, concurrency=4)
+    assert not (pagas & set(g2.calls)), f"pagou de novo: {sorted(pagas & set(g2.calls))}"
+    assert f"fala numero {N}" in g2.calls
+
+
+def test_i2_resultado_do_serial_e_do_paralelo_apos_falha_e_o_mesmo(mini, tmp_path, monkeypatch):
+    """No serial a nova rodada faz 1 chamada (as 5 primeiras já estavam no cache); o paralelo não pode fazer mais."""
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyFAKE-KEY-for-tests-0000000000")
+    total = {}
+    for conc in (1, 4):
+        c = copia(mini, tmp_path, f"c{conc}")
+        g1 = Gemini(delay=0.01, reverse=False, fail_on=N)
+        monkeypatch.setattr(voice, "_gemini", g1)
+        with pytest.raises(voice.VoiceError):
+            run(c, concurrency=conc)
+        g2 = Gemini(delay=0.0, reverse=False)
+        monkeypatch.setattr(voice, "_gemini", g2)
+        run(c, concurrency=conc)
+        total[conc] = len(g2.calls)
+    assert total[4] <= total[1] == 1
+
+
+def test_m3_erro_reportado_e_o_da_fala_de_menor_indice(mini, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyFAKE-KEY-for-tests-0000000000")
+    g = Gemini(delay=0.03, reverse=True, fail_on={2, 5})  # a fala 5 falha primeiro, a 2 depois
+    monkeypatch.setattr(voice, "_gemini", g)
+    c = make_contract(mini)
+    with pytest.raises(voice.VoiceError, match="fala 2"):
+        run(c, concurrency=6)
