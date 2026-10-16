@@ -46,6 +46,7 @@ simplicio-video edit setup|transcribe|pack|render|verify   # edição por EDL co
 simplicio-video opencut clone|dev|where            # editor OpenCut para acabamento manual
 simplicio-video swap providers|estimate|run|status # troca o personagem de um vídeo por um avatar (agnóstico de fornecedor); run exige --autorizo, gasta só com --yes e abaixo de --max-usd
 simplicio-video toonflow clone|serve|where         # Toonflow (MIT): estúdio de séries e vídeos com IA; serve exige --lan (escuta em 0.0.0.0:3000 sem login)
+simplicio-video moneyprinter clone|setup|serve|where|status   # MoneyPrinterTurbo (MIT): tema vira vídeo curto; trilha externa de apoio, como toonflow e opencut; serve só em 127.0.0.1, --lan abre para a rede
 simplicio-video status [--json] [contrato]         # ferramentas instaladas, versões fixadas e estado do render
 simplicio-video install [--check]                  # ambiente do checkout (.venv com uv); --check só mostra o plano
 simplicio-video update [--check]                   # git pull --ff-only, reinstala e roda doctor; --check não altera nada

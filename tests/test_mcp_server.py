@@ -29,7 +29,7 @@ def test_mcp_protocol_lists_and_calls_tools(mini):
             return names, res
 
     names, res = asyncio.run(go())
-    assert names == sorted(["video.init", "video.validate", "video.voice", "video.render", "video.run", "video.list", "video.clone", "video.montage", "video.opencut", "video.formats", "video.toonflow", "video.swap", "video.edit"])
+    assert names == sorted(["video.init", "video.validate", "video.voice", "video.render", "video.run", "video.list", "video.clone", "video.montage", "video.opencut", "video.formats", "video.swap", "video.toonflow", "video.moneyprinter", "video.edit"])
     payload = res.structured_content or json.loads(res.content[0].text)
     payload = payload.get("result", payload)
     assert payload["ok"] is True and payload["errors"] == []

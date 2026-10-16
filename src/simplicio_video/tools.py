@@ -1,11 +1,12 @@
 """Pinned versions and install location for the external tools behind the existing commands
-`montage` (OpenMontage), `opencut` (OpenCut), `clone` (Hypit) and `toonflow` (Toonflow). No command of its own.
+`montage` (OpenMontage), `opencut` (OpenCut), `clone` (Hypit), `toonflow` (Toonflow) and `moneyprinter`
+(MoneyPrinterTurbo). No command of its own.
 
-The engine drives: OpenMontage, OpenCut, Hypit and Toonflow, each pinned to a known version.
+The engine drives: OpenMontage, OpenCut, Hypit, Toonflow and MoneyPrinterTurbo, each pinned to a known version.
 
 The deterministic render (contract -> MP4) never depends on them. They are optional tracks: an agentic
 producer (OpenMontage), a manual editor (OpenCut), an agentic cloner (Hypit) and a creation studio for
-short dramas and comics (Toonflow). Whatever they produce enters a contract as a file with a hash, so the
+short dramas and comics (Toonflow) and a topic-to-short-video generator (MoneyPrinterTurbo). Whatever they produce enters a contract as a file with a hash, so the
 final render stays reproducible.
 
 Install location: $SIMPLICIO_TOOLS_DIR (default ~/.simplicio-video/tools/<name>).
@@ -53,6 +54,15 @@ TOOLS: dict[str, Tool] = {
                      "open-source AI studio for short dramas, comic dramas and videos (Bun, web app on localhost); "
                      "runs as a separate program, never imported", marker="package.json",
                      note="its server has no login and listens on 0.0.0.0:3000 (every interface): serve needs --lan"),
+    "moneyprinter": Tool("moneyprinter", "git", "https://github.com/harry0703/MoneyPrinterTurbo",
+                         "4b7b9657647bdb149715354269eec7e4dbad4a7a", "MIT",
+                         "topic-to-short-video generator (LLM script, synthesized voice, stock footage; Python 3.11+, "
+                         "Streamlit WebUI and FastAPI); runs as a separate program, never imported",
+                         marker="config.example.toml",
+                         note="it calls third-party services with their own terms (LLM providers, TTS, stock footage such as "
+                              "Pexels, Pixabay and Coverr) and needs your own API keys in its config.toml; the terms were not "
+                              "reviewed here. Its API config listens on 0.0.0.0 by default and the WebUI has no login: serve "
+                              "forces 127.0.0.1 unless --lan"),
 }
 
 

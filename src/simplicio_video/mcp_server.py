@@ -1,7 +1,7 @@
 """MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
 
 Tools: video.init, video.validate, video.voice, video.render, video.run, video.list, video.clone, video.montage,
-video.edit, video.opencut, video.toonflow. Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
+video.edit, video.opencut, video.toonflow, video.moneyprinter. Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
 Long steps (render on kaggle/colab-cli) block until done. O upload no Drive não é tool deste servidor.
 
 Run: `simplicio-video mcp` or `simplicio-video-mcp` (needs `pip install -e .[mcp]`).
@@ -178,6 +178,30 @@ def video_toonflow(args: str = "") -> dict:
     return out
 
 
+def video_moneyprinter(args: str = "") -> dict:
+    """MoneyPrinterTurbo over MCP: `where` and `clone` into the default folder only. Everything else is refused:
+    `serve` runs servers that never end, `setup` installs packages and writes config.toml, and `clone <dir>` picks where
+    a checkout is written. An agent does none of that; the person does it in the terminal."""
+    from . import moneyprinter
+    argv = args.split() if isinstance(args, str) else list(args)
+    if argv[:1] not in (["where"], ["clone"]):
+        return {"ok": False, "error": "moneyprinter pelo MCP aceita só `where` e `clone` (na pasta padrão); "
+                                      "setup, serve e status são pelo terminal: `simplicio-video moneyprinter setup|serve|status`"}
+    if argv[:1] == ["clone"] and len(argv) > 1:
+        return {"ok": False, "error": "moneyprinter clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
+    if argv[:1] == ["where"] and len(argv) > 1:
+        return {"ok": False, "error": "moneyprinter where não recebe argumentos"}
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            rc = moneyprinter.run_moneyprinter(argv)
+        out = {"ok": rc == 0, "result": rc}
+    except Exception as e:  # noqa: BLE001 - report, don't kill the server
+        out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    out["log"] = buf.getvalue().strip()[-8000:]
+    return out
+
+
 TOOLS = [
     ("video.init", video_init, "Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts)."),
     ("video.validate", video_validate, "Validate a contract: JSON Schema, assets, scene durations, every line fits (need_lock before render)."),
@@ -192,6 +216,7 @@ TOOLS = [
     ("video.formats", video_formats, "Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format."),
     ("video.swap", video_swap, "Character swap, read-only: providers (adapters, capabilities, price, confidence) and estimate (cost before spending). Never runs a paid swap; run is terminal-only."),
     ("video.toonflow", video_toonflow, "Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app)."),
+    ("video.moneyprinter", video_moneyprinter, "MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder and where only (setup and serve run in the terminal) (https://github.com/harry0703/MoneyPrinterTurbo)."),
 ]
 
 

@@ -1,0 +1,784 @@
+from __future__ import annotations
+
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from simplicio_video import cli, mcp_server, moneyprinter, tools
+
+ROOT = Path(__file__).resolve().parents[1]
+SHA40 = re.compile(r"^[0-9a-f]{40}$")
+FAKE_KEY = "FAKEKEY-do-not-print-0123456789"
+FAKE_KEY_2 = "FAKEKEY-in-a-list-9876543210"
+
+EXAMPLE = """\
+[app]
+api_key = ""
+pexels_api_keys = []
+openai_api_key = ""
+openai_model_name = ""
+"""
+
+CONFIG_WITH_KEYS = f"""\
+listen_host = "0.0.0.0"
+listen_port = 8080
+
+[app]
+api_key = ""
+hide_config = false
+pexels_api_keys = [
+  "{FAKE_KEY_2}",  # a comment with a "quote" inside
+]
+pixabay_api_keys = []
+openai_api_key = "{FAKE_KEY}"   # inline comment
+openai_model_name = "gpt-fake"
+anthropic_api_key = ''
+
+[azure]
+speech_key = ""
+"""
+
+
+@pytest.fixture(autouse=True)
+def _isolated(monkeypatch, tmp_path):
+    # Isolate the home and the tools dir: a real checkout under ~/.simplicio-video must never be found by a test.
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
+    monkeypatch.delenv("MONEYPRINTER_DIR", raising=False)
+    monkeypatch.delenv("MONEYPRINTER_DATA_DIR", raising=False)
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path / "data"))
+
+
+@pytest.fixture
+def checkout(monkeypatch, tmp_path):
+    """A stand-in MoneyPrinterTurbo checkout (config.example.toml is the marker): the tests never clone anything."""
+    d = tmp_path / "moneyprinter"
+    d.mkdir()
+    (d / "config.example.toml").write_text(EXAMPLE)
+    monkeypatch.setenv("MONEYPRINTER_DIR", str(d))
+    return d
+
+
+@pytest.fixture
+def venv():
+    """The isolated venv `setup` would have made (only the interpreter path matters to the fakes)."""
+    py = moneyprinter.venv_python()
+    py.parent.mkdir(parents=True)
+    py.write_text("")
+    return py
+
+
+@pytest.fixture
+def calls(monkeypatch):
+    """Records every subprocess.call (venv, pip) as (cmd, cwd). A step exits 0 unless a test sets fail[index]."""
+    recorded: list[tuple[list[str], Path | None]] = []
+    fail: dict[int, int] = {}
+
+    def fake(cmd, cwd=None, env=None):
+        recorded.append((list(cmd), cwd))
+        return fail.get(len(recorded) - 1, 0)
+
+    def not_a_checkout(*a, cwd=None):  # the stand-in checkout is not a repository: the pin check has nothing to compare
+        raise tools.ToolError("not a repository")
+
+    monkeypatch.setattr("subprocess.call", fake)
+    monkeypatch.setattr(tools, "_git", not_a_checkout)
+    return recorded, fail
+
+
+@pytest.fixture
+def server(monkeypatch):
+    """Fakes the long-running server processes. Records how each is started and which signal reaches each group.
+    state.interrupt: the next sleep in the supervision loop raises KeyboardInterrupt (Ctrl+C on this process).
+    state.exit_codes: None = every process exits 0 once the loop has slept once; a dict = only those processes
+    (index -> exit code) exit, the others keep running."""
+    state = SimpleNamespace(started=[], signals=[], interrupt=False, ignore_sigint=False, term_handler=None,
+                            hup_handler=None, exit_codes=None, slept=0, stop_handlers=[], wait_interrupts=0)
+
+    class Proc:
+        def __init__(self, cmd, cwd=None, env=None, start_new_session=False):
+            self.cmd, self.cwd, self.env, self.start_new_session = cmd, cwd, env, start_new_session
+            self.pid = 4242 + len(state.started)
+            self.index = len(state.started)
+            self.returncode = None
+            state.started.append(self)
+
+        def wait(self, timeout=None):
+            if timeout is not None:
+                state.stop_handlers.append(tuple(signal.getsignal(n) for n in _STOP_SIGNALS))
+                if state.wait_interrupts:
+                    state.wait_interrupts -= 1
+                    raise KeyboardInterrupt  # a second signal arrives while the group is being stopped
+            if timeout is not None and state.ignore_sigint and any(sig == signal.SIGINT for _, sig in state.signals):
+                raise subprocess.TimeoutExpired(self.cmd, timeout)
+            self.returncode = 0 if self.returncode is None else self.returncode
+            return self.returncode
+
+        def poll(self):
+            if self.returncode is None and state.slept:
+                if state.exit_codes is None:
+                    pass
+                elif self.index in state.exit_codes:
+                    self.returncode = state.exit_codes[self.index]
+            return self.returncode
+
+    def fake_sleep(seconds):
+        state.term_handler = signal.getsignal(signal.SIGTERM)
+        if hasattr(signal, "SIGHUP"):
+            state.hup_handler = signal.getsignal(signal.SIGHUP)
+        if state.interrupt or (state.exit_codes is None and state.slept):
+            state.interrupt = False
+            raise KeyboardInterrupt
+        state.slept += 1
+
+    monkeypatch.setattr("subprocess.Popen", Proc)
+    monkeypatch.setattr(moneyprinter.time, "sleep", fake_sleep)
+    monkeypatch.setattr(os, "killpg", lambda pgid, sig: state.signals.append((pgid, sig)))
+    return state
+
+
+_STOP_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIGHUP") if hasattr(signal, n))
+
+
+def _alive(pid: int) -> bool:
+    """Linux: a zombie counts as gone, since it no longer runs and no longer holds the port."""
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except (FileNotFoundError, ProcessLookupError):
+        return False
+    return state != "Z"
+
+
+# ---- pin, folders, help -------------------------------------------------------------------------------------
+
+def test_moneyprinter_is_pinned_to_a_full_commit_under_mit():
+    t = tools.get("moneyprinter")
+    assert t.kind == "git"
+    assert t.source == "https://github.com/harry0703/MoneyPrinterTurbo"
+    assert t.ref == "4b7b9657647bdb149715354269eec7e4dbad4a7a"
+    assert SHA40.match(t.ref)
+    assert t.license == "MIT"
+    assert t.marker == "config.example.toml"
+    # the note says what the service terms are about, without inventing their content
+    assert "Pexels" in t.note and "LLM" in t.note
+
+
+def test_find_dir_uses_the_env_override(checkout):
+    assert moneyprinter.find_moneyprinter_dir() == checkout.resolve()
+
+
+def test_find_dir_is_none_without_a_checkout(monkeypatch, tmp_path):
+    monkeypatch.setenv("MONEYPRINTER_DIR", str(tmp_path / "vazio"))
+    assert moneyprinter.find_moneyprinter_dir() is None
+
+
+def test_data_dir_defaults_outside_the_checkout(tmp_path):
+    assert moneyprinter.data_dir() == (tmp_path / "data" / "moneyprinter-data").resolve()
+
+
+def test_data_dir_is_absolute_because_the_server_runs_inside_the_checkout(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MONEYPRINTER_DATA_DIR", "dados/relativos")
+    assert moneyprinter.data_dir().is_absolute()
+    assert moneyprinter.data_dir() == (tmp_path / "dados" / "relativos").resolve()
+
+
+def test_help_needs_no_checkout(calls, capsys):
+    recorded, _ = calls
+    assert moneyprinter.run_moneyprinter(["--help"]) == 0
+    out = capsys.readouterr().out
+    for word in ("clone", "setup", "serve", "where", "status", "--lan", "0.0.0.0", "8501", "8080",
+                 "MONEYPRINTER_DIR", "MONEYPRINTER_DATA_DIR", "Python 3.11", "ffmpeg", "config.toml"):
+        assert word in out, word
+    assert recorded == []
+
+
+@pytest.mark.parametrize("args", [["where"], ["setup"], ["serve"], ["status"]])
+def test_commands_without_a_checkout_point_to_clone(args):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="moneyprinter clone"):
+        moneyprinter.run_moneyprinter(args)
+
+
+def test_unknown_subcommand_is_an_error(checkout):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="clone\\|setup\\|serve\\|where\\|status"):
+        moneyprinter.run_moneyprinter(["nope"])
+
+
+# ---- clone / where --------------------------------------------------------------------------------------------
+
+def test_clone_installs_at_the_pinned_commit(monkeypatch, tmp_path):
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: calls.append(a) or "")
+    assert moneyprinter.clone_moneyprinter() == tmp_path / "moneyprinter"
+    assert calls[0][0] == "clone" and calls[0][-1] == str(tmp_path / "moneyprinter")
+    assert calls[-1] == ("checkout", "--quiet", "--detach", tools.get("moneyprinter").ref)
+
+
+def test_clone_never_runs_when_offline(monkeypatch, tmp_path):
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path))
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    calls = []
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: calls.append(a) or "")
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="offline"):
+        moneyprinter.clone_moneyprinter()
+    assert calls == []
+
+
+def test_clone_to_an_explicit_dir_does_not_leak_into_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: "")
+    other = tmp_path / "meu"
+    assert moneyprinter.clone_moneyprinter(other) == other
+    assert "MONEYPRINTER_DIR" not in os.environ
+
+
+def test_where_prints_the_checkout(checkout, capsys):
+    assert moneyprinter.run_moneyprinter(["where"]) == 0
+    assert capsys.readouterr().out.strip() == str(checkout.resolve())
+
+
+# ---- setup ----------------------------------------------------------------------------------------------------
+
+def test_setup_makes_an_isolated_venv_and_installs_the_requirements(checkout, calls, tmp_path):
+    recorded, _ = calls
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    venv_dir = (tmp_path / "data" / "moneyprinter-data" / "venv").resolve()
+    py = moneyprinter.venv_python()
+    assert py.is_relative_to(venv_dir) and checkout.resolve() not in py.parents
+    assert recorded[0][0][1:] == ["-m", "venv", str(venv_dir)]
+    assert recorded[1][0] == [str(py), "-m", "pip", "install", "-r", "requirements.txt"]
+    assert recorded[1][1] == checkout.resolve()
+
+
+def test_setup_reuses_an_existing_venv(checkout, venv, calls):
+    recorded, _ = calls
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert [cmd[1:4] for cmd, _ in recorded] == [["-m", "pip", "install"]]
+
+
+def test_setup_needs_python_3_11_or_newer(checkout, calls, monkeypatch):
+    recorded, _ = calls
+    monkeypatch.setattr(moneyprinter, "MIN_PYTHON", (99, 0))
+    monkeypatch.setattr("shutil.which", lambda cmd: None)
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="3.11"):
+        moneyprinter.run_moneyprinter(["setup"])
+    assert recorded == []
+
+
+@pytest.mark.parametrize("step", [0, 1])
+def test_setup_stops_at_the_first_failing_step(checkout, calls, step):
+    recorded, fail = calls
+    fail[step] = 2
+    assert moneyprinter.run_moneyprinter(["setup"]) == 1
+    assert len(recorded) == step + 1
+
+
+def test_setup_copies_the_example_config_without_filling_any_key(checkout, calls):
+    assert not (checkout / "config.toml").exists()
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert (checkout / "config.toml").read_text() == EXAMPLE
+
+
+def test_setup_never_overwrites_an_existing_config(checkout, calls, capsys):
+    (checkout / "config.toml").write_text(CONFIG_WITH_KEYS)
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert (checkout / "config.toml").read_text() == CONFIG_WITH_KEYS
+    out = capsys.readouterr()
+    assert "já existe" in out.out
+
+
+def test_setup_sends_the_storage_to_the_data_dir_and_keeps_an_existing_one(checkout, calls, tmp_path):
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    link = checkout / "storage"
+    assert link.is_symlink()
+    assert link.resolve() == (tmp_path / "data" / "moneyprinter-data" / "storage").resolve()
+    assert link.resolve().is_dir()
+
+
+def test_setup_leaves_a_real_storage_folder_alone(checkout, calls):
+    (checkout / "storage").mkdir()
+    (checkout / "storage" / "x.txt").write_text("meu")
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert not (checkout / "storage").is_symlink()
+    assert (checkout / "storage" / "x.txt").read_text() == "meu"
+
+
+def test_setup_reports_what_is_missing(checkout, calls, monkeypatch, capsys):
+    monkeypatch.setattr("shutil.which", lambda cmd: None)
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    out = capsys.readouterr().out
+    assert "ffmpeg: não encontrado" in out
+    assert "ImageMagick" in out
+    assert "nenhuma chave preenchida" in out
+
+
+def test_setup_says_ffmpeg_is_found(checkout, calls, monkeypatch, capsys):
+    monkeypatch.setattr("shutil.which", lambda cmd: "/usr/bin/ffmpeg" if cmd == "ffmpeg" else None)
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert "ffmpeg: encontrado" in capsys.readouterr().out
+
+
+# ---- keys: only yes or no, never the value -----------------------------------------------------------------------
+
+def test_config_report_marks_filled_keys_without_their_values(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(CONFIG_WITH_KEYS)
+    rep = moneyprinter.config_report(cfg)
+    assert rep["exists"] is True
+    assert rep["keys"]["app.openai_api_key"] is True
+    assert rep["keys"]["app.pexels_api_keys"] is True       # multi-line list
+    assert rep["keys"]["app.pixabay_api_keys"] is False     # empty list
+    assert rep["keys"]["app.api_key"] is False
+    assert rep["keys"]["app.anthropic_api_key"] is False    # single-quoted empty string
+    assert rep["keys"]["azure.speech_key"] is False
+    assert not any("model_name" in k or "listen" in k or "hide_config" in k for k in rep["keys"])
+    assert FAKE_KEY not in json.dumps(rep) and FAKE_KEY_2 not in json.dumps(rep)
+
+
+def test_config_report_without_a_file(tmp_path):
+    assert moneyprinter.config_report(tmp_path / "nao-existe.toml") == {"exists": False, "keys": {}}
+
+
+def test_status_prints_yes_or_no_and_never_a_key(checkout, capsys):
+    (checkout / "config.toml").write_text(CONFIG_WITH_KEYS)
+    assert moneyprinter.run_moneyprinter(["status"]) == 0
+    out = capsys.readouterr()
+    assert "config.toml: existe" in out.out
+    assert "app.openai_api_key: sim" in out.out and "app.pexels_api_keys: sim" in out.out
+    assert "app.anthropic_api_key" not in out.out.replace("vazias", "")  # empty ones are only counted
+    for stream in (out.out, out.err):
+        assert FAKE_KEY not in stream and FAKE_KEY_2 not in stream
+
+
+def test_status_without_config(checkout, capsys):
+    assert moneyprinter.run_moneyprinter(["status"]) == 0
+    assert "config.toml: não existe" in capsys.readouterr().out
+
+
+def test_no_command_leaks_a_key_to_stdout_or_stderr(checkout, venv, calls, server, capsys):
+    (checkout / "config.toml").write_text(CONFIG_WITH_KEYS)
+    started = []
+    for args in (["where"], ["status"], ["setup"], ["serve"], ["serve", "--api", "--lan"], ["--help"]):
+        server.started.clear()
+        moneyprinter.run_moneyprinter(args)
+        started += server.started
+    assert len(started) == 2  # the WebUI, then the API: the checks below must have something to check
+    out = capsys.readouterr()
+    for stream in (out.out, out.err):
+        assert FAKE_KEY not in stream and FAKE_KEY_2 not in stream
+    for p in started:  # nor does it hand a key to the server through the command line or the environment
+        assert FAKE_KEY not in " ".join(p.cmd) and FAKE_KEY_2 not in " ".join(p.cmd)
+        env_text = json.dumps(p.env, default=str)  # the whole environment, PATH included
+        assert FAKE_KEY not in env_text and FAKE_KEY_2 not in env_text
+
+
+# ---- config_report: valid TOML forms (M1) -------------------------------------------------------------------------
+
+@pytest.mark.parametrize("text, name, filled", [
+    ('app.openai_api_key = "S3CRET"\n', "app.openai_api_key", True),        # dotted key
+    ('[app]\n"openai_api_key" = "S3CRET"\n', "app.openai_api_key", True),   # quoted key
+    ('llm = { api_key = "S3CRET" }\n', "llm.api_key", True),                # inline table
+    ('[app]\nOPENAI_API_KEY = "S3CRET"\nApiKey = "S3CRET"\n', "app.OPENAI_API_KEY", True),
+    ('[aws]\naccess_key_id = "S3CRET"\n', "aws.access_key_id", True),
+    ('[app]\napi_key = """"""\n', "app.api_key", False),                   # empty multi-line string
+    ('[app]\napi_key = " "\n', "app.api_key", False),                      # blank is not filled
+    ('[app]\nkeys_x = 1\npexels_api_keys = ["", " "]\n', "app.pexels_api_keys", False),
+    ('[[providers]]\napi_key = "S3CRET"\n', "providers.api_key", True),    # array of tables: right name
+    ('[app.sub]\nsecret = "S3CRET"\n', "app.sub.secret", True),
+])
+def test_config_report_reads_every_valid_toml_form(tmp_path, text, name, filled):
+    f = tmp_path / "c.toml"
+    f.write_text(text)
+    rep = moneyprinter.config_report(f)
+    assert rep["keys"].get(name) is filled, rep
+    assert "S3CRET" not in json.dumps(rep)
+
+
+def test_config_report_does_not_invent_a_name_from_inside_a_value(tmp_path):
+    f = tmp_path / "c.toml"
+    f.write_text('[app]\nnote = """\nleak_token = x\n"""\napi_key = "S3CRET"\n')
+    assert moneyprinter.config_report(f)["keys"] == {"app.api_key": True}
+
+
+def test_config_report_unclosed_list_does_not_swallow_the_next_keys(tmp_path):
+    f = tmp_path / "c.toml"
+    f.write_text('[app]\npexels_api_keys = ["x"\nopenai_api_key = "S3CRET"\n')  # invalid TOML: line fallback
+    keys = moneyprinter.config_report(f)["keys"]
+    assert keys.get("app.openai_api_key") is True
+
+
+# ---- config.toml is private (M2) ----------------------------------------------------------------------------------
+
+@pytest.mark.skipif(os.name == "nt", reason="modo POSIX")
+def test_setup_creates_the_config_readable_only_by_the_owner(checkout, calls):
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert (checkout / "config.toml").stat().st_mode & 0o777 == 0o600
+
+
+# ---- setup checks the pin (M5) and turns file errors into clear ones (M6, M7) --------------------------------------
+
+def test_setup_warns_when_the_checkout_is_not_at_the_pinned_commit(checkout, calls, monkeypatch, capsys):
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: "a" * 40)
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    err = capsys.readouterr().err
+    assert "commit fixado" in err and tools.get("moneyprinter").ref[:12] in err
+
+
+def test_setup_is_quiet_when_the_checkout_is_at_the_pin(checkout, calls, monkeypatch, capsys):
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: tools.pinned_ref(tools.get("moneyprinter")))
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert "commit fixado" not in capsys.readouterr().err
+
+
+def test_setup_without_the_example_config_is_a_clear_error(checkout, calls):
+    (checkout / "config.example.toml").unlink()
+    (checkout / "config.example.toml").mkdir()  # still there for the checkout lookup, but not a readable file
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="config"):
+        moneyprinter.run_moneyprinter(["setup"])
+
+
+def test_setup_with_a_file_where_the_data_dir_should_be_is_a_clear_error(checkout, calls, tmp_path):
+    (tmp_path / "data").mkdir(exist_ok=True)
+    (tmp_path / "data" / "moneyprinter-data").write_text("")
+    with pytest.raises(moneyprinter.MoneyPrinterError):
+        moneyprinter.run_moneyprinter(["setup"])
+
+
+def test_serve_with_a_missing_interpreter_is_a_clear_error(checkout, venv, server, monkeypatch):
+    def boom(*a, **k):
+        raise FileNotFoundError(2, "No such file or directory")
+
+    monkeypatch.setattr("subprocess.Popen", boom)
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="não consegui iniciar"):
+        moneyprinter.run_moneyprinter(["serve"])
+
+
+@pytest.mark.parametrize("args", [["clone", "a", "b"], ["where", "x"], ["status", "x"]])
+def test_extra_arguments_are_an_error_not_ignored(checkout, args):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="argumento"):
+        moneyprinter.run_moneyprinter(args)
+
+
+def test_setup_with_an_existing_venv_does_not_need_python_3_11(checkout, venv, calls, monkeypatch):
+    monkeypatch.setattr(moneyprinter, "MIN_PYTHON", (99, 0))
+    monkeypatch.setattr("shutil.which", lambda cmd: None)
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+
+
+def test_cli_help_of_moneyprinter_lists_host():
+    assert "serve [--webui] [--api] [--lan] [--host H]" in (ROOT / "src" / "simplicio_video" / "cli.py").read_text()
+
+
+# ---- serve --------------------------------------------------------------------------------------------------------
+
+def test_serve_without_a_venv_points_to_setup(checkout, server):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="moneyprinter setup"):
+        moneyprinter.run_moneyprinter(["serve"])
+    assert server.started == []
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.0.10", "::"])
+def test_serve_refuses_a_non_loopback_host_without_lan(checkout, venv, server, host):
+    with pytest.raises(moneyprinter.MoneyPrinterError) as e:
+        moneyprinter.run_moneyprinter(["serve", "--host", host])
+    assert "--lan" in str(e.value)
+    assert server.started == []
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "::1"])
+def test_serve_accepts_a_loopback_host_without_lan(checkout, venv, server, host):
+    assert moneyprinter.run_moneyprinter(["serve", "--host", host]) == 0
+    assert f"--server.address={host}" in server.started[0].cmd
+
+
+def test_serve_by_default_starts_only_the_webui_on_loopback(checkout, venv, server):
+    # upstream's own default for the API is 0.0.0.0 (config listen_host): here the host is always forced by argument
+    assert moneyprinter.run_moneyprinter(["serve"]) == 0
+    assert len(server.started) == 1
+    p = server.started[0]
+    assert p.cmd[:5] == [str(venv), "-m", "streamlit", "run", str(checkout.resolve() / "webui" / "Main.py")]
+    assert "--server.address=127.0.0.1" in p.cmd and "--server.port=8501" in p.cmd
+    assert "--server.headless=true" in p.cmd and "--browser.gatherUsageStats=False" in p.cmd
+    assert p.cwd == checkout.resolve()
+    assert p.env["PYTHONPATH"].split(os.pathsep)[0] == str(checkout.resolve())
+    assert p.start_new_session is True  # its own group, so a stop reaches every process it started
+
+
+def test_serve_api_forces_the_host_by_argument_not_by_config(checkout, venv, server):
+    (checkout / "config.toml").write_text('listen_host = "0.0.0.0"\n')
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+    assert [p.cmd for p in server.started] == [
+        [str(venv), "-m", "uvicorn", "app.asgi:app", "--host", "127.0.0.1", "--port", "8080", "--log-level", "warning"]]
+    assert (checkout / "config.toml").read_text() == 'listen_host = "0.0.0.0"\n'  # the user's file is not edited
+
+
+def test_serve_webui_and_api_run_in_separate_groups(checkout, venv, server):
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 0
+    assert len(server.started) == 2
+    assert all(p.start_new_session for p in server.started)
+    assert {p.pid for p in server.started} == {4242, 4243}
+
+
+def test_serve_lan_listens_on_every_interface_and_says_so(checkout, venv, server, capsys):
+    assert moneyprinter.run_moneyprinter(["serve", "--api", "--webui", "--lan"]) == 0
+    web, api = server.started
+    assert "--server.address=0.0.0.0" in web.cmd
+    assert api.cmd[api.cmd.index("--host") + 1] == "0.0.0.0"
+    out = capsys.readouterr().out
+    assert "todas as interfaces" in out and "sem login" in out
+
+
+def test_serve_lan_with_an_explicit_host(checkout, venv, server):
+    assert moneyprinter.run_moneyprinter(["serve", "--lan", "--host", "192.168.0.10"]) == 0
+    assert "--server.address=192.168.0.10" in server.started[0].cmd
+
+
+def test_serve_rejects_unknown_arguments_before_starting_anything(checkout, venv, server):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--port"):
+        moneyprinter.run_moneyprinter(["serve", "--port", "9000"])
+    assert server.started == []
+
+
+def test_serve_ctrl_c_stops_every_group_without_a_traceback(checkout, venv, server, capsys):
+    server.interrupt = True
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 0
+    # SIGINT first, then the SIGKILL sweep of each group, for both processes
+    assert server.signals == [(4242, signal.SIGINT), (4242, signal.SIGKILL),
+                              (4243, signal.SIGINT), (4243, signal.SIGKILL)]
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_serve_escalates_to_sigkill_when_a_server_ignores_sigint(checkout, venv, server):
+    server.interrupt = True
+    server.ignore_sigint = True
+    assert moneyprinter.run_moneyprinter(["serve"]) == 0
+    assert server.signals == [(4242, signal.SIGINT), (4242, signal.SIGKILL), (4242, signal.SIGKILL)]
+
+
+def test_serve_when_one_server_dies_the_other_group_is_stopped_too(checkout, venv, server):
+    server.exit_codes = {0: 3}  # the WebUI exits with 3 while the API keeps running
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 3
+    # the one that exited is swept too (a helper it left behind), the other is stopped
+    assert server.signals == [(4242, signal.SIGKILL), (4243, signal.SIGINT), (4243, signal.SIGKILL)]
+
+
+def test_serve_sigterm_is_handled_like_ctrl_c_and_restored_afterwards(checkout, venv, server):
+    before = signal.getsignal(signal.SIGTERM)
+    assert moneyprinter.run_moneyprinter(["serve"]) == 0
+    handler = server.term_handler
+    assert callable(handler) and handler is not before
+    with pytest.raises(KeyboardInterrupt):
+        handler(signal.SIGTERM, None)
+    assert signal.getsignal(signal.SIGTERM) is before
+
+
+def test_serve_a_second_signal_during_the_stop_does_not_leave_a_server_running(checkout, venv, server):
+    # Ctrl+C twice (or SIGTERM then Ctrl+C): the first stop wait is cut short, yet both groups must be stopped
+    server.interrupt = True
+    server.wait_interrupts = 1
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 0
+    stopped = {pgid for pgid, sig in server.signals if sig == signal.SIGKILL}
+    assert stopped == {4242, 4243}
+    assert (4243, signal.SIGINT) in server.signals
+
+
+def test_serve_ignores_further_signals_while_stopping_and_restores_the_handlers(checkout, venv, server):
+    before = [signal.getsignal(n) for n in _STOP_SIGNALS]
+    server.interrupt = True
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 0
+    assert server.stop_handlers and all(h == (signal.SIG_IGN,) * len(_STOP_SIGNALS) for h in server.stop_handlers)
+    assert [signal.getsignal(n) for n in _STOP_SIGNALS] == before
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGHUP"), reason="sem SIGHUP nesta plataforma")
+def test_serve_sighup_stops_the_servers_like_ctrl_c_and_is_restored(checkout, venv, server):
+    before = signal.getsignal(signal.SIGHUP)
+    assert moneyprinter.run_moneyprinter(["serve"]) == 0
+    handler = server.hup_handler
+    assert callable(handler) and handler is not before  # the default action would end the parent and orphan the servers
+    with pytest.raises(KeyboardInterrupt):
+        handler(signal.SIGHUP, None)
+    assert signal.getsignal(signal.SIGHUP) is before
+
+
+def test_serve_names_the_server_that_exited_by_itself_and_never_returns_0(checkout, venv, server, capsys):
+    server.exit_codes = {1: 0}  # the API ends by itself with 0 (e.g. port taken and handled): not a requested stop
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 1
+    err = capsys.readouterr().err
+    assert "API" in err and "saiu" in err and "parando" in err
+
+
+def test_serve_a_server_killed_by_a_signal_returns_a_positive_code(checkout, venv, server, capsys):
+    server.exit_codes = {0: -9}
+    assert moneyprinter.run_moneyprinter(["serve", "--webui", "--api"]) == 9 + 128
+    assert "WebUI" in capsys.readouterr().err
+
+
+# Upstream at the pinned commit (app/asgi.py): CORS is closed by default (CORS_ALLOWED_ORIGINS empty = same origin
+# only), so a page in the browser cannot read the API. With app.api_key empty the API still has no login at all, for
+# any other program on this computer, a DNS-rebinding page, or (with --lan) the network.
+
+def test_serve_api_without_an_api_key_warns_clearly_and_still_starts(checkout, venv, server, capsys):
+    (checkout / "config.toml").write_text(CONFIG_WITH_KEYS)  # app.api_key = ""
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+    err = capsys.readouterr().err
+    assert "app.api_key" in err and "sem chave" in err and "LLM" in err
+    assert len(server.started) == 1
+
+
+def test_serve_api_without_a_config_file_warns_too(checkout, venv, server, capsys):
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+    assert "app.api_key" in capsys.readouterr().err
+
+
+def test_serve_api_with_an_api_key_does_not_warn_and_never_prints_it(checkout, venv, server, capsys):
+    (checkout / "config.toml").write_text(f'[app]\napi_key = "{FAKE_KEY}"\n')
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+    out = capsys.readouterr()
+    assert "sem chave" not in out.err
+    assert FAKE_KEY not in out.out and FAKE_KEY not in out.err
+
+
+def test_serve_webui_only_does_not_warn_about_the_api_key(checkout, venv, server, capsys):
+    assert moneyprinter.run_moneyprinter(["serve"]) == 0
+    assert "app.api_key" not in capsys.readouterr().err
+
+
+def test_serve_api_refuses_open_cors_without_an_api_key(checkout, venv, server, monkeypatch):
+    # the combination upstream itself flags: any web page could then call the API with the user's paid keys
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:8501, *")
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="CORS_ALLOWED_ORIGINS"):
+        moneyprinter.run_moneyprinter(["serve", "--api"])
+    assert server.started == []
+
+
+def test_serve_api_accepts_open_cors_when_the_api_key_is_filled(checkout, venv, server, monkeypatch):
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "*")
+    (checkout / "config.toml").write_text(f'[app]\napi_key = "{FAKE_KEY}"\n')
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+
+
+def test_help_says_the_api_has_no_login_without_an_api_key():
+    text = moneyprinter.USAGE
+    assert "app.api_key" in text and "CORS_ALLOWED_ORIGINS" in text
+
+
+@pytest.mark.skipif(not Path("/proc").is_dir(), reason="o teste lê /proc (Linux)")
+def test_stop_group_kills_grandchildren_too(tmp_path):
+    # Real processes, no network: the server starts a helper, and stopping the group must kill the helper as well.
+    pidfile = tmp_path / "helper.pid"
+    script = (
+        "import subprocess, sys, time\n"
+        "h = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)'])\n"
+        f"open({str(pidfile)!r}, 'w').write(str(h.pid))\n"
+        "time.sleep(600)\n"
+    )
+    proc = subprocess.Popen([sys.executable, "-c", script], start_new_session=True,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        deadline = time.time() + 20
+        while not (pidfile.exists() and pidfile.read_text().strip()) and time.time() < deadline:
+            time.sleep(0.05)
+        helper = int(pidfile.read_text())
+        assert _alive(helper)
+        moneyprinter._stop_group(proc)
+        assert proc.poll() is not None
+        deadline = time.time() + 5
+        while _alive(helper) and time.time() < deadline:
+            time.sleep(0.05)
+        assert not _alive(helper)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+
+# ---- CLI, MCP, plugin ---------------------------------------------------------------------------------------------
+
+def test_cli_dispatch_moneyprinter(monkeypatch):
+    recorded = []
+    monkeypatch.setattr(moneyprinter, "run_moneyprinter", lambda args: recorded.append(args) or 0)
+    assert cli.main(["moneyprinter", "where"]) == 0
+    assert recorded == [["where"]]
+
+
+def test_cli_moneyprinter_error_exits_1(monkeypatch, capsys):
+    def boom(args):
+        raise moneyprinter.MoneyPrinterError("falha teste")
+
+    monkeypatch.setattr(moneyprinter, "run_moneyprinter", boom)
+    assert cli.main(["moneyprinter", "serve"]) == 1
+    assert "moneyprinter: falha teste" in capsys.readouterr().err
+
+
+def test_mcp_exposes_video_moneyprinter():
+    assert "video.moneyprinter" in [name for name, fn, desc in mcp_server.TOOLS]
+
+
+def test_mcp_where_returns_the_checkout(checkout):
+    r = mcp_server.video_moneyprinter("where")
+    assert r["ok"] is True
+    assert str(checkout.resolve()) in r["log"]
+
+
+@pytest.mark.parametrize("args", ["serve", "serve --lan", "serve --api", "setup", "status", "", "--help"])
+def test_mcp_refuses_everything_but_where_and_clone(checkout, venv, calls, server, args):
+    # an agent does not install packages, start servers or pick folders: serve and setup are terminal-only
+    recorded, _ = calls
+    r = mcp_server.video_moneyprinter(args)
+    assert r["ok"] is False
+    assert "terminal" in r["error"]
+    assert recorded == [] and server.started == []
+    assert not (checkout / "config.toml").exists()
+
+
+def test_mcp_clone_uses_the_default_dir(monkeypatch, tmp_path):
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: calls.append(a) or "")
+    r = mcp_server.video_moneyprinter("clone")
+    assert r["ok"] is True
+    assert calls[0][-1] == str(tmp_path / "moneyprinter")
+
+
+def test_mcp_clone_into_a_chosen_dir_is_refused(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: calls.append(a) or "")
+    r = mcp_server.video_moneyprinter(f"clone {tmp_path / 'em-outro-lugar'}")
+    assert r["ok"] is False
+    assert calls == []
+
+
+def _verbs(node):
+    if isinstance(node, dict):
+        if isinstance(node.get("verb"), str):
+            yield node["verb"]
+        for v in node.values():
+            yield from _verbs(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _verbs(v)
+
+
+def test_plugin_json_declares_the_verb_and_the_tool():
+    data = json.loads((ROOT / "plugin.json").read_text())
+    assert "video.moneyprinter" in data["mcp"]["tools"]
+    assert "video.moneyprinter" in set(_verbs(data))
+
+
+def test_status_lists_moneyprinter_with_its_pin():
+    from simplicio_video import status
+    assert "moneyprinter" in status.ENGINE_TOOLS
+
+
+def test_moneyprinter_source_has_no_machine_specific_path():
+    src = Path(moneyprinter.__file__).read_text()
+    assert not re.search(r"""["'](/projetos|/home/|/Users/|[A-Za-z]:\\)""", src)

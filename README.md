@@ -19,6 +19,7 @@ Every external tool is a **track** with one CLI command, one MCP verb (`plugin.j
 | [OpenMontage](https://github.com/calesthio/OpenMontage) | see repo | Agentic production pipelines (Backlot, Remotion, HyperFrames) | `simplicio-video montage [clone\|open\|serve\|demo]` | `video.montage` | [docs/recursos.md](docs/recursos.md) |
 | [OpenCut](https://github.com/OpenCut-app/OpenCut) | MIT | Open-source editor for manual finishing (uses `opencut-classic` until the rewrite has an API) | `simplicio-video opencut clone\|dev\|where` | `video.opencut` | [docs/recursos.md](docs/recursos.md) |
 | [Hypit AI](https://github.com/hypit-ai/hypit) | see repo | Clone viral videos into agent workflows | `simplicio-video clone [args]` | `video.clone` | [docs/recursos.md](docs/recursos.md) |
+| [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | MIT | Topic-to-short-video generator (LLM script, synthesized voice, stock footage; Python 3.11+) | `simplicio-video moneyprinter clone\|setup\|serve\|where\|status` | `video.moneyprinter` (clone, where) | [docs/recursos.md](docs/recursos.md) |
 | [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | Open-source AI studio for short dramas, comic dramas and videos (local web app on Bun) | `simplicio-video toonflow clone\|serve\|where` | `video.toonflow` (clone, where) | [docs/recursos.md](docs/recursos.md) |
 
 | Troca de personagem (`swap`) | n/a | Troca o personagem de um vídeo por um avatar de referência, agnóstico de fornecedor (gemini, fal, wavespeed, kie, alibaba) | `simplicio-video swap providers\|estimate\|run\|status` | `video.swap` (providers, estimate) | [docs/recursos.md](docs/recursos.md) |
@@ -31,6 +32,17 @@ simplicio-video toonflow serve --lan   # bun install --frozen-lockfile, build, s
 ```
 
 It needs Bun (the version is in the checkout's `packageManager` field). The server has **no login** and listens on every interface (`0.0.0.0:3000`), so `serve` refuses to start without `--lan`. To keep it on your own machine, run the Docker setup from Toonflow's `compose.yaml` (publishes `127.0.0.1:3000`) or block port 3000 at the firewall. Its data goes to `~/.simplicio-video/toonflow-data` (set `TOONFLOW_DATA_DIR` to move it), outside the checkout, so a re-clone never deletes it. Model API keys are entered in Toonflow's own UI. Toonflow sits outside the deterministic render; whatever it produces enters a contract as a file with a hash.
+
+MoneyPrinterTurbo is a support track outside the engine, like Toonflow and OpenCut: it does not replace `contract.yaml -> MP4`. It runs from a pinned checkout with its own isolated virtualenv:
+
+```bash
+simplicio-video moneyprinter clone    # clones at the commit pinned in src/simplicio_video/tools.py
+simplicio-video moneyprinter setup    # venv in ~/.simplicio-video/moneyprinter-data, pip install -r requirements.txt, config.toml copied from the example (no key filled)
+simplicio-video moneyprinter serve    # WebUI on http://localhost:8501; add --api for the API on http://localhost:8080/docs
+simplicio-video moneyprinter status   # config.toml exists? which keys are filled (yes only, never the value)
+```
+
+It needs Python 3.11 or newer and uses ffmpeg. Upstream's API listens on `0.0.0.0` by default and neither the WebUI nor an API with an empty `app.api_key` has a login, so `serve` forces `127.0.0.1` by argument (it starts uvicorn on the same `app.asgi:app` instead of `main.py`, whose host comes from `config.toml`) and only listens on every interface with `--lan`. The generator calls third-party services with their own terms (an LLM provider, a TTS service and stock footage such as Pexels, Pixabay and Coverr) using **your own** API keys, typed in its WebUI or in `config.toml`; this command never prints them and the MCP tool never runs `setup` or `serve`. Generated videos go to `~/.simplicio-video/moneyprinter-data/storage` (set `MONEYPRINTER_DATA_DIR` to move it). Whatever it produces enters a contract as a file with a hash.
 
 ### Audio apps
 
