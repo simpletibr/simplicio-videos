@@ -1,17 +1,17 @@
-"""Redes sociais, só o que é determinístico e local: provedores, plano, conferência e receita.
+"""Social networks, only what is deterministic and local: providers, plan, check and recipe.
 
-O motor NÃO posta. Este módulo não abre rede, não lê credencial (nenhuma variável de ambiente) e não importa cliente
-MCP nem de HTTP. Quem publica é o agente, com as ferramentas MCP do próprio provedor (Real Oficial, padrão, ou Zernio) e
-com o sim explícito do usuário para cada postagem. O que o motor faz:
+The engine does NOT post. This module opens no network, reads no credential (no environment variable) and imports no MCP
+or HTTP client. Whoever publishes is the agent, with the MCP tools of the provider itself (Real Oficial, the default, or
+Zernio) and with the explicit yes of the user for each post. What the engine does:
 
-- `providers`: lista os provedores, as ferramentas MCP de cada um e os limites conhecidos (data/social/providers.json).
-- `plan`: valida um MP4 final contra os limites de cada rede (data/social/limits.json, com fonte, data e confiança por
-  linha) e grava `social.plan.json`, determinístico (sem horário de geração) e sem segredo.
-- `check`: REVALIDA o plano: recalcula tudo a partir do vídeo e da tabela de limites e recusa o que não for exatamente o que `plan`
-  geraria (o `plan_id` é só soma de integridade, não autenticação).
-- `recipe`: imprime a sequência de chamadas MCP que o agente deve fazer, a partir de um modelo de dados por provedor:
-  cotar ou prever, mostrar ao usuário, pedir o sim e só então publicar. O motor se recusa a gerar uma receita em que
-  uma chamada de publicar venha antes da etapa de consentimento.
+- `providers`: lists the providers, the MCP tools of each one and the known limits (data/social/providers.json).
+- `plan`: validates a final MP4 against the limits of each network (data/social/limits.json, with source, date and
+  confidence per row) and writes `social.plan.json`, deterministic (no generation time) and free of secrets.
+- `check`: REVALIDATES the plan: recomputes everything from the video and the limits table and refuses whatever is not
+  exactly what `plan` would generate (`plan_id` is only an integrity checksum, not authentication).
+- `recipe`: prints the sequence of MCP calls the agent must make, from a data template per provider: quote or preview,
+  show the user, ask for the yes and only then publish. The engine refuses to generate a recipe in which a publish call
+  comes before the consent step.
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -51,7 +52,7 @@ SCHEDULE_MAX_DAYS = 30
 _RO_ID_RE = re.compile(r"^[0-9A-Za-z]{26}$")
 _AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 _HASHTAG_RE = re.compile(r"(?<![\w#])#(\w+)")
-_STEP_TOKEN = re.compile(r"\{step\.([a-z_]+)\}")
+_TOKEN = re.compile(r"\{(plan|video_name|video_sha256_short|step\.[a-z_]+)\}")  # the only markers a providers.json template may carry
 PUBLISH_WORDS = ("publish", "post", "confirm", "run", "send")
 RO_NO_CLIP_REASON = ("o MCP do Real Oficial não recebe um MP4 local: sem o clip_id de um vídeo já no Real Oficial não há o que cotar nem publicar. "
                      "Suba o MP4 no app do Real Oficial, ache o clip e rode de novo com --clip-id <id>")
@@ -65,7 +66,7 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# ---------------------------------------------------------------------------------------------------------- dados
+# ---------------------------------------------------------------------------------------------------------- data
 
 def _load(name: str) -> dict:
     return json.loads((paths.data_dir() / "social" / name).read_text(encoding="utf8"))
@@ -101,7 +102,7 @@ def providers_report() -> dict:
     return {"schema": doc["schema"], "default": doc["default"], "read_on": doc["read_on"], "rules": doc["rules"], "providers": provs}
 
 
-# ---------------------------------------------------------------------------------------------------------- vídeo
+# ---------------------------------------------------------------------------------------------------------- video
 
 def _real_probe(path: Path) -> dict:
     cmd = ["ffprobe", "-v", "error", "-show_entries",
@@ -171,7 +172,7 @@ def _ratio_value(text: str) -> float:
     return float(a) / float(b)
 
 
-# ---------------------------------------------------------------------------------------------------------- plano
+# ---------------------------------------------------------------------------------------------------------- plan
 
 def parse_targets(items: list[str]) -> list[dict]:
     out: list[dict] = []
@@ -252,7 +253,7 @@ def _violates(field: str, limit, actual, vid: dict) -> bool:
         if isinstance(limit, dict):
             return not (limit["min_ratio"] * (1 - ASPECT_TOLERANCE) <= ratio <= limit["max_ratio"] * (1 + ASPECT_TOLERANCE))
         return not any(abs(ratio - _ratio_value(a)) / _ratio_value(a) <= ASPECT_TOLERANCE for a in limit)
-    if field == "duration_max_s":  # um quadro de folga: "3:00" exportado sai com 180,02 s
+    if field == "duration_max_s":  # one frame of slack: an exported "3:00" comes out as 180.02 s
         return actual > limit + (1 / vid["fps"] if vid.get("fps") else 0)
     return actual > limit
 
@@ -284,26 +285,40 @@ def _rel(path: Path, base: Path) -> str:
 
 
 def _accept_key_path() -> Path:
-    """Chave local (32 bytes aleatórios, 0600) de quem rodou `plan --aceito-unverified` nesta máquina. Não é credencial de
-    ninguém e nunca vai para o plano: ela só assina o aceite, para que editar o JSON não o forje."""
+    """Local key (32 random bytes, 0600) of whoever ran `plan --aceito-unverified` on this machine. It is nobody's credential
+    and never goes into the plan: it only signs the acceptance, so that editing the JSON cannot forge it."""
     return Path.home() / ".config" / "simplicio-video" / "social-accept.key"
+
+
+def _read_accept_key(kp: Path) -> bytes | None:
+    try:
+        data = kp.read_bytes()
+    except OSError:
+        return None
+    return data if len(data) >= 32 else None
 
 
 def _accept_key(create: bool) -> bytes | None:
     kp = _accept_key_path()
-    try:
-        data = kp.read_bytes()
-        if len(data) >= 32:
-            return data
-    except OSError:
-        pass
-    if not create:
-        return None
+    key = _read_accept_key(kp)
+    if key or not create:
+        return key
     kp.parent.mkdir(parents=True, exist_ok=True)
     key = os.urandom(32)
-    fd = os.open(kp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        f.write(key)
+    # The key is written whole to a private temp file and then hard-linked into place: link() is atomic and never overwrites,
+    # so two processes racing here end up with ONE key and nobody can read a half-written one.
+    fd, tmp_name = tempfile.mkstemp(dir=kp.parent, prefix=kp.name + ".", suffix=".tmp")  # 0600
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(key)
+        os.link(tmp, kp)
+    except FileExistsError:  # another process won the race: its key is the one that counts
+        key = _read_accept_key(kp)
+        if key is None:
+            raise SocialError(f"a chave de aceite {kp} existe, mas está incompleta: apague o arquivo e rode de novo") from None
+    finally:
+        tmp.unlink(missing_ok=True)
     return key
 
 
@@ -330,7 +345,7 @@ def _limits_stamp(table: dict) -> dict:
 
 
 def _compose(vid: dict, caption: str, title: str | None, tgts: list[dict], sched: dict | None, ai: bool, table: dict) -> tuple[dict, list, list]:
-    """Tudo o que o plano afirma sai daqui, só do vídeo e da tabela: o `plan` grava isto e o `check` recalcula isto."""
+    """Everything the plan claims comes from here, from the video and the table alone: `plan` writes this and `check` recomputes it."""
     tags = hashtags_of(caption)
     networks = list(dict.fromkeys(t["network"] for t in tgts))
     checks = evaluate(vid, caption, title, tags, networks, table)
@@ -356,7 +371,7 @@ def make_plan(video: str, targets: list[str], *, caption: str, title: str | None
         raise SocialError("a legenda ou o título parece conter uma chave ou token (segredo): o plano é gravado em claro, remova")
     tgts = parse_targets(targets)
     sched = _schedule(at, timezone)
-    vabs = Path(os.path.abspath(vpath))  # sem resolver symlink: o plano fica ao lado do caminho que a pessoa deu
+    vabs = Path(os.path.abspath(vpath))  # symlinks are not resolved: the plan stays next to the path the person gave
     dest = Path(out) if out else vabs.parent / PLAN_NAME
     if dest.exists() and not force:
         raise SocialError(f"já existe {dest}: o plano é trilha de auditoria e não é sobrescrito sem --force")
@@ -376,7 +391,7 @@ def make_plan(video: str, targets: list[str], *, caption: str, title: str | None
         plan["accept_proof"] = _accept_proof(_accept_key(create=True), pid)
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(f"{dest.name}.{os.getpid()}.tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o644)  # nunca segue symlink
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o644)  # never follows a symlink
     try:
         with os.fdopen(fd, "w", encoding="utf8") as f:
             f.write(json.dumps(plan, indent=2, ensure_ascii=False) + "\n")
@@ -419,8 +434,9 @@ def load_plan(path: str) -> dict:
 
 
 def _check(path: str) -> tuple[dict, dict]:
-    """Revalida o plano contra o vídeo e a tabela de limites. O `plan_id` é só soma de integridade (quem edita o JSON o recalcula):
-    nada do que o plano diz de si é confiado, tudo é recalculado e o plano precisa ser exatamente o que `plan` geraria."""
+    """Revalidates the plan against the video and the limits table. `plan_id` is only an integrity checksum (whoever edits the
+    JSON recomputes it): nothing the plan says about itself is trusted, everything is recomputed and the plan must be exactly
+    what `plan` would generate."""
     plan = load_plan(path)
     problems: list[str] = []
     warnings: list[str] = []
@@ -502,14 +518,16 @@ def check_plan(path: str) -> dict:
     return _check(path)[1]
 
 
-# ---------------------------------------------------------------------------------------------------------- receita
+# ---------------------------------------------------------------------------------------------------------- recipe
 
 def _offset_iso(sched: dict) -> str:
     when = datetime.strptime(sched["at"], "%Y-%m-%dT%H:%M").replace(tzinfo=ZoneInfo(sched["timezone"]))
     return when.isoformat(timespec="seconds")
 
 
-def _context(plan: dict, provider: str, clip_id: str | None) -> dict:
+def _context(plan: dict, provider: str, clip_id: str | None, step) -> dict:
+    """Values a template can reference with `$name`. Everything here is DATA (the caption, the title, the file name) or text
+    the engine wrote itself: nothing in it is ever read as a template. `step(id)` gives the number of a recipe step."""
     tgts = plan["targets"]
     nets = list(dict.fromkeys(t["network"] for t in tgts))
     sched = plan.get("schedule")
@@ -521,29 +539,32 @@ def _context(plan: dict, provider: str, clip_id: str | None) -> dict:
         "needs_clip_id": clip_id is None, "mode": "at" if sched else "now", "schedule_at": sched["at"] if sched else None,
         "schedule_timezone": sched["timezone"] if sched else None, "ai_generated": True if plan.get("ai_generated") else "<pergunte ao usuário se o vídeo é gerado por IA (true ou false); o motor não escolhe>",
         "publish_at": _offset_iso(sched) if sched else "now",
-        "clip_id": clip_id or "<clip_id do vídeo no Real Oficial (passo {step.clip})>",
-        "tiktok_privacy": None if "tiktok" not in nets else "<o usuário escolhe entre as opções que ro_list_social_accounts devolveu no passo {step.tiktok_options}; o motor nunca escolhe>",
+        "clip_id": clip_id or f"<clip_id do vídeo no Real Oficial (passo {step('clip')})>",
+        "tiktok_privacy": None if "tiktok" not in nets else f"<o usuário escolhe entre as opções que ro_list_social_accounts devolveu no passo {step('tiktok_options')}; o motor nunca escolhe>",
         "youtube_visibility": None if not ("youtube" in nets or "youtube_shorts" in nets) else "<pergunte ao usuário: public, unlisted ou private (o padrão do provedor é public)>",
     }
     ids = []
     for t in tgts:
         acc = t["account"]
-        ids.append(acc if acc and _RO_ID_RE.match(acc) else f"<account_id de {acc or 'a conta'} em {t['network']}, do passo {{step.accounts}}>")
+        ids.append(acc if acc and _RO_ID_RE.match(acc) else f"<account_id de {acc or 'a conta'} em {t['network']}, do passo {step('accounts')}>")
     ctx["account_ids"] = ids
     tk = next((t for t in tgts if t["network"] == "tiktok"), None)
     ctx["tiktok_account_id"] = (tk["account"] if tk and tk["account"] and _RO_ID_RE.match(tk["account"])
-                                else "<account_id da conta TikTok, do passo {step.accounts}>")
+                                else f"<account_id da conta TikTok, do passo {step('accounts')}>")
     accs = [t["account"] for t in tgts if t["account"]]
-    ctx["zernio_account"] = None if not accs else (f"<account_id de {accs[0]}, do passo {{step.accounts}} (accounts_list)>" if len(accs) == 1 else
+    ctx["zernio_account"] = None if not accs else (f"<account_id de {accs[0]}, do passo {step('accounts')} (accounts_list)>" if len(accs) == 1 else
                                                     "<UNVERIFIED: como passar mais de uma conta; use accounts_list e o account_id de cada rede>")
     return ctx
 
 
-def _resolve(node, ctx: dict):
+def _render(node, ctx: dict, subs):
+    """Builds the arguments of a call step from its providers.json template, in a single pass. Only the template strings go
+    through `subs`; a `$name` takes its value from `ctx` as DATA and is never substituted into again, so a marker inside the
+    caption, the title or the file name comes out exactly as the user wrote it."""
     if isinstance(node, dict):
         out = {}
         for k, v in node.items():
-            val = _resolve(v, ctx)
+            val = _render(v, ctx, subs)
             if k.startswith("?"):
                 if val is None:
                     continue
@@ -551,24 +572,14 @@ def _resolve(node, ctx: dict):
             out[k] = val
         return out
     if isinstance(node, list):
-        return [_resolve(v, ctx) for v in node]
-    if isinstance(node, str) and node.startswith("$"):
-        return ctx[node[1:]]
-    return node
-
-
-def _format(node, subs):
-    if isinstance(node, dict):
-        return {k: _format(v, subs) for k, v in node.items()}
-    if isinstance(node, list):
-        return [_format(v, subs) for v in node]
+        return [_render(v, ctx, subs) for v in node]
     if isinstance(node, str):
-        return subs(node)
+        return ctx[node[1:]] if node.startswith("$") else subs(node)
     return node
 
 
-# Piso de segurança no CÓDIGO, que um providers.json adulterado não consegue baixar: o que publica, o que expõe o arquivo
-# publicamente antes do sim, o que precisa ser cotado antes de mostrar e os passos manuais que só valem depois do sim.
+# Safety floor in the CODE, which a tampered providers.json cannot lower: what publishes, what exposes the file publicly
+# before the yes, what must be quoted before showing, and the manual steps that only count after the yes.
 SAFETY_FLOOR = {
     "realoficial": {"publish": {"ro_confirm_publishing"}, "gated": set(), "quote": {"ro_preview_publication"}, "gated_ids": set()},
     "zernio": {"publish": {"posts_create", "posts_cross_post", "posts_publish_now", "queue_get_next_queue_slot", "call_tool"},
@@ -577,8 +588,9 @@ SAFETY_FLOOR = {
 
 
 def _assert_safe(steps: list[dict], prov: dict, label: str) -> None:
-    """Defense in depth: valida a SEQUÊNCIA COMPLETA de passos (kind, tool, effect, requires) contra o piso do código e contra
-    o próprio providers.json. Nunca entrega receita em que publicar (ou expor o MP4) venha antes de cotar -> mostrar -> sim."""
+    """Defense in depth: validates the COMPLETE sequence of steps (kind, tool, effect, requires) against the floor in the code
+    and against providers.json itself. Never hands out a recipe in which publishing (or exposing the MP4) comes before
+    quote -> show -> yes."""
     floor = SAFETY_FLOOR.get(prov["id"], {"publish": set(), "gated": set(), "quote": set(), "gated_ids": set()})
     declared = {t["name"]: t["effect"] for t in prov.get("tools", [])}
     publish = set(prov.get("publish_tools", [])) | {n for n, e in declared.items() if e == "publish"} | floor["publish"]
@@ -617,7 +629,7 @@ def _assert_safe(steps: list[dict], prov: dict, label: str) -> None:
 
 
 def _flat(templates: list[dict]) -> list[dict]:
-    """Todos os modelos de passo (inclusive os de `when`), no formato que o `_assert_safe` confere."""
+    """Every step template (including the `when` ones), in the shape `_assert_safe` checks."""
     out = []
     for t in templates:
         d = {"id": t["id"], "kind": t["kind"]}
@@ -641,20 +653,25 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     clip_id = (clip_id or "").strip() or None
     if pid == "realoficial" and clip_id and not _RO_ID_RE.match(clip_id):
         raise SocialError("clip_id inválido: o Real Oficial usa ids de 26 letras e números")
-    ctx = _context(plan, pid, clip_id)
-    templates = [t for t in prov["recipe"] if not t.get("when") or ctx.get(t["when"])]
+    flags = _context(plan, pid, clip_id, lambda _id: "?")  # only the `when` flags matter here: which steps this plan needs
+    templates = [t for t in prov["recipe"] if not t.get("when") or flags.get(t["when"])]
     numbers = {t["id"]: i + 1 for i, t in enumerate(templates)}
+    ctx = _context(plan, pid, clip_id, lambda sid: str(numbers.get(sid, "?")))
+    values = {"plan": plan_path, "video_name": ctx["video_name"], "video_sha256_short": ctx["video_sha256_short"]}
+
+    def marker(m) -> str:
+        name = m.group(1)
+        return str(numbers.get(name[5:], "?")) if name.startswith("step.") else values[name]
 
     def subs(text: str) -> str:
-        text = _STEP_TOKEN.sub(lambda m: str(numbers.get(m.group(1), "?")), text)
-        return (text.replace("{plan}", plan_path).replace("{video_name}", ctx["video_name"])
-                .replace("{video_sha256_short}", ctx["video_sha256_short"]))
+        """Fills the markers of a providers.json template in ONE pass: what goes in is data and is never scanned again."""
+        return _TOKEN.sub(marker, text)
 
     steps: list[dict] = []
     for t in templates:
         s: dict = {"n": numbers[t["id"]], "id": t["id"], "kind": t["kind"]}
         if t["kind"] == "call":
-            s.update(tool=t["tool"], effect=t["effect"], args=_format(_resolve(t.get("args", {}), ctx), subs), why=t.get("why", ""))
+            s.update(tool=t["tool"], effect=t["effect"], args=_render(t.get("args", {}), ctx, subs), why=t.get("why", ""))
             if t.get("args_confidence"):
                 s["args_confidence"] = t["args_confidence"]
         else:
@@ -680,7 +697,7 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     _assert_safe(steps, prov, "passos emitidos")
     blocked = [subs(t["blocks"]) for t in templates if t.get("blocks")]
     reason = RO_NO_CLIP_REASON if pid == "realoficial" and clip_id is None else ""
-    if reason:  # bloqueada de verdade: só o passo manual sai; nada de cotar, mostrar, pedir o sim ou publicar com placeholder
+    if reason:  # really blocked: only the manual step comes out; no quoting, showing, asking for the yes or publishing with a placeholder
         steps = [s for s in steps if s["id"] == "clip" and s["kind"] == "manual"] or [{"n": 1, "id": "clip", "kind": "manual", "text": reason}]
         blocked = blocked or ["clip_id do vídeo no Real Oficial"]
     return {"schema": SCHEMA_RECIPE, "provider": pid, "label": prov["label"], "plan_id": plan["plan_id"], "mcp_url": prov["mcp_url"],
