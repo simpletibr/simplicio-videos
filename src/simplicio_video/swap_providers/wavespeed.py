@@ -22,7 +22,7 @@ class WaveSpeedAdapter(UnverifiedAdapter):
     version = "1-unverified"
     model = MODEL
     capabilities = Capabilities(resolutions=("720p",), max_input_s=120.0, max_output_s=120.0, max_ref_images=1,
-                                keeps_audio=False, bills_input=True, min_input_s=3.0)
+                                keeps_audio=False, bills_input=True, min_input_s=3.0, max_concurrency=2)  # UNVERIFIED: conservative until checked against the real API
     prices = (PriceRow(MODEL, "720p", 0.08, PAGE, "2026-10-15", "media",
                        note="mode=replace; cobra a duração de entrada, de 3 a 120 s"),)
     notes = "UNVERIFIED: campos de entrada e saída não conferidos na API real."

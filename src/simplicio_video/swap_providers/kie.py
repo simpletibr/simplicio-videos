@@ -22,7 +22,7 @@ class KieAdapter(UnverifiedAdapter):
     version = "1-unverified"
     model = MODEL
     capabilities = Capabilities(resolutions=("720p",), max_input_s=10.0, max_output_s=10.0, max_ref_images=1,
-                                keeps_audio=False, bills_input=False)
+                                keeps_audio=False, bills_input=False, max_concurrency=2)  # UNVERIFIED: conservative until checked against the real API
     prices = (PriceRow(MODEL, "720p", 0.0625, "https://kie.ai/pricing", "2026-10-15", "baixa"),)
     notes = "UNVERIFIED: campos de entrada e saída não conferidos na API real."
     states = {"WAITING": "queued", "QUEUING": "queued", "GENERATING": "running", "SUCCESS": "done", "FAIL": "failed"}

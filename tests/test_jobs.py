@@ -162,8 +162,19 @@ def test_mcp_expoe_so_o_que_nao_gasta():
 def test_mcp_registrado():
     assert "video.jobs" in [t[0] for t in mcp_server.TOOLS]
     plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
-    assert any(v["verb"] == "video.jobs" for v in plugin["commands"])
+    verbos = {v["verb"] for v in plugin["commands"] if v["verb"].startswith("video.jobs")}
+    assert verbos == {"video.jobs.list", "video.jobs.status", "video.jobs.result", "video.jobs.cancel", "video.jobs.submit-voice"}
     assert "video.jobs" in plugin["mcp"]["tools"]
+
+
+def test_plugin_nao_expoe_swap_run_nem_yes_nem_args_livre():
+    plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
+    for v in plugin["commands"]:
+        if v.get("argv", [])[:2] == ["simplicio-video", "jobs"]:
+            assert "swap-run" not in v["argv"] and "--yes" not in v["argv"] and "{args}" not in v["argv"], v["verb"]
+            assert v["args_schema"]["additionalProperties"] is False
+            if v["verb"].endswith("submit-voice"):
+                assert set(v["args_schema"]["properties"]["provider"]["enum"]) == set(jobs.LOCAL_VOICE)
 
 
 # ---------------------------------------------------------------- estado em arquivo, escrita atômica, sem segredo
@@ -187,13 +198,19 @@ def test_escrita_atomica_usa_replace(monkeypatch, tmp_path):
     assert seen and seen[0][1] == "x.json" and seen[0][0] != "x.json"
 
 
-def test_estado_recusa_e_apaga_a_chave(monkeypatch, mini, stub_spawn):
+def test_argumento_com_chave_e_recusado_e_nada_e_gravado(monkeypatch, mini, stub_spawn):
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    st = jobs.submit("voice", {"contrato": str(mini), "provider": "file", "only": [FAKE_KEY]})
-    text = "".join(p.read_text() for p in jobs.job_dir(st["id"]).rglob("*") if p.is_file())
-    assert FAKE_KEY not in text and "***" in text
+    with pytest.raises(jobs.JobError, match="chave"):
+        jobs.submit("voice", {"contrato": str(mini), "provider": "file", "only": [FAKE_KEY]})
+    assert stub_spawn == [] and not jobs.jobs_dir().exists()
+
+
+def test_escrita_do_estado_apaga_a_chave(monkeypatch, mini, stub_spawn):
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+    st = jobs.submit("voice", {"contrato": str(mini), "provider": "file"})
     jobs.update(st["id"], error=f"falhou com {FAKE_KEY}")
-    assert FAKE_KEY not in (jobs.job_dir(st["id"]) / "job.json").read_text()
+    text = (jobs.job_dir(st["id"]) / "job.json").read_text()
+    assert FAKE_KEY not in text and "***" in text
 
 
 def todos_os_arquivos(root: Path) -> str:
@@ -253,7 +270,7 @@ def test_cancelar_para_o_grupo_e_deixa_o_manifesto_cancelado(media, monkeypatch)
         time.sleep(0.05)
     assert not alive(run["runner_pid"]) and not alive(run["task_pid"])
     man = json.loads((media["dir"] / "out" / "swap.manifest.json").read_text())
-    assert man["state"] == "cancelled"
+    assert man["state"] == "interrupted"
     assert [p for p in (media["dir"] / "out").iterdir() if p.name.startswith(".swap-work")] == []
     assert not (media["dir"] / "out" / "s.mp4").exists()
 
@@ -277,15 +294,18 @@ def test_swap_run_recusa_saida_existente_na_submissao(media, stub_spawn):
     jobs.submit("swap-run", swap_params(media, force=True), confirm_yes=True)
 
 
-@needs_ffmpeg
-def test_chave_no_argumento_nao_vai_para_estado_nem_log(media, monkeypatch):
+def test_chave_na_saida_da_tarefa_nao_vai_para_o_log(mini, monkeypatch):
+    """A fala do contrato contém a chave (falsa): o `voice` a imprime no log; o runner a apaga antes de gravar."""
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    st = jobs.submit("swap-run", swap_params(media, prompt=f"use {FAKE_KEY} aqui"), confirm_yes=True)
+    txt = mini.read_text().replace("tom de teste", f"tom {FAKE_KEY}")
+    mini.write_text(txt)
+    st = jobs.submit("voice", {"contrato": str(mini), "provider": "file", "force": True})
     fim = wait_for(st["id"], FINAL)
-    assert fim["state"] == "failed"  # o swap recusa gravar a chave no manifesto
+    assert fim["state"] in ("done", "failed")
+    log = jobs.read_log(st["id"])
+    assert "tom ***" in log and FAKE_KEY not in log
     assert FAKE_KEY not in todos_os_arquivos(jobs.jobs_dir())
     assert FAKE_KEY not in json.dumps(jobs.status(st["id"]))
-    assert FAKE_KEY not in jobs.read_log(st["id"])
 
 
 def test_voz_local_em_segundo_plano(mini):
@@ -362,10 +382,11 @@ def test_cancelar_job_terminado_nao_muda_nada(stub_spawn, mini):
 
 
 def test_limpeza_de_antigos(stub_spawn, mini):
-    velho = fabrica(stub_spawn, mini, state="done", finished_at="2020-01-01T00:00:00+00:00")
-    recente = fabrica(stub_spawn, mini, state="done", finished_at=jobs.now_iso())
-    rodando = fabrica(stub_spawn, mini, state="running", runner_pid=os.getpid(), runner_start=jobs.proc_start(os.getpid()),
-                      created_at="2020-01-01T00:00:00+00:00")
+    velho, recente, rodando = (fabrica(stub_spawn, mini) for _ in range(3))  # criados antes: submit também limpa
+    jobs.update(velho, state="done", finished_at="2020-01-01T00:00:00+00:00")
+    jobs.update(recente, state="done", finished_at=jobs.now_iso())
+    jobs.update(rodando, state="running", runner_pid=os.getpid(), runner_start=jobs.proc_start(os.getpid()),
+                created_at="2020-01-01T00:00:00+00:00")
     removidos = jobs.clean(older_than_days=7)
     assert removidos == [velho]
     ids = {j["id"] for j in jobs.list_jobs()}

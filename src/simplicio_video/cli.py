@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, moneyprinter, montage, opencut, paths, toonflow
+from .aio import positive_int
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
 
@@ -29,9 +30,10 @@ Fluxo completo:
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
+  jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/toonflow/moneyprinter
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -154,6 +156,8 @@ def build_parser() -> argparse.ArgumentParser:
     _contract_arg(p)
     p.add_argument("--provider", "-p", choices=["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "elevenlabs", "xai"], help="override voz.provider")
     p.add_argument("--force", action="store_true", help="ignora o cache (com ids: só esses)")
+    p.add_argument("--concurrency", type=positive_int, default=None, metavar="N",
+                   help="falas geradas ao mesmo tempo, só em provedor de rede (gemini; padrão 4; 1 = serial). Provedor local é sempre serial")
     p.add_argument("only", nargs="*", metavar="FALA_ID", help="ids de fala para refazer com --force (ex.: vo2 vo4)")
 
     p = sub.add_parser("render", formatter_class=Fmt, help="compila e renderiza (padrão local; kaggle/colab-cli/colab opcionais via créditos)",
@@ -269,6 +273,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("swap", formatter_class=Fmt, help="troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)",
         description=_swap.HELP_DESC, epilog=_swap.HELP_EPILOG)
     p.add_argument("args", nargs=argparse.REMAINDER, help="providers | estimate | run | status <manifesto>")
+
+    from . import jobs as _jobs
+    p = sub.add_parser("jobs", formatter_class=Fmt, help="tarefas em segundo plano (swap run, voice) num processo separado",
+        description=_jobs.HELP_DESC, epilog=_jobs.HELP_EPILOG)
+    p.add_argument("args", nargs=argparse.REMAINDER, help="submit | status | list | cancel | result | clean")
 
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
@@ -424,7 +433,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats", "swap"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats", "swap", "jobs"):
         if any(h in args_list for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
@@ -457,6 +466,9 @@ def main(argv: list[str] | None = None) -> int:
         if cmd == "swap":
             from . import swap
             return swap.run_swap(sub_args)
+        if cmd == "jobs":
+            from . import jobs
+            return jobs.run_jobs(sub_args)
         if cmd == "formats":
             from . import formats
             try:
@@ -589,7 +601,7 @@ def main(argv: list[str] | None = None) -> int:
         if not rep.ok and any(not e.startswith("voice:") for e in rep.errors):
             print("contrato inválido:\n  " + "\n  ".join(rep.errors), file=sys.stderr)
             return 1
-        voice.run(c, provider=a.provider, force=a.force, only=a.only)
+        voice.run(c, provider=a.provider, force=a.force, only=a.only, concurrency=a.concurrency)
         return 0
     if a.cmd == "render":
         from . import render

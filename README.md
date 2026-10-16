@@ -23,6 +23,7 @@ Every external tool is a **track** with one CLI command, one MCP verb (`plugin.j
 | [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | Open-source AI studio for short dramas, comic dramas and videos (local web app on Bun) | `simplicio-video toonflow clone\|serve\|where` | `video.toonflow` (clone, where) | [docs/recursos.md](docs/recursos.md) |
 
 | Troca de personagem (`swap`) | n/a | Troca o personagem de um vídeo por um avatar de referência, agnóstico de fornecedor (gemini, fal, wavespeed, kie, alibaba) | `simplicio-video swap providers\|estimate\|run\|status` | `video.swap` (providers, estimate) | [docs/recursos.md](docs/recursos.md) |
+| Tarefas em segundo plano (`jobs`) | n/a | `swap run` e `voice` num processo separado, sem daemon nem porta; pedaços e falas em paralelo | `simplicio-video jobs submit\|status\|list\|cancel\|result` | `video.jobs` (sem gasto) | [docs/recursos.md](docs/recursos.md) |
 
 Toonflow runs from a pinned checkout, as its own program:
 
@@ -92,6 +93,19 @@ simplicio-video swap status out/swap.manifest.json
 
 `--autorizo` é obrigatório (você confirma ter direito sobre o vídeo e as imagens). Sem `--yes` nada é enviado; `--max-usd` aborta antes de submeter. A chave só entra pela variável de ambiente do provedor. Só o `gemini` foi conferido contra a documentação real; `fal`, `wavespeed`, `kie` e `alibaba` estão **UNVERIFIED** e pedem `--aceito-unverified` para gastar. O MCP (`video.swap`) só faz `providers` e `estimate`: gastar é só pelo terminal. Detalhes em [docs/recursos.md](docs/recursos.md).
 
+
+### Paralelismo e tarefas em segundo plano
+
+```bash
+simplicio-video swap run ... --concurrency 3        # pedaços em paralelo (padrão 3; 1 = serial)
+simplicio-video voice contract.yaml --provider gemini --concurrency 4   # falas em paralelo (só provedor de rede; padrão 4)
+simplicio-video jobs submit voice contract.yaml --provider local         # volta na hora; roda num processo separado
+simplicio-video jobs submit swap-run --provider gemini --video in.mp4 --ref avatar.png --out out/swap.mp4 --autorizo --yes
+simplicio-video jobs status|list|result|cancel <id>
+python scripts/bench_concurrency.py                                      # benchmark com latência simulada
+```
+
+Asyncio só entra onde há espera de rede; o render e o ffmpeg continuam seriais (CPU). A saída em paralelo é idêntica à serial. O MCP (`video.jobs`) lista, consulta, lê o resultado e cancela, e só submete `voice` com provedor local: `swap-run` se submete pelo terminal, com `--yes`. Detalhes em [docs/recursos.md](docs/recursos.md).
 ## Catalogs
 
 | What | Where | Today |

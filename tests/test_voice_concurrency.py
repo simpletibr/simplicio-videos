@@ -33,15 +33,19 @@ def _wav(seed: int, seconds=0.30, sr=24000) -> bytes:
     return buf.getvalue()
 
 
-def make_contract(mini: Path, n: int = N) -> Path:
+def make_contract(mini: Path, n: int = N, max_s: float = 0.9) -> Path:
     """O contrato mini com n falas (uma por cena); só `voice.run` o lê, então a soma das cenas não importa."""
     data = yaml.safe_load(mini.read_text())
     base = data["cenas"][0]
     cenas = []
-    for i in range(n):
+    if n == 2:  # keeps the fixture's scene ids (a, b), so the CLI's contract validation passes
+        for i, c in enumerate(data["cenas"]):
+            c["fala"] = {"id": f"vo{i + 1}", "texto": f"fala numero {i + 1}", "inicio_s": 0.05, "max_s": max_s}
+        cenas = data["cenas"]
+    for i in range(0 if n == 2 else n):
         c = json.loads(json.dumps(base))
         c["id"] = f"s{i + 1}"
-        c["fala"] = {"id": f"vo{i + 1}", "texto": f"fala numero {i + 1}", "inicio_s": 0.05, "max_s": 0.9}
+        c["fala"] = {"id": f"vo{i + 1}", "texto": f"fala numero {i + 1}", "inicio_s": 0.05, "max_s": max_s}
         cenas.append(c)
     data["cenas"] = cenas
     data["voz"]["provider"] = "gemini"
@@ -148,11 +152,12 @@ def test_cache_nao_chama_o_provedor(mini, api):
     assert {k: v["sha256"] for k, v in again["lines"].items()} == {k: v["sha256"] for k, v in first["lines"].items()}
 
 
-def test_force_com_ids_so_refaz_esses(mini, api):
+def test_ids_em_only_so_refazem_esses(mini, api):
+    """Comportamento que já existia no serial: `only` sem force refaz só esses ids (force sozinho refaz tudo)."""
     c = make_contract(mini)
     run(c, concurrency=4)
     api.calls.clear()
-    run(c, concurrency=4, force=True, only=["vo2", "vo5"])
+    run(c, concurrency=4, only=["vo2", "vo5"])
     assert sorted(api.calls) == ["fala numero 2", "fala numero 5"]
 
 
@@ -220,7 +225,7 @@ def test_provedor_local_nao_cria_threads(mini, monkeypatch):
 
 def test_cli_aceita_concurrency(mini, api, capsys):
     from simplicio_video import cli
-    c = make_contract(mini)
+    c = make_contract(mini, n=2, max_s=0.4)
     assert cli.main(["voice", str(c), "--provider", "gemini", "--concurrency", "2"]) == 0
     assert api.max_in_flight == 2
 

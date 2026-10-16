@@ -894,7 +894,7 @@ def _voice_fit(pdir: Path, home: Path, campanha: str, row: dict, coleta: dict, p
         write_contract(pdir / "contract.yaml", d, row, meta)
         c = load(pdir / "contract.yaml")
         try:
-            voice.run(c, only=only, log=log)
+            voice.run(c, only=only, log=log, concurrency=1)  # the batch regeneration loop is order-sensitive: keep it serial
             if regen:
                 meta["voz_regeneradas"] = {k: v for k, v in regen.items() if v}
             return d, meta
