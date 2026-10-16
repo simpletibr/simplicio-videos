@@ -38,6 +38,7 @@ MANIFEST_NAME = "swap.manifest.json"
 MANIFEST_SCHEMA = "simplicio.swap-manifest/v1"
 DEFAULT_MAX_USD = 2.0
 POLL_MAX_S = 30.0
+SUBMIT_DRAIN_S = 10.0  # how long a cancelled chunk waits for its in-flight submit, so a charged handle is not lost
 DEFAULT_TIMEOUT_S = 900.0
 DEFAULT_POLL_S = 5.0
 DEFAULT_CONCURRENCY = 3  # chunks of one video in flight at once (--concurrency); the adapter can lower it
@@ -369,6 +370,38 @@ async def _apoll_until_done(adapter, handle: dict, rec: dict, timeout: float, in
         wait = min(wait * 1.5, POLL_MAX_S)
 
 
+async def _submit_protected(adapter, job, counter: list, rec: dict, save):
+    """Submit shielded from cancellation: the provider may accept (and charge) a request whose task was cancelled because
+    another chunk failed or the user pressed Ctrl+C. On cancel, wait a bounded time for the in-flight submit and record the
+    handle it returns; if it does not finish, the chunk is marked possibly charged."""
+    sub = asyncio.ensure_future(_acom_tentativas(lambda: adapter.submit(job), counter, retry_network=False))
+    try:
+        return await asyncio.shield(sub)
+    except asyncio.CancelledError:
+        if sub.done() and sub.cancelled():
+            raise
+        finished = sub.done()
+        if not finished:
+            try:
+                done, _ = await asyncio.wait({sub}, timeout=SUBMIT_DRAIN_S)
+                finished = bool(done)
+            except asyncio.CancelledError:  # cancelled again while draining: give up waiting
+                finished = sub.done()
+        if finished and not sub.cancelled() and sub.exception() is None:
+            rec["handle"], rec["state"] = sub.result(), "submitted"
+            save()
+        elif finished and not sub.cancelled():
+            exc = sub.exception()
+            rec["possibly_charged"] = bool(getattr(exc, "possibly_charged", False))
+        else:
+            rec["possibly_charged"] = True
+            rec["state"] = "cancelled_during_submit"
+            sub.add_done_callback(lambda f: f.cancelled() or f.exception())  # consume a late error
+            sub.cancel()
+            save()
+        raise
+
+
 async def _chunk(i: int, p: "Plan", prompt: str, work: Path, rec: dict, counters: dict, gate: dict, timeout: float,
                  poll_interval: float, save) -> Path:
     """One chunk, from the cut to the downloaded bytes. The semaphore bounds how many chunks are in flight; the cut lock
@@ -392,7 +425,7 @@ async def _chunk(i: int, p: "Plan", prompt: str, work: Path, rec: dict, counters
             _log(f"swap: pedaço {i + 1}/{n} ({length:.1f} s): enviando para {adapter.name}")
             t = _now()
             try:
-                handle = await _acom_tentativas(lambda: adapter.submit(job), counters["submit"][i], retry_network=False)
+                handle = await _submit_protected(adapter, job, counters["submit"][i], rec, save)
             except ProviderError as e:
                 rec["possibly_charged"] = e.possibly_charged
                 raise
@@ -416,7 +449,7 @@ async def _chunk(i: int, p: "Plan", prompt: str, work: Path, rec: dict, counters
             rec["latency"]["total_s"] = round(_now() - t_chunk, 3)
             return raw
     except asyncio.CancelledError:
-        if rec["state"] != "done":
+        if rec["state"] not in ("done", "cancelled_during_submit"):
             rec["state"] = "cancelled"
         raise
     except SwapError as e:
@@ -544,7 +577,7 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
             manifest["state"] = "failed"
         manifest["error"] = scrub(str(e) or type(e).__name__) if isinstance(e, SwapError) else scrub(f"{type(e).__name__}: {e}")
         for r in recs:
-            if r["state"] == "pending" or (interrupted and r["state"] != "done"):
+            if r["state"] == "pending" or (interrupted and r["state"] not in ("done", "cancelled_during_submit")):
                 r["state"] = "interrupted" if interrupted else "cancelled"  # never started / stopped before the end
             if r["state"] == "interrupted":
                 r["error"] = manifest["error"]
