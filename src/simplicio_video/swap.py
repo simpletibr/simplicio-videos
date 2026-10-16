@@ -153,26 +153,6 @@ def plan_chunks(total_s: float, max_s: float, min_s: float = 0.0) -> list[tuple[
     return [(total_s * i / n, length) for i in range(n)]
 
 
-def _com_tentativas(fn, tentativas: list, max_tries: int = MAX_TRIES, retry_network: bool = True):
-    """Call fn, retrying only transient provider errors with exponential backoff. tentativas[0] counts the calls.
-    With retry_network=False (submit) a network failure is never retried: the provider may have accepted and charged the
-    request without answering, and no provider supports an idempotency key here, so a retry could charge twice."""
-    for i in range(max_tries):
-        tentativas[0] += 1
-        try:
-            return fn()
-        except ProviderError as e:
-            if e.network and not retry_network:
-                e.retryable, e.possibly_charged = False, True
-                e.args = (f"{e} A requisição pode ter sido aceita e cobrada sem resposta; o envio não foi repetido para não "
-                          "cobrar em dobro. Confira o painel do provedor antes de rodar de novo.",)
-                raise
-            if not e.retryable or i == max_tries - 1:
-                raise
-            _sleep(min(2.0 ** (i + 1), 30.0))
-    raise AssertionError("unreachable")
-
-
 def write_manifest(path: Path, data: dict) -> None:
     text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     for v in _secrets():
@@ -353,7 +333,7 @@ async def _arun(cmd: list[str]) -> None:
 
 
 async def _acom_tentativas(fn, counter: list, max_tries: int = MAX_TRIES, retry_network: bool = True):
-    """`_com_tentativas` for the event loop: the blocking call runs in a thread, the backoff does not block the others.
+    """Retry policy for a provider call, on the event loop: the blocking call runs in a thread, the backoff does not block the others.
     Same rule for submit: a network failure is never retried (the provider may have accepted and charged the request)."""
     for i in range(max_tries):
         counter[0] += 1

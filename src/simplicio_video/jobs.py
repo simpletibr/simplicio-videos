@@ -36,6 +36,7 @@ from pathlib import Path
 
 from .aio import positive_int
 from .swap import scrub
+from .swap_providers.base import KEY_PATTERN
 
 
 SCHEMA = "simplicio.job/v1"
@@ -356,7 +357,7 @@ def clean(older_than_days: float = PRUNE_DAYS) -> list[str]:
 
 def _no_secret(params: dict) -> None:
     text = json.dumps(params, ensure_ascii=False)
-    if any(v in text for v in _secrets()):
+    if KEY_PATTERN.search(text) or any(v in text for v in _secrets()):
         raise JobError("recusado: os argumentos contêm uma chave de API. A chave só entra pela variável de ambiente do provedor.")
 
 
@@ -525,8 +526,10 @@ def submit(kind: str, params: dict, *, confirm_yes: bool = False, origin: str = 
 
 # --------------------------------------------------------------------------------------------------------------- cancel
 
-def cancel(jid: str, wait_s: float | None = None) -> dict:
-    """Ask the runner to stop the task (SIGINT to the task group, SIGKILL after the grace period) and wait for the final state."""
+def cancel(jid: str, wait_s: float | None = None, block: bool = True) -> dict:
+    """Ask the runner to stop the task (SIGINT to the task group, SIGKILL after the grace period) and wait for the final state.
+    With block=False (the MCP server, which must not stall its loop for up to grace+10 s) only the request is sent: the
+    runner writes `cancelled` itself and `status` shows it."""
     st = status(jid)
     if st["state"] in FINAL:
         return st
@@ -539,6 +542,8 @@ def cancel(jid: str, wait_s: float | None = None) -> dict:
                            "nada foi sinalizado. Confira com `ps` e encerre à mão se for o caso")
         with contextlib.suppress(ProcessLookupError):
             os.kill(pid, signal.SIGTERM)
+        if not block:
+            return read_state(jid)
         deadline = datetime.now(timezone.utc) + timedelta(seconds=budget)
         while datetime.now(timezone.utc) < deadline:
             st = status(jid)

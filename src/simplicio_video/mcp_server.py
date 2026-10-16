@@ -171,7 +171,7 @@ def video_jobs(acao: str = "list", id: str | None = None, kind: str | None = Non
         if acao == "result":
             return {"ok": True, **jobs.result(id or "")}
         if acao == "cancel":
-            return {"ok": True, "job": jobs.summary(jobs.cancel(id or ""))}
+            return {"ok": True, "job": jobs.summary(jobs.cancel(id or "", block=False))}
         if acao == "submit":
             return {"ok": True, "job": jobs.summary(jobs.submit(kind or "", dict(params or {}), confirm_yes=False, origin="mcp"))}
         return {"ok": False, "error": f"acao desconhecida: {acao} (list|status|result|cancel|submit)"}
