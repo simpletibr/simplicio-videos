@@ -256,7 +256,7 @@ def build_parser() -> argparse.ArgumentParser:
                     "As chaves de API nunca são impressas. "
                     "Fica fora do render determinístico.",
         epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api\n  simplicio-video moneyprinter status")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | serve [--webui] [--api] [--lan] | where | status")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | where | status")
 
     p = sub.add_parser("formats", formatter_class=Fmt, help="biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy",
         description="Os 50 formatos da pasta 'Swipe File - 50 Formatos' (Drive): descrição, estrutura e o exemplo de cada um. "

@@ -87,7 +87,11 @@ def calls(monkeypatch):
         recorded.append((list(cmd), cwd))
         return fail.get(len(recorded) - 1, 0)
 
+    def not_a_checkout(*a, cwd=None):  # the stand-in checkout is not a repository: the pin check has nothing to compare
+        raise tools.ToolError("not a repository")
+
     monkeypatch.setattr("subprocess.call", fake)
+    monkeypatch.setattr(tools, "_git", not_a_checkout)
     return recorded, fail
 
 
@@ -437,6 +441,7 @@ def test_setup_is_quiet_when_the_checkout_is_at_the_pin(checkout, calls, monkeyp
 
 def test_setup_without_the_example_config_is_a_clear_error(checkout, calls):
     (checkout / "config.example.toml").unlink()
+    (checkout / "config.example.toml").mkdir()  # still there for the checkout lookup, but not a readable file
     with pytest.raises(moneyprinter.MoneyPrinterError, match="config"):
         moneyprinter.run_moneyprinter(["setup"])
 

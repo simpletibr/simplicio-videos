@@ -116,9 +116,10 @@ def clone_moneyprinter(target: Path | None = None) -> Path:
 
 # ---- config.toml: key names and yes/no only -----------------------------------------------------------------------
 
-_KEY_NAME = re.compile(r"(^|_)(key|keys|token|tokens|secret|password)$")
+_KEY_NAME = re.compile(r"(^|_)(key|keys|token|tokens|secret|password|key_id)$", re.I)
 _ASSIGN = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*=\s*(.*)$")
-_SECTION = re.compile(r"^\s*\[([^\[\]]+)\]\s*(#.*)?$")
+_SECTION = re.compile(r"^\s*\[\[?([^\[\]]+)\]\]?\s*(#.*)?$")
+_NEW_ASSIGN = re.compile(r"^\s*[A-Za-z0-9_-]+\s*=")
 _QUOTED = re.compile(r'"[^"]+"|\'[^\']+\'')
 
 
@@ -145,19 +146,59 @@ def _is_filled(value: str) -> bool:
     value = value.strip()
     if value.startswith("["):
         return bool(_QUOTED.search(value))
+    for q in ('"""', "'''"):
+        if value.startswith(q) and value.endswith(q) and len(value) >= 6:
+            return value[3:-3].strip() != ""
     if value[:1] in ("'", '"'):
-        return len(value) > 2 and value[0] == value[-1] and value[1:-1] != ""
+        return len(value) > 2 and value[0] == value[-1] and value[1:-1].strip() != ""
     return value != ""
+
+
+def _value_filled(value) -> bool:
+    if isinstance(value, str):
+        return value.strip() != ""
+    if isinstance(value, (list, tuple)):
+        return any(_value_filled(v) for v in value)
+    if isinstance(value, dict):
+        return any(_value_filled(v) for v in value.values())
+    return value is not None and not isinstance(value, bool)
+
+
+def _walk(node: dict, prefix: str, keys: dict[str, bool]) -> None:
+    for k, v in node.items():
+        name = f"{prefix}.{k}" if prefix else str(k)
+        if isinstance(v, dict):
+            _walk(v, name, keys)
+        elif _KEY_NAME.search(str(k)):
+            keys[name] = keys.get(name, False) or _value_filled(v)
+        elif isinstance(v, list):
+            for item in v:  # [[array of tables]]: the name does not carry an index
+                if isinstance(item, dict):
+                    _walk(item, name, keys)
 
 
 def config_report(path: Path) -> dict:
     """{'exists': bool, 'keys': {'section.name': filled}} for every secret-looking setting (key, token, secret,
-    password). Only the yes/no of each one is kept: the values are read, tested and dropped, never stored."""
+    password, key id; any case, dotted, quoted, inline table or array of tables). Only the yes/no of each one is kept:
+    the values are read, tested and dropped, never stored. tomllib (Python 3.11+) parses the file; the line reader
+    below is the fallback for Python 3.10 and for a file that is not valid TOML."""
     if not path.is_file():
         return {"exists": False, "keys": {}}
+    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        import tomllib
+        data = tomllib.loads(text)
+    except Exception:  # no tomllib (3.10) or invalid TOML: read it line by line
+        return {"exists": True, "keys": _report_by_lines(text)}
+    keys: dict[str, bool] = {}
+    _walk(data, "", keys)
+    return {"exists": True, "keys": keys}
+
+
+def _report_by_lines(text: str) -> dict[str, bool]:
     keys: dict[str, bool] = {}
     section = ""
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    lines = text.splitlines()
     i = 0
     while i < len(lines):
         line = _strip_comment(lines[i])
@@ -172,6 +213,8 @@ def config_report(path: Path) -> dict:
         value = m.group(2)
         if value.lstrip().startswith("[") and "]" not in _QUOTED.sub("", value):  # list continues on the next lines
             while i < len(lines):
+                if _NEW_ASSIGN.match(lines[i]) or _SECTION.match(_strip_comment(lines[i])):
+                    break  # the list was never closed: do not swallow the next settings
                 more = _strip_comment(lines[i])
                 i += 1
                 value += " " + more
@@ -179,7 +222,7 @@ def config_report(path: Path) -> dict:
                     break
         name = f"{section}.{m.group(1)}" if section else m.group(1)
         keys[name] = _is_filled(value)
-    return {"exists": True, "keys": keys}
+    return keys
 
 
 def _print_report(d: Path) -> None:
@@ -208,6 +251,7 @@ def _print_report(d: Path) -> None:
 # ---- setup --------------------------------------------------------------------------------------------------------
 
 def _python() -> str:
+    """The interpreter that builds the venv (only needed when the venv does not exist yet)."""
     if sys.version_info >= MIN_PYTHON:
         return sys.executable
     for name in ("python3.13", "python3.12", "python3.11"):
@@ -230,20 +274,38 @@ def _link_storage(d: Path, data: Path) -> None:
         print(f"aviso: não consegui ligar {storage} a {target} ({e}); os vídeos ficam dentro do checkout.", file=sys.stderr)
 
 
+def _warn_if_not_pinned(d: Path) -> None:
+    """pip installs the requirements.txt of whatever commit is checked out: say so when it is not the pinned one."""
+    ref = tools.pinned_ref(tools.get("moneyprinter"))
+    try:
+        head = tools._git("rev-parse", "HEAD", cwd=d)
+    except tools.ToolError:
+        return  # not a git checkout (a copy, or a test stand-in): nothing to compare
+    if head != ref:
+        print(f"aviso: o checkout {d} está em {head[:12]}, não no commit fixado {ref[:12]}; o pip vai instalar o "
+              "requirements.txt desse outro commit. Rode `simplicio-video moneyprinter clone` para voltar ao pino.",
+              file=sys.stderr)
+
+
 def _setup(d: Path, args: list[str]) -> int:
     if args:
         raise MoneyPrinterError("setup não recebe argumentos.")
-    py = _python()
     data = data_dir()
+    _warn_if_not_pinned(d)
     steps = []
     if not venv_python().exists():
-        steps.append([py, "-m", "venv", str(data / "venv")])
+        steps.append([_python(), "-m", "venv", str(data / "venv")])
     steps.append([str(venv_python()), "-m", "pip", "install", "-r", "requirements.txt"])
-    data.mkdir(parents=True, exist_ok=True)
+    try:
+        data.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise MoneyPrinterError(f"não consegui criar a pasta de dados {data}: {e}") from None
     try:
         for step in steps:
             if subprocess.call(step, cwd=d) != 0:
                 return 1
+    except OSError as e:
+        raise MoneyPrinterError(f"não consegui rodar {step[0]}: {e}") from None
     except KeyboardInterrupt:
         print("moneyprinter: interrompido durante o setup", file=sys.stderr)
         return 130
@@ -251,9 +313,17 @@ def _setup(d: Path, args: list[str]) -> int:
     if config.exists():
         print(f"config.toml já existe e não foi alterado: {config}")
     else:
-        shutil.copyfile(d / "config.example.toml", config)
+        try:
+            shutil.copyfile(d / "config.example.toml", config)
+            if os.name != "nt":
+                os.chmod(config, 0o600)  # the user will put paid API keys here: nobody else on the machine reads them
+        except OSError as e:
+            raise MoneyPrinterError(f"não consegui criar o config.toml a partir de config.example.toml: {e}") from None
         print(f"config.toml criado a partir do exemplo, sem nenhuma chave: {config}")
-    _link_storage(d, data)
+    try:
+        _link_storage(d, data)
+    except OSError as e:
+        raise MoneyPrinterError(f"não consegui preparar o storage em {data}: {e}") from None
     print(f"venv em {data / 'venv'}; vídeos gerados em {data / 'storage'}")
     _print_report(d)
     return 0
@@ -363,7 +433,10 @@ def _serve(d: Path, args: list[str]) -> int:
     procs: list[subprocess.Popen] = []
     try:
         for cmd in cmds:
-            procs.append(subprocess.Popen(cmd, cwd=d, env=env, start_new_session=True))
+            try:
+                procs.append(subprocess.Popen(cmd, cwd=d, env=env, start_new_session=True))
+            except OSError as e:
+                raise MoneyPrinterError(f"não consegui iniciar {cmd[0]}: {e}") from None
         while True:
             for p, label in zip(procs, labels):
                 rc = p.poll()
@@ -410,11 +483,15 @@ def run_moneyprinter(args: list[str]) -> int:
     if first not in SUBCOMMANDS.split("|"):
         raise MoneyPrinterError(f"subcomando desconhecido: {first} ({SUBCOMMANDS})")
     if first == "clone":
+        if len(args) > 2:
+            raise MoneyPrinterError(f"clone recebe no máximo uma pasta; argumento a mais: {args[2]}")
         print(clone_moneyprinter(Path(args[1]) if len(args) > 1 else None))
         return 0
     d = find_moneyprinter_dir()
     if d is None:
         raise MoneyPrinterError("MoneyPrinterTurbo não encontrado: rode `simplicio-video moneyprinter clone` ou defina MONEYPRINTER_DIR.")
+    if first in ("where", "status") and len(args) > 1:
+        raise MoneyPrinterError(f"{first} não recebe argumentos; argumento a mais: {args[1]}")
     if first == "where":
         print(d)
         return 0

@@ -8,7 +8,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 |---|---|---|
 | `ABACATEPAY_API_KEY` | Chave da API AbacatePay (cobrança Pix da trilha de venda). Só no ambiente. | `src/simplicio_video/venda.py:119` |
 | `ABACATEPAY_WEBHOOK_SECRET` | Segredo que valida o webhook de pagamento da trilha de venda. | `src/simplicio_video/venda.py:168`<br>`src/simplicio_video/venda.py:196` |
-| `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:317` |
+| `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:387` |
 | `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`). Só no ambiente; nunca no repo. | `src/simplicio_video/prospect.py:811`<br>`src/simplicio_video/voice.py:196` |
 | `HYPERFRAMES_BROWSER_PATH` | Chrome headless que o HyperFrames usa na captura. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:155` |
 | `HYPERFRAMES_FFMPEG_PATH` | ffmpeg que o HyperFrames usa. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:179` |
@@ -23,7 +23,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:50` |
 | `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:49` |
 | `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. | `src/simplicio_video/engine/remote_render.py:178` |
-| `PYTHONPATH` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:342` |
+| `PYTHONPATH` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:412` |
 | `SIMPLICIO_COLAB_AUTH` | Modo de autenticação do Colab CLI, repassado a `--auth`. | `src/simplicio_video/remote.py:183`<br>`src/simplicio_video/remote.py:184` |
 | `SIMPLICIO_DRIVE_DESTINO` | JSON com `caminho` e `arquivo` da entrega no Drive da trilha de venda. | `src/simplicio_video/venda.py:239` |
 | `SIMPLICIO_DRIVE_REMOTE` | Nome do remote do rclone para o Drive (padrão: `gdrive`). | `src/simplicio_video/publish.py:108` |

@@ -261,7 +261,7 @@ usage: simplicio-video moneyprinter [-h] ...
 Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo, MIT) no commit fixado em tools.py. Exige Python 3.11 ou mais novo; o setup cria um venv isolado e copia o config.toml sem chave nenhuma. O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080) e só abre para a rede com --lan. As chaves de API nunca são impressas. Fica fora do render determinístico.
 
 positional arguments:
-  args        clone [dir] | setup | serve [--webui] [--api] [--lan] | where | status
+  args        clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | where | status
 
 options:
   -h, --help  show this help message and exit
