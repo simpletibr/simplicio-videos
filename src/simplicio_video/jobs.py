@@ -37,10 +37,6 @@ from pathlib import Path
 from .aio import positive_int
 from .swap import scrub
 
-try:  # POSIX only; without it the state is still written atomically, just not serialized between processes
-    import fcntl
-except ImportError:  # pragma: no cover
-    fcntl = None
 
 SCHEMA = "simplicio.job/v1"
 STATES = ("queued", "running", "done", "failed", "cancelled", "lost")
@@ -119,9 +115,20 @@ def write_json_atomic(path: Path, obj: dict) -> None:
             tmp.unlink()
 
 
+def _fcntl():
+    """`fcntl` is POSIX only; imported here, where it is used. Without it the state is still written atomically (temp +
+    os.replace), just not serialized between processes."""
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover (Windows)
+        return None
+    return fcntl
+
+
 @contextlib.contextmanager
 def _locked(jid: str):
     d = job_dir(jid)
+    fcntl = _fcntl()
     if fcntl is None or not d.is_dir():
         yield
         return
@@ -801,6 +808,10 @@ def run_jobs(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     if not a.cmd:
         ap.print_help(sys.stderr)
+        return 1
+    if sys.platform == "win32":  # process groups, flock and POSIX signals: the runner is POSIX only (Linux, macOS)
+        print("jobs: tarefas em segundo plano não funcionam no Windows (precisam de grupos de processos e sinais POSIX); "
+              "use `swap run` e `voice` direto, ou o WSL.", file=sys.stderr)
         return 1
     try:
         if a.cmd == "_run":
