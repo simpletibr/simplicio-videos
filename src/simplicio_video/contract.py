@@ -180,6 +180,11 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
     for a in items:
         if not c.rel(a["arquivo"]).is_file():
             rep.errors.append(f"assets: missing file {a['arquivo']} (-> {a['destino']})")
+    # ---- assets from the Openverse library: declared provenance, review for the request, rights and credit (offline) ----
+    from . import openverse_contract  # lazy: a contract with no asset never loads it
+    ov = openverse_contract.verify(c)
+    rep.errors += ov.errors
+    rep.warnings += ov.warnings
     # ---- voice fits the scene, never sped up ----
     v = d["voz"]
     jcut = v.get("jcut_max_s", 0.15)

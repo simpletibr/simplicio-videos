@@ -285,6 +285,10 @@
           },
           "em": {
             "type": "string"
+          },
+          "aceito_restricao": {
+            "type": "boolean",
+            "description": "Só quando a licença tem restrição (nc, nd, sa) e o export foi feito com --aceito-restricao: a prova que o validate do contrato confere."
           }
         }
       }

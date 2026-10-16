@@ -142,7 +142,15 @@
       "type": "object", "additionalProperties": false, "required": ["arquivo", "destino"],
       "properties": {
         "arquivo": { "type": "string", "description": "source path relative to the contract" },
-        "destino": { "type": "string", "pattern": "^assets/", "description": "path inside the composition" }
+        "destino": { "type": "string", "pattern": "^assets/", "description": "path inside the composition" },
+        "openverse": {
+          "type": "object", "additionalProperties": false, "required": ["id", "pedido"],
+          "description": "optional provenance of an image or audio asset that comes from the Openverse library (simplicio-video openverse). The file must be the one `openverse library export <id> --pedido ... --contrato <contrato>` copied to assets/openverse/, next to its CREDITS-openverse.md. validate and render refuse it offline unless the id is in the library, the file has the library's sha256, the verdict for the exact pair (id, sha256, pedido, provenance) is approved, a restricted license was accepted at the export (--aceito-restricao) and the credit line is in CREDITS-openverse.md. A file inside assets/openverse/ without this block is refused. The render records the provenance in render.manifest.json and writes the credits next to the output MP4. The audio engine does not mix an audio asset by itself: only a template or block that references the file plays it.",
+          "properties": {
+            "id": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", "description": "Openverse id (UUID) of the asset in the local library" },
+            "pedido": { "type": "string", "minLength": 1, "maxLength": 500, "description": "what the scene needs from this asset; compared normalized (no accents, lower case, no punctuation) with the request the asset was approved for" }
+          }
+        }
       }
     },
     "fala": {

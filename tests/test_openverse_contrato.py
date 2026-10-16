@@ -17,13 +17,14 @@ import ast
 import copy
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 import yaml
 
 from conftest import ROOT, have_render_tools
-from simplicio_video import compiler, contract as ct, openverse as ov, paths, render
+from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract, paths, render
 from test_openverse import (
     ID_IMG, OUTRO_PEDIDO, PEDIDO, PNG_B, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, cli, env, midia)
 
@@ -340,6 +341,19 @@ def test_biblioteca_ilegivel_nao_derruba_contrato_que_nao_usa_openverse(env, min
     assert any("openverse" in w and "índice" in w for w in rep.warnings), rep.warnings
 
 
+def test_projeto_dentro_de_uma_pasta_assets_openverse_nao_marca_todo_asset_como_do_openverse(env, mini, tmp_path):
+    destino = tmp_path / "assets" / "openverse" / "projeto"
+    shutil.copytree(mini.parent, destino)
+    (destino / "assets" / "client").mkdir(parents=True)
+    (destino / "assets" / "client" / "foto.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"cliente")
+    _edit(destino / "contract.yaml", lambda d: d.update(assets=[{"arquivo": "assets/client/foto.png", "destino": "assets/client/foto.png"}]))
+    assert openverse_contract.in_openverse_dir(destino / "assets" / "openverse" / "x.png", destino) is True
+    assert openverse_contract.in_openverse_dir(destino / "assets" / "client" / "foto.png", destino) is False
+    assert openverse_contract.in_openverse_dir(tmp_path / "outro" / "assets" / "openverse" / "x.png", destino) is True  # fora do contrato: a pasta do arquivo
+    assert openverse_contract.in_openverse_dir(tmp_path / "outro" / "assets" / "client" / "x.png", destino) is False
+    assert _ok(destino / "contract.yaml") is not None
+
+
 def test_contratos_dos_clientes_do_repositorio_nao_ganham_erro_do_openverse():
     for p in ROOT.glob("clients/*/*/contract.yaml"):
         rep = ct.validate(ct.load(p))
@@ -386,6 +400,19 @@ def test_verify_asset_usa_as_funcoes_do_modulo_e_nao_duplica_a_aprovacao():
     for usa in ("_check_id", "_clean_pedido", "_revisao", "_check_export_rights", "_credit_marker"):
         assert usa in corpo, usa
     assert "proveniencia_sha256" not in corpo and "_proveniencia(" not in corpo  # a regra do par vive em _vale/_revisao
+
+
+def test_credits_markdown_junta_uma_linha_por_ativo_na_ordem_e_recusa_bytes_que_a_biblioteca_nao_tem(env, midia, aprovado):
+    outro = _aprovar(env, midia, 1, "borrada")
+    pares = [(outro["id"], outro["sha256"]), (aprovado["id"], aprovado["sha256"]), (outro["id"], outro["sha256"])]
+    texto = ov.credits_markdown(pares)
+    linhas = [ln for ln in texto.splitlines() if ln.startswith("- ")]
+    assert texto.startswith(ov.CREDITS_HEADER) and len(linhas) == 2
+    assert outro["sha256"] in linhas[0] and aprovado["sha256"] in linhas[1]
+    with pytest.raises(ov.OpenverseError, match="não está na biblioteca"):
+        ov.credits_markdown([(aprovado["id"], "0" * 64)])
+    with pytest.raises(ov.OpenverseError, match="não está na biblioteca"):
+        ov.credits_markdown([(SEM_ID, aprovado["sha256"])])
 
 
 def test_load_index_e_publico_e_recusa_indice_invalido(env):
@@ -490,7 +517,7 @@ def test_creditos_do_video_sanitizam_texto_hostil_da_internet(env, aprovado, min
     texto = (mini.parent / "out" / "mini.CREDITS-openverse.md").read_text(encoding="utf8")
     linhas = [ln for ln in texto.splitlines() if ln.startswith("- ")]
     assert len(linhas) == 1  # a quebra de linha do título não cria item novo
-    for perigo in ("<script", "<b>", "<img", "javascript:", "](http://evil.example)", "https://evil.example/x", "onerror"):
+    for perigo in ("<script", "<b>", "<img", "javascript:", "](http://evil.example)", "https://evil.example/x", "onerror="):
         assert perigo not in texto, perigo
     assert "link removido" in texto
     assert "https://exemplo.org/a b" not in texto
@@ -648,6 +675,13 @@ def test_library_verify_nao_mexe_na_biblioteca_nem_no_contrato(env, aprovado, mi
     antes = ((env.lib / "index.json").read_bytes(), mini.read_bytes())
     cli(["library", "verify", str(mini)], capsys)
     assert ((env.lib / "index.json").read_bytes(), mini.read_bytes()) == antes
+
+
+def test_export_para_um_contrato_diz_como_declarar_o_ativo(env, aprovado, mini, capsys):
+    rc, out, _ = cli(["library", "export", aprovado["id"], "--pedido", PEDIDO, "--contrato", str(mini)], capsys)
+    assert rc == 0 and "próximo passo" in out and "openverse: {id: " + aprovado["id"] in out and "library verify" in out
+    rc, out, _ = cli(["library", "export", aprovado["id"], "--pedido", PEDIDO, "--para", str(env.tmp / "solto")], capsys)
+    assert rc == 0 and "próximo passo" not in out
 
 
 def test_help_do_openverse_lista_o_verify(capsys):

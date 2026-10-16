@@ -197,7 +197,10 @@ def render_local(c: Contract, out: Path | None = None, quality: str | None = Non
 
 def write_manifest(c: Contract, dst: Path, backend: str, quality: str, gpu: bool, info: dict, timings: dict,
                    tools: dict | None = None, usage: dict | None = None, log=print) -> dict:
-    """render.manifest.json next to the contract (same schema for every backend) + <out>.frames.md5."""
+    """render.manifest.json next to the contract (same schema for every backend) + <out>.frames.md5.
+    A contract with Openverse assets also gets its credits next to the MP4 and the provenance of each asset under `openverse`."""
+    from . import openverse_contract
+    ov_block = openverse_contract.deliver(c, dst)  # before anything is written: an asset that stopped being valid fails here
     media = media_hashes(dst)
     manifest = {
         "schema": "simplicio.render-manifest/v1",
@@ -211,6 +214,8 @@ def write_manifest(c: Contract, dst: Path, backend: str, quality: str, gpu: bool
     }
     if usage:
         manifest["usage"] = usage
+    if ov_block:
+        manifest["openverse"] = ov_block
     (c.dir / "render.manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     (dst.parent / (dst.stem + ".frames.md5")).write_text("\n".join(media["frame_md5"]) + "\n")
     log(f"render[{backend}]: {dst} ({media['duration_s']} s, {media['frames']} frames) · inputs {info['inputs_sha256'][:12]} · "
@@ -388,11 +393,15 @@ def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = 
     s = c.data["saida"]["arquivo"]
     dst = (out or c.rel(str(Path(s).with_name(Path(s).stem + "-previa.mp4")))).resolve()
     res = make_preview(raw, dst, c.home, log=log, marca=marca, chrome=chrome)
+    from . import openverse_contract
+    ov_block = openverse_contract.deliver(c, dst)  # the preview shows the assets too: same provenance, credits next to it
     t2 = time.time()
     man = {"schema": "simplicio.preview-manifest/v1", "contract_sha256": c.sha256(), "inputs_sha256": info["inputs_sha256"],
            "preview": {**res, "path": os.path.relpath(dst, c.dir)}, "spec": {**PREVIEW, "marca": marca},
            "timings_s": {**info["timings_s"], "render_total": round(t1 - t0, 2), "preview_post": round(t2 - t1, 2),
                          "total": round(t2 - t0, 2)}}
+    if ov_block:
+        man["openverse"] = ov_block
     (c.dir / "preview.manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     log(f"preview: {dst} ({res['duration_s']} s, {res['bytes'] // 1024} KiB) · render {t1 - t0:.1f}s + pós {t2 - t1:.1f}s")
     return man
