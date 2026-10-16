@@ -8,9 +8,11 @@ carregam fonte, data e confiança; e nenhuma saída do motor chama "confirmar" s
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
@@ -1225,3 +1227,64 @@ def test_marcadores_no_nome_do_video_e_na_pasta_do_plano_tambem_sao_dado(tmp_pat
             assert mostrar["items"][0].startswith(f"o arquivo `{mp4.name}` (sha256 {sha12}) ")
     bloqueada = social.recipe(p["path"])
     assert f"`{mp4.name}` (sha256 {sha12})" in bloqueada["steps"][0]["text"]
+
+
+# ------------------------------------------------------------------------------------------------ chave local de aceite: corrida na criação
+
+def test_chave_criada_por_outro_processo_durante_a_criacao_e_relida_em_vez_de_estourar(video, monkeypatch):
+    """Dois `plan --aceito-unverified` ao mesmo tempo: os dois não achavam a chave e o segundo estourava FileExistsError
+    (traceback, sem o `social:` do CLI). A chave que já existe é a que vale: é relida e nunca sobrescrita."""
+    kp = social._accept_key_path()
+    ganhadora = b"G" * 32
+    sorteio = os.urandom
+
+    def outro_processo_cria_primeiro(n):
+        monkeypatch.setattr(social.os, "urandom", sorteio)  # uma vez só
+        kp.parent.mkdir(parents=True, exist_ok=True)
+        kp.write_bytes(ganhadora)  # entre a leitura que não achou nada e a criação da nossa
+        return sorteio(n)
+
+    monkeypatch.setattr(social.os, "urandom", outro_processo_cria_primeiro)
+    assert social._accept_key(create=True) == ganhadora
+    assert kp.read_bytes() == ganhadora
+    assert sorted(p.name for p in kp.parent.iterdir()) == [kp.name]  # sem arquivo temporário sobrando
+
+
+def test_plano_aceito_na_corrida_da_chave_confere_com_a_chave_vencedora(video, monkeypatch):
+    kp = social._accept_key_path()
+    sorteio = os.urandom
+
+    def outro_processo_cria_primeiro(n):
+        monkeypatch.setattr(social.os, "urandom", sorteio)
+        kp.parent.mkdir(parents=True, exist_ok=True)
+        kp.write_bytes(b"V" * 32)
+        return sorteio(n)
+
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 700.0})
+    monkeypatch.setattr(social.os, "urandom", outro_processo_cria_primeiro)
+    path = plano(video, targets=["tiktok"], accept_unverified=True)["path"]
+    assert ler(path)["accepted_unverified"] == ["tiktok:duration_max_s"]
+    assert social.check_plan(path)["ok"] is True
+
+
+def test_varias_threads_pedindo_a_chave_ao_mesmo_tempo_recebem_a_mesma(tmp_path, monkeypatch):
+    for rodada in range(8):
+        monkeypatch.setattr(social, "_accept_key_path", lambda r=rodada: tmp_path / f"corrida-{r}" / "social-accept.key")
+        largada, chaves, erros = threading.Barrier(12), [], []
+
+        def pede():
+            largada.wait()
+            try:
+                chaves.append(social._accept_key(create=True))
+            except Exception as e:  # noqa: BLE001 - o que importa é não haver nenhuma
+                erros.append(repr(e))
+
+        fios = [threading.Thread(target=pede) for _ in range(12)]
+        for f in fios:
+            f.start()
+        for f in fios:
+            f.join()
+        assert not erros, erros
+        assert len(set(chaves)) == 1 and len(chaves[0]) == 32
+        assert social._accept_key_path().read_bytes() == chaves[0]
+        assert oct(social._accept_key_path().stat().st_mode & 0o777) == "0o600"
