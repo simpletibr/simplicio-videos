@@ -787,7 +787,10 @@ def _stream_to_file(resp, tipo: str, declarado: int | None = None, deadline: flo
     try:
         with os.fdopen(fd, "wb") as f:
             while True:
-                block = resp.read(READ_BLOCK)
+                try:
+                    block = resp.read(READ_BLOCK)
+                except (OSError, http.client.HTTPException) as e:  # a timeout or a reset in the middle of the body
+                    raise OpenverseError(f"falha de rede no download: {type(e).__name__}") from None
                 if not block:
                     break
                 total += len(block)
@@ -1124,9 +1127,12 @@ def export(id_, pedido, para=None, contrato=None, aceito_restricao=False) -> dic
                                      "Apague ou renomeie o arquivo de lá")
         else:
             dest.mkdir(parents=True, exist_ok=True)
-            tmp = dest / f".{target.name}.{os.getpid()}.tmp"
+            fd, tmp_name = tempfile.mkstemp(dir=dest, prefix=f".{target.name}.", suffix=".tmp")  # exclusive and unpredictable: never follows a planted symlink
+            tmp = Path(tmp_name)
             try:
-                shutil.copyfile(src, tmp)
+                with os.fdopen(fd, "wb") as out, open(src, "rb") as inp:
+                    shutil.copyfileobj(inp, out)
+                os.chmod(tmp, 0o644)  # mkstemp makes it 0600; an exported asset is a normal file of the client folder
                 if sha256_file(tmp) != rec["sha256"]:
                     raise OpenverseError("a cópia não confere com o sha256 do índice: descartada")
                 os.replace(tmp, target)
