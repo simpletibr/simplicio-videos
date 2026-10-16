@@ -533,6 +533,132 @@
       }
     },
     {
+      "verb": "video.jobs.list",
+      "description": "List background tasks (newest first). A task whose runner died is reported as lost. Read-only.",
+      "argv": [
+        "simplicio-video",
+        "jobs",
+        "list",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "verb": "video.jobs.status",
+      "description": "State of one background task: running, done, failed, cancelled or lost.",
+      "argv": [
+        "simplicio-video",
+        "jobs",
+        "status",
+        "{id}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$",
+            "description": "id da tarefa (veja video.jobs.list)"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "verb": "video.jobs.result",
+      "description": "Result of a finished background task (exit 2 while it still runs).",
+      "argv": [
+        "simplicio-video",
+        "jobs",
+        "result",
+        "{id}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$",
+            "description": "id da tarefa (veja video.jobs.list)"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "verb": "video.jobs.cancel",
+      "description": "Cancel a background task (SIGINT to its process group, SIGKILL after the grace period).",
+      "argv": [
+        "simplicio-video",
+        "jobs",
+        "cancel",
+        "{id}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$",
+            "description": "id da tarefa (veja video.jobs.list)"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "verb": "video.jobs.submit-voice",
+      "description": "Run voice in the background with a LOCAL provider only (file, local, voxcpm, openvoice): it spends nothing. swap-run and network voice are submitted in the terminal with --yes, never here.",
+      "argv": [
+        "simplicio-video",
+        "jobs",
+        "submit",
+        "voice",
+        "{contrato}",
+        "--provider",
+        "{provider}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contrato": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "file",
+              "local",
+              "voxcpm",
+              "openvoice"
+            ]
+          }
+        },
+        "required": [
+          "contrato",
+          "provider"
+        ]
+      }
+    },
+    {
       "verb": "video.toonflow",
       "description": "Toonflow open-source AI studio for short dramas and videos (https://github.com/HBAI-Ltd/Toonflow-app): clone into the default folder, where; serve runs in the terminal with --lan.",
       "argv": [
@@ -770,6 +896,7 @@
       "video.opencut",
       "video.formats",
       "video.swap",
+      "video.jobs",
       "video.toonflow",
       "video.moneyprinter",
       "video.social",

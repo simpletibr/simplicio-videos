@@ -51,6 +51,7 @@ class Capabilities:
     keeps_audio: bool
     bills_input: bool
     min_input_s: float = 0.0
+    max_concurrency: int = 3  # chunks of one video in flight at once; an adapter can lower it (provider rate limits)
 
 
 @dataclass(frozen=True)
@@ -201,7 +202,7 @@ class Adapter:
                 "capabilities": {"resolutions": list(c.resolutions), "max_input_s": c.max_input_s,
                                  "min_input_s": c.min_input_s, "max_output_s": c.max_output_s,
                                  "max_ref_images": c.max_ref_images, "keeps_audio": c.keeps_audio,
-                                 "bills_input": c.bills_input},
+                                 "bills_input": c.bills_input, "max_concurrency": c.max_concurrency},
                 "prices": [{"model": r.model, "resolution": r.resolution, "usd_per_s_out": r.usd_per_s_out,
                             "usd_per_s_in": r.usd_per_s_in, "brl_per_s_out": round(r.usd_per_s_out * FX["brl_per_usd"], 4),
                             "source_url": r.source_url, "read_on": r.read_on, "confidence": r.confidence,

@@ -1,8 +1,8 @@
 """MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
 
 Tools: video.init, video.validate, video.voice, video.render, video.run, video.list, video.clone, video.montage,
-video.edit, video.opencut, video.toonflow, video.moneyprinter, video.social (providers|plan|check|recipe, never publish). Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
-Long steps (render on kaggle/colab-cli) block until done. O upload no Drive não é tool deste servidor.
+video.edit, video.opencut, video.toonflow, video.moneyprinter, video.swap, video.formats, video.jobs, video.social (providers|plan|check|recipe, never publish). Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
+Long steps (render on kaggle/colab-cli) block until done; video.jobs runs a local voice task in the background instead. O upload no Drive não é tool deste servidor.
 
 Run: `simplicio-video mcp` or `simplicio-video-mcp` (needs `pip install -e .[mcp]`).
 """
@@ -157,6 +157,28 @@ def video_swap(acao: str = "providers", provider: str | None = None, video: str 
         return {"ok": False, "error": str(e)}
 
 
+def video_jobs(acao: str = "list", id: str | None = None, kind: str | None = None, params: dict | None = None,
+               state: str | None = None) -> dict:
+    """Background tasks over MCP: `list`, `status`, `result`, `cancel` for any task, and `submit` ONLY for `voice` with a
+    local provider (no money). There is no way to confirm a spend here: `swap-run` and network voice are submitted in the
+    terminal (`simplicio-video jobs submit ... --yes`). The function has no `yes` argument on purpose."""
+    from . import jobs
+    try:
+        if acao == "list":
+            return {"ok": True, "jobs": [jobs.summary(s) for s in jobs.list_jobs(state)]}
+        if acao == "status":
+            return {"ok": True, "job": jobs.summary(jobs.status(id or ""))}
+        if acao == "result":
+            return {"ok": True, **jobs.result(id or "")}
+        if acao == "cancel":
+            return {"ok": True, "job": jobs.summary(jobs.cancel(id or "", block=False))}
+        if acao == "submit":
+            return {"ok": True, "job": jobs.summary(jobs.submit(kind or "", dict(params or {}), confirm_yes=False, origin="mcp"))}
+        return {"ok": False, "error": f"acao desconhecida: {acao} (list|status|result|cancel|submit)"}
+    except jobs.JobError as e:
+        return {"ok": False, "error": str(e)}
+
+
 def video_social(acao: str = "providers", plano: str | None = None, video: str | None = None, caption: str = "",
                  targets: list[str] | None = None, title: str | None = None, at: str | None = None, timezone: str | None = None,
                  ai_generated: bool = False, provider: str | None = None, clip_id: str | None = None) -> dict:
@@ -247,6 +269,7 @@ TOOLS = [
     ("video.opencut", video_opencut, "OpenCut editor (clone|dev|where) for manual finishing (https://github.com/OpenCut-app/OpenCut)."),
     ("video.formats", video_formats, "Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format."),
     ("video.swap", video_swap, "Character swap, read-only: providers (adapters, capabilities, price, confidence) and estimate (cost before spending). Never runs a paid swap; run is terminal-only."),
+    ("video.jobs", video_jobs, "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes)."),
     ("video.social", video_social, "Social, local and read-only: providers (Real Oficial default, Zernio; their MCP tools and limits), plan (validate an MP4 against per-network limits, write social.plan.json), check (plan still matches the file) and recipe (the exact MCP call sequence for the provider: quote/preview, show the user, explicit consent, then publish). Never publishes: the agent posts with the provider's own tools after the user's explicit yes per post."),
     ("video.toonflow", video_toonflow, "Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app)."),
     ("video.moneyprinter", video_moneyprinter, "MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder and where only (setup and serve run in the terminal) (https://github.com/harry0703/MoneyPrinterTurbo)."),

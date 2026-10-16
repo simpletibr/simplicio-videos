@@ -27,10 +27,11 @@ Fluxo completo:
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
+  jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/toonflow/moneyprinter/social
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -60,6 +61,7 @@ comandos (na ordem do fluxo):
     moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
     formats       biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
     swap          troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
+    jobs          tarefas em segundo plano (swap run, voice) num processo separado
     social        redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP
     mcp           servidor MCP (stdio) para o simplicio-runtime
     status        ferramentas instaladas, versões fixadas e estado do render
@@ -213,6 +215,47 @@ exemplos:
   simplicio-video install --check
   simplicio-video install
   simplicio-video install --python 3.12 --with local-tts
+```
+
+## simplicio-video jobs
+
+```text
+usage: simplicio-video jobs [-h] ...
+
+Tarefas em segundo plano: `submit` volta na hora e a tarefa roda num processo separado (grupo de processos próprio,
+um loop asyncio por tarefa), sem daemon e sem abrir porta. O estado fica em JSON em <dados>/jobs/<id>/job.json
+($SIMPLICIO_VIDEO_DATA, padrão ~/.simplicio-video), com escrita atômica.
+
+Lista fechada de tarefas:
+  swap-run    swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens
+              do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal
+  voice       voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede
+              (gemini) pede --yes
+
+Subcomandos:
+  submit TIPO ...   cria a tarefa e devolve o id
+  status ID         estado, tempos, pids e erro (estado lost = o runner morreu; a tarefa que sobrou é encerrada)
+  list              tarefas, da mais nova para a mais antiga (--state filtra)
+  result ID         o resultado de uma tarefa terminada (sai com 2 se ainda roda)
+  cancel ID         SIGINT no grupo da tarefa, SIGKILL depois da tolerância; o swap cancela limpo e grava o manifesto
+  clean             remove tarefas terminadas há mais de 7 dias (--older-than-days); `submit` também limpa
+
+Pelo MCP (tool video.jobs): list, status, result, cancel e submit só de voz com provedor local. swap-run nunca.
+A chave de API fica só no ambiente: argumentos com chave são recusados e nada vai para o estado nem para o log.
+
+positional arguments:
+  args        submit | status | list | cancel | result | clean
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video jobs submit voice clients/x/video-01/contract.yaml --provider local
+  simplicio-video jobs submit swap-run --provider gemini --video in.mp4 --ref avatar.png --out out/swap.mp4 --autorizo --yes
+  simplicio-video jobs status 20261016-120000-1a2b3c4d --json
+  simplicio-video jobs list --state running
+  simplicio-video jobs result 20261016-120000-1a2b3c4d
+  simplicio-video jobs cancel 20261016-120000-1a2b3c4d
 ```
 
 ## simplicio-video list
@@ -508,6 +551,10 @@ Subcomandos:
   run                   executa; exige --autorizo; sem --yes só estima (dry-run); --max-usd é o teto de gasto
   status <manifesto>    lê o swap.manifest.json de uma execução
 
+Os pedaços do vídeo vão em paralelo (asyncio sobre o cliente HTTP da biblioteca padrão): --concurrency N (padrão 3, o
+adaptador pode limitar a menos; 1 = serial). A emenda e o manifesto seguem a ordem do vídeo; se um pedaço falhar, os outros
+são cancelados e o erro diz qual foi; Ctrl+C cancela limpo. O ffmpeg (corte, normalização, emenda) segue serial.
+
 A chave de API entra só pela variável de ambiente do provedor (GEMINI_API_KEY, FAL_KEY, WAVESPEED_API_KEY, KIE_API_KEY,
 DASHSCOPE_API_KEY), nunca por argumento. Use só vídeo e imagens sobre os quais você tem direito. O prompt padrão mantém
 todas as outras pessoas, o cenário, a câmera e o áudio.
@@ -601,7 +648,7 @@ exemplos:
 
 ```text
 usage: simplicio-video voice [-h] [--provider {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}]
-                             [--force]
+                             [--force] [--concurrency N]
                              CONTRATO.yaml [FALA_ID ...]
 
 Gera cada fala (cenas[].fala), trata (corte de silêncio + cadeia ffmpeg voz.processamento, 48 kHz mono)
@@ -626,6 +673,8 @@ options:
   --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}
                                   override voz.provider
   --force                         ignora o cache (com ids: só esses)
+  --concurrency N                 falas geradas ao mesmo tempo, só em provedor de rede (gemini; padrão 4; 1 =
+                                  serial). Provedor local é sempre serial
 
 exemplos:
   simplicio-video voice contract.yaml                    # provider do contrato (voz.provider)

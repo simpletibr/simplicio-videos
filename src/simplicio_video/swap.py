@@ -14,6 +14,8 @@ Rules that do not bend:
 from __future__ import annotations
 
 import argparse
+import asyncio
+import contextlib
 import hashlib
 import json
 import math
@@ -27,16 +29,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import swap_providers
+from .aio import athread, clamp, positive_int, run_sync
 from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError, redact
 
 __all__ = ["Job", "SwapError", "SwapTimeout", "run_swap", "plan_chunks", "estimate_report", "providers_report"]
 
 MANIFEST_NAME = "swap.manifest.json"
+LOCK_NAME = ".swap.lock"
 MANIFEST_SCHEMA = "simplicio.swap-manifest/v1"
 DEFAULT_MAX_USD = 2.0
 POLL_MAX_S = 30.0
+SUBMIT_DRAIN_S = 10.0  # how long a cancelled chunk waits for its in-flight submit, so a charged handle is not lost
 DEFAULT_TIMEOUT_S = 900.0
 DEFAULT_POLL_S = 5.0
+DEFAULT_CONCURRENCY = 3  # chunks of one video in flight at once (--concurrency); the adapter can lower it
 MAX_TRIES = 3
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp")
 AUTORIZACAO_TEXTO = (
@@ -147,26 +153,6 @@ def plan_chunks(total_s: float, max_s: float, min_s: float = 0.0) -> list[tuple[
     return [(total_s * i / n, length) for i in range(n)]
 
 
-def _com_tentativas(fn, tentativas: list, max_tries: int = MAX_TRIES, retry_network: bool = True):
-    """Call fn, retrying only transient provider errors with exponential backoff. tentativas[0] counts the calls.
-    With retry_network=False (submit) a network failure is never retried: the provider may have accepted and charged the
-    request without answering, and no provider supports an idempotency key here, so a retry could charge twice."""
-    for i in range(max_tries):
-        tentativas[0] += 1
-        try:
-            return fn()
-        except ProviderError as e:
-            if e.network and not retry_network:
-                e.retryable, e.possibly_charged = False, True
-                e.args = (f"{e} A requisição pode ter sido aceita e cobrada sem resposta; o envio não foi repetido para não "
-                          "cobrar em dobro. Confira o painel do provedor antes de rodar de novo.",)
-                raise
-            if not e.retryable or i == max_tries - 1:
-                raise
-            _sleep(min(2.0 ** (i + 1), 30.0))
-    raise AssertionError("unreachable")
-
-
 def write_manifest(path: Path, data: dict) -> None:
     text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     for v in _secrets():
@@ -174,7 +160,38 @@ def write_manifest(path: Path, data: dict) -> None:
             raise SwapError("segredo (chave de API) encontrado no manifesto: não gravado")
     text = redact(text)  # a key-shaped string (e.g. pasted in --prompt) is hidden even when it is not in the environment
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf8")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")  # temp + os.replace: a kill never leaves a half manifest
+    try:
+        with open(tmp, "w", encoding="utf8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+
+
+@contextlib.contextmanager
+def _folder_lock(folder: Path):
+    """One swap run per output folder: the manifest name is fixed per folder, so two runs would overwrite each other's
+    paid handles. Non-blocking flock on a file in the folder (POSIX; without fcntl the guard is skipped)."""
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover (Windows)
+        yield
+        return
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / LOCK_NAME, "a") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise SwapError(f"outra execução do swap está usando esta pasta de saída ({folder}): ela grava o mesmo "
+                            f"{MANIFEST_NAME} e os dois se sobrescreveriam. Espere terminar ou use outra pasta em --out") from None
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def build_prompt(extra: str = "") -> str:
@@ -248,11 +265,6 @@ def status_summary() -> list[dict]:
 
 # ------------------------------------------------------------------------------------------------------ execution
 
-def _cut(src: Path, start: float, length: float, dst: Path) -> None:
-    _run([_bin("ffmpeg"), "-y", "-v", "error", "-ss", f"{start:.3f}", "-i", str(src), "-t", f"{length:.3f}",
-          "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", str(dst)])
-
-
 def _normalize(raw: Path, dst: Path, info: dict, length: float, keep_audio: bool) -> None:
     w, h = (info["width"] // 2 * 2) or 640, (info["height"] // 2 * 2) or 360
     vf = (f"fps={info['fps']:.3f},tpad=stop_mode=clone:stop_duration={length:.3f},"
@@ -294,14 +306,60 @@ def _save_partial(path: Path, manifest: dict) -> None:
         pass
 
 
-def _poll_until_done(adapter, handle: dict, rec: dict, timeout: float, interval: float) -> None:
+async def _asleep(seconds: float) -> None:
+    """Sleep without blocking the loop. Tests replace `_sleep` with a fake clock: then honour it and only yield."""
+    if _sleep is time.sleep:
+        await asyncio.sleep(seconds)
+    else:
+        _sleep(seconds)
+        await asyncio.sleep(0)
+
+
+async def _arun(cmd: list[str]) -> None:
+    """`_run` for the event loop: the subprocess dies with the task when it is cancelled (Ctrl+C, another chunk failed)."""
+    try:
+        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    except FileNotFoundError:
+        raise SwapError(f"{Path(cmd[0]).name} não encontrado: instale o ffmpeg (ffmpeg e ffprobe no PATH)") from None
+    try:
+        _, err = await proc.communicate()
+    except BaseException:
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        await asyncio.shield(proc.wait())
+        raise
+    if proc.returncode != 0:
+        raise SwapError(f"{Path(cmd[0]).name} falhou ({proc.returncode}): {(err or b'').decode('utf8', 'replace')[-600:].strip()}")
+
+
+async def _acom_tentativas(fn, counter: list, max_tries: int = MAX_TRIES, retry_network: bool = True):
+    """Retry policy for a provider call, on the event loop: the blocking call runs in a thread, the backoff does not block the others.
+    Same rule for submit: a network failure is never retried (the provider may have accepted and charged the request)."""
+    for i in range(max_tries):
+        counter[0] += 1
+        try:
+            return await athread(fn)
+        except ProviderError as e:
+            if e.network and not retry_network:
+                e.retryable, e.possibly_charged = False, True
+                e.args = (f"{e} A requisição pode ter sido aceita e cobrada sem resposta; o envio não foi repetido para não "
+                          "cobrar em dobro. Confira o painel do provedor antes de rodar de novo.",)
+                raise
+            if not e.retryable or i == max_tries - 1:
+                raise
+            await _asleep(min(2.0 ** (i + 1), 30.0))
+    raise AssertionError("unreachable")
+
+
+async def _apoll_until_done(adapter, handle: dict, rec: dict, timeout: float, interval: float) -> None:
+    """Polling with exponential backoff for ONE chunk; every chunk runs its own loop, so the waits overlap."""
     t0 = _now()
     wait = interval
     errors = 0
     running_at = None
     while True:
         try:
-            st = adapter.poll(handle)
+            st = await athread(adapter.poll, handle)
             errors = 0
         except ProviderError as e:
             errors += 1
@@ -318,23 +376,150 @@ def _poll_until_done(adapter, handle: dict, rec: dict, timeout: float, interval:
             if st.state == "failed":
                 raise ProviderError(f"{adapter.name}: a geração falhou: {st.error or 'sem detalhe'}", retryable=False)
         if _now() - t0 > timeout:
-            raise SwapTimeout(f"timeout de {timeout:g} s esperando o pedaço {rec['index']} ({adapter.name}); "
+            raise SwapTimeout(f"timeout de {timeout:g} s esperando o provedor ({adapter.name}); "
                               f"o manifesto guarda o handle para conferir depois")
-        _sleep(wait)
+        await _asleep(wait)
         wait = min(wait * 1.5, POLL_MAX_S)
 
 
-def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFAULT_TIMEOUT_S,
-            poll_interval: float = DEFAULT_POLL_S, max_usd: float = DEFAULT_MAX_USD) -> dict:
+async def _submit_protected(adapter, job, counter: list, rec: dict, save):
+    """Submit shielded from cancellation: the provider may accept (and charge) a request whose task was cancelled because
+    another chunk failed or the user pressed Ctrl+C. On cancel, wait a bounded time for the in-flight submit and record the
+    handle it returns; if it does not finish, the chunk is marked possibly charged."""
+    sub = asyncio.ensure_future(_acom_tentativas(lambda: adapter.submit(job), counter, retry_network=False))
+    try:
+        return await asyncio.shield(sub)
+    except asyncio.CancelledError:
+        if sub.done() and sub.cancelled():
+            raise
+        finished = sub.done()
+        if not finished:
+            try:
+                done, _ = await asyncio.wait({sub}, timeout=SUBMIT_DRAIN_S)
+                finished = bool(done)
+            except asyncio.CancelledError:  # cancelled again while draining: give up waiting
+                finished = sub.done()
+        if finished and not sub.cancelled() and sub.exception() is None:
+            rec["handle"], rec["state"] = sub.result(), "submitted"
+            save()
+        elif finished and not sub.cancelled():
+            exc = sub.exception()
+            rec["possibly_charged"] = bool(getattr(exc, "possibly_charged", False))
+        else:
+            rec["possibly_charged"] = True
+            rec["state"] = "cancelled_during_submit"
+            sub.add_done_callback(lambda f: f.cancelled() or f.exception())  # consume a late error
+            sub.cancel()
+            save()
+        raise
+
+
+async def _chunk(i: int, p: "Plan", prompt: str, work: Path, rec: dict, counters: dict, gate: dict, timeout: float,
+                 poll_interval: float, save) -> Path:
+    """One chunk, from the cut to the downloaded bytes. The semaphore bounds how many chunks are in flight; the cut lock
+    keeps ffmpeg serial (CPU) while the waits of the other chunks overlap with it."""
+    adapter, info = p.adapter, p.info
+    start, length = p.chunks[i]
+    n = len(p.chunks)
+    try:
+        async with gate["sem"]:
+            t_chunk = _now()
+            if n == 1:
+                clip = p.video
+            else:
+                clip = work / f"chunk-{i:02d}.mp4"
+                async with gate["cut"]:
+                    await _arun([_bin("ffmpeg"), "-y", "-v", "error", "-ss", f"{start:.3f}", "-i", str(p.video), "-t",
+                                 f"{length:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+                                 "-c:a", "aac", str(clip)])
+            job = Job(video=clip, refs=p.refs, prompt=prompt, resolution=p.job.resolution, duration_s=length, fps=info["fps"],
+                      width=info["width"], height=info["height"], has_audio=info["has_audio"], index=i)
+            _log(f"swap: pedaço {i + 1}/{n} ({length:.1f} s): enviando para {adapter.name}")
+            t = _now()
+            try:
+                handle = await _submit_protected(adapter, job, counters["submit"][i], rec, save)
+            except ProviderError as e:
+                rec["possibly_charged"] = e.possibly_charged
+                raise
+            finally:
+                rec["attempts"] = counters["submit"][i][0]
+            rec["latency"]["upload_s"] = round(_now() - t, 3)
+            rec["handle"], rec["state"] = handle, "submitted"
+            save()  # the paid handle reaches the disk before the long wait
+            await _apoll_until_done(adapter, handle, rec, timeout, poll_interval)
+            t = _now()
+            data = await _acom_tentativas(lambda: adapter.fetch(handle), counters["fetch"][i])
+            rec["latency"]["download_s"] = round(_now() - t, 3)
+            raw = work / f"raw-{i:02d}.mp4"
+            raw.write_bytes(data)
+            rec["raw_path"] = str(raw)
+            rec["state"] = "done"
+            try:
+                rec["measured_usd"] = adapter.measured_usd(handle)
+            except Exception:  # noqa: BLE001 (a usage field the adapter cannot read must not fail a paid job)
+                rec["measured_usd"] = None
+            rec["latency"]["total_s"] = round(_now() - t_chunk, 3)
+            return raw
+    except asyncio.CancelledError:
+        if rec["state"] not in ("done", "cancelled_during_submit"):
+            rec["state"] = "cancelled"
+        raise
+    except SwapError as e:
+        rec["state"] = "timeout" if isinstance(e, SwapTimeout) else "failed"
+        e.args = (f"pedaço {i + 1}/{n}: {e}",)  # which chunk, in the message and in the manifest
+        rec["error"] = scrub(str(e))
+        raise
+    except Exception as e:  # noqa: BLE001 (unexpected: the chunk is failed, the handle stays in the manifest)
+        rec["state"] = "failed"
+        rec["error"] = scrub(f"pedaço {i + 1}/{n}: {type(e).__name__}: {e}")
+        raise
+
+
+async def _run_chunks(p: "Plan", prompt: str, work: Path, recs: list[dict], counters: dict, effective: int, timeout: float,
+                      poll_interval: float, save) -> list[Path]:
+    """Submit every chunk (at most `effective` in flight), poll them concurrently and return the raw files in chunk order.
+    The first failure cancels the others and is the error reported (the lowest chunk index when several fail together)."""
+    gate = {"sem": asyncio.Semaphore(effective), "cut": asyncio.Lock()}
+    tasks = [asyncio.create_task(_chunk(i, p, prompt, work, recs[i], counters, gate, timeout, poll_interval, save),
+                                 name=f"swap-chunk-{i}") for i in range(len(p.chunks))]
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+        failed = [t for t in tasks if t.done() and not t.cancelled() and t.exception() is not None]
+        if failed:
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise failed[0].exception()  # tasks are in chunk order: the lowest index first
+        return [t.result() for t in tasks]
+    except asyncio.CancelledError:
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
+
+def execute(p: Plan, out: Path, **kw) -> dict:
+    """Run the swap for `p` into `out` (see `_execute`), holding the output folder for the whole run."""
+    with _folder_lock(out.parent):
+        return _execute(p, out, **kw)
+
+
+def _execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFAULT_TIMEOUT_S,
+            poll_interval: float = DEFAULT_POLL_S, max_usd: float = DEFAULT_MAX_USD,
+            concurrency: int | None = None) -> dict:
     adapter, info = p.adapter, p.info
     manifest_path = out.parent / MANIFEST_NAME
     prompt = build_prompt(extra_prompt)
+    caps = adapter.capabilities
+    effective = clamp(concurrency, DEFAULT_CONCURRENCY, min(caps.max_concurrency, len(p.chunks)))
     work = out.parent / f".swap-work-{os.getpid()}"
     work.mkdir(parents=True, exist_ok=True)
     manifest = {
         "schema": MANIFEST_SCHEMA, "state": "running", "provider": adapter.name, "model": adapter.model,
         "resolution": p.job.resolution, "adapter_version": adapter.version, "adapter_verified": adapter.verified,
         "prompt": prompt, "max_usd": max_usd,
+        "concurrency": {"requested": DEFAULT_CONCURRENCY if concurrency is None else int(concurrency),
+                        "effective": effective, "adapter_max": caps.max_concurrency},
         "authorization": {"flag": "--autorizo", "text": AUTORIZACAO_TEXTO,
                           "confirmed_at": datetime.now(timezone.utc).isoformat(timespec="seconds")},
         "inputs": {"video": {"path": str(p.video), "sha256": sha256_file(p.video), "duration_s": round(info["duration_s"], 3),
@@ -342,54 +527,32 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
                              "has_audio": info["has_audio"]},
                    "refs": [{"path": str(r), "sha256": sha256_file(r)} for r in p.refs]},
         "estimate": p.estimate.as_dict(), "price_confidence": p.estimate.confidence, "measured_usd": None,
-        "attempts": 0, "fetch_attempts": 0, "chunks": [], "output": None, "error": None,
+        "attempts": 0, "fetch_attempts": 0, "timing": None, "chunks": [], "output": None, "error": None,
     }
-    tent = [0]  # submit calls, retries included
-    fetch_tent = [0]
-    recs: list[dict] = []
+    recs = [{"index": i, "start_s": round(start, 3), "length_s": round(length, 3), "state": "pending", "handle": None,
+             "attempts": 0, "error": None, "measured_usd": None, "possibly_charged": False,
+             "latency": {"upload_s": None, "queue_s": None, "generation_s": None, "download_s": None, "total_s": None}}
+            for i, (start, length) in enumerate(p.chunks)]
+    manifest["chunks"] = recs
+    counters = {"submit": [[0] for _ in recs], "fetch": [[0] for _ in recs]}  # calls per chunk, retries included
+
+    def tally() -> None:
+        manifest["attempts"] = sum(c[0] for c in counters["submit"])
+        manifest["fetch_attempts"] = sum(c[0] for c in counters["fetch"])
+
+    def save() -> None:
+        tally()
+        _save_partial(manifest_path, manifest)
+
     try:
-        raws: list[Path] = []
-        for i, (start, length) in enumerate(p.chunks):
-            rec = {"index": i, "start_s": round(start, 3), "length_s": round(length, 3), "state": "pending", "handle": None,
-                   "attempts": 0, "error": None, "measured_usd": None, "possibly_charged": False,
-                   "latency": {"upload_s": None, "queue_s": None, "generation_s": None, "download_s": None}}
-            recs.append(rec)
-            manifest["chunks"] = recs
-            if len(p.chunks) == 1:
-                clip = p.video
-            else:
-                clip = work / f"chunk-{i:02d}.mp4"
-                _cut(p.video, start, length, clip)
-            job = Job(video=clip, refs=p.refs, prompt=prompt, resolution=p.job.resolution, duration_s=length, fps=info["fps"],
-                      width=info["width"], height=info["height"], has_audio=info["has_audio"], index=i)
-            before = tent[0]
-            _log(f"swap: pedaço {i + 1}/{len(p.chunks)} ({length:.1f} s): enviando para {adapter.name}")
-            t = _now()
-            try:
-                handle = _com_tentativas(lambda: adapter.submit(job), tent, retry_network=False)
-            except ProviderError as e:
-                rec["possibly_charged"] = e.possibly_charged
-                raise
-            finally:
-                rec["attempts"] = tent[0] - before
-                manifest["attempts"] = tent[0]
-            rec["latency"]["upload_s"] = round(_now() - t, 3)
-            rec["handle"], rec["state"] = handle, "submitted"
-            _save_partial(manifest_path, manifest)  # the paid handle reaches the disk before the long wait
-            _poll_until_done(adapter, handle, rec, timeout, poll_interval)
-            t = _now()
-            data = _com_tentativas(lambda: adapter.fetch(handle), fetch_tent)
-            rec["latency"]["download_s"] = round(_now() - t, 3)
-            manifest["fetch_attempts"] = fetch_tent[0]
-            raw = work / f"raw-{i:02d}.mp4"
-            raw.write_bytes(data)
-            raws.append(raw)
-            rec["raw_path"] = str(raw)
-            rec["state"] = "done"
-            try:
-                rec["measured_usd"] = adapter.measured_usd(handle)
-            except Exception:  # noqa: BLE001 (a usage field the adapter cannot read must not fail a paid job)
-                rec["measured_usd"] = None
+        t_wall = _now()
+        raws = run_sync(_run_chunks(p, prompt, work, recs, counters, effective, timeout, poll_interval, save))
+        wall = _now() - t_wall
+        tally()
+        sum_chunks = sum(r["latency"]["total_s"] or 0.0 for r in recs)
+        manifest["timing"] = {"wall_s": round(wall, 3), "sum_chunks_s": round(sum_chunks, 3),
+                              "speedup": round(sum_chunks / wall, 3) if wall > 0 else None,
+                              "saved_s": round(sum_chunks - wall, 3)}
         known = [r["measured_usd"] for r in recs if r["measured_usd"] is not None]
         manifest["measured_usd"] = round(sum(known), 6) if known else None
         keep = adapter.capabilities.keeps_audio and all(probe(r)["has_audio"] for r in raws)
@@ -419,10 +582,12 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         write_manifest(manifest_path, manifest)
         return manifest
     except BaseException as e:  # noqa: BLE001 (Ctrl+C and unexpected errors must keep the paid handles too)
+        tally()
         kept = _preserve_paid(work, out, recs, manifest)
         if kept:
             e.args = (f"{e} Os pedaços já gerados e pagos ficaram em {kept} (nada foi apagado).",)
-        if isinstance(e, KeyboardInterrupt):
+        interrupted = isinstance(e, (KeyboardInterrupt, asyncio.CancelledError))
+        if interrupted:
             manifest["state"] = "interrupted"
         elif isinstance(e, SwapTimeout):
             manifest["state"] = "timeout"
@@ -430,8 +595,9 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
             manifest["state"] = "failed"
         manifest["error"] = scrub(str(e) or type(e).__name__) if isinstance(e, SwapError) else scrub(f"{type(e).__name__}: {e}")
         for r in recs:
-            if r["state"] not in ("done",):
-                r["state"] = manifest["state"]
+            if r["state"] == "pending" or (interrupted and r["state"] not in ("done", "cancelled_during_submit")):
+                r["state"] = "interrupted" if interrupted else "cancelled"  # never started / stopped before the end
+            if r["state"] == "interrupted":
                 r["error"] = manifest["error"]
         _save_partial(manifest_path, manifest)
         raise
@@ -493,6 +659,9 @@ HELP_DESC = (
     "  estimate              custo previsto, sem rede (precisa de ffprobe)\n"
     "  run                   executa; exige --autorizo; sem --yes só estima (dry-run); --max-usd é o teto de gasto\n"
     "  status <manifesto>    lê o swap.manifest.json de uma execução\n\n"
+    "Os pedaços do vídeo vão em paralelo (asyncio sobre o cliente HTTP da biblioteca padrão): --concurrency N (padrão 3, o\n"
+    "adaptador pode limitar a menos; 1 = serial). A emenda e o manifesto seguem a ordem do vídeo; se um pedaço falhar, os outros\n"
+    "são cancelados e o erro diz qual foi; Ctrl+C cancela limpo. O ffmpeg (corte, normalização, emenda) segue serial.\n\n"
     "A chave de API entra só pela variável de ambiente do provedor (GEMINI_API_KEY, FAL_KEY, WAVESPEED_API_KEY, KIE_API_KEY,\n"
     "DASHSCOPE_API_KEY), nunca por argumento. Use só vídeo e imagens sobre os quais você tem direito. O prompt padrão mantém\n"
     "todas as outras pessoas, o cenário, a câmera e o áudio."
@@ -532,6 +701,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--prompt", default="", help="instrução extra, somada ao prompt padrão que protege as outras pessoas")
     p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_S, help="segundos de espera por pedaço")
     p.add_argument("--poll-interval", type=float, default=DEFAULT_POLL_S, help="segundos entre consultas (cresce até 30)")
+    p.add_argument("--concurrency", type=positive_int, default=DEFAULT_CONCURRENCY, metavar="N",
+                   help=f"pedaços em voo ao mesmo tempo (padrão {DEFAULT_CONCURRENCY}; o adaptador pode limitar a menos; 1 = serial)")
     p.add_argument("--aceito-unverified", action="store_true", help="aceita gastar em adaptador UNVERIFIED")
     p.add_argument("--force", action="store_true", help="sobrescreve a saída se já existir")
     p = sub.add_parser("status", help="lê o swap.manifest.json")
@@ -594,9 +765,11 @@ def _cmd_run(a) -> int:
         raise SwapError(f"a saída já existe: {out} (use --force para sobrescrever)")
     if not a.json:
         print(_estimate_text(p, a.max_usd), file=sys.stderr)
-    m = execute(p, out, extra_prompt=a.prompt, timeout=a.timeout, poll_interval=a.poll_interval, max_usd=a.max_usd)
+    m = execute(p, out, extra_prompt=a.prompt, timeout=a.timeout, poll_interval=a.poll_interval, max_usd=a.max_usd,
+                concurrency=a.concurrency)
     res = {"state": m["state"], "output": m["output"]["path"], "manifest": str(out.parent / MANIFEST_NAME),
-           "estimate_usd": m["estimate"]["usd"], "measured_usd": m["measured_usd"], "attempts": m["attempts"]}
+           "estimate_usd": m["estimate"]["usd"], "measured_usd": m["measured_usd"], "attempts": m["attempts"],
+           "concurrency": m["concurrency"]["effective"], "speedup": (m["timing"] or {}).get("speedup")}
     _emit(res, a.json, f"pronto: {res['output']}\nmanifesto: {res['manifest']}", indent=None)
     return 0
 

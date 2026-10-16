@@ -480,7 +480,7 @@ def test_gemini_plano_gratis_mensagem_clara_e_sem_retry(gemini, media, monkeypat
     rota = Rota([(429, fx("gemini_error_free_plan.json"))])
     monkeypatch.setattr(http, "request", rota)
     with pytest.raises(swap_providers.ProviderError) as e:
-        swap._com_tentativas(lambda: gemini.submit(gjob(media)), tentativas=[0])
+        swap.run_sync(swap._acom_tentativas(lambda: gemini.submit(gjob(media)), [0]))
     assert e.value.retryable is False and "faturamento" in str(e.value)
     assert len(rota.calls) == 1
 
@@ -627,8 +627,13 @@ def test_i4_erro_de_cota_nunca_repete(gemini, media, monkeypatch, fixture, chama
     rota = Rota([(429, fx(fixture))])
     monkeypatch.setattr(http, "request", rota)
     with pytest.raises(swap_providers.ProviderError) as e:
-        swap._com_tentativas(lambda: gemini.submit(gjob(media)), tentativas=[0])
+        swap.run_sync(swap._acom_tentativas(lambda: gemini.submit(gjob(media)), [0]))
     assert e.value.retryable is False and len(rota.calls) == chamadas
+
+
+def test_m2_so_existe_um_caminho_de_retry():
+    """O retry síncrono era código morto em produção e os testes de cota o exercitavam no lugar do real."""
+    assert not hasattr(swap, "_com_tentativas") and hasattr(swap, "_acom_tentativas")
 
 
 def test_i4_plano_gratis_com_texto_de_cota_cita_faturamento(gemini, media, monkeypatch):
