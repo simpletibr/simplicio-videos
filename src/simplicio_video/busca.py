@@ -97,8 +97,15 @@ _SEGREDO_RE = re.compile(r"(?<![A-Za-z0-9_])(?:AIza[0-9A-Za-z_-]{8,}|AQ\.[A-Za-z
                          r"github_pat_[A-Za-z0-9_]{20,}|xox[a-z]-[A-Za-z0-9-]{8,}|eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AKIA[0-9A-Z]{16}|"
                          r"Bearer\s+[A-Za-z0-9._~+/=-]{8,})|-----BEGIN [A-Z ]*PRIVATE KEY-----")
 _NOME_SEGREDO_RE = re.compile(r"(?i)KEY|SECRET|TOKEN|PASSWORD|PASSWD")
-_PARAM_CREDENCIAL_RE = re.compile(r"(?i)(?:api[_-]?key|key|token|access[_-]?token|auth|authorization|secret|client[_-]?secret|password|passwd|pwd|"
-                                  r"sig|signature|session|sessionid|jwt|bearer)")
+# A parameter name (lowercased, camelCase split with `_`) ends in one of these words after the start or a `-`, `_` or `.`:
+# access_token, X-Amz-Signature, X-Goog-Signature, private_token, id_token, client_secret, apikey, code (OAuth), but not monkey or keyword.
+_PARAM_CREDENCIAL_RE = re.compile(r"(?:^|[-_.])(?:api[-_]?key|key|token|auth|authorization|secret|credentials?|password|passwd|pwd|sig|signature|"
+                                  r"session|session[-_]?id|jwt|bearer|code)$")
+_CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+# Names that resolve to a private or local address (the fetch is made by the third party, so this protects what the name reveals,
+# not your network): a short list, not a guarantee. A public name that points to a private IP still passes.
+_TLDS_INTERNOS = frozenset({"internal", "local", "lan", "localdomain", "localhost"})
+_SUFIXOS_COM_IP = (".nip.io", ".sslip.io")
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 _CPF_FMT_RE = re.compile(r"(?<!\d)\d{3}\.\d{3}\.\d{3}-\d{2}(?!\d)")
 _CNPJ_FMT_RE = re.compile(r"(?<!\d)\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}(?!\d)")
@@ -381,8 +388,8 @@ def _idioma(valor) -> str | None:
 
 
 def _url_http(valor) -> str | None:
-    """The URL when it is http(s), has a public-looking host name (no IP, no localhost, no user:password@), no space,
-    control or hidden character and a sane size; None otherwise."""
+    """The URL when it is http(s), has a public-looking host name (no IP, no localhost, no internal suffix such as .local, .lan,
+    .internal, .localdomain, nip.io or sslip.io, no user:password@), no space, control or hidden character and a sane size; None otherwise."""
     if not isinstance(valor, str) or not valor or len(valor) > MAX_URL_CHARS or not _utf8_ok(valor):
         return None
     if any(ord(c) <= 32 or ord(c) == 127 for c in valor) or _CONTROLE_RE.search(valor) or _INVISIVEIS_RE.search(valor):
@@ -393,7 +400,22 @@ def _url_http(valor) -> str | None:
     host, _, porta = m.group(2).partition(":")
     if porta and not (porta.isdigit() and 0 < int(porta) < 65536):
         return None
-    return valor if _HOST_RE.fullmatch(host) else None
+    if not _HOST_RE.fullmatch(host):
+        return None
+    nome = host.lower()
+    return None if nome.rsplit(".", 1)[-1] in _TLDS_INTERNOS or nome.endswith(_SUFIXOS_COM_IP) else valor
+
+
+def _credencial_na_url(url: str) -> bool:
+    """A parameter named like a credential (see _PARAM_CREDENCIAL_RE) with a value of 8+ characters, in the query or in the fragment
+    (OAuth implicit flow puts `access_token` there; a single-page app may put a whole `/route?token=...` there)."""
+    sem_fragmento, _, fragmento = url.partition("#")
+    pares = sem_fragmento.partition("?")[2].split("&") + fragmento.replace("?", "&").split("&")
+    for par in pares:
+        nome, _, valor = par.partition("=")
+        if len(valor) >= 8 and _PARAM_CREDENCIAL_RE.search(_CAMEL_RE.sub("_", nome).lower()):
+            return True
+    return False
 
 
 def _url_do_usuario(url) -> str:
@@ -405,13 +427,11 @@ def _url_do_usuario(url) -> str:
         raise BuscaError("URL com usuário:senha é recusada: ela é enviada a um terceiro e nunca deve carregar credencial")
     ok = _url_http(url)
     if ok is None:
-        raise BuscaError(f"URL inválida: use http ou https, um nome de host público (nada de IP, localhost ou endereço interno), sem espaço, "
-                         f"até {MAX_URL_CHARS} caracteres")
-    consulta_ = ok.partition("#")[0].partition("?")[2]
-    for par in consulta_.split("&"):
-        nome, _, valor = par.partition("=")
-        if len(valor) >= 8 and _PARAM_CREDENCIAL_RE.fullmatch(nome):
-            raise BuscaError("a URL leva credencial na query (chave, token, senha ou assinatura): ela é enviada a um terceiro, nada foi enviado")
+        raise BuscaError(f"URL inválida: use http ou https, um nome de host público (nada de IP, localhost, nem sufixo interno como .local, .lan, "
+                         f".internal, .localdomain, nip.io ou sslip.io), sem espaço, até {MAX_URL_CHARS} caracteres")
+    if _credencial_na_url(ok):
+        raise BuscaError("a URL leva credencial na query ou no fragmento (chave, token, senha, assinatura ou código): ela é enviada a um "
+                         "terceiro, nada foi enviado")
     return ok
 
 
@@ -689,9 +709,22 @@ def _registrar(rec: dict) -> str:
     return rec["id"]
 
 
-def _registro_base(comando: str, canal: str, do_cache: bool, chave: str, doc: dict, **campos) -> dict:
+def _registro_base(comando: str, canal: str, do_cache: bool, chave: str, doc: dict, url_final_recusada: bool = False, **campos) -> dict:
     return {"schema": SCHEMA_REGISTRO, "em": _stamp(), "comando": comando, "canal": canal, "do_cache": do_cache, "chave_cache": chave,
-            "cli_versao": doc.get("cli_versao"), "conteudo_sha256": doc["conteudo_sha256"], "conteudo_bytes": doc["conteudo_bytes"], **campos}
+            "cli_versao": doc.get("cli_versao"), "conteudo_sha256": doc["conteudo_sha256"], "conteudo_bytes": doc["conteudo_bytes"],
+            "url_final_recusada": url_final_recusada, **campos}
+
+
+def _url_final(valor) -> tuple[str | None, bool]:
+    """(the final URL after redirects when the validator accepts it, whether a non-empty one was refused). An empty value is no
+    redirect information; a non-empty one that is refused (IP, internal name, user:password@, odd format) is never replaced by the
+    requested URL as the source of what was read."""
+    if isinstance(valor, str):
+        valor = _oculta_env(valor).strip()
+    if _vazio(valor):
+        return None, False
+    ok = _url_http(valor) if isinstance(valor, str) else None
+    return ok, ok is None
 
 
 def _aviso_cache_velho(doc: dict) -> list[str]:
@@ -820,20 +853,31 @@ def pagina(url, max_bytes=MAX_BYTES_PADRAO, atualizar=False, max_chamadas_dia=No
                                  f"{_linha(scrub(str(primeiro.get('error', ''))), 300)!r}); a chamada conta no teto do dia")
             raise BuscaError("resposta do tinyfish sem resultado para a URL: nada foi gravado")
         r = resultados[0]
-        texto, cortado = _texto_pagina(r.get("text"), limite_bytes)
-        final = r.get("final_url")
-        doc = {"schema": SCHEMA_CACHE, "comando": "pagina", "consultado_em": _stamp(), "cli_versao": versao, "conteudo_sha256": _sha(saida),
-               "conteudo_bytes": len(saida), "parametros": params,
-               "pagina": {"url": url, "url_final": _url_http(_oculta_env(final)) if isinstance(final, str) else None,
+        final, recusada = _url_final(r.get("final_url"))
+        if recusada:  # nothing of a page that came from a refused address is kept: no text, no title, not even that address
+            pagina_doc = {"url": url, "url_final": None, "url_final_recusada": True, "titulo": None, "descricao": None, "idioma": None,
+                          "autor": None, "data_publicacao": None, "texto": "", "truncado": False}
+        else:
+            texto, cortado = _texto_pagina(r.get("text"), limite_bytes)
+            pagina_doc = {"url": url, "url_final": final, "url_final_recusada": False,
                           "titulo": _linha_ou_none(r.get("title"), MAX_TITULO), "descricao": _linha_ou_none(r.get("description"), MAX_TRECHO),
                           "idioma": _linha_ou_none(r.get("language"), MAX_METADADO), "autor": _linha_ou_none(r.get("author"), MAX_METADADO),
-                          "data_publicacao": _linha_ou_none(r.get("published_date"), MAX_METADADO), "texto": texto, "truncado": cortado}}
+                          "data_publicacao": _linha_ou_none(r.get("published_date"), MAX_METADADO), "texto": texto, "truncado": cortado}
+        doc = {"schema": SCHEMA_CACHE, "comando": "pagina", "consultado_em": _stamp(), "cli_versao": versao, "conteudo_sha256": _sha(saida),
+               "conteudo_bytes": len(saida), "parametros": params, "pagina": pagina_doc}
         _gravar_cache(chave, doc)
     p = doc["pagina"]
     avisos += _aviso_cache_velho(doc) if do_cache else []
+    final, recusada = _url_final(p.get("url_final"))
+    if recusada or p.get("url_final_recusada") is True:
+        reg_id = _registrar(_registro_base("pagina", canal, do_cache, chave, doc, True, consulta=None, url=url, dominios=[], excluir=[], idioma=None,
+                                           urls_resultados=[], n_resultados=1, n_mostrados=0, entregue_sha256=_sha(""), entregue_bytes=0,
+                                           truncado=False))
+        raise BuscaError("redirecionamento para URL recusada: o TinyFish seguiu a página para um endereço que o motor não aceita (IP, nome "
+                         "interno, usuário:senha@ ou formato inválido), então o conteúdo não foi entregue nem guardado. A leitura de verdade "
+                         f"contou no teto do dia e ficou no registro (id {reg_id}); leia a página por outro caminho")
     texto, cortado = _texto_pagina(p.get("texto"), limite_bytes)
     cortado = cortado or bool(p.get("truncado"))
-    final = _url_http(p.get("url_final"))
     if cortado:
         avisos.append(f"texto truncado em {limite_bytes} bytes: o resto da página não foi entregue (use --max-bytes maior, até {MAX_BYTES_MAX})")
     if final and final.rstrip("/") != url.rstrip("/"):
@@ -845,6 +889,7 @@ def pagina(url, max_bytes=MAX_BYTES_PADRAO, atualizar=False, max_chamadas_dia=No
                                        urls_resultados=[final or url], n_resultados=1, n_mostrados=1, entregue_sha256=_sha(texto),
                                        entregue_bytes=n_bytes, truncado=cortado))
     return {"schema": SCHEMA_PAGINA, "aviso_untrusted": UNTRUSTED_NOTICE, "untrusted_fonte": url, "untrusted_url_final": final,
+            "url_final_recusada": False,
             "untrusted_titulo": _linha_ou_none(p.get("titulo"), MAX_TITULO), "untrusted_descricao": _linha_ou_none(p.get("descricao"), MAX_TRECHO),
             "untrusted_idioma": _linha_ou_none(p.get("idioma"), MAX_METADADO), "untrusted_autor": _linha_ou_none(p.get("autor"), MAX_METADADO),
             "untrusted_data_publicacao": _linha_ou_none(p.get("data_publicacao"), MAX_METADADO), "untrusted_conteudo": texto,

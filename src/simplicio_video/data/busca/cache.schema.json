@@ -144,6 +144,10 @@
         },
         "truncado": {
           "type": "boolean"
+        },
+        "url_final_recusada": {
+          "type": "boolean",
+          "description": "true: redirecionou para URL recusada; texto vazio e nenhum metadado guardado"
         }
       }
     }

@@ -25,7 +25,8 @@
     "conteudo_bytes",
     "entregue_sha256",
     "entregue_bytes",
-    "truncado"
+    "truncado",
+    "url_final_recusada"
   ],
   "properties": {
     "schema": {
@@ -127,6 +128,10 @@
     },
     "truncado": {
       "type": "boolean"
+    },
+    "url_final_recusada": {
+      "type": "boolean",
+      "description": "true: a página redirecionou para uma URL que o motor recusa; nada foi entregue e urls_resultados fica vazio"
     }
   }
 }
