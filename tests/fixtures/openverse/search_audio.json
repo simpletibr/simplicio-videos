@@ -1,0 +1,287 @@
+{
+  "result_count": 240,
+  "page_count": 80,
+  "page_size": 3,
+  "page": 1,
+  "results": [
+    {
+      "id": "6b072076-066b-45b6-9695-367a6260c96d",
+      "title": "Rain, Moderate, C.wav",
+      "indexed_on": "2024-05-21T15:00:07.873258Z",
+      "foreign_landing_url": "https://freesound.org/people/InspectorJ/sounds/401275",
+      "url": "https://cdn.freesound.org/previews/401/401275_5121236-hq.mp3",
+      "creator": "InspectorJ",
+      "creator_url": "https://freesound.org/people/InspectorJ",
+      "license": "by",
+      "license_version": "4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "provider": "freesound",
+      "source": "freesound",
+      "category": null,
+      "genres": null,
+      "filesize": 1379890,
+      "filetype": "mp3",
+      "tags": [
+        {
+          "name": "Moderate",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Rain",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Raindrop",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Raindrops",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Raining",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Weather",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "moderate",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "rain",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        }
+      ],
+      "alt_files": [
+        {
+          "url": "https://freesound.org/apiv2/sounds/401275/download/",
+          "bit_rate": 0,
+          "filesize": 10604692,
+          "filetype": "wav",
+          "sample_rate": 44100
+        }
+      ],
+      "attribution": "\"Rain, Moderate, C.wav\" by InspectorJ is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+      "fields_matched": [
+        "description",
+        "title",
+        "tags.name"
+      ],
+      "mature": false,
+      "audio_set": {
+        "title": "Rain, Moderate",
+        "foreign_landing_url": "https://freesound.org/apiv2/packs/22607/",
+        "creator": "InspectorJ",
+        "creator_url": "https://freesound.org/people/InspectorJ/",
+        "url": null,
+        "filesize": null,
+        "filetype": null
+      },
+      "duration": 60116,
+      "bit_rate": 128000,
+      "sample_rate": null,
+      "thumbnail": null,
+      "detail_url": "https://api.openverse.org/v1/audio/6b072076-066b-45b6-9695-367a6260c96d/",
+      "related_url": "https://api.openverse.org/v1/audio/6b072076-066b-45b6-9695-367a6260c96d/related/",
+      "waveform": "https://api.openverse.org/v1/audio/6b072076-066b-45b6-9695-367a6260c96d/waveform/",
+      "unstable__sensitivity": []
+    },
+    {
+      "id": "7cb858c1-1a53-45cf-805d-8099347e260c",
+      "title": "Rain, Moderate, A.wav",
+      "indexed_on": "2024-05-21T15:00:07.873258Z",
+      "foreign_landing_url": "https://freesound.org/people/InspectorJ/sounds/401277",
+      "url": "https://cdn.freesound.org/previews/401/401277_5121236-hq.mp3",
+      "creator": "InspectorJ",
+      "creator_url": "https://freesound.org/people/InspectorJ",
+      "license": "by",
+      "license_version": "4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "provider": "freesound",
+      "source": "freesound",
+      "category": null,
+      "genres": null,
+      "filesize": 1410521,
+      "filetype": "mp3",
+      "tags": [
+        {
+          "name": "Moderate",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Rain",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Raindrop",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Raindrops",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Raining",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Weather",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "moderate",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "rain",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        }
+      ],
+      "alt_files": [
+        {
+          "url": "https://freesound.org/apiv2/sounds/401277/download/",
+          "bit_rate": 0,
+          "filesize": 10602108,
+          "filetype": "wav",
+          "sample_rate": 44100
+        }
+      ],
+      "attribution": "\"Rain, Moderate, A.wav\" by InspectorJ is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+      "fields_matched": [
+        "description",
+        "title",
+        "tags.name"
+      ],
+      "mature": false,
+      "audio_set": {
+        "title": "Rain, Moderate",
+        "foreign_landing_url": "https://freesound.org/apiv2/packs/22607/",
+        "creator": "InspectorJ",
+        "creator_url": "https://freesound.org/people/InspectorJ/",
+        "url": null,
+        "filesize": null,
+        "filetype": null
+      },
+      "duration": 60101,
+      "bit_rate": 128000,
+      "sample_rate": null,
+      "thumbnail": null,
+      "detail_url": "https://api.openverse.org/v1/audio/7cb858c1-1a53-45cf-805d-8099347e260c/",
+      "related_url": "https://api.openverse.org/v1/audio/7cb858c1-1a53-45cf-805d-8099347e260c/related/",
+      "waveform": "https://api.openverse.org/v1/audio/7cb858c1-1a53-45cf-805d-8099347e260c/waveform/",
+      "unstable__sensitivity": []
+    },
+    {
+      "id": "511f8f14-0209-4946-8a17-bce714284c56",
+      "title": "The rain falls against the parasol",
+      "indexed_on": "2024-05-21T15:00:07.873258Z",
+      "foreign_landing_url": "https://freesound.org/people/straget/sounds/531947",
+      "url": "https://cdn.freesound.org/previews/531/531947_7707368-hq.mp3",
+      "creator": "straget",
+      "creator_url": "https://freesound.org/people/straget",
+      "license": "by",
+      "license_version": "4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "provider": "freesound",
+      "source": "freesound",
+      "category": null,
+      "genres": null,
+      "filesize": 1467115,
+      "filetype": "mp3",
+      "tags": [
+        {
+          "name": "Rain",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Rainy",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Water",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "Weather",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "drip",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "dripping",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "drops",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        },
+        {
+          "name": "rain",
+          "accuracy": null,
+          "unstable__provider": "freesound"
+        }
+      ],
+      "alt_files": [
+        {
+          "url": "https://freesound.org/apiv2/sounds/531947/download/",
+          "bit_rate": 0,
+          "filesize": 15916220,
+          "filetype": "wav",
+          "sample_rate": 44100
+        }
+      ],
+      "attribution": "\"The rain falls against the parasol\" by straget is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+      "fields_matched": [
+        "description",
+        "title",
+        "tags.name"
+      ],
+      "mature": false,
+      "audio_set": {
+        "title": "It rains",
+        "foreign_landing_url": "https://freesound.org/apiv2/packs/29969/",
+        "creator": "straget",
+        "creator_url": "https://freesound.org/people/straget/",
+        "url": null,
+        "filesize": null,
+        "filetype": null
+      },
+      "duration": 60151,
+      "bit_rate": 128000,
+      "sample_rate": null,
+      "thumbnail": null,
+      "detail_url": "https://api.openverse.org/v1/audio/511f8f14-0209-4946-8a17-bce714284c56/",
+      "related_url": "https://api.openverse.org/v1/audio/511f8f14-0209-4946-8a17-bce714284c56/related/",
+      "waveform": "https://api.openverse.org/v1/audio/511f8f14-0209-4946-8a17-bce714284c56/waveform/",
+      "unstable__sensitivity": []
+    }
+  ]
+}
