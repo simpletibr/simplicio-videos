@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -263,6 +264,66 @@ def _rel(path: Path, base: Path) -> str:
         return path.resolve().as_posix()
 
 
+def _accept_key_path() -> Path:
+    """Chave local (32 bytes aleatórios, 0600) de quem rodou `plan --aceito-unverified` nesta máquina. Não é credencial de
+    ninguém e nunca vai para o plano: ela só assina o aceite, para que editar o JSON não o forje."""
+    return Path.home() / ".config" / "simplicio-video" / "social-accept.key"
+
+
+def _accept_key(create: bool) -> bytes | None:
+    kp = _accept_key_path()
+    try:
+        data = kp.read_bytes()
+        if len(data) >= 32:
+            return data
+    except OSError:
+        pass
+    if not create:
+        return None
+    kp.parent.mkdir(parents=True, exist_ok=True)
+    key = os.urandom(32)
+    fd = os.open(kp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(key)
+    return key
+
+
+def _accept_proof(key: bytes, pid: str) -> str:
+    return hmac.new(key, ("simplicio.social-accept/v1:" + pid).encode("utf8"), hashlib.sha256).hexdigest()
+
+
+_UNSIGNED = ("plan_id", "accept_proof")
+
+
+def _video_facts(vpath: Path, stored_path: str) -> dict:
+    info = _probe(vpath)
+    if not info.get("width") or not info.get("height") or not info.get("duration_s"):
+        raise SocialError("não consegui ler resolução e duração do vídeo")
+    return {"path": stored_path, "sha256": sha256_file(vpath), "size_bytes": vpath.stat().st_size,
+            "duration_s": round(float(info["duration_s"]), 3), "width": int(info["width"]), "height": int(info["height"]),
+            "aspect_ratio": _ratio_text(int(info["width"]), int(info["height"])), "fps": round(float(info.get("fps") or 0), 3),
+            "video_codec": info.get("video_codec"), "audio_codec": info.get("audio_codec"),
+            "container": "mp4" if "mp4" in str(info.get("container", "mp4")) else str(info.get("container"))}
+
+
+def _limits_stamp(table: dict) -> dict:
+    return {"schema": table.get("schema"), "read_on": table.get("read_on"), "sha256": hashlib.sha256(canonical(table).encode("utf8")).hexdigest()}
+
+
+def _compose(vid: dict, caption: str, title: str | None, tgts: list[dict], sched: dict | None, ai: bool, table: dict) -> tuple[dict, list, list]:
+    """Tudo o que o plano afirma sai daqui, só do vídeo e da tabela: o `plan` grava isto e o `check` recalcula isto."""
+    tags = hashtags_of(caption)
+    networks = list(dict.fromkeys(t["network"] for t in tgts))
+    checks = evaluate(vid, caption, title, tags, networks, table)
+    bad = [c for c in checks if c["status"] == "violation"]
+    hard = [c for c in bad if c["confidence"] == OFFICIAL]
+    soft = [c for c in bad if c["confidence"] != OFFICIAL]
+    body = {"schema": SCHEMA_PLAN, "video": vid, "caption": caption, "hashtags": tags, "title": title, "ai_generated": bool(ai),
+            "targets": tgts, "schedule": sched, "limits": _limits_stamp(table), "checks": checks,
+            "accepted_unverified": [f"{c['network']}:{c['field']}" for c in soft], "ok": True}
+    return body, hard, soft
+
+
 def make_plan(video: str, targets: list[str], *, caption: str, title: str | None = None, at: str | None = None,
               timezone: str | None = None, ai_generated: bool = False, accept_unverified: bool = False,
               out: str | None = None, force: bool = False, limits: dict | None = None) -> dict:
@@ -277,21 +338,9 @@ def make_plan(video: str, targets: list[str], *, caption: str, title: str | None
     dest = Path(out) if out else vpath.resolve().parent / PLAN_NAME
     if dest.exists() and not force:
         raise SocialError(f"já existe {dest}: o plano é trilha de auditoria e não é sobrescrito sem --force")
-    info = _probe(vpath)
-    if not info.get("width") or not info.get("height") or not info.get("duration_s"):
-        raise SocialError("não consegui ler resolução e duração do vídeo")
-    tags = hashtags_of(caption)
-    vid = {"path": _rel(vpath.resolve(), dest.resolve().parent), "sha256": sha256_file(vpath), "size_bytes": vpath.stat().st_size,
-           "duration_s": round(float(info["duration_s"]), 3), "width": int(info["width"]), "height": int(info["height"]),
-           "aspect_ratio": _ratio_text(int(info["width"]), int(info["height"])), "fps": round(float(info.get("fps") or 0), 3),
-           "video_codec": info.get("video_codec"), "audio_codec": info.get("audio_codec"),
-           "container": "mp4" if "mp4" in str(info.get("container", "mp4")) else str(info.get("container"))}
+    vid = _video_facts(vpath, _rel(vpath.resolve(), dest.resolve().parent))
     table = limits or limits_table()
-    networks = list(dict.fromkeys(t["network"] for t in tgts))
-    checks = evaluate(vid, caption, title, tags, networks, table)
-    bad = [c for c in checks if c["status"] == "violation"]
-    hard = [c for c in bad if c["confidence"] == OFFICIAL]
-    soft = [c for c in bad if c["confidence"] != OFFICIAL]
+    body, hard, soft = _compose(vid, caption, title, tgts, sched, ai_generated, table)
     if hard or (soft and not accept_unverified):
         def line(c):
             return f"{c['network']}: {c['field']} limite {c['limit']}, o vídeo tem {c['actual']}" + (" (UNVERIFIED)" if c["confidence"] != OFFICIAL else "")
@@ -299,16 +348,20 @@ def make_plan(video: str, targets: list[str], *, caption: str, title: str | None
         if soft and not hard:
             msg += ". Os limites marcados UNVERIFIED não foram conferidos na página da rede: confira lá e, se o vídeo serve, rode de novo com --aceito-unverified"
         raise SocialError(msg)
-    body = {"schema": SCHEMA_PLAN, "video": vid, "caption": caption, "hashtags": tags, "title": title, "ai_generated": bool(ai_generated),
-            "targets": tgts, "schedule": sched,
-            "limits": {"schema": table.get("schema"), "read_on": table.get("read_on"), "sha256": hashlib.sha256(canonical(table).encode("utf8")).hexdigest()},
-            "checks": checks, "accepted_unverified": [f"{c['network']}:{c['field']}" for c in soft], "ok": True}
-    plan = {"schema": SCHEMA_PLAN, "plan_id": plan_id(body), **{k: v for k, v in body.items() if k != "schema"}}
+    pid = plan_id(body)
+    plan = {"schema": SCHEMA_PLAN, "plan_id": pid, **{k: v for k, v in body.items() if k != "schema"}}
+    if soft:
+        plan["accept_proof"] = _accept_proof(_accept_key(create=True), pid)
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".tmp")
     tmp.write_text(json.dumps(plan, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     os.replace(tmp, dest)
     return {"ok": True, "path": str(dest), "plan": plan}
+
+
+_PLAN_KEYS = {"plan_id": str, "video": dict, "caption": str, "hashtags": list, "ai_generated": bool, "targets": list, "limits": dict,
+              "checks": list, "accepted_unverified": list}
+_VIDEO_KEYS = {"path": str, "sha256": str, "size_bytes": int, "duration_s": (int, float), "width": int, "height": int}
 
 
 def load_plan(path: str) -> dict:
@@ -319,48 +372,106 @@ def load_plan(path: str) -> dict:
         plan = json.loads(p.read_text(encoding="utf8"))
     except ValueError:
         raise SocialError(f"{path} não é um plano do social (JSON inválido)") from None
-    if not isinstance(plan, dict) or plan.get("schema") != SCHEMA_PLAN or "video" not in plan:
+    if not isinstance(plan, dict) or plan.get("schema") != SCHEMA_PLAN or not isinstance(plan.get("video"), dict):
         raise SocialError(f"{path} não é um plano do social (schema {SCHEMA_PLAN})")
+    for k, typ in _PLAN_KEYS.items():
+        if not isinstance(plan.get(k), typ):
+            raise SocialError(f"plano malformado: o campo {k} falta ou tem o tipo errado")
+    for k, typ in _VIDEO_KEYS.items():
+        if not isinstance(plan["video"].get(k), typ) or isinstance(plan["video"].get(k), bool):
+            raise SocialError(f"plano malformado: video.{k} falta ou tem o tipo errado")
+    if not plan["targets"] or not all(isinstance(t, dict) and isinstance(t.get("network"), str) for t in plan["targets"]):
+        raise SocialError("plano malformado: targets precisa de ao menos uma rede")
+    if not (plan.get("title") is None or isinstance(plan.get("title"), str)):
+        raise SocialError("plano malformado: title com tipo errado")
+    sched = plan.get("schedule")
+    if not (sched is None or (isinstance(sched, dict) and isinstance(sched.get("at"), str) and isinstance(sched.get("timezone"), str))):
+        raise SocialError("plano malformado: schedule com tipo errado")
     return plan
 
 
-def check_plan(path: str) -> dict:
+def _check(path: str) -> tuple[dict, dict]:
+    """Revalida o plano contra o vídeo e a tabela de limites. O `plan_id` é só soma de integridade (quem edita o JSON o recalcula):
+    nada do que o plano diz de si é confiado, tudo é recalculado e o plano precisa ser exatamente o que `plan` geraria."""
     plan = load_plan(path)
     problems: list[str] = []
     warnings: list[str] = []
-    body = {k: v for k, v in plan.items() if k != "plan_id"}
-    if plan.get("plan_id") != plan_id(body):
+    body = {k: v for k, v in plan.items() if k not in _UNSIGNED}
+    if plan["plan_id"] != plan_id(body):
         problems.append("plan_id não confere: o plano foi editado depois de gerado")
     vid = plan["video"]
-    vpath = (Path(path).resolve().parent / vid["path"]) if not Path(vid["path"]).is_absolute() else Path(vid["path"])
-    if not vpath.is_file():
-        problems.append(f"o vídeo não existe mais: {vpath}")
-    else:
-        if vpath.stat().st_size != vid["size_bytes"]:
-            problems.append(f"o tamanho do vídeo mudou ({vpath.stat().st_size} bytes, o plano tem {vid['size_bytes']})")
-        if sha256_file(vpath) != vid["sha256"]:
-            problems.append("o sha256 do vídeo mudou: gere o plano de novo")
-    for t in plan.get("targets", []):
-        if t.get("network") not in NETWORKS:
-            problems.append(f"rede desconhecida no plano: {t.get('network')}")
+    if Path(vid["path"]).is_absolute():
+        problems.append("video.path precisa ser relativo à pasta do plano")
+        return plan, {"ok": False, "plan_id": plan["plan_id"], "problems": problems}
+    vpath = Path(path).resolve().parent / vid["path"]
+    tgts: list[dict] | None = None
+    try:
+        tgts = parse_targets([f"{t['network']}={t.get('account') or ''}" for t in plan["targets"]])
+        if tgts != plan["targets"]:
+            problems.append("os destinos do plano não estão no formato que o plan grava")
+    except (SocialError, TypeError, AttributeError) as e:
+        problems.append(f"destinos inválidos no plano: {e}")
     sched = plan.get("schedule")
+    sched_ok = True
     if sched:
         try:
+            if _schedule(sched["at"], sched["timezone"]) != sched:
+                raise SocialError("formato")
             when = datetime.strptime(sched["at"], "%Y-%m-%dT%H:%M").replace(tzinfo=ZoneInfo(sched["timezone"]))
             if when <= _now():
                 problems.append(f"o horário agendado ({sched['at']} {sched['timezone']}) já está no passado")
         except Exception:  # noqa: BLE001
+            sched_ok = False
             problems.append("o agendamento do plano é inválido")
-    try:
-        lim = plan.get("limits") or {}
-        if lim.get("sha256") and lim["sha256"] != hashlib.sha256(canonical(limits_table()).encode("utf8")).hexdigest():
-            warnings.append("a tabela de limites mudou desde que o plano foi gerado; rode `social plan --force` para reavaliar")
-    except (OSError, ValueError):
-        pass
+    if not vpath.is_file():
+        problems.append(f"o vídeo não existe mais: {vpath}")
+    elif tgts is not None and sched_ok:
+        if vpath.stat().st_size != vid["size_bytes"]:
+            problems.append(f"o tamanho do vídeo mudou ({vpath.stat().st_size} bytes, o plano tem {vid['size_bytes']})")
+        if sha256_file(vpath) != vid["sha256"]:
+            problems.append("o sha256 do vídeo mudou: gere o plano de novo")
+        else:
+            _revalidate(plan, vpath, tgts, problems, warnings)
     rep = {"ok": not problems, "plan_id": plan.get("plan_id"), "problems": problems}
     if warnings:
         rep["warnings"] = warnings
-    return rep
+    return plan, rep
+
+
+def _revalidate(plan: dict, vpath: Path, tgts: list[dict], problems: list[str], warnings: list[str]) -> None:
+    try:
+        vid = _video_facts(vpath, plan["video"]["path"])
+    except SocialError as e:
+        problems.append(str(e))
+        return
+    table = limits_table()
+    body, hard, soft = _compose(vid, plan["caption"], plan.get("title"), tgts, plan.get("schedule"), plan["ai_generated"], table)
+    for c in hard:
+        problems.append(f"{c['network']}: {c['field']} limite oficial {c['limit']}, o vídeo tem {c['actual']}")
+    soft_ids = [f"{c['network']}:{c['field']}" for c in soft]
+    if soft and plan["accepted_unverified"] != soft_ids:
+        problems.append("violação UNVERIFIED sem aceite: " + ", ".join(soft_ids) + " (rode `plan --aceito-unverified` de novo)")
+    elif plan["accepted_unverified"]:
+        key = _accept_key(create=False)
+        proof = plan.get("accept_proof")
+        if not key or not isinstance(proof, str) or not hmac.compare_digest(proof, _accept_proof(key, plan["plan_id"])):
+            problems.append("o aceite UNVERIFIED não tem prova válida nesta máquina: só vale o que `plan --aceito-unverified` gravou aqui")
+    same_table = plan["limits"] == body["limits"]
+    if not same_table:
+        warnings.append("a tabela de limites mudou desde que o plano foi gerado; rode `social plan --force` para reavaliar")
+    got = {k: v for k, v in plan.items() if k not in _UNSIGNED and k != "schema"}
+    want = {k: v for k, v in body.items() if k != "schema"}
+    if not same_table:
+        for d in (got, want):
+            d.pop("limits", None)
+            d.pop("checks", None)
+    if canonical(got) != canonical(want) and not problems:
+        diff = sorted(k for k in set(got) | set(want) if canonical(got.get(k)) != canonical(want.get(k)))
+        problems.append("o plano não é o que `plan` geraria para este vídeo (campos: " + ", ".join(diff) + ")")
+
+
+def check_plan(path: str) -> dict:
+    return _check(path)[1]
 
 
 # ---------------------------------------------------------------------------------------------------------- receita
@@ -447,10 +558,9 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     prov = next((p for p in doc["providers"] if p["id"] == pid), None)
     if prov is None:
         raise SocialError(f"provedor desconhecido: {pid} (use {', '.join(p['id'] for p in doc['providers'])})")
-    chk = check_plan(plan_path)
+    plan, chk = _check(plan_path)
     if not chk["ok"]:
         raise SocialError("o plano não confere com o arquivo (rode `social check`): " + "; ".join(chk["problems"]))
-    plan = load_plan(plan_path)
     clip_id = (clip_id or "").strip() or None
     if pid == "realoficial" and clip_id and not _RO_ID_RE.match(clip_id):
         raise SocialError("clip_id inválido: o Real Oficial usa ids de 26 letras e números")

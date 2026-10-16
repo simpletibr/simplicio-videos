@@ -40,7 +40,7 @@ def fazer_mp4(path: Path, extra: bytes = b"") -> Path:
 def sonda(monkeypatch, tmp_path):
     from datetime import datetime, timezone
     monkeypatch.setattr(social, "_probe", lambda p: dict(PROBE_OK))
-    monkeypatch.setattr(social, "_accept_key_path", lambda: tmp_path / "chave-de-aceite" / "social-accept.key", raising=False)
+    monkeypatch.setattr(social, "_accept_key_path", lambda: tmp_path / "chave-de-aceite" / "social-accept.key")
     monkeypatch.setattr(social, "_now", lambda: datetime(2026, 10, 16, 12, tzinfo=timezone.utc))  # relógio fixo: agendas dos testes
 
 
@@ -735,7 +735,7 @@ def test_aceite_unverified_legitimo_passa_no_check_e_na_receita(video, monkeypat
 def test_aceite_unverified_nao_vale_sem_a_chave_local_de_quem_aceitou(video, monkeypatch, tmp_path):
     monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 700.0})
     path = plano(video, targets=["tiktok"], accept_unverified=True)["path"]
-    monkeypatch.setattr(social, "_accept_key_path", lambda: tmp_path / "outra-maquina" / "social-accept.key", raising=False)
+    monkeypatch.setattr(social, "_accept_key_path", lambda: tmp_path / "outra-maquina" / "social-accept.key")
     rep = social.check_plan(path)
     assert rep["ok"] is False and any("aceite" in p for p in rep["problems"])
 
