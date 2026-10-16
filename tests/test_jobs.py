@@ -599,6 +599,37 @@ def test_i4_cancel_sem_prova_de_identidade_nao_sinaliza(monkeypatch, stub_spawn,
         alheio.wait()
 
 
+# ---------------------------------------------------------------- menores: M1 (chave no argumento) e M6 (cancel no MCP)
+
+@pytest.mark.parametrize("chave", ["AIzaSy" + "F" * 33, "AQ.Ab8" + "x" * 40])
+def test_m1_argumento_com_formato_de_chave_e_recusado_mesmo_fora_do_ambiente(stub_spawn, mini, chave):
+    with pytest.raises(jobs.JobError, match="chave"):
+        jobs.submit("voice", {"contrato": str(mini), "provider": "file", "only": [chave]}, origin="mcp")
+    assert stub_spawn == [] and not jobs.jobs_dir().exists()
+
+
+def test_m6_cancelar_sem_bloquear_devolve_na_hora(stub_spawn, mini):
+    runner = subprocess.Popen(["sleep", "30"])
+    try:
+        jid = fabrica(stub_spawn, mini, state="running", runner_pid=runner.pid, runner_start=jobs.proc_start(runner.pid))
+        t0 = time.monotonic()
+        st = jobs.cancel(jid, block=False)
+        assert time.monotonic() - t0 < 2.0
+        assert st["cancel_requested_at"] and st["state"] in ("queued", "running", "cancelled", "lost")
+        runner.wait(timeout=5)  # recebeu o SIGTERM
+    finally:
+        if runner.poll() is None:
+            runner.kill()
+
+
+def test_m6_mcp_cancel_nao_espera_o_runner(monkeypatch, stub_spawn, mini):
+    chamadas = []
+    monkeypatch.setattr(jobs, "cancel", lambda jid, **kw: chamadas.append(kw) or jobs.status(jid))
+    jid = fabrica(stub_spawn, mini, state="running", runner_pid=os.getpid(), runner_start=jobs.proc_start(os.getpid()))
+    assert mcp_server.video_jobs("cancel", id=jid)["ok"]
+    assert chamadas == [{"block": False}]
+
+
 # ---------------------------------------------------------------- CLI
 
 def test_ajuda_do_jobs():
