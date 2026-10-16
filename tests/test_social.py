@@ -922,3 +922,175 @@ def test_receita_manda_youtube_ao_provedor_tanto_para_shorts_quanto_para_video(v
         assert "youtube" in post["args"]["platforms"] and "youtube_shorts" not in post["args"]["platforms"]
         ro = social.recipe(path, clip_id=CLIP_RO)
         assert any(s.get("tool") == "ro_preview_publication" and "youtube_visibility" in s["args"] for s in ro["steps"])
+
+
+# ------------------------------------------------------------------------------------------------ achado 5: testes que não se deixam burlar
+
+from social_guard import (  # noqa: E402
+    EXPOR_FIXO, PUBLICAR_FIXO, SEQUENCIA_ESPERADA, conferir_sequencia_completa, sequencia_de_ids, violacoes_de_codigo)
+
+BURLAS = {
+    "importlib": "import importlib\nm = importlib.import_module('urllib.request')\n",
+    "__import__": "m = __import__('socket')\n",
+    "__import__ por getattr": "import builtins\nm = getattr(builtins, '__import__')('socket')\n",
+    "import relativo de publish": "from . import publish\n",
+    "import relativo por módulo": "from .publish import upload\n",
+    "from os import environ": "from os import environ as _E\n",
+    "os.environ": "import os\nx = os.environ.get('K')\n",
+    "getenv": "import os\nx = os.getenv('K')\n",
+    "getattr(os, 'environ')": "import os\nx = getattr(os, 'environ')\n",
+    "socket": "import socket\n",
+    "urllib.request": "import urllib.request\n",
+    "http.client": "from http import client\n",
+    "asyncio": "import asyncio\n",
+    "ctypes": "import ctypes\n",
+    "subprocess.Popen": "import subprocess\nsubprocess.Popen(['curl', 'x'])\n",
+    "from subprocess import Popen": "from subprocess import Popen\n",
+    "os.system": "import os\nos.system('curl x')\n",
+    "os.popen": "import os\nos.popen('curl x')\n",
+    "exec": "exec('import socket')\n",
+    "eval": "eval('__import__(\"socket\")')\n",
+}
+
+
+@pytest.mark.parametrize("nome", sorted(BURLAS))
+def test_varredura_de_codigo_pega_cada_caminho_de_burla(nome):
+    assert violacoes_de_codigo(BURLAS[nome]), nome
+
+
+def test_varredura_de_codigo_nao_acusa_o_que_o_motor_pode_usar():
+    ok = "import subprocess\nfrom . import paths\nfrom .paths import data_dir\nr = subprocess.run(['ffprobe'])\nimport hmac, os\nos.urandom(4)\n"
+    assert violacoes_de_codigo(ok) == []
+
+
+def test_motor_nao_tem_import_dinamico_rede_ambiente_nem_processo_alem_do_ffprobe():
+    assert violacoes_de_codigo(Path(social.__file__).read_text(encoding="utf8")) == []
+
+
+def test_fluxo_inteiro_roda_sem_socket_e_so_com_ffprobe(video, monkeypatch):
+    import socket
+    chamadas = []
+
+    def sem_rede(*a, **k):
+        raise AssertionError("o motor abriu rede")
+
+    for nome in ("connect", "connect_ex", "send", "sendall", "sendto"):
+        monkeypatch.setattr(socket.socket, nome, sem_rede)
+    for nome in ("create_connection", "getaddrinfo", "gethostbyname"):
+        monkeypatch.setattr(socket, nome, sem_rede)
+
+    def so_ffprobe(cmd, *a, **k):
+        chamadas.append(cmd[0])
+        assert cmd[0] == "ffprobe", f"o motor rodou {cmd[0]}"
+        saida = {"streams": [{"codec_type": "video", "codec_name": "h264", "width": 1080, "height": 1920, "avg_frame_rate": "30/1"},
+                             {"codec_type": "audio", "codec_name": "aac"}], "format": {"duration": "20.0", "format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}
+        return subprocess.CompletedProcess(cmd, 0, json.dumps(saida), "")
+
+    def sem_processo(*a, **k):
+        raise AssertionError("o motor abriu um processo fora do ffprobe")
+
+    monkeypatch.setattr(social, "_probe", social._real_probe)
+    monkeypatch.setattr(social.subprocess, "run", so_ffprobe)
+    monkeypatch.setattr(social.subprocess, "Popen", sem_processo)
+    monkeypatch.setattr(social.os, "system", sem_processo)
+    monkeypatch.setattr(social.os, "popen", sem_processo)
+    monkeypatch.setenv("ZERNIO_API_KEY", "valor-de-ambiente-que-nao-pode-aparecer-0000")
+    r = mcp_server.video_social("plan", video=str(video), caption=CAPTION, targets=["youtube", "tiktok"])
+    assert r["ok"] is True
+    saidas = [json.dumps(r)]
+    assert mcp_server.video_social("check", plano=r["path"])["ok"] is True
+    for prov in PROVEDORES:
+        rec = social.recipe(r["path"], provider=prov, clip_id=CLIP_RO)
+        saidas += [json.dumps(rec), social.recipe_text(rec)]
+    assert chamadas and set(chamadas) == {"ffprobe"}
+    assert "valor-de-ambiente" not in "\n".join(saidas)
+
+
+@pytest.mark.parametrize("provedor", PROVEDORES)
+@pytest.mark.parametrize("clip", [CLIP_RO, None])
+@pytest.mark.parametrize("alvos,agenda", [(["youtube"], None), (["tiktok", "instagram", "youtube_shorts"], ("2026-10-21T18:00", "America/Sao_Paulo"))])
+def test_sequencia_completa_do_motor_bate_com_a_lista_fixa_em_texto_json_e_mcp(video, provedor, clip, alvos, agenda, capsys):
+    kw = {"at": agenda[0], "timezone": agenda[1]} if agenda else {}
+    path = plano(video, targets=alvos, accept_unverified=True, **kw)["path"]
+    bloqueada = provedor == "realoficial" and clip is None
+    argv = ["recipe", path, "--provider", provedor] + (["--clip-id", clip] if clip else [])
+    esperado_rc = 1 if bloqueada else 0
+    assert social.run_social(argv + ["--json"]) == esperado_rc
+    js = json.loads(capsys.readouterr().out)
+    assert social.run_social(argv) == esperado_rc
+    texto = capsys.readouterr().out
+    mcp = mcp_server.video_social("recipe", plano=path, provider=provedor, clip_id=clip)
+    assert mcp["ok"] is (not bloqueada)
+    if bloqueada:
+        for rec in (js, mcp):
+            assert [s["id"] for s in rec["steps"]] == ["clip"] and rec["blocked"] is True
+        assert texto.startswith("BLOQUEADO")
+        return
+    for rec in (js, mcp):
+        conferir_sequencia_completa(rec["steps"], provedor)
+        assert sequencia_de_ids(rec["steps"], provedor) == SEQUENCIA_ESPERADA[provedor]["com_tiktok" if "tiktok" in alvos else "sem_tiktok"]
+    vistos = set()
+    for tipo, ferr in sequencia_do_texto(texto):  # a saída em texto segue a mesma ordem
+        if tipo == "chamada" and ferr in PUBLICAR_FIXO | EXPOR_FIXO:
+            assert {"mostrar", "consentimento"} <= vistos, f"{ferr} antes do consentimento"
+        vistos.add(tipo)
+
+
+def test_o_verificador_de_sequencia_pega_as_adulteracoes_de_ordem(video):
+    """Mutação do verificador: cada sequência adulterada TEM de fazê-lo falhar; senão o teste acima não provaria nada."""
+    for prov in PROVEDORES:
+        base = social.recipe(plano(video, force=True)["path"], provider=prov, clip_id=CLIP_RO)["steps"]
+        conferir_sequencia_completa(base, prov)
+        ids = [s["id"] for s in base]
+        mutacoes = []
+        for gate in [s["id"] for s in base if s.get("tool") in PUBLICAR_FIXO | EXPOR_FIXO or s["id"] == "put"]:
+            for destino in ("show", "consent"):
+                m = [dict(s) for s in base]
+                m.insert(ids.index(destino), m.pop(ids.index(gate)))
+                mutacoes.append(m)
+            mutacoes.append([{k: v for k, v in s.items() if k not in ("requires", "requires_step")} if s["id"] == gate else s for s in base])
+        mutacoes.append([s for s in base if s["kind"] != "consent"])
+        mutacoes.append([s for s in base if s["kind"] != "show"])
+        if prov == "realoficial":
+            mutacoes.append([s for s in base if s["id"] != "preview"])
+        assert mutacoes
+        for m in mutacoes:
+            with pytest.raises(AssertionError):
+                conferir_sequencia_completa(m, prov)
+
+
+def _doc_mutado(chave):
+    doc = json.loads((paths.data_dir() / "social" / "providers.json").read_text(encoding="utf8"))
+    prov = {p["id"]: p for p in doc["providers"]}
+    if chave == "ro_sem_cotar":
+        prov["realoficial"]["recipe"] = [s for s in prov["realoficial"]["recipe"] if s["id"] != "preview"]
+    elif chave == "zernio_upload_antes":
+        r = prov["zernio"]["recipe"]
+        r.insert([s["id"] for s in r].index("show"), r.pop([s["id"] for s in r].index("upload")))
+    elif chave == "ro_confirm_sem_requires":
+        next(s for s in prov["realoficial"]["recipe"] if s["id"] == "confirm").pop("requires")
+    elif chave == "publish_tools_esvaziado":
+        prov["zernio"]["publish_tools"] = []
+        r = prov["zernio"]["recipe"]
+        r.insert([s["id"] for s in r].index("show"), r.pop([s["id"] for s in r].index("post")))
+    return doc
+
+
+@pytest.mark.parametrize("chave", ["ro_sem_cotar", "zernio_upload_antes", "ro_confirm_sem_requires", "publish_tools_esvaziado"])
+def test_mutacao_do_providers_json_faz_o_motor_e_a_lista_fixa_falharem(video, monkeypatch, chave):
+    path = plano(video)["path"]
+    doc = _doc_mutado(chave)
+    assert {p["id"]: [s["id"] for s in p["recipe"]] for p in doc["providers"]} != \
+        {p["id"]: [s["id"] for s in p["recipe"]] for p in social._providers_doc()["providers"]} or chave in ("ro_confirm_sem_requires", "publish_tools_esvaziado")
+    monkeypatch.setattr(social, "_providers_doc", lambda: doc)
+    prov = "realoficial" if chave.startswith("ro") else "zernio"
+    with pytest.raises(social.SocialError, match="receita insegura"):
+        social.recipe(path, provider=prov, clip_id=CLIP_RO)
+    ids = [s["id"] for s in next(p for p in doc["providers"] if p["id"] == prov)["recipe"]]
+    assert ids != SEQUENCIA_ESPERADA[prov]["modelo"] or chave in ("ro_confirm_sem_requires", "publish_tools_esvaziado")
+
+
+@pytest.mark.parametrize("prov", PROVEDORES)
+def test_providers_json_em_disco_tem_a_sequencia_de_modelos_esperada(prov):
+    ids = [s["id"] for s in next(p for p in social._providers_doc()["providers"] if p["id"] == prov)["recipe"]]
+    assert ids == SEQUENCIA_ESPERADA[prov]["modelo"]
