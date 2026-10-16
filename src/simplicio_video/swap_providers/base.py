@@ -135,6 +135,8 @@ class Adapter:
         key = os.environ.get(self.env_var, "").strip() if self.env_var else ""
         if self.env_var and not key:
             raise SwapError(f"{self.env_var} não definida: a chave do provedor {self.name} só entra por variável de ambiente")
+        if key and not re.fullmatch(r"[\x21-\x7e]+", key):
+            raise SwapError(f"{self.env_var} tem caractere inválido (espaço ou controle no meio): confira a variável")
         return key
 
     def _call(self, method: str, url: str, headers: dict | None = None, body: dict | None = None, timeout: float = 120):

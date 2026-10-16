@@ -19,7 +19,7 @@ import os
 import re
 from urllib.parse import urlparse
 
-from .base import Adapter, Capabilities, PriceRow, ProviderError, Status, b64_file, mime_of
+from .base import Adapter, Capabilities, PriceRow, ProviderError, Status, SwapError, b64_file, mime_of
 
 BASE = "https://generativelanguage.googleapis.com/v1beta"
 PRICING = "https://ai.google.dev/gemini-api/docs/pricing"
@@ -57,7 +57,11 @@ class GeminiAdapter(Adapter):
         self._usage: dict = {}
 
     def _base(self) -> str:
-        return os.environ.get("SIMPLICIO_GEMINI_BASE", "").strip().rstrip("/") or BASE
+        base = os.environ.get("SIMPLICIO_GEMINI_BASE", "").strip().rstrip("/") or BASE
+        u = urlparse(base)
+        if u.scheme != "https" and not (u.scheme == "http" and u.hostname in ("localhost", "127.0.0.1", "::1")):
+            raise SwapError("SIMPLICIO_GEMINI_BASE precisa ser https (http só em localhost): a chave não vai em texto claro")
+        return base
 
     def _headers(self) -> dict:
         return {"x-goog-api-key": self.api_key()}
@@ -130,8 +134,10 @@ class GeminiAdapter(Adapter):
                 raise ProviderError("gemini: base64 do vídeo inválido", retryable=False) from None
         uri = video.get("uri")
         if uri:
-            host = urlparse(uri).hostname or ""
-            headers = self._headers() if host.endswith("googleapis.com") else {}  # the key goes only to Google
+            u = urlparse(uri)
+            host = u.hostname or ""
+            google = u.scheme == "https" and (host == "googleapis.com" or host.endswith(".googleapis.com"))
+            headers = self._headers() if google else {}  # the key goes only to Google, over TLS
             res = self._call("GET", uri, headers)
             if res.status >= 400:
                 raise self._error(res)

@@ -571,6 +571,8 @@ def _cmd_run(a) -> int:
                         f"e que não vai usar a troca para enganar ou imitar alguém. Texto registrado: \"{AUTORIZACAO_TEXTO}\"")
     if not a.video:
         raise SwapError("falta --video <arquivo>")
+    if not (math.isfinite(a.max_usd) and a.max_usd >= 0):
+        raise SwapError("--max-usd precisa ser um número finito, 0 ou maior")
     p = prepare(a.provider, a.video, a.ref, a.resolution)
     out = Path(a.out)
     over = p.estimate.usd > a.max_usd
