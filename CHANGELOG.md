@@ -4,6 +4,13 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+### Redes sociais sem postar (social)
+- `simplicio-video social providers|plan|check|recipe` e a tool MCP `video.social` (só `providers`, `plan`, `check` e `recipe`; qualquer ação de publicar é recusada). O motor não posta ([ADR-0018](docs/decisoes/ADR-0018-social-planejar-sem-postar.md)): planeja, confere e documenta; quem publica é o agente, com as ferramentas MCP do Real Oficial (padrão) ou do Zernio e o sim explícito do usuário por postagem.
+- `plan` recusa vídeo inexistente ou que não seja MP4, mede com `ffprobe` e confere duração, proporção, tamanho, legenda, título e hashtags contra `data/social/limits.json` (`source_url`, `read_on` e `confidence` por linha; só a duração do YouTube Shorts foi conferida na página oficial, o resto é UNVERIFIED e pede `--aceito-unverified`). Grava `social.plan.json` determinístico, sem horário de geração e sem chave ou token; não sobrescreve sem `--force`.
+- `check` confere sha256, tamanho, integridade do plano e se o agendamento ainda está no futuro. `recipe` imprime a sequência exata de chamadas MCP por provedor (modelo de dados em `data/social/providers.json`): cotar ou prever, mostrar, consentimento, publicar; o motor se recusa a gerar receita que publique antes do consentimento.
+- Skill `skills/simplicio-video-social/SKILL.md` com o fluxo e as regras de consentimento; `plugin.json` ganha quatro verbos fechados (`video.social.providers|plan|check|recipe`).
+- Lacuna registrada: o Real Oficial não recebe MP4 local por MCP (a receita pede o `clip_id`); o fluxo do Zernio está em boa parte UNVERIFIED.
+
 ### Troca de personagem (swap)
 - `simplicio-video swap providers|estimate|run|status` e a tool MCP `video.swap` (só `providers` e `estimate`; gastar é só pelo terminal). Orquestração única em `src/simplicio_video/swap.py` e um adaptador por fornecedor em `src/simplicio_video/swap_providers/`: `gemini` (Interactions API, conferido na documentação), `fal`, `wavespeed`, `kie` e `alibaba` (**UNVERIFIED**: escritos da documentação pública, sem conferência na API real) e `fake` para testes.
 - `--autorizo` é obrigatório; sem `--yes` só estima (dry-run, sem rede); `--max-usd` (padrão US$ 2) aborta antes de submeter; adaptador UNVERIFIED pede `--aceito-unverified`. A chave só entra pela variável de ambiente do provedor e nunca vai a argumento, log ou manifesto.

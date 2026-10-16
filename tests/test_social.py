@@ -38,7 +38,9 @@ def fazer_mp4(path: Path, extra: bytes = b"") -> Path:
 
 @pytest.fixture(autouse=True)
 def sonda(monkeypatch):
+    from datetime import datetime, timezone
     monkeypatch.setattr(social, "_probe", lambda p: dict(PROBE_OK))
+    monkeypatch.setattr(social, "_now", lambda: datetime(2026, 10, 16, 12, tzinfo=timezone.utc))  # relógio fixo: agendas dos testes
 
 
 @pytest.fixture
@@ -545,12 +547,12 @@ def test_cli_registra_social_no_help_principal_e_no_proprio():
 def test_com_ffmpeg_real_o_plano_le_codec_resolucao_e_duracao(tmp_path, monkeypatch):
     monkeypatch.setattr(social, "_probe", social._real_probe)  # sonda real
     mp4 = tmp_path / "real.mp4"
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=270x480:rate=30:duration=2", "-f", "lavfi", "-i",
-                    "sine=frequency=440:duration=2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(mp4)], check=True)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=270x480:rate=30:duration=4", "-f", "lavfi", "-i",
+                    "sine=frequency=440:duration=4", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(mp4)], check=True)
     p = ler(social.make_plan(str(mp4), ["tiktok", "instagram"], caption="legenda #teste")["path"])
     v = p["video"]
     assert (v["width"], v["height"], v["aspect_ratio"], v["video_codec"], v["audio_codec"]) == (270, 480, "9:16", "h264", "aac")
-    assert 1.9 < v["duration_s"] < 2.2 and v["container"] == "mp4"
+    assert 3.9 < v["duration_s"] < 4.3 and v["container"] == "mp4"
 
 
 # ------------------------------------------------------------------------------------------------ MCP
@@ -645,3 +647,40 @@ def test_skill_social_ensina_o_fluxo_e_o_consentimento():
 def test_dados_social_existem_no_pacote():
     for nome in ("limits.json", "providers.json", "limits.schema.json", "providers.schema.json"):
         assert (paths.data_dir() / "social" / nome).is_file(), nome
+
+
+# ------------------------------------------------------------------------------------------------ dados e trava da receita
+
+def test_dados_batem_com_os_schemas():
+    jsonschema = pytest.importorskip("jsonschema")
+    base = paths.data_dir() / "social"
+    for dado, esquema in (("limits.json", "limits.schema.json"), ("providers.json", "providers.schema.json")):
+        jsonschema.validate(json.loads((base / dado).read_text(encoding="utf8")), json.loads((base / esquema).read_text(encoding="utf8")))
+
+
+def test_motor_recusa_gerar_receita_que_publica_antes_do_consentimento(video, monkeypatch):
+    path = plano(video)["path"]
+    doc = social._providers_doc()
+    ro = doc["providers"][0]["recipe"]
+    ids = [s["id"] for s in ro]
+    ro.insert(ids.index("consent"), ro.pop(ids.index("confirm")))  # confirmar antes de pedir o sim
+    monkeypatch.setattr(social, "_providers_doc", lambda: doc)
+    with pytest.raises(social.SocialError, match="receita insegura"):
+        social.recipe(path, clip_id=CLIP_RO)
+
+
+def test_motor_recusa_receita_sem_cotar_antes_do_consentimento(video, monkeypatch):
+    path = plano(video)["path"]
+    doc = social._providers_doc()
+    ro = doc["providers"][0]["recipe"]
+    ro.insert(len(ro) - 1, ro.pop([s["id"] for s in ro].index("preview")))  # cotar só depois de confirmar
+    monkeypatch.setattr(social, "_providers_doc", lambda: doc)
+    with pytest.raises(social.SocialError, match="receita insegura"):
+        social.recipe(path, clip_id=CLIP_RO)
+
+
+def test_publicar_so_aparece_como_chamada_com_requires_nas_duas_receitas():
+    for p in social._providers_doc()["providers"]:
+        for s in p["recipe"]:
+            if s["kind"] == "call" and s["tool"] in p["publish_tools"]:
+                assert s["requires"] == "consent", s["id"]

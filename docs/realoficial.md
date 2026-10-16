@@ -25,6 +25,8 @@ Networks: TikTok, Instagram Reels, YouTube Shorts for publishing (Instagram/TikT
 
 **Gap for our flow:** the MCP publishes *clips/media that live inside Real Oficial* (a clip id). There is no tool to upload an arbitrary local MP4 and schedule it. Our rendered videos reach it via `ro_import_video` only for videos already generated in Real Oficial; an upload tool (`media:write`) is not in the list. Until it exists, schedule by uploading the MP4 in the Real Oficial app, or keep our own `publish` (Drive) for delivery.
 
+Planejar uma postagem (limites por rede, plano gravado e a receita exata de chamadas) é com `simplicio-video social` (o motor não posta; veja [ADR-0018](decisoes/ADR-0018-social-planejar-sem-postar.md)).
+
 ## Everything else
 
 - **Cuts:** `ro_estimate_clips`, `ro_create_clips`, `ro_wait_for_clips`, `ro_list_projects`, `ro_get_project`, `ro_list_clips`, `ro_get_clip`, `ro_cut_clip`, `ro_get_auto_edit`, `ro_edit_clip`, `ro_render_clip(s)`, `ro_list_renders`.

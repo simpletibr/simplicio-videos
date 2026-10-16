@@ -1,0 +1,449 @@
+{
+  "schema": "simplicio.social-limits/v1",
+  "read_on": "2026-10-16",
+  "about": "Limites de vídeo por rede. confidence=official só quando a linha foi conferida na página oficial da rede; o resto é UNVERIFIED (lido na documentação do Zernio, terceiro) e uma violação exige --aceito-unverified. value null = a fonte não informa (o plano marca unchecked).",
+  "rows": [
+    {
+      "network": "youtube",
+      "field": "duration_min_s",
+      "value": 1,
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "youtube",
+      "field": "duration_max_s",
+      "value": 180,
+      "source_url": "https://support.google.com/youtube/answer/10059070",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "note": "Página de ajuda do YouTube: Shorts de até 3 minutos."
+    },
+    {
+      "network": "youtube",
+      "field": "aspect_ratios",
+      "value": [
+        "9:16"
+      ],
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Shorts: vertical 9:16."
+    },
+    {
+      "network": "youtube",
+      "field": "size_max_mb",
+      "value": 262144,
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. 256 GB."
+    },
+    {
+      "network": "youtube",
+      "field": "caption_max_chars",
+      "value": 5000,
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Descrição."
+    },
+    {
+      "network": "youtube",
+      "field": "title_max_chars",
+      "value": 100,
+      "source_url": "https://docs.zernio.com/platforms/youtube",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "tiktok",
+      "field": "duration_min_s",
+      "value": 3,
+      "source_url": "https://docs.zernio.com/platforms/tiktok",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "tiktok",
+      "field": "duration_max_s",
+      "value": 600,
+      "source_url": "https://docs.zernio.com/platforms/tiktok",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. 10 minutos."
+    },
+    {
+      "network": "tiktok",
+      "field": "aspect_ratios",
+      "value": [
+        "9:16"
+      ],
+      "source_url": "https://docs.zernio.com/platforms/tiktok",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "tiktok",
+      "field": "size_max_mb",
+      "value": 4096,
+      "source_url": "https://docs.zernio.com/platforms/tiktok",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. 4 GB."
+    },
+    {
+      "network": "tiktok",
+      "field": "caption_max_chars",
+      "value": 2200,
+      "source_url": "https://docs.zernio.com/platforms/tiktok",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Legenda de vídeo."
+    },
+    {
+      "network": "tiktok",
+      "field": "hashtags_max",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/tiktok",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "A página não informa; sem limite conferido."
+    },
+    {
+      "network": "instagram",
+      "field": "duration_min_s",
+      "value": 3,
+      "source_url": "https://docs.zernio.com/platforms/instagram",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "instagram",
+      "field": "duration_max_s",
+      "value": 90,
+      "source_url": "https://docs.zernio.com/platforms/instagram",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Reels."
+    },
+    {
+      "network": "instagram",
+      "field": "aspect_ratios",
+      "value": [
+        "9:16"
+      ],
+      "source_url": "https://docs.zernio.com/platforms/instagram",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "instagram",
+      "field": "size_max_mb",
+      "value": 300,
+      "source_url": "https://docs.zernio.com/platforms/instagram",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "instagram",
+      "field": "caption_max_chars",
+      "value": 2200,
+      "source_url": "https://docs.zernio.com/platforms/instagram",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "instagram",
+      "field": "hashtags_max",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/instagram",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "A página não informa; sem limite conferido."
+    },
+    {
+      "network": "facebook",
+      "field": "duration_min_s",
+      "value": 3,
+      "source_url": "https://docs.zernio.com/platforms/facebook",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "facebook",
+      "field": "duration_max_s",
+      "value": 60,
+      "source_url": "https://docs.zernio.com/platforms/facebook",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Reels."
+    },
+    {
+      "network": "facebook",
+      "field": "aspect_ratios",
+      "value": [
+        "9:16"
+      ],
+      "source_url": "https://docs.zernio.com/platforms/facebook",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "facebook",
+      "field": "size_max_mb",
+      "value": 4096,
+      "source_url": "https://docs.zernio.com/platforms/facebook",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "facebook",
+      "field": "caption_max_chars",
+      "value": 63206,
+      "source_url": "https://docs.zernio.com/platforms/facebook",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Limite geral de post; o Reel não informa limite próprio."
+    },
+    {
+      "network": "twitter",
+      "field": "duration_max_s",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/twitter",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "A página remete a outra página (Media & Video) que não foi lida."
+    },
+    {
+      "network": "twitter",
+      "field": "aspect_ratios",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/twitter",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "A página remete a outra página (Media & Video) que não foi lida."
+    },
+    {
+      "network": "twitter",
+      "field": "size_max_mb",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/twitter",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "A página remete a outra página (Media & Video) que não foi lida."
+    },
+    {
+      "network": "twitter",
+      "field": "caption_max_chars",
+      "value": 280,
+      "source_url": "https://docs.zernio.com/platforms/twitter",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Conta gratuita (Premium: 25.000); URL conta 23 e emoji conta 2, o motor conta caracteres simples."
+    },
+    {
+      "network": "linkedin",
+      "field": "duration_min_s",
+      "value": 3,
+      "source_url": "https://docs.zernio.com/platforms/linkedin",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "linkedin",
+      "field": "duration_max_s",
+      "value": 600,
+      "source_url": "https://docs.zernio.com/platforms/linkedin",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Perfil pessoal (página de empresa: 30 minutos)."
+    },
+    {
+      "network": "linkedin",
+      "field": "aspect_ratios",
+      "value": {
+        "min_ratio": 0.4167,
+        "max_ratio": 2.4
+      },
+      "source_url": "https://docs.zernio.com/platforms/linkedin",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Faixa de 1:2,4 a 2,4:1."
+    },
+    {
+      "network": "linkedin",
+      "field": "size_max_mb",
+      "value": 5120,
+      "source_url": "https://docs.zernio.com/platforms/linkedin",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. 5 GB."
+    },
+    {
+      "network": "linkedin",
+      "field": "caption_max_chars",
+      "value": 3000,
+      "source_url": "https://docs.zernio.com/platforms/linkedin",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "threads",
+      "field": "duration_max_s",
+      "value": 300,
+      "source_url": "https://docs.zernio.com/platforms/threads",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "threads",
+      "field": "aspect_ratios",
+      "value": [
+        "9:16",
+        "16:9",
+        "1:1"
+      ],
+      "source_url": "https://docs.zernio.com/platforms/threads",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "threads",
+      "field": "size_max_mb",
+      "value": 1024,
+      "source_url": "https://docs.zernio.com/platforms/threads",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. 1 GB."
+    },
+    {
+      "network": "threads",
+      "field": "caption_max_chars",
+      "value": 500,
+      "source_url": "https://docs.zernio.com/platforms/threads",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "threads",
+      "field": "hashtags_max",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/threads",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "A página não informa; sem limite conferido."
+    },
+    {
+      "network": "pinterest",
+      "field": "duration_min_s",
+      "value": 4,
+      "source_url": "https://docs.zernio.com/platforms/pinterest",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "pinterest",
+      "field": "duration_max_s",
+      "value": 900,
+      "source_url": "https://docs.zernio.com/platforms/pinterest",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "pinterest",
+      "field": "aspect_ratios",
+      "value": [
+        "2:3",
+        "1:1",
+        "9:16"
+      ],
+      "source_url": "https://docs.zernio.com/platforms/pinterest",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "pinterest",
+      "field": "size_max_mb",
+      "value": 2048,
+      "source_url": "https://docs.zernio.com/platforms/pinterest",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. 2 GB."
+    },
+    {
+      "network": "pinterest",
+      "field": "caption_max_chars",
+      "value": 800,
+      "source_url": "https://docs.zernio.com/platforms/pinterest",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Descrição."
+    },
+    {
+      "network": "pinterest",
+      "field": "title_max_chars",
+      "value": 100,
+      "source_url": "https://docs.zernio.com/platforms/pinterest",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "bluesky",
+      "field": "duration_max_s",
+      "value": 60,
+      "source_url": "https://docs.zernio.com/platforms/bluesky",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "bluesky",
+      "field": "aspect_ratios",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/bluesky",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "A página só recomenda 16:9 ou 1:1; não é limite."
+    },
+    {
+      "network": "bluesky",
+      "field": "size_max_mb",
+      "value": 50,
+      "source_url": "https://docs.zernio.com/platforms/bluesky",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "bluesky",
+      "field": "caption_max_chars",
+      "value": 300,
+      "source_url": "https://docs.zernio.com/platforms/bluesky",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    }
+  ]
+}

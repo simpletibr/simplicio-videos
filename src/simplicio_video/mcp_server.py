@@ -1,7 +1,7 @@
 """MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
 
 Tools: video.init, video.validate, video.voice, video.render, video.run, video.list, video.clone, video.montage,
-video.edit, video.opencut, video.toonflow, video.moneyprinter. Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
+video.edit, video.opencut, video.toonflow, video.moneyprinter, video.social (providers|plan|check|recipe, never publish). Each tool calls the same Python functions as the CLI and returns JSON ({ok, ..., log}).
 Long steps (render on kaggle/colab-cli) block until done. O upload no Drive não é tool deste servidor.
 
 Run: `simplicio-video mcp` or `simplicio-video-mcp` (needs `pip install -e .[mcp]`).
@@ -157,6 +157,35 @@ def video_swap(acao: str = "providers", provider: str | None = None, video: str 
         return {"ok": False, "error": str(e)}
 
 
+def video_social(acao: str = "providers", plano: str | None = None, video: str | None = None, caption: str = "",
+                 targets: list[str] | None = None, title: str | None = None, at: str | None = None, timezone: str | None = None,
+                 ai_generated: bool = False, provider: str | None = None, clip_id: str | None = None) -> dict:
+    """Social, local and read-only over MCP: `providers`, `plan` (writes social.plan.json next to the video, never over an
+    existing one), `check` and `recipe`. There is no publish here: the agent posts with the provider's own MCP tools, after
+    the explicit yes of the user for each post. No overwrite, no custom output path, no --aceito-unverified over MCP."""
+    from . import social
+    try:
+        if acao == "providers":
+            return {"ok": True, **social.providers_report()}
+        if acao == "plan":
+            if not video:
+                return {"ok": False, "error": "plan precisa de video, caption e targets"}
+            res = social.make_plan(video, list(targets or []), caption=caption, title=title, at=at, timezone=timezone, ai_generated=ai_generated)
+            return {"ok": True, "path": res["path"], "plan": res["plan"]}
+        if acao in ("check", "recipe") and not plano:
+            return {"ok": False, "error": f"{acao} precisa de plano (caminho do social.plan.json)"}
+        if acao == "check":
+            return social.check_plan(plano)
+        if acao == "recipe":
+            return {"ok": True, **social.recipe(plano, provider=provider, clip_id=clip_id)}
+        if acao in social.PUBLISH_WORDS:
+            return {"ok": False, "error": "publicar não existe pelo MCP do motor: o motor só planeja. Poste com as ferramentas MCP do "
+                                         "provedor (veja a receita: acao=recipe), com o sim explícito do usuário para cada postagem"}
+        return {"ok": False, "error": f"acao desconhecida: {acao} (providers|plan|check|recipe)"}
+    except social.SocialError as e:
+        return {"ok": False, "error": str(e)}
+
+
 def video_toonflow(args: str = "") -> dict:
     """Toonflow over MCP: `where` and `clone` into the default folder only. `serve` runs a server that never ends, and
     `clone <dir>` is refused because an agent does not choose where a git checkout is written. Captures its own output
@@ -215,6 +244,7 @@ TOOLS = [
     ("video.opencut", video_opencut, "OpenCut editor (clone|dev|where) for manual finishing (https://github.com/OpenCut-app/OpenCut)."),
     ("video.formats", video_formats, "Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format."),
     ("video.swap", video_swap, "Character swap, read-only: providers (adapters, capabilities, price, confidence) and estimate (cost before spending). Never runs a paid swap; run is terminal-only."),
+    ("video.social", video_social, "Social, local and read-only: providers (Real Oficial default, Zernio; their MCP tools and limits), plan (validate an MP4 against per-network limits, write social.plan.json), check (plan still matches the file) and recipe (the exact MCP call sequence for the provider: quote/preview, show the user, explicit consent, then publish). Never publishes: the agent posts with the provider's own tools after the user's explicit yes per post."),
     ("video.toonflow", video_toonflow, "Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app)."),
     ("video.moneyprinter", video_moneyprinter, "MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder and where only (setup and serve run in the terminal) (https://github.com/harry0703/MoneyPrinterTurbo)."),
 ]
