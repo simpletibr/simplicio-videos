@@ -7,7 +7,8 @@ only what was approved for that request, with its credit line).
 Rules that do not bend:
 - Zero tokens: no LLM call. The engine does NOT decide whether an asset matches a request; it builds a deterministic sheet
   (dimensions, sharpness, brightness, loudness, silence, clipping, thumbnail, spectrogram, text hint) and records the verdict
-  of whoever reviewed, per pair (sha256 of the asset, normalized text of the request).
+  of whoever reviewed. A verdict counts for one (id, sha256 of the file, normalized request) and for the provenance seen
+  then (license, author, origin): another id with the same bytes, or the same id re-fetched under another author, needs its own.
 - License: only cc0, pdm and by by default (safe for commercial use and editing). by-sa, by-nc and by-nd only by explicit
   option, with a warning. The license comes from the sources and Openverse itself says to check the origin
   (`foreign_landing_url`): this is not legal advice. An item without a known license is never downloaded; CC BY without an
@@ -18,8 +19,12 @@ Rules that do not bend:
   sha256 and never runs anything from it.
 - Optional OAuth2 credentials only through environment variables (OPENVERSE_CLIENT_ID and OPENVERSE_CLIENT_SECRET); never in
   an argument, log, index, cache, sheet or output.
-- MCP (`video.openverse`) only searches, lists, shows, builds the sheet and records the verdict. Download and export are
-  terminal-only: the agent does not choose where anything is written.
+- Text from the internet is DATA: it reaches an agent only in fields named `untrusted_*` (sheet, MCP, CLI --json) and goes
+  into the CREDITS markdown only after `_md`/`_safe_url` (no HTML, no link syntax, no line breaks, https URLs only).
+- Every index field that becomes a path (id, tipo, formato, arquivo, export names) is checked on load against a closed list or
+  a strict pattern, and an index that does not fit is refused with a clear message. index.json is not a security boundary.
+- MCP (`video.openverse`) only searches, lists, shows, builds the sheet and records the verdict (channel "mcp"; the plugin.json
+  verbs record "plugin"). Download and export are terminal-only: the agent does not choose where anything is written.
 """
 from __future__ import annotations
 
@@ -86,7 +91,7 @@ SHA_RE = re.compile(r"[0-9a-f]{64}")
 # formats the library accepts: format -> (media type, extension). The index must agree with this table, field by field.
 FORMATS = {"jpeg": ("imagem", "jpg"), "png": ("imagem", "png"), "gif": ("imagem", "gif"), "webp": ("imagem", "webp"),
            "wav": ("audio", "wav"), "ogg": ("audio", "ogg"), "flac": ("audio", "flac"), "mp3": ("audio", "mp3"), "m4a": ("audio", "m4a")}
-CANAIS = ("terminal", "mcp")
+CANAIS = ("terminal", "mcp", "plugin")  # where a verdict came from: the CLI, the MCP server or a plugin.json verb
 VERSION_RE = re.compile(r"\d{1,2}(?:\.\d{1,2})?")  # license version as the licenses publish it: 1.0, 2.0, 2.5, 4.0
 MAX_TITLE_CHARS, MAX_AUTHOR_CHARS, MAX_ATTRIBUTION_CHARS, MAX_URL_CHARS = 300, 300, 1000, 500
 # an https URL with a real host name (no IP, no user:password@) and only characters that cannot break out of a markdown link or an HTML attribute
@@ -998,8 +1003,11 @@ def review_sheet(id_, pedido) -> dict:
 
 
 def review(id_, pedido, veredito, motivo, por, canal="terminal") -> dict:
-    """Record the reviewer's verdict for the pair (sha256 of the asset, request). The last verdict of the pair wins."""
+    """Record the reviewer's verdict for the pair (id, sha256, request). The last verdict of the pair wins.
+    `canal` says where the verdict really came from: the MCP server passes "mcp", the plugin.json verbs pass "plugin" in their fixed argv."""
     id_ = _check_id(id_)
+    if canal not in CANAIS:
+        raise OpenverseError(f"canal inválido: {str(canal)[:40]!r} (use {', '.join(CANAIS)})")
     if veredito not in ("aprovado", "reprovado"):
         raise OpenverseError("veredito inválido: use aprovado ou reprovado")
     original, norm = _clean_pedido(pedido)
@@ -1222,7 +1230,8 @@ HELP_DESC = (
     "  library review <id> --pedido \"...\" --folha    gera a FOLHA de revisão: dimensões, nitidez, brilho, miniatura (imagem); duração,\n"
     "                                               taxa de amostragem, loudness, silêncio, clipping, espectrograma (áudio); pista textual\n"
     "  library review <id> --pedido \"...\" --aprovar|--reprovar --motivo \"...\" --por \"nome\"\n"
-    "                                               grava o veredito do par (sha256 do ativo, pedido); aprovar exige a folha antes\n"
+    "                                               grava o veredito do par (id, sha256 do ativo, pedido, proveniência); aprovar exige a folha antes;\n"
+    "                                               --canal terminal|plugin grava de onde veio (o servidor MCP grava mcp)\n"
     "  library export <id> --pedido \"...\" --para PASTA | --contrato contract.yaml\n"
     "                                               copia só o aprovado para aquele pedido (nunca sobrescreve bytes diferentes) e acrescenta\n"
     f"                                               a linha de crédito a {CREDITS_NAME}; contrato = assets/openverse ao lado dele\n"
@@ -1306,6 +1315,8 @@ def _parser() -> argparse.ArgumentParser:
     g.add_argument("--reprovar", action="store_true")
     p.add_argument("--motivo", default="", help="por que serve ou não serve (obrigatório no veredito)")
     p.add_argument("--por", default="", help="quem revisou: nome ou agente (obrigatório no veredito)")
+    p.add_argument("--canal", choices=("terminal", "plugin"), default="terminal",
+                   help="de onde vem o veredito, para a auditoria (padrão terminal; os verbos do plugin.json passam plugin; o canal mcp é só do servidor MCP)")
     p.add_argument("--json", action="store_true")
     p = ls.add_parser("export", formatter_class=fmt, help="copia o ativo aprovado para uma pasta, com o crédito",
                       description="Só exporta o que foi aprovado para o pedido. Recusa sobrescrever bytes diferentes e licença sem autor/atribuição.")
@@ -1430,7 +1441,7 @@ def _run(a) -> int:
             return 0
         if not (a.aprovar or a.reprovar):
             raise OpenverseError("escolha uma ação: --folha, --aprovar ou --reprovar")
-        rev = review(a.id, a.pedido, "aprovado" if a.aprovar else "reprovado", a.motivo, a.por)
+        rev = review(a.id, a.pedido, "aprovado" if a.aprovar else "reprovado", a.motivo, a.por, canal=a.canal)
         _emit(rev, a.json, f"registrado: {rev['veredito']} para \"{rev['pedido']}\" (ativo {rev['id']}, sha256 {rev['sha256'][:12]}) por {rev['por']}")
         return 0
     if a.lcmd == "export":

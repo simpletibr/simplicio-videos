@@ -968,7 +968,7 @@
     },
     {
       "verb": "video.openverse.aprovar",
-      "description": "Record the reviewer's APPROVAL of the asset for this request (needs the sheet first). The approval is valid only for this asset file (sha256) and this request.",
+      "description": "Record the reviewer's APPROVAL of the asset for this request (needs the sheet first). The approval is valid only for this asset id, this file (sha256), this provenance (license, author, origin) and this request, and it is recorded with channel \"plugin\" (never \"terminal\").",
       "argv": [
         "simplicio-video",
         "openverse",
@@ -982,6 +982,8 @@
         "{motivo}",
         "--por",
         "{por}",
+        "--canal",
+        "plugin",
         "--json"
       ],
       "args_schema": {
@@ -1015,7 +1017,7 @@
     },
     {
       "verb": "video.openverse.reprovar",
-      "description": "Record the reviewer's REJECTION of the asset for this request.",
+      "description": "Record the reviewer's REJECTION of the asset for this request. Recorded with channel \"plugin\".",
       "argv": [
         "simplicio-video",
         "openverse",
@@ -1029,6 +1031,8 @@
         "{motivo}",
         "--por",
         "{por}",
+        "--canal",
+        "plugin",
         "--json"
       ],
       "args_schema": {

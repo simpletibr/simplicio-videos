@@ -240,8 +240,10 @@
           "canal": {
             "enum": [
               "terminal",
-              "mcp"
-            ]
+              "mcp",
+              "plugin"
+            ],
+            "description": "De onde veio o veredito: terminal (CLI), mcp (servidor MCP) ou plugin (verbo do plugin.json)."
           },
           "em": {
             "type": "string"
