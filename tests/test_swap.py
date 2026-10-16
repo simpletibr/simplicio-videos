@@ -734,6 +734,40 @@ def test_i2_excecao_depois_do_download_preserva_pedacos(media, monkeypatch):
 
 
 @needs_ffmpeg
+def test_i3_erro_de_rede_no_submit_nao_repete_e_avisa_do_risco(media, monkeypatch, capsys):
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+    chamadas = []
+
+    def request(method, url, headers=None, json_body=None, timeout=60):
+        chamadas.append(method)
+        raise http.NetworkError("falha de rede: TimeoutError")
+
+    monkeypatch.setattr(http, "request", request)
+    argv = ["run", "--provider", "gemini", "--video", str(media["video"]), "--ref", str(media["ref"]),
+            "--out", str(media["dir"] / "out" / "o.mp4"), "--autorizo", "--yes", "--max-usd", "5"]
+    assert swap.run_swap(argv) == 1
+    assert chamadas == ["POST"]  # um único POST: repetir poderia cobrar em dobro
+    err = capsys.readouterr().err
+    assert "cobr" in err and "não foi repetido" in err
+    man = json.loads((media["dir"] / "out" / "swap.manifest.json").read_text())
+    assert man["chunks"][0]["possibly_charged"] is True and man["attempts"] == 1
+
+
+@needs_ffmpeg
+def test_i3_resposta_5xx_do_submit_continua_com_nova_tentativa(media, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+    clip = media["video"].read_bytes()
+    completo = json.dumps({"id": "v1_abc123", "status": "completed", "steps": [{"type": "model_output", "content": [
+        {"type": "video", "mime_type": "video/mp4", "data": base64.b64encode(clip).decode()}]}]}).encode()
+    rota = Rota([(503, fx("gemini_error_503.json")), (200, fx("gemini_in_progress.json")), (200, completo)])
+    monkeypatch.setattr(http, "request", rota)
+    argv = ["run", "--provider", "gemini", "--video", str(media["video"]), "--ref", str(media["ref"]),
+            "--out", str(media["dir"] / "out" / "o.mp4"), "--autorizo", "--yes", "--max-usd", "5"]
+    assert swap.run_swap(argv) == 0
+    assert [c["method"] for c in rota.calls[:2]] == ["POST", "POST"]
+
+
+@needs_ffmpeg
 def test_i1_sucesso_limpa_a_pasta_de_trabalho(media):
     assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
     assert not list((media["dir"] / "out").glob(".swap-work-*")) and not list((media["dir"] / "out").glob("*recovery*"))
