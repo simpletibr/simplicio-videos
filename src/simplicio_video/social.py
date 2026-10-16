@@ -538,18 +538,66 @@ def _format(node, subs):
     return node
 
 
-def _assert_safe(steps: list[dict], publish_tools: set[str], preview_tools: set[str]) -> None:
-    """Defense in depth: never hand out a recipe where a publishing call can run before show -> consent."""
+# Piso de segurança no CÓDIGO, que um providers.json adulterado não consegue baixar: o que publica, o que expõe o arquivo
+# publicamente antes do sim, o que precisa ser cotado antes de mostrar e os passos manuais que só valem depois do sim.
+SAFETY_FLOOR = {
+    "realoficial": {"publish": {"ro_confirm_publishing"}, "gated": set(), "quote": {"ro_preview_publication"}, "gated_ids": set()},
+    "zernio": {"publish": {"posts_create", "posts_cross_post", "posts_publish_now", "queue_get_next_queue_slot", "call_tool"},
+               "gated": {"media_generate_upload_link"}, "quote": set(), "gated_ids": {"put"}},
+}
+
+
+def _assert_safe(steps: list[dict], prov: dict, label: str) -> None:
+    """Defense in depth: valida a SEQUÊNCIA COMPLETA de passos (kind, tool, effect, requires) contra o piso do código e contra
+    o próprio providers.json. Nunca entrega receita em que publicar (ou expor o MP4) venha antes de cotar -> mostrar -> sim."""
+    floor = SAFETY_FLOOR.get(prov["id"], {"publish": set(), "gated": set(), "quote": set(), "gated_ids": set()})
+    declared = {t["name"]: t["effect"] for t in prov.get("tools", [])}
+    publish = set(prov.get("publish_tools", [])) | {n for n, e in declared.items() if e == "publish"} | floor["publish"]
+    publish |= {s["tool"] for s in steps if s["kind"] == "call" and s.get("effect") == "publish"}
+    gated = publish | floor["gated"]
+    quote = set(floor["quote"]) | {s["tool"] for s in steps if s["kind"] == "call" and s.get("effect") == "quote"}
+
+    def bad(msg: str):
+        raise SocialError(f"receita insegura ({label}): {msg}")
+
+    if not any(s["kind"] == "consent" for s in steps) or not any(s["kind"] == "show" for s in steps):
+        bad("faltam as etapas de mostrar e de pedir o consentimento")
     for i, s in enumerate(steps):
-        if s["kind"] == "call" and s["tool"] in publish_tools:
-            consents = [j for j, x in enumerate(steps[:i]) if x["kind"] == "consent"]
-            if not consents or not any(x["kind"] == "show" for x in steps[:consents[-1]]):
-                raise SocialError(f"receita insegura: {s['tool']} vem antes de mostrar e de pedir o consentimento")
-            if any(x["kind"] == "call" and x["tool"] in preview_tools for x in steps) and not any(
-                    x["kind"] == "call" and x["tool"] in preview_tools for x in steps[:consents[-1]]):
-                raise SocialError(f"receita insegura: {s['tool']} sem cotar antes do consentimento")
-        if s["kind"] == "call" and s.get("requires") and not any(x["kind"] == "consent" for x in steps[:i]):
-            raise SocialError(f"receita insegura: {s['tool']} exige consentimento antes")
+        is_call = s["kind"] == "call"
+        if is_call and s["tool"] in declared and declared[s["tool"]] != s.get("effect"):
+            bad(f"{s['tool']} declara efeito {declared[s['tool']]} nas ferramentas e {s.get('effect')} na receita")
+        if is_call and s["tool"] in publish and s.get("effect") != "publish":
+            bad(f"{s['tool']} publica, mas a receita o rotula como {s.get('effect')}")
+        needs = (is_call and s["tool"] in gated) or s["id"] in floor["gated_ids"] or s.get("requires") == "consent"
+        if not needs:
+            continue
+        what = s["tool"] if is_call else s["id"]
+        if s.get("requires") != "consent":
+            bad(f"{what} precisa declarar requires: consent")
+        consents = [j for j in range(i) if steps[j]["kind"] == "consent"]
+        if not consents:
+            bad(f"{what} vem antes do consentimento")
+        c = consents[-1]
+        shows = [j for j in range(c) if steps[j]["kind"] == "show"]
+        if not shows:
+            bad(f"{what} vem antes de mostrar e de pedir o consentimento")
+        if is_call and s["tool"] in publish:
+            for q in quote:
+                if not any(x["kind"] == "call" and x["tool"] == q for x in steps[:shows[-1]]):
+                    bad(f"{what} sem cotar ({q}) antes de mostrar e do consentimento")
+
+
+def _flat(templates: list[dict]) -> list[dict]:
+    """Todos os modelos de passo (inclusive os de `when`), no formato que o `_assert_safe` confere."""
+    out = []
+    for t in templates:
+        d = {"id": t["id"], "kind": t["kind"]}
+        if t["kind"] == "call":
+            d.update(tool=t["tool"], effect=t.get("effect"))
+        if t.get("requires"):
+            d["requires"] = t["requires"]
+        out.append(d)
+    return out
 
 
 def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = None) -> dict:
@@ -595,10 +643,12 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
         if s["kind"] == "consent":
             consent_n = s["n"]
         tmpl = next(t for t in templates if t["id"] == s["id"])
-        if tmpl.get("requires") == "consent":
-            s["requires_step"] = consent_n
-    preview = {x["name"] for x in prov["tools"] if x["effect"] == "quote"}
-    _assert_safe(steps, set(prov["publish_tools"]), preview)
+        if tmpl.get("requires"):
+            s["requires"] = tmpl["requires"]
+            if tmpl["requires"] == "consent":
+                s["requires_step"] = consent_n
+    _assert_safe(_flat(prov["recipe"]), prov, "providers.json completo")
+    _assert_safe(steps, prov, "passos emitidos")
     blocked = [subs(t["blocks"]) for t in templates if t.get("blocks")]
     return {"schema": SCHEMA_RECIPE, "provider": pid, "label": prov["label"], "plan_id": plan["plan_id"], "mcp_url": prov["mcp_url"],
             "steps": steps, "blocked_until": blocked, "publish_tools": prov["publish_tools"], "rules": doc["rules"],
