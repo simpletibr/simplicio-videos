@@ -645,6 +645,41 @@ def test_i4_limite_de_taxa_comum_continua_transitorio(gemini, media, monkeypatch
     assert e.value.retryable is True
 
 
+def chaves_por_formato():
+    """Chaves falsas montadas em tempo de execução (nunca como literal): casam com o formato, não estão no ambiente."""
+    return ["AIza" + "Sy" + "B" * 33 + "-_", "AQ." + "Ab8" + "x" * 40 + "._-"]
+
+
+@pytest.mark.parametrize("chave", chaves_por_formato())
+def test_i6_scrub_pega_chave_pelo_formato(chave):
+    assert chave not in swap.scrub(f"vazou {chave} no meio")
+    assert "***" in swap.scrub(f"vazou {chave} no meio")
+
+
+@pytest.mark.parametrize("chave", chaves_por_formato())
+def test_i6_manifesto_nao_grava_chave_pelo_formato(tmp_path, chave):
+    swap.write_manifest(tmp_path / "m.json", {"prompt": f"use {chave} aqui"})
+    assert chave not in (tmp_path / "m.json").read_text()
+
+
+@pytest.mark.parametrize("chave", chaves_por_formato())
+def test_i6_mensagem_de_erro_do_provedor_nao_ecoa_chave(gemini, media, monkeypatch, chave, capsys):
+    corpo = json.dumps({"error": {"code": 400, "message": f"API key not valid: {chave}"}}).encode()
+    monkeypatch.setattr(http, "request", Rota([(400, corpo)]))
+    with pytest.raises(swap_providers.ProviderError) as e:
+        gemini.submit(gjob(media))
+    assert chave not in str(e.value)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("chave", chaves_por_formato())
+def test_i6_prompt_com_chave_nao_chega_ao_manifesto_nem_ao_log(media, chave, capsys):
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5", "--prompt", f"minha chave {chave}")) == 0
+    cap = capsys.readouterr()
+    for texto in ((media["dir"] / "out" / "swap.manifest.json").read_text(), cap.out, cap.err):
+        assert chave not in texto
+
+
 @needs_ffmpeg
 def test_i1_sucesso_limpa_a_pasta_de_trabalho(media):
     assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
