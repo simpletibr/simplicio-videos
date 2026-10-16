@@ -1,0 +1,132 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "simplicio.busca-registro/v1",
+  "description": "Uma linha de busca.registro.jsonl: a procedência de uma consulta ou de uma página lida (quando, o que, versão do CLI, hash do que o CLI devolveu e do que foi entregue).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "em",
+    "comando",
+    "canal",
+    "consulta",
+    "url",
+    "dominios",
+    "excluir",
+    "idioma",
+    "cli_versao",
+    "do_cache",
+    "chave_cache",
+    "urls_resultados",
+    "n_resultados",
+    "n_mostrados",
+    "conteudo_sha256",
+    "conteudo_bytes",
+    "entregue_sha256",
+    "entregue_bytes",
+    "truncado"
+  ],
+  "properties": {
+    "schema": {
+      "const": "simplicio.busca-registro/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "em": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "comando": {
+      "enum": [
+        "consulta",
+        "pagina"
+      ]
+    },
+    "canal": {
+      "enum": [
+        "terminal",
+        "mcp"
+      ]
+    },
+    "consulta": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dominios": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "excluir": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "idioma": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cli_versao": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "do_cache": {
+      "type": "boolean"
+    },
+    "chave_cache": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "urls_resultados": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^https?://"
+      }
+    },
+    "n_resultados": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "n_mostrados": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "conteudo_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "conteudo_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "entregue_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "entregue_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncado": {
+      "type": "boolean"
+    }
+  }
+}

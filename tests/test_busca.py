@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from conftest import ROOT
+from conftest import ROOT, run_cli
 from simplicio_video import mcp_server, paths, status, tools
 from simplicio_video.cli import main
 
@@ -220,7 +220,7 @@ def test_limite_padrao_e_5_e_so_local(env):
 
 def test_segunda_chamada_vem_do_cache_e_nao_executa_o_binario(env, hoje):
     a = env.b.consulta(TEXTO)
-    env.b.patch("_agora", lambda: datetime(2026, 10, 17, 9, 0, 0, tzinfo=timezone.utc))
+    env.patch("_agora", lambda: datetime(2026, 10, 17, 9, 0, 0, tzinfo=timezone.utc))
     b = env.b.consulta(TEXTO)
     assert len(env.fake.chamadas("search")) == 1
     assert a["do_cache"] is False and b["do_cache"] is True
@@ -366,6 +366,7 @@ def test_contador_invalido_recusa_em_vez_de_zerar(env, hoje, conteudo):
 
 SEGREDOS = [
     "AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q",
+    "AIzaSyABCDEFGH",  # a truncated key is still part of a key
     "AQ.Ab8RN6IexampleFAKEtoken123456",
     "sk-fake0123456789abcdef",
     "ghp_0123456789abcdefghij0123456789abcdef",
@@ -856,6 +857,38 @@ def test_chave_de_teste_nunca_aparece_em_saida_registro_cache_contador_ou_argume
     assert CHAVE not in tudo_em_disco(env)
 
 
+def test_proxy_com_senha_e_tratado_como_credencial(env):
+    proxy = "http://usuario:senha-do-proxy-77@proxy.local:3128"
+    env.mp.setenv("HTTPS_PROXY", proxy)
+    env.fake.set(search={"exit": 1, "stderr": f"falha ao conectar em {proxy}"})
+    with pytest.raises(env.b.BuscaError) as e:
+        env.b.consulta("a")
+    assert "senha-do-proxy-77" not in str(e.value)
+    with pytest.raises(env.b.BuscaError, match="segredo"):
+        env.b.consulta(f"como usar {proxy}")
+
+
+def test_pasta_de_dados_e_privada(env):
+    env.b.consulta("a")
+    assert stat.S_IMODE(env.pasta.stat().st_mode) == 0o700 and stat.S_IMODE((env.pasta / "cache").stat().st_mode) == 0o700
+
+
+def test_surrogate_solto_na_resposta_nao_derruba_o_motor(env):
+    bruto = ('{"query": "a", "total_results": 2, "page": 0, "results": ['
+             '{"position": 1, "site_name": "s\\ud800", "snippet": "ab\\ud800cd", "title": "t", "url": "https://exemplo.com/a", "date": null},'
+             '{"position": 2, "site_name": "s", "snippet": "x", "title": "t", "url": "https://exemplo.com/\\ud800"}]}')
+    env.fake.set(search={"stdout": bruto})
+    r = env.b.consulta("a")
+    assert [x["untrusted_fonte"] for x in r["resultados"]] == ["https://exemplo.com/a"] and r["resultados"][0]["untrusted_trecho"] == "abcd"
+    assert r["descartados"]["url_invalida"] == 1 and len(linhas_do_registro(env)) == 1
+
+
+def test_consulta_com_bytes_que_nao_sao_utf8_e_recusada(env):
+    with pytest.raises(env.b.BuscaError, match="UTF-8"):
+        env.b.consulta("ab\udcffcd")
+    assert env.fake.chamadas() == []
+
+
 def test_erro_inesperado_no_mcp_nao_ecoa_a_chave(env):
     env.mp.setenv("TINYFISH_API_KEY", CHAVE)
 
@@ -1072,9 +1105,10 @@ def test_valor_hostil_no_argv_fechado_nunca_vira_opcao(env, capsys):
 
 # ------------------------------------------------------------------------------------------------ help, CLI e dados
 
-def test_help_da_busca_traz_o_aviso_de_terceiro_o_que_ficou_de_fora_e_o_gasto(capsys):
-    assert main(["busca", "--help"]) == 0
-    out = capsys.readouterr().out
+def test_help_da_busca_traz_o_aviso_de_terceiro_o_que_ficou_de_fora_e_o_gasto():
+    r = run_cli("busca", "--help")
+    assert r.returncode == 0, r.stderr
+    out = r.stdout
     for deve in ("consulta", "pagina", "status", "log", "TinyFish", "enviada a um terceiro", "dado pessoal", "segredo", "--max-chamadas-dia",
                  "--permitir-dado-pessoal", "--atualizar", "--limite", "--dominios", "--excluir", "--idioma", "TINYFISH_API_KEY",
                  "SIMPLICIO_BUSCA_MAX_DIA", "untrusted_", "nunca instrução", "busca.registro.jsonl", "agent", "browser", "monitor",
@@ -1083,10 +1117,10 @@ def test_help_da_busca_traz_o_aviso_de_terceiro_o_que_ficou_de_fora_e_o_gasto(ca
     assert "não instala" in out or "nunca instala" in out
 
 
-def test_help_geral_lista_busca_e_o_mcp_cita_video_busca(capsys):
-    assert main(["--help"]) == 0
-    out = capsys.readouterr().out
-    assert "    busca" in out and "video.busca" in out
+def test_help_geral_lista_busca_e_o_mcp_cita_video_busca():
+    r = run_cli("--help")
+    assert r.returncode == 0, r.stderr
+    assert "    busca" in r.stdout and "openverse/busca" in r.stdout
 
 
 def test_main_sem_subcomando_imprime_ajuda_e_sai_com_1(capsys):

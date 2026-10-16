@@ -35,7 +35,8 @@ Fluxo completo:
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse
+  busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse/busca
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -291,6 +292,11 @@ def build_parser() -> argparse.ArgumentParser:
         description=_openverse.HELP_DESC, epilog=_openverse.HELP_EPILOG)
     p.add_argument("args", nargs=argparse.REMAINDER, help="search | get <id> | library list|show|review|export|credits")
 
+    from . import busca as _busca
+    p = sub.add_parser("busca", formatter_class=Fmt, help="pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário",
+        description=_busca.HELP_DESC, epilog=_busca.HELP_EPILOG)
+    p.add_argument("args", nargs=argparse.REMAINDER, help="consulta \"<texto>\" | pagina <url> | status | log")
+
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
                     "video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
@@ -445,7 +451,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats", "swap", "jobs", "social", "openverse"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats", "swap", "jobs", "social", "openverse", "busca"):
         if any(h in args_list for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
@@ -487,6 +493,9 @@ def main(argv: list[str] | None = None) -> int:
         if cmd == "openverse":
             from . import openverse
             return openverse.run_openverse(sub_args)
+        if cmd == "busca":
+            from . import busca
+            return busca.run_busca(sub_args)
         if cmd == "formats":
             from . import formats
             try:

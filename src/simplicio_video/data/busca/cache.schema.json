@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "simplicio.busca-cache/v1",
+  "description": "Resposta guardada de uma consulta ou de uma página, já limpa e limitada, com a data da chamada de verdade e o hash do que o CLI devolveu.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "comando",
+    "consultado_em",
+    "cli_versao",
+    "conteudo_sha256",
+    "conteudo_bytes",
+    "parametros"
+  ],
+  "properties": {
+    "schema": {
+      "const": "simplicio.busca-cache/v1"
+    },
+    "comando": {
+      "enum": [
+        "consulta",
+        "pagina"
+      ]
+    },
+    "consultado_em": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "cli_versao": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "conteudo_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "conteudo_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "parametros": {
+      "type": "object"
+    },
+    "total_cli": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "descartados": {
+      "type": "object"
+    },
+    "resultados": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "posicao",
+          "url",
+          "titulo",
+          "trecho",
+          "site",
+          "data"
+        ],
+        "properties": {
+          "posicao": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https?://"
+          },
+          "titulo": {
+            "type": "string"
+          },
+          "trecho": {
+            "type": "string"
+          },
+          "site": {
+            "type": "string"
+          },
+          "data": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "pagina": {
+      "type": "object",
+      "required": [
+        "url",
+        "url_final",
+        "texto",
+        "truncado"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "url_final": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "titulo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "descricao": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "idioma": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "autor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data_publicacao": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "texto": {
+          "type": "string"
+        },
+        "truncado": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "comando": {
+          "const": "consulta"
+        }
+      },
+      "required": [
+        "resultados",
+        "total_cli",
+        "descartados"
+      ]
+    },
+    {
+      "properties": {
+        "comando": {
+          "const": "pagina"
+        }
+      },
+      "required": [
+        "pagina"
+      ]
+    }
+  ]
+}

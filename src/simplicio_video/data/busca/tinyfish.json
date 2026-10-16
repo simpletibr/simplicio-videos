@@ -1,0 +1,113 @@
+{
+  "schema": "simplicio.busca-tinyfish/v1",
+  "pacote": "@tiny-fish/cli",
+  "versao_testada": "0.50.1",
+  "variavel_ambiente": "TINYFISH_API_KEY",
+  "read_on": "2026-10-16",
+  "fatos": [
+    {
+      "campo": "pacote",
+      "valor": "npm @tiny-fish/cli 0.50.1 (dist-tags: latest 0.50.1, next 0.50.2-next.406); binário `tinyfish`",
+      "fonte": "npm view @tiny-fish/cli (rede, só leitura)",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "Versão testada e fixada em tools.py. O pacote declara engines.node >= 24.0.0."
+    },
+    {
+      "campo": "licenca",
+      "valor": "o package.json não tem o campo `license` e o pacote não traz arquivo LICENSE; `npm view @tiny-fish/cli license` volta vazio (o SDK @tiny-fish/sdk também não declara)",
+      "fonte": "package.json e árvore do pacote instalado; npm view",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "Licença não declarada: o motor só chama o binário instalado pelo usuário, nunca o embute nem o redistribui. Parecer jurídico não foi feito."
+    },
+    {
+      "campo": "busca",
+      "valor": "tinyfish search query <query> [--location V] [--language V] [--include-domains a,b] [--exclude-domains a,b] [--page N] [--pretty]",
+      "fonte": "tinyfish search query --help (CLI 0.50.1)",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "O motor usa query, --include-domains, --exclude-domains e --language. --location, --page e --pretty ficam de fora."
+    },
+    {
+      "campo": "busca_saida",
+      "valor": "{query, results[{position, site_name, snippet, title, url, date?}], total_results, page}; `date` é texto livre localizado (`5 de out. de 2017`), não ISO, e só alguns resultados o trazem; sem --pretty a saída é JSON",
+      "fonte": "uma chamada real de fumaça (tests/fixtures/busca/consulta_real.json)",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "10 resultados; o limite --limite é aplicado pelo motor, não pelo CLI."
+    },
+    {
+      "campo": "busca_idioma",
+      "valor": "definir só --language (ou só --location) resolve o outro sozinho (language=pt <-> location=BR); sem os dois o padrão é US/en",
+      "fonte": "skill empacotada com o CLI: tinyfish-research/references/searching.md",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "Passar --language pt devolveu resultados em português na chamada de fumaça."
+    },
+    {
+      "campo": "busca_dominios",
+      "valor": "--include-domains não foi exercitado numa chamada real; --exclude-domains foi (pinterest.com) e voltou 200 com resultados",
+      "fonte": "uma chamada real de fumaça",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "nota": "Para --include-domains vale só a documentação do --help."
+    },
+    {
+      "campo": "pagina",
+      "valor": "tinyfish fetch content get <urls...> [--format markdown|html|json] [--links] [--highlights Q] [--per-url-timeout-ms N] ...; até 10 URLs por chamada",
+      "fonte": "tinyfish fetch content get --help (CLI 0.50.1) e dist/commands/fetch.js",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "O motor lê UMA URL por chamada, sempre com --format markdown."
+    },
+    {
+      "campo": "pagina_saida",
+      "valor": "{results[{url, final_url, title, description, language, author, published_date, latency_ms, format, text}], errors[{url, error}]}; erro por URL vem em `errors`, com `results` vazio",
+      "fonte": "uma chamada real de fumaça (tests/fixtures/busca/pagina_real.json) e o SDK @tiny-fish/sdk (fetch/types.d.ts)",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "Só o caso feliz (https://example.com) foi visto numa chamada real; o formato de `errors` vem dos tipos do SDK."
+    },
+    {
+      "campo": "chave",
+      "valor": "a chave vem de TINYFISH_API_KEY (tem precedência) ou de ~/.tinyfish/config.json; `tinyfish auth set` lê a chave da entrada padrão; `tinyfish auth login` é interativo",
+      "fonte": "tinyfish auth --help e dist/commands/auth.js, dist/lib/auth.js",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "O motor nunca lê o arquivo de configuração: quem o lê é o binário."
+    },
+    {
+      "campo": "auth_status",
+      "valor": "`tinyfish auth status` devolve JSON {source: env|config|none, key_preview, authenticated}; key_preview são os 12 primeiros e os 4 últimos caracteres da chave; `authenticated` é só a checagem local de formato (prefixo e tamanho), sem ir ao servidor; sai com código 1 quando não há chave",
+      "fonte": "dist/commands/auth.js e dist/lib/auth.js do pacote instalado (lidos, não executados contra a chave)",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "O motor usa source e authenticated e DESCARTA key_preview: nenhum pedaço da chave chega a saída, registro ou log."
+    },
+    {
+      "campo": "tarifas",
+      "valor": "tinyfish wallet status: Search 0 USD/query, Fetch 0 USD/url, Monitor 0 USD/run, Research 0 USD/run, Agent 0.016 USD/step, Browser 0.002 USD/minute; a mesma chamada, minutos depois, devolveu `Rates: unavailable`",
+      "fonte": "tinyfish wallet status --pretty (duas leituras, saldo igual antes e depois das duas chamadas de fumaça)",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "A skill empacotada também diz que a busca é gratuita. Mesmo assim o motor mantém o teto diário (política de preço pode mudar) e deixa fora agent, browser e monitor, que são cobrados."
+    },
+    {
+      "campo": "telemetria",
+      "valor": "TINYFISH_NO_TELEMETRY=1 suprime os envios de analytics do CLI; o motor sempre o define na chamada",
+      "fonte": "dist/lib/setup-telemetry.js",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "No código lido só o `connect` emite telemetria; a variável é protetiva."
+    },
+    {
+      "campo": "limites",
+      "valor": "limites de taxa e cotas do TinyFish, comportamento do fetch com página atrás de login ou anti-bot, página muito grande, erros HTTP 401/402/429 e a política de retenção das consultas no lado do TinyFish não foram exercitados nem lidos nos termos",
+      "fonte": "n/a",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "nota": "Por isso a consulta é tratada como enviada a um terceiro sem garantia de sigilo."
+    }
+  ]
+}

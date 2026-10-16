@@ -1,6 +1,6 @@
 """Pinned versions and install location for the external tools behind the existing commands
-`montage` (OpenMontage), `opencut` (OpenCut), `clone` (Hypit), `toonflow` (Toonflow) and `moneyprinter`
-(MoneyPrinterTurbo). No command of its own.
+`montage` (OpenMontage), `opencut` (OpenCut), `clone` (Hypit), `toonflow` (Toonflow), `moneyprinter`
+(MoneyPrinterTurbo) and `busca` (TinyFish CLI). No command of its own.
 
 The engine drives: OpenMontage, OpenCut, Hypit, Toonflow and MoneyPrinterTurbo, each pinned to a known version.
 
@@ -63,6 +63,11 @@ TOOLS: dict[str, Tool] = {
                               "Pexels, Pixabay and Coverr) and needs your own API keys in its config.toml; the terms were not "
                               "reviewed here. Its API config listens on 0.0.0.0 by default and the WebUI has no login: serve "
                               "forces 127.0.0.1 unless --lan"),
+    "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.50.1", "not declared in the npm package (no license field, no LICENSE file; read 2026-10-16)",
+                     "web search and page fetch for research (`simplicio-video busca`); installed by the user, never bundled and never installed by the engine",
+                     note="the engine uses only `search query`, `fetch content get`, `auth status` and `--version`: agent, browser and monitor (browser "
+                          "automation, metered by step or minute) are out of scope. The package declares Node >= 24. The query or URL goes to a third "
+                          "party (TinyFish): the engine refuses secrets and, unless told otherwise, personal data"),
 }
 
 
