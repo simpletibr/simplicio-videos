@@ -396,6 +396,12 @@ def _prepare_swap(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, b
         raise JobError(f"o adaptador {p['provider']} está UNVERIFIED (não conferido na API real): repita com --aceito-unverified")
     if Path(p["out"]).exists() and not p.get("force"):
         raise JobError(f"a saída já existe: {p['out']} (use --force para sobrescrever)")
+    folder = str(Path(p["out"]).parent)
+    for other in list_jobs():  # the manifest name is fixed per folder: two runs there would overwrite each other's handles
+        if (other.get("kind") == "swap-run" and other["state"] in ("queued", "running")
+                and str(Path((other.get("params") or {}).get("out", "")).parent) == folder):
+            raise JobError(f"já há uma tarefa swap-run ativa na mesma pasta de saída ({folder}): {other['id']}. Os dois "
+                           "gravariam o mesmo swap.manifest.json. Espere terminar ou use outra pasta em --out")
     p["max_usd"] = float(p["max_usd"])
     extra = {"estimate_usd": round(plan.estimate.usd, 6), "confirmed": {"yes": True, "autorizo": True, "max_usd": p["max_usd"],
                                                                          "at": now_iso()}}

@@ -35,6 +35,7 @@ from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, S
 __all__ = ["Job", "SwapError", "SwapTimeout", "run_swap", "plan_chunks", "estimate_report", "providers_report"]
 
 MANIFEST_NAME = "swap.manifest.json"
+LOCK_NAME = ".swap.lock"
 MANIFEST_SCHEMA = "simplicio.swap-manifest/v1"
 DEFAULT_MAX_USD = 2.0
 POLL_MAX_S = 30.0
@@ -179,7 +180,38 @@ def write_manifest(path: Path, data: dict) -> None:
             raise SwapError("segredo (chave de API) encontrado no manifesto: não gravado")
     text = redact(text)  # a key-shaped string (e.g. pasted in --prompt) is hidden even when it is not in the environment
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf8")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")  # temp + os.replace: a kill never leaves a half manifest
+    try:
+        with open(tmp, "w", encoding="utf8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+
+
+@contextlib.contextmanager
+def _folder_lock(folder: Path):
+    """One swap run per output folder: the manifest name is fixed per folder, so two runs would overwrite each other's
+    paid handles. Non-blocking flock on a file in the folder (POSIX; without fcntl the guard is skipped)."""
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover (Windows)
+        yield
+        return
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / LOCK_NAME, "a") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise SwapError(f"outra execução do swap está usando esta pasta de saída ({folder}): ela grava o mesmo "
+                            f"{MANIFEST_NAME} e os dois se sobrescreveriam. Espere terminar ou use outra pasta em --out") from None
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def build_prompt(extra: str = "") -> str:
@@ -486,7 +518,13 @@ async def _run_chunks(p: "Plan", prompt: str, work: Path, recs: list[dict], coun
         raise
 
 
-def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFAULT_TIMEOUT_S,
+def execute(p: Plan, out: Path, **kw) -> dict:
+    """Run the swap for `p` into `out` (see `_execute`), holding the output folder for the whole run."""
+    with _folder_lock(out.parent):
+        return _execute(p, out, **kw)
+
+
+def _execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFAULT_TIMEOUT_S,
             poll_interval: float = DEFAULT_POLL_S, max_usd: float = DEFAULT_MAX_USD,
             concurrency: int | None = None) -> dict:
     adapter, info = p.adapter, p.info
