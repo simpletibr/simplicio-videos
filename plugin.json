@@ -1,7 +1,7 @@
 {
   "schema": "simplicio.plugin/v1",
   "name": "videos",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "simplicio-videos: Simplicio Runtime video plugin. Entry point = the `simplicio-video` CLI (Python, pyproject.toml): the LLM writes a simplicio.video-contract/v1 YAML (schema/contract.schema.json) and the CLI validates it, renders/caches the voice (file/local/gemini; elevenlabs/xai stubs) into timing.lock.json and renders deterministically (template composition + motion blocks -> HyperFrames frames -> ffmpeg master -14 LUFS, render.manifest.json with hashes), locally or as a Colab GPU bundle (colab/render.ipynb). Skill for LLMs: skills/simplicio-video/SKILL.md. See docs/decisoes/ADR-0001-visao-plugin.md and ADR-0002-cli-contrato-colab-creditos.md. The 'videos' op command below is the older pipeline proposal (intake/brief/edit ops still run through repo scripts).",
   "binary": "simplicio-video",
   "protocol": 1,
