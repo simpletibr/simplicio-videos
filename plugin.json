@@ -489,6 +489,25 @@
       }
     },
     {
+      "verb": "video.moneyprinter",
+      "description": "MoneyPrinterTurbo topic-to-short-video generator (https://github.com/harry0703/MoneyPrinterTurbo): clone into the default folder and where only; setup and serve run in the terminal.",
+      "argv": [
+        "simplicio-video",
+        "moneyprinter",
+        "{args}"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "string",
+            "description": "clone | where (setup, serve, status: só no terminal)"
+          }
+        }
+      }
+    },
+    {
       "verb": "video.realoficial",
       "description": "Real Oficial MCP (https://api.realoficial.com.br/mcp): config/check; OAuth MCP with 49 tools (social scheduling, AI media, cuts), see docs/realoficial.md.",
       "argv": [
@@ -570,6 +589,7 @@
       "video.opencut",
       "video.formats",
       "video.toonflow",
+      "video.moneyprinter",
       "video.realoficial",
       "video.edit"
     ]

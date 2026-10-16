@@ -9,7 +9,7 @@ Estrelas conferidas via GitHub API em 30/09/2026.
 - [mexicat/pdoom-video](https://github.com/mexicat/pdoom-video) — ⭐2k · MIT. Videoclipe 100% renderizado em código (three.js), feito com Opus 5.5 no Claude Code.
 
 ### Vídeo com IA (geração/automação)
-- [harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) — ⭐127k · MIT. Tema/palavra-chave → vídeo curto com legendas.
+- [harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) — ⭐127k · MIT. Tema/palavra-chave → vídeo curto com legendas. Integrado como `simplicio-video moneyprinter` (ver [README](../README.md#video-apps)).
 - [calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) — ⭐62k · AGPL-3.0. Produção de vídeo agentic (pipelines, Remotion/FFmpeg, text-to-video, custos por vídeo).
 - [browser-use/video-use](https://github.com/browser-use/video-use) — ⭐27.8k · MIT. Editar vídeos com coding agents.
 - [hypit-ai/hypit](https://github.com/hypit-ai/hypit) — ⭐17.9k. Clonar vídeos virais: troca de rosto, falas, B-roll; 100 variações.
@@ -51,6 +51,7 @@ Textos conferidos via API pública do fxtwitter em 30/09/2026.
 
 - **Hypit AI**: `simplicio-video clone` (integrated).
 - **Toonflow**: `simplicio-video toonflow clone|serve --lan|where`. Open-source (MIT) AI studio for short dramas and comics, a Bun web app on port 3000 that listens on every interface with no login, so `serve` requires `--lan`. Data lives outside the checkout (`TOONFLOW_DATA_DIR`). Outside the deterministic render.
+- **MoneyPrinterTurbo**: `simplicio-video moneyprinter clone|setup|serve|where|status`. Open-source (MIT) topic-to-short-video generator (Python 3.11+, Streamlit WebUI on 8501 and FastAPI on 8080). Support track outside the engine and outside the deterministic render. `serve` listens on 127.0.0.1 only, `--lan` for every interface; the keys of the LLM, TTS and stock services are the user's, kept in its `config.toml` and never printed. MCP: `video.moneyprinter` accepts only `where` and `clone` into the default folder.
 - **OpenMontage**: `simplicio-video montage` (integrated).
 - **OpenCut**: `simplicio-video opencut clone|dev|where`. Open-source editor (MIT) for manual finishing; uses `opencut-classic` until the rewrite ships its Editor API/MCP/headless mode. Outside the deterministic render.
 - **video-use**: `simplicio-video edit setup|transcribe|pack|render|verify` over any MP4 from HyperFrames, OpenMontage or OpenCut.

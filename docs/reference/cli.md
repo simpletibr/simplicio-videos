@@ -27,7 +27,8 @@ Fluxo completo:
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow
+  moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow/moneyprinter
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -38,30 +39,31 @@ Schema do contrato: src/simplicio_video/data/schema/contract.schema.json (no che
 Skill para LLMs: skills/simplicio-video/SKILL.md
 
 options:
-  -h, --help  show this help message and exit
-  --version   mostra a versão do motor e sai (com --json: {version, engine})
-  --json      com --version: imprime {version, engine} em JSON
+  -h, --help      show this help message and exit
+  --version       mostra a versão do motor e sai (com --json: {version, engine})
+  --json          com --version: imprime {version, engine} em JSON
 
 comandos (na ordem do fluxo):
   COMANDO
-    init      gera o esqueleto de contrato para <cliente> <campanha>
-    validate  valida o contrato (schema, assets, durações, falas)
-    voice     gera/cacheia as falas e grava timing.lock.json
-    render    compila e renderiza (padrão local; kaggle/colab-cli/colab opcionais via créditos)
-    run       voice -> validate -> render num comando só (para no MP4)
-    clone     trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA
-    montage   trilha Montage (OpenMontage): produção de vídeo com agentes de IA
-    edit      edição por EDL com video-use sobre qualquer MP4
-    opencut   editor OpenCut (open-source) para acabamento manual
-    toonflow  Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
-    formats   biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
-    mcp       servidor MCP (stdio) para o simplicio-runtime
-    status    ferramentas instaladas, versões fixadas e estado do render
-    list      lista templates, padrões de motion, providers de voz ou ângulos de anúncio
-    install   ambiente idempotente: .venv com uv, Python e extras (--check mostra o plano)
-    update    git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
-    doctor    diagnóstico: Python, Node 22, ffmpeg+libass, disco, portas, credenciais, workspace
-    setup     primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
+    init          gera o esqueleto de contrato para <cliente> <campanha>
+    validate      valida o contrato (schema, assets, durações, falas)
+    voice         gera/cacheia as falas e grava timing.lock.json
+    render        compila e renderiza (padrão local; kaggle/colab-cli/colab opcionais via créditos)
+    run           voice -> validate -> render num comando só (para no MP4)
+    clone         trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA
+    montage       trilha Montage (OpenMontage): produção de vídeo com agentes de IA
+    edit          edição por EDL com video-use sobre qualquer MP4
+    opencut       editor OpenCut (open-source) para acabamento manual
+    toonflow      Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
+    moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
+    formats       biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
+    mcp           servidor MCP (stdio) para o simplicio-runtime
+    status        ferramentas instaladas, versões fixadas e estado do render
+    list          lista templates, padrões de motion, providers de voz ou ângulos de anúncio
+    install       ambiente idempotente: .venv com uv, Python e extras (--check mostra o plano)
+    update        git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
+    doctor        diagnóstico: Python, Node 22, ffmpeg+libass, disco, portas, credenciais, workspace
+    setup         primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
 
 exemplos:
   simplicio-video list templates
@@ -249,6 +251,26 @@ options:
 exemplos:
   simplicio-video mcp                  # stdio (o runtime lança este processo)
   simplicio-video-mcp                  # mesmo servidor, entrypoint dedicado
+```
+
+## simplicio-video moneyprinter
+
+```text
+usage: simplicio-video moneyprinter [-h] ...
+
+Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo, MIT) no commit fixado em tools.py. Exige Python 3.11 ou mais novo; o setup cria um venv isolado e copia o config.toml sem chave nenhuma. O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080) e só abre para a rede com --lan. As chaves de API nunca são impressas. Fica fora do render determinístico.
+
+positional arguments:
+  args        clone [dir] | setup | serve [--webui] [--api] [--lan] | where | status
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video moneyprinter clone
+  simplicio-video moneyprinter setup
+  simplicio-video moneyprinter serve --api
+  simplicio-video moneyprinter status
 ```
 
 ## simplicio-video montage

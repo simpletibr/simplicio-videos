@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, montage, opencut, paths, toonflow
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, moneyprinter, montage, opencut, paths, toonflow
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
 
@@ -29,7 +29,8 @@ Fluxo completo:
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow
+  moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/toonflow/moneyprinter
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -248,6 +249,15 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video toonflow clone\n  simplicio-video toonflow serve --lan\n  simplicio-video toonflow where")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | serve --lan | where")
 
+    p = sub.add_parser("moneyprinter", formatter_class=Fmt, help="MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio",
+        description="Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo, MIT) no commit fixado em tools.py. "
+                    "Exige Python 3.11 ou mais novo; o setup cria um venv isolado e copia o config.toml sem chave nenhuma. "
+                    "O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080) e só abre para a rede com --lan. "
+                    "As chaves de API nunca são impressas. "
+                    "Fica fora do render determinístico.",
+        epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api\n  simplicio-video moneyprinter status")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | serve [--webui] [--api] [--lan] | where | status")
+
     p = sub.add_parser("formats", formatter_class=Fmt, help="biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy",
         description="Os 50 formatos da pasta 'Swipe File - 50 Formatos' (Drive): descrição, estrutura e o exemplo de cada um. "
                     "`prompt` monta o pedido para adaptar uma copy ao formato; quem adapta é o LLM, não o CLI.",
@@ -408,7 +418,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "formats"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats"):
         if any(h in args_list for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
@@ -450,6 +460,12 @@ def main(argv: list[str] | None = None) -> int:
                 return toonflow.run_toonflow(sub_args)
             except toonflow.ToonflowError as e:
                 print(f"toonflow: {e}", file=sys.stderr)
+                return 1
+        if cmd == "moneyprinter":
+            try:
+                return moneyprinter.run_moneyprinter(sub_args)
+            except moneyprinter.MoneyPrinterError as e:
+                print(f"moneyprinter: {e}", file=sys.stderr)
                 return 1
 
     a = ap.parse_args(argv)

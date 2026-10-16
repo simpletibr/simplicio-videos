@@ -95,9 +95,10 @@ def calls(monkeypatch):
 def server(monkeypatch):
     """Fakes the long-running server processes. Records how each is started and which signal reaches each group.
     state.interrupt: the next sleep in the supervision loop raises KeyboardInterrupt (Ctrl+C on this process).
-    state.exit_codes: index of the process -> exit code it reports once the loop has slept once."""
+    state.exit_codes: None = every process exits 0 once the loop has slept once; a dict = only those processes
+    (index -> exit code) exit, the others keep running."""
     state = SimpleNamespace(started=[], signals=[], interrupt=False, ignore_sigint=False, term_handler=None,
-                            exit_codes={}, slept=0)
+                            exit_codes=None, slept=0)
 
     class Proc:
         def __init__(self, cmd, cwd=None, env=None, start_new_session=False):
@@ -114,16 +115,19 @@ def server(monkeypatch):
             return self.returncode
 
         def poll(self):
-            if self.returncode is None and state.slept and self.index in state.exit_codes:
-                self.returncode = state.exit_codes[self.index]
+            if self.returncode is None and state.slept:
+                if state.exit_codes is None:
+                    self.returncode = 0
+                elif self.index in state.exit_codes:
+                    self.returncode = state.exit_codes[self.index]
             return self.returncode
 
     def fake_sleep(seconds):
         state.term_handler = signal.getsignal(signal.SIGTERM)
-        state.slept += 1
         if state.interrupt:
             state.interrupt = False
             raise KeyboardInterrupt
+        state.slept += 1
 
     monkeypatch.setattr("subprocess.Popen", Proc)
     monkeypatch.setattr(moneyprinter.time, "sleep", fake_sleep)
