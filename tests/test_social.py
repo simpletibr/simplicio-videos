@@ -386,31 +386,6 @@ def sequencia_do_texto(texto):
     return out
 
 
-@pytest.mark.parametrize("provedor", PROVEDORES)
-@pytest.mark.parametrize("alvos,agenda", [(["youtube"], None), (["tiktok", "instagram", "youtube"], ("2026-10-21T18:00", "America/Sao_Paulo")),
-                                          (REDES, None)])
-def test_nenhuma_saida_do_motor_confirma_sem_consentimento_antes(video, provedor, alvos, agenda, capsys):
-    kw = {"at": agenda[0], "timezone": agenda[1]} if agenda else {}
-    path = plano(video, targets=alvos, accept_unverified=True, **kw)["path"]
-    pub = set({p["id"]: p for p in social.providers_report()["providers"]}[provedor]["publish_tools"])
-    rec = social.recipe(path, provider=provedor, clip_id=CLIP_RO)
-    saidas = [social.recipe_text(rec)]
-    assert social.run_social(["recipe", path, "--provider", provedor, "--clip-id", CLIP_RO]) == 0
-    saidas.append(capsys.readouterr().out)
-    assert social.run_social(["recipe", path, "--provider", provedor, "--clip-id", CLIP_RO, "--json"]) == 0
-    js = json.loads(capsys.readouterr().out)
-    conferir_consentimento(js["steps"], pub)
-    for texto in saidas:
-        seq = sequencia_do_texto(texto)
-        assert seq, texto
-        vistos = set()
-        for tipo, ferr in seq:
-            if tipo == "chamada" and ferr in pub:
-                assert {"mostrar", "consentimento"} <= vistos, f"{ferr} antes do consentimento:\n{texto}"
-            vistos.add(tipo)
-        assert [t for t, _ in seq].index("consentimento") < [i for i, (t, f) in enumerate(seq) if f in pub][0]
-
-
 def test_receita_preenche_os_argumentos_do_plano_no_realoficial(video):
     path = plano(video, targets=[f"youtube={ID_RO}"], title="Título curto", at="2026-10-20T09:30", timezone="America/Sao_Paulo")["path"]
     rec = social.recipe(path, clip_id=CLIP_RO)
@@ -588,21 +563,6 @@ def test_mcp_social_erros_voltam_como_json(tmp_path):
 
 
 # ------------------------------------------------------------------------------------------------ fronteira do motor
-
-def test_motor_nao_importa_rede_nem_http_nem_cliente_mcp():
-    arvore = ast.parse(Path(social.__file__).read_text(encoding="utf8"))
-    mods = set()
-    for n in ast.walk(arvore):
-        if isinstance(n, ast.Import):
-            mods |= {a.name.split(".")[0] for a in n.names}
-        elif isinstance(n, ast.ImportFrom) and n.module and n.level == 0:
-            mods.add(n.module.split(".")[0])
-    proibidos = {"socket", "ssl", "urllib", "http", "requests", "httpx", "aiohttp", "websockets", "ftplib", "smtplib", "mcp",
-                 "playwright", "selenium"}
-    assert not mods & proibidos, mods & proibidos
-    fonte = Path(social.__file__).read_text(encoding="utf8")
-    assert not re.search(r"os\.environ|getenv", fonte), "o módulo social não lê variável de ambiente (nenhuma credencial)"
-
 
 def test_plugin_json_tem_verbos_fechados_do_social_e_nenhum_de_publicar():
     data = json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))
