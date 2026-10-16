@@ -1,0 +1,10 @@
+﻿etapa;modelo;resolucao;quadros;tempo_s;pico_vram_mb;pico_ram_gb;deu_certo_sim_nao;saida_identica_2a_rodada_sim_nao;observacao
+E3_comfyui_gpu_ok;ComfyUI portatil NVIDIA (sem modelo);;;;;;;;colar as linhas 'Total VRAM' e 'Device' do console
+E5_sam2_mascara;SAM 2.1 small (0,18 GB);480x848;77;;;;;;mascara boa nos quadros 0, 38 e 76? sim/nao
+E6_pose_face;ViTPose-L + YOLOv10m (ONNX);480x848;77;;;;;;CUDAExecutionProvider ou CPUExecutionProvider?
+E7_vace13b_480p;Wan2.1 VACE 1.3B (t2v fp16 + modulo VACE);480x848;77;;;;;;plano B
+E8_animate_gguf_q3ks_480p;Wan2.2-Animate-14B GGUF Q3_K_S (7,97 GB);480x848;77;;;;;;block swap/offload usado:
+E9_animate_gguf_q4ks_480p;Wan2.2-Animate-14B GGUF Q4_K_S (10,6 GB);480x848;77;;;;;;
+E10_animate_fp8_bs40_480p;Wan2.2-Animate-14B fp8 scaled KJ (18,4 GB) + block swap 40;480x848;77;;;;;;
+E11_melhor_modelo_720p;(o melhor que funcionou nas etapas 7 a 10);720x1280;77;;;;;;so se sobrou folga de VRAM em 480x848
+;;;;;;;;;
