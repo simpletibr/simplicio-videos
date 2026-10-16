@@ -34,7 +34,8 @@ Fluxo completo:
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social
+  openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -285,6 +286,11 @@ def build_parser() -> argparse.ArgumentParser:
         description=_social.HELP_DESC, epilog=_social.HELP_EPILOG)
     p.add_argument("args", nargs=argparse.REMAINDER, help="providers | plan | check <plano> | recipe <plano>")
 
+    from . import openverse as _openverse
+    p = sub.add_parser("openverse", formatter_class=Fmt, help="biblioteca de imagens e áudio do Openverse, revisada por pedido",
+        description=_openverse.HELP_DESC, epilog=_openverse.HELP_EPILOG)
+    p.add_argument("args", nargs=argparse.REMAINDER, help="search | get <id> | library list|show|review|export|credits")
+
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
         description="Expõe o CLI como servidor MCP (stdio): tools video.init, video.validate, video.voice, video.render,\n"
                     "video.run, video.list. Requer `pip install -e .[mcp]` (SDK Python `mcp`).\n"
@@ -439,7 +445,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats", "swap", "jobs", "social"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "toonflow", "moneyprinter", "formats", "swap", "jobs", "social", "openverse"):
         if any(h in args_list for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
@@ -478,6 +484,9 @@ def main(argv: list[str] | None = None) -> int:
         if cmd == "social":
             from . import social
             return social.run_social(sub_args)
+        if cmd == "openverse":
+            from . import openverse
+            return openverse.run_openverse(sub_args)
         if cmd == "formats":
             from . import formats
             try:

@@ -134,12 +134,13 @@ class FakeNet:
     def serve(self, url, body, status=200, headers=None, host_ip="151.101.1.1"):
         host = urlparse(url).hostname
         self.hosts.setdefault(host, [host_ip])
-        self.routes[url] = FakeResp(status, headers or {"Content-Type": "image/png"}, body)
+        cab = headers or {"Content-Type": "image/png"}
+        self.routes[url] = lambda: FakeResp(status, cab, body)  # resposta nova a cada requisição
 
     def redirect(self, url, to, status=302):
         host = urlparse(url).hostname
         self.hosts.setdefault(host, ["151.101.1.1"])
-        self.routes[url] = FakeResp(status, {"Location": to}, b"")
+        self.routes[url] = lambda: FakeResp(status, {"Location": to}, b"")
 
 
 @pytest.fixture(autouse=True)
@@ -250,7 +251,7 @@ def test_licencas_explicitas_by_sa_nc_nd_voltam_com_aviso(env):
     assert achou["by-sa"] and "mesma licença" in achou["by-sa"][0]
     assert len(avisos) == 3  # cc0 e by não geram aviso
     (c,) = env.api.searches()
-    assert c["query"]["license"] == "cc0,by,by-nc,by-nd,by-sa"
+    assert c["query"]["license"] == "cc0,by,by-sa,by-nc,by-nd"  # ordem canônica: a mesma consulta tem sempre a mesma chave de cache
     assert "license_type" not in c["query"]  # commercial/modification só quando todas as licenças são seguras
 
 
@@ -380,6 +381,12 @@ def test_filtros_locais_reaproveitam_o_mesmo_cache(env):
     ov.search("imagem", "x")
     ov.search("imagem", "x", minimo_largura=2000)
     assert len(env.api.searches()) == 1
+
+
+def test_busca_nova_mostra_a_cota_restante_e_a_do_cache_nao(env):
+    a = ov.search("imagem", "x")
+    assert a["cota_api"] == {"x-ratelimit-available-anon_burst": "19"}
+    assert ov.search("imagem", "x")["cota_api"] is None
 
 
 def test_sem_cache_e_sem_rede_da_erro_claro(env, monkeypatch):
@@ -703,6 +710,23 @@ def test_status_http_diferente_de_200_e_recusado(env):
             ov.get(ID_IMG)
 
 
+def test_download_demorado_demais_e_cortado_pelo_prazo_total(env, monkeypatch):
+    monkeypatch.setattr(ov, "DOWNLOAD_DEADLINE_S", -1)
+    ov.search("imagem", "x")
+    env.net.serve(URL_IMG, PNG)
+    with pytest.raises(ov.OpenverseError, match="prazo"):
+        ov.get(ID_IMG)
+    assert not (env.lib / "files").exists() or not list((env.lib / "files").iterdir())
+
+
+def test_download_truncado_content_length_diferente_dos_bytes_e_recusado(env):
+    ov.search("imagem", "x")
+    env.net.serve(URL_IMG, PNG, headers={"Content-Length": str(len(PNG) + 500)})
+    with pytest.raises(ov.OpenverseError, match="truncad"):
+        ov.get(ID_IMG)
+    assert not (env.lib / "files").exists() or not list((env.lib / "files").iterdir())
+
+
 def test_get_recusa_item_sem_licenca_conhecida_ou_mature_pelo_detalhe(env):
     env.api.images["results"][0]["license"] = None
     with pytest.raises(ov.OpenverseError, match="licen"):
@@ -958,7 +982,7 @@ def midia(tmp_path_factory):
     ff("-f", "lavfi", "-i", "color=c=white:size=320x240", "-frames:v", "1", d / "branca.png")
     ff("-f", "lavfi", "-i", "sine=frequency=440:duration=2:sample_rate=44100", "-af", "volume=0.5,apad=whole_dur=4", "-t", "4",
        "-c:a", "pcm_s16le", d / "tom.wav")
-    ff("-f", "lavfi", "-i", "sine=frequency=440:duration=3:sample_rate=44100", "-af", "volume=8", "-c:a", "pcm_s16le", d / "estourado.wav")
+    ff("-f", "lavfi", "-i", "sine=frequency=440:duration=3:sample_rate=44100", "-af", "volume=20", "-c:a", "pcm_s16le", d / "estourado.wav")
     return {n.stem: (d / n).read_bytes() for n in d.iterdir()}
 
 
@@ -985,6 +1009,16 @@ def test_nitidez_e_brilho_distinguem_imagens(env, midia):
     preta = ov.review_sheet(baixar(env, idx=2, body=midia["preta"])["id"], PEDIDO)["sinais"]
     branca = ov.review_sheet(baixar(env, idx=0, body=midia["branca"], atualizar=True)["id"], PEDIDO)["sinais"]
     assert preta["brilho_medio"] < 30 and branca["brilho_medio"] > 220 and preta["nitidez"] == pytest.approx(0, abs=1e-6)
+
+
+@needs_ffmpeg
+def test_folha_compara_o_arquivo_com_o_que_o_openverse_declarou(env, midia):
+    img = ov.review_sheet(baixar(env, body=midia["nitida"])["id"], PEDIDO)
+    assert img["sinais"]["dimensoes_declaradas"] == "1024x606"
+    assert any("diferem" in c for c in img["falta_conferir"])
+    aud = ov.review_sheet(baixar(env, "audio", body=midia["tom"])["id"], "som de chuva")
+    assert aud["sinais"]["duracao_declarada_s"] == pytest.approx(60.116)
+    assert any("diferente" in c for c in aud["falta_conferir"])
 
 
 @needs_ffmpeg
@@ -1099,6 +1133,24 @@ def test_export_copia_o_ativo_aprovado_e_escreve_o_credito(env, aprovado):
         assert trecho in cred, trecho
     assert "parecer jurídico" in cred and "Openverse" in cred
     assert json.loads((env.lib / "index.json").read_text(encoding="utf8"))["exportacoes"][0]["sha256"] == aprovado["sha256"]
+
+
+def test_indice_com_revisao_e_exportacao_continua_valido_no_schema(env, aprovado):
+    jsonschema = pytest.importorskip("jsonschema")
+    ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
+    ov.review(aprovado["id"], OUTRO_PEDIDO, "reprovado", "fora do tema", "revisor")
+    doc = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    esquema = json.loads((paths.data_dir() / "openverse" / "library.schema.json").read_text(encoding="utf8"))
+    jsonschema.validate(doc, esquema)
+    assert len(doc["revisoes"]) == 2 and len(doc["exportacoes"]) == 1
+
+
+def test_host_com_ipv4_e_ipv6_conecta_no_ipv4_validado(env):
+    env.net.hosts["live.staticflickr.com"] = ["2606:4700::1111", "151.101.1.1"]
+    env.net.routes[URL_IMG] = lambda: FakeResp(200, {}, PNG)
+    ov.search("imagem", "x")
+    ov.get(ID_IMG)
+    assert env.net.gets == [(URL_IMG, "151.101.1.1")]
 
 
 def test_export_e_idempotente(env, aprovado):
@@ -1360,7 +1412,12 @@ def test_status_json_mostra_a_biblioteca_e_se_as_credenciais_existem_sem_o_valor
     baixar(env)
     monkeypatch.setenv("OPENVERSE_CLIENT_ID", "meu-id-fake")
     monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", SEGREDO)
-    monkeypatch.setenv("PATH", str(env.tmp))  # sem ferramentas: o status não roda nada
+    from simplicio_video import tools
+    for t in tools.TOOLS.values():
+        for var in (f"{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_REF"):
+            monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(env.tmp / "ferramentas"))  # nenhuma ferramenta instalada
+    monkeypatch.setenv("PATH", str(env.tmp))  # sem ffmpeg nem node: o status não roda nada
     rc = main(["status", "--json"])
     out = capsys.readouterr().out
     assert rc == 0 and SEGREDO not in out and "meu-id-fake" not in out

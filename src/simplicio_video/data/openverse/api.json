@@ -1,0 +1,135 @@
+{
+  "schema": "simplicio.openverse-api/v1",
+  "base": "https://api.openverse.org/v1",
+  "read_on": "2026-10-16",
+  "fatos": [
+    {
+      "campo": "base",
+      "valor": "https://api.openverse.org/v1",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "Esquema OpenAPI da API."
+    },
+    {
+      "campo": "busca",
+      "valor": "GET /v1/images/ e GET /v1/audio/ (parâmetros q, license, license_type, source, category, extension, mature, page, page_size; imagem ainda tem size e aspect_ratio; áudio tem length)",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "q aceita até 200 caracteres. O áudio não tem parâmetro de duração: o filtro --duracao-min/--duracao-max é local, sobre o campo duration (milissegundos)."
+    },
+    {
+      "campo": "license",
+      "valor": "lista separada por vírgula: by, by-nc, by-nc-nd, by-nc-sa, by-nd, by-sa, cc0, nc-sampling+, pdm, sampling+",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "O comando só aceita cc0, pdm, by, by-sa, by-nc, by-nd, by-nc-sa e by-nc-nd."
+    },
+    {
+      "campo": "license_type",
+      "valor": "lista separada por vírgula: all, all-cc, commercial, modification",
+      "source_url": "https://raw.githubusercontent.com/WordPress/openverse/main/api/api/controllers/search_controller.py",
+      "read_on": "2026-10-16",
+      "confidence": "source-code",
+      "nota": "license e license_type entram juntos como filtros (E); lido no código-fonte e confirmado com uma resposta HTTP 200 que usou os dois. O comando manda license_type=commercial,modification só quando todas as licenças pedidas permitem uso comercial e modificação."
+    },
+    {
+      "campo": "mature",
+      "valor": "padrão false; o comando manda mature=false sempre",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "Conteúdo sensível fica de fora; o comando também descarta qualquer resultado com mature=true."
+    },
+    {
+      "campo": "limite_anonimo_observado",
+      "valor": "20 requisições por minuto e 200 por dia na busca; 1000 por dia em miniaturas",
+      "source_url": "https://api.openverse.org/v1/images/",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "Cabeçalhos x-ratelimit-limit-anon_burst, x-ratelimit-limit-anon_sustained e x-ratelimit-limit-anon_thumbnail de respostas anônimas em 2026-10-16 (tests/fixtures/openverse/observed_headers.json). O código-fonte público traz outros padrões (5 por hora e 100 por dia): vale o que a produção devolve, e ela pode mudar."
+    },
+    {
+      "campo": "limite_registrado",
+      "valor": "burst 100 por minuto e 10000 por dia (padrão); 200 por minuto e 20000 por dia (enhanced)",
+      "source_url": "https://raw.githubusercontent.com/WordPress/openverse/main/api/conf/settings/rest_framework.py",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "nota": "Lido no código-fonte; não conferido em produção porque nenhuma credencial foi usada. GET /v1/rate_limit/ mostra o modelo da chave."
+    },
+    {
+      "campo": "page_size_maximo",
+      "valor": "20 anônimo; 50 autenticado",
+      "source_url": "https://raw.githubusercontent.com/WordPress/openverse/main/api/api/constants/restricted_features.py",
+      "read_on": "2026-10-16",
+      "confidence": "source-code",
+      "nota": "A documentação diz só que o tamanho da página depende da autenticação. O comando usa 20 sem credencial e 50 com OPENVERSE_CLIENT_ID e OPENVERSE_CLIENT_SECRET."
+    },
+    {
+      "campo": "profundidade_maxima",
+      "valor": "240 resultados por consulta (12 páginas de 20)",
+      "source_url": "https://raw.githubusercontent.com/WordPress/openverse/main/api/api/constants/restricted_features.py",
+      "read_on": "2026-10-16",
+      "confidence": "source-code",
+      "nota": "As respostas reais trazem result_count 240 e page_count 80 com page_size 3 (observado)."
+    },
+    {
+      "campo": "oauth2",
+      "valor": "POST /v1/auth_tokens/register/ (name, description, email; verificar o e-mail) e POST /v1/auth_tokens/token/ (application/x-www-form-urlencoded: grant_type=client_credentials, client_id, client_secret); depois Authorization: Bearer <access_token>",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "expires_in de 36000 s no exemplo da documentação. O fluxo com credencial não foi exercitado (sem credencial real): o código segue a documentação e é coberto só por testes com fake."
+    },
+    {
+      "campo": "termos_de_uso",
+      "valor": "Não raspar o catálogo; não usar várias máquinas para contornar limites; respeitar os termos do conteúdo (inclusive atribuição); o Openverse não verifica a licença; quem usa precisa conferir o direito de uso; apps feitos com a API devem indicar que usam o Openverse e que não são endossados por ele",
+      "source_url": "https://docs.openverse.org/terms_of_service.html",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "Termos em vigor desde 2022-05-05 segundo a página. O comando limita a página, guarda cache e não varre a API."
+    },
+    {
+      "campo": "atribuicao",
+      "valor": "o campo attribution traz o texto de atribuição legalmente válido em inglês; o comando guarda esse texto e monta a linha de crédito com título, autor, fonte e licença (TASL)",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "Boas práticas de atribuição do Creative Commons: título, autor, fonte e licença (https://wiki.creativecommons.org/wiki/Best_practices_for_attribution)."
+    },
+    {
+      "campo": "campos_opcionais",
+      "valor": "title, creator, creator_url, license_version, filesize, filetype, width, height, duration, bit_rate e sample_rate podem vir nulos (\"Not always available\")",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "official",
+      "nota": "Observado: filetype e filesize nulos em imagens do Flickr; sample_rate nulo e thumbnail nulo em áudio do Freesound."
+    },
+    {
+      "campo": "audio_do_freesound",
+      "valor": "o url de áudio do Freesound aponta para a prévia mp3 (hq, 128 kbps); o original em wav fica em alt_files e exige a API do Freesound",
+      "source_url": "https://api.openverse.org/v1/audio/",
+      "read_on": "2026-10-16",
+      "confidence": "observed",
+      "nota": "A qualidade do áudio baixado é a do campo url. Observado em 2026-10-16 (tests/fixtures/openverse/search_audio.json)."
+    },
+    {
+      "campo": "download_do_arquivo",
+      "valor": "o download do campo url (servidor da fonte) não foi exercitado",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "nota": "Só uma miniatura foi baixada na fumaça (JPEG 600 px, content-type image/jpeg). Não foi conferido se as fontes aceitam o download direto, exigem Referer ou redirecionam."
+    },
+    {
+      "campo": "duracao_length",
+      "valor": "length (long, medium, short, shortest) filtra áudio por faixa de duração no servidor",
+      "source_url": "https://api.openverse.org/v1/schema/?format=json",
+      "read_on": "2026-10-16",
+      "confidence": "UNVERIFIED",
+      "nota": "Os limites de cada faixa não estão na documentação lida; por isso o comando não usa length e filtra pela duração real."
+    }
+  ]
+}

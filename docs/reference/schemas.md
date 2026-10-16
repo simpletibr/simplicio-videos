@@ -5,6 +5,9 @@
 | Arquivo | `$id` ou título | Descrição |
 |---|---|---|
 | src/simplicio_video/data/motion/pattern.schema.json | https://simplicio.dev/schemas/simplicio.motion-pattern/v1 | One entry of the motion pattern library (motion/patterns/<id>/pattern.json). |
+| src/simplicio_video/data/openverse/api.schema.json | simplicio.openverse-api/v1 | Fatos da API do Openverse usados pelo comando openverse, cada um com fonte, data de leitura e confiança. |
+| src/simplicio_video/data/openverse/library.schema.json | simplicio.openverse-library/v1 | Índice da biblioteca local do Openverse (index.json): itens baixados, revisões por par (ativo, pedido) e exportações. |
+| src/simplicio_video/data/openverse/licenses.schema.json | simplicio.openverse-licenses/v1 | Licenças Creative Commons que o comando openverse conhece: o que permitem e qual aviso dar. |
 | src/simplicio_video/data/schema/contract.schema.json | https://github.com/simpletibr/simplicio-videos/schema/contract.schema.json | Video contract: everything the simplicio-video CLI needs to render one video deterministically. The LLM reasons and writes this file; the CLI executes it. Scene-relative times (fala.inicio_s, sfx.t) are seconds from the scene start. |
 | src/simplicio_video/data/schemas/cli/preview-manifest.schema.json | simplicio.preview-manifest/v1 | Manifesto da prévia (render --preview, ao lado do contrato). Não substitui o render.manifest.json da entrega. Só o formato: $schema é opcional. |
 | src/simplicio_video/data/schemas/cli/render-manifest.schema.json | simplicio.render-manifest/v1 | Manifesto da entrega (render.manifest.json, ao lado do contrato). O mesmo formato para todos os backends. Só o formato: o conteúdo é o que render.py grava. $schema é opcional (a chave schema identifica a versão). |

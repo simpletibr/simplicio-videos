@@ -1,0 +1,112 @@
+{
+  "schema": "simplicio.openverse-licenses/v1",
+  "source_url": "https://creativecommons.org/share-your-work/cclicenses/",
+  "read_on": "2026-10-16",
+  "nota": "As licenças que o Openverse devolve vêm das fontes (Flickr, Freesound e outras) e o próprio Openverse avisa para conferir na origem. Esta tabela resume o que cada licença permite; não é parecer jurídico.",
+  "licencas": [
+    {
+      "id": "cc0",
+      "nome": "CC0",
+      "versao_padrao": "1.0",
+      "padrao": true,
+      "atribuicao_obrigatoria": false,
+      "uso_comercial": true,
+      "permite_modificacao": true,
+      "compartilha_igual": false,
+      "aviso": null,
+      "url_modelo": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "resumo": "Dedicação ao domínio público: sem exigência de atribuição."
+    },
+    {
+      "id": "pdm",
+      "nome": "Public Domain Mark",
+      "versao_padrao": "1.0",
+      "padrao": true,
+      "atribuicao_obrigatoria": false,
+      "uso_comercial": true,
+      "permite_modificacao": true,
+      "compartilha_igual": false,
+      "aviso": null,
+      "url_modelo": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "resumo": "Marca de domínio público: a obra é tratada como sem direitos autorais conhecidos; confira na origem."
+    },
+    {
+      "id": "by",
+      "nome": "CC BY",
+      "versao_padrao": null,
+      "padrao": true,
+      "atribuicao_obrigatoria": true,
+      "uso_comercial": true,
+      "permite_modificacao": true,
+      "compartilha_igual": false,
+      "aviso": null,
+      "url_modelo": "https://creativecommons.org/licenses/by/4.0/",
+      "resumo": "Uso comercial e adaptações permitidos, com crédito ao autor."
+    },
+    {
+      "id": "by-sa",
+      "nome": "CC BY-SA",
+      "versao_padrao": null,
+      "padrao": false,
+      "atribuicao_obrigatoria": true,
+      "uso_comercial": true,
+      "permite_modificacao": true,
+      "compartilha_igual": true,
+      "aviso": "compartilhamento pela mesma licença. A adaptação (o vídeo que usa o ativo) pode ter de ser licenciada pelos mesmos termos; só use se isso for aceitável para a peça.",
+      "url_modelo": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "resumo": "Uso comercial permitido, com crédito; adaptações devem usar os mesmos termos."
+    },
+    {
+      "id": "by-nc",
+      "nome": "CC BY-NC",
+      "versao_padrao": null,
+      "padrao": false,
+      "atribuicao_obrigatoria": true,
+      "uso_comercial": false,
+      "permite_modificacao": true,
+      "compartilha_igual": false,
+      "aviso": "uso NÃO comercial. Não use em vídeo de cliente, anúncio ou qualquer peça paga ou promocional.",
+      "url_modelo": "https://creativecommons.org/licenses/by-nc/4.0/",
+      "resumo": "Só uso não comercial."
+    },
+    {
+      "id": "by-nd",
+      "nome": "CC BY-ND",
+      "versao_padrao": null,
+      "padrao": false,
+      "atribuicao_obrigatoria": true,
+      "uso_comercial": true,
+      "permite_modificacao": false,
+      "compartilha_igual": false,
+      "aviso": "sem obras derivadas. Cortar, recolorir ou misturar o ativo num vídeo pode contar como adaptação; só use sem modificar.",
+      "url_modelo": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "resumo": "Uso comercial permitido, mas só cópias não adaptadas."
+    },
+    {
+      "id": "by-nc-sa",
+      "nome": "CC BY-NC-SA",
+      "versao_padrao": null,
+      "padrao": false,
+      "atribuicao_obrigatoria": true,
+      "uso_comercial": false,
+      "permite_modificacao": true,
+      "compartilha_igual": true,
+      "aviso": "uso NÃO comercial e compartilhamento pela mesma licença. Não use em vídeo de cliente, anúncio ou peça paga.",
+      "url_modelo": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+      "resumo": "Só uso não comercial; adaptações com os mesmos termos."
+    },
+    {
+      "id": "by-nc-nd",
+      "nome": "CC BY-NC-ND",
+      "versao_padrao": null,
+      "padrao": false,
+      "atribuicao_obrigatoria": true,
+      "uso_comercial": false,
+      "permite_modificacao": false,
+      "compartilha_igual": false,
+      "aviso": "uso NÃO comercial e sem obras derivadas. Não use em vídeo de cliente, anúncio ou peça paga, e não modifique o ativo.",
+      "url_modelo": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+      "resumo": "Só uso não comercial e só cópias não adaptadas."
+    }
+  ]
+}

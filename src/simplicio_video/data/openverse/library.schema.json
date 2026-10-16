@@ -1,0 +1,276 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "simplicio.openverse-library/v1",
+  "description": "Índice da biblioteca local do Openverse (index.json): itens baixados, revisões por par (ativo, pedido) e exportações.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "itens",
+    "revisoes",
+    "exportacoes"
+  ],
+  "properties": {
+    "schema": {
+      "const": "simplicio.openverse-library/v1"
+    },
+    "itens": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "id",
+          "tipo",
+          "licenca",
+          "sha256",
+          "arquivo",
+          "formato",
+          "tamanho_bytes",
+          "baixado_em",
+          "consultado_em",
+          "url_arquivo"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "tipo": {
+            "enum": [
+              "imagem",
+              "audio"
+            ]
+          },
+          "titulo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "autor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "autor_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "licenca": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "licenca_versao": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "licenca_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "atribuicao": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origem_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url_arquivo": {
+            "type": "string"
+          },
+          "provedor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fonte": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "filetype": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mature": {
+            "type": "boolean"
+          },
+          "largura": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "altura": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "duracao_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "bit_rate": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "taxa_amostragem_hz": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "arquivo": {
+            "type": "string",
+            "pattern": "^files/[0-9a-f]{64}\\.[a-z0-9]+$"
+          },
+          "formato": {
+            "enum": [
+              "jpeg",
+              "png",
+              "webp",
+              "gif",
+              "mp3",
+              "ogg",
+              "wav",
+              "flac",
+              "m4a"
+            ]
+          },
+          "tamanho_bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "baixado_em": {
+            "type": "string"
+          },
+          "consultado_em": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "revisoes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sha256",
+          "pedido",
+          "pedido_normalizado",
+          "veredito",
+          "motivo",
+          "por",
+          "canal",
+          "em"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "pedido": {
+            "type": "string"
+          },
+          "pedido_normalizado": {
+            "type": "string"
+          },
+          "veredito": {
+            "enum": [
+              "aprovado",
+              "reprovado"
+            ]
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "por": {
+            "type": "string"
+          },
+          "canal": {
+            "enum": [
+              "terminal",
+              "mcp"
+            ]
+          },
+          "em": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "exportacoes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sha256",
+          "pedido_normalizado",
+          "destino",
+          "arquivo",
+          "em"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "pedido_normalizado": {
+            "type": "string"
+          },
+          "destino": {
+            "type": "string"
+          },
+          "arquivo": {
+            "type": "string"
+          },
+          "em": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -31,7 +31,8 @@ Fluxo completo:
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social
+  openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -63,6 +64,7 @@ comandos (na ordem do fluxo):
     swap          troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
     jobs          tarefas em segundo plano (swap run, voice) num processo separado
     social        redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP
+    openverse     biblioteca de imagens e áudio do Openverse, revisada por pedido
     mcp           servidor MCP (stdio) para o simplicio-runtime
     status        ferramentas instaladas, versões fixadas e estado do render
     list          lista templates, padrões de motion, providers de voz ou ângulos de anúncio
@@ -356,6 +358,60 @@ options:
 exemplos:
   simplicio-video opencut clone
   simplicio-video opencut dev
+```
+
+## simplicio-video openverse
+
+```text
+usage: simplicio-video openverse [-h] ...
+
+Biblioteca local de imagens e áudio do Openverse (https://openverse.org/) para compor e melhorar os vídeos, com revisão
+POR PEDIDO: o ativo só entra num vídeo se alguém aprovou aquele ativo para aquele pedido. Usa a API pública do Openverse;
+o Openverse não endossa nem certifica o simplicio-video. Zero tokens: nenhuma chamada de LLM; o motor gera uma folha
+determinística e quem revisa (agente ou pessoa) decide.
+
+Subcomandos:
+  search --tipo imagem|audio --consulta "..."   busca (cacheada por consulta, repete offline). --licencas cc0,pdm,by (padrão),
+                                               --minimo-largura N (imagem), --duracao-min/--duracao-max S (áudio), --limite N
+                                               (até 20 sem credencial, 50 com), --pagina N, --atualizar ignora o cache
+  get <id> [--tipo imagem|audio]               baixa para a biblioteca: só https, IP público, limite de 25 MB (imagem) ou 50 MB
+                                               (áudio), tipo pela assinatura do arquivo, nome pelo sha256
+  library list|show <id>                       o que há na biblioteca, integridade e vereditos
+  library review <id> --pedido "..." --folha    gera a FOLHA de revisão: dimensões, nitidez, brilho, miniatura (imagem); duração,
+                                               taxa de amostragem, loudness, silêncio, clipping, espectrograma (áudio); pista textual
+  library review <id> --pedido "..." --aprovar|--reprovar --motivo "..." --por "nome"
+                                               grava o veredito do par (sha256 do ativo, pedido); aprovar exige a folha antes
+  library export <id> --pedido "..." --para PASTA | --contrato contract.yaml
+                                               copia só o aprovado para aquele pedido (nunca sobrescreve bytes diferentes) e acrescenta
+                                               a linha de crédito a CREDITS-openverse.md; contrato = assets/openverse ao lado dele
+  library credits [--para PASTA]               bloco de créditos de tudo o que foi exportado
+
+Licenças: padrão cc0, pdm e by (seguras para uso comercial e edição). by-sa, by-nc e by-nd (e by-nc-sa, by-nc-nd) só por
+opção explícita em --licencas, com aviso do que implicam; nc e nd nunca entram por padrão e o export exige --aceito-restricao.
+A licença que o Openverse devolve vem das fontes e ele mesmo manda conferir na origem (foreign_landing_url, gravada em cada
+item): isto não é parecer jurídico. Item sem licença conhecida nunca é baixado; CC BY sem autor nunca é exportado.
+
+Biblioteca em OPENVERSE_LIBRARY_DIR (padrão ~/.simplicio-video/openverse-library): index.json (schema versionado), files/<sha256>.<ext>,
+cache/, sheets/. Credenciais OAuth2 opcionais só por variável de ambiente: OPENVERSE_CLIENT_ID e OPENVERSE_CLIENT_SECRET (nunca
+por argumento; nada vai para índice, cache, folha ou saída). Respeite os termos do Openverse: sem raspagem em massa.
+Pelo MCP (video.openverse): search, list, show, folha e review; baixar e exportar só pelo terminal.
+
+positional arguments:
+  args        search | get <id> | library list|show|review|export|credits
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video openverse search --tipo imagem --consulta "sunrise over the sea" --minimo-largura 1280 --limite 10
+  simplicio-video openverse search --tipo audio --consulta "rain" --duracao-min 20 --duracao-max 90 --json
+  simplicio-video openverse get 9d8abc2c-c4dd-4dce-8164-cadd775befcf
+  simplicio-video openverse library review 9d8abc2c-c4dd-4dce-8164-cadd775befcf --pedido "nascer do sol para a abertura" --folha
+  simplicio-video openverse library review 9d8abc2c-c4dd-4dce-8164-cadd775befcf --pedido "nascer do sol para a abertura" \
+      --aprovar --motivo "o sol aparece no centro, sem marca" --por "Wesley"
+  simplicio-video openverse library export 9d8abc2c-c4dd-4dce-8164-cadd775befcf --pedido "nascer do sol para a abertura" \
+      --contrato clients/acme/video-01/contract.yaml
+  simplicio-video openverse library credits
 ```
 
 ## simplicio-video render

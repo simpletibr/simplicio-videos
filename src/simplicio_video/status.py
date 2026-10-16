@@ -99,8 +99,8 @@ def render_state(contrato: Path) -> dict:
 
 
 def report(contrato: str | Path | None = None) -> dict:
-    from . import swap
-    rep: dict = {"tools": [tool_status(n) for n in ENGINE_TOOLS], "swap": swap.status_summary()}
+    from . import openverse, swap
+    rep: dict = {"tools": [tool_status(n) for n in ENGINE_TOOLS], "swap": swap.status_summary(), "openverse": openverse.status_summary()}
     if contrato is not None:
         path = Path(contrato)
         if not path.is_file():
@@ -123,6 +123,13 @@ def text(rep: dict) -> str:
             estado = "pronto" if p["configured"] else "sem chave"
             marca = "" if p["verified"] else "  UNVERIFIED"
             linhas.append(f"  {p['name']:<10} {estado:<10} {chave}{marca}")
+    if rep.get("openverse"):
+        o = rep["openverse"]
+        linhas.append("openverse (biblioteca de imagens e áudio; só diz se as variáveis OAuth2 existem, nunca o valor):")
+        linhas.append(f"  biblioteca {o['biblioteca']}: {o['itens'] if o['itens'] is not None else '?'} ativo(s), "
+                      f"{o['revisoes'] if o['revisoes'] is not None else '?'} revisão(ões), {o['exportacoes'] if o['exportacoes'] is not None else '?'} exportação(ões)")
+        cred = ", ".join(f"{k} {'definida' if v else 'não definida'}" for k, v in o["credenciais"].items())
+        linhas.append(f"  {cred} (opcionais: sem elas a busca é anônima)")
     if "render" in rep:
         r = rep["render"]
         if r["rendered"]:

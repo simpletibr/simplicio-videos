@@ -815,6 +815,252 @@
       }
     },
     {
+      "verb": "video.openverse.search",
+      "description": "Search Openverse images or audio (cached per query; default licenses cc0,pdm,by, safe for commercial use and editing). Network read only; downloads nothing. The license comes from the sources: check the origin, this is not legal advice.",
+      "argv": [
+        "simplicio-video",
+        "openverse",
+        "search",
+        "--tipo",
+        "{tipo}",
+        "--consulta",
+        "{consulta}",
+        "--licencas",
+        "{licencas}",
+        "--limite",
+        "{limite}",
+        "--minimo-largura",
+        "{minimo_largura}",
+        "--duracao-min",
+        "{duracao_min}",
+        "--duracao-max",
+        "{duracao_max}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tipo",
+          "consulta"
+        ],
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "imagem",
+              "audio"
+            ]
+          },
+          "consulta": {
+            "type": "string",
+            "description": "what to search (up to 200 characters; titles and tags are usually in English)"
+          },
+          "licencas": {
+            "type": "string",
+            "description": "comma separated licenses; default cc0,pdm,by. by-sa, by-nc, by-nd, by-nc-sa, by-nc-nd only when chosen on purpose",
+            "default": "cc0,pdm,by"
+          },
+          "limite": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 10
+          },
+          "minimo_largura": {
+            "type": "string",
+            "description": "image: minimum width in pixels (local filter); empty = none",
+            "default": ""
+          },
+          "duracao_min": {
+            "type": "string",
+            "description": "audio: minimum duration in seconds (local filter); empty = none",
+            "default": ""
+          },
+          "duracao_max": {
+            "type": "string",
+            "description": "audio: maximum duration in seconds (local filter); empty = none",
+            "default": ""
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.openverse.list",
+      "description": "List the assets in the local Openverse library, with the requests each one was approved for. Read-only.",
+      "argv": [
+        "simplicio-video",
+        "openverse",
+        "library",
+        "list",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "verb": "video.openverse.show",
+      "description": "Show one library asset: integrity (sha256), reviews and, with a request, the state of the pair asset+request. Read-only.",
+      "argv": [
+        "simplicio-video",
+        "openverse",
+        "library",
+        "show",
+        "{id}",
+        "--pedido",
+        "{pedido}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Openverse id (UUID)"
+          },
+          "pedido": {
+            "type": "string",
+            "description": "what the video needs; empty = do not evaluate a pair",
+            "default": ""
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.openverse.folha",
+      "description": "Generate the deterministic review sheet for the pair asset+request (objective signals, thumbnail or spectrogram, text hint, what is left to check). The engine does not decide: the reviewer looks at the files and records the verdict.",
+      "argv": [
+        "simplicio-video",
+        "openverse",
+        "library",
+        "review",
+        "{id}",
+        "--pedido",
+        "{pedido}",
+        "--folha",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "pedido"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Openverse id (UUID)"
+          },
+          "pedido": {
+            "type": "string",
+            "description": "what the video needs at this point"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.openverse.aprovar",
+      "description": "Record the reviewer's APPROVAL of the asset for this request (needs the sheet first). The approval is valid only for this asset file (sha256) and this request.",
+      "argv": [
+        "simplicio-video",
+        "openverse",
+        "library",
+        "review",
+        "{id}",
+        "--pedido",
+        "{pedido}",
+        "--aprovar",
+        "--motivo",
+        "{motivo}",
+        "--por",
+        "{por}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "pedido",
+          "motivo",
+          "por"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Openverse id (UUID)"
+          },
+          "pedido": {
+            "type": "string",
+            "description": "what the video needs at this point"
+          },
+          "motivo": {
+            "type": "string",
+            "description": "why it fits or does not fit this request"
+          },
+          "por": {
+            "type": "string",
+            "description": "who reviewed: a name or the agent's name"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.openverse.reprovar",
+      "description": "Record the reviewer's REJECTION of the asset for this request.",
+      "argv": [
+        "simplicio-video",
+        "openverse",
+        "library",
+        "review",
+        "{id}",
+        "--pedido",
+        "{pedido}",
+        "--reprovar",
+        "--motivo",
+        "{motivo}",
+        "--por",
+        "{por}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "pedido",
+          "motivo",
+          "por"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Openverse id (UUID)"
+          },
+          "pedido": {
+            "type": "string",
+            "description": "what the video needs at this point"
+          },
+          "motivo": {
+            "type": "string",
+            "description": "why it fits or does not fit this request"
+          },
+          "por": {
+            "type": "string",
+            "description": "who reviewed: a name or the agent's name"
+          }
+        }
+      }
+    },
+    {
       "verb": "video.realoficial",
       "description": "Real Oficial MCP (https://api.realoficial.com.br/mcp): config/check; OAuth MCP with 49 tools (social scheduling, AI media, cuts), see docs/realoficial.md.",
       "argv": [
@@ -900,6 +1146,7 @@
       "video.toonflow",
       "video.moneyprinter",
       "video.social",
+      "video.openverse",
       "video.realoficial",
       "video.edit"
     ]
