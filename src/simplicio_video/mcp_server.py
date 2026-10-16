@@ -267,7 +267,7 @@ def video_busca(acao: str = "status", consulta: str | None = None, pagina: str |
             return {"ok": True, **busca.log(ultimos)}
         return {"ok": False, "error": f"acao desconhecida: {str(acao)[:40]!r} (consulta|pagina|status|log); agent, browser e monitor do TinyFish não existem no motor"}
     except busca.BuscaError as e:
-        return {"ok": False, "error": str(e)}
+        return {"ok": False, "error": str(e), **({"untrusted_erro": e.untrusted_erro} if e.untrusted_erro else {})}
     except Exception as e:  # noqa: BLE001 - report, don't kill the server (and never echo a credential)
         return {"ok": False, "error": busca.scrub(f"{type(e).__name__}: {e}")}
 

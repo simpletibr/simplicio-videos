@@ -380,7 +380,7 @@ SEGREDOS = [
     "rk_" + "live_" + "FAKE0123456789abcdefABCD",
     "hf_" + "FAKEabcdefghijklmnopqrstuvwxyz0123",
     "npm_" + "FAKEabcdefghijklmnopqrstuvwxyz012345",
-    "glpat-" + "FAKEabcdefghij0123",
+    "glpat-" + "FAKEabcdefghij0123456",
     "bearer abcdefghijklmnopqrstuvwxyz0123456",
     "-----begin private key-----",
     "-----Begin RSA Private Key-----",
