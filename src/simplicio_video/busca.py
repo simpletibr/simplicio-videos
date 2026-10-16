@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import hashlib
+import html
 import json
 import os
 import re
@@ -115,17 +116,22 @@ _SHA_RE = re.compile(r"[0-9a-f]{64}")
 _VERSAO_RE = re.compile(r"(?<![\w.])(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?![\w.])")
 
 # What is stripped from third-party text: C0/C1 controls (not tab or newline), bidirectional overrides, zero-width and tag
-# characters (used to hide instructions from humans), the BOM and the soft hyphen.
+# characters (used to hide instructions from humans), the BOM, the soft hyphen and the blank-looking fillers (U+034F, U+180E,
+# U+2800, U+3164). U+2028 and U+2029 are not stripped: `_base` turns them into newlines (see there).
 _CONTROLE_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
-_INVISIVEIS_RE = re.compile("[­​-‏‪-‮⁠-⁤⁦-⁩﻿\U000e0000-\U000e007f]")
+_INVISIVEIS_RE = re.compile("[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\U000e0000-\U000e007f"
+                            "\u034f\u180e\u2800\u3164]")
 _BLOCOS_RE = re.compile(r"<(script|style|iframe|object|embed|template)\b[^>]{0,2000}>.*?(?:</\1\s*>|\Z)", re.I | re.S)
 _COMENTARIO_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.S)
 _CDATA_RE = re.compile(r"<!\[CDATA\[.*?(?:\]\]>|\Z)", re.S)
 _AUTOLINK_RE = re.compile(r"<(https?://[^\s<>]+)>")
 _TAG_RE = re.compile(r"</?[A-Za-z!?][^<>]{0,2000}>")
-_MD_LINK_RE = re.compile(r"!?\[([^\]\n]{0,500})\]\(\s*<?((?:[^()\s<>]|\([^()\s<>]{0,500}\)){0,2100})>?(?:\s+(?:\"[^\"\n]{0,500}\"|'[^'\n]{0,500}'))?\s*\)")
+_MD_LINK_RE = re.compile(r"!?\[([^\]\n]{0,200})\]\(\s*<?((?:[^()\s<>]|\([^()\s<>]{0,500}\)){0,2100})>?(?:\s+(?:\"[^\"\n]{0,500}\"|'[^'\n]{0,500}'))?\s*\)")
 _ABRE_TAG_RE = re.compile(r"<(?=[A-Za-z!/?])")
 _MD_DEF_PERIGOSA_RE = re.compile(r"^[ \t]*\[[^\]\n]+\]:[ \t]*(?:javascript|vbscript|data|file):.*$", re.I | re.M)
+# A URL scheme that can run or read something, with the target glued to the colon. It is not the tail of a longer word (metadata:x)
+# and not inside an http(s) URL (/wiki/File:Foo.jpg, ?next=data:1); prose such as `data: 5 itens` (space after the colon) is not a URL.
+_ESQUEMA_RE = re.compile(r"(?<![\w+.\-/=?&#%@~])(javascript|vbscript|data|file):(?![ \t\r\n\f\v]|\Z)", re.I)
 
 
 class BuscaError(Exception):
@@ -414,7 +420,7 @@ def _url_do_usuario(url) -> str:
 def _base(valor) -> str:
     s = valor if isinstance(valor, str) else ""
     s = s.encode("utf8", errors="ignore").decode("utf8")  # lone surrogates (invalid JSON escapes) would break hashing and writing
-    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    s = s.replace("\r\n", "\n").replace("\r", "\n").replace("\u2028", "\n").replace("\u2029", "\n")  # str.splitlines() and JS break on them
     return _oculta_env(_INVISIVEIS_RE.sub("", _CONTROLE_RE.sub("", s)))
 
 
@@ -426,25 +432,37 @@ def _md_link(m) -> str:
     return texto  # javascript:, data:, relative and other targets are dropped, the words stay
 
 
-def _limpa_uma_vez(s: str) -> str:
+def _limpa_tags_uma_vez(s: str) -> str:
     s = _BLOCOS_RE.sub(" ", s)
     s = _COMENTARIO_RE.sub(" ", s)
     s = _CDATA_RE.sub(" ", s)
     s = _AUTOLINK_RE.sub(r"\1", s)
-    s = _TAG_RE.sub("", s)
-    s = _MD_LINK_RE.sub(_md_link, s)
-    return _MD_DEF_PERIGOSA_RE.sub("", s)
+    return _TAG_RE.sub("", s)
+
+
+def _neutraliza_esquemas(s: str) -> str:
+    """Last pass, independent of the Markdown grammar (nested brackets, deep parentheses, long labels and line-broken definitions
+    all slip past the link regexes): whatever still looks like `javascript:`, `vbscript:`, `data:` or `file:` with a target glued to
+    the colon loses the colon (`javascript[:]alert(1)`). An entity can spell a letter of the scheme (`&#106;avascript:`,
+    `javascript&colon;`): when decoding the text reveals a scheme, the decoded text (cleaned again) is the one kept."""
+    if "&" in s:
+        aberto = html.unescape(s)
+        if _ESQUEMA_RE.search(aberto):
+            s = _base(aberto)
+    return _ESQUEMA_RE.sub(lambda m: f"{m.group(1)}[:]", s)
 
 
 def _limpa_html(s: str) -> str:
-    """Remove active HTML and non-http(s) link targets. Removing a tag can join the pieces around it into a new one
-    (`<<b>script>`), so it repeats until nothing changes; whatever is left of an opening `<` is then dropped, so no tag can survive."""
+    """Remove active HTML and non-http(s) link targets. Removing a tag can join the pieces around it into a new one (`<<b>script>`), so
+    the tag regexes repeat until nothing changes. The link regexes run once (they are the expensive ones: a label of up to 200
+    characters is tried at every `[`). Then the scheme pass, and whatever is left of an opening `<` is dropped, so no tag can survive."""
     for _ in range(5):
-        novo = _limpa_uma_vez(s)
+        novo = _limpa_tags_uma_vez(s)
         if novo == s:
             break
         s = novo
-    return _ABRE_TAG_RE.sub("", s)
+    s = _MD_DEF_PERIGOSA_RE.sub("", _MD_LINK_RE.sub(_md_link, s))
+    return _ABRE_TAG_RE.sub("", _neutraliza_esquemas(s))
 
 
 def _linha(valor, limite: int) -> str:
