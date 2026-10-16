@@ -74,7 +74,7 @@ MAX_BYTES_MIN = 1000
 MAX_BYTES_MAX = 200_000
 MAX_RESULTADOS_LIDOS = 50
 MAX_TITULO, MAX_TRECHO, MAX_SITE, MAX_DATA, MAX_METADADO = 300, 1000, 200, 60, 300
-MAX_PAGINA_CHARS_LIDOS = 1_000_000  # only the start of a page is read; the rest is dropped before any cleaning
+MAX_PAGINA_CHARS_LIDOS = 400_000  # only the start of a page is read; the rest is dropped before any cleaning (bounds the work of the regexes)
 TIMEOUT_CONSULTA_S = 60
 TIMEOUT_PAGINA_S = 120
 TIMEOUT_STATUS_S = 15
@@ -118,12 +118,12 @@ _VERSAO_RE = re.compile(r"(?<![\w.])(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?![\w
 # characters (used to hide instructions from humans), the BOM and the soft hyphen.
 _CONTROLE_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 _INVISIVEIS_RE = re.compile("[­​-‏‪-‮⁠-⁤⁦-⁩﻿\U000e0000-\U000e007f]")
-_BLOCOS_RE = re.compile(r"<(script|style|iframe|object|embed|template)\b[^>]*>.*?(?:</\1\s*>|\Z)", re.I | re.S)
+_BLOCOS_RE = re.compile(r"<(script|style|iframe|object|embed|template)\b[^>]{0,2000}>.*?(?:</\1\s*>|\Z)", re.I | re.S)
 _COMENTARIO_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.S)
 _CDATA_RE = re.compile(r"<!\[CDATA\[.*?(?:\]\]>|\Z)", re.S)
 _AUTOLINK_RE = re.compile(r"<(https?://[^\s<>]+)>")
 _TAG_RE = re.compile(r"</?[A-Za-z!?][^<>]{0,2000}>")
-_MD_LINK_RE = re.compile(r"!?\[([^\]\n]{0,500})\]\(\s*<?((?:[^()\s<>]|\([^()\s<>]*\))*)>?(?:\s+(?:\"[^\"\n]*\"|'[^'\n]*'))?\s*\)")
+_MD_LINK_RE = re.compile(r"!?\[([^\]\n]{0,500})\]\(\s*<?((?:[^()\s<>]|\([^()\s<>]{0,500}\)){0,2100})>?(?:\s+(?:\"[^\"\n]{0,500}\"|'[^'\n]{0,500}'))?\s*\)")
 _MD_DEF_PERIGOSA_RE = re.compile(r"^[ \t]*\[[^\]\n]+\]:[ \t]*(?:javascript|vbscript|data|file):.*$", re.I | re.M)
 
 
@@ -437,7 +437,7 @@ def _limpa_html(s: str) -> str:
 
 def _linha(valor, limite: int) -> str:
     """One clean line of third-party text, at most `limite` characters."""
-    s = " ".join(_limpa_html(_base(valor)).split())
+    s = " ".join(_limpa_html(_base(valor[: max(limite * 10, 2000)] if isinstance(valor, str) else valor)).split())
     return s if len(s) <= limite else s[: limite - 1].rstrip() + "…"
 
 

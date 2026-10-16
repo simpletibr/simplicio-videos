@@ -677,6 +677,18 @@ def test_pagina_perde_html_ativo_e_comentarios_e_link_perigoso(env):
     assert "\n\n\n" not in c
 
 
+@pytest.mark.parametrize("hostil", ["[a](" * 100_000, "[" * 200_000, "<script" * 50_000, "<!--" * 100_000, "<a " * 130_000, "[a](" + "(x)" * 130_000])
+def test_texto_feito_para_travar_regex_e_limpo_em_poucos_segundos(env, hostil):
+    env.fake.set(fetch={"stdout": jt({"results": [{"url": "https://example.com", "final_url": None, "title": hostil, "format": "markdown", "text": hostil}],
+                                      "errors": []})},
+                 search={"stdout": jt({"query": "a", "total_results": 1, "page": 0, "results": [resultado_hostil(snippet=hostil, title=hostil)]})})
+    t0 = time.monotonic()
+    p = env.b.pagina("https://example.com")
+    r = env.b.consulta("a")
+    assert time.monotonic() - t0 < 8
+    assert len(p["untrusted_conteudo"].encode("utf8")) <= 20480 and len(r["resultados"][0]["untrusted_trecho"]) <= 1000
+
+
 def test_pagina_marca_tudo_como_untrusted(env):
     marca = "MARCA-PAGINA"
     env.fake.set(fetch={"stdout": jt({"results": [{"url": "https://example.com/p", "final_url": f"https://example.com/{marca}", "title": f"{marca}-t",
