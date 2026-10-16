@@ -681,6 +681,59 @@ def test_i6_prompt_com_chave_nao_chega_ao_manifesto_nem_ao_log(media, chave, cap
 
 
 @needs_ffmpeg
+def test_i2_manifesto_com_handle_existe_antes_do_fim(media, monkeypatch):
+    visto = {}
+
+    def poll(self, handle):
+        m = media["dir"] / "out" / "swap.manifest.json"
+        visto["handle"] = json.loads(m.read_text())["chunks"][0]["handle"] if m.is_file() else None
+        return swap_providers.base.Status("done")
+
+    monkeypatch.setattr(fake.FakeAdapter, "poll", poll)
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
+    assert visto["handle"] == {"id": "fake-0"}
+
+
+@needs_ffmpeg
+def test_i2_ctrl_c_grava_manifesto_parcial(media, monkeypatch, capsys):
+    def poll(self, handle):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(fake.FakeAdapter, "poll", poll)
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 130
+    man = json.loads((media["dir"] / "out" / "swap.manifest.json").read_text())
+    assert man["state"] == "interrupted" and man["chunks"][0]["handle"] == {"id": "fake-0"}
+    assert "Traceback" not in capsys.readouterr().err
+
+
+@needs_ffmpeg
+def test_i2_excecao_inesperada_grava_manifesto_parcial(media, monkeypatch, capsys):
+    def fetch(self, handle):
+        raise KeyError("campo inesperado")
+
+    monkeypatch.setattr(fake.FakeAdapter, "fetch", fetch)
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 1
+    man = json.loads((media["dir"] / "out" / "swap.manifest.json").read_text())
+    assert man["state"] == "failed" and "campo inesperado" in man["error"]
+    assert man["chunks"][0]["handle"] == {"id": "fake-0"} and man["chunks"][0]["state"] == "failed"
+    assert "Traceback" not in capsys.readouterr().err
+
+
+@needs_ffmpeg
+def test_i2_excecao_depois_do_download_preserva_pedacos(media, monkeypatch):
+    dois_pedacos(monkeypatch)
+
+    def normalize(*a, **k):
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr(swap, "_normalize", normalize)
+    out = media["dir"] / "out" / "swapped.mp4"
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5", out=out)) == 1
+    man = json.loads((out.parent / "swap.manifest.json").read_text())
+    assert sorted(p.name for p in Path(man["recovery_dir"]).glob("raw-*.mp4")) == ["raw-00.mp4", "raw-01.mp4"]
+
+
+@needs_ffmpeg
 def test_i1_sucesso_limpa_a_pasta_de_trabalho(media):
     assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
     assert not list((media["dir"] / "out").glob(".swap-work-*")) and not list((media["dir"] / "out").glob("*recovery*"))
