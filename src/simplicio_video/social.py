@@ -51,7 +51,7 @@ SCHEDULE_MAX_DAYS = 30
 _RO_ID_RE = re.compile(r"^[0-9A-Za-z]{26}$")
 _AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 _HASHTAG_RE = re.compile(r"(?<![\w#])#(\w+)")
-_STEP_TOKEN = re.compile(r"\{step\.([a-z_]+)\}")
+_TOKEN = re.compile(r"\{(plan|video_name|video_sha256_short|step\.[a-z_]+)\}")  # the only markers a providers.json template may carry
 PUBLISH_WORDS = ("publish", "post", "confirm", "run", "send")
 RO_NO_CLIP_REASON = ("o MCP do Real Oficial não recebe um MP4 local: sem o clip_id de um vídeo já no Real Oficial não há o que cotar nem publicar. "
                      "Suba o MP4 no app do Real Oficial, ache o clip e rode de novo com --clip-id <id>")
@@ -509,7 +509,9 @@ def _offset_iso(sched: dict) -> str:
     return when.isoformat(timespec="seconds")
 
 
-def _context(plan: dict, provider: str, clip_id: str | None) -> dict:
+def _context(plan: dict, provider: str, clip_id: str | None, step) -> dict:
+    """Values a template can reference with `$name`. Everything here is DATA (the caption, the title, the file name) or text
+    the engine wrote itself: nothing in it is ever read as a template. `step(id)` gives the number of a recipe step."""
     tgts = plan["targets"]
     nets = list(dict.fromkeys(t["network"] for t in tgts))
     sched = plan.get("schedule")
@@ -521,29 +523,32 @@ def _context(plan: dict, provider: str, clip_id: str | None) -> dict:
         "needs_clip_id": clip_id is None, "mode": "at" if sched else "now", "schedule_at": sched["at"] if sched else None,
         "schedule_timezone": sched["timezone"] if sched else None, "ai_generated": True if plan.get("ai_generated") else "<pergunte ao usuário se o vídeo é gerado por IA (true ou false); o motor não escolhe>",
         "publish_at": _offset_iso(sched) if sched else "now",
-        "clip_id": clip_id or "<clip_id do vídeo no Real Oficial (passo {step.clip})>",
-        "tiktok_privacy": None if "tiktok" not in nets else "<o usuário escolhe entre as opções que ro_list_social_accounts devolveu no passo {step.tiktok_options}; o motor nunca escolhe>",
+        "clip_id": clip_id or f"<clip_id do vídeo no Real Oficial (passo {step('clip')})>",
+        "tiktok_privacy": None if "tiktok" not in nets else f"<o usuário escolhe entre as opções que ro_list_social_accounts devolveu no passo {step('tiktok_options')}; o motor nunca escolhe>",
         "youtube_visibility": None if not ("youtube" in nets or "youtube_shorts" in nets) else "<pergunte ao usuário: public, unlisted ou private (o padrão do provedor é public)>",
     }
     ids = []
     for t in tgts:
         acc = t["account"]
-        ids.append(acc if acc and _RO_ID_RE.match(acc) else f"<account_id de {acc or 'a conta'} em {t['network']}, do passo {{step.accounts}}>")
+        ids.append(acc if acc and _RO_ID_RE.match(acc) else f"<account_id de {acc or 'a conta'} em {t['network']}, do passo {step('accounts')}>")
     ctx["account_ids"] = ids
     tk = next((t for t in tgts if t["network"] == "tiktok"), None)
     ctx["tiktok_account_id"] = (tk["account"] if tk and tk["account"] and _RO_ID_RE.match(tk["account"])
-                                else "<account_id da conta TikTok, do passo {step.accounts}>")
+                                else f"<account_id da conta TikTok, do passo {step('accounts')}>")
     accs = [t["account"] for t in tgts if t["account"]]
-    ctx["zernio_account"] = None if not accs else (f"<account_id de {accs[0]}, do passo {{step.accounts}} (accounts_list)>" if len(accs) == 1 else
+    ctx["zernio_account"] = None if not accs else (f"<account_id de {accs[0]}, do passo {step('accounts')} (accounts_list)>" if len(accs) == 1 else
                                                     "<UNVERIFIED: como passar mais de uma conta; use accounts_list e o account_id de cada rede>")
     return ctx
 
 
-def _resolve(node, ctx: dict):
+def _render(node, ctx: dict, subs):
+    """Builds the arguments of a call step from its providers.json template, in a single pass. Only the template strings go
+    through `subs`; a `$name` takes its value from `ctx` as DATA and is never substituted into again, so a marker inside the
+    caption, the title or the file name comes out exactly as the user wrote it."""
     if isinstance(node, dict):
         out = {}
         for k, v in node.items():
-            val = _resolve(v, ctx)
+            val = _render(v, ctx, subs)
             if k.startswith("?"):
                 if val is None:
                     continue
@@ -551,19 +556,9 @@ def _resolve(node, ctx: dict):
             out[k] = val
         return out
     if isinstance(node, list):
-        return [_resolve(v, ctx) for v in node]
-    if isinstance(node, str) and node.startswith("$"):
-        return ctx[node[1:]]
-    return node
-
-
-def _format(node, subs):
-    if isinstance(node, dict):
-        return {k: _format(v, subs) for k, v in node.items()}
-    if isinstance(node, list):
-        return [_format(v, subs) for v in node]
+        return [_render(v, ctx, subs) for v in node]
     if isinstance(node, str):
-        return subs(node)
+        return ctx[node[1:]] if node.startswith("$") else subs(node)
     return node
 
 
@@ -641,20 +636,25 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     clip_id = (clip_id or "").strip() or None
     if pid == "realoficial" and clip_id and not _RO_ID_RE.match(clip_id):
         raise SocialError("clip_id inválido: o Real Oficial usa ids de 26 letras e números")
-    ctx = _context(plan, pid, clip_id)
-    templates = [t for t in prov["recipe"] if not t.get("when") or ctx.get(t["when"])]
+    flags = _context(plan, pid, clip_id, lambda _id: "?")  # only the `when` flags matter here: which steps this plan needs
+    templates = [t for t in prov["recipe"] if not t.get("when") or flags.get(t["when"])]
     numbers = {t["id"]: i + 1 for i, t in enumerate(templates)}
+    ctx = _context(plan, pid, clip_id, lambda sid: str(numbers.get(sid, "?")))
+    values = {"plan": plan_path, "video_name": ctx["video_name"], "video_sha256_short": ctx["video_sha256_short"]}
+
+    def marker(m) -> str:
+        name = m.group(1)
+        return str(numbers.get(name[5:], "?")) if name.startswith("step.") else values[name]
 
     def subs(text: str) -> str:
-        text = _STEP_TOKEN.sub(lambda m: str(numbers.get(m.group(1), "?")), text)
-        return (text.replace("{plan}", plan_path).replace("{video_name}", ctx["video_name"])
-                .replace("{video_sha256_short}", ctx["video_sha256_short"]))
+        """Fills the markers of a providers.json template in ONE pass: what goes in is data and is never scanned again."""
+        return _TOKEN.sub(marker, text)
 
     steps: list[dict] = []
     for t in templates:
         s: dict = {"n": numbers[t["id"]], "id": t["id"], "kind": t["kind"]}
         if t["kind"] == "call":
-            s.update(tool=t["tool"], effect=t["effect"], args=_format(_resolve(t.get("args", {}), ctx), subs), why=t.get("why", ""))
+            s.update(tool=t["tool"], effect=t["effect"], args=_render(t.get("args", {}), ctx, subs), why=t.get("why", ""))
             if t.get("args_confidence"):
                 s["args_confidence"] = t["args_confidence"]
         else:
