@@ -3,7 +3,7 @@
 | Doc | Para quê |
 |---|---|
 | [tutorials/README.md](tutorials/README.md) | **Índice dos tutoriais** (do zero ao resultado): comece por [primeiro vídeo](tutorials/primeiro-video.md) |
-| [how-to/README.md](how-to/README.md) | **Índice dos how-to** (tarefas específicas): instalar, atualizar e checar; receita de vídeo para cliente |
+| [how-to/README.md](how-to/README.md) | **Índice dos how-to** (tarefas específicas): instalar, atualizar e checar; receita de vídeo para cliente; LangFlow; medir a troca de personagem numa GPU de 6 GB |
 | [decisoes/README.md](decisoes/README.md) | **Índice dos ADRs** (decisões de arquitetura e de produto), em ordem |
 | [host/README.md](host/README.md) | **Índice do host**: gate local, pacote de operação e licenças |
 | [decisoes/ADR-0001-visao-plugin.md](decisoes/ADR-0001-visao-plugin.md) | **Decisão de produto** (Wesley, 30/09/2026): plugin do Simplicio Runtime, esteira determinística por setor |
