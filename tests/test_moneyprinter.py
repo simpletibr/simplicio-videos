@@ -377,6 +377,102 @@ def test_no_command_leaks_a_key_to_stdout_or_stderr(checkout, venv, calls, serve
         assert FAKE_KEY not in env_text and FAKE_KEY_2 not in env_text
 
 
+# ---- config_report: valid TOML forms (M1) -------------------------------------------------------------------------
+
+@pytest.mark.parametrize("text, name, filled", [
+    ('app.openai_api_key = "S3CRET"\n', "app.openai_api_key", True),        # dotted key
+    ('[app]\n"openai_api_key" = "S3CRET"\n', "app.openai_api_key", True),   # quoted key
+    ('llm = { api_key = "S3CRET" }\n', "llm.api_key", True),                # inline table
+    ('[app]\nOPENAI_API_KEY = "S3CRET"\nApiKey = "S3CRET"\n', "app.OPENAI_API_KEY", True),
+    ('[aws]\naccess_key_id = "S3CRET"\n', "aws.access_key_id", True),
+    ('[app]\napi_key = """"""\n', "app.api_key", False),                   # empty multi-line string
+    ('[app]\napi_key = " "\n', "app.api_key", False),                      # blank is not filled
+    ('[app]\nkeys_x = 1\npexels_api_keys = ["", " "]\n', "app.pexels_api_keys", False),
+    ('[[providers]]\napi_key = "S3CRET"\n', "providers.api_key", True),    # array of tables: right name
+    ('[app.sub]\nsecret = "S3CRET"\n', "app.sub.secret", True),
+])
+def test_config_report_reads_every_valid_toml_form(tmp_path, text, name, filled):
+    f = tmp_path / "c.toml"
+    f.write_text(text)
+    rep = moneyprinter.config_report(f)
+    assert rep["keys"].get(name) is filled, rep
+    assert "S3CRET" not in json.dumps(rep)
+
+
+def test_config_report_does_not_invent_a_name_from_inside_a_value(tmp_path):
+    f = tmp_path / "c.toml"
+    f.write_text('[app]\nnote = """\nleak_token = x\n"""\napi_key = "S3CRET"\n')
+    assert moneyprinter.config_report(f)["keys"] == {"app.api_key": True}
+
+
+def test_config_report_unclosed_list_does_not_swallow_the_next_keys(tmp_path):
+    f = tmp_path / "c.toml"
+    f.write_text('[app]\npexels_api_keys = ["x"\nopenai_api_key = "S3CRET"\n')  # invalid TOML: line fallback
+    keys = moneyprinter.config_report(f)["keys"]
+    assert keys.get("app.openai_api_key") is True
+
+
+# ---- config.toml is private (M2) ----------------------------------------------------------------------------------
+
+@pytest.mark.skipif(os.name == "nt", reason="modo POSIX")
+def test_setup_creates_the_config_readable_only_by_the_owner(checkout, calls):
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert (checkout / "config.toml").stat().st_mode & 0o777 == 0o600
+
+
+# ---- setup checks the pin (M5) and turns file errors into clear ones (M6, M7) --------------------------------------
+
+def test_setup_warns_when_the_checkout_is_not_at_the_pinned_commit(checkout, calls, monkeypatch, capsys):
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: "a" * 40)
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    err = capsys.readouterr().err
+    assert "commit fixado" in err and tools.get("moneyprinter").ref[:12] in err
+
+
+def test_setup_is_quiet_when_the_checkout_is_at_the_pin(checkout, calls, monkeypatch, capsys):
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: tools.pinned_ref(tools.get("moneyprinter")))
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    assert "commit fixado" not in capsys.readouterr().err
+
+
+def test_setup_without_the_example_config_is_a_clear_error(checkout, calls):
+    (checkout / "config.example.toml").unlink()
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="config"):
+        moneyprinter.run_moneyprinter(["setup"])
+
+
+def test_setup_with_a_file_where_the_data_dir_should_be_is_a_clear_error(checkout, calls, tmp_path):
+    (tmp_path / "data").mkdir(exist_ok=True)
+    (tmp_path / "data" / "moneyprinter-data").write_text("")
+    with pytest.raises(moneyprinter.MoneyPrinterError):
+        moneyprinter.run_moneyprinter(["setup"])
+
+
+def test_serve_with_a_missing_interpreter_is_a_clear_error(checkout, venv, server, monkeypatch):
+    def boom(*a, **k):
+        raise FileNotFoundError(2, "No such file or directory")
+
+    monkeypatch.setattr("subprocess.Popen", boom)
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="não consegui iniciar"):
+        moneyprinter.run_moneyprinter(["serve"])
+
+
+@pytest.mark.parametrize("args", [["clone", "a", "b"], ["where", "x"], ["status", "x"]])
+def test_extra_arguments_are_an_error_not_ignored(checkout, args):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="argumento"):
+        moneyprinter.run_moneyprinter(args)
+
+
+def test_setup_with_an_existing_venv_does_not_need_python_3_11(checkout, venv, calls, monkeypatch):
+    monkeypatch.setattr(moneyprinter, "MIN_PYTHON", (99, 0))
+    monkeypatch.setattr("shutil.which", lambda cmd: None)
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+
+
+def test_cli_help_of_moneyprinter_lists_host():
+    assert "serve [--webui] [--api] [--lan] [--host H]" in (ROOT / "src" / "simplicio_video" / "cli.py").read_text()
+
+
 # ---- serve --------------------------------------------------------------------------------------------------------
 
 def test_serve_without_a_venv_points_to_setup(checkout, server):
