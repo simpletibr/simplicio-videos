@@ -23,7 +23,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -41,7 +41,12 @@ FIELDS = ("duration_min_s", "duration_max_s", "aspect_ratios", "size_max_mb", "c
 DEFAULT_PROVIDER = "realoficial"
 ASPECT_TOLERANCE = 0.02
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,64}$")
-_SECRET_RE = re.compile(r"^(sk-|AIza|ghp_|gho_|ghs_|xox[a-z]-|eyJ|ya29\.)|[A-Za-z0-9_-]{32,}")
+_SECRET_RE = re.compile(r"^(sk-|AIza|gh[pousr]_|xox[a-z]-|eyJ|ya29\.|AQ\.|Bearer\b)|[A-Za-z0-9_-]{32,}")
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+_SECRET_TEXT_RE = re.compile(r"(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
+                             r"eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AQ\.[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._-]{16,})")
+MP4_BRANDS = {b"isom", b"iso2", b"iso3", b"iso4", b"iso5", b"iso6", b"mp41", b"mp42", b"avc1", b"dash", b"M4V ", b"M4A ", b"f4v ", b"mmp4", b"msdh"}
+SCHEDULE_MAX_DAYS = 30
 _RO_ID_RE = re.compile(r"^[0-9A-Za-z]{26}$")
 _AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 _HASHTAG_RE = re.compile(r"(?<![\w#])#(\w+)")
@@ -99,7 +104,8 @@ def providers_report() -> dict:
 
 def _real_probe(path: Path) -> dict:
     cmd = ["ffprobe", "-v", "error", "-show_entries",
-           "stream=codec_type,codec_name,width,height,avg_frame_rate,r_frame_rate:format=duration,format_name", "-of", "json", str(path)]
+           "stream=codec_type,codec_name,width,height,avg_frame_rate,r_frame_rate:format=duration,format_name", "-of", "json",
+           "file:" + os.path.abspath(path)]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True)
     except FileNotFoundError:
@@ -145,6 +151,8 @@ def _require_mp4(path: Path) -> None:
         head = f.read(12)
     if head[4:8] != b"ftyp":
         raise SocialError(f"o arquivo não é um MP4 de verdade (sem o cabeçalho ftyp): {path.name}")
+    if head[8:12] not in MP4_BRANDS:
+        raise SocialError(f"o arquivo não é um MP4 (marca {head[8:12].decode('latin-1')!r}, de outro contêiner, como MOV): {path.name}")
 
 
 def _ratio_text(w: int, h: int) -> str:
@@ -176,7 +184,7 @@ def parse_targets(items: list[str]) -> list[dict]:
             if net not in NETWORKS:
                 raise SocialError(f"rede desconhecida: {net} (use {', '.join(NETWORKS)})")
             acc = acc.strip() or None
-            if acc is not None and (not _ACCOUNT_RE.match(acc) or _SECRET_RE.search(acc)):
+            if acc is not None and (not _ACCOUNT_RE.match(acc) or (_SECRET_RE.search(acc) and not _UUID_RE.match(acc))):
                 raise SocialError(f"conta inválida para {net}: use o @ ou o id da conta (até 64 caracteres, sem espaço); nunca chave ou token")
             t = {"network": net, "account": acc}
             if t not in out:
@@ -195,7 +203,7 @@ def hashtags_of(caption: str) -> list[str]:
     return seen
 
 
-def _schedule(at: str | None, tz: str | None) -> dict | None:
+def _schedule(at: str | None, tz: str | None, window: bool = True) -> dict | None:
     if at is None and tz is None:
         return None
     if at is None:
@@ -212,6 +220,12 @@ def _schedule(at: str | None, tz: str | None) -> dict | None:
         ZoneInfo(tz)
     except Exception:  # noqa: BLE001 - ZoneInfoNotFoundError, ValueError, OSError
         raise SocialError(f"timezone desconhecido: {tz} (fuso IANA, ex.: America/Sao_Paulo)") from None
+    if window:
+        when = datetime.strptime(at, "%Y-%m-%dT%H:%M").replace(tzinfo=ZoneInfo(tz))
+        if when <= _now():
+            raise SocialError(f"--at {at} {tz} já está no passado")
+        if when - _now() > timedelta(days=SCHEDULE_MAX_DAYS):
+            raise SocialError(f"--at {at} {tz} passa de {SCHEDULE_MAX_DAYS} dias: o Real Oficial agenda até {SCHEDULE_MAX_DAYS} dias")
     return {"at": at, "timezone": tz}
 
 
@@ -337,12 +351,15 @@ def make_plan(video: str, targets: list[str], *, caption: str, title: str | None
     if not caption:
         raise SocialError("a legenda está vazia: passe --caption ou --caption-file")
     title = (title or "").strip() or None
+    if _SECRET_TEXT_RE.search(caption) or (title and _SECRET_TEXT_RE.search(title)):
+        raise SocialError("a legenda ou o título parece conter uma chave ou token (segredo): o plano é gravado em claro, remova")
     tgts = parse_targets(targets)
     sched = _schedule(at, timezone)
-    dest = Path(out) if out else vpath.resolve().parent / PLAN_NAME
+    vabs = Path(os.path.abspath(vpath))  # sem resolver symlink: o plano fica ao lado do caminho que a pessoa deu
+    dest = Path(out) if out else vabs.parent / PLAN_NAME
     if dest.exists() and not force:
         raise SocialError(f"já existe {dest}: o plano é trilha de auditoria e não é sobrescrito sem --force")
-    vid = _video_facts(vpath, _rel(vpath.resolve(), dest.resolve().parent))
+    vid = _video_facts(vpath, _rel(vabs, Path(os.path.abspath(dest)).parent))
     table = limits or limits_table()
     body, hard, soft = _compose(vid, caption, title, tgts, sched, ai_generated, table)
     if hard or (soft and not accept_unverified):
@@ -357,9 +374,15 @@ def make_plan(video: str, targets: list[str], *, caption: str, title: str | None
     if soft:
         plan["accept_proof"] = _accept_proof(_accept_key(create=True), pid)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".tmp")
-    tmp.write_text(json.dumps(plan, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
-    os.replace(tmp, dest)
+    tmp = dest.with_name(f"{dest.name}.{os.getpid()}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o644)  # nunca segue symlink
+    try:
+        with os.fdopen(fd, "w", encoding="utf8") as f:
+            f.write(json.dumps(plan, indent=2, ensure_ascii=False) + "\n")
+        os.replace(tmp, dest)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return {"ok": True, "path": str(dest), "plan": plan}
 
 
@@ -407,7 +430,7 @@ def _check(path: str) -> tuple[dict, dict]:
     if Path(vid["path"]).is_absolute():
         problems.append("video.path precisa ser relativo à pasta do plano")
         return plan, {"ok": False, "plan_id": plan["plan_id"], "problems": problems}
-    vpath = Path(path).resolve().parent / vid["path"]
+    vpath = Path(os.path.abspath(path)).parent / vid["path"]
     tgts: list[dict] | None = None
     try:
         tgts = parse_targets([f"{t['network']}={t.get('account') or ''}" for t in plan["targets"]])
@@ -419,7 +442,7 @@ def _check(path: str) -> tuple[dict, dict]:
     sched_ok = True
     if sched:
         try:
-            if _schedule(sched["at"], sched["timezone"]) != sched:
+            if _schedule(sched["at"], sched["timezone"], window=False) != sched:
                 raise SocialError("formato")
             when = datetime.strptime(sched["at"], "%Y-%m-%dT%H:%M").replace(tzinfo=ZoneInfo(sched["timezone"]))
             if when <= _now():
@@ -495,7 +518,7 @@ def _context(plan: dict, provider: str, clip_id: str | None) -> dict:
         "video_sha256_short": vid["sha256"][:12], "platforms": list(dict.fromkeys("youtube" if n == "youtube_shorts" else n for n in nets)), "has_tiktok": "tiktok" in nets,
         "has_youtube": "youtube" in nets or "youtube_shorts" in nets,
         "needs_clip_id": clip_id is None, "mode": "at" if sched else "now", "schedule_at": sched["at"] if sched else None,
-        "schedule_timezone": sched["timezone"] if sched else None, "ai_generated": True if plan.get("ai_generated") else None,
+        "schedule_timezone": sched["timezone"] if sched else None, "ai_generated": True if plan.get("ai_generated") else "<pergunte ao usuário se o vídeo é gerado por IA (true ou false); o motor não escolhe>",
         "publish_at": _offset_iso(sched) if sched else "now",
         "clip_id": clip_id or "<clip_id do vídeo no Real Oficial (passo {step.clip})>",
         "tiktok_privacy": None if "tiktok" not in nets else "<o usuário escolhe entre as opções que ro_list_social_accounts devolveu no passo {step.tiktok_options}; o motor nunca escolhe>",
@@ -510,7 +533,7 @@ def _context(plan: dict, provider: str, clip_id: str | None) -> dict:
     ctx["tiktok_account_id"] = (tk["account"] if tk and tk["account"] and _RO_ID_RE.match(tk["account"])
                                 else "<account_id da conta TikTok, do passo {step.accounts}>")
     accs = [t["account"] for t in tgts if t["account"]]
-    ctx["zernio_account"] = None if not accs else (accs[0] if len(accs) == 1 else
+    ctx["zernio_account"] = None if not accs else (f"<account_id de {accs[0]}, do passo {{step.accounts}} (accounts_list)>" if len(accs) == 1 else
                                                     "<UNVERIFIED: como passar mais de uma conta; use accounts_list e o account_id de cada rede>")
     return ctx
 
