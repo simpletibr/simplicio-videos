@@ -24,6 +24,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -289,21 +290,35 @@ def _accept_key_path() -> Path:
     return Path.home() / ".config" / "simplicio-video" / "social-accept.key"
 
 
-def _accept_key(create: bool) -> bytes | None:
-    kp = _accept_key_path()
+def _read_accept_key(kp: Path) -> bytes | None:
     try:
         data = kp.read_bytes()
-        if len(data) >= 32:
-            return data
     except OSError:
-        pass
-    if not create:
         return None
+    return data if len(data) >= 32 else None
+
+
+def _accept_key(create: bool) -> bytes | None:
+    kp = _accept_key_path()
+    key = _read_accept_key(kp)
+    if key or not create:
+        return key
     kp.parent.mkdir(parents=True, exist_ok=True)
     key = os.urandom(32)
-    fd = os.open(kp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        f.write(key)
+    # The key is written whole to a private temp file and then hard-linked into place: link() is atomic and never overwrites,
+    # so two processes racing here end up with ONE key and nobody can read a half-written one.
+    fd, tmp_name = tempfile.mkstemp(dir=kp.parent, prefix=kp.name + ".", suffix=".tmp")  # 0600
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(key)
+        os.link(tmp, kp)
+    except FileExistsError:  # another process won the race: its key is the one that counts
+        key = _read_accept_key(kp)
+        if key is None:
+            raise SocialError(f"a chave de aceite {kp} existe, mas está incompleta: apague o arquivo e rode de novo") from None
+    finally:
+        tmp.unlink(missing_ok=True)
     return key
 
 

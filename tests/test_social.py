@@ -1288,3 +1288,13 @@ def test_varias_threads_pedindo_a_chave_ao_mesmo_tempo_recebem_a_mesma(tmp_path,
         assert len(set(chaves)) == 1 and len(chaves[0]) == 32
         assert social._accept_key_path().read_bytes() == chaves[0]
         assert oct(social._accept_key_path().stat().st_mode & 0o777) == "0o600"
+
+
+def test_chave_de_aceite_truncada_vira_erro_claro_e_nao_traceback():
+    kp = social._accept_key_path()
+    kp.parent.mkdir(parents=True, exist_ok=True)
+    kp.write_bytes(b"curta")
+    assert social._accept_key(create=False) is None
+    with pytest.raises(social.SocialError, match="chave de aceite.*incompleta"):
+        social._accept_key(create=True)
+    assert kp.read_bytes() == b"curta"  # nunca sobrescreve: quem decide é a pessoa
