@@ -524,6 +524,28 @@ def test_i1_chave_na_fronteira_de_um_bloco_continua_apagada(monkeypatch, tmp_pat
     assert chave not in jobs.read_log(jid) and chave not in json.dumps(jobs.read_state(jid))
 
 
+# ---------------------------------------------------------------- I3: Windows (sem SIGKILL, sem fcntl, sem killpg)
+
+def test_i3_cli_importa_sem_signal_sigkill_e_sem_fcntl():
+    """Simula o Windows: `signal.SIGKILL` não existe e `fcntl` não importa. O CLI inteiro precisa montar o parser."""
+    code = ("import signal, sys\nsys.modules['fcntl'] = None\ndel signal.SIGKILL\n"
+            "from simplicio_video import cli\ncli.build_parser()\nfrom simplicio_video import jobs\n"
+            "assert jobs._sigkill() == signal.SIGTERM\nprint('ok')\n")
+    env = {**os.environ, "PYTHONPATH": str(Path(jobs.__file__).resolve().parent.parent)}
+    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-600:]
+
+
+def test_i3_jobs_no_windows_recusa_com_mensagem_clara(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert jobs.run_jobs(["list"]) == 1
+    assert "Windows" in capsys.readouterr().err
+
+
+def test_i3_fcntl_so_e_importado_onde_e_usado():
+    assert not hasattr(jobs, "fcntl")
+
+
 # ---------------------------------------------------------------- CLI
 
 def test_ajuda_do_jobs():
