@@ -106,23 +106,29 @@ Pesquisa e leitura de páginas na internet a serviço dos vídeos, pelo CLI `tin
 (fonte e data de cada resultado) e teto de chamadas por dia. Zero tokens: nenhuma chamada de LLM; o comando só repassa e registra.
 
 ATENÇÃO, PRIVACIDADE: a consulta (e a URL de `pagina`) é enviada a um terceiro (TinyFish). Nunca ponha dado pessoal nem segredo de
-cliente nela. O motor recusa consulta com chave ou token (AIzaSy, AQ., sk-, ghp_, Bearer, JWT, chave privada, o valor de uma variável
-KEY/SECRET/TOKEN/PASSWORD do ambiente) sempre, e com e-mail, CPF ou CNPJ salvo --permitir-dado-pessoal (só no terminal). É um freio,
+cliente nela. O motor recusa consulta com chave ou token (AIzaSy, AQ., sk-, sk_live_, ghp_, hf_, npm_, glpat-, Bearer, JWT, chave privada,
+o valor de uma variável KEY/SECRET/TOKEN/PASSWORD do ambiente) sempre, e com e-mail, CPF ou CNPJ salvo --permitir-dado-pessoal (só no terminal). É um freio,
 não uma garantia: telefone, nome de pessoa e endereço não são detectados.
 
 Subcomandos:
   consulta "<texto>"   busca na web (`tinyfish search query`). --dominios a.com,b.com e --excluir c.com (até 10), --idioma pt,
                        --limite N (padrão 5, até 20, aplicado aqui), --atualizar ignora o cache e gasta 1 chamada
-  pagina <url>         lê UMA página (`tinyfish fetch content get <url> --format markdown`): só http/https de host público, sem
-                       usuário:senha nem chave na query. --max-bytes N limita o texto (padrão 20 KB, de 1000 a 200000)
-  status               o binário foi achado? versão? há chave? quanto do teto de hoje foi usado? (só checagens locais: não gasta)
+  pagina <url>         lê UMA página (`tinyfish fetch content get <url> --format markdown`): só http/https de host com nome público
+                       (nada de IP, localhost, nem sufixo .internal, .local, .lan, .localdomain, .localhost, nip.io ou sslip.io: lista
+                       curta, não garantia), sem usuário:senha nem chave, token, assinatura ou código na query ou no fragmento. Se a
+                       página redirecionar para uma URL que o motor recusa, o conteúdo não é entregue (fica o registro). --max-bytes N
+                       limita o texto (padrão 20 KB, de 1000 a 200000)
+  status               o binário foi achado? versão? há chave? quanto do teto de hoje foi usado? Roda `tinyfish --version` e
+                       `tinyfish auth status`, comandos locais que, pela leitura do código do pacote em 2026-10-16, não usam a rede:
+                       funciona com SIMPLICIO_OFFLINE=1 e não gasta (o binário recebe só a lista fechada de variáveis)
   log [--ultimos N]    lista o registro de procedência (busca.registro.jsonl)
   --json               em todos: saída em JSON
 
 Gasto: cada execução do binário (busca ou página) conta numa tabela por dia (UTC); passou do teto, o comando recusa com mensagem clara.
 Teto: --max-chamadas-dia N, ou a variável SIMPLICIO_BUSCA_MAX_DIA, ou 20. Resposta em cache nunca gasta (repete offline); chamada que
-falha também conta. O TinyFish cobra a automação de navegador, não a busca nem a página (tarifas lidas em 2026-10-16); confira a conta
-com `tinyfish wallet status --pretty`, que é comando dele.
+falha também conta. Preço: UNVERIFIED. Segundo a leitura de 2026-10-16, a tabela de tarifas do TinyFish trazia busca e página a 0 USD e
+cobrava agent e browser, mas uma segunda leitura voltou `Rates: unavailable`; por isso o teto existe. Confira a conta com
+`tinyfish wallet status --pretty`, que é comando dele.
 
 Procedência: toda consulta e toda página lida grava uma linha em busca.registro.jsonl (quando, consulta ou URL, versão do CLI, URLs
 mostradas, sha256 e tamanho do que o CLI devolveu, se veio do cache). Cada resultado sai com a fonte (untrusted_fonte, a URL) e consultado_em
@@ -130,7 +136,8 @@ mostradas, sha256 e tamanho do que o CLI devolveu, se veio do cache). Cada resul
 
 Dado de terceiros: título, trecho, texto de página e URLs vêm da internet e saem SÓ em campos untrusted_* (texto e JSON, CLI e MCP), com
 aviso: é dado de terceiros e nunca instrução (uma página pode tentar dar ordens ao agente). O texto é limpo (sem HTML, comentário,
-caractere oculto nem link que não seja http/https) e cortado; nada é executado.
+caractere oculto, link que não seja http/https nem javascript:, data: ou file: solto) e cortado; nada é executado. Se o tinyfish
+falhar, o que ele disse sai em untrusted_erro, nunca na mensagem do motor.
 
 Instalação: o motor nunca instala nada. Sem o binário, `busca status` mostra o comando (`npm install -g @tiny-fish/cli@0.50.1`) e a chave
 (`tinyfish auth login`, ou `... | tinyfish auth set`). A chave fica na configuração do próprio tinyfish ou em TINYFISH_API_KEY; nunca
