@@ -74,7 +74,7 @@ class GeminiAdapter(Adapter):
                 raise ProviderError(QUOTA_MSG, retryable=False)
             raise self._error(res)
         if not isinstance(data, dict):
-            raise ProviderError("gemini: resposta que não é JSON", retryable=True)
+            raise ProviderError("gemini: resposta que não é JSON", retryable=True, network=True)
         return data
 
     def build_body(self, job) -> dict:
