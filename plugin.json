@@ -470,6 +470,69 @@
       }
     },
     {
+      "verb": "video.swap",
+      "description": "Character swap cost estimate (read-only, no network): provider, video and avatar image in, price out. Paid runs exist only in the terminal: simplicio-video swap run --autorizo --yes.",
+      "argv": [
+        "simplicio-video",
+        "swap",
+        "estimate",
+        "--provider",
+        "{provider}",
+        "--video",
+        "{video}",
+        "--ref",
+        "{ref}",
+        "--resolution",
+        "{resolution}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "video",
+          "ref"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "adapter name (see video.swap.providers)"
+          },
+          "video": {
+            "type": "string",
+            "description": "input video file"
+          },
+          "ref": {
+            "type": "string",
+            "description": "avatar image file"
+          },
+          "resolution": {
+            "enum": [
+              "720p",
+              "1080p"
+            ],
+            "default": "720p"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.swap.providers",
+      "description": "List character swap providers, capabilities, prices (USD and BRL) and confidence. Read-only.",
+      "argv": [
+        "simplicio-video",
+        "swap",
+        "providers",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
       "verb": "video.toonflow",
       "description": "Toonflow open-source AI studio for short dramas and videos (https://github.com/HBAI-Ltd/Toonflow-app): clone into the default folder, where; serve runs in the terminal with --lan.",
       "argv": [
@@ -569,6 +632,7 @@
       "video.montage",
       "video.opencut",
       "video.formats",
+      "video.swap",
       "video.toonflow",
       "video.realoficial",
       "video.edit"
