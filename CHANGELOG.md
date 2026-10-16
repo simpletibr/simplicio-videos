@@ -4,6 +4,10 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+### Kit de medição da troca de personagem em GPU de 6 GB
+- Material de operação e de teste, sem mudar o motor: how-to em `docs/how-to/troca-personagem-gpu/` (passo a passo para Windows com GPU NVIDIA de 6 GB, prompt para a sessão da GPU, resultados dos testes em CPU e planilha) e seis scripts autônomos em `scripts/kit_gpu/`. Também funciona fora do repositório, copiando as duas pastas.
+- Só testado em Linux com CPU: Windows, NVIDIA, ComfyUI e os modelos seguem sem teste, e as ressalvas UNVERIFIED e as licenças ficam como estavam. `numpy`/`opencv` (e `torch`) são só dos scripts, fora do `pyproject.toml`. Nenhuma mídia entra no repositório.
+
 ### Redes sociais sem postar (social)
 - `simplicio-video social providers|plan|check|recipe` e a tool MCP `video.social` (só `providers`, `plan`, `check` e `recipe`; qualquer ação de publicar é recusada). O motor não posta ([ADR-0018](docs/decisoes/ADR-0018-social-planejar-sem-postar.md)): planeja, confere e documenta; quem publica é o agente, com as ferramentas MCP do Real Oficial (padrão) ou do Zernio e o sim explícito do usuário por postagem.
 - `plan` recusa vídeo inexistente ou que não seja MP4, mede com `ffprobe` e confere duração, proporção, tamanho, legenda, título e hashtags contra `data/social/limits.json` (`source_url`, `read_on` e `confidence` por linha; só a duração do YouTube Shorts foi conferida na página oficial, o resto é UNVERIFIED e pede `--aceito-unverified`). Grava `social.plan.json` determinístico, sem horário de geração e sem chave ou token; não sobrescreve sem `--force`.
