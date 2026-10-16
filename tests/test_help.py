@@ -2,7 +2,7 @@ import pytest
 
 from conftest import run_cli
 
-SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "jobs", "mcp", "list"]
+SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "jobs", "social", "mcp", "list"]
 
 
 def test_main_help_lists_the_whole_flow():
@@ -31,6 +31,7 @@ def test_main_help_lists_the_whole_flow():
     ("swap", ["providers", "estimate", "run", "status", "--autorizo", "--yes", "--max-usd", "UNVERIFIED"]),
     ("moneyprinter", ["MoneyPrinterTurbo", "clone", "setup", "serve", "where", "--lan", "0.0.0.0", "8501", "8080"]),
     ("jobs", ["submit", "status", "list", "cancel", "result", "swap-run", "voice", "--yes"]),
+    ("social", ["providers", "plan", "check", "recipe", "realoficial", "zernio", "consentimento", "UNVERIFIED"]),
     ("mcp", ["video.init", "video.render", "video.run", "stdio"]),
     ("list", ["templates", "motion", "voices", "--json"]),
 ])
@@ -40,7 +41,7 @@ def test_subcommand_help_is_complete(sub, must):
     for m in must:
         assert m in r.stdout, f"{sub} --help missing {m!r}"
     assert "exemplos:" in r.stdout and "simplicio-video " + sub in r.stdout
-    if sub in ("clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "jobs"):
+    if sub in ("clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "jobs", "social"):
         return
     if sub != "list":
         assert "schema/contract.schema.json" in r.stdout

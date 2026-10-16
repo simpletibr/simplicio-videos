@@ -30,7 +30,8 @@ Fluxo completo:
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter
+  social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -61,6 +62,7 @@ comandos (na ordem do fluxo):
     formats       biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
     swap          troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
     jobs          tarefas em segundo plano (swap run, voice) num processo separado
+    social        redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP
     mcp           servidor MCP (stdio) para o simplicio-runtime
     status        ferramentas instaladas, versões fixadas e estado do render
     list          lista templates, padrões de motion, providers de voz ou ângulos de anúncio
@@ -486,6 +488,28 @@ exemplos:
   simplicio-video setup
   simplicio-video setup --yes --theme br --lang pt-BR
   simplicio-video setup --yes --realoficial
+```
+
+## simplicio-video social
+
+```text
+usage: simplicio-video social [-h] ...
+
+Redes sociais sem postar: o motor só planeja e documenta. `providers` lista o Real Oficial (`realoficial`, padrão) e o Zernio (`zernio`) com as ferramentas MCP de cada um; `plan` confere um MP4 final contra os limites de cada rede e grava social.plan.json (determinístico, sem chave); `check` reconfere o plano contra o arquivo; `recipe` imprime a sequência de chamadas MCP (cotar ou prever, mostrar ao usuário, pedir o consentimento, publicar). Este comando não posta, não chama o provedor e não guarda credencial: quem publica é o agente, com as ferramentas do próprio provedor e o sim explícito do usuário em cada postagem. Limites e ferramentas não conferidos na fonte oficial ficam marcados UNVERIFIED; uma violação de limite UNVERIFIED só passa com --aceito-unverified (assinado com chave local). `check` e `recipe` revalidam o plano contra o vídeo e a tabela. `recipe` do Real Oficial sem --clip-id sai BLOQUEADA (saída 1): o MCP dele não recebe MP4 local.
+
+positional arguments:
+  args        providers | plan | check <plano> | recipe <plano>
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video social providers
+  simplicio-video social plan --video out/final.mp4 --caption-file legenda.txt --target tiktok=@conta --target youtube
+  simplicio-video social plan --video out/final.mp4 --caption "Texto #tag" --target instagram --at 2026-10-20T09:30 --timezone America/Sao_Paulo
+  simplicio-video social check out/social.plan.json
+  simplicio-video social recipe out/social.plan.json --clip-id <id do clip no Real Oficial>
+  simplicio-video social recipe out/social.plan.json --provider zernio --json
 ```
 
 ## simplicio-video status

@@ -12,4 +12,6 @@
 | src/simplicio_video/data/schemas/cli/run-result.schema.json | simplicio.run-result/v1 | Saída de `simplicio-video run CONTRATO --json` (stdout): voice -> validate --need-lock -> render, num comando só. Com ok=true, traz voice e render (os mesmos campos do resumo de pipeline.run_all). Com ok=false, traz error.code (um dos códigos de $defs/erro). |
 | src/simplicio_video/data/schemas/cli/validate-result.schema.json | simplicio.validate-result/v1 | Saída de `simplicio-video validate CONTRATO --json` (stdout). ok=true: contrato válido, sem erros. ok=false: traz error.code (um dos códigos de $defs/erro) e, se a validação rodou, a lista de errors. |
 | src/simplicio_video/data/schemas/video-spec.schema.json | simplicio.video-spec/v1 | — |
+| src/simplicio_video/data/social/limits.schema.json | simplicio.social-limits/v1 | — |
+| src/simplicio_video/data/social/providers.schema.json | simplicio.social-providers/v1 | — |
 | src/simplicio_video/data/templates/template.schema.json | https://simplicio.dev/schemas/simplicio.video-template/v1 | A sector template: scene structure + motion patterns + voice/music defaults that turn an intake into a spec without an LLM. |

@@ -22,6 +22,7 @@ Every external tool is a **track** with one CLI command, one MCP verb (`plugin.j
 | [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | MIT | Topic-to-short-video generator (LLM script, synthesized voice, stock footage; Python 3.11+) | `simplicio-video moneyprinter clone\|setup\|serve\|where\|status` | `video.moneyprinter` (clone, where) | [docs/recursos.md](docs/recursos.md) |
 | [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | Open-source AI studio for short dramas, comic dramas and videos (local web app on Bun) | `simplicio-video toonflow clone\|serve\|where` | `video.toonflow` (clone, where) | [docs/recursos.md](docs/recursos.md) |
 
+| Redes sociais sem postar (`social`) | n/a | Plano de postagem com limites por rede e receita das chamadas MCP do Real Oficial (padrão) ou do Zernio; o motor não posta | `simplicio-video social providers\|plan\|check\|recipe` | `video.social` (providers, plan, check, recipe) | [docs/recursos.md](docs/recursos.md) |
 | Troca de personagem (`swap`) | n/a | Troca o personagem de um vídeo por um avatar de referência, agnóstico de fornecedor (gemini, fal, wavespeed, kie, alibaba) | `simplicio-video swap providers\|estimate\|run\|status` | `video.swap` (providers, estimate) | [docs/recursos.md](docs/recursos.md) |
 | Tarefas em segundo plano (`jobs`) | n/a | `swap run` e `voice` num processo separado, sem daemon nem porta; pedaços e falas em paralelo | `simplicio-video jobs submit\|status\|list\|cancel\|result` | `video.jobs` (sem gasto) | [docs/recursos.md](docs/recursos.md) |
 
@@ -67,6 +68,7 @@ simplicio-videos/
 ├── pyproject.toml          # Python package of the CLI (src/simplicio_video/), tests in tests/
 ├── schema/                 # contract.schema.json (CLI contract)
 ├── skills/simplicio-video/ # SKILL.md for LLMs in simplicio-runtime
+├── skills/simplicio-video-social/ # SKILL.md: posting to social networks with the provider's MCP tools
 ├── colab/                  # render.ipynb (GPU) for --backend colab bundles
 ├── intake/                 # questionnaire, site/IG extraction, intake.schema.json, examples/
 ├── templates/              # one template per sector (template.json + README)
@@ -106,6 +108,21 @@ python scripts/bench_concurrency.py                                      # bench
 ```
 
 Asyncio só entra onde há espera de rede; o render e o ffmpeg continuam seriais (CPU). A saída em paralelo é idêntica à serial. O MCP (`video.jobs`) lista, consulta, lê o resultado e cancela, e só submete `voice` com provedor local: `swap-run` se submete pelo terminal, com `--yes`. Detalhes em [docs/recursos.md](docs/recursos.md).
+
+### Redes sociais sem postar (`social`)
+
+O motor não posta. O módulo `social` só faz o que é local e determinístico; quem publica é o agente, com as ferramentas MCP do provedor (Real Oficial, o padrão, ou Zernio) e o sim explícito do usuário em cada postagem ([ADR-0018](docs/decisoes/ADR-0018-social-planejar-sem-postar.md), skill [`simplicio-video-social`](skills/simplicio-video-social/SKILL.md)).
+
+```bash
+simplicio-video social providers                                                     # realoficial (padrão) e zernio: ferramentas MCP, limites, lacunas, UNVERIFIED
+simplicio-video social plan --video out/final.mp4 --caption-file legenda.txt --target tiktok=@conta --target youtube \
+    [--at 2026-10-20T09:30 --timezone America/Sao_Paulo] [--title "..."] [--ai-generated]   # grava out/social.plan.json
+simplicio-video social check out/social.plan.json                                    # o vídeo e o plano continuam iguais?
+simplicio-video social recipe out/social.plan.json [--provider zernio] [--clip-id ID] # a sequência de chamadas MCP: cotar, mostrar, consentimento, publicar
+```
+
+O `plan` recusa vídeo que não existe ou que não é MP4, confere duração, proporção, tamanho, legenda, título e hashtags contra `src/simplicio_video/data/social/limits.json` (cada linha com `source_url`, `read_on` e `confidence`; só o limite de duração do YouTube Shorts foi conferido na página oficial, o resto é **UNVERIFIED** e pede `--aceito-unverified` para passar) e nunca grava chave ou token. O MCP (`video.social`) só faz `providers`, `plan`, `check` e `recipe`; não existe ação de publicar. O Real Oficial não recebe MP4 local por MCP: a receita pede o `clip_id` de um clip que já esteja lá.
+
 ## Catalogs
 
 | What | Where | Today |

@@ -697,6 +697,124 @@
       }
     },
     {
+      "verb": "video.social.providers",
+      "description": "Social providers (Real Oficial default, Zernio): MCP tools, limits and UNVERIFIED gaps. Read-only; the engine never posts.",
+      "argv": [
+        "simplicio-video",
+        "social",
+        "providers",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "verb": "video.social.plan",
+      "description": "Validate a final MP4 against per-network limits and write social.plan.json next to it (deterministic, no keys). Never posts.",
+      "argv": [
+        "simplicio-video",
+        "social",
+        "plan",
+        "--video",
+        "{video}",
+        "--caption",
+        "{caption}",
+        "--target",
+        "{target}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "video",
+          "caption",
+          "target"
+        ],
+        "properties": {
+          "video": {
+            "type": "string",
+            "description": "final MP4"
+          },
+          "caption": {
+            "type": "string",
+            "description": "caption with hashtags"
+          },
+          "target": {
+            "type": "string",
+            "description": "networks, comma separated, each as rede or rede=conta (youtube,youtube_shorts,tiktok=@conta)"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.social.check",
+      "description": "Recheck a social.plan.json against the video file (sha256, unedited plan, schedule still in the future). Read-only.",
+      "argv": [
+        "simplicio-video",
+        "social",
+        "check",
+        "{plano}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plano"
+        ],
+        "properties": {
+          "plano": {
+            "type": "string",
+            "description": "path of social.plan.json"
+          }
+        }
+      }
+    },
+    {
+      "verb": "video.social.recipe",
+      "description": "Print the exact MCP call sequence for the provider (quote/preview, show the user, explicit consent, publish). Calls no network and publishes nothing; the agent posts with the provider's own tools.",
+      "argv": [
+        "simplicio-video",
+        "social",
+        "recipe",
+        "{plano}",
+        "--provider",
+        "{provider}",
+        "--clip-id",
+        "{clip_id}",
+        "--json"
+      ],
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plano"
+        ],
+        "properties": {
+          "plano": {
+            "type": "string",
+            "description": "path of social.plan.json"
+          },
+          "provider": {
+            "enum": [
+              "realoficial",
+              "zernio"
+            ],
+            "default": "realoficial"
+          },
+          "clip_id": {
+            "type": "string",
+            "default": "",
+            "description": "Real Oficial clip id (it has no local MP4 upload); empty = placeholder"
+          }
+        }
+      }
+    },
+    {
       "verb": "video.realoficial",
       "description": "Real Oficial MCP (https://api.realoficial.com.br/mcp): config/check; OAuth MCP with 49 tools (social scheduling, AI media, cuts), see docs/realoficial.md.",
       "argv": [
@@ -781,6 +899,7 @@
       "video.jobs",
       "video.toonflow",
       "video.moneyprinter",
+      "video.social",
       "video.realoficial",
       "video.edit"
     ]
