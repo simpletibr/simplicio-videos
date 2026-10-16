@@ -242,8 +242,9 @@ def test_texto_da_api_perde_controles_e_quebras_de_linha(env):
     r["creator"] = "Fulano\n- `falso.png`: \"x\" por Beltrano"
     r["foreign_landing_url"] = "https://exemplo.org/a\nb"
     item = ov.search("imagem", "x")["resultados"][0]
-    for campo in ("titulo", "autor", "origem_url"):
+    for campo in ("titulo", "autor"):
         assert item[campo].isprintable() and "\n" not in item[campo], campo
+    assert item["origem_url"] is None  # URL com espaço (era uma quebra de linha) não é URL: nunca é consertada no chute
     assert "\x1b" not in item["titulo"] and "\x7f" not in item["titulo"]
 
 
@@ -1866,8 +1867,8 @@ def _entrada_de_credito(texto: str) -> str:
     entrada = linhas[2]
     assert not re.search(r"(?<!\\)[<>]", entrada), entrada
     assert not re.search(r"(?<!\\)&", entrada), entrada
-    assert entrada.count("`") == 6, entrada  # só os três pares: nome do arquivo, id e sha256
-    assert set(re.findall(r"\]\(([^)]*)\)", entrada)) <= {LINK_CC, LINK_AUTOR}, entrada
+    assert len(re.findall(r"(?<!\\)`", entrada)) == 6, entrada  # só os três pares sem escape: nome do arquivo, id e sha256
+    assert set(re.findall(r"(?<!\\)\]\(([^)\s]*)\)", entrada)) <= {LINK_CC, LINK_AUTOR}, entrada  # só os links que o próprio motor monta
     sem_nome = re.sub(r"^- `[^`]*`", "- ``", entrada)  # o nome do arquivo é só <palavras>-<sha8>.<ext>: não carrega sintaxe
     assert "evil" not in sem_nome and "javascript" not in sem_nome, entrada
     return entrada

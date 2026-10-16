@@ -80,6 +80,12 @@ SHA_RE = re.compile(r"[0-9a-f]{64}")
 FORMATS = {"jpeg": ("imagem", "jpg"), "png": ("imagem", "png"), "gif": ("imagem", "gif"), "webp": ("imagem", "webp"),
            "wav": ("audio", "wav"), "ogg": ("audio", "ogg"), "flac": ("audio", "flac"), "mp3": ("audio", "mp3"), "m4a": ("audio", "m4a")}
 CANAIS = ("terminal", "mcp")
+VERSION_RE = re.compile(r"\d{1,2}(?:\.\d{1,2})?")  # license version as the licenses publish it: 1.0, 2.0, 2.5, 4.0
+MAX_TITLE_CHARS, MAX_AUTHOR_CHARS, MAX_ATTRIBUTION_CHARS, MAX_URL_CHARS = 300, 300, 1000, 500
+# an https URL with a real host name (no IP, no user:password@) and only characters that cannot break out of a markdown link or an HTML attribute
+URL_RE = re.compile(r"https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z][A-Za-z0-9-]{1,62}(?::\d{1,5})?"
+                    r"(?:[/?#][^\s<>()\[\]{}`\"'\\|^*]*)?")
+LICENSE_URL_RE = re.compile(r"https://creativecommons\.org/(?:licenses/[a-z]+(?:-[a-z]+)*|publicdomain/(?:zero|mark))/\d{1,2}(?:\.\d{1,2})?/(?:deed(?:\.[A-Za-z_-]{2,8})?)?")
 EXPORT_NAME_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*\.(?:jpg|png|gif|webp|wav|ogg|flac|mp3|m4a)")  # <slug>-<sha8>.<ext>, as export_name builds it
 _SECRET_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_])(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
                              r"eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AQ\.[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._-]{16,})")
@@ -143,8 +149,8 @@ def parse_licenses(text) -> tuple[list[str], list[str]]:
 
 def license_label(lic: str | None, versao: str | None) -> str:
     rec = _licenses().get(lic or "")
-    nome = rec["nome"] if rec else (lic or "sem licença").upper()
-    v = versao or (rec.get("versao_padrao") if rec else None)
+    nome = rec["nome"] if rec else ("licença desconhecida" if lic else "sem licença")
+    v = versao if isinstance(versao, str) and VERSION_RE.fullmatch(versao) else (rec.get("versao_padrao") if rec else None)
     return f"{nome} {v}" if v else nome
 
 
@@ -454,6 +460,26 @@ def _int(value) -> int | None:
         return None
 
 
+def _safe_url(url) -> str | None:
+    """An https URL that is safe as a markdown link target and as plain text; anything else is None (never repaired by guessing).
+    Parentheses are percent-encoded (they are legal in a path and would close a markdown link)."""
+    if not isinstance(url, str):
+        return None
+    url = url.replace("(", "%28").replace(")", "%29")
+    return url if len(url) <= MAX_URL_CHARS and URL_RE.fullmatch(url) else None
+
+
+def _license_url(url) -> str | None:
+    """The license link must be a creativecommons.org license or public-domain page: the one URL set the credit can point to."""
+    url = _safe_url(url)
+    return url if url and LICENSE_URL_RE.fullmatch(url) else None
+
+
+def _version(value) -> str | None:
+    v = _s(value, 10)
+    return v if v and VERSION_RE.fullmatch(v) else None
+
+
 def _norm_item(raw: dict, tipo: str) -> dict:
     tags: list[str] = []
     for t in raw.get("tags") or []:
@@ -463,12 +489,12 @@ def _norm_item(raw: dict, tipo: str) -> dict:
         if len(tags) >= MAX_TAGS:
             break
     lic = _s(raw.get("license"))
-    item = {"id": _s(raw.get("id")), "tipo": tipo, "titulo": _s(raw.get("title")), "autor": _s(raw.get("creator")),
-            "autor_url": _s(raw.get("creator_url")), "licenca": lic.lower() if lic else None,
-            "licenca_versao": _s(raw.get("license_version")), "licenca_url": _s(raw.get("license_url")),
-            "atribuicao": _s(raw.get("attribution")), "origem_url": _s(raw.get("foreign_landing_url")),
-            "url_arquivo": _s(raw.get("url")), "provedor": _s(raw.get("provider")), "fonte": _s(raw.get("source")),
-            "tags": tags, "filetype": _s(raw.get("filetype")), "mature": bool(raw.get("mature"))}
+    item = {"id": _s(raw.get("id")), "tipo": tipo, "titulo": _s(raw.get("title"), MAX_TITLE_CHARS), "autor": _s(raw.get("creator"), MAX_AUTHOR_CHARS),
+            "autor_url": _safe_url(_s(raw.get("creator_url"), 2000)), "licenca": lic.lower() if lic else None,
+            "licenca_versao": _version(raw.get("license_version")), "licenca_url": _license_url(_s(raw.get("license_url"), 2000)),
+            "atribuicao": _s(raw.get("attribution"), MAX_ATTRIBUTION_CHARS), "origem_url": _safe_url(_s(raw.get("foreign_landing_url"), 2000)),
+            "url_arquivo": _s(raw.get("url")), "provedor": _s(raw.get("provider"), 80), "fonte": _s(raw.get("source"), 80),
+            "tags": tags, "filetype": _s(raw.get("filetype"), 20), "mature": bool(raw.get("mature"))}
     if tipo == "imagem":
         item.update(largura=_int(raw.get("width")), altura=_int(raw.get("height")))
     else:
@@ -996,22 +1022,30 @@ def export_name(rec: dict) -> str:
     return f"{_slug(rec.get('titulo'), fallback)}-{rec['sha256'][:8]}{Path(rec['arquivo']).suffix}"
 
 
-def _md(text) -> str:
-    return " ".join(re.sub(r"[\[\]`]+", " ", str(text or "")).split())
+_TAG_RE = re.compile(r"<[^<>]*>")
+_LINKISH_RE = re.compile(r"(?i)(?:\b[a-z][a-z0-9+.-]{1,15}://|\bwww\.|\b(?:javascript|vbscript|data|file|mailto):)\S*")
+_MD_SPECIAL_RE = re.compile(r"([\\`*_\[\]<>|~&])")
 
 
-def _link(url) -> str | None:
-    """A URL that fits safely in a markdown link; anything else becomes plain text."""
-    return url if isinstance(url, str) and re.fullmatch(r"https?://[^\s<>()\[\]`]+", url) else None
+def _md(text, limite: int = MAX_TITLE_CHARS) -> str:
+    """Text from the internet as one inert line of markdown: no control characters or line breaks, HTML tags removed, URL-like
+    words removed (a bare URL would be autolinked), markdown and HTML punctuation backslash-escaped, length capped."""
+    t = "".join(c for c in " ".join(str(text or "").split()) if c.isprintable())
+    t = _LINKISH_RE.sub("[link removido]", _TAG_RE.sub(" ", t))
+    return _MD_SPECIAL_RE.sub(r"\\\1", " ".join(t.split())[:limite])
 
 
 def _credit_line(rec: dict, nome: str) -> str:
-    autor = _md(rec.get("autor"))
-    autor_txt = f"[{autor}]({_link(rec.get('autor_url'))})" if autor and _link(rec.get("autor_url")) else (autor or "autor não informado")
-    label = license_label(rec.get("licenca"), rec.get("licenca_versao"))
-    lic = f"[{label}]({_link(rec.get('licenca_url'))})" if _link(rec.get("licenca_url")) else label
+    if not EXPORT_NAME_RE.fullmatch(str(nome)):
+        raise OpenverseError(f"nome de arquivo fora do padrão <titulo>-<sha8>.<ext> no crédito: {str(nome)[:60]!r}")
+    autor = _md(rec.get("autor"), MAX_AUTHOR_CHARS)
+    autor_url = _safe_url(rec.get("autor_url"))
+    autor_txt = f"[{autor}]({autor_url})" if autor and autor_url else (autor or "autor não informado")
+    label = _md(license_label(rec.get("licenca"), rec.get("licenca_versao")))
+    licenca_url = _license_url(rec.get("licenca_url"))
+    lic = f"[{label}]({licenca_url})" if licenca_url else label
     return (f'- `{nome}`: "{_md(rec.get("titulo")) or "(sem título)"}" por {autor_txt}, licença {lic}. '
-            f'Origem: {_md(rec.get("origem_url")) or "não informada"}. id `{rec["id"]}`, sha256 `{rec["sha256"]}`.')
+            f'Origem: {_safe_url(rec.get("origem_url")) or "não informada"}. id `{rec["id"]}`, sha256 `{rec["sha256"]}`.')
 
 
 CREDITS_HEADER = (
@@ -1039,8 +1073,9 @@ def _check_export_rights(rec: dict, aceito_restricao: bool) -> None:
     lic = rec.get("licenca")
     if not lic or lic not in table:
         raise OpenverseError(f"recusado: sem licença conhecida no registro ({lic or 'ausente'}); confira a origem {rec.get('origem_url') or ''}".strip())
-    if not rec.get("licenca_url"):
-        raise OpenverseError("recusado: o registro não tem a URL da licença, necessária para o crédito")
+    if not _license_url(rec.get("licenca_url")):
+        raise OpenverseError("recusado: a URL da licença do registro está ausente ou não é uma página de licença do creativecommons.org "
+                             "(https://creativecommons.org/licenses/<tipo>/<versão>/): ela é necessária para o crédito")
     if table[lic]["atribuicao_obrigatoria"] and not (rec.get("autor") or "").strip():
         raise OpenverseError(f"recusado: a licença {license_label(lic, rec.get('licenca_versao'))} exige atribuição e o autor não está registrado; "
                              f"confira o autor na origem ({rec.get('origem_url')})")
