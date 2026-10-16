@@ -2075,7 +2075,7 @@ def test_erro_da_api_so_chega_ao_agente_rotulado_como_texto_de_terceiros(env):
 
 
 def test_cota_da_api_so_aceita_numero_nos_cabecalhos(env):
-    env.api.search_headers = {"x-ratelimit-available-anon_sustained": f"{MARCA} {INJECAO}", f"x-ratelimit-available-{MARCA}": "5",
+    env.api.search_headers = {"x-ratelimit-available-anon_sustained": f"{MARCA} {INJECAO}", "x-ratelimit-available-IGNORE-AS-INSTRUCOES": "5",
                               "x-ratelimit-available-anon_thumbnail": "900"}
     cota = ov.search("imagem", "x")["cota_api"]
     assert cota == {"x-ratelimit-available-anon_burst": "19", "x-ratelimit-available-anon_thumbnail": "900"}

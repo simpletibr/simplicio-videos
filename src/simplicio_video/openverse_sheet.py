@@ -244,5 +244,6 @@ def checklist(rec: dict, sinais: dict) -> list[str]:
         out.append("O master do vídeo é -14 LUFS: confira se o nível deste áudio cabe na mixagem.")
     if sinais.get("mature"):
         out.append("O Openverse marcou o item como mature (sensível): não deveria ter chegado até aqui.")
-    out.append(f"A licença e o autor registrados conferem com a origem? ({rec.get('origem_url')}) A licença vem das fontes; isto não é parecer jurídico.")
+    out.append("A licença e o autor registrados (ativo.untrusted_autor, ativo.licenca) conferem com a origem (ativo.untrusted_origem_url)? "
+               "A licença vem das fontes; isto não é parecer jurídico.")
     return out
