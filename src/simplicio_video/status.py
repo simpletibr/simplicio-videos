@@ -130,6 +130,8 @@ def text(rep: dict) -> str:
                       f"{o['revisoes'] if o['revisoes'] is not None else '?'} revisão(ões), {o['exportacoes'] if o['exportacoes'] is not None else '?'} exportação(ões)")
         cred = ", ".join(f"{k} {'definida' if v else 'não definida'}" for k, v in o["credenciais"].items())
         linhas.append(f"  {cred} (opcionais: sem elas a busca é anônima)")
+        if o.get("indice_erro"):
+            linhas.append(f"  ATENÇÃO {o['indice_erro']}")
     if "render" in rep:
         r = rep["render"]
         if r["rendered"]:

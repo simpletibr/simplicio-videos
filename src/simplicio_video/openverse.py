@@ -74,6 +74,13 @@ STALE_DAYS = 30  # `get` warns when the search metadata it uses is older than th
 CREDITS_NAME = "CREDITS-openverse.md"
 USER_AGENT = f"simplicio-video/{__version__} (openverse client)"
 UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+ID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")  # an id as stored in the index (lowercase, matched with fullmatch)
+SHA_RE = re.compile(r"[0-9a-f]{64}")
+# formats the library accepts: format -> (media type, extension). The index must agree with this table, field by field.
+FORMATS = {"jpeg": ("imagem", "jpg"), "png": ("imagem", "png"), "gif": ("imagem", "gif"), "webp": ("imagem", "webp"),
+           "wav": ("audio", "wav"), "ogg": ("audio", "ogg"), "flac": ("audio", "flac"), "mp3": ("audio", "mp3"), "m4a": ("audio", "m4a")}
+CANAIS = ("terminal", "mcp")
+EXPORT_NAME_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*\.(?:jpg|png|gif|webp|wav|ogg|flac|mp3|m4a)")  # <slug>-<sha8>.<ext>, as export_name builds it
 _SECRET_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_])(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
                              r"eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AQ\.[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._-]{16,})")
 STOPWORDS = frozenset("""a o as os um uma uns umas de da do das dos em no na nos nas ao aos para por com sem que e ou se
@@ -193,6 +200,56 @@ def _empty_index() -> dict:
     return {"schema": SCHEMA_INDEX, "itens": {}, "revisoes": [], "exportacoes": []}
 
 
+def _bad_index(where: str, why: str) -> OpenverseError:
+    return OpenverseError(f"índice inválido: {where}: {why}. O index.json foi editado à mão? Nada foi alterado; "
+                          "corrija ou apague a entrada (o índice não é uma fronteira de segurança: quem edita o disco edita tudo)")
+
+
+def _validate_index(doc: dict) -> None:
+    """Every index field that becomes a path or a file name is checked against a closed list or a strict pattern, and the
+    final path must be the one the library would have written itself (so `..`, absolute paths and symlinks out are refused)."""
+    root = library_dir()
+    for key, rec in doc["itens"].items():
+        where = f"itens[{str(key)[:40]!r}]"
+        if not (isinstance(key, str) and ID_RE.fullmatch(key)):
+            raise _bad_index(where, "a chave precisa ser o id do Openverse (UUID em minúsculas)")
+        if not isinstance(rec, dict):
+            raise _bad_index(where, "o registro precisa ser um objeto")
+        if rec.get("id") != key:
+            raise _bad_index(where, f"o campo id ({str(rec.get('id'))[:40]!r}) não bate com a chave")
+        tipo, formato, sha = rec.get("tipo"), rec.get("formato"), rec.get("sha256")
+        if tipo not in TIPOS:
+            raise _bad_index(where, f"tipo {str(tipo)[:40]!r} fora da lista ({', '.join(TIPOS)})")
+        if formato not in FORMATS or FORMATS[formato][0] != tipo:
+            raise _bad_index(where, f"formato {str(formato)[:40]!r} não é um formato de {TIPO_PT[tipo]} aceito")
+        if not (isinstance(sha, str) and SHA_RE.fullmatch(sha)):
+            raise _bad_index(where, "sha256 precisa ter 64 caracteres hexadecimais minúsculos")
+        if rec.get("arquivo") != f"files/{sha}.{FORMATS[formato][1]}":
+            raise _bad_index(where, f"o campo arquivo ({str(rec.get('arquivo'))[:60]!r}) precisa ser files/<sha256>.<ext>")
+        if (root / rec["arquivo"]).resolve() != root / rec["arquivo"]:
+            raise _bad_index(where, f"o arquivo {rec['arquivo']} resolve para fora da biblioteca (symlink?); mova a pasta em vez de usar link")
+    for i, r in enumerate(doc["revisoes"]):
+        where = f"revisoes[{i}]"
+        if not isinstance(r, dict):
+            raise _bad_index(where, "a revisão precisa ser um objeto")
+        if not (isinstance(r.get("id"), str) and ID_RE.fullmatch(r["id"])):
+            raise _bad_index(where, "a revisão precisa ter o id do ativo (o veredito vale por id, sha256 e pedido)")
+        if not (isinstance(r.get("sha256"), str) and SHA_RE.fullmatch(r["sha256"])):
+            raise _bad_index(where, "sha256 precisa ter 64 caracteres hexadecimais minúsculos")
+        if not isinstance(r.get("pedido_normalizado"), str) or r.get("veredito") not in ("aprovado", "reprovado") or r.get("canal") not in CANAIS:
+            raise _bad_index(where, "pedido_normalizado, veredito (aprovado|reprovado) e canal precisam ser válidos")
+    for i, e in enumerate(doc["exportacoes"]):
+        where = f"exportacoes[{i}]"
+        if not isinstance(e, dict):
+            raise _bad_index(where, "a exportação precisa ser um objeto")
+        if not (isinstance(e.get("id"), str) and ID_RE.fullmatch(e["id"]) and isinstance(e.get("sha256"), str) and SHA_RE.fullmatch(e["sha256"])):
+            raise _bad_index(where, "id e sha256 precisam ser válidos")
+        if not (isinstance(e.get("arquivo"), str) and EXPORT_NAME_RE.fullmatch(e["arquivo"])):
+            raise _bad_index(where, f"arquivo {str(e.get('arquivo'))[:60]!r} não é um nome <titulo>-<sha8>.<ext>")
+        if not isinstance(e.get("destino"), str) or not isinstance(e.get("pedido_normalizado"), str):
+            raise _bad_index(where, "destino e pedido_normalizado precisam ser texto")
+
+
 def _load_index() -> dict:
     path = library_dir() / "index.json"
     if not path.is_file():
@@ -205,6 +262,9 @@ def _load_index() -> dict:
         raise OpenverseError(f"índice com schema desconhecido: {path} (esperado {SCHEMA_INDEX})")
     doc.setdefault("revisoes", [])
     doc.setdefault("exportacoes", [])
+    if not isinstance(doc["revisoes"], list) or not isinstance(doc["exportacoes"], list):
+        raise _bad_index("revisoes/exportacoes", "precisam ser listas")
+    _validate_index(doc)
     return doc
 
 
@@ -249,16 +309,11 @@ def _check_id(id_) -> str:
     return id_.lower()
 
 
-_FILE_RE = re.compile(r"^files/[0-9a-f]{64}\.[a-z0-9]{2,5}$")
-_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
-
-
 def _item(idx: dict, id_: str) -> dict:
+    """The record of an id. The whole index was validated on load (`_validate_index`), so its path fields are safe to use."""
     rec = idx["itens"].get(id_)
     if rec is None:
         raise OpenverseError(f"o id {id_} não está na biblioteca (use `simplicio-video openverse get {id_}`)")
-    if not (_FILE_RE.match(str(rec.get("arquivo"))) and _SHA_RE.match(str(rec.get("sha256"))) and rec["arquivo"][6:70] == rec["sha256"]):
-        raise OpenverseError(f"índice inválido para o id {id_}: o campo arquivo precisa ser files/<sha256>.<ext> (o índice foi editado à mão?)")
     return rec
 
 
@@ -505,6 +560,7 @@ def search(tipo, consulta, licencas="cc0,pdm,by", minimo_largura=None, duracao_m
     """Search images or audio on Openverse. The same query comes from the cache (no network) until `atualizar`."""
     consulta, lic, avisos = _check_search_args(tipo, consulta, licencas, minimo_largura, duracao_min, duracao_max, limite, pagina)
     params = _api_params(consulta, lic, limite, pagina)
+    idx = _load_index()  # an invalid index stops here, before any network call
     path = _cache_path(tipo, params)
     doc = None if atualizar else _read_cache(path)
     do_cache = doc is not None
@@ -523,7 +579,6 @@ def search(tipo, consulta, licencas="cc0,pdm,by", minimo_largura=None, duracao_m
     desc = dict(doc.get("descartados") or {})
     desc["filtro_local"] = 0
     final: list[dict] = []
-    idx = _load_index()
     for item in doc["resultados"]:
         if minimo_largura is not None and not (item.get("largura") and item["largura"] >= minimo_largura):
             desc["filtro_local"] += 1
@@ -552,29 +607,33 @@ def _find_in_cache(id_: str) -> tuple[dict, str] | None:
 
 # ---------------------------------------------------------------------------------------------------------- safe download
 
+def _fmt(name: str) -> tuple[str, str, str]:
+    return name, *FORMATS[name]
+
+
 def detect_format(head: bytes) -> tuple[str, str, str] | None:
     """(format, media type, extension) from the first bytes. The server's Content-Type and extension do not count."""
     if head.startswith(b"\xff\xd8\xff"):
-        return "jpeg", "imagem", "jpg"
+        return _fmt("jpeg")
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
-        return "png", "imagem", "png"
+        return _fmt("png")
     if head[:6] in (b"GIF87a", b"GIF89a"):
-        return "gif", "imagem", "gif"
+        return _fmt("gif")
     if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
-        return "webp", "imagem", "webp"
+        return _fmt("webp")
     if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
-        return "wav", "audio", "wav"
+        return _fmt("wav")
     if head[:4] == b"OggS":
-        return "ogg", "audio", "ogg"
+        return _fmt("ogg")
     if head[:4] == b"fLaC":
-        return "flac", "audio", "flac"
+        return _fmt("flac")
     if head[:3] == b"ID3":
-        return "mp3", "audio", "mp3"
+        return _fmt("mp3")
     if len(head) >= 3 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0 and (head[1] >> 3) & 3 != 1 and (head[1] >> 1) & 3 != 0 \
             and head[2] >> 4 != 0xF:
-        return "mp3", "audio", "mp3"
+        return _fmt("mp3")
     if head[4:8] == b"ftyp" and head[8:12] in (b"M4A ", b"M4B ", b"mp42", b"isom", b"iso2"):
-        return "m4a", "audio", "m4a"
+        return _fmt("m4a")
     return None
 
 
@@ -782,11 +841,7 @@ def get(id_, tipo=None, atualizar=False) -> dict:
     idx = _load_index()
     rec = idx["itens"].get(id_)
     if rec and not atualizar:
-        try:
-            ok = _FILE_RE.match(str(rec.get("arquivo"))) and _integridade(rec) == "ok"
-        except KeyError:
-            ok = False
-        if ok:  # the sha256 of the file on disk, not only its size
+        if _integridade(rec) == "ok":  # the sha256 of the file on disk, not only its size
             return {"item": rec, "ja_na_biblioteca": True, "avisos": _check_downloadable(rec)}
     found = None if atualizar else _find_in_cache(id_)
     if found is not None:
@@ -859,7 +914,10 @@ def library_show(id_, pedido=None) -> dict:
 
 def _sheet_dir(rec: dict, norm: str) -> Path:
     key = hashlib.sha256(norm.encode("utf8")).hexdigest()[:12]
-    return library_dir() / "sheets" / f"{rec['id']}-{rec['sha256'][:12]}-{key}"
+    pasta = library_dir() / "sheets" / f"{rec['id']}-{rec['sha256'][:12]}-{key}"
+    if pasta.resolve() != pasta:
+        raise OpenverseError(f"a pasta da folha ({pasta}) resolve para fora da biblioteca (symlink?): nada foi gravado")
+    return pasta
 
 
 def review_sheet(id_, pedido) -> dict:
@@ -922,7 +980,8 @@ def _slug(text: str | None, fallback: str) -> str:
 
 
 def export_name(rec: dict) -> str:
-    return f"{_slug(rec.get('titulo'), rec['tipo'])}-{rec['sha256'][:8]}{Path(rec['arquivo']).suffix}"
+    fallback = rec["tipo"] if rec.get("tipo") in TIPOS else "ativo"  # never the raw field: it becomes part of a path
+    return f"{_slug(rec.get('titulo'), fallback)}-{rec['sha256'][:8]}{Path(rec['arquivo']).suffix}"
 
 
 def _md(text) -> str:
@@ -1044,13 +1103,17 @@ def credits(para=None) -> dict:
 # ---------------------------------------------------------------------------------------------------------- status
 
 def status_summary() -> dict:
+    erro = None
     try:
         idx = _load_index()
         n = (len(idx["itens"]), len(idx["revisoes"]), len(idx["exportacoes"]))
-    except OpenverseError:
-        n = (None, None, None)
-    return {"biblioteca": str(library_dir()), "itens": n[0], "revisoes": n[1], "exportacoes": n[2],
-            "credenciais": {ENV_ID: bool(os.environ.get(ENV_ID, "").strip()), ENV_SECRET: bool(os.environ.get(ENV_SECRET, "").strip())}}
+    except OpenverseError as e:
+        n, erro = (None, None, None), str(e)
+    out = {"biblioteca": str(library_dir()), "itens": n[0], "revisoes": n[1], "exportacoes": n[2],
+           "credenciais": {ENV_ID: bool(os.environ.get(ENV_ID, "").strip()), ENV_SECRET: bool(os.environ.get(ENV_SECRET, "").strip())}}
+    if erro:  # an invalid index is shown, never swallowed
+        out["indice_erro"] = erro
+    return out
 
 
 # ---------------------------------------------------------------------------------------------------------- CLI

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "simplicio.openverse-library/v1",
-  "description": "Índice da biblioteca local do Openverse (index.json): itens baixados, revisões por par (ativo, pedido) e exportações.",
+  "description": "Índice da biblioteca local do Openverse (index.json): itens baixados, revisões por par (ativo, pedido) e exportações. Todo campo que vira caminho (id, tipo, formato, arquivo) segue uma lista fechada ou um padrão estrito; o motor recusa o índice que não bate (não é uma fronteira de segurança: quem edita o disco edita tudo).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -32,7 +32,8 @@
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "tipo": {
             "enum": [
@@ -154,7 +155,7 @@
           },
           "arquivo": {
             "type": "string",
-            "pattern": "^files/[0-9a-f]{64}\\.[a-z0-9]+$"
+            "pattern": "^files/[0-9a-f]{64}\\.(jpg|png|gif|webp|wav|ogg|flac|mp3|m4a)$"
           },
           "formato": {
             "enum": [
@@ -174,12 +175,17 @@
             "minimum": 1
           },
           "baixado_em": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
           },
           "consultado_em": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
           }
         }
+      },
+      "propertyNames": {
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
       }
     },
     "revisoes": {
@@ -200,7 +206,8 @@
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "sha256": {
             "type": "string",
@@ -251,7 +258,8 @@
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "sha256": {
             "type": "string",
@@ -264,7 +272,8 @@
             "type": "string"
           },
           "arquivo": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[^/\\\\\\s`<>\\[\\]()*_|~&!#]{1,200}\\.(jpg|png|gif|webp|wav|ogg|flac|mp3|m4a)$"
           },
           "em": {
             "type": "string"
