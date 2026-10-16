@@ -51,8 +51,8 @@ def _no_git(*args, **kwargs):
 def _hermetic(request, monkeypatch, tmp_path_factory):
     """No test touches the real home, a real tool checkout or the network by accident."""
     monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path_factory.mktemp("simplicio-data")))
-    for var in ("OPENMONTAGE_DIR", "SIMPLICIO_OPENMONTAGE_DIR", "SIMPLICIO_TOOLS_DIR"):
-        monkeypatch.delenv(var, raising=False)
+    for var in ("OPENMONTAGE_DIR", "SIMPLICIO_OPENMONTAGE_DIR", "SIMPLICIO_TOOLS_DIR", "TINYFISH_API_KEY", "SIMPLICIO_BUSCA_MAX_DIA"):
+        monkeypatch.delenv(var, raising=False)  # a real TinyFish key or cap in the developer's shell never reaches a test
     if request.node.get_closest_marker("render") or request.node.get_closest_marker("integration") or request.node.get_closest_marker("ui"):
         monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
     else:

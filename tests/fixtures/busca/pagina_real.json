@@ -1,0 +1,17 @@
+{
+  "results": [
+    {
+      "url": "https://example.com",
+      "final_url": "https://example.com/",
+      "title": "Example Domain",
+      "description": null,
+      "language": "en",
+      "author": null,
+      "published_date": null,
+      "latency_ms": 48.44348799815634,
+      "format": "markdown",
+      "text": "This domain is for use in documentation examples without needing permission. This is not a service; avoid relying on it for testing and monitoring purposes."
+    }
+  ],
+  "errors": []
+}

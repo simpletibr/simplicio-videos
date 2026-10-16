@@ -2,7 +2,8 @@
 
 Ferramentas: as três do `tools.py` (OpenMontage, OpenCut, Hypit) com a versão fixada de lá; ffmpeg e node
 só são detectados (sem versão fixada). Detecção por shutil.which (existe no PATH) e leitura da versão
-(`--version` / `-version`, ou o commit do checkout para ferramentas git). Nada de rede e nada de sockets:
+(`--version` / `-version`, ou o commit do checkout para ferramentas git; o `tinyfish`, de terceiros, roda com o ambiente
+fechado do `busca`: nenhuma chave do shell chega a ele). Nada de rede e nada de sockets:
 a versão só é lida de um executável que já está no PATH, e uma ferramenta ausente vira installed false.
 
 Estado do render: o render.manifest.json ao lado do contrato. Sem manifesto, rendered false.
@@ -19,7 +20,7 @@ from . import HYPERFRAMES, __version__, tools
 
 SEM_VERSAO = "sem versão fixada"
 MANIFEST = "render.manifest.json"
-ENGINE_TOOLS = ("openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "ffmpeg", "node")
+ENGINE_TOOLS = ("openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "tinyfish", "ffmpeg", "node")
 PLAIN_TOOLS = ("ffmpeg", "node")  # só detectadas: o motor não fixa versão delas
 
 
@@ -67,7 +68,11 @@ def _ferramenta_do_motor(name: str) -> dict:
                 version = None
         return _linha(name, d is not None, version, pinned, fonte)
     exe = shutil.which(t.name)  # npm: o binário no PATH (ou o npx do motor, que não é checado aqui)
-    version = _primeira_linha([exe, "--version"]) if exe else None
+    if exe and name == "tinyfish":
+        from . import busca  # binário de terceiros: só o ambiente fechado do `busca` (nenhuma chave do shell) e sem telemetria
+        version = busca._versao_cli(exe)
+    else:
+        version = _primeira_linha([exe, "--version"]) if exe else None
     return _linha(name, exe is not None, version, pinned, fonte)
 
 
@@ -99,8 +104,9 @@ def render_state(contrato: Path) -> dict:
 
 
 def report(contrato: str | Path | None = None) -> dict:
-    from . import openverse, swap
-    rep: dict = {"tools": [tool_status(n) for n in ENGINE_TOOLS], "swap": swap.status_summary(), "openverse": openverse.status_summary()}
+    from . import busca, openverse, swap
+    rep: dict = {"tools": [tool_status(n) for n in ENGINE_TOOLS], "swap": swap.status_summary(), "openverse": openverse.status_summary(),
+                 "busca": busca.status_summary()}
     if contrato is not None:
         path = Path(contrato)
         if not path.is_file():
@@ -132,6 +138,13 @@ def text(rep: dict) -> str:
         linhas.append(f"  {cred} (opcionais: sem elas a busca é anônima)")
         if o.get("indice_erro"):
             linhas.append(f"  ATENÇÃO {o['indice_erro']}")
+    if rep.get("busca"):
+        b = rep["busca"]
+        chamadas = b["chamadas_hoje"] if b["chamadas_hoje"] is not None else "?"
+        teto = b["teto"] if b["teto"] is not None else "?"
+        linhas.append("busca (TinyFish; só diz se a variável da chave existe, nunca o valor; detalhes em `simplicio-video busca status`):")
+        linhas.append(f"  hoje {chamadas} de {teto} chamada(s) | {b['variavel_da_chave']} {'definida' if b['variavel_da_chave_definida'] else 'não definida'} "
+                      f"(a chave também pode estar na configuração do próprio tinyfish) | pasta {b['pasta']}")
     if "render" in rep:
         r = rep["render"]
         if r["rendered"]:

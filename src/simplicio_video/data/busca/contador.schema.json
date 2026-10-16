@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "simplicio.busca-contador/v1",
+  "description": "Contador de chamadas ao TinyFish no dia (UTC): o teto diário do comando busca é conferido contra ele.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "dia",
+    "chamadas"
+  ],
+  "properties": {
+    "schema": {
+      "const": "simplicio.busca-contador/v1"
+    },
+    "dia": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "chamadas": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

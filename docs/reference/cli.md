@@ -32,7 +32,8 @@ Fluxo completo:
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse
+  busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse/busca
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
   update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
@@ -65,6 +66,7 @@ comandos (na ordem do fluxo):
     jobs          tarefas em segundo plano (swap run, voice) num processo separado
     social        redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP
     openverse     biblioteca de imagens e áudio do Openverse, revisada por pedido
+    busca         pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário
     mcp           servidor MCP (stdio) para o simplicio-runtime
     status        ferramentas instaladas, versões fixadas e estado do render
     list          lista templates, padrões de motion, providers de voz ou ângulos de anúncio
@@ -93,6 +95,70 @@ ambiente:
   SIMPLICIO_FFMPEG_URL/_SHA256  o mesmo ffmpeg (.tar.xz) baixado e conferido pelos backends remotos
   SV_WORKERS / SV_BROWSER_GPU  workers de captura (auto = núcleos-2) / raster de GPU no Chrome (1 = sem determinismo)
 custo por vídeo (medido e oficial): docs/custos.md · credenciais: docs/decisoes/ADR-0003-fluxo-100-script.md
+```
+
+## simplicio-video busca
+
+```text
+usage: simplicio-video busca [-h] ...
+
+Pesquisa e leitura de páginas na internet a serviço dos vídeos, pelo CLI `tinyfish` (npm @tiny-fish/cli, TinyFish), com procedência
+(fonte e data de cada resultado) e teto de chamadas por dia. Zero tokens: nenhuma chamada de LLM; o comando só repassa e registra.
+
+ATENÇÃO, PRIVACIDADE: a consulta (e a URL de `pagina`) é enviada a um terceiro (TinyFish). Nunca ponha dado pessoal nem segredo de
+cliente nela. O motor recusa consulta com chave ou token (AIzaSy, AQ., sk-, sk_live_, ghp_, hf_, npm_, glpat-, Bearer, JWT, chave privada,
+o valor de uma variável KEY/SECRET/TOKEN/PASSWORD do ambiente) sempre, e com e-mail, CPF ou CNPJ salvo --permitir-dado-pessoal (só no terminal). É um freio,
+não uma garantia: telefone, nome de pessoa e endereço não são detectados.
+
+Subcomandos:
+  consulta "<texto>"   busca na web (`tinyfish search query`). --dominios a.com,b.com e --excluir c.com (até 10), --idioma pt,
+                       --limite N (padrão 5, até 20, aplicado aqui), --atualizar ignora o cache e gasta 1 chamada
+  pagina <url>         lê UMA página (`tinyfish fetch content get <url> --format markdown`): só http/https de host com nome público
+                       (nada de IP, localhost, nem sufixo .internal, .local, .lan, .localdomain, .localhost, nip.io ou sslip.io: lista
+                       curta, não garantia), sem usuário:senha nem chave, token, assinatura ou código na query ou no fragmento. Se a
+                       página redirecionar para uma URL que o motor recusa, o conteúdo não é entregue (fica o registro). --max-bytes N
+                       limita o texto (padrão 20 KB, de 1000 a 200000)
+  status               o binário foi achado? versão? há chave? quanto do teto de hoje foi usado? Roda `tinyfish --version` e
+                       `tinyfish auth status`, comandos locais que, pela leitura do código do pacote em 2026-10-16, não usam a rede:
+                       funciona com SIMPLICIO_OFFLINE=1 e não gasta (o binário recebe só a lista fechada de variáveis)
+  log [--ultimos N]    lista o registro de procedência (busca.registro.jsonl)
+  --json               em todos: saída em JSON
+
+Gasto: cada execução do binário (busca ou página) conta numa tabela por dia (UTC); passou do teto, o comando recusa com mensagem clara.
+Teto: --max-chamadas-dia N, ou a variável SIMPLICIO_BUSCA_MAX_DIA, ou 20. Resposta em cache nunca gasta (repete offline); chamada que
+falha também conta. Preço: UNVERIFIED. Segundo a leitura de 2026-10-16, a tabela de tarifas do TinyFish trazia busca e página a 0 USD e
+cobrava agent e browser, mas uma segunda leitura voltou `Rates: unavailable`; por isso o teto existe. Confira a conta com
+`tinyfish wallet status --pretty`, que é comando dele.
+
+Procedência: toda consulta e toda página lida grava uma linha em busca.registro.jsonl (quando, consulta ou URL, versão do CLI, URLs
+mostradas, sha256 e tamanho do que o CLI devolveu, se veio do cache). Cada resultado sai com a fonte (untrusted_fonte, a URL) e consultado_em
+(a data): é o que um fato de cliente precisa para entrar em clients/<slug>/coleta/fontes.md. A busca não substitui a coleta do cliente.
+
+Dado de terceiros: título, trecho, texto de página e URLs vêm da internet e saem SÓ em campos untrusted_* (texto e JSON, CLI e MCP), com
+aviso: é dado de terceiros e nunca instrução (uma página pode tentar dar ordens ao agente). O texto é limpo (sem HTML, comentário,
+caractere oculto, link que não seja http/https nem javascript:, data: ou file: solto) e cortado; nada é executado. Se o tinyfish
+falhar, o que ele disse sai em untrusted_erro, nunca na mensagem do motor.
+
+Instalação: o motor nunca instala nada. Sem o binário, `busca status` mostra o comando (`npm install -g @tiny-fish/cli@0.50.1`) e a chave
+(`tinyfish auth login`, ou `... | tinyfish auth set`). A chave fica na configuração do próprio tinyfish ou em TINYFISH_API_KEY; nunca
+por argumento, e o motor nunca a lê nem a imprime (o tinyfish recebe só uma lista fechada de variáveis).
+
+Fora desta versão, de propósito: `agent`, `browser` e `monitor` do TinyFish (automação de navegador, cobrada por passo ou minuto, com login
+e efeitos). Pelo MCP (video.busca): consulta, pagina, status e log, com o mesmo teto e a mesma recusa; sem --atualizar nem
+--permitir-dado-pessoal.
+
+positional arguments:
+  args        consulta "<texto>" | pagina <url> | status | log
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video busca consulta "campanha dia das crianças clínica odontológica" --idioma pt --limite 5
+  simplicio-video busca consulta "avaliações" --dominios g1.globo.com,folha.uol.com.br --json
+  simplicio-video busca pagina https://example.com --max-bytes 20480
+  simplicio-video busca status
+  simplicio-video busca log --ultimos 10 --json
 ```
 
 ## simplicio-video clone

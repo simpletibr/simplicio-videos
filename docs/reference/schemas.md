@@ -4,6 +4,10 @@
 
 | Arquivo | `$id` ou título | Descrição |
 |---|---|---|
+| src/simplicio_video/data/busca/cache.schema.json | simplicio.busca-cache/v1 | Resposta guardada de uma consulta ou de uma página, já limpa e limitada, com a data da chamada de verdade e o hash do que o CLI devolveu. |
+| src/simplicio_video/data/busca/contador.schema.json | simplicio.busca-contador/v1 | Contador de chamadas ao TinyFish no dia (UTC): o teto diário do comando busca é conferido contra ele. |
+| src/simplicio_video/data/busca/registro.schema.json | simplicio.busca-registro/v1 | Uma linha de busca.registro.jsonl: a procedência de uma consulta ou de uma página lida (quando, o que, versão do CLI, hash do que o CLI devolveu e do que foi entregue). |
+| src/simplicio_video/data/busca/tinyfish.schema.json | simplicio.busca-tinyfish/v1 | Fatos do CLI tinyfish usados pelo comando busca, cada um com fonte, data de leitura e confiança. |
 | src/simplicio_video/data/motion/pattern.schema.json | https://simplicio.dev/schemas/simplicio.motion-pattern/v1 | One entry of the motion pattern library (motion/patterns/<id>/pattern.json). |
 | src/simplicio_video/data/openverse/api.schema.json | simplicio.openverse-api/v1 | Fatos da API do Openverse usados pelo comando openverse, cada um com fonte, data de leitura e confiança. |
 | src/simplicio_video/data/openverse/library.schema.json | simplicio.openverse-library/v1 | Índice da biblioteca local do Openverse (index.json): itens baixados, revisões por trio (id, sha256, pedido) mais a proveniência, e exportações. Todo campo que vira caminho (id, tipo, formato, arquivo) segue uma lista fechada ou um padrão estrito; o motor recusa o índice que não bate (não é uma fronteira de segurança: quem edita o disco edita tudo). |
