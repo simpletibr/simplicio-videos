@@ -279,6 +279,14 @@ def _preserve_paid(work: Path, out: Path, recs: list[dict], manifest: dict) -> s
     return str(dest)
 
 
+def _save_partial(path: Path, manifest: dict) -> None:
+    """Best effort: a partial manifest must never hide the error that is being handled."""
+    try:
+        write_manifest(path, manifest)
+    except (SwapError, OSError):
+        pass
+
+
 def _poll_until_done(adapter, handle: dict, rec: dict, timeout: float, interval: float) -> None:
     t0 = _now()
     wait = interval
@@ -357,6 +365,7 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
                 manifest["attempts"] = tent[0]
             rec["latency"]["upload_s"] = round(_now() - t, 3)
             rec["handle"], rec["state"] = handle, "submitted"
+            _save_partial(manifest_path, manifest)  # the paid handle reaches the disk before the long wait
             _poll_until_done(adapter, handle, rec, timeout, poll_interval)
             t = _now()
             data = _com_tentativas(lambda: adapter.fetch(handle), fetch_tent)
@@ -399,17 +408,22 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         manifest["state"] = "done"
         write_manifest(manifest_path, manifest)
         return manifest
-    except SwapError as e:
+    except BaseException as e:  # noqa: BLE001 (Ctrl+C and unexpected errors must keep the paid handles too)
         kept = _preserve_paid(work, out, recs, manifest)
         if kept:
             e.args = (f"{e} Os pedaços já gerados e pagos ficaram em {kept} (nada foi apagado).",)
-        manifest["state"] = "timeout" if isinstance(e, SwapTimeout) else "failed"
-        manifest["error"] = scrub(str(e))
+        if isinstance(e, KeyboardInterrupt):
+            manifest["state"] = "interrupted"
+        elif isinstance(e, SwapTimeout):
+            manifest["state"] = "timeout"
+        else:
+            manifest["state"] = "failed"
+        manifest["error"] = scrub(str(e) or type(e).__name__) if isinstance(e, SwapError) else scrub(f"{type(e).__name__}: {e}")
         for r in recs:
             if r["state"] not in ("done",):
                 r["state"] = manifest["state"]
                 r["error"] = manifest["error"]
-        write_manifest(manifest_path, manifest)
+        _save_partial(manifest_path, manifest)
         raise
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -599,3 +613,9 @@ def run_swap(argv: list[str]) -> int:
     except SwapError as e:
         print(f"swap: {scrub(str(e))}", file=sys.stderr)
         return getattr(e, "code", 1)
+    except KeyboardInterrupt:
+        print("swap: interrompido (Ctrl+C); o manifesto guarda os handles já pagos", file=sys.stderr)
+        return 130
+    except Exception as e:  # noqa: BLE001 (no traceback: it could carry a key; the manifest has the state)
+        print(f"swap: erro inesperado: {scrub(f'{type(e).__name__}: {e}')}", file=sys.stderr)
+        return 1
