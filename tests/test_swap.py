@@ -622,6 +622,29 @@ def test_i1_falha_na_emenda_nao_apaga_os_pedacos_pagos(media, monkeypatch, capsy
     assert not list(out.parent.glob(".swap-work-*"))
 
 
+@pytest.mark.parametrize("fixture,chamadas", [("gemini_error_quota.json", 1), ("gemini_error_quota_paid.json", 1)])
+def test_i4_erro_de_cota_nunca_repete(gemini, media, monkeypatch, fixture, chamadas):
+    rota = Rota([(429, fx(fixture))])
+    monkeypatch.setattr(http, "request", rota)
+    with pytest.raises(swap_providers.ProviderError) as e:
+        swap._com_tentativas(lambda: gemini.submit(gjob(media)), tentativas=[0])
+    assert e.value.retryable is False and len(rota.calls) == chamadas
+
+
+def test_i4_plano_gratis_com_texto_de_cota_cita_faturamento(gemini, media, monkeypatch):
+    monkeypatch.setattr(http, "request", Rota([(429, fx("gemini_error_quota.json"))]))
+    with pytest.raises(swap_providers.ProviderError, match="faturamento"):
+        gemini.submit(gjob(media))
+
+
+def test_i4_limite_de_taxa_comum_continua_transitorio(gemini, media, monkeypatch):
+    corpo = b'{"error":{"code":429,"message":"Too many requests, slow down","status":"RESOURCE_EXHAUSTED"}}'
+    monkeypatch.setattr(http, "request", Rota([(429, corpo)]))
+    with pytest.raises(swap_providers.ProviderError) as e:
+        gemini.submit(gjob(media))
+    assert e.value.retryable is True
+
+
 @needs_ffmpeg
 def test_i1_sucesso_limpa_a_pasta_de_trabalho(media):
     assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
