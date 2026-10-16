@@ -147,13 +147,20 @@ def plan_chunks(total_s: float, max_s: float, min_s: float = 0.0) -> list[tuple[
     return [(total_s * i / n, length) for i in range(n)]
 
 
-def _com_tentativas(fn, tentativas: list, max_tries: int = MAX_TRIES):
-    """Call fn, retrying only transient provider errors with exponential backoff. tentativas[0] counts the calls."""
+def _com_tentativas(fn, tentativas: list, max_tries: int = MAX_TRIES, retry_network: bool = True):
+    """Call fn, retrying only transient provider errors with exponential backoff. tentativas[0] counts the calls.
+    With retry_network=False (submit) a network failure is never retried: the provider may have accepted and charged the
+    request without answering, and no provider supports an idempotency key here, so a retry could charge twice."""
     for i in range(max_tries):
         tentativas[0] += 1
         try:
             return fn()
         except ProviderError as e:
+            if e.network and not retry_network:
+                e.retryable, e.possibly_charged = False, True
+                e.args = (f"{e} A requisição pode ter sido aceita e cobrada sem resposta; o envio não foi repetido para não "
+                          "cobrar em dobro. Confira o painel do provedor antes de rodar de novo.",)
+                raise
             if not e.retryable or i == max_tries - 1:
                 raise
             _sleep(min(2.0 ** (i + 1), 30.0))
@@ -344,7 +351,7 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
         raws: list[Path] = []
         for i, (start, length) in enumerate(p.chunks):
             rec = {"index": i, "start_s": round(start, 3), "length_s": round(length, 3), "state": "pending", "handle": None,
-                   "attempts": 0, "error": None, "measured_usd": None,
+                   "attempts": 0, "error": None, "measured_usd": None, "possibly_charged": False,
                    "latency": {"upload_s": None, "queue_s": None, "generation_s": None, "download_s": None}}
             recs.append(rec)
             manifest["chunks"] = recs
@@ -359,7 +366,10 @@ def execute(p: Plan, out: Path, *, extra_prompt: str = "", timeout: float = DEFA
             _log(f"swap: pedaço {i + 1}/{len(p.chunks)} ({length:.1f} s): enviando para {adapter.name}")
             t = _now()
             try:
-                handle = _com_tentativas(lambda: adapter.submit(job), tent)
+                handle = _com_tentativas(lambda: adapter.submit(job), tent, retry_network=False)
+            except ProviderError as e:
+                rec["possibly_charged"] = e.possibly_charged
+                raise
             finally:
                 rec["attempts"] = tent[0] - before
                 manifest["attempts"] = tent[0]

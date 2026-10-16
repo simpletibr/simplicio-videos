@@ -35,9 +35,11 @@ class SwapError(Exception):
 class ProviderError(SwapError):
     """A provider failure. `retryable` says whether trying the same call again can help."""
 
-    def __init__(self, message: str, retryable: bool = False):
+    def __init__(self, message: str, retryable: bool = False, network: bool = False):
         super().__init__(message)
         self.retryable = retryable
+        self.network = network  # the request may have reached the server: no answer came back
+        self.possibly_charged = False
 
 
 @dataclass(frozen=True)
@@ -139,7 +141,7 @@ class Adapter:
         try:
             return http.request(method, url, headers=headers, json_body=body, timeout=timeout)
         except http.NetworkError as e:
-            raise ProviderError(f"{self.name}: {e}", retryable=True) from None
+            raise ProviderError(f"{self.name}: {e}", retryable=True, network=True) from None
 
     def _error(self, res: http.Response) -> ProviderError:
         """A non-2xx response as a ProviderError (5xx and 429 are transient, other 4xx are not)."""
