@@ -173,6 +173,14 @@ def proc_start(pid: int) -> str | None:
     return stat[stat.rindex(")") + 2:].split()[19]
 
 
+def boot_id() -> str | None:
+    """Identifier of the current boot (Linux): pids restart after a reboot, so an identity from another boot proves nothing."""
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text().strip() or None
+    except OSError:
+        return None
+
+
 def _is_zombie(pid: int) -> bool:
     try:
         stat = Path(f"/proc/{pid}/stat").read_text()
@@ -196,10 +204,51 @@ def is_alive(pid: int | None, start: str | None = None) -> bool:
     return not (start and now and start != now)
 
 
-def _kill_group(pgid: int | None, sig: int = signal.SIGKILL) -> None:
-    if pgid and pgid > 1:
+def _kill_group(pgid: int | None, sig: int | None = None) -> None:
+    """Signal a process group (SIGKILL by default). Only for a group the CALLER spawned and still owns; for a group
+    recorded in a state file use `_kill_task_group`, which proves the identity first."""
+    if pgid and pgid > 1 and hasattr(os, "killpg"):
         with contextlib.suppress(ProcessLookupError, PermissionError):
-            os.killpg(pgid, sig)
+            os.killpg(pgid, _sigkill() if sig is None else sig)
+
+
+def _sigkill() -> int:
+    return getattr(signal, "SIGKILL", signal.SIGTERM)  # resolved at use: no platform-specific attribute at import
+
+
+def _task_proven(st: dict) -> bool:
+    """True only when the recorded task group is still the task's: same boot and the leader (pid == pgid, because the
+    task runs in its own session) has the start time recorded at spawn. No proof, no signal."""
+    pgid, start = st.get("task_pgid"), st.get("task_start")
+    if not pgid or pgid <= 1 or not start:
+        return False
+    boot = st.get("task_boot")
+    if boot and boot != boot_id():
+        return False
+    return proc_start(pgid) == start
+
+
+def _runner_proven(st: dict) -> bool:
+    pid, start = st.get("runner_pid"), st.get("runner_start")
+    return bool(pid and start and proc_start(pid) == start)
+
+
+def _kill_task_group(st: dict, sig: int | None = None) -> bool:
+    """Signal the task group recorded in `st` if, and only if, it is proven to be the task's. Returns whether it signalled."""
+    if not _task_proven(st):
+        return False
+    _kill_group(st["task_pgid"], sig)
+    return True
+
+
+def _group_alive(pgid) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except (ProcessLookupError, AttributeError, OverflowError, ValueError):
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 LOST_MSG = "o runner morreu sem gravar o estado final (processo encerrado ou máquina reiniciada)"
@@ -222,8 +271,13 @@ def status(jid: str) -> dict:
         fresh = read_state(jid)  # the runner may have written the final state between the read and now
         if fresh["state"] not in ("queued", "running"):
             return fresh
-        _kill_group(fresh.get("task_pgid"))  # what the dead runner left behind must not keep running
-        return _write(jid, fresh, {"state": "lost", "finished_at": now_iso(), "error": LOST_MSG})
+        error = LOST_MSG
+        if not _kill_task_group(fresh):  # what the dead runner left behind must not keep running, but ONLY if it is provably ours
+            pgid = fresh.get("task_pgid")
+            if pgid and pgid > 1 and _group_alive(pgid):
+                error += (f". Não encerrei o grupo {pgid}: sem prova de que ainda é o da tarefa (pid reaproveitado ou "
+                          "sem identidade gravada); confira com `ps` antes de matar")
+        return _write(jid, fresh, {"state": "lost", "finished_at": now_iso(), "error": error})
 
 
 def list_jobs(state: str | None = None) -> list[dict]:
@@ -425,7 +479,7 @@ def submit(kind: str, params: dict, *, confirm_yes: bool = False, origin: str = 
     jid = _new_id()
     st = {"schema": SCHEMA, "id": jid, "kind": kind, "state": "queued", "origin": origin, "spends": spends,
           "created_at": now_iso(), "started_at": None, "finished_at": None, "heartbeat_at": None, "runner_pid": None,
-          "runner_start": None, "task_pid": None, "task_pgid": None, "exit_code": None, "error": None, "result": None,
+          "runner_start": None, "task_pid": None, "task_pgid": None, "task_start": None, "task_boot": None, "exit_code": None, "error": None, "result": None,
           "cancel_requested_at": None, "cwd": str(Path.cwd()), "params": clean_params, **extra}
     write_json_atomic(job_dir(jid) / "job.json", st)
     try:
@@ -447,6 +501,9 @@ def cancel(jid: str, wait_s: float | None = None) -> dict:
     pid = st.get("runner_pid")
     budget = (grace() + 10.0) if wait_s is None else wait_s
     if is_alive(pid, st.get("runner_start")):
+        if not _runner_proven(st):
+            raise JobError(f"não consegui provar que o pid {pid} é o runner da tarefa (sem start time conferível neste sistema): "
+                           "nada foi sinalizado. Confira com `ps` e encerre à mão se for o caso")
         with contextlib.suppress(ProcessLookupError):
             os.kill(pid, signal.SIGTERM)
         deadline = datetime.now(timezone.utc) + timedelta(seconds=budget)
@@ -458,12 +515,13 @@ def cancel(jid: str, wait_s: float | None = None) -> dict:
         else:
             st = read_state(jid)
             if st["state"] not in FINAL:  # the runner did not answer in time: stop everything by force
-                _kill_group(st.get("task_pgid"))
-                with contextlib.suppress(ProcessLookupError):
-                    os.kill(pid, signal.SIGKILL)
+                _kill_task_group(st)
+                if _runner_proven(st):
+                    with contextlib.suppress(ProcessLookupError):
+                        os.kill(pid, _sigkill())
                 return update(jid, state="cancelled", finished_at=now_iso(), error="cancelado à força (o runner não respondeu)")
     else:
-        _kill_group(st.get("task_pgid"))
+        _kill_task_group(st)
     st = status(jid)
     if st["state"] == "lost" or st["state"] in ("queued", "running"):  # the runner died while we cancelled: it was cancelled
         st = update(jid, state="cancelled", finished_at=st.get("finished_at") or now_iso(), error=None)
@@ -505,9 +563,9 @@ async def _stop_group(proc, grace_s: float) -> None:
     try:
         await asyncio.wait_for(proc.wait(), timeout=grace_s)
     except asyncio.TimeoutError:
-        _kill_group(proc.pid, signal.SIGKILL)
+        _kill_group(proc.pid)
         await proc.wait()
-    _kill_group(proc.pid, signal.SIGKILL)
+    _kill_group(proc.pid)
 
 
 async def _pump(stream, jid: str, box: dict) -> None:
@@ -559,7 +617,7 @@ async def _runner(jid: str) -> int:
         proc = await asyncio.create_subprocess_exec(*argv, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
                                                     stderr=asyncio.subprocess.STDOUT, start_new_session=True, cwd=st.get("cwd"),
                                                     env=os.environ.copy())
-        update(jid, task_pid=proc.pid, task_pgid=proc.pid)
+        update(jid, task_pid=proc.pid, task_pgid=proc.pid, task_start=proc_start(proc.pid), task_boot=boot_id())
         pump = asyncio.create_task(_pump(proc.stdout, jid, box))
         beat = asyncio.create_task(_heartbeat(jid))
         waiter = asyncio.create_task(proc.wait())
