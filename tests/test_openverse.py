@@ -2107,6 +2107,90 @@ def test_descricoes_do_mcp_e_do_plugin_e_a_skill_avisam_que_untrusted_e_dado_e_n
     assert "untrusted_" in skill and "nunca instruç" in skill and "dado de terceiros" in skill.lower()
 
 
+# ------------------------------------------------------------------------------------------------ canal da aprovação (achado 5 da revisão do PR #108)
+
+def _argv_do_plugin(verbo, **valores):
+    """O argv que o runtime de plugin executa para o verbo: os marcadores {x} trocados pelos valores."""
+    cmd = {c["verb"]: c for c in json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))["commands"]}[verbo]
+    assert cmd["argv"][0] == "simplicio-video"
+    return [re.sub(r"\{(\w+)\}", lambda m: valores[m.group(1)], a) for a in cmd["argv"][1:]]
+
+
+def _revisoes(env):
+    return json.loads((env.lib / "index.json").read_text(encoding="utf8"))["revisoes"]
+
+
+@needs_ffmpeg
+def test_aprovacao_pelo_plugin_fica_registrada_como_plugin_e_nao_como_terminal(env, midia, capsys):
+    item = baixar(env, body=midia["nitida"])
+    ov.review_sheet(item["id"], PEDIDO)
+    argv = _argv_do_plugin("video.openverse.aprovar", id=item["id"], pedido=PEDIDO, motivo="serve", por="agente")
+    assert main(argv) == 0
+    assert _revisoes(env)[-1]["canal"] == "plugin" and json.loads(capsys.readouterr().out)["canal"] == "plugin"
+    argv = _argv_do_plugin("video.openverse.reprovar", id=item["id"], pedido=OUTRO_PEDIDO, motivo="fora do tema", por="agente")
+    assert main(argv) == 0 and _revisoes(env)[-1]["canal"] == "plugin"
+
+
+def test_plugin_json_fixa_o_canal_no_argv_e_nao_deixa_o_runtime_trocar():
+    verbos = {c["verb"]: c for c in json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))["commands"]}
+    for v in ("video.openverse.aprovar", "video.openverse.reprovar"):
+        argv = verbos[v]["argv"]
+        assert argv[argv.index("--canal") + 1] == "plugin", v
+        assert "canal" not in verbos[v]["args_schema"]["properties"] and verbos[v]["args_schema"]["additionalProperties"] is False
+        assert "{canal}" not in " ".join(argv)
+
+
+@needs_ffmpeg
+def test_canal_do_terminal_e_o_padrao_e_o_cli_recusa_se_passar_por_mcp(env, midia, capsys):
+    item = baixar(env, body=midia["nitida"])
+    rc, out, _ = cli(["library", "review", item["id"], "--pedido", PEDIDO, "--reprovar", "--motivo", "m", "--por", "p", "--json"], capsys)
+    assert rc == 0 and json.loads(out)["canal"] == "terminal"
+    rc, out, _ = cli(["library", "review", item["id"], "--pedido", PEDIDO, "--reprovar", "--motivo", "m", "--por", "p", "--canal", "plugin", "--json"], capsys)
+    assert rc == 0 and json.loads(out)["canal"] == "plugin"
+    antes = len(_revisoes(env))
+    rc, out, err = cli(["library", "review", item["id"], "--pedido", PEDIDO, "--reprovar", "--motivo", "m", "--por", "p", "--canal", "mcp"], capsys)
+    assert rc == 2 and "canal" in err and len(_revisoes(env)) == antes  # o MCP tem o próprio canal: o CLI não o empresta
+
+
+def test_review_recusa_canal_desconhecido_e_o_indice_forjado_com_canal_estranho_e_recusado(env):
+    item = baixar(env)
+    with pytest.raises(ov.OpenverseError, match="canal"):
+        ov.review(item["id"], PEDIDO, "reprovado", "m", "p", canal="../../etc")
+    assert _revisoes(env) == []
+    ov.review(item["id"], PEDIDO, "reprovado", "m", "p", canal="plugin")
+    _forjar(env, lambda d: d["revisoes"][0].update(canal="shell"))
+    with pytest.raises(ov.OpenverseError, match="índice inválido"):
+        ov.library_list()
+
+
+def test_mcp_nao_tem_parametro_de_canal_e_grava_mcp(env):
+    assert "canal" not in inspect.signature(mcp_server.video_openverse).parameters
+    item = baixar(env)
+    with pytest.raises(TypeError):
+        mcp_server.video_openverse("review", id=item["id"], pedido=PEDIDO, veredito="reprovado", motivo="m", por="p", canal="terminal")
+    r = mcp_server.video_openverse("review", id=item["id"], pedido=PEDIDO, veredito="reprovado", motivo="m", por="p")
+    assert r["ok"] is True and r["canal"] == "mcp" and _revisoes(env)[-1]["canal"] == "mcp"
+
+
+@needs_ffmpeg
+def test_aprovar_pelo_mcp_e_pelo_plugin_continua_exigindo_a_folha_do_par(env, midia, capsys):
+    item = baixar(env, body=midia["nitida"])
+    r = mcp_server.video_openverse("review", id=item["id"], pedido=PEDIDO, veredito="aprovado", motivo="serve", por="agente")
+    assert r["ok"] is False and "folha" in r["error"]
+    assert main(_argv_do_plugin("video.openverse.aprovar", id=item["id"], pedido=PEDIDO, motivo="serve", por="agente")) == 1
+    assert "folha" in capsys.readouterr().err and _revisoes(env) == []
+    ov.review_sheet(item["id"], OUTRO_PEDIDO)  # a folha de outro pedido não vale para este par
+    assert mcp_server.video_openverse("review", id=item["id"], pedido=PEDIDO, veredito="aprovado", motivo="serve", por="agente")["ok"] is False
+    assert main(_argv_do_plugin("video.openverse.aprovar", id=item["id"], pedido=PEDIDO, motivo="serve", por="agente")) == 1
+    assert _revisoes(env) == []
+    assert mcp_server.video_openverse("folha", id=item["id"], pedido=PEDIDO)["ok"] is True
+    assert mcp_server.video_openverse("review", id=item["id"], pedido=PEDIDO, veredito="aprovado", motivo="serve", por="agente")["ok"] is True
+    assert ov.review_status(item["id"], PEDIDO) == "aprovado"
+    ov.review_sheet(item["id"], OUTRO_PEDIDO)
+    assert main(_argv_do_plugin("video.openverse.aprovar", id=item["id"], pedido=OUTRO_PEDIDO, motivo="serve também", por="agente")) == 0
+    assert [r["canal"] for r in _revisoes(env)] == ["mcp", "plugin"]
+
+
 # ------------------------------------------------------------------------------------------------ status, dados, docs
 
 def test_status_json_mostra_a_biblioteca_e_se_as_credenciais_existem_sem_o_valor(env, capsys, monkeypatch):
