@@ -656,3 +656,61 @@ def test_cli_swap_run_sem_yes_recusa(capsys, media, stub_spawn):
     assert cli.main(argv) == 1
     assert "--yes" in capsys.readouterr().err
     assert stub_spawn == []
+
+
+# ---------------------------------------------------------------- ordem da saída: a linha de progresso não passa na frente nem fica para trás
+
+class FluxoFalso:
+    """Faz o papel do `proc.stdout`: cada `read()` devolve um dos blocos combinados e, no fim, vazio (EOF)."""
+
+    def __init__(self, *blocos: bytes):
+        self.blocos = list(blocos)
+
+    async def read(self, n: int) -> bytes:
+        return self.blocos.pop(0) if self.blocos else b""
+
+
+def bombear(*blocos: bytes):
+    """Passa a saída pelo `_pump` de verdade e devolve (linhas do log, box)."""
+    import asyncio
+
+    jid = "20261016-000000-0feedbee"
+    jobs.job_dir(jid).mkdir(parents=True)
+    box: dict = {"tail": [], "json": None}
+    asyncio.run(jobs._pump(FluxoFalso(*blocos), jid, box))
+    return jobs.read_log(jid).splitlines(), box
+
+
+def test_progresso_com_cr_entra_no_log_antes_das_linhas_reais_que_vieram_depois():
+    """`p1\\rp2\\rp3\\r` reescreve a mesma linha: fica só a última (p3), e na ordem em que a tarefa a escreveu, antes de real1 e real2.
+    Antes ela ficava guardada até o fim e saía DEPOIS de tudo."""
+    linhas, box = bombear(b"p1\rp2\rp3\rreal1\nreal2\n")
+    assert linhas == ["p3", "real1", "real2"]
+    assert box["tail"] == ["p3", "real1", "real2"]
+
+
+def test_progresso_antes_de_uma_cauda_sem_quebra_de_linha_mantem_a_ordem():
+    linhas, _ = bombear(b"p1\rp2\rcauda")
+    assert linhas == ["p2", "cauda"]
+
+
+def test_progresso_e_linha_real_em_blocos_diferentes_mantem_a_ordem():
+    linhas, _ = bombear(b"p1\rp2\r", b"real1\nreal2", b"\n")
+    assert linhas == ["p2", "real1", "real2"]
+
+
+def test_o_erro_de_tarefa_que_falhou_mostra_a_ultima_linha_real_e_nao_um_progresso_velho():
+    """O `error` do estado usa as últimas linhas do `tail`: um progresso velho no fim escondia a mensagem de erro."""
+    _, box = bombear(b"baixando 10%\rbaixando 50%\rtraceback...\nErro: voz sem cota\n")
+    assert [s for s in box["tail"] if s.strip()][-1] == "Erro: voz sem cota"
+
+
+def test_linha_json_do_resultado_continua_sendo_lida_depois_de_um_progresso():
+    _, box = bombear(b'p1\rp2\r{"ok": true}\n')
+    assert box["json"] == {"ok": True}
+    assert box["tail"][-1] == '{"ok": true}'
+
+
+def test_progresso_repetido_deixa_no_log_so_a_ultima_atualizacao_e_nao_milhares():
+    linhas, _ = bombear(b"".join(b"%d%%\r" % i for i in range(1, 500)) + b"fim\n")
+    assert linhas == ["499%", "fim"]
