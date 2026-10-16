@@ -424,6 +424,10 @@ async def _chunk(i: int, p: "Plan", prompt: str, work: Path, rec: dict, counters
         e.args = (f"pedaço {i + 1}/{n}: {e}",)  # which chunk, in the message and in the manifest
         rec["error"] = scrub(str(e))
         raise
+    except Exception as e:  # noqa: BLE001 (unexpected: the chunk is failed, the handle stays in the manifest)
+        rec["state"] = "failed"
+        rec["error"] = scrub(f"pedaço {i + 1}/{n}: {type(e).__name__}: {e}")
+        raise
 
 
 async def _run_chunks(p: "Plan", prompt: str, work: Path, recs: list[dict], counters: dict, effective: int, timeout: float,

@@ -55,7 +55,7 @@ def test_padrao_e_tres():
 
 
 def test_concorrencia_padrao_roda_os_tres_pedacos_juntos(longo):
-    fake.FakeAdapter.generation_s = 0.4
+    fake.FakeAdapter.hold_until_submits = 3  # nenhum termina antes de os três terem sido enviados: sobreposição sem depender de tempo
     assert swap.run_swap(argv(longo)) == 0
     assert fake.FakeAdapter.max_in_flight == 3
     assert manifest(longo)["concurrency"] == {"requested": 3, "effective": 3, "adapter_max": 3}
@@ -69,7 +69,7 @@ def test_concurrency_1_e_serial(longo):
 
 
 def test_concurrency_2_limita_a_dois(longo):
-    fake.FakeAdapter.generation_s = 0.3
+    fake.FakeAdapter.hold_until_submits = 2
     assert swap.run_swap(argv(longo, "--concurrency", "2")) == 0
     assert fake.FakeAdapter.max_in_flight == 2
 
@@ -118,6 +118,7 @@ def test_manifesto_igual_fora_dos_campos_de_tempo(longo):
         for c in m["chunks"]:
             c.pop("latency")
             c.pop("handle")
+            c.pop("raw_path", None)
         return m
 
     assert swap.run_swap(argv(longo, "--concurrency", "1", out="serial/s.mp4")) == 0

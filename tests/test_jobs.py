@@ -162,8 +162,19 @@ def test_mcp_expoe_so_o_que_nao_gasta():
 def test_mcp_registrado():
     assert "video.jobs" in [t[0] for t in mcp_server.TOOLS]
     plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
-    assert any(v["verb"] == "video.jobs" for v in plugin["commands"])
+    verbos = {v["verb"] for v in plugin["commands"] if v["verb"].startswith("video.jobs")}
+    assert verbos == {"video.jobs.list", "video.jobs.status", "video.jobs.result", "video.jobs.cancel", "video.jobs.submit-voice"}
     assert "video.jobs" in plugin["mcp"]["tools"]
+
+
+def test_plugin_nao_expoe_swap_run_nem_yes_nem_args_livre():
+    plugin = json.loads((Path(__file__).resolve().parents[1] / "plugin.json").read_text())
+    for v in plugin["commands"]:
+        if v.get("argv", [])[:2] == ["simplicio-video", "jobs"]:
+            assert "swap-run" not in v["argv"] and "--yes" not in v["argv"] and "{args}" not in v["argv"], v["verb"]
+            assert v["args_schema"]["additionalProperties"] is False
+            if v["verb"].endswith("submit-voice"):
+                assert set(v["args_schema"]["properties"]["provider"]["enum"]) == set(jobs.LOCAL_VOICE)
 
 
 # ---------------------------------------------------------------- estado em arquivo, escrita atômica, sem segredo
@@ -371,10 +382,11 @@ def test_cancelar_job_terminado_nao_muda_nada(stub_spawn, mini):
 
 
 def test_limpeza_de_antigos(stub_spawn, mini):
-    velho = fabrica(stub_spawn, mini, state="done", finished_at="2020-01-01T00:00:00+00:00")
-    recente = fabrica(stub_spawn, mini, state="done", finished_at=jobs.now_iso())
-    rodando = fabrica(stub_spawn, mini, state="running", runner_pid=os.getpid(), runner_start=jobs.proc_start(os.getpid()),
-                      created_at="2020-01-01T00:00:00+00:00")
+    velho, recente, rodando = (fabrica(stub_spawn, mini) for _ in range(3))  # criados antes: submit também limpa
+    jobs.update(velho, state="done", finished_at="2020-01-01T00:00:00+00:00")
+    jobs.update(recente, state="done", finished_at=jobs.now_iso())
+    jobs.update(rodando, state="running", runner_pid=os.getpid(), runner_start=jobs.proc_start(os.getpid()),
+                created_at="2020-01-01T00:00:00+00:00")
     removidos = jobs.clean(older_than_days=7)
     assert removidos == [velho]
     ids = {j["id"] for j in jobs.list_jobs()}

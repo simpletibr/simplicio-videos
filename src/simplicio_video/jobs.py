@@ -287,7 +287,7 @@ def _check_keys(params: dict, allowed: set[str]) -> None:
 
 def _prepare_swap(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
     """swap run, confirmed here: the same checks `swap run` does before spending, so a refusal is immediate and visible."""
-    from . import swap, swap_providers
+    from . import swap
     _check_keys(params, SWAP_KEYS)
     if origin != "terminal":
         raise JobError("swap-run gasta dinheiro: só se submete pelo terminal (simplicio-video jobs submit swap-run ... --autorizo --yes)")

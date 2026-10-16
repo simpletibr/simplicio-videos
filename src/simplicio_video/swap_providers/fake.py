@@ -57,6 +57,7 @@ class FakeAdapter(Adapter):
     generation_s = 0.0
     generation_by_index: dict = {}
     fetch_delay_s = 0.0
+    hold_until_submits = 0  # jobs stay `running` until this many chunks were submitted (deterministic overlap in tests)
     in_flight = 0
     max_in_flight = 0
     _jobs: dict = {}
@@ -78,6 +79,7 @@ class FakeAdapter(Adapter):
         cls.generation_s = 0.0
         cls.generation_by_index = {}
         cls.fetch_delay_s = 0.0
+        cls.hold_until_submits = 0
         cls.in_flight = 0
         cls.max_in_flight = 0
         cls._jobs = {}
@@ -118,6 +120,8 @@ class FakeAdapter(Adapter):
         if cls.stuck or _env_flag("SIMPLICIO_FAKE_STUCK"):
             return Status("running")
         with cls._lock:
+            if cls.hold_until_submits and len(cls.submits) < cls.hold_until_submits:
+                return Status("running")
             cls._polls[handle["id"]] += 1
             polls = cls._polls[handle["id"]]
             index = cls._jobs[handle["id"]].index
