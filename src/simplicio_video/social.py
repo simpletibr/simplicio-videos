@@ -7,7 +7,8 @@ com o sim explícito do usuário para cada postagem. O que o motor faz:
 - `providers`: lista os provedores, as ferramentas MCP de cada um e os limites conhecidos (data/social/providers.json).
 - `plan`: valida um MP4 final contra os limites de cada rede (data/social/limits.json, com fonte, data e confiança por
   linha) e grava `social.plan.json`, determinístico (sem horário de geração) e sem segredo.
-- `check`: reconfere o plano contra o arquivo (sha256 igual, plano não editado, agendamento ainda no futuro).
+- `check`: REVALIDA o plano: recalcula tudo a partir do vídeo e da tabela de limites e recusa o que não for exatamente o que `plan`
+  geraria (o `plan_id` é só soma de integridade, não autenticação).
 - `recipe`: imprime a sequência de chamadas MCP que o agente deve fazer, a partir de um modelo de dados por provedor:
   cotar ou prever, mostrar ao usuário, pedir o sim e só então publicar. O motor se recusa a gerar uma receita em que
   uma chamada de publicar venha antes da etapa de consentimento.
@@ -731,7 +732,8 @@ HELP_DESC = (
     "(cotar ou prever, mostrar ao usuário, pedir o consentimento, publicar). Este comando não posta, não chama o provedor e "
     "não guarda credencial: quem publica é o agente, com as ferramentas do próprio provedor e o sim explícito do usuário em "
     "cada postagem. Limites e ferramentas não conferidos na fonte oficial ficam marcados UNVERIFIED; uma violação de limite "
-    "UNVERIFIED só passa com --aceito-unverified."
+    "UNVERIFIED só passa com --aceito-unverified (assinado com chave local). `check` e `recipe` revalidam o plano contra o vídeo e a tabela. "
+    "`recipe` do Real Oficial sem --clip-id sai BLOQUEADA (saída 1): o MCP dele não recebe MP4 local."
 )
 HELP_EPILOG = (
     "exemplos:\n"
@@ -754,7 +756,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--video", required=True, help="MP4 final")
     p.add_argument("--caption", help="legenda (com as hashtags)")
     p.add_argument("--caption-file", help="arquivo com a legenda")
-    p.add_argument("--target", action="append", default=[], help="rede[=conta], repetível ou separado por vírgula: youtube, tiktok=@conta")
+    p.add_argument("--target", action="append", default=[], help="rede[=conta], repetível ou separado por vírgula: youtube (vídeo comum), youtube_shorts, tiktok=@conta")
     p.add_argument("--title", help="título (YouTube, Pinterest)")
     p.add_argument("--at", help="horário local AAAA-MM-DDTHH:MM (sem --at, publicar agora)")
     p.add_argument("--timezone", help="fuso IANA do --at, ex.: America/Sao_Paulo")

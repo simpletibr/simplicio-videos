@@ -619,7 +619,7 @@
           },
           "target": {
             "type": "string",
-            "description": "networks, comma separated, each as rede or rede=conta (youtube,tiktok=@conta)"
+            "description": "networks, comma separated, each as rede or rede=conta (youtube,youtube_shorts,tiktok=@conta)"
           }
         }
       }

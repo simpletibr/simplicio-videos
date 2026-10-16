@@ -1,6 +1,6 @@
 ---
 name: simplicio-video-social
-description: Use quando o usuário pedir para postar, agendar ou publicar um vídeo final (MP4) do simplicio-video em redes sociais (YouTube Shorts, TikTok, Instagram, Facebook, X, LinkedIn, Threads, Pinterest, Bluesky). O motor não posta: ele confere o MP4 contra os limites de cada rede, grava o plano (social.plan.json) e imprime a receita de chamadas MCP; quem publica é você, com as ferramentas do próprio provedor (Real Oficial, o padrão, ou Zernio) e só depois do sim explícito do usuário para cada postagem.
+description: Use quando o usuário pedir para postar, agendar ou publicar um vídeo final (MP4) do simplicio-video em redes sociais (YouTube vídeo comum ou Shorts, TikTok, Instagram, Facebook, X, LinkedIn, Threads, Pinterest, Bluesky). O motor não posta: ele confere o MP4 contra os limites de cada rede, grava o plano (social.plan.json) e imprime a receita de chamadas MCP; quem publica é você, com as ferramentas do próprio provedor (Real Oficial, o padrão, ou Zernio) e só depois do sim explícito do usuário para cada postagem.
 ---
 
 # simplicio-video-social: planejar com o motor, postar com o provedor
@@ -15,8 +15,8 @@ O motor (`simplicio-video social ...`, tool MCP `video.social`) faz só o que é
 
 1. **Provedor e limites.** `simplicio-video social providers` (ou `video.social` com `acao=providers`) mostra o Real Oficial (`realoficial`, padrão) e o Zernio (`zernio`), as ferramentas MCP de cada um e o que está UNVERIFIED. Use o Real Oficial, a menos que o usuário peça o Zernio.
 2. **Plano.** Pergunte o que falta (redes, conta de cada rede, legenda, horário e fuso). Rode:
-   `simplicio-video social plan --video out/final.mp4 --caption-file legenda.txt --target tiktok=@conta --target youtube [--at 2026-10-20T09:30 --timezone America/Sao_Paulo] [--title "..."] [--ai-generated]`
-   O plano confere duração, proporção, tamanho, legenda, título e hashtags contra a tabela de limites (cada linha tem `source_url`, `read_on` e `confidence`) e grava `social.plan.json` ao lado do vídeo (nunca sobrescreve sem `--force`). Se recusar, corrija o vídeo ou a legenda; não edite o JSON. Limite UNVERIFIED violado só passa com `--aceito-unverified`, depois de conferir a página da rede e de o usuário concordar (isso é só no terminal; pelo MCP não existe).
+   `simplicio-video social plan --video out/final.mp4 --caption-file legenda.txt --target tiktok=@conta --target youtube_shorts [--at 2026-10-20T09:30 --timezone America/Sao_Paulo] [--title "..."] [--ai-generated]`
+   O plano confere duração, proporção, tamanho, legenda, título e hashtags contra a tabela de limites (cada linha tem `source_url`, `read_on` e `confidence`) e grava `social.plan.json` ao lado do vídeo (nunca sobrescreve sem `--force`). `youtube` é vídeo comum e `youtube_shorts` é Short (o limite de 180 s é só do Short). Se recusar, corrija o vídeo ou a legenda; não edite o JSON: o motor recalcula o plano contra o vídeo e a tabela no `check` e no `recipe` e recusa um plano editado, mesmo com o `plan_id` refeito. Limite UNVERIFIED violado só passa com `--aceito-unverified`, depois de conferir a página da rede e de o usuário concordar (isso é só no terminal; pelo MCP não existe).
 3. **Receita.** `simplicio-video social recipe social.plan.json [--provider zernio] [--clip-id <id>] ` imprime a sequência exata, com os argumentos do plano já preenchidos. Antes de seguir, ela manda rodar `simplicio-video social check social.plan.json`: se o vídeo mudou (sha256) ou o plano foi editado, pare e gere o plano de novo.
 4. **Execute a receita na ordem**, sem pular passo e sem inventar argumento:
    - leituras primeiro (contas, opções da conta);
@@ -38,9 +38,9 @@ O motor (`simplicio-video social ...`, tool MCP `video.social`) faz só o que é
 | publicar | `ro_confirm_publishing` com `quote_id`, `confirm: true` e `accept_terms` | só depois do sim; `accept_terms` leva só os kinds que o usuário aceitou |
 | acompanhar | `ro_list_publications` com `operation_id` | depois de `poll_after_seconds`, no máximo 3 vezes, nunca em laço |
 
-Limite que você precisa saber: **o Real Oficial não recebe MP4 local por MCP.** A cotação usa o `clip_id` de um clip que já está no Real Oficial. Se o usuário não tiver o clip, a receita sai bloqueada no primeiro passo: peça que ele suba o MP4 no app do Real Oficial e informe o `clip_id` (`--clip-id`), ou ofereça o Zernio, que tem upload de mídia. `ro_import_video` só serve para vídeo de IA gerado dentro do próprio Real Oficial.
+Limite que você precisa saber: **o Real Oficial não recebe MP4 local por MCP.** A cotação usa o `clip_id` de um clip que já está no Real Oficial. Se o usuário não tiver o clip, a receita sai BLOQUEADA (`blocked: true`, com o motivo; só o passo manual, sem cotar nem publicar): peça que ele suba o MP4 no app do Real Oficial e informe o `clip_id` (`--clip-id`), ou ofereça o Zernio, que tem upload de mídia. `ro_import_video` só serve para vídeo de IA gerado dentro do próprio Real Oficial.
 
-`tiktok_privacy` é escolha do usuário entre as opções que a conta devolveu: **nunca** escolha por ele. O mesmo vale para o rótulo de IA (`ai_generated`), a visibilidade do YouTube (o padrão do provedor é público) e as interações do TikTok. Fuso: confirme com o usuário. Agendamento só até 30 dias à frente.
+`tiktok_privacy` é escolha do usuário entre as opções que a conta devolveu: **nunca** escolha por ele. O mesmo vale para o rótulo de IA (`ai_generated`; sem `--ai-generated` a receita traz uma pergunta no lugar do valor), a visibilidade do YouTube (o padrão do provedor é público) e as interações do TikTok. Fuso: confirme com o usuário. Agendamento só até 30 dias à frente.
 
 ### Zernio
 
