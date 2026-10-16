@@ -8,10 +8,14 @@ carregam fonte, data e confiança; e nenhuma saída do motor chama "confirmar" s
 from __future__ import annotations
 
 import ast
+import io
 import json
+import os
 import re
 import shutil
 import subprocess
+import threading
+import tokenize
 from pathlib import Path
 
 import pytest
@@ -1129,3 +1133,206 @@ def test_arquivo_qt_renomeado_para_mp4_e_recusado(tmp_path):
     mov.write_bytes(b"\x00\x00\x00\x14ftypqt  \x00\x00\x00\x00qt  conteudo")
     with pytest.raises(social.SocialError, match="MP4"):
         social.make_plan(str(mov), ["tiktok"], caption="x")
+
+
+# ------------------------------------------------------------------------------------------------ texto do usuário é dado, nunca modelo
+
+# Legenda e título aprovados pelo usuário entram na receita como DADO. Só os modelos do providers.json têm marcadores
+# ({plan}, {step.x}, {video_name}, {video_sha256_short}); um marcador que apareça DENTRO da legenda não pode ser reescrito,
+# senão o que o usuário aprovou não é o que vai ao ar. Cada legenda abaixo traz marcadores, chaves, %s, $(...), quebra de
+# linha, tab e emoji.
+LEGENDAS_HOSTIS = [
+    "Oi {plan} e {step.x} {step.preview} {step.accounts} {video_name} {video_sha256_short} {{ }} {{plan}} %s %(x)s $(ls) `id` ${HOME}\n"
+    "linha 2\tcom tab \U0001F600 ção",
+    "$caption e $(rm -rf /) {plan} {step.preview}\U0001F680",  # começa com `$`: não é referência a nenhum campo do contexto
+]
+TITULO_HOSTIL = "T {plan} {step.accounts} {{x}} %s $(id) \U0001F600"
+
+
+def dados_entregues(args):
+    """Legenda e título dentro dos argumentos da chamada que o agente faz (Real Oficial: items[0]; Zernio: content)."""
+    if "items" in args:
+        return {"legenda": args["items"][0]["description"], "titulo": args["items"][0].get("title")}
+    return {"legenda": args["content"], "titulo": None}
+
+
+def argumentos_do_texto(texto):
+    """Lê a saída em texto: os argumentos de cada chamada, na ordem, como o agente os lê (JSON na linha `argumentos:`)."""
+    return [json.loads(linha.split("argumentos: ", 1)[1]) for linha in texto.splitlines() if linha.lstrip().startswith("argumentos: ")]
+
+
+def saidas_da_receita(path, provedor, capsys):
+    """A mesma receita pelas quatro portas: função, CLI em JSON, CLI em texto e MCP. Devolve {porta: (saída bruta, argumentos)}."""
+    clip = CLIP_RO if provedor == "realoficial" else None
+    argv = ["recipe", path, "--provider", provedor] + (["--clip-id", clip] if clip else [])
+    direto = social.recipe(path, provider=provedor, clip_id=clip)
+    assert social.run_social(argv + ["--json"]) == 0
+    bruto_json = capsys.readouterr().out
+    assert social.run_social(argv) == 0
+    texto = capsys.readouterr().out
+    mcp = mcp_server.video_social("recipe", plano=path, provider=provedor, clip_id=clip)
+    assert mcp["ok"] is True
+
+    def da_chamada(steps):
+        return next(s["args"] for s in steps if s["kind"] == "call" and ("items" in s["args"] or "content" in s["args"]))
+
+    return {"função": (json.dumps(direto, ensure_ascii=False), da_chamada(direto["steps"])),
+            "cli-json": (bruto_json, da_chamada(json.loads(bruto_json)["steps"])),
+            "mcp": (json.dumps(mcp, ensure_ascii=False), da_chamada(mcp["steps"])),
+            "cli-texto": (texto, next(a for a in argumentos_do_texto(texto) if "items" in a or "content" in a))}
+
+
+@pytest.mark.parametrize("provedor", PROVEDORES)
+@pytest.mark.parametrize("legenda", LEGENDAS_HOSTIS, ids=["marcadores", "cifrao"])
+def test_legenda_e_titulo_saem_identicos_byte_a_byte_em_texto_json_e_mcp(video, provedor, legenda, capsys):
+    p = plano(video, targets=["youtube", "tiktok"], caption=legenda, title=TITULO_HOSTIL)
+    assert p["plan"]["caption"] == legenda and p["plan"]["title"] == TITULO_HOSTIL  # o que o usuário aprovou
+    esperado = {"legenda": legenda, "titulo": TITULO_HOSTIL if provedor == "realoficial" else None}  # o Zernio não leva título
+    for porta, (bruto, args) in saidas_da_receita(p["path"], provedor, capsys).items():
+        entregue = dados_entregues(args)
+        assert {k: v and v.encode("utf8") for k, v in entregue.items()} == {k: v and v.encode("utf8") for k, v in esperado.items()}, porta
+        for dado in filter(None, esperado.values()):  # e o texto bruto da saída traz o dado como o JSON o escreve
+            assert json.dumps(dado, ensure_ascii=False) in bruto, porta
+
+
+def neutra(rec, *dados):
+    """A receita sem o plan_id e com cada dado do usuário trocado por um marcador neutro: o que sobra é só o motor."""
+    s = json.dumps({k: v for k, v in rec.items() if k != "plan_id"}, ensure_ascii=False, sort_keys=True)
+    for d in dados:
+        s = s.replace(json.dumps(d, ensure_ascii=False)[1:-1], "<DADO>")
+    return s
+
+
+@pytest.mark.parametrize("provedor", PROVEDORES)
+def test_o_texto_do_usuario_nao_muda_nenhum_outro_trecho_da_receita(video, provedor):
+    """A receita com legenda e título hostis é igual à receita com texto comum, a não ser pelos próprios dados."""
+    clip = CLIP_RO if provedor == "realoficial" else None
+    comum = social.recipe(plano(video, targets=["youtube", "tiktok"], caption="legenda comum", title="titulo comum")["path"], provider=provedor, clip_id=clip)
+    path = plano(video, targets=["youtube", "tiktok"], caption=LEGENDAS_HOSTIS[0], title=TITULO_HOSTIL, force=True)["path"]
+    hostil = social.recipe(path, provider=provedor, clip_id=clip)
+    assert neutra(hostil, LEGENDAS_HOSTIS[0], TITULO_HOSTIL) == neutra(comum, "legenda comum", "titulo comum")
+
+
+def test_marcadores_no_nome_do_video_e_na_pasta_do_plano_tambem_sao_dado(tmp_path):
+    """O nome do arquivo e o caminho do plano vêm do usuário: `{plan}` no nome não vira o caminho, e o resultado de uma
+    substituição não é substituído de novo (pasta `{video_name}`, arquivo `{video_sha256_short}`)."""
+    mp4 = fazer_mp4(tmp_path / "{video_name}" / "{plan}-{step.x}-{video_sha256_short}.mp4")
+    p = social.make_plan(str(mp4), ["youtube"], caption=CAPTION)
+    sha12 = p["plan"]["video"]["sha256"][:12]
+    for provedor in PROVEDORES:
+        rec = social.recipe(p["path"], provider=provedor, clip_id=CLIP_RO if provedor == "realoficial" else None)
+        verificar = next(s for s in rec["steps"] if s["id"] == "check")
+        assert f"social check {p['path']}`" in verificar["text"], provedor
+        if provedor == "zernio":
+            upload = next(s for s in rec["steps"] if s.get("tool") == "media_generate_upload_link")
+            assert upload["args"]["filename"] == mp4.name
+            mostrar = next(s for s in rec["steps"] if s["kind"] == "show")
+            assert mostrar["items"][0].startswith(f"o arquivo `{mp4.name}` (sha256 {sha12}) ")
+    bloqueada = social.recipe(p["path"])
+    assert f"`{mp4.name}` (sha256 {sha12})" in bloqueada["steps"][0]["text"]
+
+
+# ------------------------------------------------------------------------------------------------ chave local de aceite: corrida na criação
+
+def test_chave_criada_por_outro_processo_durante_a_criacao_e_relida_em_vez_de_estourar(video, monkeypatch):
+    """Dois `plan --aceito-unverified` ao mesmo tempo: os dois não achavam a chave e o segundo estourava FileExistsError
+    (traceback, sem o `social:` do CLI). A chave que já existe é a que vale: é relida e nunca sobrescrita."""
+    kp = social._accept_key_path()
+    ganhadora = b"G" * 32
+    sorteio = os.urandom
+
+    def outro_processo_cria_primeiro(n):
+        monkeypatch.setattr(social.os, "urandom", sorteio)  # uma vez só
+        kp.parent.mkdir(parents=True, exist_ok=True)
+        kp.write_bytes(ganhadora)  # entre a leitura que não achou nada e a criação da nossa
+        return sorteio(n)
+
+    monkeypatch.setattr(social.os, "urandom", outro_processo_cria_primeiro)
+    assert social._accept_key(create=True) == ganhadora
+    assert kp.read_bytes() == ganhadora
+    assert sorted(p.name for p in kp.parent.iterdir()) == [kp.name]  # sem arquivo temporário sobrando
+
+
+def test_plano_aceito_na_corrida_da_chave_confere_com_a_chave_vencedora(video, monkeypatch):
+    kp = social._accept_key_path()
+    sorteio = os.urandom
+
+    def outro_processo_cria_primeiro(n):
+        monkeypatch.setattr(social.os, "urandom", sorteio)
+        kp.parent.mkdir(parents=True, exist_ok=True)
+        kp.write_bytes(b"V" * 32)
+        return sorteio(n)
+
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 700.0})
+    monkeypatch.setattr(social.os, "urandom", outro_processo_cria_primeiro)
+    path = plano(video, targets=["tiktok"], accept_unverified=True)["path"]
+    assert ler(path)["accepted_unverified"] == ["tiktok:duration_max_s"]
+    assert social.check_plan(path)["ok"] is True
+
+
+def test_varias_threads_pedindo_a_chave_ao_mesmo_tempo_recebem_a_mesma(tmp_path, monkeypatch):
+    for rodada in range(8):
+        monkeypatch.setattr(social, "_accept_key_path", lambda r=rodada: tmp_path / f"corrida-{r}" / "social-accept.key")
+        largada, chaves, erros = threading.Barrier(12), [], []
+
+        def pede():
+            largada.wait()
+            try:
+                chaves.append(social._accept_key(create=True))
+            except Exception as e:  # noqa: BLE001 - o que importa é não haver nenhuma
+                erros.append(repr(e))
+
+        fios = [threading.Thread(target=pede) for _ in range(12)]
+        for f in fios:
+            f.start()
+        for f in fios:
+            f.join()
+        assert not erros, erros
+        assert len(set(chaves)) == 1 and len(chaves[0]) == 32
+        assert social._accept_key_path().read_bytes() == chaves[0]
+        assert oct(social._accept_key_path().stat().st_mode & 0o777) == "0o600"
+
+
+def test_chave_de_aceite_truncada_vira_erro_claro_e_nao_traceback():
+    kp = social._accept_key_path()
+    kp.parent.mkdir(parents=True, exist_ok=True)
+    kp.write_bytes(b"curta")
+    assert social._accept_key(create=False) is None
+    with pytest.raises(social.SocialError, match="chave de aceite.*incompleta"):
+        social._accept_key(create=True)
+    assert kp.read_bytes() == b"curta"  # nunca sobrescreve: quem decide é a pessoa
+
+
+# ------------------------------------------------------------------------------------------------ comentários de código em inglês
+
+PT_ACENTOS = re.compile("[áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ]")
+PT_PALAVRAS = {"de", "do", "da", "dos", "das", "que", "para", "não", "nunca", "sem", "uma", "um", "ou", "em", "na", "ao", "pelo", "pela",
+               "só", "quando", "antes", "depois", "tudo", "nada", "porque", "isto", "isso", "são", "está", "vídeo", "plano", "receita",
+               "dados", "chave", "legenda", "posta"}
+
+
+def comentarios_e_docstrings(path):
+    """[(linha, texto)] de todo comentário e docstring do arquivo. Mensagens de erro e textos de ajuda não entram: são
+    texto para o usuário, em pt-BR (AGENTS.md: docs em pt-BR, comentários de código em inglês)."""
+    src = Path(path).read_text(encoding="utf8")
+    achados = [(t.start[0], t.string) for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type == tokenize.COMMENT]
+    for no in ast.walk(ast.parse(src)):
+        if isinstance(no, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and ast.get_docstring(no, clean=False):
+            achados.append((no.body[0].lineno, ast.get_docstring(no, clean=False)))
+    return sorted(achados)
+
+
+def test_comentarios_e_docstrings_do_social_estao_em_ingles():
+    em_portugues = [(linha, texto.strip().splitlines()[0][:90]) for linha, texto in comentarios_e_docstrings(social.__file__)
+                    if PT_ACENTOS.search(texto) or PT_PALAVRAS & set(re.findall(r"[a-zà-ÿ]+", texto.lower()))]
+    assert not em_portugues, "comentário ou docstring em português (AGENTS.md manda inglês): " + "; ".join(f"linha {n}: {t}" for n, t in em_portugues)
+
+
+def test_o_detector_de_portugues_pega_comentario_e_docstring_e_deixa_o_ingles(tmp_path):
+    f = tmp_path / "amostra.py"
+    f.write_text('"""Módulo em português."""\n# nunca segue symlink\nx = "mensagem para o usuário"\n\n\ndef g():\n    """Chave local."""\n'
+                 "    # the key is written whole\n    return 1\n", encoding="utf8")
+    achados = comentarios_e_docstrings(f)
+    assert [t.strip() for _, t in achados] == ["Módulo em português.", "# nunca segue symlink", "Chave local.", "# the key is written whole"]
+    ruins = [t for _, t in achados if PT_ACENTOS.search(t) or PT_PALAVRAS & set(re.findall(r"[a-zà-ÿ]+", t.lower()))]
+    assert [t.strip() for t in ruins] == ["Módulo em português.", "# nunca segue symlink", "Chave local."]
