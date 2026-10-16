@@ -17,7 +17,7 @@ from simplicio_video import cli, mcp_server, swap, swap_providers
 from simplicio_video.swap_providers import fake, http
 
 FIX = Path(__file__).parent / "fixtures" / "swap"
-FAKE_KEY = "AIzaSyFAKE-KEY-for-tests-0000000000"
+FAKE_KEY = "test-gemini-key-not-real-000000"
 needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 
 
@@ -493,11 +493,11 @@ def test_gemini_503_e_transitorio(gemini, media, monkeypatch):
 
 
 def test_gemini_base_configuravel(gemini, media, monkeypatch):
-    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", "http://proxy.local/v1beta")
+    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", "https://proxy.local/v1beta")
     rota = Rota([(200, fx("gemini_in_progress.json"))])
     monkeypatch.setattr(http, "request", rota)
     gemini.submit(gjob(media))
-    assert rota.calls[0]["url"] == "http://proxy.local/v1beta/interactions"
+    assert rota.calls[0]["url"] == "https://proxy.local/v1beta/interactions"
 
 
 @needs_ffmpeg
@@ -789,6 +789,43 @@ def test_i5_verbo_estimate_exige_provider_video_e_ref():
     v = next(v for v in _swap_verbs() if v["argv"][2] == "estimate")
     assert {"provider", "video", "ref"} <= set(v["args_schema"]["required"])
     assert "run" not in json.dumps(v["args_schema"]["properties"])
+
+
+@pytest.mark.parametrize("uri,com_chave", [
+    ("https://generativelanguage.googleapis.com/v1beta/files/abc:download", True),
+    ("https://evilgoogleapis.com/x", False),
+    ("http://generativelanguage.googleapis.com/v1beta/files/abc", False),
+])
+def test_m2_chave_so_vai_para_google_por_https(gemini, monkeypatch, uri, com_chave):
+    corpo = json.dumps({"id": "v1", "status": "completed", "steps": [{"type": "model_output", "content": [
+        {"type": "video", "mime_type": "video/mp4", "uri": uri}]}]}).encode()
+    rota = Rota([(200, corpo), (200, b"BYTES")])
+    monkeypatch.setattr(http, "request", rota)
+    gemini.fetch({"id": "v1"})
+    assert ("x-goog-api-key" in rota.calls[1]["headers"]) is com_chave
+
+
+def test_m2_base_http_so_em_loopback(gemini, media, monkeypatch):
+    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", "http://proxy.local/v1beta")
+    monkeypatch.setattr(http, "request", Rota([(200, fx("gemini_in_progress.json"))]))
+    with pytest.raises(swap.SwapError, match="https"):
+        gemini.submit(gjob(media))
+    monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", "http://127.0.0.1:8080/v1beta")
+    assert gemini.submit(gjob(media))["id"]
+
+
+@pytest.mark.parametrize("valor", ["nan", "-1", "inf"])
+def test_m3_max_usd_invalido_e_recusado(media, capsys, valor):
+    assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", valor)) != 0
+    assert "--max-usd" in capsys.readouterr().err
+    assert fake.FakeAdapter.submits == []
+
+
+def test_m7_chave_com_caractere_de_controle_e_recusada(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "abc\ndef-chave")
+    with pytest.raises(swap.SwapError, match="GEMINI_API_KEY") as e:
+        swap_providers.get("gemini").api_key()
+    assert "abc" not in str(e.value)
 
 
 @needs_ffmpeg
