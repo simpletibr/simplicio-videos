@@ -1,0 +1,1 @@
+{"id":"v1_abc123","object":"interaction","status":"completed","model":"gemini-omni-1.1-flash","steps":[{"type":"user_input","content":[{"type":"text","text":"swap"}]},{"type":"thought","summary":"planning"},{"type":"model_output","content":[{"type":"text","text":"done"},{"type":"video","mime_type":"video/mp4","data":"RkFLRU1QNEJZVEVT"}]}]}

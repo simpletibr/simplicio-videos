@@ -1,0 +1,1 @@
+{"id":"v1_abc123","object":"interaction","status":"completed","steps":[{"type":"model_output","content":[{"type":"video","mime_type":"video/mp4","uri":"https://generativelanguage.googleapis.com/v1beta/files/abc:download?alt=media"}]}]}

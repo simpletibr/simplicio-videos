@@ -2,7 +2,7 @@ import pytest
 
 from conftest import run_cli
 
-SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "opencut", "toonflow", "mcp", "list"]
+SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "opencut", "toonflow", "swap", "mcp", "list"]
 
 
 def test_main_help_lists_the_whole_flow():
@@ -28,6 +28,7 @@ def test_main_help_lists_the_whole_flow():
     ("edit", ["video-use", "render"]),
     ("opencut", ["OpenCut", "dev"]),
     ("toonflow", ["Toonflow", "clone", "serve", "where", "Bun", "--lan", "0.0.0.0"]),
+    ("swap", ["providers", "estimate", "run", "status", "--autorizo", "--yes", "--max-usd", "UNVERIFIED"]),
     ("mcp", ["video.init", "video.render", "video.run", "stdio"]),
     ("list", ["templates", "motion", "voices", "--json"]),
 ])
@@ -37,7 +38,7 @@ def test_subcommand_help_is_complete(sub, must):
     for m in must:
         assert m in r.stdout, f"{sub} --help missing {m!r}"
     assert "exemplos:" in r.stdout and "simplicio-video " + sub in r.stdout
-    if sub in ("clone", "montage", "edit", "opencut", "toonflow"):
+    if sub in ("clone", "montage", "edit", "opencut", "toonflow", "swap"):
         return
     if sub != "list":
         assert "schema/contract.schema.json" in r.stdout

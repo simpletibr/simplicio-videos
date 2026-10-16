@@ -1,0 +1,1 @@
+{"id":"v1_abc123","object":"interaction","status":"completed","usage":{"total_input_tokens":2000,"total_output_tokens":57920},"steps":[{"type":"model_output","content":[{"type":"video","mime_type":"video/mp4","data":"RkFLRU1QNEJZVEVT"}]}]}
