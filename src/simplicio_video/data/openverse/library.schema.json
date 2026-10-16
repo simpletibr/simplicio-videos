@@ -285,6 +285,14 @@
           },
           "em": {
             "type": "string"
+          },
+          "aceito_restricao": {
+            "type": "boolean",
+            "description": "Só quando a licença tem restrição (nc, nd, sa) e o export foi feito com --aceito-restricao: a prova que o validate do contrato confere."
+          },
+          "licenca": {
+            "type": "string",
+            "description": "A licença do ativo no momento do export com --aceito-restricao (junto de aceito_restricao): o aceite vale só para ela, não para outra licença que um get --atualizar traga depois."
           }
         }
       }

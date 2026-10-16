@@ -30,6 +30,7 @@ Preencha o esqueleto (todo `TODO` bloqueia o `validate`):
 - **Trilha:** `seed` fixa, progressão/estilo (`playful` infantil calmo, `festive` infantil animado 120-128 BPM com `music.fills` = tempos dos cortes), master −14 LUFS / TP −1,5. Para cortes na batida, use durações de cena em batidas inteiras (60/bpm). SFX lúdicos extras: `slide`, `tambourine`, `woodblock`.
 - **Palavra a palavra:** `simplicio-video voice` grava em `timing.lock.json` os tempos de cada palavra (faster-whisper via `SIMPLICIO_STT_PY`; sem ele, divisão proporcional às letras). No contrato: `times: '{{words:vo1}}'` no bloco `kinetic-words`.
 - **Marca:** `logo: null` sem arquivo em alta (lockup de texto; nunca recriar logo).
+- **Imagem ou áudio do Openverse (opcional):** só depois de `openverse library review` aprovado para o pedido e `library export --contrato`. Declare o arquivo de `assets/openverse/` em `assets` com `openverse: {id, pedido}` (o mesmo pedido aprovado); sem o bloco, arquivo ali é recusado. O `validate` confere sem rede (id na biblioteca, sha256, veredito aprovado, aceite da restrição, crédito). Fluxo completo e campos: README, seção Openverse, e `simplicio-video openverse library verify <contrato>`.
 - **Drive:** ver §6.
 
 ## 3. Validar
@@ -56,6 +57,7 @@ simplicio-video run <contrato.yaml> --provider gemini --backend local   # voz + 
 ```
 - A captura do Chrome headless é CPU: o local (8 vCPU) é ~6× mais rápido que o Colab grátis. Remoto só bate byte a byte com o local usando o mesmo ffmpeg e `--gpu-encode 0` ([ADR-0003](decisoes/ADR-0003-fluxo-100-script.md)).
 - `render.manifest.json`: hash do contrato e de cada input, versões, hash dos frames/áudio, loudness (alvo −14 LUFS, pico ≤ −1,5) e tempos.
+- Com ativos do Openverse: o manifesto traz a chave `openverse` (procedência de cada ativo) e os créditos saem em `<video>.CREDITS-openverse.md` ao lado do MP4; cole-os onde a licença pede.
 - STT: faster-whisper no MP4 deve reconhecer todas as falas; gere prévia 720p + contact sheet em `preview/`.
 - Edição de footage/cortes (opcional, só a pedido): [`tools/video-use`](../tools/video-use/README.md).
 

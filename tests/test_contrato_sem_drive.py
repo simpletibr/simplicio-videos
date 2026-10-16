@@ -86,7 +86,7 @@ def test_manifest_written_without_drive_key(mini, monkeypatch):
     monkeypatch.setattr(render, "loudness", lambda p: {"integrated_lufs": -14.0, "true_peak_dbtp": -1.5})
     dst = _mp4(mini)
     man = render.write_manifest(c, dst, backend="local", quality="draft", gpu=False,
-                                info={"inputs_sha256": "0" * 64, "files": []}, timings={}, tools={"ffmpeg": "fake"},
+                                info={"inputs_sha256": "0" * 64, "files": {}}, timings={}, tools={"ffmpeg": "fake"},
                                 log=lambda *_: None)
     assert "drive" not in man
     assert "drive" not in json.loads((mini.parent / "render.manifest.json").read_text())
