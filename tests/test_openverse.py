@@ -1820,6 +1820,150 @@ def test_veredito_forjado_so_com_sha256_e_pedido_nao_passa_no_export(env, midia)
     assert not (env.tmp / "saida").exists()
 
 
+# ------------------------------------------------------------------------------------------------ CREDITS sem injeção (achado 3 da revisão do PR #108)
+
+LINK_CC = "https://creativecommons.org/licenses/by/2.0/"
+LINK_AUTOR = "https://www.flickr.com/photos/124790945@N06"
+TEXTOS_HOSTIS = [
+    pytest.param("Fulano](http://evil.example/phish) [clique", id="link-markdown"),
+    pytest.param('<a href="https://evil.example/x">Wikimedia Commons</a> <img src=https://evil.example/t.png>', id="html-com-link-e-imagem"),
+    pytest.param("<script>alert(1)</script>Fulano", id="script"),
+    pytest.param("Fulano\n# Título grande\n- `falso.png`: \"x\" por Beltrano\n\n## outro", id="quebra-de-linha-e-cabecalho"),
+    pytest.param("Fulano [x](javascript:alert(1))", id="javascript"),
+    pytest.param("visite https://evil.example/phish ou www.evil.example/a", id="url-solta"),
+    pytest.param("![pixel](https://evil.example/t.png)", id="imagem-markdown"),
+    pytest.param("**negrito** _it_ ~~riscado~~ | tabela | `codigo`", id="formatacao"),
+    pytest.param("&#60;script&#62; &lt;b&gt; &amp;", id="entidades-html"),
+    pytest.param("[ref]: http://evil.example/ref\n[ref]", id="referencia"),
+]
+URLS_HOSTIS = [
+    pytest.param("javascript:alert(1)", id="javascript"),
+    pytest.param("http://evil.example/a", id="http-sem-tls"),
+    pytest.param("https://evil.example/a b", id="espaco"),
+    pytest.param("https://evil.example/a)[x](http://evil2.example", id="fecha-o-link"),
+    pytest.param("https://evil.example/<img src=x>", id="html"),
+    pytest.param("//evil.example/a", id="sem-esquema"),
+    pytest.param("https://user:pw@evil.example/", id="credencial"),
+    pytest.param("data:text/html,<b>evil.example</b>", id="data"),
+    pytest.param("https://evil.example/" + "a" * 600, id="longa-demais"),
+    pytest.param("https://evil.example/`x`", id="crase"),
+]
+VERSOES_HOSTIS = [
+    pytest.param("2.0](https://evil.example/phish) [veja", id="link-markdown"),
+    pytest.param("2.0<script>alert(1)</script>", id="script"),
+    pytest.param("4.0\n# evil.example", id="cabecalho"),
+    pytest.param("9" * 50, id="longa-demais"),
+    pytest.param("2.0.0.0", id="formato-fora-do-padrao"),
+    pytest.param("v2", id="letra"),
+]
+
+
+def _entrada_de_credito(texto: str) -> str:
+    """O CREDITS tem título, parágrafo e UMA entrada: nada de cabeçalho, linha ou HTML novo vindo do texto da API."""
+    linhas = [ln for ln in texto.splitlines() if ln.strip()]
+    assert len(linhas) == 3, linhas
+    assert linhas[0].startswith("# Créditos") and not linhas[1].startswith(("#", "-", "<")) and linhas[2].startswith("- `")
+    entrada = linhas[2]
+    assert not re.search(r"(?<!\\)[<>]", entrada), entrada
+    assert not re.search(r"(?<!\\)&", entrada), entrada
+    assert entrada.count("`") == 6, entrada  # só os três pares: nome do arquivo, id e sha256
+    assert set(re.findall(r"\]\(([^)]*)\)", entrada)) <= {LINK_CC, LINK_AUTOR}, entrada
+    sem_nome = re.sub(r"^- `[^`]*`", "- ``", entrada)  # o nome do arquivo é só <palavras>-<sha8>.<ext>: não carrega sintaxe
+    assert "evil" not in sem_nome and "javascript" not in sem_nome, entrada
+    return entrada
+
+
+def _exportar_com_api(env, midia, **campos_da_api):
+    env.api.images["results"][0].update(campos_da_api)
+    item = baixar(env, body=midia["nitida"])
+    ov.review_sheet(item["id"], PEDIDO)
+    ov.review(item["id"], PEDIDO, "aprovado", "serve", "revisor")
+    return item, Path(ov.export(item["id"], PEDIDO, para=env.tmp / "saida")["creditos"]).read_text(encoding="utf8")
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("texto", TEXTOS_HOSTIS)
+@pytest.mark.parametrize("campo", ["title", "creator"])
+def test_credito_com_texto_hostil_da_api_nao_vira_link_cabecalho_nem_html(env, midia, campo, texto):
+    _item, creditos = _exportar_com_api(env, midia, **{campo: texto})
+    _entrada_de_credito(creditos)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("versao", VERSOES_HOSTIS)
+def test_credito_com_versao_da_licenca_hostil_da_api_nao_injeta_nada(env, midia, versao):
+    item, creditos = _exportar_com_api(env, midia, license_version=versao)
+    assert item["licenca_versao"] is None  # só o formato numérico esperado (2.0, 4.0) é guardado
+    assert "CC BY" in _entrada_de_credito(creditos)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("url", URLS_HOSTIS)
+@pytest.mark.parametrize("campo", ["creator_url", "foreign_landing_url"])
+def test_credito_com_url_hostil_da_api_nao_vira_link_nem_texto(env, midia, campo, url):
+    item, creditos = _exportar_com_api(env, midia, **{campo: url})
+    assert item["autor_url" if campo == "creator_url" else "origem_url"] is None
+    _entrada_de_credito(creditos)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("url", ["https://evil.example/licenses/by/2.0/", "http://creativecommons.org/licenses/by/2.0/",
+                                 "https://creativecommons.org.evil.example/licenses/by/2.0/", "https://creativecommons.org/../evil",
+                                 "https://creativecommons.org/licenses/by/2.0/)[x](http://evil.example"])
+def test_url_da_licenca_fora_do_conjunto_esperado_recusa_o_export_em_vez_de_virar_link(env, midia, url):
+    env.api.images["results"][0]["license_url"] = url
+    item = baixar(env, body=midia["nitida"])
+    assert item["licenca_url"] is None
+    ov.review_sheet(item["id"], PEDIDO)
+    ov.review(item["id"], PEDIDO, "aprovado", "serve", "revisor")
+    with pytest.raises(ov.OpenverseError, match="URL da licença"):
+        ov.export(item["id"], PEDIDO, para=env.tmp / "saida")
+    assert not (env.tmp / "saida").exists()
+
+
+@needs_ffmpeg
+def test_titulo_e_autor_da_api_tem_tamanho_maximo_e_a_atribuicao_nao_entra_no_credito(env, midia):
+    item, creditos = _exportar_com_api(env, midia, title="T" * 1000, creator="A" * 1000, attribution="evil.example " + "x" * 5000)
+    assert len(item["titulo"]) <= 300 and len(item["autor"]) <= 300 and len(item["atribuicao"]) <= 1000
+    entrada = _entrada_de_credito(creditos)
+    assert len(entrada) < 1200 and "xxxx" not in entrada
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("texto", TEXTOS_HOSTIS)
+def test_credito_de_registro_editado_a_mao_tambem_e_sanitizado_ao_escrever_o_arquivo(env, aprovado, texto):
+    _mudar_e_reaprovar(env, aprovado["id"], titulo=texto, autor=texto, atribuicao=texto)
+    entrada = _entrada_de_credito(Path(ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")["creditos"]).read_text(encoding="utf8"))
+    assert _entrada_de_credito(ov.credits()["markdown"]) == entrada  # `library credits` usa o mesmo texto seguro
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("url", URLS_HOSTIS)
+def test_credito_de_registro_editado_a_mao_nao_vira_link_com_url_hostil(env, aprovado, url):
+    _mudar_e_reaprovar(env, aprovado["id"], autor_url=url, origem_url=url)
+    _entrada_de_credito(Path(ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")["creditos"]).read_text(encoding="utf8"))
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("versao", VERSOES_HOSTIS)
+def test_credito_de_registro_editado_a_mao_nao_injeta_pela_versao_da_licenca(env, aprovado, versao):
+    _mudar_e_reaprovar(env, aprovado["id"], licenca_versao=versao)
+    _entrada_de_credito(Path(ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")["creditos"]).read_text(encoding="utf8"))
+
+
+@needs_ffmpeg
+def test_export_recusa_registro_editado_a_mao_com_url_de_licenca_fora_do_creativecommons(env, aprovado):
+    _mudar_e_reaprovar(env, aprovado["id"], licenca_url="https://evil.example/licenses/by/2.0/")
+    with pytest.raises(ov.OpenverseError, match="URL da licença"):
+        ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
+
+
+def test_rotulo_da_licenca_so_aceita_versao_numerica():
+    assert ov.license_label("by", "2.0") == "CC BY 2.0" and ov.license_label("by", "4.0") == "CC BY 4.0" and ov.license_label("cc0", None) == "CC0 1.0"
+    for ruim in ("2.0](http://evil.example)", "x<b>", "2.0\n#", "1" * 30):
+        assert ov.license_label("by", ruim) == "CC BY"
+
+
 # ------------------------------------------------------------------------------------------------ status, dados, docs
 
 def test_status_json_mostra_a_biblioteca_e_se_as_credenciais_existem_sem_o_valor(env, capsys, monkeypatch):
