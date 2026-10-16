@@ -2,7 +2,8 @@
 
 Ferramentas: as três do `tools.py` (OpenMontage, OpenCut, Hypit) com a versão fixada de lá; ffmpeg e node
 só são detectados (sem versão fixada). Detecção por shutil.which (existe no PATH) e leitura da versão
-(`--version` / `-version`, ou o commit do checkout para ferramentas git). Nada de rede e nada de sockets:
+(`--version` / `-version`, ou o commit do checkout para ferramentas git; o `tinyfish`, de terceiros, roda com o ambiente
+fechado do `busca`: nenhuma chave do shell chega a ele). Nada de rede e nada de sockets:
 a versão só é lida de um executável que já está no PATH, e uma ferramenta ausente vira installed false.
 
 Estado do render: o render.manifest.json ao lado do contrato. Sem manifesto, rendered false.
@@ -67,7 +68,11 @@ def _ferramenta_do_motor(name: str) -> dict:
                 version = None
         return _linha(name, d is not None, version, pinned, fonte)
     exe = shutil.which(t.name)  # npm: o binário no PATH (ou o npx do motor, que não é checado aqui)
-    version = _primeira_linha([exe, "--version"]) if exe else None
+    if exe and name == "tinyfish":
+        from . import busca  # binário de terceiros: só o ambiente fechado do `busca` (nenhuma chave do shell) e sem telemetria
+        version = busca._versao_cli(exe)
+    else:
+        version = _primeira_linha([exe, "--version"]) if exe else None
     return _linha(name, exe is not None, version, pinned, fonte)
 
 
