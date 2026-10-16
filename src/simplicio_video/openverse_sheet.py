@@ -19,6 +19,7 @@ DEMUXER = {"jpeg": "image2", "png": "image2", "webp": "image2", "gif": "gif", "m
            "flac": "flac", "m4a": "mov"}
 STANDARD_RATIOS = {"1:1": 1.0, "4:3": 4 / 3, "3:2": 3 / 2, "16:9": 16 / 9, "21:9": 21 / 9, "2:1": 2.0, "5:4": 5 / 4, "3:4": 3 / 4,
                    "2:3": 2 / 3, "9:16": 9 / 16, "4:5": 4 / 5, "9:21": 9 / 21}
+MAX_PIXELS = 100_000_000  # acima disso o ffmpeg não decodifica (bomba de descompressão: poucos KB declarando 60000x60000)
 ANALYSIS_SIDE = 512      # a nitidez e o brilho saem de uma versão com no máximo 512 px no lado maior
 SILENCE_DB = -50
 SILENCE_MIN_S = 0.3
@@ -107,6 +108,9 @@ def image_signals(path: Path, formato: str, rec: dict) -> dict:
     if not video or not video.get("width") or not video.get("height"):
         raise OpenverseError("o arquivo não tem imagem legível (o ffprobe não achou largura e altura)")
     w, h = int(video["width"]), int(video["height"])
+    if w * h > MAX_PIXELS:
+        raise OpenverseError(f"imagem de {w}x{h} ({w * h // 1_000_000} milhões de pixels) acima do limite de {MAX_PIXELS // 1_000_000} milhões: "
+                             "a folha não decodifica; reprove o ativo")
     px, tw, th = _gray_pixels(path, formato, w, h)
     return {"largura": w, "altura": h, "proporcao": round(w / h, 6), "proporcao_texto": ratio_text(w, h),
             "tamanho_bytes": Path(path).stat().st_size, "formato": formato,

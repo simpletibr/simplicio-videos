@@ -242,10 +242,16 @@ def _check_id(id_) -> str:
     return id_.lower()
 
 
+_FILE_RE = re.compile(r"^files/[0-9a-f]{64}\.[a-z0-9]{2,5}$")
+_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
 def _item(idx: dict, id_: str) -> dict:
     rec = idx["itens"].get(id_)
     if rec is None:
         raise OpenverseError(f"o id {id_} não está na biblioteca (use `simplicio-video openverse get {id_}`)")
+    if not (_FILE_RE.match(str(rec.get("arquivo"))) and _SHA_RE.match(str(rec.get("sha256"))) and rec["arquivo"][6:70] == rec["sha256"]):
+        raise OpenverseError(f"índice inválido para o id {id_}: o campo arquivo precisa ser files/<sha256>.<ext> (o índice foi editado à mão?)")
     return rec
 
 
@@ -371,7 +377,8 @@ def _api_get(path: str, params: dict | None = None):
 def _s(value, limite: int = 2000) -> str | None:
     if value is None:
         return None
-    text = "".join(c for c in str(value) if c == "\n" or c >= " ").strip()
+    # uma linha só, sem controle (ESC, DEL, C1): o texto da API vai para o terminal e para o arquivo de créditos
+    text = "".join(c for c in " ".join(str(value).split()) if c.isprintable())
     return text[:limite] or None
 
 
@@ -892,19 +899,21 @@ def export_name(rec: dict) -> str:
 
 
 def _md(text) -> str:
-    return re.sub(r"[\[\]`\r\n]+", " ", str(text or "")).strip()
+    return " ".join(re.sub(r"[\[\]`]+", " ", str(text or "")).split())
+
+
+def _link(url) -> str | None:
+    """URL que cabe com segurança num link markdown; qualquer outra coisa vira texto simples."""
+    return url if isinstance(url, str) and re.fullmatch(r"https?://[^\s<>()\[\]`]+", url) else None
 
 
 def _credit_line(rec: dict, nome: str) -> str:
     autor = _md(rec.get("autor"))
-    if autor and rec.get("autor_url"):
-        autor_txt = f"[{autor}]({rec['autor_url']})"
-    else:
-        autor_txt = autor or "autor não informado"
+    autor_txt = f"[{autor}]({_link(rec.get('autor_url'))})" if autor and _link(rec.get("autor_url")) else (autor or "autor não informado")
     label = license_label(rec.get("licenca"), rec.get("licenca_versao"))
-    lic = f"[{label}]({rec['licenca_url']})" if rec.get("licenca_url") else label
+    lic = f"[{label}]({_link(rec.get('licenca_url'))})" if _link(rec.get("licenca_url")) else label
     return (f'- `{nome}`: "{_md(rec.get("titulo")) or "(sem título)"}" por {autor_txt}, licença {lic}. '
-            f'Origem: {rec.get("origem_url") or "não informada"}. sha256 `{rec["sha256"]}`.')
+            f'Origem: {_md(rec.get("origem_url")) or "não informada"}. sha256 `{rec["sha256"]}`.')
 
 
 CREDITS_HEADER = (

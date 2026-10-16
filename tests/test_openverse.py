@@ -236,6 +236,17 @@ def test_busca_normaliza_os_campos_do_audio(env):
     assert r["url_arquivo"] == URL_AUD and r["provedor"] == "freesound"
 
 
+def test_texto_da_api_perde_controles_e_quebras_de_linha(env):
+    r = env.api.images["results"][0]
+    r["title"] = "ola\x1b[31m vermelho\nlinha2\x7f\x85fim"
+    r["creator"] = "Fulano\n- `falso.png`: \"x\" por Beltrano"
+    r["foreign_landing_url"] = "https://exemplo.org/a\nb"
+    item = ov.search("imagem", "x")["resultados"][0]
+    for campo in ("titulo", "autor", "origem_url"):
+        assert item[campo].isprintable() and "\n" not in item[campo], campo
+    assert "\x1b" not in item["titulo"] and "\x7f" not in item["titulo"]
+
+
 def test_tags_ficam_limitadas_e_sem_duplicata(env):
     env.api.images["results"][0]["tags"] = [{"name": f"t{i % 40}", "accuracy": None} for i in range(200)]
     r = ov.search("imagem", "x")["resultados"][0]
@@ -866,6 +877,15 @@ def test_show_acusa_arquivo_alterado_ou_ausente(env):
     assert ov.library_show(item["id"])["integridade"] == "ausente"
 
 
+def test_indice_com_caminho_de_arquivo_fora_da_biblioteca_e_recusado(env):
+    item = baixar(env)
+    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    idx["itens"][item["id"]]["arquivo"] = "../../etc/passwd"
+    (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")
+    with pytest.raises(ov.OpenverseError, match="índice"):
+        ov.library_show(item["id"])
+
+
 def test_show_de_id_desconhecido(env):
     with pytest.raises(ov.OpenverseError, match="biblioteca"):
         ov.library_show(ID_IMG)
@@ -1049,6 +1069,20 @@ def test_folha_de_imagem_traz_a_pista_textual(env, midia):
 
 
 @needs_ffmpeg
+def test_folha_recusa_imagem_com_dimensoes_absurdas_sem_decodificar(env, midia, monkeypatch):
+    from simplicio_video import openverse_sheet as sheet
+    item = baixar(env, body=midia["nitida"])
+    real = sheet.probe
+    monkeypatch.setattr(sheet, "probe", lambda p, f: {"streams": [{"codec_type": "video", "width": 60000, "height": 60000}]})
+    chamadas = []
+    monkeypatch.setattr(sheet, "_gray_pixels", lambda *a, **k: chamadas.append(a))
+    with pytest.raises(ov.OpenverseError, match="pixels"):
+        ov.review_sheet(item["id"], PEDIDO)
+    assert chamadas == []
+    monkeypatch.setattr(sheet, "probe", real)
+
+
+@needs_ffmpeg
 def test_folha_de_audio_tem_loudness_silencio_clipping_e_espectrograma(env, midia):
     item = baixar(env, "audio", body=midia["tom"])
     folha = ov.review_sheet(item["id"], "som de chuva para a cena 2")
@@ -1151,6 +1185,18 @@ def test_host_com_ipv4_e_ipv6_conecta_no_ipv4_validado(env):
     ov.search("imagem", "x")
     ov.get(ID_IMG)
     assert env.net.gets == [(URL_IMG, "151.101.1.1")]
+
+
+def test_credito_nao_deixa_o_texto_da_api_criar_linhas_nem_links_falsos(env, aprovado):
+    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+    it = idx["itens"][aprovado["id"]]
+    it.update(autor="Fulano](http://evil.example) [clique", titulo="Titulo\n- `falso.png`: x", autor_url="javascript:alert(1)",
+              origem_url="https://exemplo.org/a b")
+    (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")
+    res = ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
+    linhas = [ln for ln in Path(res["creditos"]).read_text(encoding="utf8").splitlines() if ln.startswith("- ")]
+    assert len(linhas) == 1
+    assert "javascript:" not in linhas[0] and "](http://evil.example)" not in linhas[0]
 
 
 def test_export_e_idempotente(env, aprovado):
