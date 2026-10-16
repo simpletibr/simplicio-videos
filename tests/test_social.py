@@ -1054,3 +1054,78 @@ def test_mutacao_do_providers_json_faz_o_motor_e_a_lista_fixa_falharem(video, mo
 def test_providers_json_em_disco_tem_a_sequencia_de_modelos_esperada(prov):
     ids = [s["id"] for s in next(p for p in social._providers_doc()["providers"] if p["id"] == prov)["recipe"]]
     assert ids == SEQUENCIA_ESPERADA[prov]["modelo"]
+
+
+# ------------------------------------------------------------------------------------------------ menores da revisão
+
+@pytest.mark.parametrize("conta", ["AQ.Ab8RN6Kx_curto123", "Bearer abc", "ghp_curto", "sk-x", "AIzaSy123", "A" * 40])
+def test_conta_que_parece_chave_e_recusada(conta):
+    with pytest.raises(social.SocialError, match="conta inválida"):
+        social.parse_targets([f"tiktok={conta}"])
+
+
+def test_conta_em_formato_de_uuid_e_aceita():
+    uuid = "8d7f3c2a-1b4e-4c5d-9e6f-0a1b2c3d4e5f"
+    assert social.parse_targets([f"tiktok={uuid}"]) == [{"network": "tiktok", "account": uuid}]
+
+
+def test_legenda_e_titulo_com_chave_sao_recusados(video):
+    with pytest.raises(social.SocialError, match="chave|segredo"):
+        plano(video, caption="promo AIzaSyTESTE_nao_real_00000000000000000 #x")
+    with pytest.raises(social.SocialError, match="chave|segredo"):
+        plano(video, caption="ok", title="Bearer abcdefghijklmnop0123456789", force=True)
+
+
+def test_plano_pelo_symlink_fica_ao_lado_do_link_e_o_tmp_nao_segue_symlink(video, tmp_path):
+    pasta_link = tmp_path / "link"
+    pasta_link.mkdir()
+    (pasta_link / "a.mp4").symlink_to(video)
+    vitima = tmp_path / "vitima.txt"
+    vitima.write_text("original", encoding="utf8")
+    (pasta_link / "social.plan.json.tmp").symlink_to(vitima)
+    r = mcp_server.video_social("plan", video=str(pasta_link / "a.mp4"), caption=CAPTION, targets=["linkedin"])
+    assert r["ok"] is True and Path(r["path"]).parent == pasta_link
+    assert vitima.read_text(encoding="utf8") == "original"
+    assert not Path(r["path"]).is_symlink()
+
+
+def test_ffprobe_recebe_o_caminho_com_prefixo_file(monkeypatch):
+    visto = []
+
+    def falso(cmd, *a, **k):
+        visto.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, json.dumps({"streams": [{"codec_type": "video", "width": 1, "height": 1}], "format": {"duration": "1"}}), "")
+
+    monkeypatch.setattr(social.subprocess, "run", falso)
+    social._real_probe(Path("-x.mp4"))
+    assert visto[0][-1].startswith("file:") and visto[0][-1].endswith("-x.mp4")
+
+
+def test_agendamento_no_passado_ou_alem_de_30_dias_e_recusado_no_plan(video):
+    with pytest.raises(social.SocialError, match="passado"):
+        plano(video, at="2026-10-15T09:30", timezone="America/Sao_Paulo")
+    with pytest.raises(social.SocialError, match="30 dias"):
+        plano(video, at="2026-12-20T09:30", timezone="America/Sao_Paulo", force=True)
+    plano(video, at="2026-11-10T09:30", timezone="America/Sao_Paulo", force=True)
+
+
+def test_rotulo_de_ia_nao_informado_vira_pergunta_e_nao_omissao(video):
+    nao = social.recipe(plano(video, targets=["youtube"])["path"], clip_id=CLIP_RO)
+    prev = next(s for s in nao["steps"] if s.get("tool") == "ro_preview_publication")
+    assert isinstance(prev["args"]["ai_generated"], str) and prev["args"]["ai_generated"].startswith("<pergunte")
+    sim = social.recipe(plano(video, targets=["youtube"], ai_generated=True, force=True)["path"], clip_id=CLIP_RO)
+    assert next(s for s in sim["steps"] if s.get("tool") == "ro_preview_publication")["args"]["ai_generated"] is True
+
+
+def test_conta_do_zernio_vai_como_pergunta_ao_accounts_list(video):
+    rec = social.recipe(plano(video, targets=["tiktok=@minha.conta"])["path"], provider="zernio")
+    post = next(s for s in rec["steps"] if s.get("tool") == "posts_create")
+    assert post["args"]["account_id"].startswith("<") and "@minha.conta" in post["args"]["account_id"]
+
+
+def test_arquivo_qt_renomeado_para_mp4_e_recusado(tmp_path):
+    mov = tmp_path / "m" / "x.mp4"
+    mov.parent.mkdir()
+    mov.write_bytes(b"\x00\x00\x00\x14ftypqt  \x00\x00\x00\x00qt  conteudo")
+    with pytest.raises(social.SocialError, match="MP4"):
+        social.make_plan(str(mov), ["tiktok"], caption="x")
