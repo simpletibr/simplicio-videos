@@ -4,9 +4,12 @@ Ported from simplicio-loop simplicio_loop/self_update.py (2034e2d). Two distribu
 
 * pip (an installed package): `python -m pip install --upgrade "simplicio-video==<latest>"` (PyPI), then
   `simplicio-video install --global` to reinstall the skills in the agent hosts, as the loop does; the latest release comes from
-  GitHub Releases (`gh release view`, else the API). A PEP 668 environment is refused with the four ways out.
+  GitHub Releases (`gh release view`, else the API). A PEP 668 environment is refused with the four ways out, and so is a Python
+  without pip (a `uv tool install` venv): `uv tool upgrade` or `pipx upgrade` is what updates that one. `--force` on a release that
+  is not newer reinstalls only our package (`--force-reinstall --no-deps`); on a newer one it is a plain `--upgrade`.
 * source (a checkout, or an editable install): REFUSED, exit 2, printing `git pull` and `bash scripts/dev_install.sh` (Windows:
-  `powershell -File scripts/dev_install.ps1`). Breaking change (direct owner request, ADR-0020): the update used to pull there;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`: the policy of a client Windows is Restricted, and
+  the Bypass is for that one process; UNVERIFIED without a real Windows). Breaking change (direct owner request, ADR-0020): the update used to pull there;
   the loop never does, so nothing is pulled, rebuilt or discarded. `--check` still asks git how many commits are new.
 
 Exit codes (as the loop): `--check` 0 up to date, 10 update available, 2 error; a refusal (a checkout, PEP 668) 2; a network failure
@@ -26,6 +29,7 @@ Exemplos:
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import json
 import os
 import re
@@ -94,6 +98,24 @@ def is_pep668_environment(
         except OSError:
             continue
     return False, None
+
+
+POWERSHELL_DEV_INSTALL = "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1"
+
+
+def _has_pip() -> bool:
+    """Whether this interpreter can run `python -m pip` (the venv of a `uv tool install` has none)."""
+    return importlib.util.find_spec("pip") is not None
+
+
+def no_pip_message() -> str:
+    return "\n".join([
+        "update: este Python não tem o pip (um `uv tool install` ou um venv sem pip): `python -m pip install` falharia.",
+        "O jeito de atualizar essa instalação é a ferramenta que a criou:",
+        f"       uv tool upgrade {PYPI_NAME}",
+        f"       pipx upgrade {PYPI_NAME}",
+        f"  e depois: {PYPI_NAME} install --global   (reinstala as skills nos hosts)",
+    ])
 
 
 def pep668_message(details: Optional[str] = None) -> str:
@@ -472,8 +494,13 @@ def _update_pip(*, check, force, dry_run, installed, fetch, runner, record, exte
     if managed:
         print(pep668_message(details))
         return 2
-    # the argv is a list (no shell) rebuilt from integers: a fixed `==`, one version, nothing from the tag's text
-    command = [sys.executable, "-m", "pip", "install", "--upgrade", *(["--force-reinstall"] if force else []),
+    if not dry_run and not _has_pip():
+        print(no_pip_message())
+        return 2
+    # the argv is a list (no shell) rebuilt from integers: a fixed `==`, one version, nothing from the tag's text. `--force` only
+    # reinstalls when nothing is newer, and only our package: `--no-deps` on a NEWER release would skip a dependency it adds
+    reinstall = force and not available
+    command = [sys.executable, "-m", "pip", "install", "--upgrade", *(["--force-reinstall", "--no-deps"] if reinstall else []),
                f"{PYPI_NAME}=={label}"]
     rc = runner(command)
     if rc != 0:
@@ -494,8 +521,9 @@ def _update_pip(*, check, force, dry_run, installed, fetch, runner, record, exte
 
 
 def refusal_text(checkout: Path) -> str:
-    """What a checkout is told instead of an update: the two commands, with the dev install of this system."""
-    dev_install = "powershell -File scripts/dev_install.ps1" if hostos.is_windows() else "bash scripts/dev_install.sh"
+    """What a checkout is told instead of an update: the two commands, with the dev install of this system. On Windows the script
+    is run with the policy of that process only: the client Windows is Restricted and `powershell -File x.ps1` would refuse it."""
+    dev_install = (POWERSHELL_DEV_INSTALL if hostos.is_windows() else "bash scripts/dev_install.sh")
     return (f"update: este é um checkout git (ou uma instalação editável): o update não mexe nele e recusa (exit 2).\n"
             f"Para atualizar, rode dentro do checkout ({checkout}):\n  git pull\n  {dev_install}")
 

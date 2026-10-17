@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "simplicio.video-install-plan/v1",
   "title": "simplicio-video install --json",
-  "description": "Saída de `simplicio-video install --json` (stdout), no contrato do `simplicio.loop-install-plan/v1` do simplicio-loop, com as mesmas chaves: o `install` copia a skill do simplicio-video para o host do agente (o simplicio-video não tem hooks), registra o que escreveu no recibo `.simplicio-video/install-ownership.json` e nunca sobrescreve o que não é dele (`changes.left_alone`). `status` diz a forma do documento: `applied` (instalou) e `dry_run` (`--dry-run` e `--check`, nada foi escrito) trazem o plano completo; `verified` é o `--verify`; `removed` e `dry_run` com `removed` são o `--uninstall`; `error` é uma falha (host desconhecido, escrita negada, sem recibo): o stdout continua sendo UM documento, com `error`, e a mesma mensagem vai para o stderr.",
+  "description": "Saída de `simplicio-video install --json` (stdout), no contrato do `simplicio.loop-install-plan/v1` do simplicio-loop, com as mesmas chaves: o `install` copia a skill do simplicio-video para o host do agente (o simplicio-video não tem hooks), registra o que escreveu, com o sha256, no recibo `.simplicio-video/install-ownership.json` e nunca sobrescreve nem apaga o que não é dele (`changes.left_alone`). `status` diz a forma do documento: `applied` (instalou) e `dry_run` (`--dry-run` e `--check`, nada foi escrito) trazem o plano completo; `verified` e `failed` são o `--verify` (confere os arquivos com o recibo e com o pacote; `failed` traz `problems`, sai com 1); `removed` e `dry_run` com `removed` são o `--uninstall`; `error` é uma falha (host desconhecido, escrita negada, sem recibo, link numa pasta que o install cria): o stdout continua sendo UM documento, com `error`, e a mesma mensagem vai para o stderr.",
   "type": "object",
   "required": [
     "schema",
@@ -18,6 +18,7 @@
         "applied",
         "dry_run",
         "verified",
+        "failed",
         "removed",
         "error"
       ]
@@ -37,7 +38,7 @@
     },
     "up_to_date": {
       "type": "boolean",
-      "description": "Nada a criar nem atualizar, e nenhuma cópia de outro host desatualizada (com `--global`)."
+      "description": "Nada a criar nem atualizar no alvo."
     },
     "changes": {
       "type": "object",
@@ -73,7 +74,7 @@
           "items": {
             "type": "string"
           },
-          "description": "O que existe no alvo e não é do simplicio-video (outras skills, um AGENTS.md seu, um link simbólico): intacto."
+          "description": "O que existe no alvo e não é do simplicio-video: outras skills, um AGENTS.md seu, uma SKILL.md que já existia (ou que você editou depois do install), um arquivo seu dentro da pasta da skill, um link simbólico: intacto."
         }
       }
     },
@@ -92,7 +93,8 @@
         "version",
         "digest",
         "paths",
-        "dirs"
+        "dirs",
+        "sha256"
       ],
       "additionalProperties": false,
       "properties": {
@@ -112,16 +114,44 @@
         "paths": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))[^\\u0000]+$"
           },
-          "description": "Os arquivos que o install escreveu (ou achou idênticos), relativos ao alvo e com `/`. O uninstall remove só estes."
+          "description": "Os arquivos que o install escreveu (ou achou idênticos e já eram dele), relativos ao alvo e com `/`. O uninstall e o prune só removem os que o registro de hosts consegue produzir (as pastas das skills, os arquivos de entrada dos hosts e o próprio recibo) e que ainda têm o sha256 gravado em `sha256`."
         },
         "dirs": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))[^\\u0000]+$"
           },
-          "description": "As pastas que o install criou, relativas ao alvo. O uninstall remove as que ficarem vazias; uma que já existia antes nunca entra."
+          "description": "As pastas que o install criou, relativas ao alvo. O uninstall remove as que ficarem vazias; uma que já existia antes (a pasta base do host, `.claude`, por exemplo) nunca entra."
+        },
+        "sha256": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))[^\\u0000]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "description": "O sha256 (64 dígitos hexadecimais minúsculos) do conteúdo de cada arquivo de `paths` quando o install o escreveu. Um arquivo que o usuário editou depois não tem mais esse sha256 e fica `left_alone`: nunca é apagado nem sobrescrito."
+        },
+        "bases": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              ".claude",
+              ".github",
+              ".kiro"
+            ]
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Só quando a pasta base de um host (`.claude`, `.github` ou `.kiro`) é um link (um repositório de dotfiles): o caminho real em que o install a resolveu e escreveu. O uninstall recusa se o link agora aponta para outro lugar."
         }
       },
       "description": "O recibo de posse (o mesmo conteúdo de `.simplicio-video/install-ownership.json`)."
@@ -136,7 +166,7 @@
         "object",
         "null"
       ],
-      "description": "Só com `--global`: as cópias que os outros hosts já têm da skill (`~/.codex/skills`, `~/.cursor/skills`...). `null` sem `--global`. `rules` e `rules_counts` existem por contrato com o loop e ficam vazios: o simplicio-video não tem regras de host.",
+      "description": "Só com `--global`: as cópias que os outros hosts já têm da skill (`~/.codex/skills`, `~/.cursor/skills`...) e que diferem do pacote. O install NÃO as atualiza nem apaga (não são do recibo; o loop as atualiza, este não, ADR-0020): `skills` e `skills_counts` só as nomeiam e `pending` é sempre 0. `null` sem `--global`. `rules` e `rules_counts` existem por contrato com o loop e ficam vazios: o simplicio-video não tem regras de host.",
       "required": [
         "skills",
         "rules",
@@ -152,7 +182,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Os hosts cujas cópias foram atualizadas (ou estão desatualizadas, no --check)."
+          "description": "Os hosts cujas cópias diferem do pacote (e foram deixadas em paz)."
         },
         "rules": {
           "type": "array",
@@ -196,13 +226,13 @@
         "pending": {
           "type": "integer",
           "minimum": 0,
-          "description": "Quantas cópias estão desatualizadas e o --check/--dry-run não tocou."
+          "description": "Sempre 0: nada aqui muda, então nada mantém o --check fora de \"em dia\"."
         }
       }
     },
     "pruned_project": {
       "type": "object",
-      "description": "Só com `--global --prune-project-copies`: as cópias obsoletas do projeto que foram (ou seriam) removidas.",
+      "description": "Só com `--global --prune-project-copies`: o que o recibo do projeto (--target) registra, com o mesmo sha256, que foi (ou seria) removido. `left_alone`: o que o recibo registra e não foi removido (editado, ou a instalação global).",
       "required": [
         "status",
         "removed",
@@ -237,12 +267,24 @@
           "items": {
             "type": "string"
           }
+        },
+        "left_alone": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
     "ok": {
-      "const": true,
-      "description": "Só no `--verify`."
+      "type": "boolean",
+      "description": "Só no `--verify`: true se os arquivos conferem com o recibo e com o pacote."
     },
     "removed": {
       "type": "array",
@@ -263,7 +305,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Só no `--uninstall`: pastas registradas que ficaram porque guardam arquivos que o simplicio-video não instalou."
+      "description": "Só no `--uninstall`: pastas registradas que ficaram porque guardam arquivos que o simplicio-video não instalou ou deixou em paz."
     },
     "skipped": {
       "type": "array",
@@ -276,6 +318,52 @@
       "type": "string",
       "minLength": 1,
       "description": "Só quando deu erro: a mesma mensagem que vai para o stderr."
+    },
+    "problems": {
+      "type": "array",
+      "description": "Só no `--verify`: o que difere. `no_receipt` e `bad_receipt` (o recibo), `missing` (falta o arquivo), `not_a_file` (pasta, link ou fifo no lugar), `modified` (editado depois do install), `outdated` (o pacote mudou: rode o install), `foreign` (já existia, difere do pacote e não é do simplicio-video).",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "problem",
+          "detail"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "problem": {
+            "enum": [
+              "no_receipt",
+              "bad_receipt",
+              "missing",
+              "not_a_file",
+              "modified",
+              "outdated",
+              "foreign"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "left_alone": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Só no `--uninstall`: o que o recibo registra e não foi removido porque o usuário editou depois do install (o sha256 mudou), virou link ou não é do recibo. Fica como está."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Avisos: um recibo anterior ignorado (adulterado, plantado, de outro dono), um arquivo deixado porque foi editado."
     }
   },
   "allOf": [
@@ -329,7 +417,9 @@
               "removed",
               "removed_dirs",
               "kept",
-              "skipped"
+              "skipped",
+              "left_alone",
+              "warnings"
             ]
           }
         ]
@@ -348,7 +438,9 @@
           "removed",
           "removed_dirs",
           "kept",
-          "skipped"
+          "skipped",
+          "left_alone",
+          "warnings"
         ]
       }
     },
@@ -365,8 +457,43 @@
           "version",
           "ok",
           "host",
-          "digest"
-        ]
+          "digest",
+          "problems"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "problems": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "failed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "version",
+          "ok",
+          "host",
+          "digest",
+          "problems"
+        ],
+        "properties": {
+          "ok": {
+            "const": false
+          },
+          "problems": {
+            "minItems": 1
+          }
+        }
       }
     },
     {

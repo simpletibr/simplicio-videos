@@ -44,7 +44,7 @@ exemplos:
   bash scripts/dev_install.sh
   bash scripts/dev_install.sh --with local-tts --python 3.12
 
-Requisitos: Node 22 ou superior, ffmpeg com libass, 5 GB livres. Sem sudo. No Windows: powershell -File scripts/dev_install.ps1
+Requisitos: Node 22 ou superior, ffmpeg com libass, 5 GB livres. Sem sudo. No Windows: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1
 Este script cria o ambiente do checkout. Para copiar a skill para o agente (o `install` do simplicio-loop), use depois:
   .venv/bin/simplicio-video install            (o projeto)       .venv/bin/simplicio-video install --global     (o home)
 Depois: .venv/bin/simplicio-video setup  e  .venv/bin/simplicio-video doctor

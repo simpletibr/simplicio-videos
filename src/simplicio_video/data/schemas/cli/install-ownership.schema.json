@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "simplicio.video-install-ownership/v1",
   "title": "simplicio-video: recibo de posse do install",
-  "description": "O arquivo `.simplicio-video/install-ownership.json` que o `simplicio-video install` grava no alvo (o projeto, ou o home com `--global`). Registra exatamente o que o install escreveu e as pastas que ele criou: o `install --uninstall` remove só isso, nunca algo fora do alvo, e recusa um recibo adulterado (caminho absoluto, `..`, letra de unidade, link simbólico que escapa do alvo, dono ou esquema desconhecido).",
+  "description": "O arquivo `.simplicio-video/install-ownership.json` que o `simplicio-video install` grava no alvo (o projeto, ou o home com `--global`). Registra exatamente o que o install escreveu, com o sha256 de cada arquivo, e as pastas que ele criou: o `install --uninstall` e o `--prune-project-copies` removem só um arquivo que está aqui, que o registro de hosts consegue produzir e que ainda tem o sha256 gravado, nunca algo fora do alvo, e recusam um recibo com qualquer outro caminho (`.git/config`, `src/app.py`, `.ssh/authorized_keys`), com caminho absoluto, `..`, letra de unidade ou byte nulo, com link simbólico que escapa do alvo, ou de dono ou esquema desconhecido. Um install por cima de um recibo assim o ignora e avisa.",
   "type": "object",
   "required": [
     "schema",
@@ -10,7 +10,8 @@
     "version",
     "digest",
     "paths",
-    "dirs"
+    "dirs",
+    "sha256"
   ],
   "additionalProperties": false,
   "properties": {
@@ -30,16 +31,44 @@
     "paths": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))[^\\u0000]+$"
       },
-      "description": "Os arquivos que o install escreveu (ou achou idênticos), relativos ao alvo e com `/`. O uninstall remove só estes."
+      "description": "Os arquivos que o install escreveu (ou achou idênticos e já eram dele), relativos ao alvo e com `/`. O uninstall e o prune só removem os que o registro de hosts consegue produzir (as pastas das skills, os arquivos de entrada dos hosts e o próprio recibo) e que ainda têm o sha256 gravado em `sha256`."
     },
     "dirs": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))[^\\u0000]+$"
       },
-      "description": "As pastas que o install criou, relativas ao alvo. O uninstall remove as que ficarem vazias; uma que já existia antes nunca entra."
+      "description": "As pastas que o install criou, relativas ao alvo. O uninstall remove as que ficarem vazias; uma que já existia antes (a pasta base do host, `.claude`, por exemplo) nunca entra."
+    },
+    "sha256": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))[^\\u0000]+$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "description": "O sha256 (64 dígitos hexadecimais minúsculos) do conteúdo de cada arquivo de `paths` quando o install o escreveu. Um arquivo que o usuário editou depois não tem mais esse sha256 e fica `left_alone`: nunca é apagado nem sobrescrito."
+    },
+    "bases": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          ".claude",
+          ".github",
+          ".kiro"
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Só quando a pasta base de um host (`.claude`, `.github` ou `.kiro`) é um link (um repositório de dotfiles): o caminho real em que o install a resolveu e escreveu. O uninstall recusa se o link agora aponta para outro lugar."
     }
   }
 }

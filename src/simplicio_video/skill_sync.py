@@ -1,14 +1,13 @@
-"""Keep the skills installed in host config dirs in step with the installed package.
+"""Which hosts ALREADY hold a copy of the skills, and whether that copy differs from the package.
 
-Ported from simplicio-loop (`simplicio_loop/skill_sync.py`, 2034e2d). `simplicio-video install --global` and the `update` of a pip
-package only drop the skill in `~/.claude/skills`; the copies that other hosts already have (`~/.codex/skills`,
-`~/.cursor/skills`...) stay frozen at the old version. This module compares and refreshes those copies against the skills bundled in
-`simplicio_video/data/skills` (the same tree in a checkout and in a pip install).
+Ported from simplicio-loop (`simplicio_loop/skill_sync.py`, 2034e2d) with one deliberate difference (review of PR #117, ADR-0020):
+the loop REFRESHES those copies and deletes the files that left the package; this module only REPORTS them. A copy in
+`~/.codex/skills` or `~/.cursor/skills` is not in the ownership receipt, so it is not ours to overwrite or to delete: the review
+measured a `minhas-notas.md` of the user disappearing from two hosts, and `update` did it by itself through `install --global`.
+`simplicio-video install --global` shows these copies as "left alone" and never changes them.
 
-Only skill directories that are ALREADY installed are touched: a host the user never installed stays untouched, nothing outside
-the fixed skill list is deleted, and a skill folder that is a symlink (the owner's link into a clone) is never written through.
-
-Standard library only, like the installer it uses.
+Only skill directories that are ALREADY installed are looked at, and a skill folder that is a symlink (the owner's link into a clone)
+is never judged. This module writes nothing. Standard library only, like the installer it uses.
 """
 from __future__ import annotations
 
@@ -19,9 +18,9 @@ from typing import Optional, Union
 
 from . import distribution, hostos, installer
 
-SKILLS = ("simplicio-video", "simplicio-video-social")
+SKILLS = installer.SKILLS
 
-# host -> skills root under the home. One table: the global install and the resync both read it, and it is the same relative path
+# host -> skills root under the home. One table, read by the report of `install --global`, the same relative path
 # on Linux, macOS and Windows (pathlib joins it with the right separator). `claude` is also where every `--global` install lands.
 # `simplicio_agent` keeps the folder the loop defines for that host (`~/.simplicio-loop/skills`): it is the host's, not ours.
 HOST_SKILL_ROOTS = {
@@ -89,31 +88,3 @@ def stale_skills(home: Optional[PathLike] = None, *, source=None) -> list:
             if have != want:
                 out.append({"host": host, "skill": skill, "path": str(root / skill), "reason": "missing" if not have else "stale"})
     return out
-
-
-def resync_installed_skills(home: Optional[PathLike] = None, *, source=None) -> dict:
-    """Replace stale or missing skills of every already-installed host with the package copy.
-
-    Returns `{"synced": [host, ...], "errors": [{"host", "error"}, ...]}`; `synced` lists only hosts where at least one skill was
-    rewritten. Each file is written atomically; a file that left the package is removed from the host's copy."""
-    source = package_skills_dir() if source is None else source
-    report = {"synced": [], "errors": []}
-    for entry in stale_skills(home, source=source):
-        host, dst = entry["host"], Path(entry["path"])
-        try:
-            src = source.joinpath(entry["skill"])
-            keep = {parts for parts, _node in installer.iter_files(src)}
-            for parts, _node in installer.iter_files(dst):
-                if parts not in keep:
-                    dst.joinpath(*parts).unlink()
-            for parts, node in installer.iter_files(src):
-                data = node.read_bytes()
-                target = dst.joinpath(*parts)
-                if not installer.same_bytes(target, data):
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    installer.atomic_write(target, data)
-            if host not in report["synced"]:
-                report["synced"].append(host)
-        except OSError as exc:
-            report["errors"].append({"host": host, "error": "%s: %s" % (entry["skill"], exc)})
-    return report

@@ -16,7 +16,11 @@
   Python é um conflito: o script diz o que apagar e não troca sozinho.
 
 .PARAMETER With
-  Extras do pacote separados por vírgula, ex.: local-tts,mcp.
+  Extras do pacote separados por vírgula, ex.: local-tts,mcp. No PowerShell `-With local-tts,mcp` chega como uma lista: o script junta
+  os itens com vírgula.
+
+  O Windows de cliente vem com a política de execução Restricted: `powershell -File x.ps1` pararia com "running scripts is disabled".
+  O `-ExecutionPolicy Bypass` dos exemplos vale só para esse processo e não muda a política da máquina (UNVERIFIED: sem Windows real).
 
 .PARAMETER Python
   Python do .venv (padrão: 3.12; os extras do CrewAI exigem menos de 3.14).
@@ -25,19 +29,22 @@
   Lista o plano e sai; não cria nem altera nada.
 
 .EXAMPLE
-  powershell -File scripts/dev_install.ps1 -DryRun
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 -DryRun
 
 .EXAMPLE
-  powershell -File scripts/dev_install.ps1 -With local-tts -Python 3.12
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 -With local-tts -Python 3.12
 #>
 [CmdletBinding()]
 param(
-    [string]$With = "",
+    [string[]]$With = @(),
     [string]$Python = "3.12",
     [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
+
+# `-With local-tts,mcp` typed in PowerShell is an array: join it, or the check below would refuse it as "invalid extras"
+$WithTexto = (($With | Where-Object { $_ -ne "" }) -join ",")
 
 $MinNode = 22
 $MinDiskGb = 5
@@ -102,18 +109,18 @@ function Get-VenvVersion {
 }
 
 function Get-PackageTarget {
-    if ($With -ne "") { return ".[" + $With + "]" }
+    if ($WithTexto -ne "") { return ".[" + $WithTexto + "]" }
     return "."
 }
 
 if ($Python -notmatch '^3\.\d+$') { Fail "versão de Python inválida: $Python (use algo como 3.12)" }
-if ($With -ne "" -and $With -notmatch '^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$') {
-    Fail "extras inválidos: $With (use nomes separados por vírgula, ex.: local-tts,mcp)"
+if ($WithTexto -ne "" -and $WithTexto -notmatch '^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$') {
+    Fail "extras inválidos: $WithTexto (use nomes separados por vírgula, ex.: local-tts,mcp)"
 }
 
 if ($DryRun) {
     $subExtras = "sem extras"
-    if ($With -ne "") { $subExtras = "extras: $With" }
+    if ($WithTexto -ne "") { $subExtras = "extras: $WithTexto" }
     $statusNode = "falta: precisa de Node $MinNode ou superior"
     if ((Get-NodeMajor) -ge $MinNode) { $statusNode = "ok" }
     $statusFfmpeg = "falta: ffmpeg com libass"
@@ -201,4 +208,4 @@ Write-Output "  $Sv install     copia a skill para o agente deste projeto (--glo
 Write-Output "  $Sv setup       primeira execução: workspace, tema, idioma (use --yes para os padrões)"
 Write-Output "  $Sv doctor      checagem do ambiente (--json para máquinas)"
 Write-Output "  $Sv --help      todos os comandos"
-Write-Output "Atualizar depois: git pull e powershell -File scripts/dev_install.ps1 (o simplicio-video update de um checkout só diz isso)"
+Write-Output "Atualizar depois: git pull e powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 (o simplicio-video update de um checkout só diz isso)"

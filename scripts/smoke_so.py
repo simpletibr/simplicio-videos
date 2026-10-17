@@ -8,8 +8,9 @@ apontam para pastas DIFERENTES de propósito: o Runtime lê o login de HOME e s�
 as duas iguais um erro de ordem passaria sem ninguém ver.
 
 Comandos (exit esperado entre parênteses): --version (0), doctor --json (0 ou 1), install --check num alvo temporário (10: a skill está
-pendente), install --dry-run --json (0), install --verify (0), install de verdade no alvo temporário (0), install --check --json
-(0: em dia), install --uninstall (0: o alvo volta a ficar vazio), update --dry-run (1 sem rede num pacote, 2 num checkout, que recusa),
+pendente), install --dry-run --json (0), install --verify --json (1: um alvo nunca instalado não passa), install de verdade no alvo
+temporário (0), install --verify (0: os arquivos conferem com o recibo e com o pacote), install --check --json (0: em dia),
+install --uninstall (0: o alvo volta a ficar vazio), update --dry-run (1 sem rede num pacote, 2 num checkout, que recusa),
 auth status --json (1, login_missing), login --json (1, UNVERIFIED), logout (2, REFUSED), logout --yes --json (0, NO_LOGIN). O alvo
 do install é uma pasta da própria pasta temporária (`alvo`): nunca `--global`, nunca o ~ real. Cada JSON é validado contra o schema
 empacotado (src/simplicio_video/data/schemas/cli/). Sai com 0 se tudo bateu e com 1 se algo falhou.
@@ -66,8 +67,9 @@ PASSOS = [
     Passo(["doctor", "--json"], {0, 1}, schema="doctor"),
     Passo(["install", "--check", "--target", "{alvo}"], {10}),
     Passo(["install", "--dry-run", "--json", "--target", "{alvo}"], {0}, schema="install-plan", status="dry_run"),
-    Passo(["install", "--verify", "--target", "{alvo}"], {0}),
+    Passo(["install", "--verify", "--json", "--target", "{alvo}"], {1}, schema="install-plan", status="failed"),
     Passo(["install", "--target", "{alvo}"], {0}),
+    Passo(["install", "--verify", "--target", "{alvo}"], {0}),
     Passo(["install", "--check", "--json", "--target", "{alvo}"], {0}, schema="install-plan", status="dry_run"),
     Passo(["install", "--uninstall", "--target", "{alvo}"], {0}),
     Passo(["update", "--dry-run"], {1, 2}),

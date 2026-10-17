@@ -332,39 +332,57 @@ def build_parser() -> argparse.ArgumentParser:
         description="Copia as skills empacotadas (simplicio-video e simplicio-video-social) para o host do agente e grava o recibo de posse\n"
                     ".simplicio-video/install-ownership.json, como o `install` do simplicio-loop. Por padrão instala no projeto (--target, padrão: a\n"
                     "pasta atual) em .claude/skills/ e, para o host que precisa, no arquivo de entrada dele (AGENTS.md, GEMINI.md, CONVENTIONS.md,\n"
-                    ".github/copilot-instructions.md ou .kiro/steering/simplicio-video.md; só se ainda não existir). Com --global instala em\n"
-                    "~/.claude/skills e atualiza as cópias que outros hosts já têm (~/.codex/skills, ~/.cursor/skills...).\n"
+                    ".github/copilot-instructions.md ou .kiro/steering/simplicio-video.md). Um arquivo de entrada que já existe não recebe\n"
+                    "apontador: fica como está. Com --global instala só em ~/.claude/skills (o home): com --global o --host é ignorado (o loop\n"
+                    "faz o mesmo) e as cópias que outros hosts já têm (~/.codex/skills, ~/.cursor/skills...) são apenas listadas: o install não as\n"
+                    "atualiza nem apaga.\n"
                     "Hosts (--host, padrão claude; all = todos): claude, codex, cursor, vscode, grok, kiro, antigravity, opencode, gemini, aider,\n"
-                    "simplicio_agent, openclaw. O simplicio-video não tem hooks: só skills. Idempotente: arquivo igual não é regravado, e o install deixa\n"
-                    "em paz o que não é dele (outras skills, um AGENTS.md seu, um link simbólico); o --uninstall remove só o que está no recibo.\n"
+                    "simplicio_agent, openclaw. O simplicio-video não tem hooks: só skills.\n"
+                    "O install nunca sobrescreve nem apaga o que não é dele: outras skills, o seu AGENTS.md, uma SKILL.md que já existia ou que\n"
+                    "você editou, um link simbólico. O install deixa isso em paz (left_alone) e diz. O recibo guarda o sha256 de cada arquivo: o --uninstall e\n"
+                    "o --prune-project-copies só removem o que o recibo registra, que o registro de hosts consegue produzir e que ainda tem o sha256\n"
+                    "gravado; um recibo com outro caminho (.git/config, src/app.py...) é recusado inteiro, e um install por cima dele o ignora.\n"
+                    "As pastas que o install cria (.claude/skills, a da skill e .simplicio-video) nunca são link: com link ele recusa (exit 2) e\n"
+                    "não escreve nada. A pasta base do host (~/.claude) pode ser link para o seu repositório de dotfiles: o install a resolve uma\n"
+                    "vez, escreve no caminho real e o recibo o grava. Dois installs ao mesmo tempo no mesmo alvo esperam um pelo outro\n"
+                    "(.simplicio-video/install.lock).\n"
+                    "--verify confere os arquivos instalados com o recibo e com o pacote: se o alvo nunca foi instalado, uma skill foi alterada, falta\n"
+                    "um arquivo ou o recibo é lixo, sai com exit 1, ok false e a lista do que difere (problems).\n"
                     "Saída: --check 0 em dia, 10 com mudança pendente; --dry-run 0 sem escrever; 1 se a instalação falhar (host desconhecido,\n"
-                    "escrita negada, recibo em que não se confia); 2 para argumento inválido. --json imprime UM documento\n"
-                    "simplicio.video-install-plan/v1 (as mesmas chaves do plano do loop), também no erro. Funciona igual num checkout e num pacote\n"
-                    "do pip. O ambiente de desenvolvimento do checkout (o .venv) é `bash scripts/dev_install.sh` (Windows: `powershell -File\n"
-                    "scripts/dev_install.ps1`). No fim, se o setup nunca rodou, ele roda num terminal e senão diz como rodar.",
+                    "escrita negada, recibo em que não se confia, --verify que acha diferença); 2 para argumento inválido ou link nas pastas que o\n"
+                    "install cria. --json imprime UM documento simplicio.video-install-plan/v1 (as mesmas chaves do plano do loop), também no\n"
+                    "erro. Funciona igual num checkout e num pacote do pip. O ambiente de desenvolvimento do checkout (o .venv) é\n"
+                    "`bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`). No\n"
+                    "fim, se o setup nunca rodou, ele roda num terminal e senão diz como rodar.",
         epilog="exemplos:\n  simplicio-video install --check\n  simplicio-video install --dry-run --json\n  simplicio-video install\n"
                "  simplicio-video install --host codex --target ~/meu-projeto\n  simplicio-video install --global\n"
-               "  simplicio-video install --global --prune-project-copies\n  simplicio-video install --verify\n  simplicio-video install --uninstall --dry-run")
+               "  simplicio-video install --global --prune-project-copies --target ~/meu-projeto\n  simplicio-video install --verify\n"
+               "  simplicio-video install --uninstall --dry-run")
     p.add_argument("--target", default=".", metavar="DIR", help="pasta do projeto onde instalar (padrão: a pasta atual)")
     p.add_argument("--global", dest="globally", action="store_true", help="instala em ~/.claude/skills (o home) em vez do projeto")
-    p.add_argument("--host", default="claude", metavar="HOST", help="id do host ou all (padrão: claude)")
+    p.add_argument("--host", default="claude", metavar="HOST", help="id do host ou all (padrão: claude); com --global é ignorado")
     p.add_argument("--dry-run", action="store_true", help="mostra o plano e não escreve nada; sai com 0")
     p.add_argument("--check", action="store_true", help="não escreve nada; sai com 0 se está em dia e com 10 se há mudança pendente")
     p.add_argument("--json", action="store_true", help="imprime UM documento JSON (simplicio.video-install-plan/v1), também no erro")
-    p.add_argument("--verify", action="store_true", help="confere a versão e o digest do plano e sai; não escreve nada")
-    p.add_argument("--uninstall", action="store_true", help="remove só o que o install registrou no recibo; com --dry-run, lista e não remove")
+    p.add_argument("--verify", action="store_true",
+                   help="confere os arquivos instalados com o recibo e com o pacote (exit 1 e a lista se algo difere); não escreve nada")
+    p.add_argument("--uninstall", action="store_true",
+                   help="remove só o que o recibo registra e ainda tem o sha256 gravado; com --dry-run, lista e não remove")
     p.add_argument("--prune-project-copies", action="store_true",
-                   help="com --global: remove as cópias obsoletas do projeto (--target) depois de instalar no home")
+                   help="com --global: remove a cópia do projeto (--target) que o recibo dele registra, depois de instalar no home")
 
     p = sub.add_parser("update", formatter_class=Fmt, help="atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar",
         description="Segue o `update` do simplicio-loop. Num pacote instalado por pip: python -m pip install --upgrade \"simplicio-video==<última\n"
                     "release>\" (PyPI; a última release vem do GitHub Releases) e, depois, `simplicio-video install --global`, que reinstala as skills\n"
-                    "nos hosts. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas possíveis.\n"
+                    "em ~/.claude/skills sem apagar nada que não seja do recibo. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas\n"
+                    "possíveis, e um Python sem pip (um `uv tool install`) também (exit 2): use `uv tool upgrade simplicio-video` ou `pipx upgrade`.\n"
                     "Num checkout git ou instalação editável o update RECUSA e sai com 2: o que atualiza é, dentro do checkout, `git pull` e\n"
-                    "`bash scripts/dev_install.sh` (Windows: `powershell -File scripts/dev_install.ps1`). Nada é puxado, reconstruído nem apagado.\n"
+                    "`bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`; o Windows de\n"
+                    "cliente vem com a política Restricted, e o Bypass vale só para esse processo). Nada é puxado, reconstruído nem apagado.\n"
                     "Saída: --check 0 em dia, 10 com atualização, 2 erro; recusa 2; falha de rede 2 com --check, senão 1. Versão instalada mais nova\n"
                     "que a última release (o PyPI sai antes do GitHub Release) é em dia: 0. --force reinstala a release mesmo em dia e permite\n"
-                    "downgrade (pip). --check grava o resultado em update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede; num\n"
+                    "downgrade (pip): só o nosso pacote, com --force-reinstall --no-deps, e só quando não há versão mais nova (com uma nova, o\n"
+                    "--upgrade normal, que traz as dependências dela). --check grava o resultado em update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede; num\n"
                     "checkout ele pergunta ao git quantos commits são novos (git fetch; alterações locais não atrapalham). --dry-run só mostra o plano e\n"
                     "sai com 0 no pacote (num checkout mostra a recusa). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch do checkout\n"
                     "(--check sai com 2). Todo git do `--check` leva --no-optional-locks (para não regravar o .git/index); o git anterior à 2.15,\n"
