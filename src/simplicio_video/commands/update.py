@@ -11,7 +11,8 @@ Exit codes (as the loop): `--check` 0 up to date, 10 update available, 2 error; 
 fast-forward, PEP 668) 2; a network failure `2 if --check else 1`. An installed version NEWER than the latest release (PyPI is
 published before the GitHub Release) is up to date: 0, as in the loop.
 `--force` reinstalls even when up to date and allows a downgrade; it never skips the dirty-tree refusal.
-`--dry-run` prints the plan and records nothing; in a checkout it does NOT run `git fetch` either (a fetch rewrites FETCH_HEAD, the
+`--dry-run` prints the plan, records nothing and exits 0, with or without `--check` (which alone answers 10); in a checkout it
+does NOT run `git fetch` either (a fetch rewrites FETCH_HEAD, the
 remote-tracking refs and the reflog, so it is not a read-only step). `--check` records the answer in update-check.json (in
 $SIMPLICIO_VIDEO_DATA, default ~/.simplicio-video) so that `doctor` can show it without the network.
 SIMPLICIO_OFFLINE=1 blocks ALL the network: the GitHub release lookup (no `gh`, no API call) and, in a checkout, `git fetch` too.
@@ -121,41 +122,55 @@ def pep668_message(details: Optional[str] = None) -> str:
 # A release tag: `v` optional, 2 to 4 numbers, and the post-release suffix of PEP 440; nothing else. ASCII digits only (`\d` would
 # also match full-width digits), and the whole text must match: `v0.5.0 --index-url=...` or `0.5.0 @ git+https://...` are not versions.
 _VERSION = re.compile(r"v?(\d+(?:\.\d+){1,3})(?:\.post(\d+))?", re.ASCII)
+# The INSTALLED version is our own `__version__`: it may be a development or pre-release one (PEP 440: dev < a < b < rc < final < post).
+_INSTALLED = re.compile(r"\s*v?(\d+(?:\.\d+){0,3})(?:[-_.]?(dev|alpha|a|beta|b|preview|pre|rc|c)[-_.]?(\d*))?"
+                        r"(?:[-_.]?post[-_.]?(\d*))?", re.ASCII | re.IGNORECASE)
+_PHASES = {"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "c": 3, "rc": 3, "pre": 3, "preview": 3}
+FINAL = 4  # the phase of a final release, above every pre-release
 
 
 def parse_version(text: str) -> Tuple[int, ...]:
-    """A release as a tuple of integers that compares like PEP 440: four release numbers, then the post-release number.
+    """A release as a tuple of integers that compares like PEP 440: four release numbers, the phase, its number, the post number.
 
     STRICT on purpose. The tag comes from the network and ends up in pip's argv, so only a final release is read (`X.Y`,
     `X.Y.Z`, `X.Y.Z.W`, optional `v`, optional `.postN`) and the argv is rebuilt from the integers (`format_version`), never from
-    the text. A pre-release, a local version, an epoch or any extra text raises ValueError."""
+    the text. A pre-release, a local version, an epoch or any extra text raises ValueError: a pre-release is never a TARGET."""
     found = _VERSION.fullmatch(text.strip()) if isinstance(text, str) else None
     if not found:
         raise ValueError(f"não é uma versão de release (esperava algo como 1.2.3 ou v1.2.3): {str(text)[:60]!r}")
     release = [int(part) for part in found.group(1).split(".")]
-    return (*release, *([0] * (4 - len(release))), int(found.group(2) or 0))
+    return (*release, *([0] * (4 - len(release))), FINAL, 0, int(found.group(2) or 0))
 
 
 def format_version(parts: Tuple[int, ...]) -> str:
-    """`(1, 2, 0, 0, 0)` -> `1.2.0`: three release numbers at least, the fourth only when it is not zero, then `.postN`."""
-    *release, post = parts
+    """`(1, 2, 0, 0, 4, 0, 0)` -> `1.2.0`: three release numbers at least, the fourth only when it is not zero, then `.postN`.
+
+    Only final releases are ever printed (a pre-release is a source of a comparison, never a target)."""
+    release, post = list(parts[:4]), parts[6]
     while len(release) > 3 and release[-1] == 0:
         release.pop()
     return ".".join(str(part) for part in release) + (f".post{post}" if post else "")
 
 
 def release_tuple(text: str) -> Tuple[int, ...]:
-    """`parse_version`, but never an error: for the INSTALLED version, which is our own `__version__` and may be a development
-    one (`0.5.0.dev1`). The leading numbers count, the rest does not; nothing at all reads as 0.0.0."""
+    """The INSTALLED version in the order of PEP 440, never an error: `0.5.0.dev1` < `0.5.0a1` < `0.5.0b1` < `0.5.0rc1` <
+    `0.5.0` < `0.5.0.post1`, and a local label (`+local`) does not count. Text with no number at all reads as 0.0.0."""
     try:
         return parse_version(text)
     except ValueError:
-        found = re.match(r"\s*v?(\d+)(?:\.(\d+))?(?:\.(\d+))?", str(text), re.ASCII)
-        try:
-            numbers = [int(n) for n in found.groups() if n is not None] if found else []
-        except ValueError:
-            numbers = []
-        return (*(numbers + [0] * (4 - len(numbers))), 0)
+        pass
+    found = _INSTALLED.match(str(text))
+    try:
+        numbers = [int(n) for n in found.group(1).split(".")] if found else []
+    except ValueError:
+        numbers = []
+    release = (*numbers, *([0] * (4 - len(numbers))))
+    if not found:
+        return (*release, FINAL, 0, 0)
+    phase, number, post = found.group(2), found.group(3), found.group(4)
+    if phase:
+        return (*release, _PHASES[phase.lower()], int(number or 0), 0)
+    return (*release, FINAL, 0, int(post or 0) if post is not None else 0)
 
 
 def _clean_latest(text: Optional[str], installed: str) -> str:
@@ -241,15 +256,29 @@ def _git(checkout: Path, *args: str) -> "subprocess.CompletedProcess":
     """git inside `checkout`. A missing git or a timeout is a failed command (rc 127), never a traceback.
 
     `--no-optional-locks`: a plain `git status` or `git diff` also refreshes the stat cache in .git/index, a write that a
-    read-only step (the dry-run, the doctor) must not do."""
-    argv = ["git", "-C", str(checkout), "--no-optional-locks", *args]
-    try:
-        # UTF-8 with `replace`: the Windows default is the console codec (cp1252 cannot read the 0x8D of an `Í`), and a diff of
-        # the CHANGELOG must never be the reason for a UnicodeDecodeError
-        return subprocess.run(argv, capture_output=True, encoding="utf-8", errors="replace",
-                              env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
-    except OSError as exc:
-        return subprocess.CompletedProcess(argv, 127, "", str(exc))
+    read-only step (the dry-run, the doctor) must not do. git before 2.15 does not know the option (`Unknown option`, exit
+    129): that call is repeated ONCE without it, so an old git still works (and still writes the index, as it always did)."""
+    for options in (["--no-optional-locks"], []):
+        argv = ["git", "-C", str(checkout), *options, *args]
+        try:
+            # UTF-8 with `replace`: the Windows default is the console codec (cp1252 cannot read the 0x8D of an `Í`), and a diff
+            # of the CHANGELOG must never be the reason for a UnicodeDecodeError
+            done = subprocess.run(argv, capture_output=True, encoding="utf-8", errors="replace",
+                                  env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+        except OSError as exc:
+            return subprocess.CompletedProcess(argv, 127, "", str(exc))
+        if options and done.returncode != 0 and "unknown option" in (done.stderr or "").lower() \
+                and "no-optional-locks" in (done.stderr or ""):
+            continue
+        return done
+    return done  # pragma: no cover - the loop always returns
+
+
+def _motivo(done: "subprocess.CompletedProcess") -> str:
+    """What git said (stderr, else stdout), for a person: one line, no terminal escape, at most 300 characters."""
+    texto = (getattr(done, "stderr", "") or getattr(done, "stdout", "") or "").strip()
+    texto = " ".join("".join(c if c.isprintable() else " " for c in texto).split())
+    return texto if len(texto) <= 300 else texto[:297] + "..."
 
 
 # --- the last check, for `doctor` to show offline ---------------------------------------------------------------------
@@ -300,10 +329,11 @@ def read_check(state_dir: Optional[Path] = None) -> Optional[dict]:
     Raises CheckInvalid when the file is there and is not usable: the `doctor` shows that as a warning, never as a traceback."""
     path = (state_dir or default_state_dir()) / CHECK_FILE
     try:
-        with open(path, "rb") as handle:
-            raw = handle.read(MAX_CHECK_BYTES + 1)
+        raw = hostos.read_regular(path, MAX_CHECK_BYTES)  # O_NONBLOCK and fstat: a FIFO there must not hang the doctor
     except (FileNotFoundError, NotADirectoryError):
         return None
+    except hostos.NotARegularFile:
+        raise CheckInvalid("não é um arquivo comum (pasta, fifo, dispositivo...)") from None
     except OSError as exc:
         raise CheckInvalid(f"não consegui ler: {exc.strerror or exc}") from None
     if len(raw) > MAX_CHECK_BYTES:
@@ -350,9 +380,15 @@ def _source_state(git: Git, checkout: Path, installed: str, *, fetch_remote: boo
 
     `fetch_remote=False` (the dry-run) does not fetch: the count then comes from the refs the last fetch left.
     Returns {upstream, head, behind, new, latest}. Raises Refused (exit 2) or OSError (the fetch failed, or SIMPLICIO_OFFLINE=1)."""
-    if git(checkout, "rev-parse", "--is-inside-work-tree").returncode != 0:
-        raise Refused(f"{checkout} não é um repositório git. O update de um checkout usa git pull --ff-only.")
-    dirty = git(checkout, "status", "--porcelain", "--untracked-files=no").stdout.strip()
+    inside = git(checkout, "rev-parse", "--is-inside-work-tree")
+    if inside.returncode != 0:
+        why = _motivo(inside)
+        raise Refused(f"{checkout} não é um repositório git" + (f" (o git disse: {why})" if why else "")
+                      + ". O update de um checkout usa git pull --ff-only.")
+    status = git(checkout, "status", "--porcelain", "--untracked-files=no")
+    if status.returncode != 0:  # a status that fails says nothing: it must not read as a clean tree
+        raise Refused(f"o git não conseguiu ver o estado da árvore em {checkout} (o git disse: {_motivo(status)})")
+    dirty = status.stdout.strip()
     if dirty:
         raise Refused("update recusado: a árvore está suja (alterações não commitadas em arquivos rastreados):\n"
                       + textwrap.indent(dirty, "  ")
@@ -423,6 +459,7 @@ def run_update(
     kind = kind or distribution.kind()
     if dry_run:
         runner = _dry_runner
+        check = False  # ONE rule for both distributions: the dry-run only shows the plan and exits 0 (`--check` alone answers 10)
     if kind == distribution.SOURCE:
         return _update_source(check=check, force=force, dry_run=dry_run, installed=installed, runner=runner, git=git,
                               record=record, checkout=checkout or paths.home())

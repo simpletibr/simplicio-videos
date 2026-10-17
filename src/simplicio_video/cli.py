@@ -352,14 +352,17 @@ def build_parser() -> argparse.ArgumentParser:
                     "Saída: --check 0 em dia, 10 com atualização, 2 erro; recusa 2; falha de rede 2 com --check, senão 1. Versão\n"
                     "instalada mais nova que a última release (o PyPI sai antes do GitHub Release) é em dia: 0.\n"
                     "--force reinstala mesmo em dia e permite downgrade, mas nunca ignora a árvore suja. --check grava o resultado em\n"
-                    "update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede. --dry-run só mostra o plano: num checkout\n"
-                    "não roda git fetch (ele mexeria nas refs do .git). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch\n"
-                    "do checkout (--check sai com 2, o update com 1).",
+                    "update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede. --dry-run só mostra o plano e sai com 0\n"
+                    "(junto com --check também; só o --check sozinho responde 10), num checkout e num pacote: num checkout não roda\n"
+                    "git fetch (ele mexeria nas refs do .git). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch do\n"
+                    "checkout (--check sai com 2, o update com 1). Todo git do update leva --no-optional-locks (para não regravar o\n"
+                    ".git/index); o git anterior à 2.15, que não conhece a opção, é chamado de novo uma vez sem ela. Versão instalada\n"
+                    "de desenvolvimento ou pré-release (0.5.0rc1) é anterior à release final (PEP 440).",
         epilog="exemplos:\n  simplicio-video update --check\n  simplicio-video update --dry-run\n  simplicio-video update\n"
                "  simplicio-video update --force")
     p.add_argument("--check", action="store_true", help="não altera nada; sai com 0 (em dia), 10 (há atualização) ou 2 (erro)")
     p.add_argument("--dry-run", action="store_true",
-                   help="mostra o plano e não altera nada, não grava o estado e não roda git fetch")
+                   help="só mostra o plano e sai com 0 (também com --check); não altera nada, não grava o estado e não roda git fetch")
     p.add_argument("--force", action="store_true", help="reinstala mesmo em dia e permite downgrade (não ignora a árvore suja)")
 
     p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: login, update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace",
@@ -389,8 +392,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("logout", formatter_class=Fmt, help="apaga o arquivo de login compartilhado (desloga o Runtime também)",
         description="Apaga ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE) sob a trava login.lock. Esse arquivo é do Simplicio Runtime\n"
                     "também: sair aqui desloga o Runtime, por isso sem --yes nada é apagado (REFUSED, exit 2). Só apaga um arquivo\n"
-                    "comum, pequeno e com a forma de login (JSON com access_token, refresh_token ou verification): qualquer outro\n"
-                    "(uma chave ssh que SIMPLICIO_AUTH_FILE aponte, uma pasta) é recusado, exit 2, not_a_login_file, sem apagar nada.\n"
+                    "comum, pequeno e com a forma de login do Runtime: JSON com access_token (texto) e access_expires_at (número); só\n"
+                    "refresh_token, como nas credenciais do gcloud, não basta. Qualquer outro (uma chave ssh que SIMPLICIO_AUTH_FILE\n"
+                    "aponte, uma pasta) é recusado, exit 2, not_a_login_file, sem apagar nada. Um link simbólico (um ponto de reparse\n"
+                    "de link no Windows) também é recusado, exit 2, login_symlink, antes de qualquer trava, sem tocar no link nem no alvo.\n"
                     "O token de renovação não é revogado no servidor. Sem arquivo de login: NO_LOGIN, exit 0, nada é criado.",
         epilog="exemplos:\n  simplicio-video logout\n  simplicio-video logout --yes\n  simplicio-video logout --yes --json")
     p.add_argument("--yes", action="store_true", help="confirma: sem isto nada é apagado")

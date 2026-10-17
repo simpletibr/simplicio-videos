@@ -48,6 +48,7 @@ _RANK = {"ok": 0, "warn": 1, "fail": 2}
 GB = 1024**3
 MIN_DISCO_GB = 5
 NODE_MIN = 22
+MAX_WORKSPACE_BYTES = 1024 * 1024  # the two YAML files are a few hundred bytes
 PY_MIN = (3, 12)
 PY_MAX_EXCLUSIVO = (3, 14)  # the CrewAI extras need Python < 3.14
 PORTAS = {3000: "opencut dev", 8000: "montage serve"}
@@ -240,7 +241,10 @@ def _checa_credencial(environ: dict) -> dict:
 def _carrega(caminho: Path):
     """(data, error). data is None when the file does not read or is not a YAML mapping."""
     try:
-        dados = yaml.safe_load(caminho.read_text(encoding="utf8"))
+        bruto = hostos.read_regular(caminho, MAX_WORKSPACE_BYTES)  # O_NONBLOCK and fstat: never blocks on a FIFO
+        if len(bruto) > MAX_WORKSPACE_BYTES:
+            return None, "ilegível: grande demais para ser um workspace"
+        dados = yaml.safe_load(bruto.decode("utf8"))
     except (OSError, UnicodeDecodeError, yaml.YAMLError, RecursionError, ValueError) as e:  # RecursionError: deep nesting
         return None, f"ilegível: {e}"
     if not isinstance(dados, dict):

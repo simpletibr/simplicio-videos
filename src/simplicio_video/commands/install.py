@@ -60,25 +60,37 @@ def _alvo(extras: list[str]) -> str:
     return ".[" + ",".join(extras) + "]" if extras else "."
 
 
-def _sha(caminho: Path) -> str | None:
+def _le(caminho: Path, limite: int) -> bytes | None:
+    """The bytes of a REGULAR file (O_NONBLOCK and fstat: a FIFO there must not hang the install), or None for a file that is not
+    there, cannot be read, is not a regular one or is over `limite`: all of them count as "no state", and the plan says to install."""
     try:
-        return hashlib.sha256(caminho.read_bytes()).hexdigest() if hostos.is_file(caminho) else None
-    except OSError:  # a file that cannot be read counts as a file that is not there: the plan says to install
+        dados = hostos.read_regular(caminho, limite)
+    except OSError:
         return None
+    return dados if len(dados) <= limite else None
+
+
+def _sha(caminho: Path) -> str | None:
+    dados = _le(caminho, 16 * 1024 * 1024)
+    return hashlib.sha256(dados).hexdigest() if dados is not None else None
 
 
 def _registro(venv: Path) -> dict | None:
+    bruto = _le(venv / REGISTRO, 1024 * 1024)
     try:
-        dados = json.loads((venv / REGISTRO).read_text(encoding="utf8"))
-    except (OSError, ValueError):
+        dados = json.loads(bruto.decode("utf8")) if bruto is not None else None
+    except (ValueError, RecursionError):
         return None
     return dados if isinstance(dados, dict) else None
 
 
 def _versao_do_venv(venv: Path) -> str | None:
+    bruto = _le(venv / "pyvenv.cfg", 64 * 1024)
     try:
-        texto = (venv / "pyvenv.cfg").read_text(encoding="utf8")
-    except OSError:
+        texto = bruto.decode("utf8") if bruto is not None else None
+    except UnicodeDecodeError:
+        return None
+    if texto is None:
         return None
     m = re.search(r"^version(?:_info)?\s*=\s*(\d+\.\d+)", texto, re.M)
     return m.group(1) if m else None

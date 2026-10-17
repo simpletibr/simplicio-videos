@@ -18,6 +18,7 @@ a folder cannot be searched (a PATH folder with mode 0000, a `~/.simplicio` of a
 from __future__ import annotations
 
 import os
+import stat
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePath
@@ -85,7 +86,7 @@ def utc_stamp(seconds: Any) -> str:
         if isinstance(seconds, bool) or not 0 <= seconds <= MAX_TIMESTAMP:  # a NaN fails the comparison too
             return "data inválida"
         return (_EPOCH + timedelta(seconds=int(seconds))).strftime("%Y-%m-%dT%H:%M:%SZ")
-    except (TypeError, ValueError, OverflowError):
+    except TypeError:  # a value that cannot be compared with a number (None, text, a list)
         return "data inválida"
 
 
@@ -114,6 +115,34 @@ def is_dir(path: Any) -> bool:
 
 def exists(path: Any) -> bool:
     return os.path.exists(path)
+
+
+class NotARegularFile(OSError):
+    """The path is a folder, a FIFO, a device or a socket: something to be read must be a regular file."""
+
+
+def read_regular(path: Any, limit: int) -> bytes:
+    """At most `limit` + 1 bytes of the REGULAR file `path` (so a file over the cap is told apart without loading it).
+
+    The file is opened O_NONBLOCK and checked with `fstat` on that same descriptor: a FIFO with no writer would block an
+    ordinary `open()` forever (a `update-check.json` that is a FIFO hung the doctor for more than 20 s), and a check by
+    path before the open is a race. Raises FileNotFoundError and the other OSErrors of the open, and NotARegularFile."""
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_BINARY", 0)
+    fd = os.open(path, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise NotARegularFile(f"{path} não é um arquivo comum")
+        chunks: list = []
+        total = 0
+        while total <= limit:
+            chunk = os.read(fd, min(65536, limit + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
 
 
 # --- finding a program -----------------------------------------------------------------------------------------------
