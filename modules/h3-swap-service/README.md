@@ -63,7 +63,9 @@ caixa GPU (Docker): worker -- puxa a Queue por HTTP --> ComfyUI :8188 -> R2 (out
 | Licença comercial MiniMax H3 / LoRA | pode inviabilizar a venda | ler a licença no HF |
 | Tempo de GPU por segundo de vídeo | margem sai de ~54-77% (estimado) para prejuízo se for 3x pior | `bench/` numa 5090 real |
 | LoRA de swap (Ref2VA) x Continuum (FL2VA) | fluxo pode não encadear chunks > 15 s | testar 30 s no benchmark |
-| Encoder NVFP4 exige Blackwell | placa não-50xx não roda | o entrypoint avisa; filtrar ofertas |
+| GPU mínima em 768p desconhecida | não sei se uma placa menor que a 5090 roda 768p com o LoRA. O card do Comfy-Org diz que o encoder NVFP4 **não** exige Blackwell (eu tinha afirmado o contrário, errado). O único teste público de placa pequena é uma RTX 5060 Ti 16 GB a 512x512 | `bench/` em 3 placas (5090, 4090/3090, uma de 16 GB) e comparar custo por segundo de vídeo |
+| Qualidade do swap em clipes longos | o znix.ai relata que planos de 4 a 5 s funcionam e que 14 a 15 s degradam; o exemplo `akatz-labs-character-swap-turbo8-adaptive-window.json` do repo do LoRA parece tratar disso. Nosso `chunk_count = ceil(s/15)` pode não bastar para 30 s | testar 30 s no benchmark e olhar a saída; talvez janelas de ~5 s |
+| Arquivos opcionais não baixam sozinhos | a base Ref2VA e o Turbo LoRA estão como opcionais no manifest (nome exato ainda por confirmar); sem `FETCH_OPTIONAL` o worker sobe sem eles | definir `FETCH_OPTIONAL` com os dests que o workflow usa (o autoscaler repassa) |
 | `workflow_api.json` não existe ainda | worker não roda sem ele | passo 5 acima |
 | Vast: parar/religar pode perder a GPU | job preso | nunca stop/start, só destruir e recriar |
 | Vast: `CONTAINER_ID`/`CONTAINER_API_KEY` não documentados | caixa não se autodestrói | o autoscaler destrói; a caixa só manda heartbeat |

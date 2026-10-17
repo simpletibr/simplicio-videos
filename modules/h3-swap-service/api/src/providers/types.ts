@@ -44,6 +44,11 @@ export function workerIdFromUuid(uuid: string): string {
 
 /** Env pairs forwarded to every worker. INSTANCE_ID is the worker id, PROVIDER is the provider name. */
 export function workerEnvPairs(env: Env, workerId: string, provider: ProviderName): Array<[string, string]> {
+  const optional: Array<[string, string]> = [];
+  for (const key of ["FETCH_OPTIONAL", "MODELS_MODE", "WORKFLOW_OPTIONAL"] as const) {
+    const value = (env[key] ?? "").trim();
+    if (value !== "") optional.push([key, value]);
+  }
   return [
     ["INSTANCE_ID", workerId],
     ["PROVIDER", provider],
@@ -56,6 +61,7 @@ export function workerEnvPairs(env: Env, workerId: string, provider: ProviderNam
     ["R2_ACCESS_KEY_ID", env.R2_ACCESS_KEY_ID],
     ["R2_SECRET_ACCESS_KEY", env.R2_SECRET_ACCESS_KEY],
     ["R2_BUCKET", env.R2_BUCKET],
+    ...optional,
   ];
 }
 

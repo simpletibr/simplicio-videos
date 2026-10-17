@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Container entrypoint for the h3-swap worker.
 #
-#   1. Warn when the GPU is below compute capability 12.0 (NVFP4 needs Blackwell).
+#   1. Print GPU name, VRAM and system RAM (informational; warns only below
+#      16 GiB VRAM or 48 GiB system RAM). Never fails the boot.
 #   2. Warn when PROVIDER=salad runs with MODELS_MODE=baked (never fails).
-#   3. Fetch from R2: all of it in runtime mode, only workflow config in baked mode.
+#   3. Fetch from R2: weights and config in runtime mode, only config in baked mode.
 #      Workflow config (config/workflow_*.json) is re-fetched at every boot.
+#      Optional alternatives are fetched only when FETCH_OPTIONAL is set.
 #   4. Check the workflow files exist (loud warning when WORKFLOW_OPTIONAL=1).
 #   5. Start ComfyUI headless on 127.0.0.1:8188, logging to COMFY_LOG.
 #   6. Wait until /system_stats answers, then run `python -m worker` in the foreground.
@@ -25,6 +27,8 @@ readonly READY_TIMEOUT_S="${COMFY_READY_TIMEOUT_S:-600}"
 readonly MODELS_MODE="${MODELS_MODE:-runtime}"
 readonly MANIFEST="/app/models.manifest.json"
 readonly MODELS_DIR="${COMFY_DIR}/models"
+# FETCH_MODELS_PY is a test seam; the image always uses the default.
+readonly FETCHER="${FETCH_MODELS_PY:-/app/fetch_models.py}"
 
 COMFY_PID=""
 WORKER_PID=""
@@ -41,28 +45,51 @@ $*
 EOF
 }
 
+# Informational GPU and RAM report. Only prints; it never fails the boot.
+# Thresholds are the guide values (16 GiB VRAM, 48 GiB system RAM) with 5% tolerance,
+# because nvidia-smi and /proc/meminfo report slightly less than the nominal size.
 check_gpu() {
-  if ! command -v nvidia-smi >/dev/null 2>&1; then
-    log "WARNING: nvidia-smi not found; no GPU is visible to this container"
-    return 0
-  fi
-  local caps
-  caps="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null || true)"
-  if [[ -z "${caps}" ]]; then
-    log "WARNING: could not read compute capability from nvidia-smi"
-    return 0
-  fi
-  log "GPU compute capability: $(printf '%s' "${caps}" | tr '\n' ' ')"
+  local smi="${NVIDIA_SMI:-nvidia-smi}"
+  local meminfo="${MEMINFO_PATH:-/proc/meminfo}"
+  local ram_kb ram_gib low_ram=0 low_vram=0 gpu_lines="" line name vram_mib vram_gib
 
-  local cap
-  while IFS= read -r cap; do
-    cap="${cap//[[:space:]]/}"
-    if awk -v c="${cap}" 'BEGIN { exit !(c + 0 < 12.0) }'; then
-      warn_banner "WARNING: GPU compute capability ${cap} is below 12.0.
-The NVFP4 text encoder (qwen3vl_32b_minimax_h3_nvfp4_awq) needs Blackwell
-(RTX 50xx / RTX PRO 6000). Expect load or inference failures on this GPU."
+  ram_kb="$(awk '/^MemTotal:/ { print $2 }' "${meminfo}" 2>/dev/null || true)"
+  if [[ -n "${ram_kb}" ]]; then
+    ram_gib="$(awk -v k="${ram_kb}" 'BEGIN { printf "%.1f", k / 1048576 }')"
+    log "system RAM: ${ram_gib} GiB"
+    if awk -v k="${ram_kb}" 'BEGIN { exit !(k + 0 < 48 * 1048576 * 0.95) }'; then
+      low_ram=1
     fi
-  done <<< "${caps}"
+  else
+    log "system RAM: unknown (${meminfo} not readable)"
+  fi
+
+  if ! command -v "${smi}" >/dev/null 2>&1; then
+    log "GPU: nvidia-smi not found; no GPU is visible to this container"
+  else
+    gpu_lines="$("${smi}" --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null || true)"
+    if [[ -z "${gpu_lines//[[:space:]]/}" ]]; then
+      log "GPU: nvidia-smi reported no GPU"
+    fi
+  fi
+
+  while IFS= read -r line; do
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    name="$(printf '%s' "${line%,*}" | sed 's/^ *//; s/ *$//')"
+    vram_mib="${line##*,}"
+    vram_mib="${vram_mib//[[:space:]]/}"
+    vram_gib="$(awk -v m="${vram_mib}" 'BEGIN { printf "%.1f", m / 1024 }')"
+    log "GPU: ${name}, VRAM ${vram_gib} GiB"
+    if awk -v m="${vram_mib}" 'BEGIN { exit !(m + 0 < 16 * 1024 * 0.95) }'; then
+      low_vram=1
+    fi
+  done <<< "${gpu_lines}"
+
+  if (( low_vram || low_ram )); then
+    warn_banner "WARNING: GPU VRAM or system RAM is below the guide (16 GiB VRAM, 48 GiB system RAM).
+Offload needs system RAM; speed and VRAM at 768p are unmeasured.
+Nothing was blocked: the container keeps booting."
+  fi
   return 0
 }
 
@@ -77,14 +104,19 @@ Continuing anyway (this warning does not stop the container)."
 }
 
 fetch_models() {
+  local -a args=(--manifest "${MANIFEST}" --models-dir "${MODELS_DIR}")
+  if [[ -n "${FETCH_OPTIONAL:-}" ]]; then
+    args+=(--include-optional "${FETCH_OPTIONAL}")
+    log "FETCH_OPTIONAL=${FETCH_OPTIONAL}: optional alternatives will be fetched if present in R2"
+  fi
   if [[ "${MODELS_MODE}" == "baked" ]]; then
     # Weights were baked at build time. Workflow config is still fetched every boot.
     log "MODELS_MODE=baked: weights come from the image; fetching config/ from R2"
-    python /app/fetch_models.py --manifest "${MANIFEST}" --models-dir "${MODELS_DIR}" --scope config
+    python "${FETCHER}" "${args[@]}" --scope config
     return 0
   fi
   log "fetching models and config from R2 into ${MODELS_DIR}"
-  python /app/fetch_models.py --manifest "${MANIFEST}" --models-dir "${MODELS_DIR}" --scope all
+  python "${FETCHER}" "${args[@]}" --scope all
 }
 
 check_workflow_files() {

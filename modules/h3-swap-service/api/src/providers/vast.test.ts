@@ -41,6 +41,22 @@ describe("workerEnvPairs", () => {
   });
 });
 
+describe("workerEnvPairs optional boot variables", () => {
+  it("forwards FETCH_OPTIONAL, MODELS_MODE and WORKFLOW_OPTIONAL only when set", () => {
+    const keys = (pairs: Array<[string, string]>) => pairs.map(([k]) => k);
+    expect(keys(workerEnvPairs(vastEnv(), W, "vast"))).not.toContain("FETCH_OPTIONAL");
+    const pairs = workerEnvPairs(
+      vastEnv({ FETCH_OPTIONAL: "diffusion_models/a.safetensors,loras/b.safetensors", MODELS_MODE: "runtime", WORKFLOW_OPTIONAL: "" }),
+      W,
+      "vast",
+    );
+    expect(pairs).toContainEqual(["FETCH_OPTIONAL", "diffusion_models/a.safetensors,loras/b.safetensors"]);
+    expect(pairs).toContainEqual(["MODELS_MODE", "runtime"]);
+    expect(keys(pairs)).not.toContain("WORKFLOW_OPTIONAL");
+    expect(buildEnvString(pairs)).toContain("-e FETCH_OPTIONAL=diffusion_models/a.safetensors,loras/b.safetensors");
+  });
+});
+
 describe("buildEnvString", () => {
   it("renders Docker -e flags", () => {
     expect(

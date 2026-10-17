@@ -23,18 +23,33 @@ import fetch_models as fm  # noqa: E402
 PAYLOAD = b"model-bytes-0123456789"
 WAIVER_ENV = "WORKFLOW_OPTIONAL"
 
-KNOWN_MODELS = {
+# Required model files (the default set fetched at boot and baked at build time).
+REQUIRED_MODELS = {
     "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
     "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
     "vae/minimax_h3_video_vae_int8_convrot.safetensors",
     "vae/minimax_h3_audio_vae_fp32.safetensors",
     "loras/h3_character_swap_v1.5.safetensors",
 }
-TODO_OPTIONAL = {
-    "diffusion_models/TODO_VERIFY_ref2va_base.safetensors",
-    "loras/TODO_VERIFY_turbo_lora.safetensors",
+# Optional alternatives: fetched only when selected (FETCH_OPTIONAL / --include-optional).
+OPTIONAL_MODELS = {
+    "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+    "diffusion_models/minimax_h3_ref2va_int8_convrot.safetensors",
+    "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+    "loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+    "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+    "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+    "text_encoders/qwen3vl_32b_minimax_h3_bf16.safetensors",
 }
 CONFIG_FILES = {"workflow_api.json", "workflow_map.json"}
+# Three Turbo LoRA entries (the names listed on the Comfy-Org repo). The LoRA card's own
+# name is only mentioned in the notes, not as an entry.
+TURBO_ENTRIES = {
+    "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+    "loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+    "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+}
+TURBO_CARD_NAME = "minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors"
 
 R2_ENV = {
     "R2_ENDPOINT": "https://example.invalid",
@@ -170,16 +185,26 @@ def test_present_file_with_wrong_size_is_redownloaded(tmp_path: Path) -> None:
     assert [p["reason"] for p in plan] == ["size_mismatch"]
 
 
-def test_required_flag_is_carried_into_plan(tmp_path: Path) -> None:
-    manifest = [
-        make_entry("vae/a.safetensors", required=True),
-        make_entry("loras/b.safetensors", required=False),
-    ]
-    plan = fm.plan_downloads(manifest, str(tmp_path), existing_sizes={})
-    assert {p["dest"]: p["required"] for p in plan} == {
-        "vae/a.safetensors": True,
-        "loras/b.safetensors": False,
-    }
+def test_optional_entry_is_skipped_unless_selected(tmp_path: Path) -> None:
+    manifest = [make_entry("loras/b.safetensors", required=False)]
+    assert fm.plan_downloads(manifest, str(tmp_path), existing_sizes={}) == []
+
+
+def test_selected_optional_entry_is_planned_with_required_false(tmp_path: Path) -> None:
+    manifest = [make_entry("loras/b.safetensors", required=False)]
+    plan = fm.plan_downloads(
+        manifest,
+        str(tmp_path),
+        existing_sizes={},
+        include_dests=frozenset({"loras/b.safetensors"}),
+    )
+    assert [(p["dest"], p["required"]) for p in plan] == [("loras/b.safetensors", False)]
+
+
+def test_selection_does_not_change_required_entries(tmp_path: Path) -> None:
+    manifest = [make_entry("vae/a.safetensors", required=True)]
+    plan = fm.plan_downloads(manifest, str(tmp_path), existing_sizes={}, include_dests=frozenset())
+    assert [p["dest"] for p in plan] == ["vae/a.safetensors"]
 
 
 def test_only_missing_false_plans_present_files_too(tmp_path: Path) -> None:
@@ -305,6 +330,42 @@ def test_scope_selects_model_or_config_entries(tmp_path: Path, scope: str, expec
 def test_unknown_scope_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         fm.plan_downloads([make_entry("vae/a.safetensors")], str(tmp_path), existing_sizes={}, scope="bogus")  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------
+# optional selection spec (FETCH_OPTIONAL / --include-optional)
+# --------------------------------------------------------------------------
+
+
+def _optional_manifest() -> list[dict[str, Any]]:
+    return [
+        make_entry("vae/req.safetensors"),
+        make_entry("loras/opt_a.safetensors", required=False),
+        make_entry("loras/opt_b.safetensors", required=False),
+    ]
+
+
+def test_optional_spec_empty_selects_nothing() -> None:
+    assert fm.parse_optional_spec("", _optional_manifest()) == frozenset()
+
+
+def test_optional_spec_all_selects_every_optional_entry() -> None:
+    assert fm.parse_optional_spec("all", _optional_manifest()) == frozenset(
+        {"loras/opt_a.safetensors", "loras/opt_b.safetensors"}
+    )
+
+
+def test_optional_spec_accepts_a_comma_list_with_spaces() -> None:
+    spec = " loras/opt_a.safetensors , loras/opt_b.safetensors "
+    assert fm.parse_optional_spec(spec, _optional_manifest()) == frozenset(
+        {"loras/opt_a.safetensors", "loras/opt_b.safetensors"}
+    )
+
+
+@pytest.mark.parametrize("spec", ["loras/unknown.safetensors", "vae/req.safetensors"])
+def test_optional_spec_rejects_unknown_or_required_names(spec: str) -> None:
+    with pytest.raises(ValueError):
+        fm.parse_optional_spec(spec, _optional_manifest())
 
 
 # --------------------------------------------------------------------------
@@ -450,11 +511,30 @@ def load_real_manifest() -> list[dict[str, Any]]:
     return fm.load_manifest(DOCKER_DIR / "models.manifest.json")
 
 
-def test_real_manifest_model_entries() -> None:
+def test_real_manifest_required_model_entries() -> None:
     models = [e for e in load_real_manifest() if not e.get("always_download")]
-    assert {e["dest"] for e in models if e["required"]} == KNOWN_MODELS
-    assert {e["dest"] for e in models if not e["required"]} == TODO_OPTIONAL
+    assert {e["dest"] for e in models if e["required"]} == REQUIRED_MODELS
     assert all(e["r2_key"] == "models/" + e["dest"] for e in models)
+
+
+def test_real_manifest_optional_alternatives() -> None:
+    models = [e for e in load_real_manifest() if not e.get("always_download")]
+    assert {e["dest"] for e in models if not e["required"]} == OPTIONAL_MODELS
+    assert all(e["size_bytes"] is None and e["sha256"] is None for e in models)
+
+
+def test_real_manifest_has_no_todo_placeholders() -> None:
+    assert not [e for e in load_real_manifest() if "TODO" in e["dest"]]
+
+
+def test_real_manifest_turbo_notes_name_every_candidate() -> None:
+    notes = {e["dest"]: e["note"] for e in load_real_manifest() if e["dest"] in TURBO_ENTRIES}
+    assert set(notes) == TURBO_ENTRIES
+    candidate_names = [TURBO_CARD_NAME] + [dest.split("/", 1)[1] for dest in TURBO_ENTRIES]
+    for note in notes.values():
+        assert "VERIFY which one the workflow uses" in note
+        for name in candidate_names:
+            assert name in note
 
 
 def test_real_manifest_workflow_entries() -> None:
@@ -467,11 +547,17 @@ def test_real_manifest_workflow_entries() -> None:
         assert entry["optional_if_env"] == WAIVER_ENV
 
 
-def test_real_manifest_plan_by_scope(tmp_path: Path) -> None:
+def test_real_manifest_entry_counts() -> None:
     manifest = load_real_manifest()
-    assert len(fm.plan_downloads(manifest, str(tmp_path), existing_sizes={})) == 9
-    assert len(fm.plan_downloads(manifest, str(tmp_path), existing_sizes={}, scope="models")) == 7
-    config_plan = fm.plan_downloads(manifest, str(tmp_path), existing_sizes={}, scope="config")
+    assert len(manifest) == 14  # 12 model entries + 2 workflow config entries
+    assert len(fm.plan_downloads(manifest, "/unused", existing_sizes={})) == 7
+    assert len(fm.plan_downloads(manifest, "/unused", existing_sizes={}, scope="models")) == 5
+    everything = fm.parse_optional_spec("all", manifest)
+    assert len(fm.plan_downloads(manifest, "/unused", existing_sizes={}, include_dests=everything)) == 14
+
+
+def test_real_manifest_config_plan_targets_app(tmp_path: Path) -> None:
+    config_plan = fm.plan_downloads(load_real_manifest(), str(tmp_path), existing_sizes={}, scope="config")
     assert {p["target"] for p in config_plan} == {"/app/workflow_api.json", "/app/workflow_map.json"}
 
 
@@ -495,8 +581,8 @@ def r2_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(fm, "_transfer_config", lambda: None)
 
 
-def test_main_exit_zero_when_only_optional_model_missing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, r2_env: None
+def test_main_exit_zero_when_selected_optional_model_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, r2_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
     s3 = FakeS3({"models/vae/req.safetensors": PAYLOAD})
     monkeypatch.setattr(fm, "make_client", lambda env: s3)
@@ -506,11 +592,34 @@ def test_main_exit_zero_when_only_optional_model_missing(
     )
     models = tmp_path / "models"
 
-    rc = fm.main(["--manifest", str(manifest), "--models-dir", str(models)])
+    rc = fm.main(
+        [
+            "--manifest", str(manifest),
+            "--models-dir", str(models),
+            "--include-optional", "loras/opt.safetensors",
+        ]
+    )
 
     assert rc == 0
     assert (models / "vae" / "req.safetensors").read_bytes() == PAYLOAD
     assert not (models / "loras" / "opt.safetensors").exists()
+    assert "optional, skipped" in capsys.readouterr().out
+
+
+def test_main_does_not_fetch_optional_entries_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, r2_env: None
+) -> None:
+    s3 = FakeS3({"models/vae/req.safetensors": PAYLOAD, "models/loras/opt.safetensors": PAYLOAD})
+    monkeypatch.setattr(fm, "make_client", lambda env: s3)
+    manifest = write_manifest(
+        tmp_path,
+        [make_entry("vae/req.safetensors"), make_entry("loras/opt.safetensors", required=False)],
+    )
+
+    rc = fm.main(["--manifest", str(manifest), "--models-dir", str(tmp_path / "models")])
+
+    assert rc == 0
+    assert s3.calls == ["models/vae/req.safetensors"]
 
 
 def test_main_exit_one_when_required_model_fails(
@@ -530,6 +639,20 @@ def test_main_exit_two_when_r2_env_missing(tmp_path: Path, monkeypatch: pytest.M
     manifest = write_manifest(tmp_path, [make_entry("vae/req.safetensors")])
 
     rc = fm.main(["--manifest", str(manifest), "--models-dir", str(tmp_path / "models")])
+
+    assert rc == 2
+
+
+def test_main_exit_two_for_unknown_optional_name(tmp_path: Path, r2_env: None) -> None:
+    manifest = write_manifest(tmp_path, [make_entry("vae/req.safetensors")])
+
+    rc = fm.main(
+        [
+            "--manifest", str(manifest),
+            "--models-dir", str(tmp_path / "models"),
+            "--include-optional", "loras/nope.safetensors",
+        ]
+    )
 
     assert rc == 2
 

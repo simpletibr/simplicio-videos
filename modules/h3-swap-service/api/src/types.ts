@@ -44,6 +44,10 @@ export interface Env {
   R2_BUCKET: string;
   API_BASE_URL: string;
   SALAD_API_KEY: string;
+  /** Optional boot knobs forwarded to every worker (see docker/README_docker.md). Unset or empty = not forwarded. */
+  FETCH_OPTIONAL?: string;
+  MODELS_MODE?: string;
+  WORKFLOW_OPTIONAL?: string;
 }
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";

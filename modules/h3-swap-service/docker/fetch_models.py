@@ -4,6 +4,7 @@
 Usage:
     python fetch_models.py --manifest /app/models.manifest.json \
         --models-dir /opt/ComfyUI/models [--scope all|models|config] \
+        [--include-optional ''|all|dest[,dest...]] \
         [--only-missing | --no-only-missing] [--workers 4]
 
 Manifest entries (JSON list of objects):
@@ -12,7 +13,8 @@ Manifest entries (JSON list of objects):
     dest_root         optional absolute directory; default is --models-dir
     size_bytes        null, or expected size (skip check when a present file matches)
     sha256            null, or expected lowercase hex digest
-    required          true = failure aborts the run
+    required          true = failure aborts the run; false = optional alternative, fetched
+                      only when selected with --include-optional (FETCH_OPTIONAL)
     always_download   optional bool; true = fetched at every run, never skipped
     optional_if_env   optional env name; when it is set to "1" a file that is
                       missing in R2 (404) is only a warning, not a failure
@@ -34,7 +36,7 @@ import re
 import sys
 import threading
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -191,6 +193,7 @@ def plan_downloads(
     *,
     only_missing: bool = True,
     scope: Scope = "all",
+    include_dests: Collection[str] = frozenset(),
 ) -> list[dict[str, Any]]:
     """Return the manifest entries that must be fetched, each annotated.
 
@@ -208,6 +211,9 @@ def plan_downloads(
 
     ``scope`` selects "models" (no always_download), "config" (only always_download)
     or "all".
+
+    Optional entries (required=false) are alternatives. They are planned only when
+    their dest is in ``include_dests``. Required entries ignore that set.
     """
     if scope not in SCOPES:
         raise ValueError(f"scope must be one of {SCOPES}, got {scope!r}")
@@ -227,6 +233,8 @@ def plan_downloads(
             continue
         if scope == "config" and not always:
             continue
+        if not entry["required"] and str(entry["dest"]) not in include_dests:
+            continue
 
         expected = entry.get("size_bytes")
         if always:
@@ -241,6 +249,25 @@ def plan_downloads(
             reason = "size_mismatch"
         plan.append({**entry, "target": target, "reason": reason})
     return plan
+
+
+def parse_optional_spec(spec: str, manifest: Sequence[Mapping[str, Any]]) -> frozenset[str]:
+    """Turn the FETCH_OPTIONAL / --include-optional value into a set of optional dests.
+
+    "" selects nothing, "all" selects every optional entry, and anything else is a
+    comma-separated list of optional dests. Unknown or required names raise ValueError.
+    """
+    optional = {str(entry["dest"]) for entry in manifest if entry.get("required") is False}
+    text = spec.strip()
+    if not text:
+        return frozenset()
+    if text == "all":
+        return frozenset(optional)
+    names = {part.strip() for part in text.split(",") if part.strip()}
+    unknown = sorted(names - optional)
+    if unknown:
+        raise ValueError(f"not optional entries in the manifest: {', '.join(unknown)}")
+    return frozenset(names)
 
 
 def is_fatal(result: FetchResult) -> bool:
@@ -440,6 +467,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="all (default), models (weights only), or config (always_download entries only)",
     )
     parser.add_argument(
+        "--include-optional",
+        default="",
+        metavar="SPEC",
+        help="optional alternatives to fetch: '' (none, default), 'all', or a comma-separated list of dests",
+    )
+    parser.add_argument(
         "--only-missing",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -453,11 +486,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         manifest = load_manifest(args.manifest)
+        include = parse_optional_spec(args.include_optional, manifest)
         plan = plan_downloads(
             manifest,
             str(args.models_dir),
             only_missing=args.only_missing,
             scope=args.scope,
+            include_dests=include,
         )
     except (OSError, ValueError) as exc:
         _log(f"manifest error: {exc}")

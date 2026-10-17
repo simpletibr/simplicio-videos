@@ -24,8 +24,9 @@
 
 # VERIFY tag exists on Docker Hub (nvidia/cuda, 13.0.0 runtime, ubuntu24.04).
 ARG BASE_IMAGE=nvidia/cuda:13.0.0-runtime-ubuntu24.04
-# VERIFY the cu130 index and torch versions. cu128 builds never register the NVFP4
-# kernels, so the cu130 wheels are required.
+# VERIFY the cu130 index and torch versions. The Comfy-Org card recommends the int8_convrot
+# diffusion models "if you are able to use pytorch with cu130", so the cu130 index is kept
+# for that path. The card says nothing about a GPU model requirement.
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu130
 ARG TORCH_PACKAGES="torch torchvision torchaudio"
 ARG BOTO3_SPEC="boto3>=1.34,<2"
@@ -144,7 +145,8 @@ RUN --mount=type=secret,id=r2_endpoint \
       R2_ACCESS_KEY_ID="$(cat /run/secrets/r2_access_key_id)"; export R2_ACCESS_KEY_ID; \
       R2_SECRET_ACCESS_KEY="$(cat /run/secrets/r2_secret_access_key)"; export R2_SECRET_ACCESS_KEY; \
       python /app/fetch_models.py --manifest /app/models.manifest.json --models-dir /opt/ComfyUI/models --scope models'
-# --scope models: build-time fetch covers weights only. Config is fetched at every boot.
+# --scope models: build-time fetch covers the required weights only. Config is fetched at every
+# boot, and optional alternatives (required=false) are never baked; they are runtime-only (FETCH_OPTIONAL).
 
 # ---------------------------------------------------------------------------
 # runtime: models downloaded from R2 at boot (default target: must stay last)

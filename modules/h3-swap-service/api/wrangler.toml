@@ -55,6 +55,10 @@ MAX_DPH = "1.0"
 VAST_IMAGE = "ghcr.io/YOUR_ORG/h3-swap-worker:latest"
 VAST_DISK_GB = "150"
 VAST_OFFER_FILTER_JSON = "{}"
+# Optional worker boot knobs, forwarded to every worker only when non-empty (docker/README_docker.md):
+#   FETCH_OPTIONAL    = "diffusion_models/<ref2va file>,loras/<turbo file>"  # optional model dests the workflow needs
+#   MODELS_MODE       = "baked"                                              # Vast image with weights inside
+#   WORKFLOW_OPTIONAL = "1"                                                  # benchmark boots without workflow files
 
 # Salad (UNVERIFIED values, see README_api.md section 5). SALAD_IMAGE empty = use VAST_IMAGE.
 SALAD_ORG = "YOUR_SALAD_ORG"

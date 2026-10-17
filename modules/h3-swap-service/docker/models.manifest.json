@@ -5,7 +5,7 @@
     "size_bytes": null,
     "sha256": null,
     "required": true,
-    "note": "MiniMax H3 FL2VA pruned INT8 (convrot) diffusion model. Size and sha256 unknown: fill in after first upload to R2."
+    "note": "MiniMax H3 FL2VA pruned INT8 (convrot) diffusion model. Comfy-Org card: prefer int8_convrot 'if you are able to use pytorch with cu130'. Size and sha256 unknown until uploaded."
   },
   {
     "r2_key": "models/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
@@ -13,7 +13,7 @@
     "size_bytes": null,
     "sha256": null,
     "required": true,
-    "note": "Qwen3-VL 32B text encoder, NVFP4 AWQ. Needs a Blackwell GPU (compute capability 12.0+)."
+    "note": "Default text encoder: Qwen3-VL-32B nvfp4_awq quant. Comfy-Org card: 'This nvfp4 text encoder does not require Blackwell GPU to use.'"
   },
   {
     "r2_key": "models/vae/minimax_h3_video_vae_int8_convrot.safetensors",
@@ -40,20 +40,60 @@
     "note": "akatz-ai Character-Swap LoRA for H3, v1.5."
   },
   {
-    "r2_key": "models/diffusion_models/TODO_VERIFY_ref2va_base.safetensors",
-    "dest": "diffusion_models/TODO_VERIFY_ref2va_base.safetensors",
+    "r2_key": "models/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+    "dest": "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
     "size_bytes": null,
     "sha256": null,
     "required": false,
-    "note": "TODO_VERIFY: INT8 Ref2VA base model used by the swap LoRA recipe. The real file name must be verified on huggingface.co/Comfy-Org/MiniMax-H3 before this entry is usable."
+    "note": "VERIFY which Ref2VA INT8 file the example workflow loads; the non-pruned minimax_h3_ref2va_int8_convrot.safetensors also exists. Optional: fetched only when selected."
   },
   {
-    "r2_key": "models/loras/TODO_VERIFY_turbo_lora.safetensors",
-    "dest": "loras/TODO_VERIFY_turbo_lora.safetensors",
+    "r2_key": "models/diffusion_models/minimax_h3_ref2va_int8_convrot.safetensors",
+    "dest": "diffusion_models/minimax_h3_ref2va_int8_convrot.safetensors",
     "size_bytes": null,
     "sha256": null,
     "required": false,
-    "note": "TODO_VERIFY: LightX2V Turbo LoRA. The real file name must be verified on huggingface.co/Comfy-Org/MiniMax-H3 before this entry is usable."
+    "note": "Non-pruned Ref2VA INT8 (convrot). Alternative to the pruned file; see its note. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+    "dest": "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Turbo LoRA. The LoRA card names minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors while the Comfy-Org list shows minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors, minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors and minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors: VERIFY which one the workflow uses. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+    "dest": "loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Turbo LoRA. The LoRA card names minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors while the Comfy-Org list shows minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors, minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors and minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors: VERIFY which one the workflow uses. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+    "dest": "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Turbo LoRA. The LoRA card names minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors while the Comfy-Org list shows minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors, minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors and minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors: VERIFY which one the workflow uses. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+    "dest": "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Alternative text encoder for smaller or non-NVFP4 setups (Qwen3-VL-32B, int8_convrot). Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/text_encoders/qwen3vl_32b_minimax_h3_bf16.safetensors",
+    "dest": "text_encoders/qwen3vl_32b_minimax_h3_bf16.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Alternative text encoder for smaller or non-NVFP4 setups (Qwen3-VL-32B, bf16, largest). Optional: fetched only when selected."
   },
   {
     "r2_key": "config/workflow_api.json",
