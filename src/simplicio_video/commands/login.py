@@ -7,7 +7,8 @@ Ported from simplicio-loop simplicio_loop/auth_cli.py (2034e2d). The login file,
   file. WITHOUT the Runtime the login is UNVERIFIED: no authorize or device endpoint is documented in THIS repository, so
   none is invented; the command prints how to install the Runtime (and does not run those commands).
 * logout: delete the shared file. It logs the Runtime out too, so it needs --yes. It only deletes a file that has the shape of
-  a login (SIMPLICIO_AUTH_FILE can point anywhere, an ssh key included): anything else is refused, exit 2, `not_a_login_file`.
+  the Runtime's login (SIMPLICIO_AUTH_FILE can point anywhere, an ssh key included): anything else is refused, exit 2,
+  `not_a_login_file`; a symlink is refused too (`login_symlink`), before any lock.
 * auth status: what the file says. Never a token, the e-mail is masked.
 
 Decision of the owner: this is a mirror. It stores no credential, takes no token by argument, unlocks nothing and charges
@@ -306,7 +307,7 @@ def logout(*, yes: bool = False, as_json: bool = False, environ: Optional[dict] 
     try:
         removed = auth.clear_login(path)
     except auth.LoginError as exc:
-        refused = exc.reason_code == "not_a_login_file"  # not a login: a refusal (exit 2), nothing was tried
+        refused = exc.reason_code in ("not_a_login_file", "login_symlink")  # not a login, or a link: a refusal (exit 2)
         doc.update(status="REFUSED" if refused else "FAILED", reason_code=exc.reason_code, detail=str(exc))
         _print(doc, as_json, [f"logout: {exc}"])
         return 2 if refused else 1

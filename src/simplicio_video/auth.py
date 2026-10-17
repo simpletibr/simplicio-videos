@@ -18,7 +18,8 @@ no 24/7 watcher path (decision of the owner: `login` is a mirror, it stores no c
   (runtime_auth.rs `auth_lock`: the login file name with the extension changed to `lock`, 20 s). fcntl on POSIX, msvcrt on
   Windows. NOT VERIFIED: that msvcrt.locking and the Runtime's LockFileEx exclude each other on a real Windows host.
 * LOGOUT ONLY DELETES A LOGIN: `SIMPLICIO_AUTH_FILE` can point anywhere, so `logout --yes` first checks that the target is a
-  small regular file holding a JSON object with a login's keys, and refuses (`not_a_login_file`) anything else.
+  small regular file holding a JSON object with the shape of the Runtime's StoredAuth (`access_token` and `access_expires_at`),
+  and refuses (`not_a_login_file`) anything else. A symlink is refused too (`login_symlink`, as the read does), before the lock.
 """
 from __future__ import annotations
 
@@ -51,7 +52,6 @@ RUNTIME_DIR = ".simplicio"
 LOCK_WAIT_S = 20.0  # the Runtime waits 20 s for the same lock
 LOCK_POLL_S = 0.05
 MAX_LOGIN_BYTES = 1 << 20  # a real login is about 2 KiB: a megabyte is already absurd, and bounds what a hostile file costs
-LOGIN_KEYS = ("access_token", "refresh_token", "verification")  # what a login written by the Runtime (or the loop) has
 
 _VERSION = re.compile(r"simplicio\s+v?(\d+\.\d+\.\d+)")
 _EMAIL = re.compile(r"([^@\s])[^@\s]*@([^@\s]+\.[^@\s]+)")
@@ -106,7 +106,10 @@ def is_link(path: Path) -> bool:
         return False
 
 
-def _symlink_error(path: Path) -> LoginError:
+def _symlink_error(path: Path, apagando: bool = False) -> LoginError:
+    if apagando:  # the logout: a link is never deleted (it could stand for ~/.bashrc), so nothing is touched
+        return LoginError("login_symlink", f"{path} é um link simbólico, então nada foi apagado (o logout só apaga um arquivo de "
+                          "login de verdade, e a leitura do login também recusa link). Se for mesmo o login, remova o link à mão.")
     return LoginError("login_symlink", f"{path} é um link simbólico; remova-o e rode: simplicio-video login")
 
 
@@ -308,6 +311,16 @@ def _not_a_login(path: Path, why: str) -> LoginError:
                       "remova-o à mão.")
 
 
+def is_login_shaped(data: Any) -> bool:
+    """The shape of the Runtime's `StoredAuth` (runtime_auth.rs): `access_token` a string (empty while a device login is
+    pending) and `access_expires_at` a number. `refresh_token` and `verification` are optional there, so they do not count:
+    the JSON credentials of gcloud (a `refresh_token`, a `client_secret`) are not a login."""
+    if not isinstance(data, dict):
+        return False
+    expires = data.get("access_expires_at")
+    return isinstance(data.get("access_token"), str) and isinstance(expires, (int, float)) and not isinstance(expires, bool)
+
+
 def _require_login_shape(path: Path) -> None:
     """Raise `not_a_login_file` unless `path` is a small regular file with a JSON object that has a login's keys.
 
@@ -322,9 +335,8 @@ def _require_login_shape(path: Path) -> None:
         os.close(fd)
     if len(raw) > MAX_LOGIN_BYTES:
         raise _not_a_login(path, f"é grande demais para ser um login (mais de {MAX_LOGIN_BYTES // 1024} KiB)")
-    data = _parse(raw)
-    if not isinstance(data, dict) or not any(key in data for key in LOGIN_KEYS):
-        raise _not_a_login(path, "não é um JSON com access_token, refresh_token ou verification (a forma de um login)")
+    if not is_login_shaped(_parse(raw)):
+        raise _not_a_login(path, "não é um JSON com access_token e access_expires_at (a forma de um login do Runtime)")
 
 
 def _still_there(path: Path) -> bool:
@@ -343,8 +355,9 @@ def clear_login(path: Optional[Path] = None) -> bool:
 
     A missing file is not an error and creates nothing (no folder, no lock file). Anything that is not a login file (a folder, a
     FIFO, an ssh key that SIMPLICIO_AUTH_FILE points at...) is refused with `not_a_login_file` and left alone, without even a
-    lock file next to it. A symlink is removed (never what it points to). The shape is checked once before the lock and again
-    under it, because the file can change while this waits for the Runtime."""
+    lock file next to it. A symlink (a reparse point of the link kind on Windows) is refused with `login_symlink` before the
+    lock, and neither it nor its target is touched. The shape is checked once before the lock and again under it, because the
+    file can change while this waits for the Runtime."""
     path = Path(path) if path else login_path()
     try:
         info = os.lstat(path)
@@ -352,16 +365,17 @@ def clear_login(path: Optional[Path] = None) -> bool:
         return False
     except OSError as exc:
         raise _os_error(path, exc, "examinar") from None
-    link = _link_info(info)
-    if stat.S_ISDIR(info.st_mode) and not link:
+    if _link_info(info):
+        raise _symlink_error(path, apagando=True)
+    if stat.S_ISDIR(info.st_mode):
         raise _not_a_login(path, "é uma pasta")
-    if not link and not _still_there(path):
+    if not _still_there(path):
         return False
     with file_lock(path):
-        if not link and not _still_there(path):
+        if not _still_there(path):
             return False
         try:
-            os.unlink(path)  # never follows a symlink
+            os.unlink(path)
         except FileNotFoundError:
             return False
         except OSError as exc:
