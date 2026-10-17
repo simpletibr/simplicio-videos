@@ -7,12 +7,14 @@ macOS machine; the Windows code paths are exercised here with a simulated system
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import stat
 import subprocess
 import sys
 import textwrap
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,8 +22,8 @@ from types import SimpleNamespace
 import pytest
 
 import _caixa
-from _caixa import (FAKE_ACCESS, MASKED, REAL_WINDOWS, SISTEMAS, assert_no_secret, auth, hostos, login_doc,
-                    posix_real, put_login, saida_cp1252, write_fake_runtime)
+from _caixa import (FAKE_ACCESS, MASKED, REAL_WINDOWS, SISTEMAS, assert_no_secret, auth, hostos, login_doc, nega_acesso,
+                    posix_real, put_login, put_raw, saida_cp1252, write_fake_runtime)
 from _comum import ROOT
 
 # fixtures: assigned (not imported) so pytest finds them and ruff sees no shadowing by the test parameters
@@ -87,14 +89,29 @@ def test_home_com_espaco_e_acento(tmp_path, simula_so, so):
     saida_cp1252(str(auth.login_path(env_de(casa))))
 
 
-def test_o_home_do_windows_prefere_userprofile_e_o_posix_prefere_home(tmp_path, simula_so):
+@pytest.mark.parametrize("so", SISTEMAS)
+def test_o_home_vem_de_home_e_so_depois_de_userprofile_em_todo_sistema(tmp_path, simula_so, so):
+    """The Runtime reads HOME and only then USERPROFILE (runtime_auth.rs `auth_file`), and so does the loop (auth.py `_home`).
+    A CLI that put USERPROFILE first on Windows would read and DELETE a different file than the one the Runtime writes
+    (MSYS2, Cygwin, a HOME set by hand), while `shared_with_runtime` kept saying true."""
+    simula_so(so)
     outro = tmp_path / "outro"
-    simula_so("win32")
-    assert hostos.home_dir({"HOME": str(outro), "USERPROFILE": str(tmp_path)}) == tmp_path
-    simula_so("linux")
     assert hostos.home_dir({"HOME": str(tmp_path), "USERPROFILE": str(outro)}) == tmp_path
-    simula_so("darwin")
-    assert hostos.home_dir({"HOME": str(tmp_path)}) == tmp_path
+    assert hostos.home_dir({"USERPROFILE": str(tmp_path)}) == tmp_path
+    assert hostos.home_dir({"HOME": "  ", "USERPROFILE": str(tmp_path)}) == tmp_path, "a blank HOME is ignored, as in the loop"
+    esperado = tmp_path / ".simplicio" / "login.json"
+    assert auth.login_path({"HOME": str(tmp_path), "USERPROFILE": str(outro)}) == esperado
+    assert auth.runtime_login_path({"HOME": str(tmp_path), "USERPROFILE": str(outro)}) == esperado
+
+
+def test_no_windows_com_home_diferente_de_userprofile_o_login_e_o_do_home(caixa, simula_so):
+    """The scenario of the review: the Runtime writes %HOME%\\.simplicio\\login.json, so that is what status, logout and doctor use."""
+    simula_so("win32")
+    perfil = caixa.tmp / "perfil"
+    put_login(caixa.home / ".simplicio" / "login.json")
+    doc = auth.describe({"HOME": str(caixa.home), "USERPROFILE": str(perfil), "PATH": str(caixa.bin)})
+    assert doc["reason_code"] == "ok" and doc["path"] == str(caixa.home / ".simplicio" / "login.json")
+    assert doc["shared_with_runtime"] is True and not perfil.exists()
 
 
 def test_sem_home_no_ambiente_usa_path_home(caixa):
@@ -459,7 +476,7 @@ def test_clear_de_diretorio_e_recusado_sem_traceback(arq):
     arq.mkdir(parents=True)
     with pytest.raises(auth.LoginError) as err:
         auth.clear_login(arq)
-    assert err.value.reason_code == "login_invalid" and arq.is_dir()
+    assert err.value.reason_code == "not_a_login_file" and arq.is_dir()
 
 
 # --- what the file says (never a token) ------------------------------------------------------------------------------
@@ -608,3 +625,274 @@ def test_runtime_que_nao_responde_nao_tem_versao(tmp_path):
     quebrado.write_text("#!/bin/sh\nexit 3\n")
     quebrado.chmod(0o755)
     assert auth.runtime_version(quebrado) is None
+
+
+# --- review of PR #116 -------------------------------------------------------------------------------------------------------
+
+
+# B: the four mutations that survived the first review ---------------------------------------------------------------------
+
+
+@posix_real
+def test_o_open_do_login_nao_segue_um_link_trocado_depois_da_checagem(tmp_path, arq, monkeypatch):
+    """`is_link` and the open are two steps: a link swapped in between is still refused, by O_NOFOLLOW (ELOOP)."""
+    real = put_login(tmp_path / "real.json")
+    arq.parent.mkdir(parents=True)
+    arq.parent.chmod(0o700)
+    arq.symlink_to(real)
+    monkeypatch.setattr(auth, "is_link", lambda caminho: False)  # the look saw a regular file; the open sees the link
+    with pytest.raises(auth.LoginError) as err:
+        auth.read_login(arq)
+    assert err.value.reason_code == "login_symlink"
+
+
+@posix_real
+def test_o_open_da_trava_nao_segue_um_link_trocado_depois_da_checagem(tmp_path, monkeypatch):
+    caminho = tmp_path / "login.json"
+    alvo = tmp_path / "elsewhere"
+    alvo.write_text("")
+    auth.lock_path(caminho).symlink_to(alvo)
+    monkeypatch.setattr(auth, "is_link", lambda c: False)
+    with pytest.raises(auth.LoginError) as err:
+        with auth.file_lock(caminho, wait_s=0.2):
+            pass
+    assert err.value.reason_code == "login_symlink"
+
+
+@posix_real
+def test_pasta_sticky_de_outro_dono_e_recusada_pela_pasta(arq, monkeypatch):
+    """Sticky protects a file from OTHER users only when the folder is a shared one that is ours: a sticky 1777 folder of
+    someone else can still be filled by anyone. The refusal is about the FOLDER (not about who owns the file)."""
+    put_login(arq)
+    arq.parent.chmod(0o1777)
+    monkeypatch.setattr(os, "geteuid", lambda: os.stat(arq).st_uid + 1)
+    with pytest.raises(auth.LoginError) as err:
+        auth.read_login(arq)
+    assert err.value.reason_code == "login_permissions"
+    assert "pode ser alterada" in str(err.value) and f"chmod 700 {arq.parent}" in str(err.value), str(err.value)
+
+
+@posix_real
+def test_clear_login_espera_pela_trava_que_o_runtime_tambem_usa(arq):
+    """Without the lock the logout could delete the file in the middle of a refresh by the Runtime."""
+    put_login(arq)
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1"}
+    dono = subprocess.Popen([sys.executable, "-c", SEGURA, str(arq), "60"], stdout=subprocess.PIPE, text=True, env=env)
+    resultado: list = []
+    try:
+        assert dono.stdout.readline().strip() == "held"
+        fio = threading.Thread(target=lambda: resultado.append(auth.clear_login(arq)), daemon=True)
+        fio.start()
+        fio.join(timeout=0.8)
+        assert fio.is_alive() and arq.exists(), "clear_login deleted the file while another process held the lock"
+    finally:
+        dono.kill()
+        dono.wait()
+    fio.join(timeout=10)
+    assert resultado == [True] and not arq.exists()
+
+
+# I1: the folder or the file cannot be opened ------------------------------------------------------------------------------
+
+
+def test_arquivo_que_a_permissao_nao_deixa_abrir_e_login_permissions_com_a_correcao(arq, monkeypatch):
+    put_login(arq)
+    nega_acesso(monkeypatch, arq.parent)  # ~/.simplicio of another user, mode 0700
+    with pytest.raises(auth.LoginError) as err:
+        auth.read_login(arq)
+    assert err.value.reason_code == "login_permissions" and str(arq) in str(err.value) and err.value.fix
+    doc = auth.describe({"HOME": str(arq.parent.parent), "PATH": ""})
+    assert doc["reason_code"] == "login_permissions" and doc["logged_in"] is False and doc["fix"]
+
+
+def test_clear_em_pasta_que_nao_da_para_abrir_e_login_permissions_e_nao_apaga(arq, monkeypatch):
+    put_login(arq)
+    nega_acesso(monkeypatch, arq.parent)
+    with pytest.raises(auth.LoginError) as err:
+        auth.clear_login(arq)
+    assert err.value.reason_code == "login_permissions"
+    monkeypatch.undo()
+    assert arq.exists()
+
+
+def test_trava_numa_pasta_que_nao_da_para_criar_e_login_permissions(tmp_path, monkeypatch):
+    (tmp_path / "fechada").mkdir()
+    nega_acesso(monkeypatch, tmp_path / "fechada")
+    with pytest.raises(auth.LoginError) as err:
+        with auth.file_lock(tmp_path / "fechada" / "sub" / "login.json", wait_s=0.1):
+            pytest.fail("the lock must not be taken")
+    assert err.value.reason_code == "login_permissions"
+
+
+def test_o_arquivo_sob_um_arquivo_e_login_missing(tmp_path):
+    (tmp_path / "arquivo").write_text("not a folder")
+    with pytest.raises(auth.LoginError) as err:
+        auth.read_login(tmp_path / "arquivo" / "login.json")
+    assert err.value.reason_code == "login_missing"
+    assert auth.clear_login(tmp_path / "arquivo" / "login.json") is False
+
+
+@posix_real
+def test_flock_que_o_sistema_de_arquivos_nao_suporta_e_login_invalid_e_nao_traceback(tmp_path, monkeypatch):
+    def falha(fd, operacao):
+        raise OSError(37, "No locks available")
+
+    monkeypatch.setattr(auth.fcntl, "flock", falha)
+    with pytest.raises(auth.LoginError) as err:
+        with auth.file_lock(tmp_path / "login.json", wait_s=0.1):
+            pytest.fail("no lock was taken")
+    assert err.value.reason_code == "login_invalid" and "No locks available" in str(err.value)
+
+
+# I3: a corrupt or hostile login.json ------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("campo", ["access_expires_at", "refresh_token_expires_at"])
+@pytest.mark.parametrize("valor", [float("inf"), float("-inf"), float("nan"), 999999999999, 253402300800, -1, True, [1], {"a": 1},
+                                   "amanha", "9" * 5000, 1e30], ids=repr)
+def test_instante_invalido_no_login_e_login_invalid(campo, valor):
+    """A number or date that is no instant a date can hold: `login_invalid`, never OverflowError or ValueError (year 33658)."""
+    with pytest.raises(auth.LoginError) as err:
+        auth.summary(login_doc(**{campo: valor}), now=1_700_000_000)
+    assert err.value.reason_code == "login_invalid" and campo in str(err.value)
+    assert FAKE_ACCESS not in str(err.value)
+
+
+@pytest.mark.parametrize("valor,esperado", [(None, 0), ("", 0), (0, 0), (False, 0), (253402300799, 253402300799),
+                                            (1_900_000_000.5, 1_900_000_000), ("1900000000", 1_900_000_000)])
+def test_instante_valido_continua_valendo(valor, esperado):
+    assert auth.summary(login_doc(access_expires_at=valor), now=1)["access_expires_at"] == esperado
+
+
+def test_describe_traduz_o_instante_invalido_em_login_invalid(caixa):
+    put_raw(caixa.login, '{"access_token": "x", "access_expires_at": 1e999}')
+    doc = auth.describe(env_de(caixa.home, PATH=str(caixa.bin)))
+    assert doc["logged_in"] is False and doc["reason_code"] == "login_invalid" and doc["fix"] == "simplicio-video login"
+    assert "access_expires_at" in doc["detail"]
+
+
+def test_aninhamento_profundo_e_login_invalid(arq):
+    put_raw(arq, "[" * 100_000 + "]" * 100_000)
+    with pytest.raises(auth.LoginError) as err:
+        auth.read_login(arq)
+    assert err.value.reason_code == "login_invalid"
+
+
+def test_o_limite_de_leitura_e_1_mib_e_recusa_o_que_passa_dele(arq):
+    assert auth.MAX_LOGIN_BYTES == 1 << 20
+    put_raw(arq, b'{"access_token": "x", "pad": "' + b"a" * (1 << 20) + b'"}')
+    with pytest.raises(auth.LoginError) as err:
+        auth.read_login(arq)
+    assert err.value.reason_code == "login_invalid" and "grande" in str(err.value)
+
+
+def test_arquivo_enorme_nao_e_lido_inteiro(arq):
+    """A sparse 64 MB file: the cap refuses it after reading 1 MiB, not after loading it all."""
+    arq.parent.mkdir(parents=True)
+    arq.parent.chmod(0o700)
+    with open(arq, "wb") as handle:
+        handle.truncate(64 * 1024 * 1024)
+    arq.chmod(0o600)
+    with pytest.raises(auth.LoginError) as err:
+        auth.read_login(arq)
+    assert err.value.reason_code == "login_invalid"
+
+
+def test_o_instante_de_data_nao_usa_o_relogio_do_sistema_operacional():
+    """`datetime.fromtimestamp` fails past year 3000 on Windows (OSError); the stamp is plain arithmetic on the epoch."""
+    assert hostos.utc_stamp(0) == "1970-01-01T00:00:00Z"
+    assert hostos.utc_stamp(253402300799) == "9999-12-31T23:59:59Z"
+    assert hostos.utc_stamp(1_900_000_000.9) == "2030-03-17T17:46:40Z"
+    for fora in (253402300800, -1, 1e30, float("inf"), float("nan")):
+        assert hostos.utc_stamp(fora) == "data inválida"
+
+
+# I6: logout only deletes something that is a login ----------------------------------------------------------------------
+
+
+NAO_E_LOGIN = {
+    "chave_ssh": b"-----BEGIN OPENSSH PRIVATE KEY-----\nZmFrZSBrZXkgZm9yIHRlc3Rz\n-----END OPENSSH PRIVATE KEY-----\n",
+    "texto": b"hello\n",
+    "json_sem_chaves_de_login": b'{"hello": 1}',
+    "json_lista": b"[1, 2]",
+    "json_texto": b'"text"',
+    "vazio": b"",
+    "binario": bytes(range(256)),
+    "json_aninhado_demais": b"[" * 100_000,
+    "maior_que_o_limite": b'{"access_token": "x", "pad": "' + b"a" * (1 << 20) + b'"}',
+}
+
+
+@pytest.mark.parametrize("nome", sorted(NAO_E_LOGIN))
+def test_clear_nao_apaga_o_que_nao_tem_a_forma_de_um_login(tmp_path, nome):
+    """SIMPLICIO_AUTH_FILE=~/.ssh/id_rsa and `logout --yes` used to delete the key (and leave an id_rsa.lock behind)."""
+    alvo = put_raw(tmp_path / "ssh" / "id_rsa", NAO_E_LOGIN[nome])
+    with pytest.raises(auth.LoginError) as err:
+        auth.clear_login(alvo)
+    assert err.value.reason_code == "not_a_login_file" and str(alvo) in str(err.value)
+    assert alvo.read_bytes() == NAO_E_LOGIN[nome]
+    assert [p.name for p in alvo.parent.iterdir()] == ["id_rsa"], "no lock file may appear next to a file that is not a login"
+
+
+@pytest.mark.parametrize("conteudo", [{"access_token": "x"}, {"refresh_token": "x"}, {"verification": {}}, login_doc()],
+                         ids=["access", "refresh", "verification", "completo"])
+def test_clear_apaga_o_arquivo_que_tem_a_forma_de_um_login(arq, conteudo):
+    put_login(arq, conteudo)
+    assert auth.clear_login(arq) is True and not arq.exists()
+
+
+@posix_real
+def test_clear_apaga_tambem_um_login_inseguro(arq):
+    """The mode is not checked on purpose: a login that others can read is exactly the one to get rid of."""
+    put_login(arq, mode=0o644)
+    assert auth.clear_login(arq) is True and not arq.exists()
+
+
+@posix_real
+def test_clear_nao_apaga_uma_fifo(arq):
+    arq.parent.mkdir(parents=True)
+    arq.parent.chmod(0o700)
+    os.mkfifo(arq, 0o600)
+    with pytest.raises(auth.LoginError) as err:
+        auth.clear_login(arq)
+    assert err.value.reason_code == "not_a_login_file" and os.path.lexists(arq)
+
+
+@posix_real
+def test_clear_remove_o_link_para_um_arquivo_qualquer_mas_nunca_o_alvo(tmp_path, arq):
+    alvo = put_raw(tmp_path / "ssh" / "id_rsa", b"fake key")
+    arq.parent.mkdir(parents=True)
+    arq.parent.chmod(0o700)
+    arq.symlink_to(alvo)
+    assert auth.clear_login(arq) is True
+    assert alvo.read_bytes() == b"fake key" and not os.path.lexists(arq)
+
+
+@posix_real
+def test_arquivo_trocado_enquanto_esperava_a_trava_nao_e_apagado(arq, monkeypatch):
+    """The shape is checked again UNDER the lock: it may have been swapped while the logout waited for the Runtime."""
+    put_login(arq)
+    travar = auth.file_lock
+
+    @contextlib.contextmanager
+    def trocando(caminho, **kw):
+        with travar(caminho, **kw):
+            arq.write_bytes(b"not a login: swapped while the lock was being taken")
+            yield
+
+    monkeypatch.setattr(auth, "file_lock", trocando)
+    with pytest.raises(auth.LoginError) as err:
+        auth.clear_login(arq)
+    assert err.value.reason_code == "not_a_login_file" and arq.exists()
+
+
+# decoding: a Windows console codec must not break the output of a program --------------------------------------------------
+
+
+@posix_real
+def test_a_versao_do_runtime_sobrevive_a_bytes_que_nao_sao_utf8(tmp_path):
+    runtime = tmp_path / "bin" / "simplicio"
+    runtime.parent.mkdir()
+    runtime.write_bytes(b"#!/bin/sh\nprintf 'simplicio 3.10.0 \\315\\n'\n")
+    runtime.chmod(0o755)
+    assert auth.runtime_version(runtime) == "3.10.0"

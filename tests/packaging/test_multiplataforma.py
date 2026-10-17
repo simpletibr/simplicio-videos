@@ -10,6 +10,7 @@ someone has to run on those systems (docs/how-to/testar-em-windows-e-macos.md). 
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -214,3 +215,77 @@ def test_os_comandos_nao_tem_traceback_em_nenhum_sistema(caixa, capsys, simula_s
         rc, out, err = executa(argv, capsys, main)
         assert "Traceback" not in out + err, (argv, err)
         json.loads(out)  # one JSON document, whatever the system
+
+
+# --- PATHEXT comes from the environment that was passed in --------------------------------------------------------------------
+
+
+def test_pathext_vem_do_ambiente_passado_e_nao_do_os_environ_global(tmp_path, simula_so, monkeypatch):
+    simula_so("win32")
+    monkeypatch.setenv("PATHEXT", ".CMD")  # the process's own: it must not decide what an injected environment can run
+    pasta = tmp_path / "bin"
+    foo = _exe(pasta, "ferramenta.foo")
+    cmd = _exe(pasta, "outra.cmd")
+    env = {"PATH": str(pasta), "PATHEXT": ".FOO;.EXE"}
+    assert hostos.which("ferramenta", str(pasta), env) == foo
+    assert hostos.which("outra", str(pasta), env) is None, ".CMD is not in the PATHEXT that was passed in"
+    assert hostos.find_tool("ferramenta", env) == str(foo) and hostos.find_tool("outra", env) is None
+    # an environment WITHOUT PATHEXT gets the default list, not the process's one
+    monkeypatch.setenv("PATHEXT", ".FOO")
+    assert hostos.which("outra", str(pasta), {"PATH": str(pasta)}) == cmd
+    assert hostos.which("ferramenta", str(pasta), {"PATH": str(pasta)}) is None
+
+
+def test_o_runtime_e_achado_com_o_pathext_do_ambiente_passado(tmp_path, simula_so, monkeypatch):
+    simula_so("win32")
+    monkeypatch.setenv("PATHEXT", ".EXE")
+    pasta = tmp_path / "bin"
+    foo = _exe(pasta, "simplicio.foo")
+    env = {"HOME": str(tmp_path / "home"), "PATH": str(pasta), "PATHEXT": ".FOO"}
+    assert _caixa.auth.runtime_binary(env) == foo
+    assert _caixa.auth.runtime_binary({**env, "PATHEXT": ".EXE"}) is None
+
+
+# --- Windows: every text read and every text subprocess names its encoding ------------------------------------------------------
+
+
+FONTES_DE_OPERACAO = ["auth.py", "hostos.py", "distribution.py", "paths.py", "commands/install.py", "commands/update.py",
+                      "commands/doctor.py", "commands/login.py", "commands/setup.py"]
+CHAMADAS_DE_SUBPROCESSO = {"run", "call", "check_output", "check_call", "Popen"}
+
+
+def _quem_chama(chamada: ast.Call) -> tuple[str | None, str]:
+    f = chamada.func
+    if isinstance(f, ast.Attribute):
+        return (f.value.id if isinstance(f.value, ast.Name) else None), f.attr
+    return None, f.id if isinstance(f, ast.Name) else ""
+
+
+def _e_binario(chamada: ast.Call) -> bool:
+    modo = chamada.args[1] if len(chamada.args) > 1 else next((k.value for k in chamada.keywords if k.arg == "mode"), None)
+    return isinstance(modo, ast.Constant) and isinstance(modo.value, str) and "b" in modo.value
+
+
+def test_toda_leitura_de_texto_e_todo_subprocesso_de_texto_tem_encoding_explicito():
+    """The Windows default is the console codec (cp1252): the `Í` of the CHANGELOG (bytes C3 8D) or an accent in git's output
+    would raise UnicodeDecodeError there, while UTF-8 on Linux hides it. So: `encoding=` on every text open and read_text and
+    write_text, and `encoding="utf-8", errors="replace"` on every subprocess that is read as text."""
+    from _comum import ROOT
+    fontes = [ROOT / "src" / "simplicio_video" / nome for nome in FONTES_DE_OPERACAO] + [ROOT / "scripts" / "smoke_so.py"]
+    problemas = []
+    for arquivo in fontes:
+        for chamada in (n for n in ast.walk(ast.parse(arquivo.read_text(encoding="utf-8"))) if isinstance(n, ast.Call)):
+            dono, nome = _quem_chama(chamada)
+            kw = {k.arg: k.value for k in chamada.keywords}
+            onde = f"{arquivo.name}:{chamada.lineno}"
+            if nome == "read_text" and not chamada.args and "encoding" not in kw:
+                problemas.append(f"{onde} read_text() without encoding")
+            if nome == "write_text" and len(chamada.args) < 2 and "encoding" not in kw:
+                problemas.append(f"{onde} write_text() without encoding")
+            if nome in ("open", "fdopen") and dono != "os" and not _e_binario(chamada) and "encoding" not in kw:
+                problemas.append(f"{onde} {nome}() in text mode without encoding")
+            if dono == "subprocess" and nome in CHAMADAS_DE_SUBPROCESSO:
+                texto = any(isinstance(kw.get(k), ast.Constant) and kw[k].value is True for k in ("text", "universal_newlines"))
+                if texto and not ("encoding" in kw and "errors" in kw):
+                    problemas.append(f"{onde} subprocess.{nome}(text=True) without encoding= and errors=")
+    assert problemas == [], "\n".join(problemas)

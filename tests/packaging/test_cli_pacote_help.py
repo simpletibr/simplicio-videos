@@ -10,12 +10,13 @@ COMANDOS = ["install", "update", "doctor", "setup", "login", "logout", "auth", "
 # what each --help must mention (flags, exit codes, files)
 DEVE_CITAR = {
     "install": ["--check", "--dry-run", "--json", "--python", "--with", "10", "simplicio.video-install/v1"],
-    "update": ["--check", "--dry-run", "--force", "10", "git pull --ff-only", "PyPI", "git stash", "update-check.json"],
+    "update": ["--check", "--dry-run", "--force", "10", "git pull --ff-only", "PyPI", "git stash", "update-check.json",
+               "git fetch", "SIMPLICIO_OFFLINE"],
     "doctor": ["--json", "--online", "all", "login", "simplicio.doctor/v1", "warn", "fail"],
     "setup": ["--yes", "--theme", "--lang"],
     "login": ["--json", "--no-browser", "simplicio login google", "login.json", "SIMPLICIO_AUTH_FILE", "UNVERIFIED",
               "não guarda credencial"],
-    "logout": ["--yes", "--json", "Runtime", "login.json"],
+    "logout": ["--yes", "--json", "Runtime", "login.json", "forma de login", "not_a_login_file"],
     "auth": ["status"],
     "auth status": ["--json", "login.json", "nunca imprime"],
 }

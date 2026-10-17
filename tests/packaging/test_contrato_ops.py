@@ -170,6 +170,24 @@ def test_o_resultado_do_install_exige_as_chaves_e_o_python_no_formato():
     assert erros("install-result", {k: v for k, v in base.items() if k != "pending"})
 
 
+def test_o_logout_aceita_o_motivo_not_a_login_file_e_o_detalhe_na_recusa():
+    base = {"schema": "simplicio.logout/v1", "status": "REFUSED", "path": "p", "runtime_path": "p", "also_logs_out_runtime": True,
+            "reason_code": "not_a_login_file", "detail": "p não tem a forma de um login; nada foi apagado"}
+    valida("logout", base)
+    assert erros("logout", {**base, "reason_code": "qualquer_coisa"})
+
+
+def test_o_resultado_do_install_com_erro_traz_error_e_so_o_que_se_sabe():
+    """An error document (a bad --python, no uv, a conflicting .venv...): `error` plus whatever the install already knew."""
+    minimo = {"schema": "simplicio.video-install/v1", "version": "0.4.0", "distribution": "source", "error": "extra inválido"}
+    valida("install-result", minimo)
+    valida("install-result", {**minimo, "python": "3.12", "extras": [], "pending": ["x"], "conflict": None, "up_to_date": False})
+    assert erros("install-result", {k: v for k, v in minimo.items() if k != "error"}), "no error and no plan: not a document"
+    assert erros("install-result", {**minimo, "error": ""}) and erros("install-result", {**minimo, "error": 3})
+    assert erros("install-result", {**minimo, "python": "tres"}), "what is there still has to fit"
+    assert erros("install-result", {**minimo, "up_to_date": True}), "an error is never up to date"
+
+
 # --- the real outputs validate ---------------------------------------------------------------------------------------
 
 
@@ -232,10 +250,10 @@ def test_logout_real_valida_em_todos_os_status(caixa, capsys):
         rc, doc, _ = _doc(capsys, *argv)
         valida("logout", doc)
         assert doc["status"] == status
-    caixa.login.mkdir(parents=True)
+    caixa.login.mkdir(parents=True)  # not a login file: refused (exit 2), not a failure
     rc, doc, _ = _doc(capsys, "logout", "--yes", "--json")
     valida("logout", doc)
-    assert doc["status"] == "FAILED"
+    assert doc["status"] == "REFUSED" and doc["reason_code"] == "not_a_login_file" and rc == 2
 
 
 def test_doctor_real_valida_saudavel_e_doente(saude, capsys):

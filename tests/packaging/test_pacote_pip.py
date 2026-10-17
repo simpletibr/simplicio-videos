@@ -18,7 +18,7 @@ import pytest
 
 import _caixa
 from _caixa import chamadas_do_uv, distribution, doctor_cmd, saida_cp1252, update_cmd, write_fake_uv
-from _comum import executa, instantanea
+from _comum import erros_de_schema, executa, instantanea
 from simplicio_video import paths
 from simplicio_video.cli import main
 
@@ -96,9 +96,12 @@ def test_install_json_de_pacote_instalado_e_valido_e_diz_pip(pacote, capsys):
     assert MENSAGEM in err and MENSAGEM not in out, "stdout stays one JSON document"
 
 
-def test_install_real_com_json_tambem_sai_2_sem_documento(pacote, capsys):
+def test_install_real_com_json_tambem_sai_2_e_o_stdout_e_um_documento_de_erro(pacote, capsys):
     rc, out, err = executa(["install", "--json"], capsys, main)
-    assert rc == 2 and out == "" and MENSAGEM in err
+    assert rc == 2 and MENSAGEM in err
+    doc = json.loads(out)
+    assert doc["schema"] == "simplicio.video-install/v1" and doc["distribution"] == "pip" and MENSAGEM in doc["error"]
+    assert erros_de_schema("install-result", doc) == []
 
 
 def test_update_de_pacote_instalado_usa_o_ramo_pip_e_nunca_roda_git(pacote, capsys, monkeypatch):

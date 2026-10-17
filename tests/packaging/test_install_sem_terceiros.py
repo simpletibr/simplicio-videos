@@ -1,0 +1,143 @@
+"""`./install.sh` runs `python3 -m simplicio_video install` with the SYSTEM python, before the `.venv` exists.
+
+That interpreter has no PyYAML, no jsonschema, nothing that is not in the standard library (macOS with the Xcode tools,
+a minimal Debian or Ubuntu). So `install` and everything it imports at the top (`distribution`, `hostos`, `paths`, `auth`,
+`update`, `login`, the CLI) must use the standard library only. The review of PR #116 found `commands/install.py` importing
+`setup`, which imports `yaml` at the top: `install --check` died with ModuleNotFoundError on such a machine (the tests did not
+see it because they run inside the `.venv`, which has PyYAML).
+
+These tests run the CLI in a SUBPROCESS whose import system refuses every module that is not standard library or
+`simplicio_video` (a meta path finder installed first, with the third-party modules already loaded thrown away), and check
+that `yaml` and `jsonschema` really are refused there before they trust the result. HOME, PATH and the checkout are sealed.
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import sys
+import textwrap
+
+import pytest
+
+import _caixa
+from _caixa import chamadas_do_uv, write_fake_uv
+from _comum import ROOT, erros_de_schema
+
+# fixtures: assigned (not imported) so pytest finds them and ruff sees no shadowing by the test parameters
+caixa = _caixa.caixa
+
+# Runs inside the child: block the third party first and prove the block works...
+BLOQUEIO = textwrap.dedent(r'''
+    import importlib.abc, importlib.util, sys
+
+    STDLIB = set(sys.stdlib_module_names) | set(sys.builtin_module_names) | {"__future__", "__main__"}
+
+    def permitido(nome):
+        topo = nome.partition(".")[0]
+        return topo in STDLIB or topo == "simplicio_video"
+
+    class Bloqueia(importlib.abc.MetaPathFinder):
+        def find_spec(self, nome, caminho=None, alvo=None):
+            if permitido(nome):
+                return None
+            raise ModuleNotFoundError(f"No module named {nome.partition('.')[0]!r} (blocked: not standard library)", name=nome)
+
+    for nome in [m for m in sys.modules if not permitido(m)]:
+        del sys.modules[nome]
+    sys.meta_path.insert(0, Bloqueia())
+''')
+# ... then run the CLI like `python -m simplicio_video` (or just import the modules).
+CORPO = textwrap.dedent(r'''
+    sys.path.insert(0, sys.argv[1])
+    modo, argumentos = sys.argv[2], sys.argv[3:]
+    if modo == "importa":
+        import importlib
+        for nome in argumentos:
+            importlib.import_module(nome)
+        print("IMPORTOU " + " ".join(argumentos))
+        sys.exit(0)
+    from simplicio_video import distribution
+    distribution.kind = lambda **kw: distribution.SOURCE  # the machine that runs the suite may have the package installed
+    from simplicio_video.cli import main
+    sys.exit(main(argumentos))
+''')
+BOOT = BLOQUEIO + CORPO
+
+
+def _no_interpretador_sem_terceiros(modo: str, *argumentos: str, env: dict, codigo: str = BOOT):
+    return subprocess.run([sys.executable, "-I", "-B", "-c", codigo, str(ROOT / "src"), modo, *argumentos],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=120)
+
+
+@pytest.fixture
+def selado(caixa):
+    """A checkout without .venv (the real pyproject.toml and plugin.json) and the environment of the child process."""
+    repo = caixa.tmp / "checkout"
+    repo.mkdir()
+    for nome in ("pyproject.toml", "plugin.json"):
+        shutil.copy2(ROOT / nome, repo / nome)
+    env = {"HOME": str(caixa.home), "USERPROFILE": str(caixa.home), "PATH": str(caixa.bin),
+           "SIMPLICIO_VIDEO_HOME": str(repo), "SIMPLICIO_VIDEO_DATA": str(caixa.data),
+           "SIMPLICIO_WORKSPACE": str(caixa.workspace), "SIMPLICIO_OFFLINE": "1"}
+    caixa.repo, caixa.env = repo, env
+    return caixa
+
+
+def _roda(selado, *argv: str):
+    return _no_interpretador_sem_terceiros("cli", *argv, env=selado.env)
+
+
+@pytest.mark.parametrize("terceiro", ["yaml", "jsonschema", "requests"])
+def test_o_bloqueio_do_teste_funciona(selado, terceiro):
+    """Without this, every other test here could pass for the wrong reason: the third party must really be refused."""
+    feito = _no_interpretador_sem_terceiros("cli", env=selado.env, codigo=BLOQUEIO + f"\nimport {terceiro}\n")
+    assert feito.returncode != 0 and "ModuleNotFoundError" in feito.stderr and "blocked: not standard library" in feito.stderr
+    ok = _no_interpretador_sem_terceiros("importa", "json", "tomllib", env=selado.env)
+    assert ok.returncode == 0 and "IMPORTOU" in ok.stdout, ok.stderr
+
+
+@pytest.mark.parametrize("modulo", ["simplicio_video", "simplicio_video.paths", "simplicio_video.hostos",
+                                    "simplicio_video.distribution", "simplicio_video.auth", "simplicio_video.commands.install",
+                                    "simplicio_video.commands.update", "simplicio_video.commands.login",
+                                    "simplicio_video.cli"])
+def test_o_que_o_install_puxa_no_topo_so_usa_a_biblioteca_padrao(selado, modulo):
+    feito = _no_interpretador_sem_terceiros("importa", modulo, env=selado.env)
+    assert feito.returncode == 0, f"{modulo} needs a third-party module at import time:\n{feito.stderr[-600:]}"
+    assert "IMPORTOU" in feito.stdout
+
+
+def test_install_check_sem_yaml_mostra_o_plano_e_sai_10(selado):
+    feito = _roda(selado, "install", "--check")
+    texto = feito.stdout + feito.stderr
+    assert "ModuleNotFoundError" not in texto and "Traceback" not in texto, texto[-600:]
+    assert feito.returncode == 10 and "criar .venv" in texto and "uv pip install" in texto
+    assert not (selado.repo / ".venv").exists() and list(selado.home.iterdir()) == []
+
+
+def test_install_dry_run_sem_yaml_sai_0_e_nao_cria_nada(selado):
+    feito = _roda(selado, "install", "--dry-run")
+    texto = feito.stdout + feito.stderr
+    assert "ModuleNotFoundError" not in texto and "Traceback" not in texto, texto[-600:]
+    assert feito.returncode == 0 and "dry-run" in texto
+    assert not (selado.repo / ".venv").exists()
+
+
+@pytest.mark.parametrize("opcao,rc", [("--check", 10), ("--dry-run", 0)])
+def test_install_json_sem_yaml_imprime_o_documento(selado, opcao, rc):
+    feito = _roda(selado, "install", opcao, "--json")
+    assert "ModuleNotFoundError" not in feito.stderr and "Traceback" not in feito.stderr, feito.stderr[-600:]
+    assert feito.returncode == rc, feito.stdout + feito.stderr
+    doc = json.loads(feito.stdout)
+    assert doc["schema"] == "simplicio.video-install/v1" and erros_de_schema("install-result", doc) == []
+    assert doc["up_to_date"] is False and doc["distribution"] == "source"
+
+
+def test_install_de_verdade_sem_yaml_chama_o_uv_e_diz_o_proximo_passo(selado):
+    """The path of `install.sh` itself: the real install, with the hint that reads the workspace folder."""
+    write_fake_uv(selado.bin)
+    feito = _roda(selado, "install")
+    texto = feito.stdout + feito.stderr
+    assert "Traceback" not in texto and feito.returncode == 0, texto[-800:]
+    assert [c[0] for c in chamadas_do_uv(selado.bin)] == ["venv", "pip"]
+    assert "simplicio-video doctor" in texto and "simplicio-video setup" in texto

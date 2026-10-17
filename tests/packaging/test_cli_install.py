@@ -21,7 +21,7 @@ import pytest
 import _caixa
 from _caixa import (chamadas_do_uv, distribution, hostos, saida_cp1252, so_incompativel,
                     write_fake_uv)
-from _comum import ROOT, executa, exige_registrado, instantanea
+from _comum import ROOT, erros_de_schema, executa, exige_registrado, instantanea
 from simplicio_video import __version__
 from simplicio_video.cli import main
 
@@ -148,6 +148,66 @@ def test_json_da_instalacao_real_so_tem_o_documento_no_stdout(checkout, caixa, c
     out, err = capfd.readouterr()
     doc = json.loads(out)  # the output of uv ("uv fake: ...") went to stderr
     assert rc == 0 and doc["up_to_date"] is True and doc["pending"] == [] and "uv fake" in err and "uv fake" not in out
+
+
+# --- --json on an error: still ONE document, now with `error` ---------------------------------------------------------
+
+
+def _erro(capsys, *argv):
+    """`install --json ...` that fails: the exit code, the ONE document on stdout (it fits the schema), and stderr."""
+    rc, out, err = executa(["install", "--json", *argv], capsys, main)
+    try:
+        doc = json.loads(out)
+    except ValueError:
+        pytest.fail(f"install --json printed no document on an error (rc {rc}).\nstdout={out!r}\nstderr={err!r}")
+    assert doc["schema"] == "simplicio.video-install/v1" and doc["version"] == __version__
+    assert erros_de_schema("install-result", doc) == [], doc
+    assert isinstance(doc["error"], str) and doc["error"] and doc["error"] in err, "the message also goes to stderr"
+    return rc, doc
+
+
+@pytest.mark.parametrize("argv,trecho", [(["--check", "--with", "Ruim Extra"], "extra inválido"),
+                                         (["--dry-run", "--with", "ok,Ruim!"], "extra inválido"),
+                                         (["--check", "--python", "tres-doze"], "versão de Python inválida")])
+def test_json_de_argumento_invalido_sai_2_com_documento_de_erro(checkout, capsys, argv, trecho):
+    rc, doc = _erro(capsys, *argv)
+    assert rc == 2 and trecho in doc["error"] and doc["distribution"] == "source"
+    assert instantanea(checkout) == sorted(["plugin.json", "pyproject.toml"])
+
+
+def test_json_de_conflito_na_instalacao_real_sai_1_com_documento_de_erro(checkout, caixa, capsys):
+    write_fake_uv(caixa.bin)
+    (checkout / ".venv").mkdir()
+    (checkout / ".venv" / "pyvenv.cfg").write_text("version_info = 3.11.9\n")
+    rc, doc = _erro(capsys)
+    assert rc == 1 and "conflito" in doc["error"] and "3.11" in doc["conflict"] and doc["up_to_date"] is False
+    assert doc["python"] == "3.12" and chamadas_do_uv(caixa.bin) == []
+
+
+@pytest.mark.parametrize("so", ["linux", "darwin", "win32"])
+def test_json_sem_uv_sai_1_com_documento_de_erro(checkout, caixa, capsys, simula_so, so):
+    simula_so(so)
+    rc, doc = _erro(capsys)
+    assert rc == 1 and "uv não encontrado" in doc["error"] and doc["pending"] and not (checkout / ".venv").exists()
+
+
+def test_json_de_uv_que_falha_sai_1_com_documento_de_erro(checkout, caixa, capsys):
+    uv = write_fake_uv(caixa.bin)
+    if uv.suffix == ".cmd":
+        pytest.skip("this check rewrites the POSIX launcher")
+    uv.write_text("#!/bin/sh\nexit 4\n")
+    rc, doc = _erro(capsys)
+    assert rc == 1 and "comando falhou" in doc["error"]
+    assert not (checkout / ".venv" / "simplicio-install.json").exists()
+
+
+def test_json_quando_o_uv_nao_cria_o_venv_sai_1_com_documento_de_erro(checkout, caixa, capsys):
+    uv = write_fake_uv(caixa.bin)
+    if uv.suffix == ".cmd":
+        pytest.skip("this check rewrites the POSIX launcher")
+    uv.write_text("#!/bin/sh\nexit 0\n")  # says ok, creates nothing
+    rc, doc = _erro(capsys)
+    assert rc == 1 and "não criou" in doc["error"]
 
 
 # --- the real install (fake uv) ---------------------------------------------------------------------------------------

@@ -15,6 +15,7 @@ import io
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import urllib.error
@@ -24,8 +25,8 @@ from pathlib import Path
 import pytest
 
 import _caixa
-from _caixa import SISTEMAS, distribution, saida_cp1252, update_cmd, write_fake_tool, write_git_launcher
-from _comum import executa, exige_registrado
+from _caixa import (SISTEMAS, distribution, doctor_cmd, saida_cp1252, update_cmd, write_fake_tool, write_git_launcher)
+from _comum import erros_de_schema, executa, exige_registrado
 from simplicio_video import __version__
 from simplicio_video.cli import main
 
@@ -142,9 +143,13 @@ def test_pip_sem_force_nao_usa_force_reinstall(capsys):
     assert "--force-reinstall" not in c.argvs[0]
 
 
-def test_pip_downgrade_sem_force_e_recusado_com_2(capsys):
+def test_pip_instalado_mais_novo_que_a_ultima_release_e_em_dia_e_sai_0(capsys):
+    """PyPI is published before the GitHub Release (the flow of #115), so the installed version can be NEWER than the latest
+    release. The loop answers 0, "up to date" (self_update.py:487-491); refusing with exit 2 would break that flow."""
     rc, c, texto = pip_update(capsys, installed="0.6.0", tag="v0.5.0")
-    assert rc == 2 and c.argvs == [] and "--force" in texto and "mais antiga" in texto
+    assert rc == 0 and c.argvs == []
+    assert re.search(r"mais nov[oa]", texto) and "0.5.0" in texto and "recusando" not in texto
+    assert c.registros[-1]["update_available"] is False and c.registros[-1]["latest"] == "0.5.0"
 
 
 def test_pip_downgrade_com_force_e_permitido(capsys):
@@ -287,14 +292,68 @@ def test_url_que_nao_e_https_e_recusada(com_rede):
         update_cmd._open("http://api.github.com/x")
 
 
-@pytest.mark.parametrize("texto,versao", [("v0.4.0", (0, 4, 0)), ("0.10.2", (0, 10, 2)), ("release 1.2.3-rc1", (1, 2, 3))])
-def test_parse_version(texto, versao):
-    assert update_cmd.parse_version(texto) == versao
+@pytest.mark.parametrize("texto,etiqueta", [
+    ("v0.4.0", "0.4.0"), ("0.10.2", "0.10.2"), ("1.2", "1.2.0"), ("1.2.3.4", "1.2.3.4"), ("1.2.3.0", "1.2.3"),
+    ("v1.2.3.post1", "1.2.3.post1"), (" v0.5.0\n", "0.5.0"), ("10.20.30", "10.20.30"),
+])
+def test_parse_version_aceita_so_a_release_final(texto, etiqueta):
+    """`\\d+(\\.\\d+){1,3}` with an optional `v`, plus the post-release suffix of PEP 440; the label is rebuilt from integers."""
+    assert update_cmd.format_version(update_cmd.parse_version(texto)) == etiqueta
 
 
-def test_parse_version_sem_numero_e_erro():
+@pytest.mark.parametrize("texto", [
+    "latest", "", "v", "1", "1.", ".1.2", "1..2", "v0.5.0 --index-url=http://evil", "0.5.0 @ git+https://evil", "v0.5.0-rc1",
+    "0.5.0rc1", "0.5.0a1", "0.5.0b2", "0.5.0.dev1", "1!2.0.0", "0.5.0+local", "\uff11.\uff12.\uff13", "release 1.2.3", "V0.5.0",
+    "0.5.0\n0.6.0", "1.2.3.4.5", "v0.5.0.post", "0.5.0.post1.dev2", "0.5.0;rm -rf /", "0.5.0 && echo x", "0.5.0\x00", "-1.2.3",
+    "v 0.5.0", "0.5.0.POST1", "0.5.0-1",
+])
+def test_parse_version_recusa_o_resto(texto):
     with pytest.raises(ValueError):
-        update_cmd.parse_version("latest")
+        update_cmd.parse_version(texto)
+
+
+def test_a_comparacao_de_versoes_segue_o_pep_440_para_o_que_aceita():
+    parse = update_cmd.parse_version
+    assert parse("1.2") == parse("1.2.0") == parse("v1.2.0.0")
+    assert parse("0.10.0") > parse("0.9.9") and parse("1.2.3.post1") > parse("1.2.3") and parse("1.2.3.1") > parse("1.2.3")
+    assert parse("1.2.3.post2") > parse("1.2.3.post1") and parse("2.0") > parse("1.99.99")
+
+
+@pytest.mark.parametrize("tag", ["v0.5.0 --index-url=http://evil", "0.5.0 @ git+https://evil", "v0.5.0-rc1", "1!2.0.0",
+                                 "\uff11.\uff12.\uff13", "0.5.0;rm -rf /", "$(touch pwned)", "v0.5.0\n--pre"])
+def test_um_tag_estranho_nao_chega_ao_pip(capsys, tag):
+    """The argv is rebuilt from integers; a tag that is not a plain version stops the update before pip is started."""
+    rc, c, texto = pip_update(capsys, tag=tag)
+    assert rc == 1 and c.argvs == [] and "não consegui ler" in texto
+    rc, c, texto = pip_update(capsys, tag=tag, check=True)
+    assert rc == 2 and c.argvs == [] and c.registros == []
+
+
+@pytest.mark.parametrize("tag,etiqueta", [("v0.5.0", "0.5.0"), ("1.2.3.post4", "1.2.3.post4"), ("v2.0", "2.0.0"), ("3.4.5.6", "3.4.5.6")])
+def test_o_argv_do_pip_tem_so_numeros_e_um_igual_igual_fixo(capsys, tag, etiqueta):
+    rc, c, _ = pip_update(capsys, tag=tag, installed="0.1.0")
+    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}{etiqueta}"]]
+    assert re.fullmatch(r"simplicio-video==\d+(\.\d+){2,3}(\.post\d+)?", c.argvs[0][-1]) and isinstance(c.argvs[0], list)
+
+
+def test_o_pip_roda_sem_shell(monkeypatch):
+    chamadas = []
+    monkeypatch.setattr(subprocess, "call", lambda *a, **kw: chamadas.append((a, kw)) or 0)
+    update_cmd._run([sys.executable, "-m", "pip", "install", "--upgrade", "simplicio-video==0.5.0"])
+    (args, kw), = chamadas
+    assert isinstance(args[0], list) and not kw.get("shell")
+    from _comum import ROOT
+    for nome in ("update", "install", "login", "doctor", "setup"):
+        fonte = (ROOT / "src" / "simplicio_video" / "commands" / f"{nome}.py").read_text(encoding="utf-8")
+        assert "shell=True" not in fonte and "os.system" not in fonte, nome
+
+
+def test_versao_instalada_de_desenvolvimento_nao_derruba_o_update(capsys):
+    """The installed version is read from our own `__version__`, which can be a dev version: it must not raise."""
+    rc, c, texto = pip_update(capsys, installed="0.5.0.dev1", tag="v0.4.0")
+    assert rc == 0 and c.argvs == [] and "Traceback" not in texto
+    rc, c, texto = pip_update(capsys, installed="0.5.0.dev1", tag="v0.6.0", check=True)
+    assert rc == 10
 
 
 # --- the state: update-check.json, read by `doctor` without network --------------------------------------------------
@@ -310,13 +369,78 @@ def test_o_estado_vai_para_simplicio_video_data_de_forma_atomica(caixa):
     assert [p.name for p in caixa.data.iterdir()] == ["update-check.json"], "no temp file may be left behind"
 
 
-def test_estado_ilegivel_ou_ausente_vira_none(caixa):
+def test_estado_ausente_e_none_e_o_ilegivel_ou_invalido_e_um_erro_claro(caixa):
     assert update_cmd.read_check() is None
     caixa.data.mkdir()
-    (caixa.data / "update-check.json").write_text("not json")
-    assert update_cmd.read_check() is None
-    (caixa.data / "update-check.json").write_text("[1]")
-    assert update_cmd.read_check() is None
+    arq = caixa.data / "update-check.json"
+    for bruto in ("not json", "[1]", '"x"', "", "{}", '{"latest": "1.2.3"}',
+                  '{"latest": "1.2.3", "checked_at": "yesterday"}', '{"latest": "1.2.3", "checked_at": 1e20}',
+                  '{"latest": "1.2.3", "checked_at": [1]}', '{"latest": "1.2.3", "checked_at": true}',
+                  '{"latest": "1.2.3", "checked_at": -5}', '{"latest": "1.2.3", "checked_at": 1.5}',
+                  '{"latest": 99, "checked_at": 1700000000}', '{"latest": "x\\u001b[31m9.9.9", "checked_at": 1700000000}',
+                  '{"latest": "1.2.3", "checked_at": 253402300800}', "[" * 100000):
+        arq.write_text(bruto)
+        with pytest.raises(update_cmd.CheckInvalid):
+            update_cmd.read_check()
+
+
+def test_read_check_devolve_so_as_chaves_conhecidas_e_com_o_tipo_certo(caixa):
+    caixa.data.mkdir()
+    base = {"installed": "0.4.0", "latest": "0.5.0", "update_available": True, "kind": "source", "commits_behind": 3,
+            "checked_at": 1700000000}
+    arq = caixa.data / "update-check.json"
+    arq.write_text(json.dumps({**base, "access_token": "fake-secret-tok", "zzz": 1}))
+    assert update_cmd.read_check() == base
+    arq.write_text(json.dumps({**base, "kind": "pip"}))  # commits_behind only exists for kind=source
+    assert "commits_behind" not in update_cmd.read_check()
+    arq.write_text(json.dumps({**base, "installed": ["x"], "update_available": "sim", "kind": "binary", "commits_behind": -1}))
+    assert update_cmd.read_check() == {"latest": "0.5.0", "checked_at": 1700000000}, "a known key of the wrong type is dropped"
+
+
+def test_o_estado_gravado_fecha_com_o_schema(caixa):
+    update_cmd.write_check({"installed": "0.4.0", "latest": "0.5.0", "update_available": True, "kind": "source", "commits_behind": 2})
+    assert erros_de_schema("update-check", json.loads((caixa.data / "update-check.json").read_text())) == []
+    assert update_cmd.read_check()["commits_behind"] == 2
+
+
+INFO = {"installed": "0.4.0", "latest": "0.5.0", "update_available": True, "kind": "pip"}
+
+
+def test_a_gravacao_do_estado_e_atomica_temporario_na_mesma_pasta_e_replace(caixa, monkeypatch):
+    chamadas = []
+    real = os.replace
+    monkeypatch.setattr(os, "replace", lambda origem, destino: chamadas.append((origem, destino)) or real(origem, destino))
+    update_cmd.write_check(INFO)
+    (origem, destino), = chamadas
+    assert Path(destino) == caixa.data / "update-check.json"
+    assert Path(origem).parent == caixa.data and Path(origem) != Path(destino), "the temp file must be beside the target"
+
+
+def test_replace_que_falha_nao_estraga_o_estado_anterior_nem_deixa_temporario(caixa, monkeypatch):
+    update_cmd.write_check(INFO)
+    antes = (caixa.data / "update-check.json").read_bytes()
+
+    def falha(origem, destino):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", falha)
+    update_cmd.write_check({**INFO, "latest": "9.9.9"})  # best effort: no exception
+    assert (caixa.data / "update-check.json").read_bytes() == antes
+    assert [p.name for p in caixa.data.iterdir()] == ["update-check.json"], "a failed write must not leave a temp file behind"
+
+
+def test_escrita_interrompida_no_meio_nao_deixa_o_estado_pela_metade(caixa, monkeypatch):
+    update_cmd.write_check(INFO)
+    antes = (caixa.data / "update-check.json").read_bytes()
+
+    def pela_metade(obj, handle, **kw):
+        handle.write('{"installed": "0.4.0", "lat')
+        raise OSError("disk full")
+
+    monkeypatch.setattr(json, "dump", pela_metade)
+    update_cmd.write_check({**INFO, "latest": "9.9.9"})
+    assert (caixa.data / "update-check.json").read_bytes() == antes
+    assert [p.name for p in caixa.data.iterdir()] == ["update-check.json"]
 
 
 def test_o_estado_que_nao_da_para_gravar_nao_derruba_o_update(caixa):
@@ -366,7 +490,7 @@ def fonte(monkeypatch):
 
 
 @pytest.fixture
-def remoto(caixa, fonte, monkeypatch):
+def remoto(caixa, fonte, com_rede, monkeypatch):
     """origem.git (simulated remote), semente (the publisher) and checkout (the user's repo, one commit behind)."""
     tmp = caixa.tmp
     write_git_launcher(caixa.tmp / "gitbin")
@@ -581,3 +705,147 @@ def test_falha_do_fetch_e_2_no_check_e_1_fora_dele(remoto, comandos, caixa, caps
 def test_o_check_do_checkout_usa_a_versao_do_pyproject_do_upstream(remoto, comandos, capsys):
     rc, out, err = executa(["update", "--check"], capsys, main)
     assert rc == 10 and "0.5.0" in out
+
+
+# --- SIMPLICIO_OFFLINE=1 blocks ALL the network, a checkout included; --dry-run never fetches -----------------------------
+
+
+REDE_DO_GIT = {"fetch", "pull", "push", "clone", "ls-remote", "remote", "submodule"}
+PROGRAMAS_DE_REDE = {"gh", "curl", "wget", "ssh", "pip", "pip3"}
+
+
+def _subcomando_do_git(args: list[str]) -> str | None:
+    """`git -C <dir> --no-pager <subcommand> ...` -> the subcommand."""
+    i = 0
+    while i < len(args):
+        if args[i] == "-C":
+            i += 2
+        elif args[i].startswith("-"):
+            i += 1
+        else:
+            return args[i]
+    return None
+
+
+@pytest.fixture
+def sem_rede(monkeypatch):
+    """A spy: any program or call that could touch the network FAILS the test. Returns the list of every argv started."""
+    visto: list[list[str]] = []
+    real_init = subprocess.Popen.__init__
+
+    def cuidado(self, args, *a, **kw):
+        argv = [str(x) for x in (args if isinstance(args, (list, tuple)) else [args])]
+        visto.append(argv)
+        programa = Path(argv[0]).name.lower() if argv else ""
+        programa = programa.rsplit(".", 1)[0] if programa.endswith((".exe", ".cmd", ".bat")) else programa
+        if programa == "git" and _subcomando_do_git(argv[1:]) in REDE_DO_GIT:
+            raise AssertionError(f"SIMPLICIO_OFFLINE: `git {_subcomando_do_git(argv[1:])}` would use the network: {argv}")
+        if programa in PROGRAMAS_DE_REDE or (argv[:1] == [sys.executable] and "pip" in argv[1:4]):
+            raise AssertionError(f"SIMPLICIO_OFFLINE: {argv} would use the network")
+        return real_init(self, args, *a, **kw)
+
+    def sem_socket(*a, **kw):
+        raise AssertionError("SIMPLICIO_OFFLINE: the network was used")
+
+    monkeypatch.setattr(subprocess.Popen, "__init__", cuidado)
+    monkeypatch.setattr(socket.socket, "connect", sem_socket)
+    monkeypatch.setattr(socket, "create_connection", sem_socket)
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", sem_socket)
+    return visto
+
+
+def _refs(checkout) -> str:
+    return _git("for-each-ref", "--format=%(refname) %(objectname)", cwd=checkout)
+
+
+def _nao_mexeu_no_git(checkout, refs_antes) -> None:
+    assert _refs(checkout) == refs_antes, "the remote-tracking refs moved: a fetch ran"
+    assert not (checkout / ".git" / "FETCH_HEAD").exists(), "FETCH_HEAD exists: a fetch ran"
+
+
+@pytest.mark.parametrize("argv,codigo", [(["update", "--check"], 2), (["update"], 1)])
+def test_offline_no_checkout_nao_roda_git_fetch_e_diz_por_que(remoto, comandos, caixa, capsys, monkeypatch, sem_rede, argv, codigo):
+    """`git fetch` is network: with SIMPLICIO_OFFLINE=1 the checkout gets the same answer as the pip package (`2 if --check
+    else 1`), the message names the variable, and the .git is not touched."""
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    checkout = remoto["checkout"]
+    refs = _refs(checkout)
+    rc, out, err = executa(argv, capsys, main)
+    assert rc == codigo, out + err
+    assert "SIMPLICIO_OFFLINE" in out + err and "git fetch" in out + err
+    assert [a for a in sem_rede if "fetch" in a] == []
+    _nao_mexeu_no_git(checkout, refs)
+    assert _head(checkout) == remoto["antigo"] and comandos.argvs == []
+    assert not (caixa.data / "update-check.json").exists(), "a failed check records nothing"
+
+
+def test_offline_o_doctor_online_no_checkout_e_aviso_e_nao_roda_git_fetch(remoto, comandos, caixa, monkeypatch, sem_rede):
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    refs = _refs(remoto["checkout"])
+    linha = doctor_cmd.collect(online=True, only="update")["checks"][0]
+    assert linha["name"] == "update" and linha["status"] == "warn" and "SIMPLICIO_OFFLINE" in linha["summary"]
+    assert [a for a in sem_rede if "fetch" in a] == []
+    _nao_mexeu_no_git(remoto["checkout"], refs)
+    assert not (caixa.data / "update-check.json").exists()
+
+
+@pytest.mark.parametrize("argv", [["update", "--check"], ["update"], ["update", "--dry-run"]])
+def test_offline_no_pacote_pip_nao_chama_gh_pip_nem_a_api(caixa, capsys, monkeypatch, sem_rede, argv):
+    monkeypatch.setattr(distribution, "kind", lambda **kw: "pip")
+    write_fake_tool(caixa.bin, "gh", "v9.9.9\n")  # a gh on PATH that must not be started
+    rc, out, err = executa(argv, capsys, main)
+    assert rc in (1, 2) and "SIMPLICIO_OFFLINE" in out + err
+    assert not [a for a in sem_rede if Path(a[0]).name in ("gh", "pip")] and not (caixa.bin / "gh.argv").exists()
+
+
+@pytest.mark.parametrize("offline", [False, True], ids=["com-rede", "offline"])
+def test_dry_run_do_checkout_nao_roda_git_fetch_e_so_mostra_o_plano(remoto, comandos, caixa, capsys, monkeypatch, sem_rede, offline):
+    """`git fetch` rewrites FETCH_HEAD, refs/remotes/origin/* and the reflog: it is not a read-only step. The dry-run only prints
+    the plan, so it cannot say whether the checkout is up to date (and does not pretend to)."""
+    if offline:
+        monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    checkout = remoto["checkout"]
+    refs = _refs(checkout)
+    rc, out, err = executa(["update", "--dry-run"], capsys, main)
+    assert rc == 0, out + err
+    assert [a for a in sem_rede if "fetch" in a and a[0] == "git"] == []
+    _nao_mexeu_no_git(checkout, refs)
+    for trecho in ("git fetch", "git pull --ff-only", "install", "doctor"):
+        assert trecho in out, f"the plan does not mention {trecho!r}:\n{out}"
+    assert "não roda" in out and "já está atualizado" not in out
+    assert comandos.argvs == [] and not (caixa.data / "update-check.json").exists()
+    assert _head(checkout) == remoto["antigo"]
+
+
+# --- the version the checkout reports and the text git prints ------------------------------------------------------------
+
+
+def test_versao_estranha_no_upstream_nao_vai_para_o_estado(remoto, comandos, caixa, capsys):
+    semente = remoto["semente"]
+    (semente / "pyproject.toml").write_text(PYPROJECT.format(v="0.6.0rc1"), encoding="utf8")
+    _git("commit", "-am", "chore: versão de teste", cwd=semente)
+    _git("push", "-q", "origin", "main", cwd=semente)
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 10, out + err
+    registro = json.loads((caixa.data / "update-check.json").read_text())
+    assert erros_de_schema("update-check", registro) == []
+    update_cmd.parse_version(registro["latest"])  # a real version, never the raw text of someone else's pyproject.toml
+
+
+def test_diff_do_changelog_com_byte_que_nao_e_utf8_nao_derruba_o_update(remoto, comandos, capsys):
+    """On Windows git's output is decoded with the console codec (cp1252 cannot read 0x8D, the second byte of an `Í`); here a
+    Latin-1 byte, which UTF-8 cannot read either. The text is read as UTF-8 with `errors=replace`."""
+    semente = remoto["semente"]
+    (semente / "CHANGELOG.md").write_bytes(CHANGELOG_NOVO.encode("utf-8") + b"- caf\xe9 com um byte latin-1\n")
+    _git("commit", "-am", "fix: byte latin-1", cwd=semente)
+    _git("push", "-q", "origin", "main", cwd=semente)
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 10 and "caf" in out and "�" in out, out + err
+
+
+def test_git_devolve_texto_utf8_com_substituicao(remoto):
+    (remoto["checkout"] / "CHANGELOG.md").write_bytes(b"# caf\xe9 \xc3\x8d\n")
+    feito = update_cmd._git(remoto["checkout"], "show", "--no-patch", "HEAD")  # any text; the real check is the diff above
+    assert feito.returncode == 0
+    feito = update_cmd._git(remoto["checkout"], "diff", "HEAD", "--", "CHANGELOG.md")
+    assert "caf�" in feito.stdout and "Í" in feito.stdout

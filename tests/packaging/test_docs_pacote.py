@@ -146,3 +146,32 @@ def test_a_referencia_gerada_descreve_as_variaveis_novas_e_lista_os_schemas():
     cli = (ROOT / "docs" / "reference" / "cli.md").read_text(encoding="utf8")
     for nome in ("login", "logout", "auth"):
         assert f"## simplicio-video {nome}" in cli
+
+
+# --- the corrections of the review of PR #116 ----------------------------------------------------------------------------------
+
+
+def test_a_pasta_pessoal_vem_de_home_e_so_depois_de_userprofile_nos_docs():
+    """The Runtime and the loop read HOME first on every system: the docs must not say USERPROFILE comes first on Windows."""
+    packaging = _texto(PACKAGING_MD)
+    assert "`HOME` e, só depois, de `USERPROFILE`" in packaging, "packaging.md does not state the order of HOME and USERPROFILE"
+    assert "vem de `USERPROFILE` no Windows" not in packaging and "`USERPROFILE` no Windows e de `HOME` nos outros" not in packaging
+    guia = _texto(SO_MD)
+    for trecho in ("pastas diferentes", "HOME", "USERPROFILE", "Runtime"):
+        assert trecho in guia, f"the Windows guide does not mention {trecho!r}"
+
+
+def test_packaging_documenta_o_que_a_revisao_do_116_mudou():
+    texto = _texto(PACKAGING_MD)
+    for trecho in ("SIMPLICIO_OFFLINE", "git fetch", "not_a_login_file", "mais nova que a última release", "LC_ALL",
+                   "XDG_RUNTIME_DIR", "1 MiB", "biblioteca padrão", "login_permissions", "login_invalid"):
+        assert trecho in texto, f"packaging.md não cita {trecho!r}"
+    assert "recusando um downgrade" not in texto and "downgrade sem `--force` |" not in texto, \
+        "an installed version newer than the latest release is up to date (exit 0), not a refusal"
+
+
+def test_o_changelog_registra_as_correcoes_da_revisao_do_116():
+    texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
+    unreleased = " ".join(texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0].split())
+    for trecho in ("install.sh", "PyYAML", "not_a_login_file", "git fetch", "`HOME`", "1 MiB", "mais nova"):
+        assert trecho in unreleased, f"CHANGELOG (Unreleased) não cita {trecho!r}"

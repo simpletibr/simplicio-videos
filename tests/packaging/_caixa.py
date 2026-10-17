@@ -107,6 +107,84 @@ def put_login(path: Path, doc=None, mode: int = 0o600) -> Path:
     return path
 
 
+def put_raw(path: Path, data: bytes | str, mode: int = 0o600) -> Path:
+    """Write a file with exactly these bytes (a hostile or corrupt login, say). The folder is 0700, like `put_login`."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.chmod(0o700)
+    path.write_bytes(data.encode("utf-8") if isinstance(data, str) else data)
+    path.chmod(mode)
+    return path
+
+
+def nega_acesso(monkeypatch, *pastas: Path) -> None:
+    """Simulate folders this user cannot search: a PATH folder with mode 0000, or a 0700 folder that another user owns.
+
+    Anything STRICTLY inside them raises PermissionError (stat, lstat, open, os.open, scandir, listdir, mkdir, unlink) and
+    `os.access` says no; the folder itself can still be stat'ed (that only needs its parent) but not listed. A real chmod
+    would do nothing here: root, who runs this suite in some environments, ignores modes. Only this process is affected
+    (a child process, like the fake Runtime, still sees the real files).
+    """
+    bases = [os.path.abspath(str(p)) for p in pastas]
+
+    def texto(caminho) -> str | None:
+        try:
+            valor = os.fspath(caminho)
+        except TypeError:  # a file descriptor
+            return None
+        return os.path.abspath(os.fsdecode(valor))
+
+    def dentro(caminho) -> bool:
+        alvo = texto(caminho)
+        return alvo is not None and any(alvo.startswith(base + os.sep) for base in bases)
+
+    def dentro_ou_igual(caminho) -> bool:
+        alvo = texto(caminho)
+        return alvo is not None and (dentro(caminho) or alvo in bases)
+
+    def nega(nome: str, ate_a_propria_pasta: bool = False):
+        real = getattr(os, nome)
+
+        def wrapper(caminho, *a, **kw):
+            if (dentro_ou_igual if ate_a_propria_pasta else dentro)(caminho):
+                raise PermissionError(13, "Permission denied", os.fspath(caminho))
+            return real(caminho, *a, **kw)
+
+        monkeypatch.setattr(os, nome, wrapper)
+
+    for nome in ("stat", "lstat", "open", "mkdir", "unlink", "remove"):
+        nega(nome)
+    for nome in ("scandir", "listdir"):
+        nega(nome, ate_a_propria_pasta=True)
+    real_access = os.access
+    monkeypatch.setattr(os, "access", lambda caminho, *a, **kw: False if dentro(caminho) else real_access(caminho, *a, **kw))
+    import builtins
+    import io
+
+    for modulo in (builtins, io):
+        real_open = modulo.open
+
+        def abre(arquivo, *a, _real=real_open, **kw):
+            if not isinstance(arquivo, int) and dentro(arquivo):
+                raise PermissionError(13, "Permission denied", os.fspath(arquivo))
+            return _real(arquivo, *a, **kw)
+
+        monkeypatch.setattr(modulo, "open", abre)
+
+
+def roda(argv: list[str], capsys, main=None) -> tuple[int, str, str]:
+    """main(argv) in process: (rc, stdout, stderr). Any exception that is not a SystemExit FAILS the test: that is a traceback."""
+    if main is None:
+        from simplicio_video.cli import main
+    try:
+        rc = main(argv)
+    except SystemExit as e:
+        rc = e.code if isinstance(e.code, int) else 1
+    except Exception as e:  # noqa: BLE001 - the whole point: nothing may escape a command
+        pytest.fail(f"`simplicio-video {' '.join(argv)}` raised {type(e).__name__}: {str(e)[:200]}", pytrace=False)
+    captured = capsys.readouterr()
+    return rc, captured.out, captured.err
+
+
 def assert_no_secret(*channels: str) -> None:
     for text in channels:
         for secret in (*SECRETS, *LEAKY_ENV.values()):

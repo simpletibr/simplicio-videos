@@ -13,9 +13,9 @@ import stat
 
 
 import _caixa
-from _caixa import (LEAKY_ENV, MASKED, SECRETS, assert_no_secret, login_cmd, login_doc, posix_real, put_login,
+from _caixa import (LEAKY_ENV, MASKED, SECRETS, assert_no_secret, login_cmd, login_doc, posix_real, put_login, put_raw,
                     saida_cp1252)
-from _comum import executa, exige_registrado
+from _comum import erros_de_schema, executa, exige_registrado
 from simplicio_video.cli import main
 
 # fixtures: assigned (not imported) so pytest finds them and ruff sees no shadowing by the test parameters
@@ -102,6 +102,33 @@ def test_o_filho_nao_recebe_variaveis_desconhecidas(caixa, capfd, monkeypatch):
     assert login_cmd.login() == 0
     visto = json.loads(caixa.envlog.read_text())
     assert "MINHA_VARIAVEL_QUALQUER" not in visto and "SIMPLICIO_VIDEO_DATA" not in visto
+
+
+def test_o_filho_nao_recebe_lc_nem_xdg_fora_da_lista_fechada(caixa, capfd, monkeypatch):
+    """`LC_*` and `XDG_*` used to pass by prefix, so `LC_TOKEN` or `XDG_SECRET` (any name) went to the Runtime. Only the exact
+    names a sign-in needs pass: the locale (to print accents) and what xdg-open needs to find the desktop and the browser."""
+    passam = {"LANG": "pt_BR.UTF-8", "LANGUAGE": "pt_BR", "LC_ALL": "C.UTF-8", "LC_CTYPE": "C.UTF-8", "LC_MESSAGES": "C",
+              "XDG_RUNTIME_DIR": "/run/user/1000", "XDG_CONFIG_HOME": "/x/config", "XDG_DATA_HOME": "/x/data",
+              "XDG_DATA_DIRS": "/usr/share", "XDG_CONFIG_DIRS": "/etc/xdg", "XDG_CURRENT_DESKTOP": "GNOME",
+              "XDG_SESSION_TYPE": "wayland", "XDG_SESSION_DESKTOP": "gnome"}
+    barrados = {"LC_TOKEN": "fake-lc-1", "LC_X": "fake-lc-2", "LC_SECRET_THING": "fake-lc-3", "XDG_SECRET": "fake-xdg-1",
+                "XDG_FOO_TOKEN": "fake-xdg-2", "XDG_CACHE_HOME": "/x/cache", "XDG_ANYTHING": "fake-xdg-3", "LC_": "fake-lc-4"}
+    for nome, valor in {**passam, **barrados}.items():
+        monkeypatch.setenv(nome, valor)
+    caixa.runtime()
+    assert login_cmd.login() == 0
+    visto = json.loads(caixa.envlog.read_text())
+    for nome, valor in passam.items():
+        assert visto.get(nome) == valor, f"{nome} is on the closed list and must reach the Runtime"
+    for nome, valor in barrados.items():
+        assert nome not in visto and valor not in json.dumps(visto), f"{nome} is not on the closed list"
+    assert_no_secret(json.dumps(visto))
+
+
+def test_o_ambiente_do_filho_e_uma_lista_de_nomes_exatos(caixa):
+    env = {"PATH": "/bin", "LC_ALL": "C", "LC_TOKEN": "x", "XDG_RUNTIME_DIR": "/run", "XDG_SECRET": "y", "OUTRA": "z"}
+    assert login_cmd._runtime_env(env) == {"PATH": "/bin", "LC_ALL": "C", "XDG_RUNTIME_DIR": "/run"}
+    assert not hasattr(login_cmd, "_CHILD_ENV_PREFIXES"), "a free prefix lets any LC_* or XDG_* name through"
 
 
 def test_login_nao_mexe_no_ambiente_quando_nao_ha_arquivo_customizado(caixa, capfd):
@@ -225,13 +252,47 @@ def test_logout_sem_login_nao_cria_arquivo_nem_pasta(caixa, capfd):
     assert not caixa.login.parent.exists(), "NO_LOGIN must write nothing (no lock file either)"
 
 
-def test_logout_de_algo_que_nao_e_arquivo_de_login_e_erro_e_nao_traceback(caixa, capfd):
+def test_logout_de_algo_que_nao_e_arquivo_de_login_e_recusado_e_nao_traceback(caixa, capfd):
     caixa.login.mkdir(parents=True)
-    assert login_cmd.logout(yes=True, as_json=True) == 1
+    assert login_cmd.logout(yes=True, as_json=True) == 2
     out, err = saida(capfd)
     doc = json.loads(out)
-    assert doc["status"] == "FAILED" and doc["reason_code"] == "login_invalid" and "detail" in doc
+    assert doc["status"] == "REFUSED" and doc["reason_code"] == "not_a_login_file" and "detail" in doc
     assert "Traceback" not in out + err and caixa.login.is_dir()
+    assert erros_de_schema("logout", doc) == []
+
+
+FAKE_CHAVE_SSH = b"-----BEGIN OPENSSH PRIVATE KEY-----\nZmFrZSBrZXkgZm9yIHRlc3Rz\n-----END OPENSSH PRIVATE KEY-----\n"
+
+
+def test_logout_com_simplicio_auth_file_apontando_para_uma_chave_ssh_nao_apaga_nada(caixa, capfd, monkeypatch):
+    """The review deleted a test ~/.ssh/id_rsa this way (and left an id_rsa.lock): now it is refused, exit 2, nothing touched."""
+    chave = put_raw(caixa.tmp / "ssh" / "id_rsa", FAKE_CHAVE_SSH)
+    monkeypatch.setenv("SIMPLICIO_AUTH_FILE", str(chave))
+    rc = login_cmd.logout(yes=True, as_json=True)
+    out, err = saida(capfd)
+    doc = json.loads(out)
+    assert rc == 2 and doc["status"] == "REFUSED" and doc["reason_code"] == "not_a_login_file"
+    assert doc["path"] == str(chave) and str(chave) in doc["detail"] and "nada foi apagado" in doc["detail"]
+    assert chave.read_bytes() == FAKE_CHAVE_SSH and [p.name for p in chave.parent.iterdir()] == ["id_rsa"]
+    assert erros_de_schema("logout", doc) == []
+    rc = login_cmd.logout(yes=True)
+    out, err = saida(capfd)
+    assert rc == 2 and "nada foi apagado" in out.lower() and chave.read_bytes() == FAKE_CHAVE_SSH
+
+
+def test_logout_pelo_cli_recusa_o_que_nao_e_login_com_exit_2(caixa, capsys, monkeypatch):
+    alvo = put_raw(caixa.tmp / "outro" / "dados.json", b'{"hello": "world"}')
+    monkeypatch.setenv("SIMPLICIO_AUTH_FILE", str(alvo))
+    rc, out, err = executa(["logout", "--yes", "--json"], capsys, main)
+    assert rc == 2 and json.loads(out)["reason_code"] == "not_a_login_file" and alvo.exists()
+
+
+def test_logout_de_login_corrompido_mas_com_a_forma_de_login_apaga(caixa, capfd):
+    """A login with a broken date is still a login file: the user must be able to get rid of it."""
+    put_raw(caixa.login, '{"access_token": "x", "access_expires_at": 1e999}')
+    assert login_cmd.logout(yes=True, as_json=True) == 0
+    assert json.loads(saida(capfd)[0])["status"] == "LOGGED_OUT" and not caixa.login.exists()
 
 
 # --- auth status -----------------------------------------------------------------------------------------------------

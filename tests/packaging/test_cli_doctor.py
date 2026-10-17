@@ -22,7 +22,7 @@ import _caixa
 from _caixa import (FFMPEG_COM_LIBASS, FFMPEG_SEM_LIBASS, LEAKY_ENV, SENTINELA, assert_no_secret,
                     distribution, doctor_cmd, hostos, login_doc, posix_real, put_login, saida_cp1252,
                     so_incompativel, update_cmd, write_fake_tool)
-from _comum import executa, exige_registrado, instantanea
+from _comum import erros_de_schema, executa, exige_registrado, instantanea
 from simplicio_video import __version__
 from simplicio_video.cli import main
 
@@ -411,3 +411,100 @@ def test_num_pacote_instalado_o_disco_e_medido_na_pasta_de_dados_e_nao_no_site_p
     assert _linha(rel, "distribution")["detail"]["kind"] == "pip"
     assert str(site) not in out + err, "an installed package must not show site-packages as a checkout"
     assert all(not m.startswith(str(site)) for m in saude.medidos)
+
+
+# --- a corrupt or hostile update-check.json must not take the doctor down; only the schema's keys are copied -----------------
+
+
+def _cache(**sobre) -> str:
+    """The text of an update-check.json: the values are raw JSON fragments, None leaves the key out."""
+    base = {"installed": '"0.4.0"', "latest": '"99.0.0"', "update_available": "true", "kind": '"source"',
+            "checked_at": "1700000000"}
+    base.update(sobre)
+    return "{" + ", ".join(f'"{nome}": {valor}' for nome, valor in base.items() if valor is not None) + "}"
+
+
+def _escreve_cache(saude, bruto: str) -> None:
+    saude.caixa.data.mkdir(parents=True, exist_ok=True)
+    (saude.caixa.data / "update-check.json").write_text(bruto, encoding="utf-8")
+
+
+CACHES_INVALIDOS = {
+    "checked_at_texto": _cache(checked_at='"yesterday"'),
+    "checked_at_enorme": _cache(checked_at="1e20"),
+    "checked_at_infinito": _cache(checked_at="1e999"),
+    "checked_at_lista": _cache(checked_at="[1]"),
+    "checked_at_booleano": _cache(checked_at="true"),
+    "checked_at_negativo": _cache(checked_at="-5"),
+    "checked_at_nulo": _cache(checked_at="null"),
+    "checked_at_ausente": _cache(checked_at=None),
+    "checked_at_depois_do_ano_9999": _cache(checked_at="253402300800"),
+    "checked_at_decimal": _cache(checked_at="1.5"),
+    "checked_at_texto_gigante": _cache(checked_at='"' + "9" * 5000 + '"'),
+    "latest_com_escape_ansi": _cache(latest='"\\u001b[31m99.0.0"'),
+    "latest_numero": _cache(latest="99"),
+    "latest_lista": _cache(latest='["99.0.0"]'),
+    "latest_sem_versao": _cache(latest='"latest"'),
+    "latest_nulo": _cache(latest="null"),
+    "latest_ausente": _cache(latest=None),
+    "latest_com_argumento_do_pip": _cache(latest='"99.0.0 --index-url=http://evil.invalid"'),
+    "nao_e_objeto": "[1]", "texto": '"x"', "vazio": "", "nao_e_json": "not json", "aninhado": "[" * 100_000,
+}
+
+
+@pytest.mark.parametrize("nome", sorted(CACHES_INVALIDOS))
+def test_cache_do_update_invalido_e_aviso_com_a_dica_e_nunca_excecao(saude, nome):
+    _escreve_cache(saude, CACHES_INVALIDOS[nome])
+    linha = doctor_cmd.collect(only="update")["checks"][0]
+    assert linha["name"] == "update" and linha["status"] == "warn", linha
+    assert linha["fix"] == "simplicio-video update --check" and "inválid" in linha["summary"]
+    assert linha["detail"] == {}, "nothing of a corrupt file is copied into the document"
+    for lixo in ("\x1b", "--index-url", "evil", "yesterday"):
+        assert lixo not in linha["summary"], f"{lixo!r} of the corrupt file reached the summary"
+
+
+@pytest.mark.parametrize("nome", ["checked_at_texto", "checked_at_enorme", "checked_at_lista", "latest_com_escape_ansi", "aninhado"])
+def test_o_doctor_inteiro_sobrevive_ao_cache_invalido_em_texto_e_em_json(saude, capsys, nome):
+    _escreve_cache(saude, CACHES_INVALIDOS[nome])
+    rc, rel, out, err = _json(capsys)
+    assert rc == 0 and len(rel["checks"]) == 12, "the twelve checks must not be lost to one corrupt cache"
+    assert _linha(rel, "update")["status"] == "warn" and erros_de_schema("doctor", rel) == []
+    rc, out, err = executa(["doctor"], capsys, main)
+    assert rc == 0 and "Traceback" not in out + err and "\x1b" not in out + err and "warn  update" in out
+
+
+def test_o_detail_do_update_so_tem_as_chaves_do_schema_e_nao_repete_segredo(saude, capsys):
+    """A cache with an `access_token` key used to be copied whole: the document broke its own schema and repeated the value."""
+    _escreve_cache(saude, _cache(commits_behind="3", access_token='"fake-secret-tok-1"', refresh_token='"fake-secret-tok-2"',
+                                 zzz='{"fundo": [1, 2]}'))
+    rc, rel, out, err = _json(capsys)
+    detail = _linha(rel, "update")["detail"]
+    assert set(detail) <= {"installed", "latest", "update_available", "kind", "commits_behind", "checked_at"}, detail
+    assert detail["latest"] == "99.0.0" and detail["commits_behind"] == 3 and detail["checked_at"] == 1700000000
+    assert "fake-secret-tok" not in out + err and erros_de_schema("doctor", rel) == []
+
+
+def test_o_resumo_do_update_usa_a_versao_normalizada_e_nao_o_texto_do_arquivo(saude):
+    _escreve_cache(saude, _cache(latest='" v99.0.0\\n"'))
+    linha = doctor_cmd.collect(only="update")["checks"][0]
+    assert linha["status"] == "warn" and "-> 99.0.0 " in linha["summary"] and "\n" not in linha["summary"]
+    assert linha["detail"]["latest"] == "99.0.0"
+
+
+def test_cache_valido_ate_o_ano_9999_aparece_com_a_data(saude):
+    _escreve_cache(saude, _cache(checked_at="253402300799"))
+    linha = doctor_cmd.collect(only="update")["checks"][0]
+    assert linha["status"] == "warn" and "9999-12-31T23:59:59Z" in linha["summary"]
+
+
+@posix_real
+def test_node_e_ffmpeg_com_saida_que_nao_e_utf8_nao_derrubam_o_doctor(saude, capsys):
+    """On Windows the output of a program is decoded with the console codec; here a byte UTF-8 cannot read (0xCD, Latin-1 `Í`)."""
+    for nome, saida in (("node", "v22.11.0 \\315\\n"),
+                        ("ffmpeg", "ffmpeg version 7.0.2 \\315 Copyright\\nconfiguration: --enable-libass\\n")):
+        alvo = saude.caixa.bin / nome
+        alvo.write_bytes(f"#!/bin/sh\nprintf '{saida}'\n".encode())
+        alvo.chmod(0o755)
+    rc, rel, out, err = _json(capsys)
+    assert rc == 0 and "Traceback" not in out + err
+    assert [_linha(rel, n)["status"] for n in ("node", "ffmpeg", "ffmpeg-libass")] == ["ok", "ok", "ok"]

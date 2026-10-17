@@ -63,7 +63,8 @@ def test_o_ambiente_do_filho_e_isolado(smoke, tmp_path):
             "SIMPLICIO_LOGIN_TOKEN": "fake-lt", "BROWSER": "firefox", "SYSTEMROOT": r"C:\Windows", "OUTRA": "x"}
     env = smoke.build_env(tmp_path, real)
     assert Path(env["HOME"]) == tmp_path / "home"
-    assert env["USERPROFILE"] == env["HOME"], "both are set: Windows reads USERPROFILE, POSIX reads HOME"
+    assert env["USERPROFILE"] != env["HOME"] and Path(env["USERPROFILE"]).parent == tmp_path, \
+        "HOME and USERPROFILE must be DIFFERENT folders: with the same one, a program that reads the wrong variable passes"
     for nome in ("GH_TOKEN", "GITHUB_TOKEN", "GEMINI_API_KEY", "SIMPLICIO_AUTH_FILE", "SIMPLICIO_LOGIN_TOKEN", "BROWSER", "OUTRA"):
         assert nome not in env, f"{nome} leaked into the child environment"
     assert str(tmp_path) in env["PATH"] and "/usr/bin" not in env["PATH"] and "/bin" not in env["PATH"].split(os.pathsep)
@@ -71,6 +72,19 @@ def test_o_ambiente_do_filho_e_isolado(smoke, tmp_path):
     assert env["SYSTEMROOT"] == r"C:\Windows", "Windows needs SYSTEMROOT to start Python"
     for nome in ("SIMPLICIO_VIDEO_DATA", "SIMPLICIO_WORKSPACE", "SIMPLICIO_VIDEO_HOME"):
         assert str(tmp_path) in env[nome], f"{nome} must be under the temporary folder"
+
+
+def test_o_login_do_filho_vem_de_home_como_o_runtime_e_nao_do_userprofile(smoke, tmp_path):
+    """The old smoke set both variables to ONE folder and so could not see which one the CLI reads. The Runtime reads HOME first."""
+    import json
+    import subprocess
+    smoke.preparar(tmp_path)
+    env = smoke.build_env(tmp_path, dict(os.environ))
+    feito = subprocess.run([sys.executable, "-m", "simplicio_video", "auth", "status", "--json"], env=env, cwd=str(tmp_path),
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+    doc = json.loads(feito.stdout)
+    assert Path(doc["path"]) == tmp_path / "home" / ".simplicio" / "login.json", doc["path"]
+    assert not (tmp_path / "profile" / ".simplicio").exists()
 
 
 def test_nao_existe_simplicio_no_path_do_filho(smoke, tmp_path):
@@ -146,6 +160,7 @@ def test_roda_de_verdade_no_linux_passa_e_nao_toca_no_home_real(smoke, capsys, t
     assert platform.python_version() in out and platform.system() in out
     assert {n: (casa / n).exists() for n in antes} == antes, "the smoke touched the real home"
     assert not (tmp_path / "pasta" / "home" / ".simplicio").exists(), "NO_LOGIN writes nothing, not even the folder"
+    assert not (tmp_path / "pasta" / "profile" / ".simplicio").exists()
 
 
 def test_a_pasta_temporaria_e_apagada_no_fim_salvo_com_manter(smoke, capsys, tmp_path, monkeypatch):
