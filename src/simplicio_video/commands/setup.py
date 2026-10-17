@@ -17,6 +17,7 @@ from pathlib import Path
 
 import yaml
 
+from ..paths import workspace_dir
 from ..realoficial import REALOFICIAL_MCP_URL
 
 WS_SCHEMA = "simplicio.workspace/v1"
@@ -25,14 +26,6 @@ POL_SCHEMA = "simplicio.policy/v1"
 TEMA_PADRAO = "br"
 IDIOMA_PADRAO = "pt-BR"
 FUSO_PADRAO = "America/Sao_Paulo"
-
-
-def workspace_dir() -> Path:
-    """$SIMPLICIO_WORKSPACE ou ~/.simplicio-video/workspaces/default (docs/factory/contracts.md)."""
-    env = os.environ.get("SIMPLICIO_WORKSPACE")
-    if env:
-        return Path(env).expanduser()
-    return Path.home() / ".simplicio-video" / "workspaces" / "default"
 
 
 def _pergunta(rotulo: str, padrao: str) -> str:
@@ -53,7 +46,7 @@ def _grava(caminho: Path, dados: dict) -> None:
 
 def run(a) -> int:
     ws = workspace_dir()
-    if (ws / "workspace.yaml").is_file() and not a.force:
+    if os.path.isfile(ws / "workspace.yaml") and not a.force:  # os.path: a folder that cannot be searched says False, not PermissionError
         print(f"workspace já existe em {ws}: nada foi alterado.\n"
               "  para regravar workspace.yaml e policy.yaml: simplicio-video setup --force\n"
               "  próximo passo: simplicio-video doctor")

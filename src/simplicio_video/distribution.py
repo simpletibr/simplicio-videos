@@ -11,6 +11,8 @@ from importlib import metadata
 from pathlib import Path
 from typing import Optional
 
+from . import hostos
+
 PIP = "pip"
 SOURCE = "source"
 DIST_NAME = "simplicio-video"
@@ -35,7 +37,7 @@ def is_editable() -> bool:
 
 def checkout_marker(root: Path) -> bool:
     """`root` is a checkout of this repository: a .git (a folder, or a file in a worktree) AND the plugin.json beside it."""
-    return (Path(root) / ".git").exists() and (Path(root) / "plugin.json").is_file()
+    return hostos.exists(Path(root) / ".git") and hostos.is_file(Path(root) / "plugin.json")  # never a PermissionError
 
 
 def in_checkout() -> bool:

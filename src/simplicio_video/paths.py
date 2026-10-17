@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 
+from . import hostos
+
 PKG_DIR = Path(__file__).resolve().parent
 DATA_DIR = PKG_DIR / "data"
 ENGINE_DIR = PKG_DIR / "engine"
@@ -16,7 +18,7 @@ ENGINE_DIR = PKG_DIR / "engine"
 
 def _is_home(p: Path) -> bool:
     pj = p / "plugin.json"
-    if not pj.is_file():
+    if not hostos.is_file(pj):  # a folder that cannot be searched is not the home, and not a PermissionError either
         return False
     try:
         return json.loads(pj.read_text(encoding="utf8")).get("name") == "videos"
@@ -36,6 +38,20 @@ def home(start: Path | None = None) -> Path:
             if _is_home(p):
                 return p
     return DATA_DIR
+
+
+def workspace_dir() -> Path:
+    """$SIMPLICIO_WORKSPACE, else ~/.simplicio-video/workspaces/default (docs/factory/contracts.md).
+
+    Lives here and not in `commands/setup.py`: `install` needs it before the `.venv` exists, under the system python, and
+    `setup` imports PyYAML at the top. This module is standard library only."""
+    env = os.environ.get("SIMPLICIO_WORKSPACE")
+    if env:
+        try:
+            return Path(env).expanduser()
+        except RuntimeError:  # `~someone` of a user that does not exist: the text is used as it is
+            return Path(env)
+    return hostos.home_dir() / ".simplicio-video" / "workspaces" / "default"
 
 
 def data_dir() -> Path:

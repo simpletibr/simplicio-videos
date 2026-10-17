@@ -29,9 +29,12 @@ caixa = _caixa.caixa
 
 # Runs inside the child: block the third party first and prove the block works...
 BLOQUEIO = textwrap.dedent(r'''
-    import importlib.abc, importlib.util, sys
+    import importlib.abc, os, sys
 
+    # the names of the standard library, plus the folders it lives in: `_sysconfigdata__x86_64-linux-gnu`, for one, is standard
+    # library and is in no list of names
     STDLIB = set(sys.stdlib_module_names) | set(sys.builtin_module_names) | {"__future__", "__main__"}
+    RAIZES = (os.path.dirname(os.path.realpath(os.__file__)) + os.sep,)  # the folder of the standard library, not of the venv
 
     def permitido(nome):
         topo = nome.partition(".")[0]
@@ -41,6 +44,14 @@ BLOQUEIO = textwrap.dedent(r'''
         def find_spec(self, nome, caminho=None, alvo=None):
             if permitido(nome):
                 return None
+            for outro in sys.meta_path:
+                achar = getattr(outro, "find_spec", None)
+                spec = achar(nome, caminho, alvo) if achar and outro is not self else None
+                if spec is not None:
+                    origem = os.path.realpath(spec.origin) if spec.origin and spec.has_location else ""
+                    if origem.startswith(RAIZES) and "-packages" not in origem:
+                        return None  # a file of the standard library: let the normal import find it
+                    break
             raise ModuleNotFoundError(f"No module named {nome.partition('.')[0]!r} (blocked: not standard library)", name=nome)
 
     for nome in [m for m in sys.modules if not permitido(m)]:

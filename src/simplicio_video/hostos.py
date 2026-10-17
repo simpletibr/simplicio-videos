@@ -4,16 +4,24 @@ Everything here reads `sys.platform` and the environment at CALL time, never at 
 Linux, macOS and Windows (tests/packaging/_caixa.py: `simula_so`). It never reads `os.name` for decisions: pathlib picks
 its flavour from `os.name`, and a fake `nt` on Linux breaks every Path().
 
-Finding a program is done here and not with `shutil.which`, for two reasons: on Windows `shutil.which` looks in the
-current directory first (a planted `simplicio.exe` would be run by `simplicio-video login`), and an injected environment
-without PATH would silently fall back to the real PATH of the process.
+Finding a program is done here and not with `shutil.which`, for three reasons: on Windows `shutil.which` looks in the
+current directory first (a planted `simplicio.exe` would be run by `simplicio-video login`), an injected environment
+without PATH would silently fall back to the real PATH of the process, and PATHEXT must come from the environment that
+was passed in, not from the process's own.
+
+Standard library only: `install` runs under the SYSTEM python, before the `.venv` (and PyYAML) exists.
+
+Looking at a file never raises: `Path.is_file()` and `Path.exists()` raise PermissionError on Python 3.12 and 3.13 when
+a folder cannot be searched (a PATH folder with mode 0000, a `~/.simplicio` of another user after `sudo`), where
+`shutil.which` swallowed it. `is_file`, `is_dir` and `exists` here are `os.path` calls, which say False instead.
 """
 from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePath
-from typing import Mapping, Optional
+from typing import Any, Mapping, Optional
 
 # macOS GUI and ssh sessions often lack the Homebrew prefixes on PATH (Apple Silicon, then Intel).
 EXTRA_TOOL_DIRS = {"darwin": ["/opt/homebrew/bin", "/usr/local/bin"]}
@@ -38,9 +46,13 @@ def is_macos() -> bool:
 
 
 def home_dir(environ: Optional[Mapping[str, str]] = None) -> Path:
-    """The user's home: USERPROFILE first on Windows, HOME first elsewhere; Path.home() when the environment has none."""
+    """The user's home: HOME, then USERPROFILE, then Path.home(), on EVERY system.
+
+    This is the order the Runtime reads it (runtime_auth.rs `auth_file`) and the loop too (auth.py `_home`). The login file is
+    shared with the Runtime: with USERPROFILE first on Windows this program would read, and delete, another file than the one
+    the Runtime writes (MSYS2, Cygwin, a HOME set by hand). A blank value is skipped, as in the loop."""
     if environ is not None:
-        for name in (("USERPROFILE", "HOME") if is_windows() else ("HOME", "USERPROFILE")):
+        for name in ("HOME", "USERPROFILE"):
             value = (environ.get(name) or "").strip()
             if value:
                 return Path(value)
@@ -59,6 +71,24 @@ def say(text: str) -> None:
         print(text.encode(encoding, "replace").decode(encoding))
 
 
+# 9999-12-31T23:59:59Z: the last instant a `datetime` can hold (and the cap of every date read from a file).
+MAX_TIMESTAMP = 253402300799
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def utc_stamp(seconds: Any) -> str:
+    """`2030-03-17T17:46:40Z`, or `data inválida` for anything that is no instant between 1970 and year 9999.
+
+    Plain arithmetic on the epoch: `datetime.fromtimestamp` raises OSError past year 3000 on Windows, OverflowError and
+    ValueError for a huge number, and a date shown to the user must never be the reason for a traceback."""
+    try:
+        if isinstance(seconds, bool) or not 0 <= seconds <= MAX_TIMESTAMP:  # a NaN fails the comparison too
+            return "data inválida"
+        return (_EPOCH + timedelta(seconds=int(seconds))).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (TypeError, ValueError, OverflowError):
+        return "data inválida"
+
+
 def exe_name(base: str) -> str:
     return base + ".exe" if is_windows() else base
 
@@ -68,6 +98,22 @@ def venv_python(venv: PurePath, system_name: Optional[str] = None):
     if (system_name or system()) == "win32":
         return venv / "Scripts" / "python.exe"
     return venv / "bin" / "python"
+
+
+# --- looking at files: never an exception ------------------------------------------------------------------------------------
+
+
+def is_file(path: Any) -> bool:
+    """True for a regular file. False for anything else, a folder that cannot be searched and a bad path included."""
+    return os.path.isfile(path)
+
+
+def is_dir(path: Any) -> bool:
+    return os.path.isdir(path)
+
+
+def exists(path: Any) -> bool:
+    return os.path.exists(path)
 
 
 # --- finding a program -----------------------------------------------------------------------------------------------
@@ -83,22 +129,25 @@ def _search_dirs(path: Optional[str]) -> list:
     return dirs
 
 
-def _file_names(name: str) -> list:
-    """The file names to try for `name`: itself on POSIX; with every PATHEXT extension on Windows."""
+def _file_names(name: str, environ: Optional[Mapping[str, str]] = None) -> list:
+    """The file names to try for `name`: itself on POSIX; with every PATHEXT extension of `environ` on Windows."""
     if not is_windows():
         return [name]
-    exts = [ext for ext in (os.environ.get("PATHEXT") or DEFAULT_PATHEXT).split(";") if ext]  # PATHEXT is always ;-separated
+    environ = os.environ if environ is None else environ
+    exts = [ext for ext in (environ.get("PATHEXT") or DEFAULT_PATHEXT).split(";") if ext]  # PATHEXT is always ;-separated
     if any(name.lower().endswith(ext.lower()) for ext in exts):
         return [name]
     return list(dict.fromkeys(item for ext in exts for item in (name + ext, name + ext.lower())))
 
 
-def which(name: str, path: Optional[str] = None) -> Optional[Path]:
-    """The first executable file called `name` in the absolute entries of `path` (PATHEXT on Windows), else None."""
+def which(name: str, path: Optional[str] = None, environ: Optional[Mapping[str, str]] = None) -> Optional[Path]:
+    """The first executable file called `name` in the absolute entries of `path` (PATHEXT of `environ` on Windows), else None.
+
+    A folder that cannot be searched is skipped, never an error."""
     for directory in _search_dirs(path):
-        for file_name in _file_names(name):
+        for file_name in _file_names(name, environ):
             candidate = Path(directory) / file_name
-            if candidate.is_file() and os.access(candidate, os.X_OK):
+            if is_file(candidate) and os.access(candidate, os.X_OK):
                 return candidate
     return None
 
@@ -110,9 +159,9 @@ def extra_tool_dirs(system_name: Optional[str] = None) -> list:
 def find_tool(name: str, environ: Optional[Mapping[str, str]] = None) -> Optional[str]:
     """`name` on PATH, then (macOS) in the Homebrew prefixes. The path as a string, or None."""
     env = os.environ if environ is None else environ
-    found = which(name, env.get("PATH", ""))
+    found = which(name, env.get("PATH", ""), env)
     if found is None:
-        found = which(name, os.pathsep.join(extra_tool_dirs()))
+        found = which(name, os.pathsep.join(extra_tool_dirs()), env)
     return str(found) if found else None
 
 
@@ -132,7 +181,7 @@ def find_uv(environ: Optional[Mapping[str, str]] = None) -> Optional[str]:
         return found
     for candidate in uv_candidates(home_dir(environ), environ):
         path = Path(candidate)
-        if path.is_file() and os.access(path, os.X_OK):
+        if is_file(path) and os.access(path, os.X_OK):
             return str(path)
     return None
 

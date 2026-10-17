@@ -9,8 +9,12 @@ An installed package (pip) has no checkout and no .venv to create: `--check` and
 exits 2, and nothing is ever created inside site-packages.
 
 Exit codes (as the loop): `--check` 0 up to date, 10 something pending; `--dry-run` 0 (it writes nothing); 1 a failed install or a
-.venv with another Python; 2 an invalid argument, or a pip-installed package. With --json, stdout is one
-`simplicio.video-install/v1` document and every message goes to stderr.
+.venv with another Python; 2 an invalid argument, or a pip-installed package. With --json, stdout is ONE
+`simplicio.video-install/v1` document and every message goes to stderr; an error also prints a document (the same keys the
+install already knew, plus `error`), so a program reading stdout never has to guess.
+
+Standard library only, and so is everything it imports at the top: `./install.sh` runs this under the SYSTEM python, before the
+`.venv` exists, and that python has no PyYAML (macOS with the Xcode tools, a minimal Debian). Do not import `setup` here.
 
 Exemplos:
   simplicio-video install --check
@@ -27,7 +31,6 @@ import sys
 from pathlib import Path
 
 from .. import __version__, distribution, hostos, paths
-from .setup import workspace_dir
 
 PYTHON_PADRAO = "3.12"
 REGISTRO = "simplicio-install.json"
@@ -58,7 +61,10 @@ def _alvo(extras: list[str]) -> str:
 
 
 def _sha(caminho: Path) -> str | None:
-    return hashlib.sha256(caminho.read_bytes()).hexdigest() if caminho.is_file() else None
+    try:
+        return hashlib.sha256(caminho.read_bytes()).hexdigest() if hostos.is_file(caminho) else None
+    except OSError:  # a file that cannot be read counts as a file that is not there: the plan says to install
+        return None
 
 
 def _registro(venv: Path) -> dict | None:
@@ -83,7 +89,7 @@ def plano(home: Path, python: str, extras: list[str]) -> tuple[list[str], str | 
     venv = home / ".venv"
     pendentes: list[str] = []
     conflito = None
-    if not venv.is_dir():
+    if not hostos.is_dir(venv):
         pendentes.append(f"criar .venv com Python {python}: uv venv --python {python} .venv")
     else:
         atual = _versao_do_venv(venv)
@@ -110,12 +116,20 @@ def _executa(argv: list[str], cwd: Path, para_stderr: bool) -> None:
         raise InstallError(f"comando falhou (código {r.returncode}): {' '.join(argv)}")
 
 
+def _erro(a, mensagem: str, codigo: int, kind: str, **campos) -> int:
+    """The message on stderr and, with --json, ONE document on stdout: `error` plus whatever the install already knew."""
+    print(f"install: {mensagem}", file=sys.stderr)
+    if a.json:
+        hostos.say(json.dumps({"schema": SCHEMA, "version": __version__, "distribution": kind, "error": mensagem, **campos},
+                              sort_keys=True))
+    return codigo
+
+
 def _run_pip(a) -> int:
     """A package installed by pip: no checkout, no .venv. Never touch site-packages."""
     python = f"{sys.version_info.major}.{sys.version_info.minor}"
     if not (a.check or a.dry_run):
-        print(f"install: {PIP_MESSAGE}", file=sys.stderr)
-        return 2
+        return _erro(a, PIP_MESSAGE, 2, distribution.PIP, python=python, extras=[], pending=[], conflict=None, up_to_date=False)
     if a.json:
         print(f"install: {PIP_MESSAGE}", file=sys.stderr)
         hostos.say(json.dumps(_doc(python, [], [], None, distribution.PIP), sort_keys=True))
@@ -137,8 +151,7 @@ def run(a) -> int:
             raise InstallError(f"versão de Python inválida {python!r}: use algo como 3.12")
         extras = pedidos if pedidos is not None else list(reg.get("extras") or [])
     except InstallError as e:
-        print(f"install: {e}", file=sys.stderr)
-        return 2
+        return _erro(a, str(e), 2, kind)
 
     def say(texto: str) -> None:
         if a.json:
@@ -158,6 +171,9 @@ def run(a) -> int:
         if a.json:
             hostos.say(json.dumps(doc, sort_keys=True))
 
+    def falha(mensagem: str) -> int:  # a failure of the real install: the plan that was known, plus `error`
+        return _erro(a, mensagem, 1, kind, python=python, extras=extras, pending=pendentes, conflict=conflito, up_to_date=False)
+
     if a.check:
         emite(_doc(python, extras, pendentes, conflito, kind))
         if conflito or pendentes:
@@ -170,9 +186,8 @@ def run(a) -> int:
         say("  dry-run: nada foi criado nem alterado.")
         return 0
     if conflito:
-        print(f"install: {conflito}", file=sys.stderr)
-        return 1
-    proximo = "simplicio-video doctor" + ("" if (workspace_dir() / "workspace.yaml").is_file()
+        return falha(f"conflito: {conflito}")
+    proximo = "simplicio-video doctor" + ("" if hostos.is_file(paths.workspace_dir() / "workspace.yaml")
                                           else " e, depois, simplicio-video setup")
     if not pendentes:
         say(f"nada a mudar: o ambiente já está em dia. Próximo passo: {proximo}")
@@ -181,20 +196,17 @@ def run(a) -> int:
 
     uv = hostos.find_uv()
     if not uv:
-        print("install: uv não encontrado. O install.sh oferece instalar; ou instale com:\n"
-              f"  {hostos.hint('uv')}\n(veja https://docs.astral.sh/uv/)", file=sys.stderr)
-        return 1
+        return falha("uv não encontrado. O install.sh oferece instalar; ou instale com:\n"
+                     f"  {hostos.hint('uv')}\n(veja https://docs.astral.sh/uv/)")
     venv = home / ".venv"
     try:
-        if not venv.is_dir():
+        if not hostos.is_dir(venv):
             _executa([uv, "venv", "--python", python, ".venv"], home, a.json)
         _executa([uv, "pip", "install", "--python", str(hostos.venv_python(venv)), "-e", _alvo(extras)], home, a.json)
     except InstallError as e:
-        print(f"install: {e}", file=sys.stderr)
-        return 1
-    if not venv.is_dir():
-        print(f"install: o uv não criou {venv}", file=sys.stderr)
-        return 1
+        return falha(str(e))
+    if not hostos.is_dir(venv):
+        return falha(f"o uv não criou {venv}")
     registro = {"python": python, "extras": extras, "pyproject_sha256": _sha(home / "pyproject.toml")}
     (venv / REGISTRO).write_text(json.dumps(registro, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     say(f"ok: ambiente instalado em {venv}. Próximo passo: {proximo}")
