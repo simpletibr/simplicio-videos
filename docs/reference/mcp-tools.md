@@ -4,7 +4,7 @@
 
 | Tool | Descrição |
 |---|---|
-| `video.init` | Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts). |
+| `video.init` | Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts). Writes <checkout>/clients/<cliente>/<campanha>/contract.yaml; in a pip-installed package (no checkout) `out`, the absolute path of the contract file, is required and nothing is written without it. |
 | `video.validate` | Validate a contract: JSON Schema, assets, scene durations, every line fits (need_lock before render). |
 | `video.voice` | Generate/cache narration (provider file\|local\|gemini) and write timing.lock.json with real durations. |
 | `video.render` | Render the contract: backend local \| kaggle (GPU T4) \| colab-cli \| colab (bundle only). Returns manifest summary. |
