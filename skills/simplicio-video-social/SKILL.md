@@ -60,4 +60,4 @@ O Zernio não tem prévia nem cotação (UNVERIFIED que exista rascunho), então
 - Guarde o `social.plan.json` como trilha de auditoria (ele não tem horário de geração nem segredo) e anote o resultado no README do cliente. O link público vem de `ro_list_publications` (`published_url`).
 - Para métricas, `ro_get_social_analytics` (leitura) a pedido do usuário.
 
-Decisão e fronteira: [ADR-0018](../../docs/decisoes/ADR-0018-social-planejar-sem-postar.md). Provedores: [docs/realoficial.md](../../docs/realoficial.md) e `simplicio-video social providers`.
+Decisão e fronteira: [ADR-0018](https://github.com/simpletibr/simplicio-videos/blob/main/docs/decisoes/ADR-0018-social-planejar-sem-postar.md). Provedores: [docs/realoficial.md](https://github.com/simpletibr/simplicio-videos/blob/main/docs/realoficial.md) e `simplicio-video social providers`.

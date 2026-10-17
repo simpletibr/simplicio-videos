@@ -4,6 +4,10 @@
 #   docker compose build
 #   docker compose run --rm simplicio setup --yes
 #   docker compose run --rm simplicio doctor
+#
+# A imagem instala o pacote por pip (a distribuição `pip`). `scripts/dev_install.sh` é o .venv do checkout e não roda aqui, e o
+# `simplicio-video install` (que copia a skill para o host de um agente) não tem o que fazer num contêiner. O `simplicio-video update`
+# de um pacote faria um pip install dentro da imagem: para atualizar, reconstrua a imagem (docker compose build).
 
 # Node 22 vem de uma imagem oficial pinada por tag (o render do HyperFrames precisa de Node).
 FROM node:22-bookworm-slim AS node

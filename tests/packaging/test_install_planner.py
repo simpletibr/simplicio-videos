@@ -188,6 +188,26 @@ def test_arquivo_de_entrada_novo_aponta_para_a_skill_e_e_do_simplicio_video(repo
     assert "GEMINI.md" in json.loads((repo / RECIBO).read_text(encoding="utf-8"))["paths"]
 
 
+def test_o_arquivo_de_entrada_que_o_proprio_install_criou_e_nosso_na_segunda_vez(repo, bundle):
+    primeira = instala(repo, bundle, host="codex")
+    assert "AGENTS.md" in primeira["changes"]["created"] and "AGENTS.md" in primeira["owned"]
+    segunda = instala(repo, bundle, host="codex")
+    assert segunda["up_to_date"] is True and segunda["changes"]["left_alone"] == [], "our own AGENTS.md is not `left alone`"
+    assert "AGENTS.md" in segunda["owned"] and segunda["changes"]["unchanged"] == 4
+    (repo / "AGENTS.md").write_text("# agora é meu\n", encoding="utf-8")  # edited since: not ours to overwrite
+    terceira = instala(repo, bundle, host="codex")
+    assert "AGENTS.md" in terceira["changes"]["left_alone"]
+    assert (repo / "AGENTS.md").read_text(encoding="utf-8") == "# agora é meu\n"
+
+
+def test_o_arquivo_de_entrada_nao_leva_a_versao_para_nao_envelhecer(repo, bundle):
+    plano = installer.plan_install(repo, host="gemini", version="1.2.3")
+    installer.apply_plan(plano, bundle=bundle)
+    assert "1.2.3" not in (repo / "GEMINI.md").read_text(encoding="utf-8")
+    novo = installer.apply_plan(installer.plan_install(repo, host="gemini", version="1.2.4"), bundle=bundle)
+    assert "GEMINI.md" not in novo["changes"]["updated"] and "GEMINI.md" in novo["owned"]
+
+
 def test_dry_run_diz_o_mesmo_e_nao_escreve_nada(repo, bundle):
     antes = fotografia(repo)
     resultado = instala(repo, bundle, dry_run=True)
@@ -601,3 +621,25 @@ def test_o_planejador_so_usa_a_biblioteca_padrao():
             elif isinstance(no, ast.ImportFrom) and no.level == 0 and no.module:
                 topo.add(no.module.split(".")[0])
         assert topo <= set(__import__("sys").stdlib_module_names) | {"__future__"}, (nome, topo)
+
+
+@posix_real
+def test_prune_nao_toca_numa_pasta_de_skill_que_e_link_simbolico(tmp_path, repo):
+    """The owner's skill folder is often a link into a clone: pruning "stale project copies" must not delete the clone's files."""
+    clone = write(tmp_path / "clone" / "simplicio-video" / "SKILL.md", "do clone\n")
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".claude" / "skills" / "simplicio-video").symlink_to(clone.parent, target_is_directory=True)
+    resultado = installer.prune_project_copies(repo)
+    assert clone.read_text(encoding="utf-8") == "do clone\n" and resultado["removed"] == []
+    assert (repo / ".claude" / "skills" / "simplicio-video").is_symlink()
+
+
+@posix_real
+@pytest.mark.parametrize("rel", ["../outside/keep.txt", "/etc/hostname", "..\\outside\\keep.txt", "C:\\keep.txt"])
+def test_prune_recusa_um_recibo_que_nomeia_algo_fora_do_alvo(tmp_path, repo, bundle, rel):
+    fora = write(tmp_path / "outside" / "keep.txt", "keep\n")
+    instala(repo, bundle)
+    _mais(repo, "paths", rel)
+    with pytest.raises(installer.InstallError):
+        installer.prune_project_copies(repo)
+    assert fora.read_text(encoding="utf-8") == "keep\n" and (repo / SKILL).is_file()

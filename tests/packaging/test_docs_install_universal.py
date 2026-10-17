@@ -158,7 +158,11 @@ def test_o_changelog_registra_o_install_universal_e_o_update_que_recusa():
 
 def test_o_changelog_nao_descreve_mais_o_install_do_venv_nem_o_pull_como_se_fossem_do_motor():
     unreleased = _unreleased()
-    assert "simplicio-install.json" not in unreleased
+    # the removed file is named once, in the block that says it is gone; no other entry may still describe it
+    a = unreleased.index("Mudanças que quebram: `install` universal")
+    b = unreleased.index("### `install` universal (as skills vão para o host)")
+    assert "simplicio-install.json" in unreleased[a:b]
+    assert "simplicio-install.json" not in unreleased[:a] + unreleased[b:]
     assert not re.search(r"`update` (num|no) checkout:? recusa árvore suja", unreleased)
 
 

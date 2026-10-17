@@ -118,7 +118,7 @@ def test_a_lista_de_criados_tem_no_maximo_oito_linhas_e_diz_quantos_faltam(falso
     for n in range(12):
         write(falso.bundle / "skills" / "simplicio-video" / "references" / f"r{n:02d}.md", f"r{n}\n")
     rc, out, err = executa(["install", "--target", str(falso.alvo)], capsys, main)
-    assert out.count("    criado: ") == 9 and "e mais 6" in out  # 8 shown + the "and N more" line
+    assert out.count("    criado: ") == 9 and "e mais 7" in out  # 15 created: 8 shown + the "and N more" line
 
 
 def test_host_codex_escreve_o_agents_md_e_o_uninstall_leva_embora(falso, capsys):

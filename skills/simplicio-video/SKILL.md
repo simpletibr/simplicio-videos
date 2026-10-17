@@ -36,10 +36,10 @@ simplicio-video render <contrato.yaml> --backend kaggle   # OPCIONAL (créditos)
 simplicio-video render <contrato.yaml> --backend colab-cli  # OPCIONAL (créditos): Colab CLI oficial (login único)
 simplicio-video render <contrato.yaml> --backend colab    # OPCIONAL: bundle zip para colab/render.ipynb (manual)
 simplicio-video run <contrato.yaml> --provider gemini     # tudo em sequência (voz -> validate -> render), termina no MP4; render local (padrão)
-simplicio-video render <contrato.yaml> --preview          # prévia 540x960 crf 30 + marca d'água Wesley Simplicio · @wesleysimplicio + cartão final
+simplicio-video render <contrato.yaml> --preview          # prévia 540x960 crf 30 + marca d'água e crédito final do contrato (marca.dagua, marca.credito)
 simplicio-video mcp                                       # mesmas operações como tools MCP (stdio)
 ```
-Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz do repo (Python ≥ 3.10, Node ≥ 22, ffmpeg). Extras reais: `test`, `local-tts`, `mcp`, `remote` (`./install.sh --with local-tts,mcp`).
+Schema: `schema/contract.schema.json`. Instalação: `pip install simplicio-video` (Python ≥ 3.10, Node ≥ 22, ffmpeg) ou, num checkout, `bash scripts/dev_install.sh` (`./install.sh`; Windows: `powershell -File scripts/dev_install.ps1`), que cria o `.venv` com os extras (`./install.sh --with local-tts,mcp`; extras reais: `test`, `local-tts`, `mcp`, `remote`). Esta skill chega ao agente com `simplicio-video install` (o projeto) ou `simplicio-video install --global` (o home): copia a skill para `.claude/skills` e, se o host precisar, o arquivo de entrada dele; não há hooks. `simplicio-video update --check` diz se há versão nova; num checkout o `update` recusa e manda rodar `git pull` e `bash scripts/dev_install.sh`.
 
 > Nota: comandos de venda (prospect, venda, ugc) e publish saíram do CLI do motor (#77) e ficam no repositório de operação; o upload para o Drive não é mais do motor (#75).
 
@@ -57,10 +57,10 @@ Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz 
 - Windows e macOS reais ainda não foram testados (UNVERIFIED): `scripts/smoke_so.py` roda a fumaça neles; ver `docs/how-to/testar-em-windows-e-macos.md`.
 
 ## Render: local × remoto
-- **local:** **padrão** (decisão do Wesley). Use sempre, salvo pedido explícito de backend remoto para um cliente via créditos. Referência de hash (mesma entrada → mesmo MP4 byte a byte). 8 vCPU renderizam a WJR (600 frames) em ~77 s.
-- **kaggle / colab-cli / colab (opcionais, clientes via créditos):** mesmo bundle + `render_bundle.sh`. A captura do Chrome headless é **CPU** (gargalo): Colab grátis = 2 vCPU → 1 worker (WJR 460 s); Kaggle = 4 vCPU → 2 workers. A GPU só entra no encode (NVENC, `--gpu-encode auto|1|0`), que muda os bytes do vídeo.
+- **local:** **padrão** (decisão do Wesley). Use sempre, salvo pedido explícito de backend remoto para um cliente via créditos. Referência de hash (mesma entrada → mesmo MP4 byte a byte). 8 vCPU renderizam o vídeo de referência (600 frames) em ~77 s.
+- **kaggle / colab-cli / colab (opcionais, clientes via créditos):** mesmo bundle + `render_bundle.sh`. A captura do Chrome headless é **CPU** (gargalo): Colab grátis = 2 vCPU → 1 worker (vídeo de referência: 460 s); Kaggle = 4 vCPU → 2 workers. A GPU só entra no encode (NVENC, `--gpu-encode auto|1|0`), que muda os bytes do vídeo.
 - Frames/áudio remotos só batem com o local se o ffmpeg for o mesmo build (`SIMPLICIO_FFMPEG_DIR` local + `SIMPLICIO_FFMPEG_URL`/`SIMPLICIO_FFMPEG_SHA256` no bundle) e com `--gpu-encode 0`. Ver `docs/decisoes/ADR-0003-fluxo-100-script.md`.
-- **Custo por vídeo** (voz + render + Drive, US$/R$, medido/oficial/estimativa): `docs/custos.md`. Voz Gemini API ≈ US$ 0,005 por vídeo WJR; render local US$ 0; Colab A100 ≈ US$ 0,043.
+- **Custo por vídeo** (voz + render + Drive, US$/R$, medido/oficial/estimativa): `docs/custos.md`. Voz Gemini API ≈ US$ 0,005 por vídeo de referência; render local US$ 0; Colab A100 ≈ US$ 0,043.
 
 ## Destino no Drive
 O motor não faz upload (#75): não existe `publish` nem `run --publish`. O CLI termina no MP4 em `saida.arquivo`; informe o caminho do MP4 e quem entrega (ferramenta de operação) cuida do destino. Não faça upload sem pedido explícito do usuário para aquele vídeo.
@@ -68,7 +68,7 @@ O motor não faz upload (#75): não existe `publish` nem `run --publish`. O CLI 
 ## Exemplo mínimo de contrato
 ```yaml
 schema: simplicio.video-contract/v1
-cliente: { slug: lothus-odontologia, nome: Lothus Odontologia, drive_nome: Lothus_Odontologia, coleta: ../coleta }
+cliente: { slug: acme-odontologia, nome: Acme Odontologia, drive_nome: Acme_Odontologia, coleta: ../coleta }
 campanha: { id: Dia_Criancas, ano: 2026 }
 formato: { aspect: "9:16", width: 1080, height: 1920, fps: 30, duracao_s: 15 }
 template: saude-odontologia
@@ -93,9 +93,9 @@ trilha:
   seed: 20261012
   music: { style: playful, gain_db: -5, fade_in_s: 0.05, fade_out_s: 1.2, progression: [[48, [60, 64, 67]]] }
   master: { target_lufs: -14, true_peak_db: -1.5 }
-saida: { arquivo: out/lothus-dia-criancas.mp4, qualidade: delivery }
+saida: { arquivo: out/acme-dia-criancas.mp4, qualidade: delivery }
 ```
-Contratos completos: `clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml`, `clients/wjr-informatica-games/video-01/contract.yaml`.
+Contratos completos de exemplo: `clients/<cliente>/<video>/contract.yaml`, no checkout do repositório.
 
 ## Imagens e áudio do Openverse (opcional, revisados por pedido)
 Use quando o vídeo precisa de foto, ilustração, ambiente sonoro ou efeito que não vem do cliente nem do template. O motor não decide se o ativo serve: **você (ou uma pessoa) revisa, por pedido**.

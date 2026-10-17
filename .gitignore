@@ -30,3 +30,5 @@ prospects/*
 
 # client facts never enter the repo (briefs, sources, contacts, saved sites)
 clients/*/coleta/
+# recibo de posse do `simplicio-video install` (e a pasta do projeto onde ele roda)
+.simplicio-video/

@@ -1,0 +1,3 @@
+# Scripts de shell com LF em qualquer sistema (um checkout no Windows com autocrlf quebraria o `#!/usr/bin/env bash`).
+*.sh text eol=lf
+*.ps1 text

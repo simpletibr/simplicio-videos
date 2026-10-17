@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 
 import _caixa
-from _caixa import (SISTEMAS, distribution, doctor_cmd, posix_real, roda_com_prazo, saida_cp1252, solta_fifo, update_cmd,
+from _caixa import (distribution, doctor_cmd, posix_real, roda_com_prazo, saida_cp1252, solta_fifo, update_cmd,
                     write_fake_tool, write_git_launcher)
 from _comum import erros_de_schema, executa, exige_registrado
 from simplicio_video import __version__
@@ -744,9 +744,10 @@ def test_o_dry_run_do_checkout_nao_roda_git_e_so_recusa(remoto, comandos, caixa,
         monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
     checkout = remoto["checkout"]
     refs = _refs(checkout)
+    antes = list(sem_rede)  # the test's own `git for-each-ref` above is not the update's
     rc, out, err = executa(["update", "--dry-run"], capsys, main)
     assert rc == 2 and PULL in out + err
-    assert sem_rede == [] and _refs(checkout) == refs
+    assert sem_rede == antes, f"the refusal started a process: {sem_rede[len(antes):]}"
     _nao_mexeu_no_git(checkout, refs)
 
 

@@ -56,6 +56,22 @@ def test_o_homebrew_so_entra_no_macos(simula_so):
         assert hostos.extra_tool_dirs() == []
 
 
+@pytest.mark.parametrize("ferramenta,so,trecho", [
+    ("ffmpeg", "linux", "apt install ffmpeg"),
+    ("ffmpeg", "darwin", "brew install ffmpeg"),
+    ("ffmpeg", "win32", "winget install Gyan.FFmpeg"),
+    ("node", "darwin", "nvm install 22"),
+    ("node", "linux", "nvm install 22"),
+])
+def test_a_dica_de_instalacao_e_a_do_sistema(ferramenta, so, trecho):
+    assert trecho in hostos.hint(ferramenta, so)
+
+
+def test_a_dica_do_node_no_windows_nao_manda_usar_nvm_do_posix():
+    dica = hostos.hint("node", "win32")
+    assert "22" in dica and "nvm install 22" not in dica
+
+
 # --- finding a program: PATH, PATHEXT, never the current directory ---------------------------------------------------------
 
 
@@ -286,8 +302,6 @@ def test_o_verificador_de_encoding_nao_acusa_o_que_esta_certo_nem_o_que_nao_e_ar
 def test_as_pastas_de_cada_host_ficam_sob_o_home_em_todo_sistema(caixa, simula_so, so):
     """The loop keeps one table of host skill folders under the home (skill_sync.HOST_SKILL_ROOTS) and uses it on Linux, macOS and
     Windows alike: pathlib joins them with the right separator. They are never anchored anywhere else (no APPDATA, no /Library)."""
-    from pathlib import PurePosixPath
-
     simula_so(so)
     tabela = _caixa.skill_sync.HOST_SKILL_ROOTS
     assert len(tabela) == 11

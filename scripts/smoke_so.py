@@ -7,10 +7,12 @@ dispara um login de verdade, porque o PATH do filho não tem `simplicio`. Sem re
 apontam para pastas DIFERENTES de propósito: o Runtime lê o login de HOME e só depois de USERPROFILE (em todo sistema), e com
 as duas iguais um erro de ordem passaria sem ninguém ver.
 
-Comandos (exit esperado entre parênteses): --version (0), doctor --json (0 ou 1), install --check (0 ou 10),
-install --dry-run --json (0), update --dry-run (1 sem rede num pacote, 2 num checkout sem git), auth status --json (1,
-login_missing), login --json (1, UNVERIFIED), logout (2, REFUSED), logout --yes --json (0, NO_LOGIN). Cada JSON é validado
-contra o schema empacotado (src/simplicio_video/data/schemas/cli/). Sai com 0 se tudo bateu e com 1 se algo falhou.
+Comandos (exit esperado entre parênteses): --version (0), doctor --json (0 ou 1), install --check num alvo temporário (10: a skill está
+pendente), install --dry-run --json (0), install --verify (0), install de verdade no alvo temporário (0), install --check --json
+(0: em dia), install --uninstall (0: o alvo volta a ficar vazio), update --dry-run (1 sem rede num pacote, 2 num checkout, que recusa),
+auth status --json (1, login_missing), login --json (1, UNVERIFIED), logout (2, REFUSED), logout --yes --json (0, NO_LOGIN). O alvo
+do install é uma pasta da própria pasta temporária (`alvo`): nunca `--global`, nunca o ~ real. Cada JSON é validado contra o schema
+empacotado (src/simplicio_video/data/schemas/cli/). Sai com 0 se tudo bateu e com 1 se algo falhou.
 
 Windows e macOS reais continuam UNVERIFIED até alguém rodar este script lá e colar a tabela (docs/how-to/testar-em-windows-e-macos.md).
 
@@ -38,12 +40,12 @@ REPO = Path(__file__).resolve().parent.parent
 TIMEOUT_S = 180
 # Windows needs these to start Python at all; nothing else of the real environment reaches the child.
 PASSA_DO_AMBIENTE = ("SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT")
-PASTAS = ("home", "profile", "bin", "tmp", "data", "workspace", "checkout")  # `profile` is USERPROFILE, `home` is HOME
+PASTAS = ("home", "profile", "bin", "tmp", "data", "workspace", "checkout", "alvo")  # `profile` is USERPROFILE, `home` is HOME, `alvo` the install target
 
 
 @dataclass
 class Passo:
-    argv: list
+    argv: list  # `{alvo}` is the `alvo` folder of the temporary base (see resolve_argv)
     esperado: set
     schema: Optional[str] = None  # a packaged schema in data/schemas/cli/ (`doctor` -> doctor.schema.json)
     status: Optional[str] = None  # the expected value of the JSON key `status`
@@ -62,14 +64,23 @@ class Resultado:
 PASSOS = [
     Passo(["--version"], {0}),
     Passo(["doctor", "--json"], {0, 1}, schema="doctor"),
-    Passo(["install", "--check"], {0, 10}),
-    Passo(["install", "--dry-run", "--json"], {0}, schema="install-result"),
+    Passo(["install", "--check", "--target", "{alvo}"], {10}),
+    Passo(["install", "--dry-run", "--json", "--target", "{alvo}"], {0}, schema="install-plan", status="dry_run"),
+    Passo(["install", "--verify", "--target", "{alvo}"], {0}),
+    Passo(["install", "--target", "{alvo}"], {0}),
+    Passo(["install", "--check", "--json", "--target", "{alvo}"], {0}, schema="install-plan", status="dry_run"),
+    Passo(["install", "--uninstall", "--target", "{alvo}"], {0}),
     Passo(["update", "--dry-run"], {1, 2}),
     Passo(["auth", "status", "--json"], {1}, schema="auth-status", reason="login_missing"),
     Passo(["login", "--json"], {1}, schema="login", status="UNVERIFIED"),
     Passo(["logout"], {2}),
     Passo(["logout", "--yes", "--json"], {0}, schema="logout", status="NO_LOGIN"),
 ]
+
+
+def resolve_argv(passo: Passo, base: Path) -> list:
+    """The argv of a step with `{alvo}` replaced by the `alvo` folder of the temporary base."""
+    return [arg.replace("{alvo}", str(Path(base) / "alvo")) for arg in passo.argv]
 
 
 def build_env(base: Path, environ: Optional[dict] = None) -> dict:
@@ -129,8 +140,10 @@ def valida_schema(nome: str, documento: object) -> str:
 
 def executar_passo(passo: Passo, env: dict, base: Path) -> Resultado:
     try:
-        done = subprocess.run([sys.executable, "-m", "simplicio_video", *passo.argv], cwd=str(base), env=env,
-                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT_S)
+        # stdin is never the terminal: the end of a real `install` would start the interactive `setup` on it
+        done = subprocess.run([sys.executable, "-m", "simplicio_video", *resolve_argv(passo, base)], cwd=str(base), env=env,
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=TIMEOUT_S)
     except (OSError, subprocess.SubprocessError) as exc:
         return Resultado(passo, None, False, f"não consegui rodar: {exc}")
     saida = (done.stdout or "") + (done.stderr or "")

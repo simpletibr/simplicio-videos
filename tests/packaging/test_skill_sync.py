@@ -7,7 +7,6 @@ and a host that never had it stays untouched. Every folder below is under tmp_pa
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
