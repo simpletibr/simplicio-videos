@@ -4,6 +4,8 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+- `modules/h3-swap-service/`: módulo opcional de troca de personagem em GPU alugada (Vast/Salad, fila na Cloudflare). Fora do pacote e do motor; sem adaptador em `swap_providers/` ainda. Pedido direto do dono, sem issue.
+
 ## 0.5.0 — 2026-10-17
 
 Primeira versão publicada no PyPI (`pip install simplicio-video`). Reúne o pacote pronto para o PyPI (sem dado de cliente no wheel nem no sdist, `init` fora do site-packages, metadados e `PYPI.md`), `login`, `logout`, `auth status`, `doctor` e `update --check` no contrato do simplicio-loop, e `install` universal (skills nos hosts) com `update` igual ao do loop. Windows e macOS: testados só por simulação e pelo `scripts/smoke_so.py`; ainda não confirmados em máquina real.

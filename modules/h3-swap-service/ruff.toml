@@ -1,0 +1,11 @@
+# Own config on purpose: the root pyproject gates only src/ and scripts/. Ruff uses the nearest config,
+# so the module's Python is linted by this file when scripts/check.sh lints the files a branch changes.
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = ["E4", "E7", "E9", "F"]
+
+[lint.per-file-ignores]
+# bench/benchmark.py puts the module root on sys.path before importing `bench.cost` (runs as a script).
+"bench/benchmark.py" = ["E402"]

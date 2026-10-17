@@ -1,0 +1,80 @@
+[
+  {
+    "r2_key": "models/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "dest": "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "MiniMax H3 FL2VA pruned INT8 (convrot) diffusion model. Size and sha256 unknown: fill in after first upload to R2."
+  },
+  {
+    "r2_key": "models/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "dest": "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "Qwen3-VL 32B text encoder, NVFP4 AWQ. Needs a Blackwell GPU (compute capability 12.0+)."
+  },
+  {
+    "r2_key": "models/vae/minimax_h3_video_vae_int8_convrot.safetensors",
+    "dest": "vae/minimax_h3_video_vae_int8_convrot.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "MiniMax H3 video VAE, INT8 (convrot)."
+  },
+  {
+    "r2_key": "models/vae/minimax_h3_audio_vae_fp32.safetensors",
+    "dest": "vae/minimax_h3_audio_vae_fp32.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "MiniMax H3 audio VAE, FP32."
+  },
+  {
+    "r2_key": "models/loras/h3_character_swap_v1.5.safetensors",
+    "dest": "loras/h3_character_swap_v1.5.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "akatz-ai Character-Swap LoRA for H3, v1.5."
+  },
+  {
+    "r2_key": "models/diffusion_models/TODO_VERIFY_ref2va_base.safetensors",
+    "dest": "diffusion_models/TODO_VERIFY_ref2va_base.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "TODO_VERIFY: INT8 Ref2VA base model used by the swap LoRA recipe. The real file name must be verified on huggingface.co/Comfy-Org/MiniMax-H3 before this entry is usable."
+  },
+  {
+    "r2_key": "models/loras/TODO_VERIFY_turbo_lora.safetensors",
+    "dest": "loras/TODO_VERIFY_turbo_lora.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "TODO_VERIFY: LightX2V Turbo LoRA. The real file name must be verified on huggingface.co/Comfy-Org/MiniMax-H3 before this entry is usable."
+  },
+  {
+    "r2_key": "config/workflow_api.json",
+    "dest": "workflow_api.json",
+    "dest_root": "/app",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "always_download": true,
+    "optional_if_env": "WORKFLOW_OPTIONAL",
+    "note": "User-exported ComfyUI workflow (API format). Re-fetched at every boot. Read by the worker from WORKFLOW_TEMPLATE (default /app/workflow_api.json). WORKFLOW_OPTIONAL=1 makes a missing file a warning (the worker then fails every job)."
+  },
+  {
+    "r2_key": "config/workflow_map.json",
+    "dest": "workflow_map.json",
+    "dest_root": "/app",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "always_download": true,
+    "optional_if_env": "WORKFLOW_OPTIONAL",
+    "note": "Node map for the workflow (which node input the worker sets). Re-fetched at every boot. Read from WORKFLOW_MAP (default /app/workflow_map.json). WORKFLOW_OPTIONAL=1 makes a missing file a warning (the worker then fails every job)."
+  }
+]

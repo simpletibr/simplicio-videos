@@ -1,0 +1,13 @@
+{
+  "inputs": {
+    "source_video":     {"node": "12", "field": "video"},
+    "character_images": [{"node": "20", "field": "image"},
+                         {"node": "21", "field": "image"},
+                         {"node": "22", "field": "image"}],
+    "prompt":           {"node": "30", "field": "text"},
+    "seed":             {"node": "40", "field": "seed"},
+    "length_frames":    {"node": "41", "field": "length"},
+    "chunk_count":      {"node": "42", "field": "chunks"}
+  },
+  "output": {"node": "90", "kind": "videos"}
+}

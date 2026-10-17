@@ -1,0 +1,19 @@
+{
+  "name": "h3-swap-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "h3-swap-service control plane: API Worker, queue producer, cron autoscaler (Cloudflare Workers + D1 + R2 + Queues)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261016.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.1"
+  }
+}
