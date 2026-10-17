@@ -9,7 +9,7 @@ O motor (`simplicio-video social ...`, tool MCP `video.social`) faz só o que é
 
 ## Quando usar
 - "Posta esse vídeo no TikTok e no Instagram", "agenda para terça às 9h", "publica no YouTube Shorts".
-- Não use para entregar o MP4 ao cliente no Drive (isso é outro fluxo, com pedido explícito do Wesley) nem para vender: este fluxo é só publicar um vídeo que o usuário já aprovou.
+- Não use para entregar o MP4 ao cliente no Drive (isso é outro fluxo, com pedido explícito do usuário) nem para vender: este fluxo é só publicar um vídeo que o usuário já aprovou.
 
 ## Fluxo
 
