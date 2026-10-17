@@ -31,7 +31,7 @@ def _texto(caminho) -> str:
 
 def _unreleased() -> str:
     texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    return " ".join(texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0].split())
+    return " ".join(texto.split())  # the entries stay in the CHANGELOG after the release cut; do not depend on the "Unreleased" heading
 
 
 # --- ADR-0020 ------------------------------------------------------------------------------------------------------------------
