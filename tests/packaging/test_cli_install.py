@@ -618,6 +618,15 @@ def test_o_primeiro_install_nao_sobrescreve_a_skill_customizada_e_diz_como_assum
     assert rc == 0 and custom.read_text(encoding="utf-8") == "a minha skill\n"
 
 
+def test_um_arquivo_do_usuario_dentro_da_pasta_da_skill_nao_ganha_a_dica_de_apagar_a_pasta(falso, capsys):
+    """"Delete the folder and install again" is for a skill file that was in the way, never for the user's own note beside ours."""
+    write(falso.alvo / ".claude" / "skills" / "simplicio-video" / "minhas-notas.md", "notas\n")
+    rc, out, err = executa(["install", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0 and "minhas-notas.md" in out and "deixado em paz" in out
+    assert "apague-a" not in out, out
+    assert (falso.alvo / ".claude" / "skills" / "simplicio-video" / "minhas-notas.md").is_file()
+
+
 def test_uninstall_diz_o_que_deixou_porque_o_usuario_editou(falso, capsys):
     executa(["install", "--host", "codex", "--target", str(falso.alvo)], capsys, main)
     (falso.alvo / "AGENTS.md").write_text("# as minhas regras\n", encoding="utf-8")

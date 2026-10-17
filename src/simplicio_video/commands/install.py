@@ -77,12 +77,16 @@ def _cut_list(prefix: str, items: list) -> str:
     return prefix + ", ".join(shown) + (f" (+{more} mais)" if more > 0 else "")
 
 
-def _under_our_skills(rel: str) -> bool:
-    parts = rel.split("/")
-    return len(parts) >= 3 and "/".join(parts[:2]) == installer.SKILLS_DEST and parts[2] in installer.SKILLS
+def _blocked(left_alone: list, skills_dir) -> list:
+    """The files the install WANTED to write and found something else in the way (a customized SKILL.md that was already there):
+    only for these is "delete the folder and install again" the way to hand the folder over. A note of the user inside the folder is
+    left alone too, and must never be advice to delete."""
+    wanted = {"/".join((installer.SKILLS_DEST, *parts)) for parts, _node in installer.iter_files(skills_dir)}
+    return [rel for rel in left_alone if rel in wanted]
 
 
-def _install_lines(result: dict, host: str, head: str, resync: Optional[dict], prune_project: Optional[dict] = None) -> list:
+def _install_lines(result: dict, host: str, head: str, resync: Optional[dict], prune_project: Optional[dict] = None,
+                   blocked: tuple = ()) -> list:
     changes = result["changes"]
     owned = sorted(set(result.get("owned") or []))
     pretend = head.startswith(("check", "dry-run"))
@@ -95,9 +99,9 @@ def _install_lines(result: dict, host: str, head: str, resync: Optional[dict], p
     if changes["left_alone"]:
         left = changes["left_alone"]
         lines.append(_cut_list(f"  deixado em paz -> {len(left)} que não são do simplicio-video: ", left))
-        if any(_under_our_skills(rel) for rel in left):
-            lines.append("  para o simplicio-video cuidar de uma pasta que já existia, apague-a (ou renomeie) e rode "
-                         "`simplicio-video install` de novo")
+        if blocked:
+            lines.append(f"  {len(blocked)} arquivo(s) da skill já existiam e não são do simplicio-video ({blocked[0]}...): para ele "
+                         "cuidar da pasta, apague-a (ou renomeie) e rode `simplicio-video install` de novo")
     if resync is not None and resync["skills"]:
         counts = resync.get("skills_counts") or {}
         names = ", ".join(f"{h} ({counts[h]})" for h in sorted(counts)) if counts else ", ".join(resync["skills"])
@@ -229,7 +233,8 @@ def install(target: Path, globally: bool, host: str = "claude", dry_run: bool = 
         head = "dry-run (nada foi escrito)"
     else:
         head = "já está em dia" if result["up_to_date"] else "instalado"
-    hostos.say("\n".join(_install_lines(result, host, head, resync, prune_project=prune_result)))
+    blocked = _blocked(result["changes"]["left_alone"], bundle.joinpath("skills"))
+    hostos.say("\n".join(_install_lines(result, host, head, resync, prune_project=prune_result, blocked=blocked)))
     if not (dry_run or check):
         hostos.say("")
         hostos.say("Use no seu agente (Claude Code, Cursor, Codex, ...):")
