@@ -2,6 +2,7 @@
 
 - **Status:** aceito. Implementado na issue #43 (`install.sh`, `simplicio-video install|update|doctor|setup`, `Dockerfile`, `compose.yaml`, `deploy/docker/`).
 - **Data:** 08/10/2026 (BRT)
+- **Revisado em 17/10/2026** pelo [ADR-0019](ADR-0019-login-compartilhado.md) e pelo PR de `install`, `update`, `doctor` e `login`: veja a seção "Revisão de 17/10/2026" no fim. As decisões 3 e 4 abaixo valem como foram escritas em 08/10/2026, com as mudanças registradas lá.
 - **Relaciona:** [docs/host/packaging.md](../host/packaging.md) (o que cada comando faz) · [docs/how-to/install.md](../how-to/install.md) (passo a passo) · [ADR-0005](ADR-0005-gate-sem-ci.md) (gate local, sem CI) · [monetization.md](../factory/monetization.md) (repositório público ou privado)
 
 ## Contexto
@@ -42,3 +43,13 @@ Ao mesmo tempo, há restrições que moldam a solução:
 - **`git pull` sem `--ff-only`:** cria merge commits locais no checkout do usuário e pode resolver conflitos sem ele perceber. Com `--ff-only`, o update só avança quando não há divergência.
 - **`--force` que descarta alterações locais (`git reset --hard`):** apaga trabalho de quem usa o checkout. O `--force` só deixa seguir com árvore suja, e o git continua protegendo os arquivos que o pull tocaria.
 - **Archives assinados já agora:** o código ainda não é público e não há pipeline de release. Fica para quando a decisão de distribuição (monetization.md) for tomada; a troca é local, como descrito acima.
+
+## Revisão de 17/10/2026
+
+Os comandos passaram a seguir o contrato do simplicio-loop (mesmos códigos de saída e documentos JSON), sem mudar o que o ADR decidiu: `.venv` com uv no checkout, `git pull --ff-only` num módulo só, sem sudo, zero token no caminho padrão.
+
+- **Decisão 3 (idempotência).** `install --check` agora sai com `10` (e não `1`) quando há mudança pendente, e `0` em dia. Entraram `--dry-run` (não escreve nada, sai com 0) e `--json` (`simplicio.video-install/v1`).
+- **Decisão 4 (atualização).** `update --check` sai com `0`, `10` ou `2` e grava `update-check.json`, que o doctor lê sem rede. `--force` reinstala mesmo em dia e permite downgrade, mas **nunca** ignora a árvore suja (a dica é `git stash`). Recusa (árvore suja, sem upstream, sem fast-forward) sai com `2`; falha de rede sai com `2` com `--check` e `1` sem ele. Entrou `--dry-run`.
+- **Pacote instalado por pip.** Sem checkout não há `.venv` a criar: `install --check` e `--dry-run` avisam e saem com 0, o `install` de verdade sai com 2 e nada é criado em `site-packages`. O `update` faz `python -m pip install --upgrade "simplicio-video==<última release>"` (PyPI); a última release vem do GitHub Releases. O pacote ainda não estava no PyPI em 17/10/2026. Antes, a alternativa "um pacote Python publicado" estava descartada por falta de distribuição pública; ela volta a ser possível, mas só para o motor (Node, ffmpeg com libass e `web/` continuam do host).
+- **Decisão 6 (doctor).** O JSON mudou para `simplicio.doctor/v1`: sai `ok`, entram `schema`, `status` e `version`, o texto vira `summary` e `detail` vira um objeto. Entraram as linhas `login`, `update`, `distribution` e `runtime`, e o workspace ausente passou de falha para aviso (nada no motor o lê). Um arquivo de login inseguro é `fail`.
+- **Windows e macOS.** O texto "Windows fica para o WSL ou o Docker" vale para o **render**. Os comandos de operação foram escritos para os três sistemas, mas Windows e macOS reais são UNVERIFIED até alguém rodar `scripts/smoke_so.py` ([guia](../how-to/testar-em-windows-e-macos.md)).
