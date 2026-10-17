@@ -9,7 +9,7 @@ Cada seção abaixo é a saída de `simplicio-video <comando> --help`. Os exempl
 ```text
 usage: simplicio-video [-h] [--version] [--json] COMANDO ...
 
-simplicio-video 0.4.0 — vídeo determinístico a partir de um contrato YAML (simplicio.video-contract/v1).
+simplicio-video 0.5.0 — vídeo determinístico a partir de um contrato YAML (simplicio.video-contract/v1).
 O LLM raciocina e escreve o contrato; o CLI executa. Mesma entrada => mesma saída.
 
 Fluxo completo:

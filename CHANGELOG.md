@@ -4,6 +4,10 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+## 0.5.0 — 2026-10-17
+
+Primeira versão publicada no PyPI (`pip install simplicio-video`). Reúne o pacote pronto para o PyPI (sem dado de cliente no wheel nem no sdist, `init` fora do site-packages, metadados e `PYPI.md`), `login`, `logout`, `auth status`, `doctor` e `update --check` no contrato do simplicio-loop, e `install` universal (skills nos hosts) com `update` igual ao do loop. Windows e macOS: testados só por simulação e pelo `scripts/smoke_so.py`; ainda não confirmados em máquina real.
+
 Resumo: `install` e `update` ficam **iguais aos do simplicio-loop e universais**: `install` copia a skill para o host do agente (os 12 hosts do loop, projeto ou `~`, Linux, macOS e Windows) e o `.venv` com uv vira `scripts/dev_install.sh` e `scripts/dev_install.ps1`; `update` num checkout recusa. `doctor` passa a seguir o contrato do loop (mesmos códigos de saída e documentos JSON), entram `login`, `logout` e `auth status` (espelho do login compartilhado com o Simplicio Runtime) e o código deixa de assumir POSIX, com testes que simulam Linux, macOS e Windows e um script de fumaça para rodar de verdade em Windows e macOS. Pedido direto do dono, sem issue, como os PRs #108 a #116.
 
 ### Correções da revisão independente do PR #117 (2 bloqueantes, 6 importantes, 12 menores)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simplicio-video"
-version = "0.4.0"
+version = "0.5.0"
 description = "Simplicio Runtime video plugin: deterministic contract (YAML) -> HyperFrames -> MP4 CLI"
 readme = { file = "PYPI.md", content-type = "text/markdown" }  # the PyPI page; README.md is the GitHub one
 requires-python = ">=3.10"
