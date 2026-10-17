@@ -156,7 +156,7 @@ def test_wheel_leva_as_skills_que_o_install_copia_para_o_host(wheel):
     else of the repo's `skills/` folder does (the wheel stays free of client data and of READMEs)."""
     with zipfile.ZipFile(wheel) as z:
         nomes = [n for n in z.namelist() if n.startswith("simplicio_video/data/skills/")]
-        assert sorted(n for n in nomes if n.endswith("/SKILL.md")) == [f"simplicio_video/data/skills/{s}/SKILL.md" for s in SKILLS_DO_WHEEL]
+        assert sorted(n for n in nomes if n.endswith("/SKILL.md")) == sorted(f"simplicio_video/data/skills/{s}/SKILL.md" for s in SKILLS_DO_WHEEL)
         for nome in nomes:
             assert not nome.lower().endswith(("readme.md", ".pyc")), nome
             assert z.read(nome) == (ROOT / "skills" / nome.split("/", 3)[3]).read_bytes(), f"{nome} difere de skills/ do repo"
