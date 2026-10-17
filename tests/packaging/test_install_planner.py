@@ -643,3 +643,14 @@ def test_prune_recusa_um_recibo_que_nomeia_algo_fora_do_alvo(tmp_path, repo, bun
     with pytest.raises(installer.InstallError):
         installer.prune_project_copies(repo)
     assert fora.read_text(encoding="utf-8") == "keep\n" and (repo / SKILL).is_file()
+
+
+def test_uma_juncao_do_windows_vale_como_link_e_nao_e_escrita_por_dentro(repo, bundle, monkeypatch):
+    """`os.path.islink` is False for an NTFS junction (3.12+ has `os.path.isjunction`): the skill folder that is one is a link too."""
+    (repo / ".claude" / "skills" / "simplicio-video").mkdir(parents=True)
+    juncao = str(repo / ".claude" / "skills" / "simplicio-video")
+    monkeypatch.setattr(os.path, "isjunction", lambda caminho: os.fspath(caminho) == juncao, raising=False)
+    resultado = instala(repo, bundle)
+    assert ".claude/skills/simplicio-video" in resultado["changes"]["left_alone"]
+    assert not (repo / SKILL).exists(), "nothing was written through the junction"
+    assert installer.is_link(Path(juncao)) and not installer.is_link(repo)

@@ -321,6 +321,17 @@ def test_global_atualiza_a_skill_dos_hosts_que_ja_tem_e_o_check_enxerga_a_penden
     assert rc == 0, out
 
 
+def test_global_check_sai_10_so_por_causa_da_copia_desatualizada_de_outro_host(falso, capsys):
+    """The home itself is up to date: the only thing pending is another host's old copy. That is still a pending change."""
+    assert executa(["install", "--global"], capsys, main)[0] == 0
+    assert executa(["install", "--global", "--check"], capsys, main)[0] == 0
+    write(falso.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md", "release antiga\n")
+    rc, out, err = executa(["install", "--global", "--check"], capsys, main)
+    assert rc == 10 and "codex (1)" in out and "0 criados, 0 atualizados" in out, out + err
+    rc, doc, _ = _json(capsys, "--global", "--check")
+    assert rc == 10 and doc["up_to_date"] is False and doc["changes"]["created"] == [] and doc["resynced"]["pending"] == 1
+
+
 def test_global_json_traz_o_resynced_com_as_chaves_do_loop(falso, capsys):
     write(falso.home / ".cursor" / "skills" / "simplicio-video" / "SKILL.md", "release antiga\n")
     rc, doc, _ = _json(capsys, "--global", "--check")

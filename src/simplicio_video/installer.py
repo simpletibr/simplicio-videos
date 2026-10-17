@@ -88,7 +88,7 @@ def iter_files(node, prefix: tuple = ()) -> Iterator[tuple]:
         if child.name == "__pycache__" or child.name.endswith(".pyc"):
             continue
         if isinstance(child, Path):
-            if child.is_symlink():
+            if is_link(child):
                 continue
             if hostos.is_dir(child):
                 yield from iter_files(child, prefix + (child.name,))
@@ -127,9 +127,14 @@ def atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
+def is_link(path) -> bool:
+    """A symlink, or on Windows a junction (a reparse point that `os.path.islink` does not call a link): both lead somewhere else."""
+    return os.path.islink(path) or getattr(os.path, "isjunction", lambda _p: False)(path)
+
+
 def _kind(path: Path) -> str:
     """`missing`, `file` (a regular one) or `other` (a folder, a FIFO, a link, whatever is not a plain file: not ours to replace)."""
-    if os.path.islink(path):
+    if is_link(path):
         return "other"
     if hostos.is_file(path):
         return "file"
@@ -149,7 +154,7 @@ def _first_link(base: Path, parts: tuple) -> Path | None:
     current = base
     for part in parts:
         current = current / part
-        if os.path.islink(current):
+        if is_link(current):
             return current
     return None
 
@@ -380,7 +385,7 @@ def uninstall(target: str | Path, *, dry_run: bool = False) -> dict[str, Any]:
     skipped: list[str] = []
     for rel in files:
         path = _receipt_path(root, rel)
-        if os.path.islink(path) or hostos.is_file(path):  # a registered file that became a link loses only the link
+        if is_link(path) or hostos.is_file(path):  # a registered file that became a link loses only the link
             removed.append(rel)
             gone.add(rel)
         elif os.path.lexists(path):  # a directory where a file was registered: not ours to delete
@@ -389,7 +394,7 @@ def uninstall(target: str | Path, *, dry_run: bool = False) -> dict[str, Any]:
     kept: list[str] = []
     for rel in sorted(set(_listed(receipt, "dirs")), key=lambda item: item.count("/"), reverse=True):
         path = _receipt_path(root, rel)
-        if path.is_symlink() or not hostos.is_dir(path):  # a link is the user's, whatever it points at
+        if is_link(path) or not hostos.is_dir(path):  # a link is the user's, whatever it points at
             continue
         if all(child.relative_to(root).as_posix() in gone for child in path.iterdir()):
             removed_dirs.append(rel)
@@ -461,7 +466,7 @@ def prune_project_copies(target: str | Path, *, dry_run: bool = False) -> dict[s
             continue
         for skill in skill_sync.SKILLS:
             skill_dir = skill_parent / skill
-            if skill_dir.is_symlink() or not hostos.is_dir(skill_dir):
+            if is_link(skill_dir) or not hostos.is_dir(skill_dir):
                 continue
             candidates.update(node for _parts, node in iter_files(skill_dir))
             dirs_to_check.add(skill_dir)
@@ -469,7 +474,7 @@ def prune_project_copies(target: str | Path, *, dry_run: bool = False) -> dict[s
 
     gone: set[Path] = set()
     for file_path in sorted(candidates):
-        if os.path.islink(file_path) or hostos.is_file(file_path):
+        if is_link(file_path) or hostos.is_file(file_path):
             removed.append(file_path.relative_to(root).as_posix())
             gone.add(file_path)
             if not dry_run:
@@ -486,7 +491,7 @@ def prune_project_copies(target: str | Path, *, dry_run: bool = False) -> dict[s
             current = current.parent
 
     for dir_path in sorted(all_dirs, key=lambda d: len(d.parts), reverse=True):
-        if dir_path.is_symlink() or not hostos.is_dir(dir_path):
+        if is_link(dir_path) or not hostos.is_dir(dir_path):
             continue
         try:
             remaining = [child for child in dir_path.iterdir() if child not in gone]

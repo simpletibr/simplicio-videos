@@ -83,7 +83,7 @@ def stale_skills(home: Optional[PathLike] = None, *, source=None) -> list:
     for host, root in sorted(installed_skill_hosts(home).items()):
         for skill in SKILLS:
             want = skill_digest(source.joinpath(skill))
-            if not want or (root / skill).is_symlink():
+            if not want or installer.is_link(root / skill):
                 continue
             have = skill_digest(root / skill)
             if have != want:
