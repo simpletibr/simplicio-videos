@@ -83,7 +83,7 @@ simplicio-video install --check                     # nada é escrito; sai com 0
 simplicio-video install --dry-run --json            # o plano em JSON (simplicio.video-install-plan/v1); não escreve nada
 simplicio-video install                             # no projeto atual: .claude/skills/simplicio-video (e a skill social)
 simplicio-video install --host codex --target ~/meu-projeto   # e o AGENTS.md do Codex, se ainda não existir
-simplicio-video install --global                    # no ~ (HOME, depois USERPROFILE); o --host é ignorado e as cópias de outros hosts só são listadas
+simplicio-video install --global                    # nas 11 pastas de skills sob o ~ (HOME, depois USERPROFILE); o --host é ignorado
 simplicio-video install --global --prune-project-copies --target ~/meu-projeto   # e remove a cópia do projeto que o recibo dele registra
 simplicio-video install --verify                    # compara os arquivos instalados com o recibo e com o pacote (exit 1 e a lista se algo difere)
 simplicio-video install --uninstall --dry-run       # lista o que sairia; --uninstall remove só o que está no recibo e não foi editado
@@ -92,7 +92,7 @@ simplicio-video install --uninstall --dry-run       # lista o que sairia; --unin
 | Flag | O que faz |
 |---|---|
 | `--target DIR` | o projeto onde instalar (padrão: a pasta atual) |
-| `--global` | instala em `~/.claude/skills` (o home) em vez do projeto. As cópias da skill que outros hosts já têm (`~/.codex/skills`...) só são listadas: o install não atualiza nem apaga nada que não é dele |
+| `--global` | instala nas 11 pastas de skills sob o home (`~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`...) em vez do projeto, com a regra de posse (veja abaixo) |
 | `--host H` | o host (padrão `claude`) ou `all`; com `--global` o `--host` é ignorado |
 | `--dry-run`, `--check` | não escrevem nada; `--check` sai com 10 quando há mudança pendente |
 | `--json` | UM documento `simplicio.video-install-plan/v1`, também no erro |
@@ -111,7 +111,9 @@ simplicio-video install --uninstall --dry-run       # lista o que sairia; --unin
 | `gemini` | `GEMINI.md` |
 | `aider` | `CONVENTIONS.md` |
 
-Com `--host all`, todos de uma vez. Um arquivo de entrada que já existe (o seu `AGENTS.md`) fica como está e não recebe apontador. Rodar de novo diz `já está em dia` e não regrava nada. Se o setup nunca rodou, ele roda no fim quando há terminal e senão diz como rodar.
+Com `--host all`, todos de uma vez. `--global` instala nas **11 pastas** de skills do loop sob o home (a tabela do `skill_sync.py` dele, a mesma nos três sistemas): `.claude/skills`, `.cursor/skills`, `.codex/skills`, `.grok/skills`, `.agents/skills`, `.copilot/skills`, `.vscode/simplicio-skills`, `.config/opencode/skills`, `.config/amp/skills`, `.kiro/steering` e `.simplicio-loop/skills`; o `--host` é ignorado (o loop faz o mesmo). Em cada uma vale a regra de posse: o install cria o que falta e o arquivo entra no recibo com o `sha256`; atualiza só a cópia que é nossa (está no recibo) e não editada, quando o pacote tem uma versão mais nova; deixa em paz (`left_alone`) o que já existia antes ou que você editou, mesmo que de outro host; nunca apaga um arquivo extra seu, nem o que saiu do pacote; o `--check` sai com 10 quando uma cópia nossa e não editada está desatualizada, e uma cópia alheia antiga não o deixa pendente; o `--uninstall` remove só o que é nosso. Uma pasta secundária que é link (um `~/.config/opencode` movido para os dotfiles) é pulada com um aviso e não derruba as outras; `~/.claude/skills` que é link recusa tudo. O `update` do pip chama `install --global` e por isso também é seguro.
+
+Um arquivo de entrada que já existe (o seu `AGENTS.md`) fica como está e não recebe apontador. Rodar de novo diz `já está em dia` e não regrava nada. Se o setup nunca rodou, ele roda no fim quando há terminal e senão diz como rodar.
 
 ### O que o `install` nunca faz
 

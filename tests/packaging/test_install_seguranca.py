@@ -246,9 +246,11 @@ def test_caminho_com_nul_ou_gigante_no_recibo_vira_erro_claro_e_nunca_traceback(
 
 
 def test_so_os_destinos_do_registro_valem_no_recibo():
-    certos = [SKILL, REF, ".claude/skills/simplicio-video-social/SKILL.md", ".claude/skills/simplicio-video/a/b/c.md", "AGENTS.md",
+    certos = [SKILL, REF, ".codex/skills/simplicio-video/SKILL.md", ".config/opencode/skills/simplicio-video-social/references/a.md",
+              ".kiro/steering/simplicio-video/SKILL.md", ".claude/skills/simplicio-video-social/SKILL.md", ".claude/skills/simplicio-video/a/b/c.md", "AGENTS.md",
               "GEMINI.md", "CONVENTIONS.md", ".github/copilot-instructions.md", ".kiro/steering/simplicio-video.md", RECIBO]
-    errados = ["", ".", "..", "/etc/passwd", "../x", ".claude", ".claude/skills", ".claude/skills/simplicio-video",
+    errados = ["", ".", "..", "/etc/passwd", "../x", ".claude", ".claude/skills", ".claude/skills/simplicio-video", ".config/git/config",
+               ".codex/config.toml", ".cursor/rules/x.mdc", ".config/opencode/skills/minha-skill/SKILL.md",
                ".claude/skills/simplicio-video/", ".claude/skills/simplicio-video/../../../x", ".claude/skills/simplicio-video-x/a",
                ".claude/skills/simplicio-video/a:b", ".claude/skills/simplicio-video\\a.md", "C:/x", "AGENTS.md/x", "agents.md",
                ".simplicio-video/install.lock", ".simplicio-video", ".git/config", 7, None, "a\u0000"]
@@ -257,9 +259,11 @@ def test_so_os_destinos_do_registro_valem_no_recibo():
     for rel in errados:
         assert not installer.known_file(rel), rel
     for rel in (".claude", ".claude/skills", ".claude/skills/simplicio-video", ".claude/skills/simplicio-video/references", ".github",
-                ".kiro", ".kiro/steering", ".simplicio-video"):
+                ".kiro", ".kiro/steering", ".simplicio-video", ".cursor", ".cursor/skills", ".config", ".config/opencode",
+                ".config/opencode/skills/simplicio-video-social", ".simplicio-loop/skills/simplicio-video"):
         assert installer.known_dir(rel), rel
-    for rel in ("", ".", "..", "src", ".git", ".ssh", ".claude/rules", ".claude/skills/minha-skill", ".cursor", "a/../b", None):
+    for rel in ("", ".", "..", "src", ".git", ".ssh", ".claude/rules", ".claude/skills/minha-skill", ".cursor/rules", ".config/git",
+                ".config/opencode/skills/minha-skill", "a/../b", None):
         assert not installer.known_dir(rel), rel
 
 
@@ -850,6 +854,6 @@ def test_global_uma_pasta_que_virou_link_depois_do_install_nao_derruba_o_resto_d
     assert (casa / _skill_em(".codex/skills")).read_text(encoding="utf-8") == "video v2\n", "the other folders stay ours and are updated"
     assert (movido / "skills" / "simplicio-video" / "SKILL.md").read_text(encoding="utf-8") == "video\n", "nothing is written through the new link"
     assert resultado["warnings"] and any("amp" in aviso for aviso in resultado["warnings"]), resultado["warnings"]
-    removido = installer.uninstall(casa)
+    assert not any(p.startswith(".config/amp") for p in recibo_de(casa)["paths"]), "the paths under the new link left the receipt"
+    installer.uninstall(casa)
     assert not (casa / _skill_em(".codex/skills")).exists() and (movido / "skills" / "simplicio-video" / "SKILL.md").is_file()
-    assert any("amp" in aviso for aviso in removido["warnings"]), removido["warnings"]

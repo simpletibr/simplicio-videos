@@ -250,7 +250,7 @@ def test_o_how_to_diz_como_o_install_assume_uma_skill_que_ja_existia_e_o_que_o_g
     texto = _texto(INSTALL_MD)
     assert re.search(r"já existia[^.]{0,200}(apague|renomeie)", texto), "a pre-existing skill folder is never overwritten: say how to hand it over"
     assert re.search(r"--global[^.]{0,200}(ignora|ignorado)[^.]{0,80}--host|--host[^.]{0,80}(ignora|ignorado)", texto)
-    assert "outros hosts" in texto and re.search(r"não (mexe|toca|atualiza)", texto)
+    assert re.search(r"nunca apaga um arquivo extra", texto) and "11 pastas" in texto
 
 
 def test_o_changelog_registra_as_correcoes_da_revisao_do_117():

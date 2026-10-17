@@ -308,9 +308,12 @@ Copia as skills empacotadas (simplicio-video e simplicio-video-social) para o ho
 .simplicio-video/install-ownership.json, como o `install` do simplicio-loop. Por padrão instala no projeto (--target, padrão: a
 pasta atual) em .claude/skills/ e, para o host que precisa, no arquivo de entrada dele (AGENTS.md, GEMINI.md, CONVENTIONS.md,
 .github/copilot-instructions.md ou .kiro/steering/simplicio-video.md). Um arquivo de entrada que já existe não recebe
-apontador: fica como está. Com --global instala só em ~/.claude/skills (o home): com --global o --host é ignorado (o loop
-faz o mesmo) e as cópias que outros hosts já têm (~/.codex/skills, ~/.cursor/skills...) são apenas listadas: o install não as
-atualiza nem apaga.
+apontador: fica como está. Com --global instala nas 11 pastas de skills do loop sob o home (~/.claude/skills, ~/.codex/skills,
+~/.cursor/skills, ~/.grok/skills, ~/.agents/skills, ~/.copilot/skills, ~/.vscode/simplicio-skills, ~/.config/opencode/skills,
+~/.config/amp/skills, ~/.kiro/steering e ~/.simplicio-loop/skills); com --global o --host é ignorado (o loop faz o mesmo). Em cada
+pasta o install cria o que falta (entra no recibo com o sha256), atualiza só a cópia que é dele e que ninguém editou, deixa em
+paz o que já existia ou que você editou e nunca apaga um arquivo extra seu; uma pasta secundária que é link é pulada, e
+~/.claude/skills que é link recusa tudo.
 Hosts (--host, padrão claude; all = todos): claude, codex, cursor, vscode, grok, kiro, antigravity, opencode, gemini, aider,
 simplicio_agent, openclaw. O simplicio-video não tem hooks: só skills.
 O install nunca sobrescreve nem apaga o que não é dele: outras skills, o seu AGENTS.md, uma SKILL.md que já existia ou que
@@ -333,7 +336,8 @@ fim, se o setup nunca rodou, ele roda num terminal e senão diz como rodar.
 options:
   -h, --help              show this help message and exit
   --target DIR            pasta do projeto onde instalar (padrão: a pasta atual)
-  --global                instala em ~/.claude/skills (o home) em vez do projeto
+  --global                instala nas 11 pastas de skills sob o home (~/.claude/skills, ~/.codex/skills...) em
+                          vez do projeto
   --host HOST             id do host ou all (padrão: claude); com --global é ignorado
   --dry-run               mostra o plano e não escreve nada; sai com 0
   --check                 não escreve nada; sai com 0 se está em dia e com 10 se há mudança pendente
