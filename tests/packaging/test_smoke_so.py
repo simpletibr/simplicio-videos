@@ -98,9 +98,27 @@ def test_nenhum_passo_dispara_login_de_verdade(smoke):
     for passo in smoke.PASSOS:
         assert "google" not in passo.argv, "the smoke must never start `simplicio login google`"
     nomes = [" ".join(p.argv) for p in smoke.PASSOS]
-    for esperado in ("--version", "doctor --json", "install --check", "install --dry-run --json", "update --dry-run",
-                     "auth status --json", "login --json", "logout", "logout --yes --json"):
+    for esperado in ("--version", "doctor --json", "install --check --target {alvo}", "install --dry-run --json --target {alvo}",
+                     "install --verify --target {alvo}", "install --target {alvo}", "install --check --json --target {alvo}",
+                     "install --uninstall --target {alvo}", "update --dry-run", "auth status --json", "login --json", "logout",
+                     "logout --yes --json"):
         assert esperado in nomes, f"missing step {esperado!r}: {nomes}"
+    assert len(nomes) == len(set(nomes)), "two steps with the same name hide each other"
+
+
+def test_o_install_do_smoke_so_toca_num_alvo_temporario_e_nunca_no_home():
+    """`install` of the skills runs into a folder of the temporary base (`{alvo}`): never `--global` (that is the real ~), and the
+    child never gets a terminal on stdin (the end of `install` would start the interactive `setup`)."""
+    for passo in SCRIPT_PASSOS():
+        if passo.argv[:1] == ["install"]:
+            assert "--global" not in passo.argv and "--target" in passo.argv and "{alvo}" in passo.argv, passo.argv
+    assert "stdin=subprocess.DEVNULL" in SCRIPT.read_text(encoding="utf-8")
+
+
+def test_o_alvo_do_smoke_fica_dentro_da_pasta_temporaria(smoke, tmp_path):
+    passo = smoke.Passo(argv=["install", "--check", "--target", "{alvo}"], esperado={10})
+    assert smoke.resolve_argv(passo, tmp_path) == ["install", "--check", "--target", str(tmp_path / "alvo")]
+    assert "alvo" in smoke.PASTAS
 
 
 def test_cada_passo_json_tem_schema_e_cada_passo_tem_exit_esperado(smoke):
@@ -112,7 +130,14 @@ def test_cada_passo_json_tem_schema_e_cada_passo_tem_exit_esperado(smoke):
     assert esperados["login --json"].esperado == {1} and esperados["login --json"].status == "UNVERIFIED"
     assert esperados["logout"].esperado == {2}
     assert esperados["logout --yes --json"].esperado == {0} and esperados["logout --yes --json"].status == "NO_LOGIN"
-    assert esperados["install --check"].esperado == {0, 10}
+    assert esperados["install --check --target {alvo}"].esperado == {10}, "a fresh target has the skill pending"
+    seco = esperados["install --dry-run --json --target {alvo}"]
+    assert seco.esperado == {0} and seco.schema == "install-plan" and seco.status == "dry_run"
+    assert esperados["install --verify --target {alvo}"].esperado == {0}
+    assert esperados["install --target {alvo}"].esperado == {0}
+    de_novo = esperados["install --check --json --target {alvo}"]
+    assert de_novo.esperado == {0} and de_novo.schema == "install-plan", "after the install the target is up to date"
+    assert esperados["install --uninstall --target {alvo}"].esperado == {0}
 
 
 def test_a_tabela_markdown_tem_as_colunas_pedidas(smoke):
@@ -150,6 +175,17 @@ def test_um_schema_que_nao_bate_reprova_o_passo(smoke, monkeypatch, capsys, tmp_
     assert rc == 1 and "schema" in out.lower()
 
 
+def SCRIPT_PASSOS():
+    spec = importlib.util.spec_from_file_location("smoke_so_passos", SCRIPT)
+    modulo = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = modulo
+    try:
+        spec.loader.exec_module(modulo)
+        return list(modulo.PASSOS)
+    finally:
+        sys.modules.pop(spec.name, None)
+
+
 def test_roda_de_verdade_no_linux_passa_e_nao_toca_no_home_real(smoke, capsys, tmp_path):
     casa = Path.home()
     antes = {n: (casa / n).exists() for n in (".simplicio", ".simplicio-video")}
@@ -161,6 +197,8 @@ def test_roda_de_verdade_no_linux_passa_e_nao_toca_no_home_real(smoke, capsys, t
     assert {n: (casa / n).exists() for n in antes} == antes, "the smoke touched the real home"
     assert not (tmp_path / "pasta" / "home" / ".simplicio").exists(), "NO_LOGIN writes nothing, not even the folder"
     assert not (tmp_path / "pasta" / "profile" / ".simplicio").exists()
+    assert list((tmp_path / "pasta" / "alvo").iterdir()) == [], "the install of the temporary target was uninstalled again"
+    assert list((tmp_path / "pasta" / "home").iterdir()) == [] and list((tmp_path / "pasta" / "profile").iterdir()) == []
 
 
 def test_a_pasta_temporaria_e_apagada_no_fim_salvo_com_manter(smoke, capsys, tmp_path, monkeypatch):

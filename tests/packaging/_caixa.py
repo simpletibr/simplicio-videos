@@ -86,6 +86,8 @@ login_cmd = _Lazy("simplicio_video.commands.login")
 update_cmd = _Lazy("simplicio_video.commands.update")
 doctor_cmd = _Lazy("simplicio_video.commands.doctor")
 install_cmd = _Lazy("simplicio_video.commands.install")
+installer = _Lazy("simplicio_video.installer")
+skill_sync = _Lazy("simplicio_video.skill_sync")
 
 
 def login_doc(**over) -> dict:
@@ -332,6 +334,12 @@ if args[:1] == ["venv"]:
     version = args[args.index("--python") + 1] if "--python" in args else "3.12"
     with open(os.path.join(venv, "pyvenv.cfg"), "w", encoding="utf-8") as handle:
         handle.write("home = /fake\nversion_info = " + version + ".4\n")
+    os.makedirs(os.path.join(venv, "bin"), exist_ok=True)  # the CLI the dev install runs `doctor` with at the end
+    stub = os.path.join(venv, "bin", "simplicio-video")
+    with open(stub, "w", encoding="utf-8") as handle:
+        handle.write('#!/bin/sh\necho "$@" >> "$(dirname "$0")/../doctor.log"\n'
+                     'exit $(cat "$(dirname "$0")/../doctor.rc" 2>/dev/null || echo 0)\n')
+    os.chmod(stub, 0o755)
 sys.exit(0)
 """
 

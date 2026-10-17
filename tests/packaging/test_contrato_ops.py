@@ -1,4 +1,4 @@
-"""The JSON contracts of the operations commands: six packaged schemas, and every `--json` output validates against them.
+"""The JSON contracts of the operations commands: seven packaged schemas, and every `--json` output validates against them.
 
 Schemas live in src/simplicio_video/data/schemas/cli/ (Draft 2020-12, like the five that already exist):
   doctor.schema.json         simplicio.doctor/v1        (the loop's id)
@@ -6,7 +6,9 @@ Schemas live in src/simplicio_video/data/schemas/cli/ (Draft 2020-12, like the f
   logout.schema.json         simplicio.logout/v1        (the loop's id)
   auth-status.schema.json    simplicio.auth-status/v1   (the loop's id; forbids access_token and refresh_token)
   update-check.schema.json   the state file `update-check.json` (installed, latest, update_available, kind, checked_at)
-  install-result.schema.json simplicio.video-install/v1 (the video's own: `install` here is the .venv, not the host skills)
+  install-plan.schema.json   simplicio.video-install-plan/v1 (the loop's `simplicio.loop-install-plan/v1` with the same keys: the
+                             result of `install` that copies the skills into the host; a verify, an uninstall and an error too)
+  install-ownership.schema.json  simplicio.video-install-ownership/v1 (the receipt `.simplicio-video/install-ownership.json`)
 Everything is FAKE: tokens, e-mail, Runtime. HOME and PATH are sealed (see _caixa.py).
 """
 from __future__ import annotations
@@ -32,7 +34,7 @@ IDS_DO_LOOP = {
     "doctor": "simplicio.doctor/v1", "login": "simplicio.login/v1", "logout": "simplicio.logout/v1",
     "auth-status": "simplicio.auth-status/v1",
 }
-NOVOS = ["doctor", "login", "logout", "auth-status", "update-check", "install-result"]
+NOVOS = ["doctor", "login", "logout", "auth-status", "update-check", "install-plan", "install-ownership"]
 # What `auth.describe()` of simplicio-loop (2034e2d, auth.py:438-465) can put in an auth-status document.
 CHAVES_DO_AUTH_STATUS_DO_LOOP = {
     "schema", "logged_in", "reason_code", "fix", "detail", "path", "runtime_path", "shared_with_runtime", "runtime",
@@ -68,12 +70,6 @@ def test_o_schema_existe_e_e_draft_2020_12_valido(nome):
 def test_o_id_e_o_mesmo_do_loop(nome, ident):
     assert schema(nome)["$id"] == ident
     assert schema(nome)["properties"]["schema"] == {"const": ident}
-
-
-def test_os_ids_do_install_e_o_estado():
-    assert schema("install-result")["$id"] == "simplicio.video-install/v1"
-    assert schema("install-result")["properties"]["schema"] == {"const": "simplicio.video-install/v1"}
-    assert "$id" not in schema("update-check"), "a state file without a `schema` key has no $id (the loop's has none either)"
 
 
 @pytest.mark.parametrize("nome", NOVOS)
@@ -161,15 +157,6 @@ def test_o_estado_so_aceita_commits_behind_no_source():
     assert erros("update-check", {**base, "kind": "binary"}), "there is no binary distribution"
 
 
-def test_o_resultado_do_install_exige_as_chaves_e_o_python_no_formato():
-    base = {"schema": "simplicio.video-install/v1", "version": "0.4.0", "up_to_date": False, "pending": ["x"],
-            "conflict": None, "python": "3.12", "extras": [], "distribution": "source"}
-    valida("install-result", base)
-    assert erros("install-result", {**base, "python": "tres"})
-    assert erros("install-result", {**base, "distribution": "binary"})
-    assert erros("install-result", {k: v for k, v in base.items() if k != "pending"})
-
-
 def test_o_logout_aceita_o_motivo_not_a_login_file_e_o_detalhe_na_recusa():
     base = {"schema": "simplicio.logout/v1", "status": "REFUSED", "path": "p", "runtime_path": "p", "also_logs_out_runtime": True,
             "reason_code": "not_a_login_file", "detail": "p não tem a forma de um login; nada foi apagado"}
@@ -177,15 +164,78 @@ def test_o_logout_aceita_o_motivo_not_a_login_file_e_o_detalhe_na_recusa():
     assert erros("logout", {**base, "reason_code": "qualquer_coisa"})
 
 
-def test_o_resultado_do_install_com_erro_traz_error_e_so_o_que_se_sabe():
-    """An error document (a bad --python, no uv, a conflicting .venv...): `error` plus whatever the install already knew."""
-    minimo = {"schema": "simplicio.video-install/v1", "version": "0.4.0", "distribution": "source", "error": "extra inválido"}
-    valida("install-result", minimo)
-    valida("install-result", {**minimo, "python": "3.12", "extras": [], "pending": ["x"], "conflict": None, "up_to_date": False})
-    assert erros("install-result", {k: v for k, v in minimo.items() if k != "error"}), "no error and no plan: not a document"
-    assert erros("install-result", {**minimo, "error": ""}) and erros("install-result", {**minimo, "error": 3})
-    assert erros("install-result", {**minimo, "python": "tres"}), "what is there still has to fit"
-    assert erros("install-result", {**minimo, "up_to_date": True}), "an error is never up to date"
+# What `apply_plan` of simplicio-loop (2034e2d, install/planner.py:189-197) and the `install` command (cli_commands/install.py:160-165)
+# put in the document: the video's has these keys and no others (plus the verify, uninstall and error shapes).
+CHAVES_DO_INSTALL_DO_LOOP = {"schema", "status", "written", "up_to_date", "changes", "owned", "ownership", "digest", "host",
+                             "version", "resynced", "pruned_project"}
+DIGEST = "sha256:" + "a" * 64
+RECIBO = {"schema": "simplicio.video-install-ownership/v1", "owner": "simplicio-video", "version": "0.4.0", "digest": DIGEST,
+          "paths": [".claude/skills/simplicio-video/SKILL.md"], "dirs": [".claude"]}
+PLANO = {"schema": "simplicio.video-install-plan/v1", "status": "applied", "written": 3, "up_to_date": False, "host": "claude",
+         "version": "0.4.0", "digest": DIGEST, "owned": [".claude/skills/simplicio-video/SKILL.md"], "ownership": RECIBO,
+         "changes": {"created": ["a"], "updated": [], "unchanged": 0, "left_alone": []}, "resynced": None}
+
+
+def test_os_ids_do_install_e_do_recibo_e_o_estado():
+    assert schema("install-plan")["$id"] == "simplicio.video-install-plan/v1"
+    assert schema("install-plan")["properties"]["schema"] == {"const": "simplicio.video-install-plan/v1"}
+    assert schema("install-ownership")["$id"] == "simplicio.video-install-ownership/v1"
+    assert schema("install-ownership")["properties"]["schema"] == {"const": "simplicio.video-install-ownership/v1"}
+    assert "$id" not in schema("update-check"), "a state file without a `schema` key has no $id (the loop's has none either)"
+
+
+def test_o_schema_do_install_antigo_do_venv_saiu():
+    assert not (SCHEMAS / "install-result.schema.json").exists(), "the .venv install and its schema are gone (no compatibility)"
+
+
+def test_as_chaves_do_install_sao_as_do_loop_e_so_elas():
+    props = set(schema("install-plan")["properties"])
+    assert CHAVES_DO_INSTALL_DO_LOOP <= props
+    assert props - CHAVES_DO_INSTALL_DO_LOOP == {"ok", "removed", "removed_dirs", "kept", "skipped", "error"}, \
+        "only the verify, uninstall and error shapes add keys"
+    mudancas = schema("install-plan")["properties"]["changes"]
+    assert set(mudancas["properties"]) == {"created", "updated", "unchanged", "left_alone"} and mudancas["additionalProperties"] is False
+
+
+def test_o_resultado_do_install_aceita_applied_e_dry_run_e_exige_as_chaves():
+    valida("install-plan", PLANO)
+    valida("install-plan", {**PLANO, "status": "dry_run", "written": 0})
+    valida("install-plan", {**PLANO, "resynced": {"skills": ["codex"], "rules": [], "skills_counts": {"codex": 1},
+                                                  "rules_counts": {}, "errors": [], "pending": 1},
+                            "pruned_project": {"schema": "simplicio.video-install-plan/v1", "status": "removed", "removed": [],
+                                               "removed_dirs": [], "kept": []}})
+    for chave in ("changes", "owned", "ownership", "digest", "host", "version", "up_to_date", "written", "resynced"):
+        assert erros("install-plan", {k: v for k, v in PLANO.items() if k != chave}), f"{chave} is required in an install result"
+    assert erros("install-plan", {**PLANO, "digest": "sha1:abc"}) and erros("install-plan", {**PLANO, "written": -1})
+    assert erros("install-plan", {**PLANO, "changes": {**PLANO["changes"], "unchanged": "0"}})
+    assert erros("install-plan", {**PLANO, "extra": 1}), "no unknown key"
+
+
+def test_o_verify_o_uninstall_e_o_erro_tem_cada_um_a_sua_forma():
+    verify = {"schema": "simplicio.video-install-plan/v1", "status": "verified", "ok": True, "host": "claude",
+              "version": "0.4.0", "digest": DIGEST}
+    valida("install-plan", verify)
+    assert erros("install-plan", {k: v for k, v in verify.items() if k != "digest"})
+    uninstall = {"schema": "simplicio.video-install-plan/v1", "status": "removed", "removed": ["a"], "removed_dirs": [],
+                 "kept": [], "skipped": [], "host": "claude", "version": "0.4.0"}
+    valida("install-plan", uninstall)
+    valida("install-plan", {**uninstall, "status": "dry_run"})
+    assert erros("install-plan", {k: v for k, v in uninstall.items() if k != "kept"})
+    erro = {"schema": "simplicio.video-install-plan/v1", "status": "error", "version": "0.4.0", "error": "host desconhecido: x"}
+    valida("install-plan", erro)
+    valida("install-plan", {**erro, "host": "x"})
+    assert erros("install-plan", {**erro, "error": ""}) and erros("install-plan", {k: v for k, v in erro.items() if k != "error"})
+    assert erros("install-plan", {**erro, "up_to_date": True}), "an error is never up to date"
+    assert erros("install-plan", {"schema": "simplicio.video-install-plan/v1", "status": "feito"}), "unknown status"
+
+
+def test_o_recibo_so_aceita_o_dono_e_o_esquema_do_video():
+    valida("install-ownership", RECIBO)
+    assert erros("install-ownership", {**RECIBO, "owner": "simplicio-loop"})
+    assert erros("install-ownership", {**RECIBO, "schema": "simplicio.loop-install-ownership/v2"})
+    assert erros("install-ownership", {**RECIBO, "paths": [1]}) and erros("install-ownership", {**RECIBO, "dirs": "x"})
+    for chave in RECIBO:
+        assert erros("install-ownership", {k: v for k, v in RECIBO.items() if k != chave}), chave
 
 
 # --- the real outputs validate ---------------------------------------------------------------------------------------
@@ -269,20 +319,37 @@ def test_doctor_real_valida_saudavel_e_doente(saude, capsys):
     valida("doctor", doc)
 
 
-def test_install_real_valida_check_dry_run_e_pacote_instalado(caixa, capsys, monkeypatch):
-    repo = caixa.tmp / "checkout"
-    repo.mkdir()
-    for nome in ("pyproject.toml", "plugin.json"):
-        (repo / nome).write_text((ROOT / nome).read_text(encoding="utf8"), encoding="utf8")
-    monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(repo))
-    monkeypatch.setattr(distribution, "kind", lambda **kw: "source")
-    for opcao in ("--check", "--dry-run"):
-        rc, doc, _ = _doc(capsys, "install", opcao, "--json")
-        valida("install-result", doc)
+def test_install_real_valida_check_dry_run_apply_verify_uninstall_e_o_recibo_no_disco(caixa, capsys, tmp_path):
+    alvo = tmp_path / "proj"
+    alvo.mkdir()
+    for argv, status, rc_esperado in ((["--check"], "dry_run", 10), (["--dry-run"], "dry_run", 0), ([], "applied", 0),
+                                      (["--check"], "dry_run", 0), (["--verify"], "verified", 0),
+                                      (["--uninstall", "--dry-run"], "dry_run", 0), (["--uninstall"], "removed", 0),
+                                      (["--uninstall"], "error", 1), (["--host", "nao-existe"], "error", 1)):
+        rc, doc, _ = _doc(capsys, "install", "--json", "--target", str(alvo), *argv)
+        valida("install-plan", doc)
+        assert doc["status"] == status and rc == rc_esperado, (argv, doc)
+        if argv == [] and status == "applied":
+            valida("install-ownership", json.loads((alvo / ".simplicio-video" / "install-ownership.json").read_text(encoding="utf-8")))
+
+
+def test_install_global_real_valida_com_resynced_e_pruned_project(caixa, capsys, tmp_path):
+    alvo = tmp_path / "proj"
+    (alvo / ".claude" / "skills" / "simplicio-video").mkdir(parents=True)
+    (alvo / ".claude" / "skills" / "simplicio-video" / "SKILL.md").write_text("velha\n", encoding="utf-8")
+    (caixa.home / ".codex" / "skills" / "simplicio-video").mkdir(parents=True)
+    (caixa.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md").write_text("velha\n", encoding="utf-8")
+    for argv in (["--check"], []):
+        rc, doc, _ = _doc(capsys, "install", "--json", "--global", "--prune-project-copies", "--target", str(alvo), *argv)
+        valida("install-plan", doc)
+        assert doc["resynced"]["skills"] == ["codex"] and doc["pruned_project"]["removed"]
+
+
+def test_install_de_pacote_instalado_valida(caixa, capsys, monkeypatch, tmp_path):
     monkeypatch.setattr(distribution, "kind", lambda **kw: "pip")
-    rc, doc, _ = _doc(capsys, "install", "--check", "--json")
-    valida("install-result", doc)
-    assert doc["distribution"] == "pip"
+    rc, doc, _ = _doc(capsys, "install", "--json", "--check", "--target", str(tmp_path))
+    valida("install-plan", doc)
+    assert rc == 10
 
 
 def test_o_estado_gravado_pelo_update_valida(caixa, capsys, monkeypatch):

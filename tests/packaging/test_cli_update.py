@@ -1,10 +1,13 @@
 """Contract of `simplicio-video update [--check] [--dry-run] [--force]`: the loop's exit codes, both distributions.
 
-Exit codes (as simplicio-loop): `--check` 0 up to date, 10 update available, 2 error; refusal (dirty tree, no upstream,
-not a fast-forward, PEP 668, downgrade without --force) 2; a network failure is `2 if --check else 1`.
-Distributions: `pip` (install the latest release from PyPI: `python -m pip install --upgrade "simplicio-video==X"`) and
-`source` (a checkout: `git pull --ff-only`, then install, web build and doctor). `--force` reinstalls even when up to date
-and allows a downgrade; it NEVER skips the dirty-tree refusal.
+Exit codes (as simplicio-loop): `--check` 0 up to date, 10 update available, 2 error; refusal (a checkout, PEP 668, downgrade
+without --force) 2; a network failure is `2 if --check else 1`.
+Distributions: `pip` (install the latest release from PyPI: `python -m pip install --upgrade "simplicio-video==X"`, then
+`simplicio-video install --global` to reinstall the skills in the agent hosts, as the loop does) and `source` (a checkout or an
+editable install): REFUSED, exit 2, printing `git pull` and `bash scripts/dev_install.sh` (Windows: `powershell -File
+scripts/dev_install.ps1`). Breaking change (direct owner request): the update used to run `git pull --ff-only` there; the loop
+refuses, so does this. `--check` of a checkout still answers 0/10/2 (it asks git how many commits are new) and records the cache.
+`--force` reinstalls the pip release even when up to date and allows a downgrade; `--dry-run` shows the plan and changes nothing.
 
 Part 1 injects the network, git and subprocesses (like the loop's tests). Part 2 runs real git against a bare repo in
 tmp_path (transport by file, no network). Nothing touches the real repo, ~ or the network (pytest-socket).
@@ -36,6 +39,7 @@ caixa = _caixa.caixa
 simula_so = _caixa.simula_so
 
 PYPI = "simplicio-video=="
+INSTALL_GLOBAL = [sys.executable, "-m", "simplicio_video", "install", "--global"]
 
 
 class Chamadas:
@@ -113,7 +117,7 @@ def test_pip_falha_de_rede_com_dry_run_e_1(capsys):
 def test_pip_instala_a_ultima_release_do_pypi_com_o_python_atual(capsys):
     rc, c, texto = pip_update(capsys, tag="v0.5.0")
     assert rc == 0
-    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}0.5.0"]]
+    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}0.5.0"], INSTALL_GLOBAL]
     assert "0.4.0 -> 0.5.0" in texto
     assert c.registros[-1] == {"installed": "0.5.0", "latest": "0.5.0", "update_available": False, "kind": "pip"}
     assert "git+" not in " ".join(c.argvs[0]), "the pip distribution comes from PyPI, not from git"
@@ -130,13 +134,14 @@ def test_pip_dry_run_mostra_o_comando_nao_roda_e_nao_registra(capsys):
     rc, c, texto = pip_update(capsys, dry_run=True)
     assert rc == 0 and c.argvs == [] and c.registros == []
     assert f"{PYPI}0.5.0" in texto and "pip install --upgrade" in texto
+    assert "simplicio_video install --global" in texto, "the plan shows the skills refresh too"
     assert "nada foi alterado" in texto
 
 
 def test_pip_force_em_dia_reinstala_a_mesma_versao(capsys):
     rc, c, _ = pip_update(capsys, installed="0.4.0", tag="v0.4.0", force=True)
     assert rc == 0
-    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", f"{PYPI}0.4.0"]]
+    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", f"{PYPI}0.4.0"], INSTALL_GLOBAL]
 
 
 def test_pip_sem_force_nao_usa_force_reinstall(capsys):
@@ -161,6 +166,63 @@ def test_pip_downgrade_com_force_e_permitido(capsys):
 def test_pip_downgrade_no_check_nao_e_atualizacao(capsys):
     rc, c, _ = pip_update(capsys, installed="0.6.0", tag="v0.5.0", check=True)
     assert rc == 0 and c.registros[0]["update_available"] is False
+
+
+class FalhaNoInstall(Chamadas):
+    """The pip upgrade works; the `install --global` that follows it fails with 5."""
+
+    def runner(self, argv, cwd=None):
+        super().runner(argv, cwd)
+        return 5 if "--global" in argv else 0
+
+
+def test_pip_depois_do_upgrade_reinstala_as_skills_nos_hosts_e_so_entao_registra(capsys):
+    c = Chamadas()
+    visto_na_hora = []
+
+    def runner(argv, cwd=None):
+        visto_na_hora.append((list(argv), len(c.registros)))
+        return c.runner(argv, cwd)
+
+    codigo = update_cmd.run_update(installed="0.4.0", fetch=lambda: "v0.5.0", runner=runner, kind="pip", record=c.record,
+                                   externally_managed=False)
+    capsys.readouterr()
+    assert codigo == 0 and [a for a, _ in visto_na_hora][-1] == INSTALL_GLOBAL
+    assert visto_na_hora[-1][1] == 1, "the success is recorded only AFTER the skills were reinstalled"
+    assert c.registros[-1]["installed"] == "0.5.0" and c.registros[-1]["update_available"] is False
+
+
+def test_pip_se_o_install_global_falha_o_codigo_e_o_dele_e_nao_registra_sucesso(capsys):
+    c = FalhaNoInstall()
+    codigo = update_cmd.run_update(installed="0.4.0", fetch=lambda: "v0.5.0", runner=c.runner, kind="pip", record=c.record,
+                                   externally_managed=False)
+    texto = "".join(capsys.readouterr())
+    assert codigo == 5 and c.argvs[-1] == INSTALL_GLOBAL
+    assert all(r["installed"] == "0.4.0" for r in c.registros), "a half update must not be recorded as done"
+    assert "install --global" in texto and "simplicio-video install --global" in texto, "it says how to finish by hand"
+
+
+def test_pip_em_dia_check_e_pep_668_nao_reinstalam_as_skills(capsys):
+    for kw in ({"installed": "0.5.0", "tag": "v0.5.0"}, {"check": True}, {"gerenciado": True}):
+        rc, c, _ = pip_update(capsys, **kw)
+        assert INSTALL_GLOBAL not in c.argvs, kw
+
+
+def test_pip_dry_run_mostra_o_install_global_e_nao_o_roda(capsys):
+    rc, c, texto = pip_update(capsys, dry_run=True)
+    assert rc == 0 and c.argvs == [] and "executaria: " + " ".join(INSTALL_GLOBAL) in texto
+
+
+def test_main_update_de_pacote_roda_pip_e_depois_o_install_global(caixa, capsys, monkeypatch):
+    c = Chamadas()
+    monkeypatch.setattr(distribution, "kind", lambda **kw: "pip")
+    monkeypatch.setattr(update_cmd, "fetch_latest_tag", lambda: "v99.0.0")
+    monkeypatch.setattr(update_cmd, "_run", c.runner)
+    monkeypatch.setattr(update_cmd, "is_pep668_environment", lambda **kw: (False, None))
+    rc, out, err = executa(["update"], capsys, main)
+    assert rc == 0, out + err
+    assert [a[1:4] for a in c.argvs] == [["-m", "pip", "install"], ["-m", "simplicio_video", "install"]]
+    assert json.loads((caixa.data / "update-check.json").read_text())["installed"] == "99.0.0"
 
 
 # --- pip: PEP 668 ----------------------------------------------------------------------------------------------------
@@ -333,7 +395,7 @@ def test_um_tag_estranho_nao_chega_ao_pip(capsys, tag):
 @pytest.mark.parametrize("tag,etiqueta", [("v0.5.0", "0.5.0"), ("1.2.3.post4", "1.2.3.post4"), ("v2.0", "2.0.0"), ("3.4.5.6", "3.4.5.6")])
 def test_o_argv_do_pip_tem_so_numeros_e_um_igual_igual_fixo(capsys, tag, etiqueta):
     rc, c, _ = pip_update(capsys, tag=tag, installed="0.1.0")
-    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}{etiqueta}"]]
+    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}{etiqueta}"], INSTALL_GLOBAL]
     assert re.fullmatch(r"simplicio-video==\d+(\.\d+){2,3}(\.post\d+)?", c.argvs[0][-1]) and isinstance(c.argvs[0], list)
 
 
@@ -455,17 +517,6 @@ def test_sem_simplicio_video_data_o_estado_fica_em_home_simplicio_video(caixa, m
     assert update_cmd.default_state_dir() == caixa.home / ".simplicio-video"
 
 
-# --- multi-system: no `sh`, no POSIX-only step ------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("so", SISTEMAS)
-def test_o_update_do_checkout_nao_usa_sh_em_nenhum_sistema(so, simula_so, tmp_path):
-    """The old web step ran `sh -c ...`, which does not exist on Windows. Nothing here may start `sh`."""
-    simula_so(so)
-    codigo = Path(update_cmd._real().__file__).read_text(encoding="utf-8")
-    assert '"sh"' not in codigo and "'sh'" not in codigo and "WEB_CMD" not in codigo
-
-
 # --- source distribution (a checkout) with real git ------------------------------------------------------------------
 
 GIT_ENV = {
@@ -565,142 +616,10 @@ def test_check_em_dia_sai_0(remoto, comandos, caixa, capsys):
     assert registro["update_available"] is False and registro["commits_behind"] == 0
 
 
-def test_faz_fast_forward_e_imprime_como_voltar(remoto, comandos, capsys):
-    checkout = remoto["checkout"]
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 0, out + err
-    assert _head(checkout) == remoto["novo"], "update did not move the checkout to the remote"
-    assert "0.3.1" in (checkout / "CHANGELOG.md").read_text(encoding="utf8")
-    antigo_curto = remoto["antigo"][:7]
-    assert antigo_curto in out + err, "update does not print the commit to go back to"
-    assert re.search(r"rollback|voltar|git reset", out + err, re.IGNORECASE)
-    assert f"reset --keep {remoto['antigo']}" in out
-
-
-def test_depois_do_pull_roda_install_web_e_doctor_nessa_ordem_sem_sh(remoto, comandos, caixa, capsys):
-    web = remoto["checkout"] / "web"
-    web.mkdir()
-    (web / "package.json").write_text("{}\n")
-    npm = write_fake_tool(caixa.bin, "npm", "")
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 0, out + err
-    argvs = comandos.argvs
-    posicao = {
-        "install": next(i for i, a in enumerate(argvs) if a[1:] == ["-m", "simplicio_video", "install"]),
-        "ci": next(i for i, a in enumerate(argvs) if a[0] == str(npm) and "ci" in a),
-        "build": next(i for i, a in enumerate(argvs) if a[0] == str(npm) and a[-2:] == ["run", "build"]),
-        "doctor": next(i for i, a in enumerate(argvs) if a[1:] == ["-m", "simplicio_video", "doctor"]),
-    }
-    assert posicao["install"] < posicao["ci"] < posicao["build"] < posicao["doctor"]
-    assert all(a[0] not in ("sh", "bash") for a in argvs)
-    assert all(Path(c).resolve() == remoto["checkout"].resolve() for c in comandos.cwds), "every step runs inside the checkout"
-
-
-def test_sem_web_o_passo_so_registra_e_segue(remoto, comandos, capsys):
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 0, out + err
-    assert "nada a construir" in out
-    assert [a for a in comandos.argvs if "npm" in a[0]] == []
-    assert len(comandos.argvs) == 2  # install and doctor only
-
-
-def test_o_codigo_de_saida_do_doctor_e_o_do_update(remoto, comandos, capsys):
-    comandos.rc = 1
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 1
-
-
-def test_dry_run_mostra_o_que_rodaria_e_nao_altera_a_arvore(remoto, comandos, caixa, capsys):
-    checkout = remoto["checkout"]
-    rc, out, err = executa(["update", "--dry-run"], capsys, main)
-    assert rc == 0, out + err
-    for trecho in ("git pull --ff-only", "install", "doctor"):
-        assert trecho in out, f"--dry-run does not mention {trecho!r}:\n{out}"
-    assert _head(checkout) == remoto["antigo"]
-    assert comandos.argvs == [], "--dry-run runs nothing"
-    assert not (caixa.data / "update-check.json").exists(), "--dry-run records nothing"
-    saida_cp1252(out, err)
-
-
-def test_force_em_dia_reinstala_mesmo_assim(remoto, comandos, capsys):
-    _git("pull", "-q", "--ff-only", cwd=remoto["checkout"])
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 0 and comandos.argvs == [], "up to date without --force runs nothing"
-    rc, out, err = executa(["update", "--force"], capsys, main)
-    assert rc == 0, out + err
-    nomes = [a[-1] for a in comandos.argvs]
-    assert "install" in nomes and "doctor" in nomes, f"--force must reinstall even when up to date: {comandos.argvs}"
-
-
-def test_recusa_arvore_suja_com_exit_2_e_a_dica_do_stash(remoto, comandos, capsys):
-    checkout = remoto["checkout"]
-    (checkout / "CHANGELOG.md").write_text(CHANGELOG_BASE + "- edição local\n", encoding="utf8")
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 2, "a refused update exits 2 (was 1)"
-    assert re.search(r"suja|sujo|alterad", out + err, re.IGNORECASE)
-    assert "git stash" in out + err
-    assert _head(checkout) == remoto["antigo"] and comandos.argvs == []
-    assert "edição local" in (checkout / "CHANGELOG.md").read_text(encoding="utf8"), "the local edit was lost"
-
-
-@pytest.mark.parametrize("opcao", ["--check", "--dry-run", "--force"])
-def test_a_arvore_suja_e_recusada_em_todos_os_modos_ate_com_force(remoto, comandos, opcao, capsys):
-    checkout = remoto["checkout"]
-    (checkout / "CHANGELOG.md").write_text(CHANGELOG_BASE + "- edição local\n", encoding="utf8")
-    rc, out, err = executa(["update", opcao], capsys, main)
-    assert rc == 2, f"{opcao} accepted a dirty tree"
-    assert "git stash" in out + err
-    assert _head(checkout) == remoto["antigo"] and comandos.argvs == []
-
-
 def test_arquivo_novo_nao_rastreado_nao_suja_a_arvore(remoto, comandos, capsys):
     (remoto["checkout"] / "anotacao.txt").write_text("minha nota\n")
     rc, out, err = executa(["update", "--check"], capsys, main)
     assert rc == 10, out + err
-
-
-def test_sem_upstream_e_recusado_com_exit_2(remoto, comandos, capsys):
-    _git("branch", "--unset-upstream", cwd=remoto["checkout"])
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 2 and "upstream" in out + err
-    assert _head(remoto["checkout"]) == remoto["antigo"]
-
-
-def test_fora_de_um_repositorio_git_e_recusado_com_exit_2(caixa, fonte, monkeypatch, capsys):
-    vazio = caixa.tmp / "sem-git"
-    vazio.mkdir()
-    monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(vazio))
-    rc, out, err = executa(["update", "--dry-run"], capsys, main)
-    assert rc == 2 and "não é um repositório git" in out + err
-
-
-def test_git_ausente_nao_gera_traceback(caixa, fonte, monkeypatch, capsys):
-    vazio = caixa.tmp / "sem-git"
-    vazio.mkdir()
-    monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(vazio))
-    monkeypatch.setenv("PATH", str(caixa.bin))  # nothing on PATH: no git
-    rc, out, err = executa(["update", "--dry-run"], capsys, main)
-    assert rc == 2 and "Traceback" not in out + err
-
-
-def test_historia_divergente_nao_e_fast_forward_e_nada_muda(remoto, comandos, capsys):
-    checkout = remoto["checkout"]
-    (checkout / "local.txt").write_text("commit local\n")
-    _git("add", "local.txt", cwd=checkout)
-    _git("commit", "-m", "local", cwd=checkout)
-    local = _head(checkout)
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 2 and "fast-forward" in out + err
-    assert _head(checkout) == local and comandos.argvs == []
-
-
-def test_falha_do_fetch_e_2_no_check_e_1_fora_dele(remoto, comandos, caixa, capsys):
-    os.rename(caixa.tmp / "origem.git", caixa.tmp / "origem-sumiu.git")
-    rc, out, err = executa(["update", "--check"], capsys, main)
-    assert rc == 2
-    rc, out, err = executa(["update"], capsys, main)
-    assert rc == 1
-    assert _head(remoto["checkout"]) == remoto["antigo"]
 
 
 def test_o_check_do_checkout_usa_a_versao_do_pyproject_do_upstream(remoto, comandos, capsys):
@@ -708,7 +627,130 @@ def test_o_check_do_checkout_usa_a_versao_do_pyproject_do_upstream(remoto, coman
     assert rc == 10 and "0.5.0" in out
 
 
-# --- SIMPLICIO_OFFLINE=1 blocks ALL the network, a checkout included; --dry-run never fetches -----------------------------
+# --- the update of a checkout is REFUSED, as in the loop: `git pull` and the dev install ARE the update -----------------------
+
+PULL = "git pull"
+DEV_SH = "bash scripts/dev_install.sh"
+DEV_PS1 = "powershell -File scripts/dev_install.ps1"
+
+
+@pytest.mark.parametrize("opcoes", [[], ["--force"], ["--dry-run"], ["--check", "--dry-run"], ["--force", "--dry-run"]])
+def test_update_no_checkout_recusa_com_exit_2_e_diz_git_pull_e_o_dev_install(remoto, comandos, caixa, capsys, opcoes):
+    checkout = remoto["checkout"]
+    rc, out, err = executa(["update", *opcoes], capsys, main)
+    assert rc == 2, out + err
+    assert PULL in out + err and DEV_SH in out + err and "--ff-only" not in out + err
+    assert _head(checkout) == remoto["antigo"] and comandos.argvs == [], "a refusal changes and runs nothing"
+    assert not (caixa.data / "update-check.json").exists(), "a refusal records nothing"
+    saida_cp1252(out, err)
+
+
+@pytest.mark.parametrize("so,esperado,ausente", [("linux", DEV_SH, DEV_PS1), ("darwin", DEV_SH, DEV_PS1), ("win32", DEV_PS1, DEV_SH)])
+def test_a_recusa_diz_o_dev_install_do_sistema(remoto, comandos, capsys, simula_so, so, esperado, ausente):
+    simula_so(so)
+    rc, out, err = executa(["update"], capsys, main)
+    assert rc == 2 and PULL in out + err and esperado in out + err and ausente not in out + err
+
+
+def test_a_recusa_nao_roda_git_nem_rede_nem_programa_nenhum(remoto, comandos, caixa, capsys, monkeypatch, sem_rede):
+    for rede in ("1", "0"):
+        monkeypatch.setenv("SIMPLICIO_OFFLINE", rede)
+        rc, out, err = executa(["update"], capsys, main)
+        assert rc == 2
+    assert sem_rede == [], f"the refusal started a process: {sem_rede}"
+
+
+def test_o_update_nao_tem_mais_git_pull_nem_reset_no_codigo():
+    codigo = Path(update_cmd._real().__file__).read_text(encoding="utf-8")
+    assert '"pull"' not in codigo and "--ff-only" not in codigo and '"reset"' not in codigo
+    assert "_web_steps" not in codigo and "npm" not in codigo, "the web/ build moved to scripts/dev_install.sh"
+
+
+def test_o_update_do_checkout_nao_usa_sh_em_nenhum_sistema():
+    codigo = Path(update_cmd._real().__file__).read_text(encoding="utf-8")
+    assert '"sh"' not in codigo and "'sh'" not in codigo and "WEB_CMD" not in codigo
+
+
+def test_o_check_nao_liga_para_arvore_suja_porque_nada_e_puxado(remoto, comandos, capsys):
+    checkout = remoto["checkout"]
+    (checkout / "CHANGELOG.md").write_text(CHANGELOG_BASE + "- edição local\n", encoding="utf-8")
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 10, out + err
+    assert "git stash" not in out + err and "suja" not in out + err
+    assert "edição local" in (checkout / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert _head(checkout) == remoto["antigo"]
+
+
+def test_o_check_com_historia_divergente_conta_os_commits_novos_e_nao_mexe(remoto, comandos, capsys):
+    checkout = remoto["checkout"]
+    (checkout / "local.txt").write_text("commit local\n", encoding="utf-8")
+    _git("add", "local.txt", cwd=checkout)
+    _git("commit", "-m", "local", cwd=checkout)
+    local = _head(checkout)
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 10 and _head(checkout) == local and comandos.argvs == []
+
+
+@pytest.mark.parametrize("onde", ["sem-upstream", "sem-git", "git-ausente", "fetch-falha"])
+def test_o_check_do_checkout_que_nao_da_para_responder_sai_2_sem_traceback(remoto, comandos, caixa, capsys, monkeypatch, onde):
+    if onde == "sem-upstream":
+        _git("branch", "--unset-upstream", cwd=remoto["checkout"])
+        trecho = "upstream"
+    elif onde == "fetch-falha":
+        os.rename(caixa.tmp / "origem.git", caixa.tmp / "origem-sumiu.git")
+        trecho = "fetch"
+    else:
+        vazio = caixa.tmp / "sem-git"
+        vazio.mkdir()
+        monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(vazio))
+        trecho = "repositório git"
+        if onde == "git-ausente":
+            monkeypatch.setenv("PATH", str(caixa.bin))  # nothing on PATH: no git
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 2 and "Traceback" not in out + err
+    if onde != "git-ausente":
+        assert trecho in out + err
+    assert not (caixa.data / "update-check.json").exists(), "a check that could not answer records nothing"
+
+
+@posix_real
+def test_o_check_do_checkout_so_le_nao_olha_a_arvore_nem_puxa_e_todo_git_leva_no_optional_locks(remoto, comandos, caixa, capsys,
+                                                                                              monkeypatch):
+    pasta = _git_falso(caixa, monkeypatch, 'exec "$REAL" "$@"', "gitlog")
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 10, out + err
+    chamadas = (pasta / "chamadas.log").read_text().splitlines()
+    verbos = {_subcomando_do_git(c.split()) for c in chamadas}
+    assert verbos <= {"rev-parse", "fetch", "log", "show", "diff"}, verbos
+    assert all("--no-optional-locks" in c for c in chamadas), [c for c in chamadas if "--no-optional-locks" not in c]
+
+
+@posix_real
+def test_o_check_nao_regrava_o_index_do_git(remoto, comandos, capsys):
+    checkout = remoto["checkout"]
+    arq = checkout / "CHANGELOG.md"
+    novo = os.stat(arq).st_mtime + 3600
+    os.utime(arq, (novo, novo))  # same bytes, other mtime: a plain `git status` refreshes the index entry and writes it
+    index = checkout / ".git" / "index"
+    antes = (index.read_bytes(), os.stat(index).st_mtime_ns)
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 10, out + err
+    assert (index.read_bytes(), os.stat(index).st_mtime_ns) == antes, "a read-only step rewrote .git/index"
+
+
+@pytest.mark.parametrize("offline", [False, True], ids=["com-rede", "offline"])
+def test_o_dry_run_do_checkout_nao_roda_git_e_so_recusa(remoto, comandos, caixa, capsys, monkeypatch, sem_rede, offline):
+    if offline:
+        monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    checkout = remoto["checkout"]
+    refs = _refs(checkout)
+    rc, out, err = executa(["update", "--dry-run"], capsys, main)
+    assert rc == 2 and PULL in out + err
+    assert sem_rede == [] and _refs(checkout) == refs
+    _nao_mexeu_no_git(checkout, refs)
+
+
+# --- SIMPLICIO_OFFLINE=1 blocks ALL the network, a checkout included (`--check` runs git fetch) -----------------------------
 
 
 REDE_DO_GIT = {"fetch", "pull", "push", "clone", "ls-remote", "remote", "submodule"}
@@ -764,15 +806,14 @@ def _nao_mexeu_no_git(checkout, refs_antes) -> None:
     assert not (checkout / ".git" / "FETCH_HEAD").exists(), "FETCH_HEAD exists: a fetch ran"
 
 
-@pytest.mark.parametrize("argv,codigo", [(["update", "--check"], 2), (["update"], 1)])
-def test_offline_no_checkout_nao_roda_git_fetch_e_diz_por_que(remoto, comandos, caixa, capsys, monkeypatch, sem_rede, argv, codigo):
-    """`git fetch` is network: with SIMPLICIO_OFFLINE=1 the checkout gets the same answer as the pip package (`2 if --check
-    else 1`), the message names the variable, and the .git is not touched."""
+def test_offline_o_check_no_checkout_nao_roda_git_fetch_e_diz_por_que(remoto, comandos, caixa, capsys, monkeypatch, sem_rede):
+    """`git fetch` is network: with SIMPLICIO_OFFLINE=1 the checkout gets the same answer as the pip package (`--check` 2), the
+    message names the variable, and the .git is not touched."""
     monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
     checkout = remoto["checkout"]
     refs = _refs(checkout)
-    rc, out, err = executa(argv, capsys, main)
-    assert rc == codigo, out + err
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 2, out + err
     assert "SIMPLICIO_OFFLINE" in out + err and "git fetch" in out + err
     assert [a for a in sem_rede if "fetch" in a] == []
     _nao_mexeu_no_git(checkout, refs)
@@ -797,25 +838,6 @@ def test_offline_no_pacote_pip_nao_chama_gh_pip_nem_a_api(caixa, capsys, monkeyp
     rc, out, err = executa(argv, capsys, main)
     assert rc in (1, 2) and "SIMPLICIO_OFFLINE" in out + err
     assert not [a for a in sem_rede if Path(a[0]).name in ("gh", "pip")] and not (caixa.bin / "gh.argv").exists()
-
-
-@pytest.mark.parametrize("offline", [False, True], ids=["com-rede", "offline"])
-def test_dry_run_do_checkout_nao_roda_git_fetch_e_so_mostra_o_plano(remoto, comandos, caixa, capsys, monkeypatch, sem_rede, offline):
-    """`git fetch` rewrites FETCH_HEAD, refs/remotes/origin/* and the reflog: it is not a read-only step. The dry-run only prints
-    the plan, so it cannot say whether the checkout is up to date (and does not pretend to)."""
-    if offline:
-        monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
-    checkout = remoto["checkout"]
-    refs = _refs(checkout)
-    rc, out, err = executa(["update", "--dry-run"], capsys, main)
-    assert rc == 0, out + err
-    assert [a for a in sem_rede if "fetch" in a and a[0] == "git"] == []
-    _nao_mexeu_no_git(checkout, refs)
-    for trecho in ("git fetch", "git pull --ff-only", "install", "doctor"):
-        assert trecho in out, f"the plan does not mention {trecho!r}:\n{out}"
-    assert "não roda" in out and "já está atualizado" not in out
-    assert comandos.argvs == [] and not (caixa.data / "update-check.json").exists()
-    assert _head(checkout) == remoto["antigo"]
 
 
 # --- the version the checkout reports and the text git prints ------------------------------------------------------------
@@ -951,15 +973,6 @@ def test_o_motivo_do_git_sai_cortado_e_sem_escape_de_terminal(remoto, comandos, 
     assert len(texto) < 1200, f"git's message is cut: {len(texto)} characters"
 
 
-@posix_real
-def test_git_status_que_falha_nao_vira_arvore_limpa(remoto, comandos, caixa, capsys, monkeypatch):
-    """A `git status` that fails said nothing and passed as a clean tree: it is a refusal with git's reason."""
-    corpo = 'case " $* " in *" status "*) echo "fatal: index file corrupt" >&2; exit 128;; esac\nexec "$REAL" "$@"'
-    _git_falso(caixa, monkeypatch, corpo)
-    rc, out, err = executa(["update", "--check"], capsys, main)
-    assert rc == 2 and "index file corrupt" in out + err
-
-
 # --- --dry-run with --check: ONE rule, in both distributions ---------------------------------------------------------------------
 
 
@@ -972,19 +985,6 @@ def test_dry_run_junto_com_check_so_mostra_o_plano_e_sai_0_no_pip(capsys):
     assert rc == update_cmd.EXIT_UPDATE_AVAILABLE, "--check alone still answers 10"
 
 
-def test_dry_run_junto_com_check_so_mostra_o_plano_e_sai_0_no_checkout(remoto, comandos, caixa, capsys, sem_rede):
-    rc, out, err = executa(["update", "--check", "--dry-run"], capsys, main)
-    assert rc == 0, out + err
-    assert "git pull --ff-only" in out and comandos.argvs == [] and not (caixa.data / "update-check.json").exists()
-    assert [a for a in sem_rede if a[:1] == ["git"] and "fetch" in a] == []
-
-
-def test_dry_run_junto_com_check_sai_0_tambem_com_o_checkout_em_dia(remoto, comandos, capsys):
-    _git("pull", "-q", "--ff-only", cwd=remoto["checkout"])
-    rc, out, err = executa(["update", "--check", "--dry-run"], capsys, main)
-    assert rc == 0, out + err
-
-
 # --- a development or pre-release installed version is OLDER than the release (PEP 440) --------------------------------------
 
 
@@ -993,7 +993,7 @@ def test_versao_instalada_anterior_a_release_final_tem_atualizacao(capsys, insta
     rc, c, texto = pip_update(capsys, installed=instalada, tag="v0.5.0", check=True)
     assert rc == update_cmd.EXIT_UPDATE_AVAILABLE and "em dia" not in texto, f"{instalada} < 0.5.0 (PEP 440)"
     rc, c, texto = pip_update(capsys, installed=instalada, tag="v0.5.0")
-    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}0.5.0"]], "the target is the FINAL release"
+    assert c.argvs[0] == [sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}0.5.0"], "the target is the FINAL release"
 
 
 @pytest.mark.parametrize("instalada", ["0.5.0", "0.5.0+local", "0.5.0.post1", "0.5.1.dev1", "0.6.0rc1", "0.5.0.post1.dev2"])
@@ -1016,23 +1016,3 @@ def test_a_ordem_das_versoes_instaladas_e_a_do_pep_440():
 
 # --- every git of the update asks for no optional locks, and the index stays as it was ------------------------------------------
 
-
-def test_todo_git_do_update_leva_no_optional_locks(remoto, comandos, capsys, sem_rede):
-    """`git status` and `git diff` refresh the stat cache in .git/index (a write) unless --no-optional-locks is given."""
-    rc, out, err = executa(["update", "--dry-run"], capsys, main)
-    assert rc == 0, out + err
-    do_update = [a for a in sem_rede if a[:2] == ["git", "-C"]]
-    assert do_update, "the update ran no git?"
-    assert all("--no-optional-locks" in a for a in do_update), [a for a in do_update if "--no-optional-locks" not in a]
-
-
-def test_o_dry_run_nao_regrava_o_index_do_git(remoto, comandos, capsys):
-    checkout = remoto["checkout"]
-    arq = checkout / "CHANGELOG.md"
-    novo = os.stat(arq).st_mtime + 3600
-    os.utime(arq, (novo, novo))  # same bytes, other mtime: a plain `git status` refreshes the index entry and writes it
-    index = checkout / ".git" / "index"
-    antes = (index.read_bytes(), os.stat(index).st_mtime_ns)
-    rc, out, err = executa(["update", "--dry-run"], capsys, main)
-    assert rc == 0, out + err
-    assert (index.read_bytes(), os.stat(index).st_mtime_ns) == antes, "a read-only step rewrote .git/index"
