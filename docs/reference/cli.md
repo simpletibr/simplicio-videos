@@ -307,29 +307,43 @@ usage: simplicio-video install [-h] [--target DIR] [--global] [--host HOST] [--d
 Copia as skills empacotadas (simplicio-video e simplicio-video-social) para o host do agente e grava o recibo de posse
 .simplicio-video/install-ownership.json, como o `install` do simplicio-loop. Por padrão instala no projeto (--target, padrão: a
 pasta atual) em .claude/skills/ e, para o host que precisa, no arquivo de entrada dele (AGENTS.md, GEMINI.md, CONVENTIONS.md,
-.github/copilot-instructions.md ou .kiro/steering/simplicio-video.md; só se ainda não existir). Com --global instala em
-~/.claude/skills e atualiza as cópias que outros hosts já têm (~/.codex/skills, ~/.cursor/skills...).
+.github/copilot-instructions.md ou .kiro/steering/simplicio-video.md). Um arquivo de entrada que já existe não recebe
+apontador: fica como está. Com --global instala só em ~/.claude/skills (o home): com --global o --host é ignorado (o loop
+faz o mesmo) e as cópias que outros hosts já têm (~/.codex/skills, ~/.cursor/skills...) são apenas listadas: o install não as
+atualiza nem apaga.
 Hosts (--host, padrão claude; all = todos): claude, codex, cursor, vscode, grok, kiro, antigravity, opencode, gemini, aider,
-simplicio_agent, openclaw. O simplicio-video não tem hooks: só skills. Idempotente: arquivo igual não é regravado, e o install deixa
-em paz o que não é dele (outras skills, um AGENTS.md seu, um link simbólico); o --uninstall remove só o que está no recibo.
+simplicio_agent, openclaw. O simplicio-video não tem hooks: só skills.
+O install nunca sobrescreve nem apaga o que não é dele: outras skills, o seu AGENTS.md, uma SKILL.md que já existia ou que
+você editou, um link simbólico. O install deixa isso em paz (left_alone) e diz. O recibo guarda o sha256 de cada arquivo: o --uninstall e
+o --prune-project-copies só removem o que o recibo registra, que o registro de hosts consegue produzir e que ainda tem o sha256
+gravado; um recibo com outro caminho (.git/config, src/app.py...) é recusado inteiro, e um install por cima dele o ignora.
+As pastas que o install cria (.claude/skills, a da skill e .simplicio-video) nunca são link: com link ele recusa (exit 2) e
+não escreve nada. A pasta base do host (~/.claude) pode ser link para o seu repositório de dotfiles: o install a resolve uma
+vez, escreve no caminho real e o recibo o grava. Dois installs ao mesmo tempo no mesmo alvo esperam um pelo outro
+(.simplicio-video/install.lock).
+--verify confere os arquivos instalados com o recibo e com o pacote: se o alvo nunca foi instalado, uma skill foi alterada, falta
+um arquivo ou o recibo é lixo, sai com exit 1, ok false e a lista do que difere (problems).
 Saída: --check 0 em dia, 10 com mudança pendente; --dry-run 0 sem escrever; 1 se a instalação falhar (host desconhecido,
-escrita negada, recibo em que não se confia); 2 para argumento inválido. --json imprime UM documento
-simplicio.video-install-plan/v1 (as mesmas chaves do plano do loop), também no erro. Funciona igual num checkout e num pacote
-do pip. O ambiente de desenvolvimento do checkout (o .venv) é `bash scripts/dev_install.sh` (Windows: `powershell -File
-scripts/dev_install.ps1`). No fim, se o setup nunca rodou, ele roda num terminal e senão diz como rodar.
+escrita negada, recibo em que não se confia, --verify que acha diferença); 2 para argumento inválido ou link nas pastas que o
+install cria. --json imprime UM documento simplicio.video-install-plan/v1 (as mesmas chaves do plano do loop), também no
+erro. Funciona igual num checkout e num pacote do pip. O ambiente de desenvolvimento do checkout (o .venv) é
+`bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`). No
+fim, se o setup nunca rodou, ele roda num terminal e senão diz como rodar.
 
 options:
   -h, --help              show this help message and exit
   --target DIR            pasta do projeto onde instalar (padrão: a pasta atual)
   --global                instala em ~/.claude/skills (o home) em vez do projeto
-  --host HOST             id do host ou all (padrão: claude)
+  --host HOST             id do host ou all (padrão: claude); com --global é ignorado
   --dry-run               mostra o plano e não escreve nada; sai com 0
   --check                 não escreve nada; sai com 0 se está em dia e com 10 se há mudança pendente
   --json                  imprime UM documento JSON (simplicio.video-install-plan/v1), também no erro
-  --verify                confere a versão e o digest do plano e sai; não escreve nada
-  --uninstall             remove só o que o install registrou no recibo; com --dry-run, lista e não remove
-  --prune-project-copies  com --global: remove as cópias obsoletas do projeto (--target) depois de instalar no
-                          home
+  --verify                confere os arquivos instalados com o recibo e com o pacote (exit 1 e a lista se algo
+                          difere); não escreve nada
+  --uninstall             remove só o que o recibo registra e ainda tem o sha256 gravado; com --dry-run, lista
+                          e não remove
+  --prune-project-copies  com --global: remove a cópia do projeto (--target) que o recibo dele registra,
+                          depois de instalar no home
 
 exemplos:
   simplicio-video install --check
@@ -337,7 +351,7 @@ exemplos:
   simplicio-video install
   simplicio-video install --host codex --target ~/meu-projeto
   simplicio-video install --global
-  simplicio-video install --global --prune-project-copies
+  simplicio-video install --global --prune-project-copies --target ~/meu-projeto
   simplicio-video install --verify
   simplicio-video install --uninstall --dry-run
 ```
@@ -835,12 +849,15 @@ usage: simplicio-video update [-h] [--check] [--dry-run] [--force]
 
 Segue o `update` do simplicio-loop. Num pacote instalado por pip: python -m pip install --upgrade "simplicio-video==<última
 release>" (PyPI; a última release vem do GitHub Releases) e, depois, `simplicio-video install --global`, que reinstala as skills
-nos hosts. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas possíveis.
+em ~/.claude/skills sem apagar nada que não seja do recibo. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas
+possíveis, e um Python sem pip (um `uv tool install`) também (exit 2): use `uv tool upgrade simplicio-video` ou `pipx upgrade`.
 Num checkout git ou instalação editável o update RECUSA e sai com 2: o que atualiza é, dentro do checkout, `git pull` e
-`bash scripts/dev_install.sh` (Windows: `powershell -File scripts/dev_install.ps1`). Nada é puxado, reconstruído nem apagado.
+`bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`; o Windows de
+cliente vem com a política Restricted, e o Bypass vale só para esse processo). Nada é puxado, reconstruído nem apagado.
 Saída: --check 0 em dia, 10 com atualização, 2 erro; recusa 2; falha de rede 2 com --check, senão 1. Versão instalada mais nova
 que a última release (o PyPI sai antes do GitHub Release) é em dia: 0. --force reinstala a release mesmo em dia e permite
-downgrade (pip). --check grava o resultado em update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede; num
+downgrade (pip): só o nosso pacote, com --force-reinstall --no-deps, e só quando não há versão mais nova (com uma nova, o
+--upgrade normal, que traz as dependências dela). --check grava o resultado em update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede; num
 checkout ele pergunta ao git quantos commits são novos (git fetch; alterações locais não atrapalham). --dry-run só mostra o plano e
 sai com 0 no pacote (num checkout mostra a recusa). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch do checkout
 (--check sai com 2). Todo git do `--check` leva --no-optional-locks (para não regravar o .git/index); o git anterior à 2.15,

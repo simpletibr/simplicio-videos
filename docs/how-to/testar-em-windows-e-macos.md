@@ -1,7 +1,7 @@
 ---
 title: Testar o simplicio-video em Windows e macOS
 summary: Como rodar scripts/smoke_so.py num Windows ou macOS de verdade, o que a tabela significa e por que esses sistemas continuam UNVERIFIED até alguém rodar.
-commands: python scripts/smoke_so.py, python scripts/smoke_so.py --manter, python -m pytest tests/packaging, powershell -File scripts/dev_install.ps1 -DryRun
+commands: python scripts/smoke_so.py, python scripts/smoke_so.py --manter, python -m pytest tests/packaging, powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 -DryRun
 last_verified: 2026-10-17
 ---
 
@@ -15,7 +15,7 @@ O gate do projeto (`make check`) roda só em Linux e não usa GitHub Actions. Os
 
 - cria uma **pasta temporária** e roda o CLI com `HOME`, `USERPROFILE`, `PATH`, `TEMP` e as pastas de dados dentro dela: nunca toca no seu `~` de verdade. `HOME` e `USERPROFILE` apontam para **pastas diferentes** de propósito: o Runtime lê o login de `HOME` e só depois de `USERPROFILE` (em todo sistema, Windows incluído), e o CLI faz igual; com as duas na mesma pasta, um erro de ordem passaria sem ninguém ver;
 - deixa o `PATH` do filho sem `simplicio`, `git`, `node` nem `uv`, então **nunca dispara um login de verdade** nem abre navegador, e usa `SIMPLICIO_OFFLINE=1` (sem rede);
-- roda treze comandos (entre eles o `install` num **alvo temporário**: `install --check`, `install --dry-run --json`, `install --verify`, o `install` de verdade, o `install --check --json` em dia e o `install --uninstall`; nunca `--global`, nunca o seu `~`), valida cada JSON contra o schema empacotado em `src/simplicio_video/data/schemas/cli/` e confere o `status` e o `reason_code` esperados;
+- roda quatorze comandos (entre eles o `install` num **alvo temporário**: `install --check`, `install --dry-run --json`, o `install --verify --json` que **falha** num alvo nunca instalado, o `install` de verdade, o `install --verify` que passa, o `install --check --json` em dia e o `install --uninstall`; nunca `--global`, nunca o seu `~`), valida cada JSON contra o schema empacotado em `src/simplicio_video/data/schemas/cli/` e confere o `status` e o `reason_code` esperados;
 - imprime uma tabela Markdown (SO, versão do Python, comando, exit esperado e obtido, ok ou falhou) e **sai com 1 se algo falhar**;
 - apaga a pasta temporária no fim (use `--manter` para ver o que sobrou).
 
@@ -56,8 +56,9 @@ python -m pytest tests/packaging -q
 | `doctor --json` | 0 ou 1 | o PATH isolado não tem `node` nem `ffmpeg`, então o doctor normalmente sai com 1; o que importa é o JSON validar (`simplicio.doctor/v1`) e não haver traceback |
 | `install --check --target <alvo>` | 10 | o alvo temporário está vazio: a skill está pendente |
 | `install --dry-run --json --target <alvo>` | 0 | nada é criado; JSON `simplicio.video-install-plan/v1` com a skill em `changes.created` |
-| `install --verify --target <alvo>` | 0 | o plano confere (versão e digest) |
+| `install --verify --json --target <alvo>` | 1 | o alvo nunca foi instalado: o `--verify` compara os arquivos e falha (`status: failed`, `ok: false`, `problems`) |
 | `install --target <alvo>` | 0 | copia a skill do pacote para `<alvo>/.claude/skills` e grava o recibo: é a prova de cópia, escrita atômica e caminhos do sistema |
+| `install --verify --target <alvo>` | 0 | depois do install, os arquivos conferem com o recibo (`sha256`) e com o pacote |
 | `install --check --json --target <alvo>` | 0 | agora em dia (`up_to_date`) |
 | `install --uninstall --target <alvo>` | 0 | remove só o que o recibo registra: o alvo volta a ficar vazio |
 | `update --dry-run` | 1 ou 2 | sem rede: 1 num pacote instalado por pip (`SIMPLICIO_OFFLINE`); 2 num checkout, que **recusa** e diz `git pull` e o dev install; o caminho com rede não é exercitado |
@@ -79,12 +80,12 @@ Cada linha termina em `ok` ou `falhou: <motivo>`. Os motivos mais prováveis num
 
 ## O PowerShell (`scripts/dev_install.ps1`) é à parte
 
-O ambiente do checkout no Windows é `powershell -File scripts/dev_install.ps1` (o `install.ps1` da raiz é um invólucro dele), o equivalente do `scripts/dev_install.sh` do Linux e do macOS. **Ele nunca foi executado**: o repositório foi escrito num Linux sem PowerShell, e a suíte só confere o texto do script. Quem tiver um Windows pode ajudar a tirá-lo do UNVERIFIED:
+O ambiente do checkout no Windows é `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1` (o `install.ps1` da raiz é um invólucro dele; o `-ExecutionPolicy Bypass` vale só para esse processo, porque o Windows de cliente vem com a política `Restricted` e `powershell -File x.ps1` pararia com "running scripts is disabled" — UNVERIFIED: sem Windows real não sei se isso basta numa máquina com a política travada por Diretiva de Grupo), o equivalente do `scripts/dev_install.sh` do Linux e do macOS. **Ele nunca foi executado**: o repositório foi escrito num Linux sem PowerShell, e a suíte só confere o texto do script. Quem tiver um Windows pode ajudar a tirá-lo do UNVERIFIED:
 
 ```bash
-powershell -File scripts/dev_install.ps1 -DryRun       # mostra o plano e não cria nada
-powershell -File scripts/dev_install.ps1               # cria o .venv (precisa de Node 22, ffmpeg com libass e uv)
-powershell -File scripts/dev_install.ps1 -With local-tts -Python 3.12
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 -DryRun       # mostra o plano e não cria nada
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1               # cria o .venv (precisa de Node 22, ffmpeg com libass e uv)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 -With local-tts -Python 3.12   # -With local-tts,mcp também vale (chega como lista)
 ```
 
 Cole a saída na issue ou no PR. O que se espera: `-DryRun` imprime o plano e sai com 0; o conflito de Python (`.venv` com outra versão) sai com 1 e diz o que apagar; o script nunca pede administrador e nunca roda `iex` sem a sua confirmação.

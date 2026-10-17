@@ -1,7 +1,7 @@
 ---
 title: Instalar, atualizar e checar o simplicio-video
 summary: Como criar o ambiente do checkout, instalar a skill no agente (como o simplicio-loop), atualizar com segurança (pip ou checkout), checar o ambiente, entrar com o login do Runtime e rodar pelo Docker local.
-commands: ./install.sh, bash scripts/dev_install.sh, powershell -File scripts/dev_install.ps1, simplicio-video install, simplicio-video update, simplicio-video doctor, simplicio-video setup, simplicio-video login, simplicio-video logout, simplicio-video auth status, docker compose build
+commands: ./install.sh, bash scripts/dev_install.sh, powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1, simplicio-video install, simplicio-video update, simplicio-video doctor, simplicio-video setup, simplicio-video login, simplicio-video logout, simplicio-video auth status, docker compose build
 issue: 43
 last_verified: 2026-10-17
 ---
@@ -10,7 +10,7 @@ last_verified: 2026-10-17
 
 São duas coisas, como no simplicio-loop:
 
-1. **O ambiente do checkout** (Python 3.12 num `.venv`, o pacote, os extras e uma checagem final): `bash scripts/dev_install.sh` (no Windows, `powershell -File scripts/dev_install.ps1`). O `./install.sh` da raiz faz o mesmo.
+1. **O ambiente do checkout** (Python 3.12 num `.venv`, o pacote, os extras e uma checagem final): `bash scripts/dev_install.sh` (no Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`; o `-ExecutionPolicy Bypass` vale só para esse processo, porque o Windows de cliente vem com a política `Restricted`). O `./install.sh` da raiz faz o mesmo.
 2. **A skill no seu agente**: `simplicio-video install` copia a skill do simplicio-video para o host (Claude Code, Codex, Cursor...), exatamente como o `install` do simplicio-loop. Funciona igual num checkout e num pacote do pip.
 
 Nada usa sudo, e os dois podem rodar de novo sem estragar nada. O que cada passo faz e por que está assim: [packaging.md](../host/packaging.md) e [ADR-0020](../decisoes/ADR-0020-install-universal-e-update-igual-ao-loop.md) (que supersede a decisão do [ADR-0017](../decisoes/ADR-0017-instalacao-atualizacao.md) sobre o `.venv` e o `git pull`). O login compartilhado com o Runtime: [ADR-0019](../decisoes/ADR-0019-login-compartilhado.md).
@@ -40,9 +40,9 @@ bash scripts/dev_install.sh              # cria o .venv, instala o pacote, checa
 No Windows (PowerShell; **UNVERIFIED**, nunca rodou num Windows de verdade):
 
 ```powershell
-powershell -File scripts/dev_install.ps1 -DryRun
-powershell -File scripts/dev_install.ps1 -With local-tts
-.\install.ps1 -DryRun                    # o invólucro, com as mesmas opções
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 -With local-tts
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -DryRun   # o invólucro, com as mesmas opções
 ```
 
 O `dev_install` aceita três opções (no PowerShell: `-DryRun`, `-With`, `-Python`):
@@ -83,22 +83,22 @@ simplicio-video install --check                     # nada é escrito; sai com 0
 simplicio-video install --dry-run --json            # o plano em JSON (simplicio.video-install-plan/v1); não escreve nada
 simplicio-video install                             # no projeto atual: .claude/skills/simplicio-video (e a skill social)
 simplicio-video install --host codex --target ~/meu-projeto   # e o AGENTS.md do Codex, se ainda não existir
-simplicio-video install --global                    # no ~ (HOME, depois USERPROFILE) e atualiza as cópias que outros hosts já têm
-simplicio-video install --global --prune-project-copies   # e remove as cópias obsoletas do projeto
-simplicio-video install --verify                    # confere a versão e o digest do plano
-simplicio-video install --uninstall --dry-run       # lista o que sairia; --uninstall remove só o que está no recibo
+simplicio-video install --global                    # no ~ (HOME, depois USERPROFILE); o --host é ignorado e as cópias de outros hosts só são listadas
+simplicio-video install --global --prune-project-copies --target ~/meu-projeto   # e remove a cópia do projeto que o recibo dele registra
+simplicio-video install --verify                    # compara os arquivos instalados com o recibo e com o pacote (exit 1 e a lista se algo difere)
+simplicio-video install --uninstall --dry-run       # lista o que sairia; --uninstall remove só o que está no recibo e não foi editado
 ```
 
 | Flag | O que faz |
 |---|---|
 | `--target DIR` | o projeto onde instalar (padrão: a pasta atual) |
-| `--global` | instala em `~/.claude/skills` (o home) em vez do projeto, e atualiza as cópias da skill que outros hosts já têm |
-| `--host H` | o host (padrão `claude`) ou `all` |
+| `--global` | instala em `~/.claude/skills` (o home) em vez do projeto. As cópias da skill que outros hosts já têm (`~/.codex/skills`...) só são listadas: o install não atualiza nem apaga nada que não é dele |
+| `--host H` | o host (padrão `claude`) ou `all`; com `--global` o `--host` é ignorado |
 | `--dry-run`, `--check` | não escrevem nada; `--check` sai com 10 quando há mudança pendente |
 | `--json` | UM documento `simplicio.video-install-plan/v1`, também no erro |
-| `--verify` | confere o plano e sai |
-| `--uninstall` | remove só o que o recibo registra; com `--dry-run`, só lista |
-| `--prune-project-copies` | com `--global`: remove as cópias obsoletas do projeto |
+| `--verify` | compara os arquivos com o recibo e com o pacote e sai com 1 se algo difere (`ok: false` e a lista `problems` no `--json`) |
+| `--uninstall` | remove só o que o recibo registra e que ninguém editou; com `--dry-run`, só lista |
+| `--prune-project-copies` | com `--global`: remove a cópia do projeto (`--target`) que o recibo dele registra; nunca toca a instalação global |
 
 **Os hosts** são os do registro do loop. As skills vão sempre para `.claude/skills`; o que muda é o arquivo de entrada do host, criado só se ainda não existir:
 
@@ -111,7 +111,18 @@ simplicio-video install --uninstall --dry-run       # lista o que sairia; --unin
 | `gemini` | `GEMINI.md` |
 | `aider` | `CONVENTIONS.md` |
 
-Com `--host all`, todos de uma vez. O que o `install` **não** faz: não sobrescreve arquivo que não é dele (outras skills, um `AGENTS.md` seu e um link simbólico ficam intactos e saem como `left_alone`), não escreve através de um link simbólico (a sua pasta de skill que aponta para um clone fica como está) e não usa link simbólico para copiar (no Windows exigiria privilégio). Rodar de novo diz `já está em dia` e não regrava nada. Se o setup nunca rodou, ele roda no fim quando há terminal e senão diz como rodar.
+Com `--host all`, todos de uma vez. Um arquivo de entrada que já existe (o seu `AGENTS.md`) fica como está e não recebe apontador. Rodar de novo diz `já está em dia` e não regrava nada. Se o setup nunca rodou, ele roda no fim quando há terminal e senão diz como rodar.
+
+### O que o `install` nunca faz
+
+O recibo é um arquivo do repositório, e um repositório clonado pode ser hostil; por isso:
+
+- **Não sobrescreve nem apaga o que não é dele.** Outras skills, o seu `AGENTS.md`, um arquivo seu dentro da pasta da skill e um link simbólico ficam intactos e saem como `left_alone`. Uma pasta de skill que já existia antes do primeiro install (copiada à mão, ou de uma versão antiga) não é tomada: o install a deixa em paz e diz; para ele passar a cuidar dela, apague a pasta (ou renomeie) e rode `simplicio-video install` de novo. Uma cópia idêntica que já estava lá também não vira dele, e o `--uninstall` nunca a apaga.
+- **Só remove o que foi ele que escreveu e ninguém editou.** O recibo guarda o `sha256` de cada arquivo. Se você editou o `AGENTS.md` que o install criou (ou ajustou a `SKILL.md`), o `--uninstall` o deixa como está, avisa e o lista em `left_alone`; um `install` seguinte também o tira do recibo.
+- **Recusa um recibo que nomeia o que ele nunca instala.** Só valem as pastas das skills, os arquivos de entrada dos hosts e o próprio recibo: um recibo plantado num repositório clonado com `.git/config`, `src/app.py` ou `.ssh/authorized_keys` é recusado pelo `--uninstall` e pelo `--prune-project-copies` (exit 1, nada é apagado), e um `install` por cima dele o ignora, avisa e grava um novo (o recibo plantado não é herdado).
+- **Não escreve por dentro de um link nas pastas que cria.** Cada pasta que o install cria (`.claude/skills`, a da skill, `.simplicio-video`) nunca é link: com link ele recusa (exit 2) e não escreve nada. A pasta base (`~/.claude`) **pode** ser um link para o seu repositório de dotfiles: o install a resolve uma vez, escreve no caminho real e grava no recibo; o `--uninstall` confere que o link ainda aponta para lá. Ele também não usa link para copiar (no Windows exigiria privilégio).
+- **Não corre contra si mesmo.** Dois installs ao mesmo tempo no mesmo alvo esperam um pelo outro (`.simplicio-video/install.lock`, vazio, `0600`; espera até 10 s).
+- **Não confia no `--verify` de uma versão só.** O `--verify` compara os arquivos com o recibo e com o pacote: alvo nunca instalado, skill adulterada, arquivo faltando ou recibo trocado por lixo saem com 1.
 
 ### Se o pacote veio do pip
 
@@ -125,9 +136,9 @@ simplicio-video update --dry-run  # mostra o plano; não altera nada
 simplicio-video update            # pacote do pip: PyPI e depois install --global; checkout: recusa
 ```
 
-**Num pacote instalado por pip** o update faz `python -m pip install --upgrade "simplicio-video==<última release>"` (PyPI; a versão vem do GitHub Releases) e, em seguida, `simplicio-video install --global`, para as skills dos hosts acompanharem a versão. Um Python gerenciado pelo sistema (PEP 668) é recusado com exit 2 e quatro saídas: um `venv`, `uv`, `pipx`, ou `PIP_BREAK_SYSTEM_PACKAGES=1 simplicio-video update` se você autoriza. `--force` reinstala mesmo em dia e permite downgrade. Dentro do container, reconstrua a imagem (`docker compose build`).
+**Num pacote instalado por pip** o update faz `python -m pip install --upgrade "simplicio-video==<última release>"` (PyPI; a versão vem do GitHub Releases) e, em seguida, `simplicio-video install --global`, para a skill do `~/.claude/skills` acompanhar a versão (sem apagar nada que não seja do recibo). Um Python gerenciado pelo sistema (PEP 668) é recusado com exit 2 e quatro saídas: um `venv`, `uv`, `pipx`, ou `PIP_BREAK_SYSTEM_PACKAGES=1 simplicio-video update` se você autoriza; um Python sem pip (o venv de um `uv tool install`) também, com `uv tool upgrade simplicio-video` ou `pipx upgrade simplicio-video`. `--force` reinstala mesmo em dia (só o nosso pacote, `--force-reinstall --no-deps`, quando não há versão mais nova) e permite downgrade. Dentro do container, reconstrua a imagem (`docker compose build`).
 
-**Num checkout git (ou instalação editável) o update recusa**, como o do simplicio-loop: imprime `git pull` e `bash scripts/dev_install.sh` (no Windows, `powershell -File scripts/dev_install.ps1`) e sai com exit 2. É isso que atualiza: dentro do checkout, rode os dois.
+**Num checkout git (ou instalação editável) o update recusa**, como o do simplicio-loop: imprime `git pull` e `bash scripts/dev_install.sh` (no Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`) e sai com exit 2. É isso que atualiza: dentro do checkout, rode os dois.
 
 ```bash
 git pull
@@ -191,10 +202,14 @@ Sem a chave, o doctor mostra aviso e o MVP usa a voz local.
 | `node v20 (exigido: 22 ou superior)` | `nvm install 22` e rode o doctor de novo |
 | `ffmpeg sem libass` | reinstale o ffmpeg com libass (veja a tabela de requisitos) |
 | `uv não encontrado` | aceite a instalação oferecida pelo `dev_install`, ou veja https://docs.astral.sh/uv/ |
-| `update: este é um checkout git ... recusa` | é esperado: rode `git pull` e `bash scripts/dev_install.sh` (Windows: `powershell -File scripts/dev_install.ps1`) |
+| `update: este é um checkout git ... recusa` | é esperado: rode `git pull` e `bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`) |
 | `install: host desconhecido` | use um dos hosts da tabela (`claude`, `codex`, `cursor`...) ou `all` |
 | `install: sem recibo de posse` | o `--uninstall` só remove o que o `install` registrou; sem recibo ele não apaga nada |
-| `deixado em paz -> N que não são do simplicio-video` | é esperado: o `install` não mexe em outras skills nem num `AGENTS.md` seu |
+| `deixado em paz -> N que não são do simplicio-video` | é esperado: o `install` não mexe em outras skills, num `AGENTS.md` seu, numa `SKILL.md` que já existia nem em arquivo que você editou |
+| `install: ... é um link ... Nada foi escrito` (exit 2) | uma pasta que o install cria (`.claude/skills`, a da skill, `.simplicio-video`) é link: apague o link ou use outro `--target`. Só a pasta base (`~/.claude`) pode ser link |
+| `o recibo de posse lista um caminho que o simplicio-video nunca instala` | o recibo foi adulterado ou plantado: nada foi apagado; apague `.simplicio-video/install-ownership.json` à mão se o recibo é mesmo lixo |
+| `install --verify` sai com 1 | veja a lista: `modified` (você editou), `outdated` (rode `install`), `foreign` (já existia), `missing`, `no_receipt` |
+| `outro simplicio-video install está rodando ... install.lock` | espere ele terminar; a trava é do sistema e some sozinha se o processo morrer |
 | para atualizar o pacote do pip | `simplicio-video update`, ou `pip install --upgrade simplicio-video` e depois `simplicio-video install --global` |
 | `login: ... pode ser lido pelo grupo ou por outros` | rode o `chmod 600` que o `auth status` mostra |
 | `login: Simplicio Runtime não encontrado` | instale o Runtime (o comando aparece na saída) e rode `simplicio-video login` de novo |

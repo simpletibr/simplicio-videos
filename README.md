@@ -229,7 +229,7 @@ Rendered examples only. Client facts (`coleta/`: briefs, sources, contacts, Driv
 gh repo clone simpletibr/simplicio-videos && cd simplicio-videos
 pip install -e .                      # `simplicio-video` command (Python >= 3.10); render needs Node >= 22 + ffmpeg
 simplicio-video install               # copy the bundled skills into the agent host, like simplicio-loop (project; `--global` = home); skills only, no hooks
-bash scripts/dev_install.sh           # the checkout's .venv (uv, Python 3.12, extras); Windows: powershell -File scripts/dev_install.ps1
+bash scripts/dev_install.sh           # the checkout's .venv (uv, Python 3.12, extras); Windows: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1
 simplicio-video update --check        # pip: PyPI + `install --global`; a checkout REFUSES: `git pull` and `bash scripts/dev_install.sh`
 simplicio-video --help                # flow: init -> validate -> voice -> render
 cd clients/<cliente>/<campanha>       # a client project with a contract.yaml

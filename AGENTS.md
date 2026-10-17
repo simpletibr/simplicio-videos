@@ -30,7 +30,7 @@ LLM (Opus 5.5) **só** cria template/padrão novo; nunca está no caminho do ren
 ### Quickstart do CLI
 ```bash
 pip install -e .                                   # raiz do repo (Python >= 3.10; Node >= 22 e ffmpeg para render)
-bash scripts/dev_install.sh [--with local-tts] [--dry-run]   # ambiente do checkout (.venv com uv); ./install.sh é o invólucro; Windows: powershell -File scripts/dev_install.ps1 (UNVERIFIED)
+bash scripts/dev_install.sh [--with local-tts] [--dry-run]   # ambiente do checkout (.venv com uv); ./install.sh é o invólucro; Windows: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1 (UNVERIFIED)
 simplicio-video --help                             # fluxo init -> validate -> voice -> render (cada comando tem --help)
 simplicio-video init <slug> <Campanha> --template <id> --nome "<Nome>"
 simplicio-video validate clients/<slug>/<video>/contract.yaml
@@ -53,8 +53,8 @@ simplicio-video busca consulta|pagina|status|log    # pesquisa e leitura de pág
 simplicio-video toonflow clone|serve|where         # Toonflow (MIT): estúdio de séries e vídeos com IA; serve exige --lan (escuta em 0.0.0.0:3000 sem login)
 simplicio-video moneyprinter clone|setup|serve|where|status   # MoneyPrinterTurbo (MIT): tema vira vídeo curto; trilha externa de apoio, como toonflow e opencut; serve só em 127.0.0.1, --lan abre para a rede
 simplicio-video status [--json] [contrato]         # ferramentas instaladas, versões fixadas e estado do render
-simplicio-video install [--global] [--check|--dry-run] [--json]   # copia as skills para o host do agente (12 hosts do loop; projeto, ou o ~ com --global), com recibo de posse e `left_alone`; só skills, sem hooks; --check sai 0 (em dia) ou 10 (pendente); --verify, --uninstall, --prune-project-copies (ADR-0020)
-simplicio-video update [--check|--dry-run] [--force]    # pip: PyPI e depois `install --global`; num checkout recusa (exit 2) e diz `git pull` e `bash scripts/dev_install.sh` (Windows: scripts/dev_install.ps1); --check sai 0, 10 ou 2
+simplicio-video install [--global] [--check|--dry-run] [--json]   # copia as skills para o host do agente (12 hosts do loop; projeto, ou o ~ com --global), com recibo de posse (sha256 de cada arquivo) e `left_alone`; só skills, sem hooks; nunca sobrescreve nem apaga o que o usuário editou ou já existia; pasta que ele cria nunca é link (a base `~/.claude` pode); --check sai 0 (em dia) ou 10 (pendente); --verify compara os arquivos e sai 1 se algo difere; --uninstall, --prune-project-copies (ADR-0020)
+simplicio-video update [--check|--dry-run] [--force]    # pip: PyPI e depois `install --global`; num checkout recusa (exit 2) e diz `git pull` e `bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`); --check sai 0, 10 ou 2
 simplicio-video doctor [all|login] [--json] [--online]  # simplicio.doctor/v1: login, update, runtime, Python, Node, ffmpeg, disco, workspace; fail só com falha de verdade
 simplicio-video setup                              # primeira execução: cria o workspace (tema, idioma, autonomia L1)
 simplicio-video login [--json] [--no-browser]      # espelho do login do Runtime (`simplicio login google`); não libera nem cobra nada no motor e não guarda credencial (ADR-0019)
