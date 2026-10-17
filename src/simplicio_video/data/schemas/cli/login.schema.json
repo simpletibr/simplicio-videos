@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.login/v1",
+  "title": "simplicio-video login --json",
+  "description": "Saída de `simplicio-video login --json` (stdout): delega a `simplicio login google` e confere o arquivo compartilhado. Mesmas chaves do auth-status mais status, runtime_exit_code, sign_in_url, user_code, install e install_doc. Nunca traz token.",
+  "type": "object",
+  "required": [
+    "schema",
+    "logged_in",
+    "reason_code",
+    "fix",
+    "path",
+    "runtime_path",
+    "shared_with_runtime",
+    "runtime",
+    "status"
+  ],
+  "additionalProperties": false,
+  "propertyNames": {
+    "not": {
+      "enum": [
+        "access_token",
+        "refresh_token"
+      ]
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "simplicio.login/v1"
+    },
+    "logged_in": {
+      "type": "boolean",
+      "description": "Arquivo válido e token de acesso vigente (ou renovável por um token de renovação vigente)."
+    },
+    "reason_code": {
+      "enum": [
+        "ok",
+        "login_missing",
+        "login_symlink",
+        "login_permissions",
+        "login_invalid",
+        "login_expired",
+        "login_lock_timeout",
+        "runtime_login_failed",
+        "standalone_login_unverified",
+        "no_browser_unsupported"
+      ],
+      "description": "ok, ou por que o login não serve."
+    },
+    "fix": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "O comando que conserta, quando há um."
+    },
+    "detail": {
+      "type": "string",
+      "description": "Só quando o arquivo não pôde ser usado. Nunca traz token."
+    },
+    "path": {
+      "type": "string",
+      "description": "O arquivo de login: SIMPLICIO_AUTH_FILE ou ~/.simplicio/login.json."
+    },
+    "runtime_path": {
+      "type": "string",
+      "description": "O arquivo que o Runtime usa. O motor usa o mesmo."
+    },
+    "shared_with_runtime": {
+      "type": "boolean"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "email": {
+      "type": "string",
+      "description": "Conta mascarada (w***@gmail.com), nunca o endereço inteiro."
+    },
+    "access_expires_at": {
+      "type": "integer"
+    },
+    "access_expired": {
+      "type": "boolean"
+    },
+    "refresh_expires_at": {
+      "type": "integer",
+      "description": "0 = sem validade conhecida."
+    },
+    "refresh_expired": {
+      "type": "boolean"
+    },
+    "has_refresh_token": {
+      "type": "boolean",
+      "description": "Só diz se existe. O valor nunca sai."
+    },
+    "entitlement": {
+      "$ref": "#/$defs/entitlement"
+    },
+    "status": {
+      "enum": [
+        "VERIFIED",
+        "NOT_VERIFIED",
+        "UNVERIFIED",
+        "REFUSED"
+      ],
+      "description": "VERIFIED: o Runtime entrou e o arquivo serve. NOT_VERIFIED: o Runtime falhou ou o arquivo não serve. UNVERIFIED: sem Runtime, o login próprio não existe. REFUSED: --no-browser impossível neste sistema."
+    },
+    "runtime_exit_code": {
+      "type": "integer",
+      "description": "O código de saída de `simplicio login google`."
+    },
+    "sign_in_url": {
+      "type": "string",
+      "description": "Só com --no-browser: o endereço de entrada que o Runtime tentou abrir."
+    },
+    "user_code": {
+      "type": "string",
+      "description": "Só com --no-browser: o código do endereço de entrada."
+    },
+    "install": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Só em UNVERIFIED: os comandos de instalação do Runtime, por sistema. O comando não os executa."
+    },
+    "install_doc": {
+      "type": "string",
+      "description": "Só em UNVERIFIED: o INSTALL.md do Runtime."
+    }
+  },
+  "$defs": {
+    "runtime": {
+      "type": "object",
+      "required": [
+        "found",
+        "path",
+        "version"
+      ],
+      "additionalProperties": false,
+      "propertyNames": {
+        "not": {
+          "enum": [
+            "access_token",
+            "refresh_token"
+          ]
+        }
+      },
+      "description": "O Simplicio Runtime achado no PATH (ou em ~/.simplicio/bin). A versão vem de `simplicio --version`.",
+      "properties": {
+        "found": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "entitlement": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "description": "Direitos que o Runtime guardou em cache no arquivo de login. Só leitura: o motor não decide nada com isto.",
+      "properties": {
+        "tier": {},
+        "status": {},
+        "source": {},
+        "plan": {},
+        "active": {}
+      }
+    }
+  }
+}

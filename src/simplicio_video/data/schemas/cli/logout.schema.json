@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.logout/v1",
+  "title": "simplicio-video logout --json",
+  "description": "Saída de `simplicio-video logout --json` (stdout). Apagar o arquivo compartilhado também desloga o Runtime, por isso sem --yes nada é apagado (REFUSED). O token de renovação não é revogado no servidor.",
+  "type": "object",
+  "required": [
+    "schema",
+    "status",
+    "path",
+    "runtime_path",
+    "also_logs_out_runtime"
+  ],
+  "additionalProperties": false,
+  "propertyNames": {
+    "not": {
+      "enum": [
+        "access_token",
+        "refresh_token"
+      ]
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "simplicio.logout/v1"
+    },
+    "status": {
+      "enum": [
+        "REFUSED",
+        "FAILED",
+        "LOGGED_OUT",
+        "NO_LOGIN"
+      ]
+    },
+    "path": {
+      "type": "string"
+    },
+    "runtime_path": {
+      "type": "string"
+    },
+    "also_logs_out_runtime": {
+      "type": "boolean"
+    },
+    "reason_code": {
+      "enum": [
+        "confirmation_required",
+        "login_missing",
+        "login_symlink",
+        "login_permissions",
+        "login_invalid",
+        "login_expired",
+        "login_lock_timeout"
+      ],
+      "description": "Só em REFUSED (confirmation_required) e FAILED."
+    },
+    "detail": {
+      "type": "string",
+      "description": "Só em FAILED."
+    }
+  }
+}
