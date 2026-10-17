@@ -19,9 +19,7 @@ NETWORK_MARKERS = {"render", "integration", "ui"}  # these may use the network; 
 
 # Unit tests that start a throwaway server on 127.0.0.1 (tests we do not own): loopback only, never the network.
 LOOPBACK_TESTS = (
-    "test_venda.py::test_servidor_http_ponta_a_ponta",
     "test_voice_clone.py::test_voicestudio_http",
-    "test_prospect_institucional.py::test_gemini_overlong_take_is_regenerated_not_sped_up",
 )
 
 

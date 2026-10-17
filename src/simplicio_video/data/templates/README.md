@@ -6,7 +6,7 @@ Um template transforma um intake aprovado em spec **sem LLM**: define a sequênc
 |---|---|---|---|---|
 | [`assistencia-tecnica-games`](assistencia-tecnica-games/) | Assistência técnica / games / eletrônicos | **pronto** | 20 s | `clients/wjr-informatica-games/video-01` |
 | [`saude-odontologia`](saude-odontologia/) | Odontologia (datas comemorativas, institucional leve) | **pronto** | 15 s | `clients/lothus-odontologia/video-01-dia-das-criancas` |
-| [`sazonal-dia-das-criancas`](sazonal-dia-das-criancas/) | Campanha Dia das Crianças para **qualquer setor** (venda ativa, `simplicio-video prospect`) | **pronto** | 16 s | coreografia da Lothus v02 + `setores.json` |
+| [`sazonal-dia-das-criancas`](sazonal-dia-das-criancas/) | Campanha Dia das Crianças para **qualquer setor** (venda ativa, `simplicio-video prospect`) | **pronto** | 16 s | coreografia da Lothus v02 |
 | [`institucional-odontologia`](institucional-odontologia/) | Odontologia institucional, fora de data (venda ativa, `prospect --campanha institucional`) | **pronto** | 16 s | ritmo Lothus v02, sem confete |
 | [`institucional-estetica`](institucional-estetica/) | Estética e beleza, institucional elegante (`prospect`) | **pronto** | 16 s | ritmo Lothus v02, `line-accent` |
 | [`institucional-advocacia`](institucional-advocacia/) | Advocacia, institucional sóbrio e informativo (OAB Provimento 205/2021; `prospect`) | **pronto** | 16 s | 96 BPM, sem percussão, exige `oab` |
@@ -21,7 +21,7 @@ Um template transforma um intake aprovado em spec **sem LLM**: define a sequênc
 
 ## Como o template é escolhido
 
-`simplicio-video prospect` (venda ativa) escolhe pela coluna `setor` com [`prospect-roteamento.json`](prospect-roteamento.json); o fluxo com intake segue abaixo.
+O fluxo com intake segue abaixo (a tabela de roteamento por coluna `setor` da venda ativa saiu do pacote do motor).
 
 1. Intake → `empresa.nicho` + `descricao` (ver [`intake/`](../../../../intake/README.md)).
 2. Compara com a lista `nichos` de cada `template.json`; empate ou nenhum → pergunta ao usuário com as 2 opções mais próximas.

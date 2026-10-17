@@ -6,10 +6,8 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 
 | Variável | Para quê | Onde o código lê ou define |
 |---|---|---|
-| `ABACATEPAY_API_KEY` | Chave da API AbacatePay (cobrança Pix da trilha de venda). Só no ambiente. | `src/simplicio_video/venda.py:119` |
-| `ABACATEPAY_WEBHOOK_SECRET` | Segredo que valida o webhook de pagamento da trilha de venda. | `src/simplicio_video/venda.py:168`<br>`src/simplicio_video/venda.py:196` |
 | `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:387` |
-| `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo. | `src/simplicio_video/prospect.py:811`<br>`src/simplicio_video/voice.py:208` |
+| `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo. | `src/simplicio_video/voice.py:208` |
 | `HYPERFRAMES_BROWSER_PATH` | Chrome headless que o HyperFrames usa na captura. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:155` |
 | `HYPERFRAMES_FFMPEG_PATH` | ffmpeg que o HyperFrames usa. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:179` |
 | `HYPERFRAMES_FFPROBE_PATH` | ffprobe que o HyperFrames usa. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:182` |
@@ -27,7 +25,6 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `PYTHONPATH` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:412` |
 | `SIMPLICIO_BUSCA_MAX_DIA` | Teto de chamadas ao TinyFish por dia UTC no `busca` (padrão 20; máximo 1000). `--max-chamadas-dia` vence. O MCP e o plugin só usam este valor ou o padrão. | `src/simplicio_video/busca.py:342` |
 | `SIMPLICIO_COLAB_AUTH` | Modo de autenticação do Colab CLI, repassado a `--auth`. | `src/simplicio_video/remote.py:183`<br>`src/simplicio_video/remote.py:184` |
-| `SIMPLICIO_DRIVE_DESTINO` | JSON com `caminho` e `arquivo` da entrega no Drive da trilha de venda. | `src/simplicio_video/venda.py:239` |
 | `SIMPLICIO_DRIVE_REMOTE` | Nome do remote do rclone para o Drive (padrão: `gdrive`). | `src/simplicio_video/publish.py:108` |
 | `SIMPLICIO_FFMPEG_DIR` | Pasta do ffmpeg/ffprobe fixados (render local e `swap`). | `src/simplicio_video/openverse_sheet.py:30`<br>`src/simplicio_video/swap.py:106` |
 | `SIMPLICIO_FFMPEG_SHA256` | SHA-256 esperado do ffmpeg estático de `SIMPLICIO_FFMPEG_URL`. | `src/simplicio_video/render.py:246` |
@@ -42,7 +39,6 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SIMPLICIO_TTS_PY` | Python com kokoro-onnx e soundfile (TTS local; padrão: `~/.local/share/simplicio-tts/cbvenv`). | `src/simplicio_video/paths.py:55` |
 | `SIMPLICIO_VIDEO_DATA` | Pasta de dados do simplicio-video (padrão: `~/.simplicio-video`). Lida pelas trilhas `montage`, `toonflow` e `moneyprinter`, pelo `jobs` (estado das tarefas em `jobs/`) e pelo `busca` (cache, contador e registro em `busca/`). | `src/simplicio_video/busca.py:268`<br>`src/simplicio_video/jobs.py:68`<br>`src/simplicio_video/moneyprinter.py:77`<br>`src/simplicio_video/montage.py:37`<br>`src/simplicio_video/openverse.py:187`<br>`src/simplicio_video/toonflow.py:57` |
 | `SIMPLICIO_VIDEO_HOME` | Checkout do simplicio-video (dados do motor e raiz do repo). Sem ela, o pacote procura o checkout. | `src/simplicio_video/paths.py:29`<br>`src/simplicio_video/paths.py:43` |
-| `SIMPLICIO_VOICE_REGEN` | Tomadas novas por fala antes de encurtar o texto (padrão: 3). | `src/simplicio_video/prospect.py:867` |
 | `SIMPLICIO_WORKSPACE` | Pasta do workspace da fábrica (padrão: `~/.simplicio-video/workspaces/default`). | `src/simplicio_video/commands/setup.py:32` |
 | `SV_BROWSER_GPU` | `1` liga a GPU do navegador na captura do render. | `src/simplicio_video/render.py:185`<br>`src/simplicio_video/render.py:94` |
 | `SV_BUNDLE` | Caminho do bundle a renderizar no render remoto. | `src/simplicio_video/engine/remote_render.py:190` |

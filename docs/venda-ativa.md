@@ -1,6 +1,6 @@
 # Venda ativa em massa — `simplicio-video prospect`
 
-Atenção: estes comandos saíram do CLI do motor na #77 e ficam no repositório de operação.
+Atenção: estes comandos saíram do CLI do motor na #77 e ficam no repositório de operação. Para o pacote do PyPI, o código e os dados deles também saíram deste repositório: `prospect.py`, `venda.py`, `ugc.py`, `layout.py`, `templates/prospect-roteamento.json` e, em cada template de venda, `contract.base.yaml` e `setores.json`. O texto abaixo descreve o fluxo como ele era; os arquivos estão no histórico do git (até a versão 0.4.0) e no repositório de operação.
 
 Lista de empresas → coleta pública → contrato por setor → **prévia com marca d'água Wesley Simplicio (@wesleysimplicio)** para o Wesley oferecer.
 Tudo determinístico: nenhuma chamada de LLM por vídeo; mesma lista + mesma coleta → mesmos contratos e mesmas prévias.
@@ -37,7 +37,7 @@ confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha fe
      automatizada sem autorização por escrito, então hoje o CLI **não baixa nada do Instagram**: registra
      `nao_coletado: robots.txt…` e segue. O @ vem do CSV (busca web, com fonte) ou do link publicado no site;
    - Maps: só a URL do CSV (sem scraping).
-3. **Setor → template → modelo**. Primeiro [`templates/prospect-roteamento.json`](../src/simplicio_video/data/templates/prospect-roteamento.json) escolhe o
+3. **Setor → template → modelo**. Primeiro `templates/prospect-roteamento.json` escolhe o
    template pela coluna `setor` (sem acento, minúsculas; sem casar, título/descrição do site), conforme `--campanha`:
 
    | Setor (regex) | `auto` (padrão) | `dia-das-criancas` | `institucional` |
@@ -55,7 +55,7 @@ confete/balões, texto palavra a palavra no tempo da fala) e a **mesma trilha fe
    [`institucional-estetica`](../src/simplicio_video/data/templates/institucional-estetica/) (elegante, ornamento `line-accent`, 128 BPM) e
    [`institucional-advocacia`](../src/simplicio_video/data/templates/institucional-advocacia/) (sóbrio, OAB Provimento 205/2021, 96 BPM, sem percussão;
    **exige a coluna `oab`**: sem ela a linha fica `aguardando_oab`, com contrato e `falas-gemini.md`, mas sem render).
-4. **Contrato** (`contract.yaml`): [`contract.base.yaml`](../src/simplicio_video/data/templates/sazonal-dia-das-criancas/contract.base.yaml) (a
+4. **Contrato** (`contract.yaml`): `contract.base.yaml` (de `sazonal-dia-das-criancas`) (a
    coreografia da Lothus v02: 16 s, 128 BPM, cortes na batida, `fx-transition`, confete, `kinetic-words` palavra a palavra
    no tempo da fala) + o modelo do setor (mascote `tooth-character`/`icon-mascot`, frase da s3) + os dados reais: nome,
    @ do Instagram, cidade, logo e a cor do site (ajustada para contraste ≥ 3:1 com texto branco). As falas são genéricas da data
@@ -192,9 +192,9 @@ simplicio-video prospect /workspace/prospects-piloto/dia-criancas/lista.csv --lo
 
 **v02 → v03 (QA interno, 30/09/2026):** (1) fechamento: no cartão da marca as palavras "Com carinho, {nome}." (modo
 bounce entra de cima, esticada) alcançavam o "@ / cidade" do `brand-lockup-soft`; agora os 4 templates de prospect usam
-`tag_y: 880`, `chip_y: 1120` (cidade 130 px abaixo) e palavras em `y: 1470` / `size: 84`, e `src/simplicio_video/layout.py`
+`tag_y: 880`, `chip_y: 1120` (cidade 130 px abaixo) e palavras em `y: 1470` / `size: 84`, e `layout.py`
 (`endcard_collisions`) recusa qualquer contrato cujo pior caso de animação chegue a menos de 20 px do bloco @/cidade
-(testado em `tests/test_prospect_institucional.py`). A Lothus v02 entregue tem a mesma geometria antiga (não mexida).
+(testado em `test_prospect_institucional.py`). A Lothus v02 entregue tem a mesma geometria antiga (não mexida).
 (2) voz: o pipeline só corta silêncio no início/fim (fala intacta, amostra a amostra; verificado take → voz processada →
 mix → mp4). Se uma fala não couber no slot, `voice` tenta uma vez o corte mais justo `TRIM_TIGHT` (-42/-45 dB, 40 ms
 antes / 80 ms depois), que tira só o "ar" de -55..-45 dB que o AI Studio deixa antes da fala; nunca acelera a voz.

@@ -9,8 +9,6 @@ sem percussão e sem SFX lúdicos (só whoosh suave nos cortes).
 | Arquivo | O que é |
 |---|---|
 | `composition/index.template.html` | composição: `bg-parallax` lento, `line-accent` (linha fina + cantoneiras), `kinetic-words` modo `calm` em Inter, `brand-lockup-soft` sem pontos; câmera com push-in curto e zoom lento |
-| `contract.base.yaml` | contrato-base (falas, trilha `institucional` 96 BPM `drums: 0`, voz Laomedeia estilo calmo) |
-| `setores.json` | regra do setor, frase da s3 (e variante curta), assinatura, `exige: oab` |
 
 ## Roteiro (texto exato)
 
