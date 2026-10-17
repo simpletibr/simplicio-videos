@@ -11,6 +11,7 @@ import json
 import os
 import stat
 
+import pytest
 
 import _caixa
 from _caixa import (LEAKY_ENV, MASKED, SECRETS, assert_no_secret, login_cmd, login_doc, posix_real, put_login, put_raw,
@@ -286,6 +287,58 @@ def test_logout_pelo_cli_recusa_o_que_nao_e_login_com_exit_2(caixa, capsys, monk
     monkeypatch.setenv("SIMPLICIO_AUTH_FILE", str(alvo))
     rc, out, err = executa(["logout", "--yes", "--json"], capsys, main)
     assert rc == 2 and json.loads(out)["reason_code"] == "not_a_login_file" and alvo.exists()
+
+
+@posix_real
+def test_logout_com_simplicio_auth_file_apontando_para_um_link_nao_apaga_o_link_nem_cria_trava(caixa, capfd, monkeypatch):
+    """A dotfile kept by a link (~/.bashrc -> a copy of passwd): refused with `login_symlink`, exit 2, nothing touched."""
+    alvo = put_raw(caixa.tmp / "dotfiles" / "passwd", b"root:x:0:0:root:/root:/bin/bash\n")
+    link = caixa.tmp / "home2" / ".bashrc"
+    link.parent.mkdir()
+    link.parent.chmod(0o700)
+    link.symlink_to(alvo)
+    monkeypatch.setenv("SIMPLICIO_AUTH_FILE", str(link))
+    rc = login_cmd.logout(yes=True, as_json=True)
+    out, err = saida(capfd)
+    doc = json.loads(out)
+    assert rc == 2 and doc["status"] == "REFUSED" and doc["reason_code"] == "login_symlink"
+    assert str(link) in doc["detail"] and "link simbólico" in doc["detail"] and "nada foi apagado" in doc["detail"]
+    assert erros_de_schema("logout", doc) == []
+    assert os.path.islink(link) and alvo.read_bytes() == b"root:x:0:0:root:/root:/bin/bash\n"
+    assert sorted(p.name for p in link.parent.iterdir()) == [".bashrc"], "a link must not get a lock file"
+    rc = login_cmd.logout(yes=True)
+    out, err = saida(capfd)
+    assert rc == 2 and "link simbólico" in out and os.path.islink(link)
+
+
+@posix_real
+def test_logout_de_link_quebrado_e_de_link_para_pasta_tambem_e_recusado(caixa, capsys, monkeypatch):
+    pasta = caixa.tmp / "home3"
+    pasta.mkdir()
+    pasta.chmod(0o700)
+    (pasta / "quebrado").symlink_to(caixa.tmp / "nao-existe")
+    (pasta / "para-pasta").symlink_to(caixa.tmp)
+    for nome in ("quebrado", "para-pasta"):
+        monkeypatch.setenv("SIMPLICIO_AUTH_FILE", str(pasta / nome))
+        rc, out, err = executa(["logout", "--yes", "--json"], capsys, main)
+        assert rc == 2 and json.loads(out)["reason_code"] == "login_symlink", nome
+        assert os.path.islink(pasta / nome)
+    assert sorted(p.name for p in pasta.iterdir()) == ["para-pasta", "quebrado"]
+
+
+@pytest.mark.parametrize("conteudo", [
+    b'{"account": "", "client_id": "000000000000-fake.apps.googleusercontent.com", "client_secret": "fake-secret", '
+    b'"refresh_token": "fake-refresh-token", "type": "authorized_user"}',
+    b'{"type": "service_account", "project_id": "fake-project", "client_email": "fake@fake-project.iam.gserviceaccount.com"}'],
+    ids=["credenciais_do_gcloud", "conta_de_servico"])
+def test_logout_nao_apaga_o_json_de_credenciais_de_outro_programa(caixa, capfd, monkeypatch, conteudo):
+    """The shape of the Runtime's StoredAuth needs `access_token` and `access_expires_at`: a `refresh_token` alone is not enough."""
+    alvo = put_raw(caixa.tmp / "gcloud" / "application_default_credentials.json", conteudo)
+    monkeypatch.setenv("SIMPLICIO_AUTH_FILE", str(alvo))
+    rc = login_cmd.logout(yes=True, as_json=True)
+    doc = json.loads(saida(capfd)[0])
+    assert rc == 2 and doc["status"] == "REFUSED" and doc["reason_code"] == "not_a_login_file"
+    assert alvo.read_bytes() == conteudo and [p.name for p in alvo.parent.iterdir()] == [alvo.name]
 
 
 def test_logout_de_login_corrompido_mas_com_a_forma_de_login_apaga(caixa, capfd):

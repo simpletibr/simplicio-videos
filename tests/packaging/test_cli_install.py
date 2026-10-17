@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -19,8 +20,8 @@ from pathlib import Path
 import pytest
 
 import _caixa
-from _caixa import (chamadas_do_uv, distribution, hostos, saida_cp1252, so_incompativel,
-                    write_fake_uv)
+from _caixa import (chamadas_do_uv, distribution, hostos, posix_real, roda_com_prazo, saida_cp1252, so_incompativel,
+                    solta_fifo, write_fake_uv)
 from _comum import ROOT, erros_de_schema, executa, exige_registrado, instantanea
 from simplicio_video import __version__
 from simplicio_video.cli import main
@@ -321,3 +322,20 @@ def test_o_uv_do_path_vence_o_do_home(checkout, caixa, capsys):
     executa(["install"], capsys, main)
     assert chamadas_do_uv(caixa.bin) and not chamadas_do_uv(caixa.home / ".local" / "bin")
     assert sys.version_info >= (3, 10)
+
+
+# --- a FIFO where the install reads its state must not hang it ---------------------------------------------------------------
+
+
+@posix_real
+@pytest.mark.parametrize("onde", [".venv/simplicio-install.json", ".venv/pyvenv.cfg", "pyproject.toml"])
+def test_arquivo_lido_pelo_install_que_e_fifo_nao_trava_e_conta_como_ausente(checkout, caixa, capsys, onde):
+    """`open()` on a FIFO with no writer blocks forever; the state files are read through a descriptor opened O_NONBLOCK and
+    checked with fstat, and a file that is not a regular one is a file that is not there (the plan says to install)."""
+    alvo = checkout / onde
+    alvo.parent.mkdir(exist_ok=True)
+    if alvo.exists():
+        alvo.unlink()
+    os.mkfifo(alvo)
+    rc, out, err = roda_com_prazo(lambda: executa(["install", "--check"], capsys, main), destravar=lambda: solta_fifo(alvo))
+    assert rc == 10 and "pendente" in out, out + err

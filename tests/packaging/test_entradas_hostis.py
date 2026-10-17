@@ -320,7 +320,7 @@ def test_simplicio_auth_file_estranho_nao_derruba_nenhum_comando(caixa, capsys, 
     try:
         for argv, esquema in COMANDOS:
             verifica(argv, esquema, capsys)
-        if nome in ("pasta", "fifo", "dispositivo", "socket"):
+        if nome in ("pasta", "fifo", "dispositivo", "socket", "laco_de_links", "link_quebrado"):
             assert os.path.lexists(alvo), f"`logout --yes` deleted the {nome} that SIMPLICIO_AUTH_FILE pointed at"
     finally:
         if hasattr(caixa, "servidor"):

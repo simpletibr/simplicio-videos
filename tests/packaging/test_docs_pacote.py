@@ -175,3 +175,22 @@ def test_o_changelog_registra_as_correcoes_da_revisao_do_116():
     unreleased = " ".join(texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0].split())
     for trecho in ("install.sh", "PyYAML", "not_a_login_file", "git fetch", "`HOME`", "1 MiB", "mais nova"):
         assert trecho in unreleased, f"CHANGELOG (Unreleased) não cita {trecho!r}"
+
+
+# --- the second review of PR #116 ------------------------------------------------------------------------------------------------
+
+
+def test_packaging_documenta_as_correcoes_da_segunda_revisao_do_116():
+    texto = _texto(PACKAGING_MD)
+    for trecho in ("login_symlink", "StoredAuth", "`access_token` (texto) e `access_expires_at` (número)", "--no-optional-locks",
+                   "2.15", "dubious ownership", "O_NONBLOCK", "PEP 440", "só mostra o plano e sai com `0`"):
+        assert trecho in texto, f"packaging.md não cita {trecho!r}"
+    assert "um link simbólico é removido sem tocar no alvo" not in texto, "a link is now refused, not removed"
+
+
+def test_o_changelog_registra_a_segunda_revisao_do_116():
+    texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
+    unreleased = " ".join(texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0].split())
+    for trecho in ("Segunda revisão independente do PR #116", "login_symlink", "StoredAuth", "O_NONBLOCK", "PEP 440",
+                   "--no-optional-locks", "dubious ownership", "link simbólico"):
+        assert trecho in unreleased, f"CHANGELOG (Unreleased) não cita {trecho!r}"

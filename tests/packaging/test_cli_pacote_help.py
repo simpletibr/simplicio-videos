@@ -11,12 +11,13 @@ COMANDOS = ["install", "update", "doctor", "setup", "login", "logout", "auth", "
 DEVE_CITAR = {
     "install": ["--check", "--dry-run", "--json", "--python", "--with", "10", "simplicio.video-install/v1"],
     "update": ["--check", "--dry-run", "--force", "10", "git pull --ff-only", "PyPI", "git stash", "update-check.json",
-               "git fetch", "SIMPLICIO_OFFLINE"],
+               "git fetch", "SIMPLICIO_OFFLINE", "só mostra o plano e sai com 0", "--no-optional-locks", "2.15"],
     "doctor": ["--json", "--online", "all", "login", "simplicio.doctor/v1", "warn", "fail"],
     "setup": ["--yes", "--theme", "--lang"],
     "login": ["--json", "--no-browser", "simplicio login google", "login.json", "SIMPLICIO_AUTH_FILE", "UNVERIFIED",
               "não guarda credencial"],
-    "logout": ["--yes", "--json", "Runtime", "login.json", "forma de login", "not_a_login_file"],
+    "logout": ["--yes", "--json", "Runtime", "login.json", "forma de login", "not_a_login_file", "link simbólico", "login_symlink",
+               "access_expires_at"],
     "auth": ["status"],
     "auth status": ["--json", "login.json", "nunca imprime"],
 }

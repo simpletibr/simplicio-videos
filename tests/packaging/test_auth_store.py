@@ -464,12 +464,15 @@ def test_clear_de_arquivo_ausente_nao_cria_nada(arq):
 
 
 @posix_real
-def test_clear_remove_o_link_mas_nunca_o_alvo(tmp_path, arq):
+def test_clear_recusa_o_link_ate_para_um_login_de_verdade(tmp_path, arq):
+    """A symlink is refused by the READ (`login_symlink`) and so by the logout: the same rule, one orientation."""
     real = put_login(tmp_path / "real.json")
     arq.parent.mkdir(parents=True)
     arq.symlink_to(real)
-    assert auth.clear_login(arq) is True
-    assert real.exists() and not arq.is_symlink()
+    with pytest.raises(auth.LoginError) as err:
+        auth.clear_login(arq)
+    assert err.value.reason_code == "login_symlink"
+    assert real.exists() and arq.is_symlink()
 
 
 def test_clear_de_diretorio_e_recusado_sem_traceback(arq):
@@ -810,7 +813,23 @@ def test_o_instante_de_data_nao_usa_o_relogio_do_sistema_operacional():
 # I6: logout only deletes something that is a login ----------------------------------------------------------------------
 
 
+# What other programs keep in JSON files that `SIMPLICIO_AUTH_FILE` could be pointed at by mistake: all FAKE.
+GCLOUD_ADC = (b'{"account": "", "client_id": "000000000000-fake.apps.googleusercontent.com", "client_secret": "fake-secret", '
+              b'"refresh_token": "fake-refresh-token", "type": "authorized_user", "universe_domain": "googleapis.com"}')
+CONTA_DE_SERVICO = (b'{"type": "service_account", "project_id": "fake-project", "private_key_id": "fake", "private_key": '
+                    b'"-----BEGIN PRIVATE KEY-----\\nZmFrZQ==\\n-----END PRIVATE KEY-----\\n", '
+                    b'"client_email": "fake@fake-project.iam.gserviceaccount.com", "client_id": "1"}')
+
 NAO_E_LOGIN = {
+    "credenciais_do_gcloud": GCLOUD_ADC,
+    "conta_de_servico": CONTA_DE_SERVICO,
+    "so_refresh_token": b'{"refresh_token": "x", "access_expires_at": 1893456000}',
+    "so_access_token_sem_expiracao": b'{"access_token": "x"}',
+    "so_verification": b'{"verification": {}, "access_expires_at": 1}',
+    "access_token_que_nao_e_texto": b'{"access_token": 5, "access_expires_at": 1}',
+    "expiracao_que_nao_e_numero": b'{"access_token": "x", "access_expires_at": "amanha"}',
+    "expiracao_booleana": b'{"access_token": "x", "access_expires_at": true}',
+    "expiracao_nula": b'{"access_token": "x", "access_expires_at": null}',
     "chave_ssh": b"-----BEGIN OPENSSH PRIVATE KEY-----\nZmFrZSBrZXkgZm9yIHRlc3Rz\n-----END OPENSSH PRIVATE KEY-----\n",
     "texto": b"hello\n",
     "json_sem_chaves_de_login": b'{"hello": 1}',
@@ -834,11 +853,26 @@ def test_clear_nao_apaga_o_que_nao_tem_a_forma_de_um_login(tmp_path, nome):
     assert [p.name for p in alvo.parent.iterdir()] == ["id_rsa"], "no lock file may appear next to a file that is not a login"
 
 
-@pytest.mark.parametrize("conteudo", [{"access_token": "x"}, {"refresh_token": "x"}, {"verification": {}}, login_doc()],
-                         ids=["access", "refresh", "verification", "completo"])
-def test_clear_apaga_o_arquivo_que_tem_a_forma_de_um_login(arq, conteudo):
+PENDENTE = {"access_token": "", "access_expires_at": 0, "pending_device": {"device_code": "fake", "code_verifier": "fake",
+            "state": "fake", "user_code": "FAKE-1234", "verification_uri": "https://example.invalid/device", "expires_at": 1}}
+
+
+@pytest.mark.parametrize("conteudo", [
+    login_doc(), {"access_token": "x", "access_expires_at": 0}, {"access_token": "x", "access_expires_at": 1893456000.5},
+    {"access_token": "x", "access_expires_at": 1e999}, PENDENTE, {"access_token": "x", "access_expires_at": 1, "refresh_token": None}],
+    ids=["completo", "minimo", "decimal", "data_corrompida", "login_pendente_do_dispositivo", "sem_refresh_token"])
+def test_clear_apaga_o_arquivo_que_tem_a_forma_do_StoredAuth_do_runtime(arq, conteudo):
+    """The Runtime's StoredAuth (runtime_auth.rs) requires `access_token` (a string, empty while a device login is pending)
+    and `access_expires_at` (a number); `refresh_token` and `verification` are optional there. Anything with that shape is a login."""
     put_login(arq, conteudo)
     assert auth.clear_login(arq) is True and not arq.exists()
+
+
+def test_a_forma_de_login_e_a_mesma_do_runtime():
+    assert auth.is_login_shaped({"access_token": "x", "access_expires_at": 1}) is True
+    assert auth.is_login_shaped({"refresh_token": "x"}) is False
+    assert auth.is_login_shaped({"access_token": "x"}) is False
+    assert auth.is_login_shaped([{"access_token": "x", "access_expires_at": 1}]) is False
 
 
 @posix_real
@@ -858,14 +892,74 @@ def test_clear_nao_apaga_uma_fifo(arq):
     assert err.value.reason_code == "not_a_login_file" and os.path.lexists(arq)
 
 
-@posix_real
-def test_clear_remove_o_link_para_um_arquivo_qualquer_mas_nunca_o_alvo(tmp_path, arq):
-    alvo = put_raw(tmp_path / "ssh" / "id_rsa", b"fake key")
-    arq.parent.mkdir(parents=True)
+def _link_para(caixa_tmp: Path, tipo: str, arq: Path) -> Path:
+    arq.parent.mkdir(parents=True, exist_ok=True)
     arq.parent.chmod(0o700)
+    if tipo == "arquivo_qualquer":  # a managed dotfile: ~/.bashrc -> a copy of passwd
+        alvo = put_raw(caixa_tmp / "dotfiles" / "passwd", b"root:x:0:0:root:/root:/bin/bash\n")
+    elif tipo == "pasta":
+        alvo = caixa_tmp / "dotfiles" / "pasta"
+        alvo.mkdir(parents=True)
+    elif tipo == "quebrado":
+        alvo = caixa_tmp / "dotfiles" / "nao-existe"
+    else:  # a link to a file that LOOKS like a login: still a link
+        alvo = put_login(caixa_tmp / "dotfiles" / "login.json")
     arq.symlink_to(alvo)
+    return alvo
+
+
+@posix_real
+@pytest.mark.parametrize("tipo", ["arquivo_qualquer", "pasta", "quebrado", "login"])
+def test_clear_recusa_qualquer_link_simbolico_antes_de_criar_a_trava(tmp_path, tipo):
+    """SIMPLICIO_AUTH_FILE=~/.bashrc, a link kept by a dotfiles repository: `logout --yes` removed the link and left a .lock.
+    A link is refused BEFORE the lock (`login_symlink`, like the read), and neither the link nor its target is touched."""
+    arq = tmp_path / "home" / ".bashrc"
+    alvo = _link_para(tmp_path, tipo, arq)
+    antes = sorted(p.name for p in arq.parent.iterdir())
+    with pytest.raises(auth.LoginError) as err:
+        auth.clear_login(arq)
+    assert err.value.reason_code == "login_symlink" and str(arq) in str(err.value) and "nada foi apagado" in str(err.value)
+    assert os.path.islink(arq) and os.readlink(arq) == str(alvo), "the link was touched"
+    assert sorted(p.name for p in arq.parent.iterdir()) == antes, "no lock file may appear next to a link"
+    assert not os.path.exists(auth.lock_path(arq))
+    if tipo != "quebrado":
+        assert os.path.exists(alvo)
+
+
+@pytest.mark.parametrize("etiqueta", ["IO_REPARSE_TAG_SYMLINK", "IO_REPARSE_TAG_MOUNT_POINT"])
+def test_clear_recusa_o_ponto_de_reparse_de_link_do_windows_antes_da_trava(arq, monkeypatch, etiqueta):
+    """On Windows a junction or a symlink is a reparse point of the link kind: the same refusal, no lock."""
+    put_login(arq)
+    real = os.lstat
+
+    def lstat(caminho, *a, **kw):
+        info = real(caminho, *a, **kw)
+        if str(caminho) == str(arq):
+            return SimpleNamespace(st_mode=info.st_mode, st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+                                   st_reparse_tag=getattr(auth, etiqueta))
+        return info
+
+    monkeypatch.setattr(os, "lstat", lstat)
+    with pytest.raises(auth.LoginError) as err:
+        auth.clear_login(arq)
+    assert err.value.reason_code == "login_symlink"
+    assert [p.name for p in arq.parent.iterdir()] == ["login.json"] and arq.exists()
+
+
+def test_o_reparse_de_nuvem_nao_e_link_e_o_logout_apaga_o_arquivo(arq, monkeypatch):
+    """A OneDrive placeholder is a reparse point but a real file: it is not refused as a link."""
+    put_login(arq)
+    real = os.lstat
+
+    def lstat(caminho, *a, **kw):
+        info = real(caminho, *a, **kw)
+        if str(caminho) == str(arq):
+            return SimpleNamespace(st_mode=info.st_mode, st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+                                   st_reparse_tag=0x9000001A)
+        return info
+
+    monkeypatch.setattr(os, "lstat", lstat)
     assert auth.clear_login(arq) is True
-    assert alvo.read_bytes() == b"fake key" and not os.path.lexists(arq)
 
 
 @posix_real
@@ -896,3 +990,80 @@ def test_a_versao_do_runtime_sobrevive_a_bytes_que_nao_sao_utf8(tmp_path):
     runtime.write_bytes(b"#!/bin/sh\nprintf 'simplicio 3.10.0 \\315\\n'\n")
     runtime.chmod(0o755)
     assert auth.runtime_version(runtime) == "3.10.0"
+
+
+# --- gaps found by mutation in the second review -------------------------------------------------------------------------------
+
+
+def test_erro_ao_abrir_a_trava_e_login_permissions_e_outro_erro_e_login_invalid(tmp_path, monkeypatch):
+    """The `open` of login.lock failing is a reason_code, not a traceback (M2d)."""
+    real = os.open
+    erro = {"errno": 13}
+
+    def abre(caminho, *a, **kw):
+        if str(caminho).endswith(".lock"):
+            raise OSError(erro["errno"], os.strerror(erro["errno"]), str(caminho))
+        return real(caminho, *a, **kw)
+
+    monkeypatch.setattr(os, "open", abre)
+    with pytest.raises(auth.LoginError) as err:
+        with auth.file_lock(tmp_path / "login.json", wait_s=0.1):
+            pytest.fail("the lock must not be taken")
+    assert err.value.reason_code == "login_permissions" and str(tmp_path) in str(err.value)
+    erro["errno"] = 24  # EMFILE: not a permission problem
+    with pytest.raises(auth.LoginError) as err:
+        with auth.file_lock(tmp_path / "login.json", wait_s=0.1):
+            pytest.fail("the lock must not be taken")
+    assert err.value.reason_code == "login_invalid" and "Too many open files" in str(err.value)
+
+
+def test_logout_com_trava_que_nao_abre_e_failed_login_permissions_e_nao_apaga(arq, monkeypatch, capsys):
+    put_login(arq)
+    real = os.open
+
+    def abre(caminho, *a, **kw):
+        if str(caminho).endswith(".lock"):
+            raise PermissionError(13, "Permission denied", str(caminho))
+        return real(caminho, *a, **kw)
+
+    monkeypatch.setattr(os, "open", abre)
+    with pytest.raises(auth.LoginError) as err:
+        auth.clear_login(arq)
+    assert err.value.reason_code == "login_permissions" and arq.exists()
+
+
+class _LeituraEspia:
+    """Counts the bytes that `os.read` hands back while the test runs."""
+
+    def __init__(self, monkeypatch) -> None:
+        self.bytes = 0
+        real = os.read
+
+        def le(fd, n):
+            dados = real(fd, n)
+            self.bytes += len(dados)
+            return dados
+
+        monkeypatch.setattr(os, "read", le)
+
+
+@pytest.mark.parametrize("quem", ["read_login", "clear_login"])
+def test_a_leitura_para_em_1_mib_e_nao_carrega_o_arquivo_inteiro(arq, monkeypatch, quem):
+    """A 24 MiB file is refused after about 1 MiB has been read (M8b: a read without the cap would take all of it)."""
+    arq.parent.mkdir(parents=True)
+    arq.parent.chmod(0o700)
+    with open(arq, "wb") as handle:
+        handle.write(b'{"access_token": "x", "access_expires_at": 1, "pad": "')
+        handle.write(b"a" * (24 * 1024 * 1024))
+        handle.write(b'"}')
+    arq.chmod(0o600)
+    espia = _LeituraEspia(monkeypatch)
+    with pytest.raises(auth.LoginError):
+        getattr(auth, quem)(arq)
+    assert 0 < espia.bytes <= auth.MAX_LOGIN_BYTES + 1, f"read {espia.bytes} bytes of a file that is past the cap"
+
+
+def test_utc_stamp_com_o_que_nao_e_numero_e_data_invalida_e_nao_excecao():
+    """The only way into the `except` of utc_stamp: a value that cannot be compared with a number (TypeError)."""
+    for estranho in (None, "abc", "", [1], {"a": 1}, object(), b"1"):
+        assert hostos.utc_stamp(estranho) == "data inválida", repr(estranho)

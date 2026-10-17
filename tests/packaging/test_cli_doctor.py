@@ -508,3 +508,19 @@ def test_node_e_ffmpeg_com_saida_que_nao_e_utf8_nao_derrubam_o_doctor(saude, cap
     rc, rel, out, err = _json(capsys)
     assert rc == 0 and "Traceback" not in out + err
     assert [_linha(rel, n)["status"] for n in ("node", "ffmpeg", "ffmpeg-libass")] == ["ok", "ok", "ok"]
+
+
+@pytest.mark.parametrize("instalada", ["0.5.0.dev1", "0.5.0rc1", "0.5.0a2", "0.5.0b1"])
+def test_instalada_de_desenvolvimento_ou_pre_release_tem_atualizacao_frente_a_release_final(saude, instalada):
+    """PEP 440: `0.5.0rc1` is OLDER than `0.5.0` (it used to read as "em dia")."""
+    _escreve_cache(saude, _cache(latest='"0.5.0"', update_available="false"))
+    linha = doctor_cmd.collect(only="update", installed=instalada)["checks"][0]
+    assert linha["status"] == "warn" and "atualização disponível" in linha["summary"], linha
+    assert linha["detail"]["update_available"] is True and linha["detail"]["latest"] == "0.5.0"
+
+
+@pytest.mark.parametrize("instalada", ["0.5.0", "0.5.0+local", "0.5.0.post1", "0.6.0rc1"])
+def test_instalada_final_local_post_ou_mais_nova_esta_em_dia_no_doctor(saude, instalada):
+    _escreve_cache(saude, _cache(latest='"0.5.0"', update_available="true"))
+    linha = doctor_cmd.collect(only="update", installed=instalada)["checks"][0]
+    assert linha["status"] == "ok" and linha["detail"]["update_available"] is False, linha

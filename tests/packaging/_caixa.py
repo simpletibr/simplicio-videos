@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -183,6 +184,40 @@ def roda(argv: list[str], capsys, main=None) -> tuple[int, str, str]:
         pytest.fail(f"`simplicio-video {' '.join(argv)}` raised {type(e).__name__}: {str(e)[:200]}", pytrace=False)
     captured = capsys.readouterr()
     return rc, captured.out, captured.err
+
+
+def roda_com_prazo(funcao, prazo: float = 3.0, destravar=None):
+    """funcao() in a thread: its result, or its exception, or a test FAILURE if it is still running after `prazo` seconds.
+
+    For code that could block forever on a FIFO. `destravar` is called when the deadline passes, to free the stuck thread (and
+    let the test process exit): for a FIFO, open it for writing without blocking."""
+    resultado: dict = {}
+
+    def alvo():
+        try:
+            resultado["valor"] = funcao()
+        except BaseException as exc:  # noqa: BLE001 - handed back to the caller below
+            resultado["erro"] = exc
+
+    fio = threading.Thread(target=alvo, daemon=True)
+    fio.start()
+    fio.join(prazo)
+    if fio.is_alive():
+        if destravar is not None:
+            destravar()
+        fio.join(2)
+        pytest.fail(f"still blocked after {prazo} s: a FIFO (or another file that never ends) was opened and read", pytrace=False)
+    if "erro" in resultado:
+        raise resultado["erro"]
+    return resultado.get("valor")
+
+
+def solta_fifo(caminho) -> None:
+    """Frees a thread that is blocked opening the FIFO `caminho` for reading."""
+    try:
+        os.close(os.open(caminho, os.O_WRONLY | os.O_NONBLOCK))
+    except OSError:
+        pass
 
 
 def assert_no_secret(*channels: str) -> None:

@@ -254,16 +254,44 @@ FONTES_DE_OPERACAO = ["auth.py", "hostos.py", "distribution.py", "paths.py", "co
 CHAMADAS_DE_SUBPROCESSO = {"run", "call", "check_output", "check_call", "Popen"}
 
 
-def _quem_chama(chamada: ast.Call) -> tuple[str | None, str]:
+def _quem_chama(chamada: ast.Call) -> tuple[str | None, str, bool]:
+    """(the name it is called on, the function name, whether it is an attribute call). `x.y.open()` is called on None."""
     f = chamada.func
     if isinstance(f, ast.Attribute):
-        return (f.value.id if isinstance(f.value, ast.Name) else None), f.attr
-    return None, f.id if isinstance(f, ast.Name) else ""
+        return (f.value.id if isinstance(f.value, ast.Name) else None), f.attr, True
+    return None, f.id if isinstance(f, ast.Name) else "", False
 
 
-def _e_binario(chamada: ast.Call) -> bool:
-    modo = chamada.args[1] if len(chamada.args) > 1 else next((k.value for k in chamada.keywords if k.arg == "mode"), None)
+def _e_binario(chamada: ast.Call, dono: str | None, atributo: bool) -> bool:
+    """The mode is the 2nd argument of open(file, mode), io.open and os.fdopen(fd, mode), but the 1st of `path.open(mode)`."""
+    posicao = 0 if (atributo and chamada.func.attr == "open" and dono != "io") else 1
+    modo = chamada.args[posicao] if len(chamada.args) > posicao else next((k.value for k in chamada.keywords if k.arg == "mode"), None)
     return isinstance(modo, ast.Constant) and isinstance(modo.value, str) and "b" in modo.value
+
+
+# `.open()` that is not a file: os.open (a descriptor) and the urllib opener of update.py
+NAO_ABRE_ARQUIVO = {"os", "_OPENER"}
+
+
+def problemas_de_encoding(codigo: str, onde: str) -> list[str]:
+    problemas = []
+    for chamada in (n for n in ast.walk(ast.parse(codigo)) if isinstance(n, ast.Call)):
+        dono, nome, atributo = _quem_chama(chamada)
+        kw = {k.arg: k.value for k in chamada.keywords}
+        local = f"{onde}:{chamada.lineno}"
+        if nome == "read_text" and not chamada.args and "encoding" not in kw:
+            problemas.append(f"{local} read_text() without encoding")
+        if nome == "write_text" and len(chamada.args) < 2 and "encoding" not in kw:
+            problemas.append(f"{local} write_text() without encoding")
+        # builtin open(), io.open() and EVERY `x.open()` (a Path, `self.p.open`...) except os.open and the urllib opener
+        abre_arquivo = (nome == "open" and (not atributo or dono not in NAO_ABRE_ARQUIVO)) or nome == "fdopen"
+        if abre_arquivo and not _e_binario(chamada, dono, atributo) and "encoding" not in kw:
+            problemas.append(f"{local} {nome}() in text mode without encoding")
+        if dono == "subprocess" and nome in CHAMADAS_DE_SUBPROCESSO:
+            texto = any(isinstance(kw.get(k), ast.Constant) and kw[k].value is True for k in ("text", "universal_newlines"))
+            if texto and not ("encoding" in kw and "errors" in kw):
+                problemas.append(f"{local} subprocess.{nome}(text=True) without encoding= and errors=")
+    return problemas
 
 
 def test_toda_leitura_de_texto_e_todo_subprocesso_de_texto_tem_encoding_explicito():
@@ -272,21 +300,41 @@ def test_toda_leitura_de_texto_e_todo_subprocesso_de_texto_tem_encoding_explicit
     write_text, and `encoding="utf-8", errors="replace"` on every subprocess that is read as text."""
     from _comum import ROOT
     fontes = [ROOT / "src" / "simplicio_video" / nome for nome in FONTES_DE_OPERACAO] + [ROOT / "scripts" / "smoke_so.py"]
-    problemas = []
-    for arquivo in fontes:
-        for chamada in (n for n in ast.walk(ast.parse(arquivo.read_text(encoding="utf-8"))) if isinstance(n, ast.Call)):
-            dono, nome = _quem_chama(chamada)
-            kw = {k.arg: k.value for k in chamada.keywords}
-            onde = f"{arquivo.name}:{chamada.lineno}"
-            if nome == "read_text" and not chamada.args and "encoding" not in kw:
-                problemas.append(f"{onde} read_text() without encoding")
-            if nome == "write_text" and len(chamada.args) < 2 and "encoding" not in kw:
-                problemas.append(f"{onde} write_text() without encoding")
-            abre_arquivo = (nome == "open" and dono in (None, "io")) or nome == "fdopen"  # not `os.open`, nor an urllib opener
-            if abre_arquivo and not _e_binario(chamada) and "encoding" not in kw:
-                problemas.append(f"{onde} {nome}() in text mode without encoding")
-            if dono == "subprocess" and nome in CHAMADAS_DE_SUBPROCESSO:
-                texto = any(isinstance(kw.get(k), ast.Constant) and kw[k].value is True for k in ("text", "universal_newlines"))
-                if texto and not ("encoding" in kw and "errors" in kw):
-                    problemas.append(f"{onde} subprocess.{nome}(text=True) without encoding= and errors=")
+    problemas = [p for arquivo in fontes for p in problemas_de_encoding(arquivo.read_text(encoding="utf-8"), arquivo.name)]
     assert problemas == [], "\n".join(problemas)
+
+
+@pytest.mark.parametrize("codigo", [
+    "def f(path):\n    return path.open()\n",
+    "def f(path):\n    with path.open('r') as h:\n        return h.read()\n",
+    "def f(self):\n    return self.p.open()\n",
+    "def f(p):\n    return (p / 'x').open('w')\n",
+    "def f():\n    return open('x')\n",
+    "def f():\n    return io.open('x')\n",
+    "def f(fd):\n    return os.fdopen(fd)\n",
+    "def f(p):\n    return p.read_text()\n",
+    "def f(p):\n    return p.write_text('x')\n",
+    "def f():\n    return subprocess.run(['x'], text=True)\n",
+    "def f():\n    return subprocess.run(['x'], text=True, encoding='utf-8')\n",
+    "def f():\n    return subprocess.check_output(['x'], universal_newlines=True)\n",
+])
+def test_o_verificador_de_encoding_pega_cada_forma_de_leitura_de_texto_sem_encoding(codigo):
+    """The check must catch each form (a mutation `path.open()` without encoding passed once): a mutant of the check itself."""
+    assert problemas_de_encoding(codigo, "x.py"), codigo
+
+
+@pytest.mark.parametrize("codigo", [
+    "def f(path):\n    return path.open(encoding='utf-8')\n",
+    "def f(path):\n    return path.open('rb')\n",
+    "def f(path):\n    return path.open(mode='wb')\n",
+    "def f():\n    return open('x', 'rb')\n",
+    "def f():\n    return open('x', encoding='utf-8')\n",
+    "def f(p, flags):\n    return os.open(p, flags)\n",
+    "def f(url):\n    return _OPENER.open(url, timeout=1)\n",
+    "def f(fd):\n    return os.fdopen(fd, 'w', encoding='utf-8')\n",
+    "def f(p):\n    return p.read_text(encoding='utf-8')\n",
+    "def f():\n    return subprocess.run(['x'], capture_output=True)\n",
+    "def f():\n    return subprocess.run(['x'], text=True, encoding='utf-8', errors='replace')\n",
+])
+def test_o_verificador_de_encoding_nao_acusa_o_que_esta_certo_nem_o_que_nao_e_arquivo(codigo):
+    assert problemas_de_encoding(codigo, "x.py") == [], codigo

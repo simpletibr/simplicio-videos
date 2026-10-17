@@ -25,7 +25,8 @@ from pathlib import Path
 import pytest
 
 import _caixa
-from _caixa import (SISTEMAS, distribution, doctor_cmd, saida_cp1252, update_cmd, write_fake_tool, write_git_launcher)
+from _caixa import (SISTEMAS, distribution, doctor_cmd, posix_real, roda_com_prazo, saida_cp1252, solta_fifo, update_cmd,
+                    write_fake_tool, write_git_launcher)
 from _comum import erros_de_schema, executa, exige_registrado
 from simplicio_video import __version__
 from simplicio_video.cli import main
@@ -849,3 +850,189 @@ def test_git_devolve_texto_utf8_com_substituicao(remoto):
     assert feito.returncode == 0
     feito = update_cmd._git(remoto["checkout"], "diff", "HEAD", "--", "CHANGELOG.md")
     assert "caf�" in feito.stdout and "Í" in feito.stdout
+
+
+# --- a FIFO as update-check.json must not hang anything (the second review) ---------------------------------------------------
+
+
+@posix_real
+def test_update_check_que_e_fifo_nao_trava_e_e_cache_invalido(caixa):
+    """`open()` on a FIFO with no writer blocks forever: the state file is opened O_NONBLOCK and checked with fstat on that
+    descriptor, like the login file, and anything that is not a regular file is an invalid cache (a warning in the doctor)."""
+    caixa.data.mkdir()
+    fifo = caixa.data / "update-check.json"
+    os.mkfifo(fifo)
+    with pytest.raises(update_cmd.CheckInvalid) as err:
+        roda_com_prazo(update_cmd.read_check, destravar=lambda: solta_fifo(fifo))
+    assert "arquivo comum" in str(err.value)
+    linha = roda_com_prazo(lambda: doctor_cmd.collect(only="update")["checks"][0], destravar=lambda: solta_fifo(fifo))
+    assert linha["status"] == "warn" and linha["fix"] == "simplicio-video update --check" and linha["detail"] == {}
+
+
+def test_update_check_que_e_pasta_e_cache_invalido(caixa):
+    caixa.data.mkdir()
+    (caixa.data / "update-check.json").mkdir()
+    with pytest.raises(update_cmd.CheckInvalid):
+        update_cmd.read_check()
+
+
+# --- git: the real reason is shown, and a git older than 2.15 still works -----------------------------------------------------
+
+
+def _git_falso(caixa, monkeypatch, corpo: str, nome: str = "gitfalso") -> Path:
+    """A `git` first on PATH: `corpo` is a /bin/sh script; `REAL` is the real git. Calls are logged in <dir>/chamadas.log."""
+    real = _caixa.shutil.which("git", path=_caixa.REAL_PATH)
+    pasta = caixa.tmp / nome
+    pasta.mkdir()
+    arq = pasta / "git"
+    arq.write_text(f"#!/bin/sh\nREAL='{real}'\necho \"$@\" >> '{pasta}/chamadas.log'\n{corpo}\n", encoding="utf-8")
+    arq.chmod(0o755)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(pasta), os.environ["PATH"]]))
+    return pasta
+
+
+GIT_ANTIGO = '''for a in "$@"; do
+  case "$a" in --no-optional-locks) echo "Unknown option: --no-optional-locks" >&2; echo "usage: git [--version] [--help]" >&2; exit 129;; esac
+done
+exec "$REAL" "$@"'''
+
+
+@posix_real
+def test_git_antigo_que_nao_conhece_no_optional_locks_ainda_funciona_com_uma_tentativa_sem_a_opcao(remoto, comandos, caixa, capsys,
+                                                                                                    monkeypatch):
+    """git before 2.15 answers `Unknown option: --no-optional-locks` (exit 129): each call is repeated ONCE without it."""
+    pasta = _git_falso(caixa, monkeypatch, GIT_ANTIGO)
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 10 and "0.3.1" in out and "não é um repositório git" not in out + err, out + err
+    chamadas = (pasta / "chamadas.log").read_text().splitlines()
+    com = [c for c in chamadas if "--no-optional-locks" in c]
+    sem = [c for c in chamadas if "--no-optional-locks" not in c]
+    assert com and len(sem) == len(com), f"each rejected call is retried exactly once without the option: {len(com)} x {len(sem)}"
+    assert all(c.replace(" --no-optional-locks", "") == s for c, s in zip(com, sem)), "the retry is the same call"
+
+
+@posix_real
+def test_git_novo_nao_e_chamado_duas_vezes(remoto, comandos, caixa, capsys, monkeypatch):
+    pasta = _git_falso(caixa, monkeypatch, 'exec "$REAL" "$@"', "gitnormal")
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 10
+    chamadas = (pasta / "chamadas.log").read_text().splitlines()
+    assert chamadas and all("--no-optional-locks" in c for c in chamadas), "a git that knows the option is called once"
+
+
+GIT_DESCONFIADO = '''echo "fatal: detected dubious ownership in repository at '/outro/dono'" >&2
+echo "To add an exception for this directory, call:" >&2
+echo "" >&2
+echo "	git config --global --add safe.directory /outro/dono" >&2
+exit 128'''
+
+
+@posix_real
+def test_git_que_recusa_o_repositorio_mostra_o_motivo_do_git(remoto, comandos, caixa, capsys, monkeypatch):
+    """`dubious ownership` (a checkout of another user) used to read as plain "não é um repositório git": git's stderr was dropped."""
+    _git_falso(caixa, monkeypatch, GIT_DESCONFIADO)
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 2 and "não é um repositório git" in out + err
+    assert "dubious ownership" in out + err and "safe.directory" in out + err
+    linha = doctor_cmd.collect(online=True, only="update")["checks"][0]
+    assert linha["status"] == "warn" and "dubious ownership" in linha["summary"]
+
+
+GIT_COM_LIXO = '''printf 'fatal: \\033[2J\\033[31mboom %s\\n' "$(head -c 3000 /dev/zero | tr '\\0' 'x')" >&2
+exit 128'''
+
+
+@posix_real
+def test_o_motivo_do_git_sai_cortado_e_sem_escape_de_terminal(remoto, comandos, caixa, capsys, monkeypatch):
+    _git_falso(caixa, monkeypatch, GIT_COM_LIXO)
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    texto = out + err
+    assert rc == 2 and "boom" in texto and "\x1b" not in texto
+    assert len(texto) < 1200, f"git's message is cut: {len(texto)} characters"
+
+
+@posix_real
+def test_git_status_que_falha_nao_vira_arvore_limpa(remoto, comandos, caixa, capsys, monkeypatch):
+    """A `git status` that fails said nothing and passed as a clean tree: it is a refusal with git's reason."""
+    corpo = 'case " $* " in *" status "*) echo "fatal: index file corrupt" >&2; exit 128;; esac\nexec "$REAL" "$@"'
+    _git_falso(caixa, monkeypatch, corpo)
+    rc, out, err = executa(["update", "--check"], capsys, main)
+    assert rc == 2 and "index file corrupt" in out + err
+
+
+# --- --dry-run with --check: ONE rule, in both distributions ---------------------------------------------------------------------
+
+
+def test_dry_run_junto_com_check_so_mostra_o_plano_e_sai_0_no_pip(capsys):
+    """The dry-run prints the plan and exits 0, `--check` or not: the same as in a checkout (`--check` alone answers 10)."""
+    rc, c, texto = pip_update(capsys, check=True, dry_run=True)
+    assert rc == 0 and c.argvs == [] and c.registros == []
+    assert "executaria" in texto and f"{PYPI}0.5.0" in texto
+    rc, c, texto = pip_update(capsys, check=True)
+    assert rc == update_cmd.EXIT_UPDATE_AVAILABLE, "--check alone still answers 10"
+
+
+def test_dry_run_junto_com_check_so_mostra_o_plano_e_sai_0_no_checkout(remoto, comandos, caixa, capsys, sem_rede):
+    rc, out, err = executa(["update", "--check", "--dry-run"], capsys, main)
+    assert rc == 0, out + err
+    assert "git pull --ff-only" in out and comandos.argvs == [] and not (caixa.data / "update-check.json").exists()
+    assert [a for a in sem_rede if a[:1] == ["git"] and "fetch" in a] == []
+
+
+def test_dry_run_junto_com_check_sai_0_tambem_com_o_checkout_em_dia(remoto, comandos, capsys):
+    _git("pull", "-q", "--ff-only", cwd=remoto["checkout"])
+    rc, out, err = executa(["update", "--check", "--dry-run"], capsys, main)
+    assert rc == 0, out + err
+
+
+# --- a development or pre-release installed version is OLDER than the release (PEP 440) --------------------------------------
+
+
+@pytest.mark.parametrize("instalada", ["0.5.0.dev1", "0.5.0rc1", "0.5.0-rc.1", "0.5.0a2", "0.5.0b1", "0.5.0.dev3+local", "0.4.9.post2"])
+def test_versao_instalada_anterior_a_release_final_tem_atualizacao(capsys, instalada):
+    rc, c, texto = pip_update(capsys, installed=instalada, tag="v0.5.0", check=True)
+    assert rc == update_cmd.EXIT_UPDATE_AVAILABLE and "em dia" not in texto, f"{instalada} < 0.5.0 (PEP 440)"
+    rc, c, texto = pip_update(capsys, installed=instalada, tag="v0.5.0")
+    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}0.5.0"]], "the target is the FINAL release"
+
+
+@pytest.mark.parametrize("instalada", ["0.5.0", "0.5.0+local", "0.5.0.post1", "0.5.1.dev1", "0.6.0rc1", "0.5.0.post1.dev2"])
+def test_versao_instalada_igual_ou_mais_nova_que_a_release_final_esta_em_dia(capsys, instalada):
+    rc, c, texto = pip_update(capsys, installed=instalada, tag="v0.5.0", check=True)
+    assert rc == 0 and c.argvs == []
+
+
+def test_a_ordem_das_versoes_instaladas_e_a_do_pep_440():
+    chave = update_cmd.release_tuple
+    ordem = ["0.5.0.dev1", "0.5.0a1", "0.5.0a2", "0.5.0b1", "0.5.0rc1", "0.5.0rc2", "0.5.0", "0.5.0.post1"]
+    chaves = [chave(v) for v in ordem]
+    assert chaves == sorted(chaves) and len(set(chaves)) == len(chaves), ordem
+    assert chave("0.5.0-rc.1") == chave("0.5.0rc1") and chave("0.5.0+local") >= chave("0.5.0")
+    assert update_cmd.parse_version("v0.5.0") > chave("0.5.0rc1")
+    assert update_cmd.parse_version("0.5.0") == chave("0.5.0") and update_cmd.parse_version("1.2") == chave("1.2.0")
+    with pytest.raises(ValueError):
+        update_cmd.parse_version("0.5.0rc1")  # a pre-release is never a TARGET
+
+
+# --- every git of the update asks for no optional locks, and the index stays as it was ------------------------------------------
+
+
+def test_todo_git_do_update_leva_no_optional_locks(remoto, comandos, capsys, sem_rede):
+    """`git status` and `git diff` refresh the stat cache in .git/index (a write) unless --no-optional-locks is given."""
+    rc, out, err = executa(["update", "--dry-run"], capsys, main)
+    assert rc == 0, out + err
+    do_update = [a for a in sem_rede if a[:2] == ["git", "-C"]]
+    assert do_update, "the update ran no git?"
+    assert all("--no-optional-locks" in a for a in do_update), [a for a in do_update if "--no-optional-locks" not in a]
+
+
+def test_o_dry_run_nao_regrava_o_index_do_git(remoto, comandos, capsys):
+    checkout = remoto["checkout"]
+    arq = checkout / "CHANGELOG.md"
+    novo = os.stat(arq).st_mtime + 3600
+    os.utime(arq, (novo, novo))  # same bytes, other mtime: a plain `git status` refreshes the index entry and writes it
+    index = checkout / ".git" / "index"
+    antes = (index.read_bytes(), os.stat(index).st_mtime_ns)
+    rc, out, err = executa(["update", "--dry-run"], capsys, main)
+    assert rc == 0, out + err
+    assert (index.read_bytes(), os.stat(index).st_mtime_ns) == antes, "a read-only step rewrote .git/index"
