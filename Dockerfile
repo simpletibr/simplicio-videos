@@ -13,7 +13,7 @@ FROM python:3.12-slim-bookworm AS build
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /src
-COPY pyproject.toml README.md ./
+COPY pyproject.toml PYPI.md LICENSE NOTICE ./
 COPY src ./src
 RUN python -m venv /opt/venv \
  && /opt/venv/bin/pip install .

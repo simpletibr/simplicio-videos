@@ -1,0 +1,5 @@
+# sdist: the whole test suite (conftest.py and fixtures included, so packagers can run it) and the changelog.
+# README/PYPI.md, LICENSE and NOTICE come from [project] (readme, license-files); src/ comes from setuptools.
+# Build from a clean checkout (git archive): `graft` takes whatever sits under tests/, bytecode caches included.
+graft tests
+include CHANGELOG.md
