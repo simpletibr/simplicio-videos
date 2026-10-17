@@ -2,7 +2,8 @@ import pytest
 
 from conftest import run_cli
 
-SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "jobs", "social", "openverse", "busca", "mcp", "list"]
+SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "jobs", "social", "openverse", "busca", "mcp", "list",
+        "install", "update", "doctor", "setup", "login", "logout", "auth"]
 
 
 def test_main_help_lists_the_whole_flow():
