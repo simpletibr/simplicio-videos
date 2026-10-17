@@ -35,6 +35,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterator, Mapping
 
 from . import __version__, distribution, hostos
+from .skill_sync import HOST_SKILL_ROOTS, SKILLS
 
 SCHEMA = "simplicio.video-install-plan/v1"
 OWNERSHIP_SCHEMA = "simplicio.video-install-ownership/v1"
@@ -44,8 +45,8 @@ RECEIPT_REL = RECEIPT.as_posix()
 LOCK_FILE = "install.json"  # `auth.file_lock` swaps the extension: the lock file is `.simplicio-video/install.lock`
 LOCK_REL = (RECEIPT.parent / "install.lock").as_posix()
 LOCK_WAIT_S = 10.0  # a normal install takes milliseconds: waiting this long means another one is stuck
-SKILLS = ("simplicio-video", "simplicio-video-social")
-SKILLS_DEST = ".claude/skills"
+SKILLS_DEST = HOST_SKILL_ROOTS["claude"]  # where every install lands, and what `--verify` is anchored to
+GLOBAL_ROOTS = tuple(HOST_SKILL_ROOTS.values())  # the 11 folders of the loop's skill_sync: `--global` puts the skills in all of them
 MAX_RECEIPT_BYTES = 1024 * 1024  # a receipt of a few skills is a few KiB
 MAX_FILE_BYTES = 16 * 1024 * 1024  # compared and digested files are SKILL.md and its references
 MAX_REL = 512  # a path of the receipt; longer is not something the registry can produce
@@ -72,12 +73,15 @@ HOST_LAYOUT = {host: {SKILLS_DEST: "skills", **({entry: "entry"} if entry else {
 
 # What the registry can produce, derived from it: nothing in a receipt is trusted outside these.
 ENTRY_FILES = frozenset(entry for entry in HOST_ENTRY.values() if entry)
-# The first folder of a destination that has more than one component: `.claude`, `.github`, `.kiro`. The user owns it (it may be a
-# link into a dotfiles repository); everything the install creates below it, and `.simplicio-video`, may never be a link.
-HOST_BASES = tuple(sorted({PurePosixPath(dest).parts[0] for layout in HOST_LAYOUT.values() for dest in layout
-                           if len(PurePosixPath(dest).parts) > 1}))
-_KNOWN_DIRS = frozenset({RECEIPT.parent.as_posix(), SKILLS_DEST, *HOST_BASES,
-                         *(str(parent) for entry in ENTRY_FILES for parent in PurePosixPath(entry).parents if str(parent) != ".")})
+# The first folder of a destination that has more than one component (`.claude`, `.codex`, `.config`, `.github`, `.kiro`...). The user owns
+# it (it may be a link into a dotfiles repository); everything the install creates below it, and `.simplicio-video`, may never be a link.
+_DESTINATIONS = [*GLOBAL_ROOTS, *(dest for layout in HOST_LAYOUT.values() for dest in layout)]
+HOST_BASES = tuple(sorted({PurePosixPath(dest).parts[0] for dest in _DESTINATIONS if len(PurePosixPath(dest).parts) > 1}))
+_KNOWN_DIRS = frozenset({RECEIPT.parent.as_posix(),
+                         *(str(parent) for dest in [*GLOBAL_ROOTS, *ENTRY_FILES] for parent in PurePosixPath(dest).parents
+                           if str(parent) != "."),
+                         *GLOBAL_ROOTS})
+_ROOT_PARTS = tuple(tuple(root.split("/")) for root in GLOBAL_ROOTS)
 
 
 class InstallError(RuntimeError):
@@ -114,13 +118,14 @@ def _plain_parts(rel: Any) -> list | None:
 
 
 def known_file(rel: Any) -> bool:
-    """True when the registry can produce `rel` as a FILE: inside a skill folder, an entry file of a host, or the receipt."""
+    """True when the registry can produce `rel` as a FILE: inside a skill folder of one of the 11 host roots, an entry file of a host, or
+    the receipt."""
     parts = _plain_parts(rel)
     if parts is None:
         return False
     if rel == RECEIPT_REL or rel in ENTRY_FILES:
         return True
-    return len(parts) >= 4 and "/".join(parts[:2]) == SKILLS_DEST and parts[2] in SKILLS
+    return any(tuple(parts[:len(root)]) == root and len(parts) >= len(root) + 2 and parts[len(root)] in SKILLS for root in _ROOT_PARTS)
 
 
 def known_dir(rel: Any) -> bool:
@@ -130,7 +135,7 @@ def known_dir(rel: Any) -> bool:
         return False
     if rel in _KNOWN_DIRS:
         return True
-    return len(parts) >= 3 and "/".join(parts[:2]) == SKILLS_DEST and parts[2] in SKILLS
+    return any(tuple(parts[:len(root)]) == root and len(parts) >= len(root) + 1 and parts[len(root)] in SKILLS for root in _ROOT_PARTS)
 
 
 # --- files: listing, comparing, writing ---------------------------------------------------------------------------------------
@@ -373,26 +378,36 @@ def _confirm_bases(root: Path, bases: Mapping[str, str]) -> None:
                                "recoloque o link, ou apague os arquivos do simplicio-video à mão e o recibo")
 
 
-def _check_inside(root: Path, bases: Mapping[str, str], rel: str) -> None:
-    """The folders above `rel` are not links, except the base folder the receipt recorded; and nothing leaves the target by a link."""
+def _inside_problem(root: Path, bases: Mapping[str, str], rel: str) -> str | None:
+    """Why `rel` cannot be touched through the folders above it, or None. The folders above `rel` are not links, except the base folder the
+    receipt recorded; and nothing leaves the target by a link."""
     parts = rel.split("/")
     if parts[0] in bases:
         link = _first_link(Path(bases[parts[0]]), parts[1:-1])
     else:
         if not Path(os.path.realpath(root.joinpath(*parts[:-1]) if len(parts) > 1 else root)).is_relative_to(root):
-            raise InstallError(f"o caminho do recibo de posse sai do alvo por um link simbólico: {rel!r}")
+            return f"o caminho do recibo de posse sai do alvo por um link simbólico: {rel!r}"
         link = _first_link(root, parts[:-1])
-    if link is not None:
-        raise InstallError(f"o recibo de posse passa por um link ({link}) que o install nunca cria: {rel!r}")
+    return None if link is None else f"o recibo de posse passa por um link ({link}) que o install nunca cria: {rel!r}"
 
 
-def _load_receipt(root: Path) -> dict[str, Any]:
+def _load_receipt(root: Path, *, strict_links: bool = True) -> dict[str, Any]:
     """The receipt of `root`, fully checked: the owner and schema, every path against the registry, the recorded base links against
-    the live ones, no link where the install creates folders. InstallError (NoReceipt when there is none) before anything is touched."""
+    the live ones. InstallError (NoReceipt when there is none) before anything is touched.
+
+    A path whose folders above it are now a link (the user moved `~/.config/opencode` into a dotfiles repository after the install) is
+    `unsafe`: with `strict_links` the whole receipt is refused; without it, the path is only set aside (`receipt["unsafe"]`, path ->
+    reason) so that the others stay ours. Nothing is ever touched through it either way."""
     receipt = _parse_receipt(_read_receipt(root))
     _confirm_bases(root, receipt["bases"])
+    unsafe: dict[str, str] = {}
     for rel in [*receipt["files"], *receipt["dirs"]]:
-        _check_inside(root, receipt["bases"], rel)
+        problem = _inside_problem(root, receipt["bases"], rel)
+        if problem is not None:
+            if strict_links:
+                raise InstallError(problem)
+            unsafe[rel] = problem
+    receipt["unsafe"] = unsafe
     return receipt
 
 
@@ -400,14 +415,29 @@ def _previous_receipt(root: Path) -> dict[str, Any]:
     """What an earlier install registered, so a second host installed later does not drop the first one's files.
 
     Everything it lists passes the same checks as the uninstall's. A receipt that does not (planted in a cloned repository, edited,
-    from another owner or schema) is NOT inherited: it is ignored with a warning and this install writes a new one."""
+    from another owner or schema) is NOT inherited: it is ignored with a warning and this install writes a new one. A single path whose
+    folders became a link is dropped, with a warning, and the others stay."""
     empty: dict[str, Any] = {"files": {}, "dirs": [], "bases": {}, "warnings": []}
     try:
-        return {**_load_receipt(root), "warnings": []}
+        receipt = _load_receipt(root, strict_links=False)
     except NoReceipt:
         return empty
     except InstallError as exc:
         return {**empty, "warnings": [f"o recibo de posse anterior foi ignorado e será regravado: {exc}"]}
+    unsafe = receipt.pop("unsafe")
+    receipt["files"] = {rel: digest for rel, digest in receipt["files"].items() if rel not in unsafe}
+    receipt["dirs"] = [rel for rel in receipt["dirs"] if rel not in unsafe]
+    receipt["warnings"] = sorted({_folder_of(rel) + ": um link no caminho; esses arquivos saíram do recibo e não foram tocados"
+                                  for rel in unsafe})
+    return receipt
+
+
+def _folder_of(rel: str) -> str:
+    """The skills root a path of the receipt lives under (`.config/opencode/skills`), else the path itself."""
+    for dest in GLOBAL_ROOTS:
+        if rel.startswith(dest + "/"):
+            return dest
+    return rel
 
 
 # --- plan ---------------------------------------------------------------------------------------------------------------------
@@ -425,10 +455,12 @@ def plan_install(
     hosts = list(HOSTS) if host == "all" else [host]
     root = Path(target).resolve()
     actions = []
-    for item in hosts:
-        layout = {SKILLS_DEST: "skills"} if globally else HOST_LAYOUT[item]
-        for dest, kind in layout.items():
-            actions.append({"host": item, "kind": kind, "destination": dest, "owner": OWNER})
+    if globally:  # the skills in all the 11 folders of the loop, whatever `--host` says (it is ignored, as in the loop)
+        actions = [{"host": key, "kind": "skills", "destination": dest, "owner": OWNER} for key, dest in HOST_SKILL_ROOTS.items()]
+    else:
+        for item in hosts:
+            for dest, kind in HOST_LAYOUT[item].items():
+                actions.append({"host": item, "kind": kind, "destination": dest, "owner": OWNER})
     plan = {
         "schema": SCHEMA,
         "version": version,
@@ -461,17 +493,24 @@ def _unique_actions(plan: Mapping[str, Any]) -> list:
     return out
 
 
-def _resolve_bases(root: Path, actions: list, skill_files: list) -> dict[str, str]:
-    """Before anything is written: the folders the install creates must not be links (InstallRefused), and a host base folder that is
-    one (`~/.claude` into a dotfiles repository) is resolved ONCE here; the install operates on that real path and records it."""
+def _resolve_bases(root: Path, actions: list, skill_files: list) -> tuple[dict[str, str], dict[str, str]]:
+    """Before anything is written: the folders the install creates must not be links, and a host base folder that is one (`~/.claude`
+    into a dotfiles repository) is resolved ONCE here; the install operates on that real path and records it. Returns
+    `(bases, skipped)`.
+
+    A link in the PRIMARY destination (`.claude/skills`) or in an entry file's folders refuses the whole install (InstallRefused, nothing
+    written). In one of the other 10 skill folders of `--global` it only skips that folder (`skipped`: destination -> reason): a symlinked
+    `~/.config/opencode` must not stop the install into `~/.claude/skills`."""
     bases: dict[str, str] = {}
+    skipped: dict[str, str] = {}
     receipt_dir = root / RECEIPT.parent
     if is_link(receipt_dir):
         raise InstallRefused(f"{RECEIPT.parent.as_posix()} é um link ({os.path.realpath(receipt_dir)}): o install cria essa pasta e não "
                              "escreve por dentro de link; apague o link ou use outro --target. Nada foi escrito.")
     for action in actions:
-        dest = action["destination"].split("/")
-        if action["kind"] == "skills":  # every component of `.claude/skills` and of the folders inside the skills is created by us
+        destination = action["destination"]
+        dest = destination.split("/")
+        if action["kind"] == "skills":  # every component of the root and of the folders inside the skills is created by us
             folders, below = dest[1:], [tuple(parts[:-1]) for parts, _node in skill_files]
         else:  # an entry file: the folders above it; the file itself (a link to CLAUDE.md, say) is the user's and `_kind` leaves it alone
             folders, below = dest[1:-1], [()]
@@ -479,22 +518,29 @@ def _resolve_bases(root: Path, actions: list, skill_files: list) -> dict[str, st
                 continue
         base = dest[0]
         base_dir = root / base
-        real_base = base_dir
+        real_base, new_base, problem = base_dir, None, None
         if is_link(base_dir):
             real = Path(os.path.realpath(base_dir))
-            if not hostos.is_dir(real):
-                raise InstallRefused(f"{base} é um link que não leva a uma pasta ({real}): conserte o link ou use outro --target. "
-                                     "Nada foi escrito.")
-            bases[base] = str(real)
-            real_base = real
+            if hostos.is_dir(real):
+                new_base, real_base = str(real), real
+            else:
+                problem = f"{base} é um link que não leva a uma pasta ({real}): conserte o link ou use outro --target"
         for extra in below:
+            if problem is not None:
+                break
             link = _first_link(real_base, [*folders, *extra])
             if link is not None:
                 shown = link.relative_to(real_base).as_posix() if link.is_relative_to(real_base) else str(link)
-                raise InstallRefused(f"{base}/{shown} é um link: o install cria essa pasta e não escreve por dentro de link "
-                                     "(o uninstall não saberia depois onde os arquivos foram parar); apague o link ou use outro "
-                                     "--target. Nada foi escrito.")
-    return bases
+                problem = (f"{base}/{shown} é um link: o install cria essa pasta e não escreve por dentro de link (o uninstall não "
+                           "saberia depois onde os arquivos foram parar); apague o link ou use outro --target")
+        if problem is None:
+            if new_base is not None:
+                bases[base] = new_base
+        elif destination == SKILLS_DEST or action["kind"] != "skills":
+            raise InstallRefused(f"{problem}. Nada foi escrito.")
+        else:
+            skipped[destination] = problem
+    return bases, skipped
 
 
 class _Run:
@@ -579,6 +625,7 @@ class _Run:
         self.put(rel, body)
 
     def skills(self, dest: str, skill_files: list) -> None:
+        """The skills into one skill folder: create what is missing, update ours, leave alone the rest, delete nothing."""
         dest_parts = dest.split("/")
         top = set()
         for parts, node in skill_files:
@@ -593,7 +640,7 @@ class _Run:
                 rel = "/".join((*dest_parts, name, *parts))
                 if rel not in self.decided and rel not in self.previous["files"]:
                     self.leave(rel)
-        if hostos.is_dir(folder):
+        if dest == SKILLS_DEST and hostos.is_dir(folder):  # the user's other skills; in the other hosts' folders they are none of our business
             try:
                 children = sorted(os.listdir(folder))
             except OSError:
@@ -677,7 +724,7 @@ def apply_plan(
     actions = _unique_actions(plan)
     if _kind(root / RECEIPT) == "other":
         raise InstallError(f"{root / RECEIPT} existe e não é um arquivo comum; apague-o à mão (ou aponte outro --target) e rode de novo")
-    bases = _resolve_bases(root, actions, skill_files)
+    bases, skipped = _resolve_bases(root, actions, skill_files)
     receipt_dir_new = not os.path.lexists(root / RECEIPT.parent)
     with _locked(root, dry_run):
         previous = _previous_receipt(root)  # read AFTER the lock: the receipt another install just wrote is the one to extend
@@ -685,7 +732,9 @@ def apply_plan(
         failure: OSError | None = None
         try:
             for action in actions:
-                if action["kind"] == "entry":
+                if action["destination"] in skipped:
+                    run.leave(action["destination"])
+                elif action["kind"] == "entry":
                     run.entry(action["destination"], _entry_body(action["host"]))
                 else:
                     run.skills(action["destination"], skill_files)
@@ -712,7 +761,7 @@ def apply_plan(
         "owned": sorted(run.owned),
         "ownership": ownership,
         "digest": plan["digest"],
-        "warnings": list(previous["warnings"]),
+        "warnings": [*previous["warnings"], *(f"{dest}: pulada, {why}" for dest, why in skipped.items())],
     }
 
 
@@ -728,7 +777,7 @@ def _remove_owned(root: Path, *, dry_run: bool, protect: tuple = ()) -> dict[str
     """Remove the files the receipt registers that still have the sha256 they were written with, then the registered folders that
     are empty by then. A file the user edited is `left_alone` (with a warning), a folder where a file was registered is `skipped`, a
     folder that holds anything not registered is `kept`. `protect`: real folders whose files are never removed (the global install)."""
-    _load_receipt(root)  # refuses a receipt that cannot be trusted BEFORE the lock creates anything
+    _load_receipt(root, strict_links=False)  # refuses a receipt that cannot be trusted BEFORE the lock creates anything
     fences = [os.path.realpath(item) for item in protect]
     removed: list[str] = []
     left_alone: list[str] = []
@@ -738,11 +787,14 @@ def _remove_owned(root: Path, *, dry_run: bool, protect: tuple = ()) -> dict[str
     removed_dirs: list[str] = []
     kept: list[str] = []
     with _locked(root, dry_run):
-        receipt = _load_receipt(root)  # again, now that no other install can change it
-        files, dirs, bases = receipt["files"], receipt["dirs"], receipt["bases"]
+        receipt = _load_receipt(root, strict_links=False)  # again, now that no other install can change it
+        files, dirs, bases, unsafe = receipt["files"], receipt["dirs"], receipt["bases"], receipt["unsafe"]
         for rel in sorted(files):
             path = _phys(root, rel, bases)
-            if _protected(path, fences):
+            if rel in unsafe:  # a link above it now: never touched through it
+                left_alone.append(rel)
+                warnings.append(f"{_folder_of(rel)}: virou um link depois do install; {rel} ficou como está")
+            elif _protected(path, fences):
                 left_alone.append(rel)
                 warnings.append(f"{rel}: é a instalação global; não removi")
             elif is_link(path):  # a registered file that became a link is the user's now, whatever it points at
@@ -761,7 +813,7 @@ def _remove_owned(root: Path, *, dry_run: bool, protect: tuple = ()) -> dict[str
             removed.append(RECEIPT_REL)
         for rel in sorted(set(dirs), key=lambda item: item.count("/"), reverse=True):
             path = _phys(root, rel, bases)
-            if is_link(path) or not hostos.is_dir(path):  # a link is the user's, whatever it points at
+            if rel in unsafe or is_link(path) or not hostos.is_dir(path):  # a link is the user's, whatever it points at
                 continue
             try:
                 children = [f"{rel}/{name}" for name in os.listdir(path)]
@@ -842,18 +894,29 @@ def verify_install(plan: Mapping[str, Any], *, bundle: Any = None, expected_vers
     def problem(path: str, code: str, detail: str) -> None:
         problems.append({"path": path, "problem": code, "detail": detail})
 
-    receipt: dict[str, Any] = {"files": {}, "dirs": [], "bases": {}}
+    receipt: dict[str, Any] = {"files": {}, "dirs": [], "bases": {}, "unsafe": {}}
     try:
-        receipt = _load_receipt(root)
+        receipt = _load_receipt(root, strict_links=False)
     except NoReceipt:
         problem(RECEIPT_REL, "no_receipt", "sem recibo de posse (rode `simplicio-video install`): o uninstall não saberia o que remover")
     except InstallError as exc:
         problem(RECEIPT_REL, "bad_receipt", str(exc))
-    files, bases = receipt["files"], receipt["bases"]
+    files, bases, unsafe = receipt["files"], receipt["bases"], receipt["unsafe"]
     checked: set[str] = set()
     skills_src = source.joinpath("skills")
     skill_files = list(iter_files(skills_src)) if skills_src.is_dir() else []
-    for action in _unique_actions(plan):
+    actions = _unique_actions(plan)
+    try:  # the folders the install skips (a symlinked `~/.config/opencode`) are not expected to hold the skills
+        skipped = _resolve_bases(root, actions, skill_files)[1]
+    except InstallRefused as exc:
+        problem(SKILLS_DEST, "not_a_file", str(exc))
+        skipped = {}
+    for rel, why in sorted(unsafe.items()):
+        if rel in files:
+            problem(rel, "not_a_file", why)
+    for action in actions:
+        if action["destination"] in skipped:
+            continue
         if action["kind"] == "entry":
             rel = action["destination"]
             if rel not in files and not os.path.lexists(_phys(root, rel, bases)):
@@ -862,6 +925,8 @@ def verify_install(plan: Mapping[str, Any], *, bundle: Any = None, expected_vers
         for parts, node in skill_files:
             rel = "/".join((*action["destination"].split("/"), *parts))
             checked.add(rel)
+            if rel in unsafe:
+                continue
             path = _phys(root, rel, bases)
             kind = _kind(path)
             if kind == "missing":
@@ -880,7 +945,7 @@ def verify_install(plan: Mapping[str, Any], *, bundle: Any = None, expected_vers
                     problem(rel, "foreign", "já existia, difere do pacote e não é do simplicio-video (o install o deixa em paz); "
                             "apague-o ou renomeie e rode `simplicio-video install`")
     for rel, recorded in sorted(files.items()):
-        if rel in checked:
+        if rel in checked or rel in unsafe:
             continue
         path = _phys(root, rel, bases)
         kind = _kind(path)

@@ -38,7 +38,7 @@
     },
     "up_to_date": {
       "type": "boolean",
-      "description": "Nada a criar nem atualizar no alvo."
+      "description": "Nada a criar nem atualizar, em nenhuma das pastas do alvo (com `--global`, as 11)."
     },
     "changes": {
       "type": "object",
@@ -74,7 +74,7 @@
           "items": {
             "type": "string"
           },
-          "description": "O que existe no alvo e não é do simplicio-video: outras skills, um AGENTS.md seu, uma SKILL.md que já existia (ou que você editou depois do install), um arquivo seu dentro da pasta da skill, um link simbólico: intacto."
+          "description": "O que existe no alvo e não é do simplicio-video: outras skills, um AGENTS.md seu, uma SKILL.md que já existia (inclusive a de outro host) ou que você editou depois do install, um arquivo seu dentro da pasta da skill, um link simbólico, uma pasta secundária de `--global` que é link: intacto."
         }
       }
     },
@@ -117,7 +117,7 @@
             "type": "string",
             "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))[^\\u0000]+$"
           },
-          "description": "Os arquivos que o install escreveu (ou achou idênticos e já eram dele), relativos ao alvo e com `/`. O uninstall e o prune só removem os que o registro de hosts consegue produzir (as pastas das skills, os arquivos de entrada dos hosts e o próprio recibo) e que ainda têm o sha256 gravado em `sha256`."
+          "description": "Os arquivos que o install escreveu (ou achou idênticos e já eram dele), relativos ao alvo e com `/`: as skills nas pastas dos hosts (`.claude/skills`, e com `--global` também `.codex/skills`, `.cursor/skills` e as outras 9 do loop), os arquivos de entrada dos hosts e nada mais. O uninstall e o prune só removem os que o registro de hosts consegue produzir e que ainda têm o sha256 gravado em `sha256`."
         },
         "dirs": {
           "type": "array",
@@ -142,16 +142,24 @@
           "type": "object",
           "propertyNames": {
             "enum": [
+              ".agents",
               ".claude",
+              ".codex",
+              ".config",
+              ".copilot",
+              ".cursor",
               ".github",
-              ".kiro"
+              ".grok",
+              ".kiro",
+              ".simplicio-loop",
+              ".vscode"
             ]
           },
           "additionalProperties": {
             "type": "string",
             "minLength": 1
           },
-          "description": "Só quando a pasta base de um host (`.claude`, `.github` ou `.kiro`) é um link (um repositório de dotfiles): o caminho real em que o install a resolveu e escreveu. O uninstall recusa se o link agora aponta para outro lugar."
+          "description": "Só quando a pasta base de um host (`.claude`, `.codex`, `.cursor`, `.config`, `.github`, `.kiro`...) é um link (um repositório de dotfiles): o caminho real em que o install a resolveu e escreveu. O uninstall recusa se o link agora aponta para outro lugar."
         }
       },
       "description": "O recibo de posse (o mesmo conteúdo de `.simplicio-video/install-ownership.json`)."
@@ -166,7 +174,7 @@
         "object",
         "null"
       ],
-      "description": "Só com `--global`: as cópias que os outros hosts já têm da skill (`~/.codex/skills`, `~/.cursor/skills`...) e que diferem do pacote. O install NÃO as atualiza nem apaga (não são do recibo; o loop as atualiza, este não, ADR-0020): `skills` e `skills_counts` só as nomeiam e `pending` é sempre 0. `null` sem `--global`. `rules` e `rules_counts` existem por contrato com o loop e ficam vazios: o simplicio-video não tem regras de host.",
+      "description": "Só com `--global`: o `install --global` põe a skill nas 11 pastas do `skill_sync` do loop (`~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`...). Aqui estão os OUTROS hosts (todos menos o `claude`) cuja cópia foi criada ou atualizada nesta execução, ou seria, no `--check` e no `--dry-run` (`pending`, como no loop). Só se cria o que falta e só se atualiza a cópia que é do recibo e que ninguém editou; a que já existia ou foi editada é `changes.left_alone`, e nada é apagado. `null` sem `--global`. `rules` e `rules_counts` existem por contrato com o loop e ficam vazios: o simplicio-video não tem regras de host.",
       "required": [
         "skills",
         "rules",
@@ -182,7 +190,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Os hosts cujas cópias diferem do pacote (e foram deixadas em paz)."
+          "description": "Os hosts (além do `claude`) cuja cópia foi criada ou atualizada nesta execução (ou seria, no --check/--dry-run)."
         },
         "rules": {
           "type": "array",
@@ -195,7 +203,8 @@
           "additionalProperties": {
             "type": "integer",
             "minimum": 0
-          }
+          },
+          "description": "Quantas skills (pares host e skill) foram criadas ou atualizadas em cada host."
         },
         "rules_counts": {
           "type": "object",
@@ -226,7 +235,7 @@
         "pending": {
           "type": "integer",
           "minimum": 0,
-          "description": "Sempre 0: nada aqui muda, então nada mantém o --check fora de \"em dia\"."
+          "description": "Quantas cópias o --check/--dry-run viu pendentes (e não tocou); 0 depois de um install de verdade, como no loop."
         }
       }
     },

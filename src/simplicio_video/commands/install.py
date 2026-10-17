@@ -50,17 +50,23 @@ def _fail(message: str, code: int, as_json: bool, host: str) -> int:
     return code
 
 
-def _foreign_copies(root: Path, source) -> dict:
-    """The skills that OTHER hosts already have (`~/.codex/skills`...) and that differ from the package. They are not in the receipt,
-    so they are not ours to overwrite: this only names them (the loop refreshes them; ADR-0020 says why this does not).
+def _resynced(result: dict, applied: bool) -> dict:
+    """The loop's `resynced` for `--global`: the other hosts whose copy of a skill was installed or updated by this run (or, in a
+    `--check` or `--dry-run`, would be: `pending`). Counts are (host, skill) pairs, `pending` is 0 once it was applied, as in the loop.
 
-    The keys are the loop's (`skills`, `rules`, `skills_counts`, `rules_counts`, `errors`, `pending`); `rules` is always empty (the
-    video has no host rules) and `pending` is always 0: nothing here changes, so nothing here keeps `--check` from saying "up to date"."""
-    counts: dict[str, int] = {}
-    for entry in skill_sync.stale_skills(root, source=source):
-        if entry["host"] != "claude":  # `~/.claude/skills` is where the install itself writes: it is judged there, not here
-            counts[entry["host"]] = counts.get(entry["host"], 0) + 1
-    return {"skills": sorted(counts), "rules": [], "skills_counts": counts, "rules_counts": {}, "errors": [], "pending": 0}
+    `rules` and `rules_counts` are the loop's keys and stay empty (the video has no host rules). `errors` is always empty: an OSError of
+    one folder fails the install with its message, as it does for `~/.claude`. A copy the install does not own (it was there before, or
+    the user edited it) is not here: it is `left_alone`, in `changes`."""
+    pairs: dict[str, set] = {}
+    for rel in [*result["changes"]["created"], *result["changes"]["updated"]]:
+        for host, dest in skill_sync.HOST_SKILL_ROOTS.items():
+            parts = rel.split("/")
+            root = dest.split("/")
+            if host != "claude" and parts[:len(root)] == root and len(parts) > len(root):
+                pairs.setdefault(host, set()).add(parts[len(root)])
+    counts = {host: len(skills) for host, skills in pairs.items()}
+    return {"skills": sorted(counts), "rules": [], "skills_counts": counts, "rules_counts": {}, "errors": [],
+            "pending": 0 if applied else sum(counts.values())}
 
 
 def _cut_list(prefix: str, items: list) -> str:
@@ -81,7 +87,7 @@ def _blocked(left_alone: list, skills_dir) -> list:
     """The files the install WANTED to write and found something else in the way (a customized SKILL.md that was already there):
     only for these is "delete the folder and install again" the way to hand the folder over. A note of the user inside the folder is
     left alone too, and must never be advice to delete."""
-    wanted = {"/".join((installer.SKILLS_DEST, *parts)) for parts, _node in installer.iter_files(skills_dir)}
+    wanted = {"/".join((dest, *parts)) for dest in installer.GLOBAL_ROOTS for parts, _node in installer.iter_files(skills_dir)}
     return [rel for rel in left_alone if rel in wanted]
 
 
@@ -105,8 +111,10 @@ def _install_lines(result: dict, host: str, head: str, resync: Optional[dict], p
     if resync is not None and resync["skills"]:
         counts = resync.get("skills_counts") or {}
         names = ", ".join(f"{h} ({counts[h]})" for h in sorted(counts)) if counts else ", ".join(resync["skills"])
-        lines.append("  cópias de outros hosts diferentes do pacote (não são do recibo: deixadas em paz, o install não as atualiza "
-                     f"nem apaga) -> skills: {names}")
+        verb = ("cópias dos outros hosts desatualizadas ou a instalar (pendentes)" if pretend
+                else "cópias dos outros hosts instaladas ou atualizadas")
+        lines.append(f"  {verb}:")
+        lines.append(f"    skills -> {names}")
     if prune_project is not None:
         removed = prune_project.get("removed") or []
         if removed:
@@ -140,8 +148,8 @@ def _uninstall(root: Path, globally: bool, dry_run: bool, as_json: bool, host: s
     for warning in payload["warnings"]:
         hostos.say(f"  aviso: {warning}")
     if globally:
-        hostos.say("  não removido (fora do recibo): as cópias das skills simplicio-video* que outros hosts já tinham "
-                   "(~/.codex/skills e semelhantes); o install nunca as tocou, apague à mão")
+        hostos.say("  não removido (fora do recibo): a cópia da skill que um host já tinha antes do install, ou que você editou "
+                   "(~/.codex/skills e semelhantes); o install nunca a tocou, apague à mão se quiser")
     return 0
 
 
@@ -211,10 +219,10 @@ def install(target: Path, globally: bool, host: str = "claude", dry_run: bool = 
                 hostos.say("\n".join(_verify_lines(verified, host)))
             return 0 if verified["ok"] else 1
         result = installer.apply_plan(plan, dry_run=dry_run or check, bundle=bundle)
-        resync = _foreign_copies(root, bundle.joinpath("skills")) if globally else None
+        resync = _resynced(result, applied=not (dry_run or check)) if globally else None
         prune_result = None
         if globally and prune_project_copies:
-            protect = [root / installer.SKILLS_DEST / name for name in installer.SKILLS]  # the global install itself, even by a link
+            protect = [root / dest / name for dest in installer.GLOBAL_ROOTS for name in installer.SKILLS]  # the global install itself
             prune_result = installer.prune_project_copies(target, dry_run=dry_run or check, protect=protect)
     except installer.InstallRefused as exc:
         return _fail(str(exc), EXIT_USAGE, as_json, host)

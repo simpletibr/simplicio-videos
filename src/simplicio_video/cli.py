@@ -333,9 +333,12 @@ def build_parser() -> argparse.ArgumentParser:
                     ".simplicio-video/install-ownership.json, como o `install` do simplicio-loop. Por padrão instala no projeto (--target, padrão: a\n"
                     "pasta atual) em .claude/skills/ e, para o host que precisa, no arquivo de entrada dele (AGENTS.md, GEMINI.md, CONVENTIONS.md,\n"
                     ".github/copilot-instructions.md ou .kiro/steering/simplicio-video.md). Um arquivo de entrada que já existe não recebe\n"
-                    "apontador: fica como está. Com --global instala só em ~/.claude/skills (o home): com --global o --host é ignorado (o loop\n"
-                    "faz o mesmo) e as cópias que outros hosts já têm (~/.codex/skills, ~/.cursor/skills...) são apenas listadas: o install não as\n"
-                    "atualiza nem apaga.\n"
+                    "apontador: fica como está. Com --global instala nas 11 pastas de skills do loop sob o home (~/.claude/skills, ~/.codex/skills,\n"
+                    "~/.cursor/skills, ~/.grok/skills, ~/.agents/skills, ~/.copilot/skills, ~/.vscode/simplicio-skills, ~/.config/opencode/skills,\n"
+                    "~/.config/amp/skills, ~/.kiro/steering e ~/.simplicio-loop/skills); com --global o --host é ignorado (o loop faz o mesmo). Em cada\n"
+                    "pasta o install cria o que falta (entra no recibo com o sha256), atualiza só a cópia que é dele e que ninguém editou, deixa em\n"
+                    "paz o que já existia ou que você editou e nunca apaga um arquivo extra seu; uma pasta secundária que é link é pulada, e\n"
+                    "~/.claude/skills que é link recusa tudo.\n"
                     "Hosts (--host, padrão claude; all = todos): claude, codex, cursor, vscode, grok, kiro, antigravity, opencode, gemini, aider,\n"
                     "simplicio_agent, openclaw. O simplicio-video não tem hooks: só skills.\n"
                     "O install nunca sobrescreve nem apaga o que não é dele: outras skills, o seu AGENTS.md, uma SKILL.md que já existia ou que\n"
@@ -359,7 +362,7 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video install --global --prune-project-copies --target ~/meu-projeto\n  simplicio-video install --verify\n"
                "  simplicio-video install --uninstall --dry-run")
     p.add_argument("--target", default=".", metavar="DIR", help="pasta do projeto onde instalar (padrão: a pasta atual)")
-    p.add_argument("--global", dest="globally", action="store_true", help="instala em ~/.claude/skills (o home) em vez do projeto")
+    p.add_argument("--global", dest="globally", action="store_true", help="instala nas 11 pastas de skills sob o home (~/.claude/skills, ~/.codex/skills...) em vez do projeto")
     p.add_argument("--host", default="claude", metavar="HOST", help="id do host ou all (padrão: claude); com --global é ignorado")
     p.add_argument("--dry-run", action="store_true", help="mostra o plano e não escreve nada; sai com 0")
     p.add_argument("--check", action="store_true", help="não escreve nada; sai com 0 se está em dia e com 10 se há mudança pendente")
