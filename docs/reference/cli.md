@@ -852,8 +852,9 @@ exemplos:
 usage: simplicio-video update [-h] [--check] [--dry-run] [--force]
 
 Segue o `update` do simplicio-loop. Num pacote instalado por pip: python -m pip install --upgrade "simplicio-video==<última
-release>" (PyPI; a última release vem do GitHub Releases) e, depois, `simplicio-video install --global`, que reinstala as skills
-em ~/.claude/skills sem apagar nada que não seja do recibo. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas
+release>" (PyPI; a última release vem do GitHub Releases) e, depois, `simplicio-video install --global`, que instala ou atualiza
+as skills nas 11 pastas de hosts sob o home (~/.claude/skills, ~/.codex/skills, ...) e cria as que faltam, mas só atualiza o
+arquivo que o recibo registra e que você não editou, e nunca apaga nada. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas
 possíveis, e um Python sem pip (um `uv tool install`) também (exit 2): use `uv tool upgrade simplicio-video` ou `pipx upgrade`.
 Num checkout git ou instalação editável o update RECUSA e sai com 2: o que atualiza é, dentro do checkout, `git pull` e
 `bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`; o Windows de

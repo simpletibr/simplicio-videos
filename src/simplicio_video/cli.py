@@ -376,8 +376,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("update", formatter_class=Fmt, help="atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar",
         description="Segue o `update` do simplicio-loop. Num pacote instalado por pip: python -m pip install --upgrade \"simplicio-video==<última\n"
-                    "release>\" (PyPI; a última release vem do GitHub Releases) e, depois, `simplicio-video install --global`, que reinstala as skills\n"
-                    "em ~/.claude/skills sem apagar nada que não seja do recibo. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas\n"
+                    "release>\" (PyPI; a última release vem do GitHub Releases) e, depois, `simplicio-video install --global`, que instala ou atualiza\n"
+                    "as skills nas 11 pastas de hosts sob o home (~/.claude/skills, ~/.codex/skills, ...) e cria as que faltam, mas só atualiza o\n"
+                    "arquivo que o recibo registra e que você não editou, e nunca apaga nada. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas\n"
                     "possíveis, e um Python sem pip (um `uv tool install`) também (exit 2): use `uv tool upgrade simplicio-video` ou `pipx upgrade`.\n"
                     "Num checkout git ou instalação editável o update RECUSA e sai com 2: o que atualiza é, dentro do checkout, `git pull` e\n"
                     "`bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`; o Windows de\n"

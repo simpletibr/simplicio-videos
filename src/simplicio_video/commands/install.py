@@ -129,8 +129,31 @@ def _install_lines(result: dict, host: str, head: str, resync: Optional[dict], p
     return lines
 
 
+def _home_problem(home: Path) -> str:
+    """Why `home` cannot be the base of a global install, or "". `hostos.home_dir` hands back `~` when nothing resolves a home, and a
+    relative `~` would become a folder with that name in the current directory; `/` would plant 11 folders at the root of the disk."""
+    if not home.is_absolute():
+        return (f"não achei o seu home (HOME/USERPROFILE ausente ou relativo: `{home}`); defina HOME com o caminho absoluto da sua "
+                "pasta de usuário, ou instale num projeto com --target. Nada foi escrito.")
+    if home.parent == home:
+        return f"o home resolvido é a raiz do disco (`{home}`); defina HOME com a sua pasta de usuário. Nada foi escrito."
+    if not home.is_dir():
+        return f"o home resolvido (HOME/USERPROFILE: `{home}`) não é uma pasta que existe; corrija o HOME. Nada foi escrito."
+    return ""
+
+
+def _protect_global(home: Path, target: Path) -> list:
+    """The folders of the global install, as the real paths a PROJECT uninstall must never remove from: a cloned repository whose
+    `.claude` is a link to `~/.claude`, with a receipt that records that real folder as its base, must not take the global install away.
+    Empty when the home cannot be trusted or the project IS the home (then the uninstall is the global one)."""
+    if _home_problem(home) or os.path.realpath(target) == os.path.realpath(home):
+        return []
+    return [home / dest / name for dest in installer.GLOBAL_ROOTS for name in installer.SKILLS]
+
+
 def _uninstall(root: Path, globally: bool, dry_run: bool, as_json: bool, host: str) -> int:
-    payload = installer.uninstall(root, dry_run=dry_run)
+    protect = [] if globally else _protect_global(hostos.home_dir(os.environ), root)
+    payload = installer.uninstall(root, dry_run=dry_run, protect=protect)
     if as_json:
         hostos.say(json.dumps({**payload, "host": host, "version": __version__}, sort_keys=True))
         return 0
@@ -202,6 +225,9 @@ def install(target: Path, globally: bool, host: str = "claude", dry_run: bool = 
         return _fail("--prune-project-copies só vale com --global (ele remove as cópias do projeto depois de instalar no home)",
                      EXIT_USAGE, as_json, host)
     root = hostos.home_dir(os.environ) if globally else Path(target)
+    problem = _home_problem(root) if globally else ""
+    if problem:
+        return _fail(problem, EXIT_USAGE, as_json, host)
     if prune_project_copies and os.path.realpath(target) == os.path.realpath(root):
         return _fail(f"--prune-project-copies: o alvo é o próprio home ({root}), e podar as cópias do projeto apagaria a instalação "
                      "global que acabou de ser feita; rode de dentro do projeto ou passe --target <o projeto>", EXIT_USAGE, as_json, host)

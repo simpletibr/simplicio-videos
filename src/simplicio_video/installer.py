@@ -89,7 +89,13 @@ class InstallError(RuntimeError):
 
 
 class InstallRefused(InstallError):
-    """A folder the install creates is a link (or the base folder is a broken one): nothing was written; the command says exit 2."""
+    """A folder the install creates is a link (or the base folder is a broken one): nothing was written; the command says exit 2.
+
+    `detail` is the reason without the closing sentence (the `--verify` writes nothing, ever, and does not say so), `path` the folder."""
+
+    def __init__(self, detail: str, path: str = "") -> None:
+        super().__init__(f"{detail}. Nada foi escrito.")
+        self.detail, self.path = detail, path
 
 
 class NoReceipt(InstallError):
@@ -237,11 +243,14 @@ def same_bytes(path: Path, data: bytes) -> bool:
 
 
 def sha256_of(path: Path) -> str | None:
-    """The sha256 of the bytes of the REGULAR file `path` (read with a cap), or None when it cannot be read as one."""
+    """The sha256 of the bytes of the REGULAR file `path`, or None when it cannot be read as one. `read_regular` hands back at most
+    `MAX_FILE_BYTES + 1` bytes: a file over the cap has no digest (the digest of its first bytes would be one a planted receipt could
+    carry for a victim's huge file), so it is never "ours"."""
     try:
-        return hashlib.sha256(hostos.read_regular(path, MAX_FILE_BYTES)).hexdigest()
+        data = hostos.read_regular(path, MAX_FILE_BYTES)
     except (OSError, ValueError):
         return None
+    return None if len(data) > MAX_FILE_BYTES else hashlib.sha256(data).hexdigest()
 
 
 def _sha(data: bytes) -> str:
@@ -325,6 +334,8 @@ def _check_rel(rel: Any, *, directory: bool) -> str:
 
 def _read_receipt(root: Path) -> dict[str, Any]:
     marker = root / RECEIPT
+    if is_link(marker):  # a repository could point it at the receipt of the victim's own home
+        raise InstallError(f"o recibo de posse é um link ({marker}): recuso lê-lo; apague o link e rode `simplicio-video install` de novo")
     try:
         raw = hostos.read_regular(marker, MAX_RECEIPT_BYTES)
     except (FileNotFoundError, NotADirectoryError):
@@ -351,12 +362,16 @@ def _parse_receipt(payload: dict[str, Any]) -> dict[str, Any]:
     """`{"files": {rel: sha256 | None}, "dirs": [...], "bases": {...}}`, or InstallError when anything is not what the registry can
     produce. A file without a digest is kept as None: it is listed, and never deleted."""
     digests = payload.get("sha256")
-    if digests is not None and not isinstance(digests, dict):
+    if digests is None:
+        raise InstallError("o recibo de posse é de uma versão sem `sha256` (ou foi adulterado): sem o digest de cada arquivo eu não sei o que "
+                           "ainda é meu, então recuso apagar; apague à mão os arquivos do simplicio-video que ele lista e o recibo, e rode "
+                           "`simplicio-video install` de novo")
+    if not isinstance(digests, dict):
         raise InstallError("o recibo de posse está malformado: `sha256` deve ser um objeto")
     files: dict[str, str | None] = {}
     for rel in _listed(payload, "paths"):
         _check_rel(rel, directory=False)
-        value = (digests or {}).get(rel)
+        value = digests.get(rel)
         files[rel] = value if isinstance(value, str) and _HEX.fullmatch(value) else None
     dirs = [_check_rel(rel, directory=True) for rel in _listed(payload, "dirs")]
     raw = payload.get("bases", {})
@@ -506,7 +521,7 @@ def _resolve_bases(root: Path, actions: list, skill_files: list) -> tuple[dict[s
     receipt_dir = root / RECEIPT.parent
     if is_link(receipt_dir):
         raise InstallRefused(f"{RECEIPT.parent.as_posix()} é um link ({os.path.realpath(receipt_dir)}): o install cria essa pasta e não "
-                             "escreve por dentro de link; apague o link ou use outro --target. Nada foi escrito.")
+                             "escreve por dentro de link; apague o link ou use outro --target", RECEIPT.parent.as_posix())
     for action in actions:
         destination = action["destination"]
         dest = destination.split("/")
@@ -537,7 +552,7 @@ def _resolve_bases(root: Path, actions: list, skill_files: list) -> tuple[dict[s
             if new_base is not None:
                 bases[base] = new_base
         elif destination == SKILLS_DEST or action["kind"] != "skills":
-            raise InstallRefused(f"{problem}. Nada foi escrito.")
+            raise InstallRefused(problem, destination)
         else:
             skipped[destination] = problem
     return bases, skipped
@@ -650,10 +665,11 @@ class _Run:
                     self.leave("/".join((*dest_parts, child)))
 
     def carry_forward(self) -> None:
-        """What an earlier install owned and this run did not look at (the entry file of another host) stays in the receipt while it
-        still has the sha256 that was written. One the user edited, or deleted, is not ours any more and leaves the receipt."""
+        """What an earlier install owned and this run did not make ours again stays in the receipt while it still has the sha256 that was
+        written: the entry file of another host, and a file whose update FAILED (disk full, permission denied: the old file is still there,
+        intact, and still ours). One the user edited, or deleted, or turned into a link, is not ours any more and leaves the receipt."""
         for rel, digest in self.previous["files"].items():
-            if rel in self.decided or digest is None:
+            if rel in self.owned or digest is None:  # `owned` is what this run really wrote or found ours; a failed write is not in it
                 continue
             path = self.phys(rel)
             if _kind(path) == "file" and sha256_of(path) == digest:
@@ -796,12 +812,15 @@ def _remove_owned(root: Path, *, dry_run: bool, protect: tuple = ()) -> dict[str
                 warnings.append(f"{_folder_of(rel)}: virou um link depois do install; {rel} ficou como está")
             elif _protected(path, fences):
                 left_alone.append(rel)
-                warnings.append(f"{rel}: é a instalação global; não removi")
+                warnings.append(f"{rel}: é a instalação global (este recibo é de um projeto); não removi")
             elif is_link(path):  # a registered file that became a link is the user's now, whatever it points at
                 left_alone.append(rel)
                 warnings.append(f"{rel}: virou um link depois do install; deixei como está")
             elif hostos.is_file(path):
-                if files[rel] is not None and sha256_of(path) == files[rel]:
+                if files[rel] is None:
+                    left_alone.append(rel)
+                    warnings.append(f"{rel}: o recibo não tem o sha256 deste arquivo; deixei como está")
+                elif sha256_of(path) == files[rel]:
                     removed.append(rel)
                     gone.add(rel)
                 else:
@@ -847,11 +866,13 @@ def _remove_owned(root: Path, *, dry_run: bool, protect: tuple = ()) -> dict[str
     }
 
 
-def uninstall(target: str | Path, *, dry_run: bool = False) -> dict[str, Any]:
+def uninstall(target: str | Path, *, dry_run: bool = False, protect: tuple | list = ()) -> dict[str, Any]:
     """Remove what the receipt registers, with the digest it was written with; keep everything else (see `_remove_owned`).
     A receipt that names anything the registry cannot produce is refused whole, before anything is touched. `dry_run` returns the
-    same lists and touches nothing; then `removed` is what would go."""
-    return {"schema": SCHEMA, **_remove_owned(Path(target).resolve(), dry_run=dry_run)}
+    same lists and touches nothing; then `removed` is what would go. `protect`: real folders whose files are never removed. The command
+    gives a PROJECT uninstall the folders of the global install: a cloned repository whose `.claude` is a link to `~/.claude` and whose
+    receipt records that real path as its base must not be able to take the global install away."""
+    return {"schema": SCHEMA, **_remove_owned(Path(target).resolve(), dry_run=dry_run, protect=tuple(protect))}
 
 
 def prune_project_copies(target: str | Path, *, dry_run: bool = False, protect: tuple | list = ()) -> dict[str, Any]:
@@ -909,7 +930,7 @@ def verify_install(plan: Mapping[str, Any], *, bundle: Any = None, expected_vers
     try:  # the folders the install skips (a symlinked `~/.config/opencode`) are not expected to hold the skills
         skipped = _resolve_bases(root, actions, skill_files)[1]
     except InstallRefused as exc:
-        problem(SKILLS_DEST, "not_a_file", str(exc))
+        problem(exc.path or SKILLS_DEST, "not_a_file", exc.detail)
         skipped = {}
     for rel, why in sorted(unsafe.items()):
         if rel in files:
