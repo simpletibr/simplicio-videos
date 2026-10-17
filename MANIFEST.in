@@ -5,6 +5,7 @@ include CHANGELOG.md
 prune tests
 # setuptools adds README.md by itself, but the package readme is PYPI.md (README.md is the GitHub page, with example videos).
 exclude README.md
-# A dirty checkout (python -m build in a working tree) must not leak bytecode, not even from a data/ package-data glob.
-global-exclude *.py[cod]
-global-exclude __pycache__
+# `python -m build` builds the wheel from the extracted sdist and re-reads this file there, where the excluded files are
+# already gone: every `exclude` that finds nothing prints a warning. The sdist is final, so it does not carry the template.
+# Bytecode is excluded in pyproject.toml (exclude-package-data), not with global-exclude, which warns on every clean build.
+exclude MANIFEST.in

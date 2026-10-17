@@ -48,6 +48,10 @@ where = ["src"]
 [tool.setuptools.package-data]
 simplicio_video = ["engine/*", "data/**/*"]
 
+# The data/**/* glob would also pick up a .pyc that sits in data/ (sdist and wheel); this drops it without any build warning.
+[tool.setuptools.exclude-package-data]
+simplicio_video = ["**/__pycache__/*", "*.pyc", "*.pyo"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Sockets are blocked by default (pytest-socket); render/integration/ui tests are re-enabled in tests/conftest.py.
