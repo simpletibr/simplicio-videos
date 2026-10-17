@@ -16,7 +16,7 @@
     "games",
     "moda infantil"
   ],
-  "referencia": "clients/lothus-odontologia/video-01-dia-das-criancas (base visual); prospects gerados por simplicio-video prospect",
+  "referencia": "piloto de odontologia, Dia das Crianças 2026 (base visual)",
   "formato": {
     "aspect": "9:16",
     "width": 1080,
@@ -56,7 +56,7 @@
         "kinetic-words"
       ],
       "campos": [],
-      "fala": "{frase do setor (setores.json), sem preço, promoção ou fato}"
+      "fala": "{frase do setor, sem preço, promoção ou fato}"
     },
     {
       "id": "S4",
@@ -76,7 +76,7 @@
     }
   ],
   "voz": {
-    "tipo": "feminina, bem animada, energia alta, pt-BR (padrão v2 das prévias = voz da Lothus v02)",
+    "tipo": "feminina, bem animada, energia alta, pt-BR (padrão v2 das prévias = voz do piloto de odontologia v02)",
     "gemini_voz": "Laomedeia",
     "gemini_voz_alternativa": "Achernar",
     "estilo": "Voz feminina brasileira bem animada, de festa infantil: sorrindo, energia alta, vibrante e calorosa, ritmo rápido, português do Brasil, sem gritar e sem voz infantilizada."
@@ -137,6 +137,6 @@
       "s4-confetti",
       "s4-burst"
     ],
-    "_doc": "Mesma coreografia v2 da Lothus (128 BPM, cortes na batida, fx-transition, kinetic-words no tempo da fala, beat-burst). s2-main/s3-main: padrão escolhido pelo contrato ({{padrao:<bloco>}}): odontologia usa tooth-character/toothbrush-sparkle, os demais setores icon-mascot com o ícone do setor. Textos por setor em setores.json; base do contrato em contract.base.yaml."
+    "_doc": "Mesma coreografia v2 do piloto de odontologia (128 BPM, cortes na batida, fx-transition, kinetic-words no tempo da fala, beat-burst). s2-main/s3-main: padrão escolhido pelo contrato ({{padrao:<bloco>}}): odontologia usa tooth-character/toothbrush-sparkle, os demais setores icon-mascot com o ícone do setor. Textos por setor vêm do contrato."
   }
 }

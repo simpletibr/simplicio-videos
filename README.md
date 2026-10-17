@@ -229,10 +229,10 @@ Rendered examples only. Client facts (`coleta/`: briefs, sources, contacts, Driv
 gh repo clone simpletibr/simplicio-videos && cd simplicio-videos
 pip install -e .                      # `simplicio-video` command (Python >= 3.10); render needs Node >= 22 + ffmpeg
 simplicio-video --help                # flow: init -> validate -> voice -> render
-cd clients/lothus-odontologia/video-01-dia-das-criancas
+cd clients/<cliente>/<campanha>       # a client project with a contract.yaml
 simplicio-video validate contract.yaml
 simplicio-video voice contract.yaml   # provisional local voice (Kokoro) or --provider file|gemini|voxcpm|openvoice|voicestudio
-simplicio-video render contract.yaml  # out/lothus-dia-criancas.mp4 + render.manifest.json
+simplicio-video render contract.yaml  # out/<cliente>-<campanha>.mp4 + render.manifest.json
 simplicio-video render contract.yaml --backend colab   # bundle for colab/render.ipynb (GPU)
 ```
 

@@ -1,10 +1,10 @@
 <!doctype html>
 <!--
-  institucional-odontologia: Institutional dental preview (no seasonal date) for `simplicio-video prospect`: Lothus v02 pacing (128 BPM beat cuts, 6-10 frame
+  institucional-odontologia: Institutional dental video (no seasonal date): dental pilot v02 pacing (128 BPM beat cuts, 6-10 frame
   fx-transition, word-by-word kinetic text, tooth mascot + toothbrush), stars on beats WITHOUT confetti or balloons.
   Composed ONLY from motion library blocks (motion/patterns, copied to compositions/ by simplicio-video); params come from
   the contract (cenas[].motion[].params -> {{vars:<bloco>}}), scene times from cenas[].duracao_s, beat grid from trilha.bpm.
-  s2-main/s3-main come from setores.json via {{padrao:...}}. Deterministic: no Math.random, Date.now, fetch or infinite repeats.
+  s2-main/s3-main come from the contract via {{padrao:...}}. Deterministic: no Math.random, Date.now, fetch or infinite repeats.
   Facts only from ../coleta/ (name, @, city, real logo; advocacia: OAB number from the CSV column `oab`).
 -->
 <html lang="pt-BR">
@@ -54,7 +54,7 @@
       const tl = gsap.timeline({ paused: true });
       const D = {{duracao}}, B = {{beat}};
       const SC = [["s1", {{t:s1}}, {{end:s1}}], ["s2", {{t:s2}}, {{end:s2}}], ["s3", {{t:s3}}, {{end:s3}}], ["s4", {{t:s4}}, {{end:s4}}]];
-      const ENTRY = { s1: "punch", s2: "punch", s3: "whipL", s4: "whipR" };  // same camera grammar as Lothus v02
+      const ENTRY = { s1: "punch", s2: "punch", s3: "whipL", s4: "whipR" };  // same camera grammar as the dental pilot v02
       SC.forEach(([id, a, b], k) => {
         const els = gsap.utils.toArray(".cam-" + id);
         gsap.set(els, { transformPerspective: 1000, transformOrigin: "50% 45%" });

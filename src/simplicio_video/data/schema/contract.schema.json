@@ -14,7 +14,7 @@
       "properties": {
         "slug": { "type": "string", "pattern": "^[a-z0-9-]{2,64}$", "description": "folder under clients/" },
         "nome": { "type": "string", "minLength": 1 },
-        "drive_nome": { "$ref": "#/$defs/drive_token", "description": "Title_Case with underscores, no accents (e.g. Lothus_Odontologia)" },
+        "drive_nome": { "$ref": "#/$defs/drive_token", "description": "Title_Case with underscores, no accents (e.g. Clinica_Sorriso)" },
         "coleta": { "type": "string", "description": "path (relative to the contract) of the client's coleta/ folder, source of every fact" }
       }
     },

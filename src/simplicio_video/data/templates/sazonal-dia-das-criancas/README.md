@@ -1,6 +1,6 @@
 # sazonal-dia-das-criancas — pronto (campanha, qualquer setor)
 
-A coreografia v2 da Lothus Odontologia (Dia das Crianças 2026: 16 s, 128 BPM, cortes na batida, `fx-transition` de 6–10
+A coreografia v2 do piloto de odontologia (Dia das Crianças 2026: 16 s, 128 BPM, cortes na batida, `fx-transition` de 6–10
 frames, confete/balões, `kinetic-words` palavra a palavra no tempo da fala, `beat-burst` nas batidas e câmera com punch/whip)
 generalizada para qualquer empresa com público de pais e crianças. Usada por `simplicio-video prospect` (venda ativa,
 [docs/venda-ativa.md](../../../../../docs/venda-ativa.md)).
@@ -20,5 +20,5 @@ Setores: odontologia, pediatria, escola (escola infantil, berçário, cursos), b
 moda infantil e `geral` (sem regra casada). Nunca recria o logo: só entra o arquivo real (coluna `logo` do CSV, logo do site ou
 avatar do Instagram quando o robots.txt permitir), convertido para `coleta/logo.png`; sem ele, lockup de texto.
 
-**Padrão v2** (30/09/2026, piloto All Prime Odontologia): voz Laomedeia animada (a da Lothus v02) + logo real + ritmo/confete/palavra a palavra da Lothus v02.
+**Padrão v2** (30/09/2026): voz Laomedeia animada (a do piloto de odontologia v02) + logo real + ritmo/confete/palavra a palavra do piloto v02.
 A prévia registra `padrao` no `result.json`; o `prospect` refaz prévias de padrão antigo (guardando `preview.v1.mp4`).

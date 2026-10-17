@@ -55,7 +55,7 @@ def test_lockup_de_marca_usa_placeholders_evidentes():
 
     pat = json.loads((LOCKUP / "pattern.json").read_text(encoding="utf8"))
     padroes = {p["id"]: p["default"] for p in pat["params"]}
-    assert padroes["name"] == "EMPRESA"
+    assert padroes["name"] == "MARCA"
     assert padroes["sub"] == "EXEMPLO"
     assert padroes["handle"] == "@empresa"
     assert padroes["city"] == "Cidade · UF"

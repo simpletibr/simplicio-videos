@@ -12,7 +12,7 @@
     "micropigmentação",
     "spa"
   ],
-  "referencia": "clients/lothus-odontologia/video-01-dia-das-criancas (ritmo v02); prospects gerados por simplicio-video prospect",
+  "referencia": "piloto de odontologia, Dia das Crianças 2026 (ritmo v02)",
   "formato": {
     "aspect": "9:16",
     "width": 1080,
@@ -131,6 +131,6 @@
       "s4-words",
       "s4-burst"
     ],
-    "_doc": "Modelo institucional do prospect (padrão v2: voz Laomedeia, logo real, ritmo Lothus). s2-main/s3-main via {{padrao:<bloco>}} de setores.json; base do contrato em contract.base.yaml; roteamento por setor em templates/prospect-roteamento.json."
+    "_doc": "Modelo institucional (padrão v2: voz Laomedeia, logo real, ritmo do piloto de odontologia). s2-main/s3-main via {{padrao:<bloco>}} no contrato."
   }
 }
