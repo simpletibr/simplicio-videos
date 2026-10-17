@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import stat
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -34,7 +35,7 @@ from types import SimpleNamespace
 import pytest
 
 import _caixa
-from _caixa import installer, posix_real
+from _caixa import installer, posix_real, roda_com_prazo, solta_fifo
 from _comum import fotografia, make_bundle, write
 from simplicio_video import __version__
 
@@ -136,15 +137,34 @@ def test_uninstall_dry_run_diz_o_que_deixaria_e_nao_apaga_nada(repo, bundle):
     assert resultado["status"] == "dry_run" and resultado["left_alone"] == ["AGENTS.md"] and fotografia(repo) == antes
 
 
-def test_recibo_sem_sha256_nao_autoriza_apagar_nada_alem_do_recibo(repo, bundle):
+def test_recibo_sem_sha256_e_invalido_e_a_mensagem_nao_diz_que_o_usuario_editou(repo, bundle):
+    """A receipt of the 2e3d95c build (it never shipped) has no `sha256` and the same id: it is read safely, nothing is deleted, and
+    the message says what is true (the receipt is from a version without digests), not "edited"."""
     instala(repo, bundle, host="codex")
     recibo = recibo_de(repo)
     del recibo["sha256"]
     (repo / RECIBO).write_text(json.dumps(recibo), encoding="utf-8")
+    antes = fotografia(repo)
+    for dry in (True, False):
+        with pytest.raises(installer.InstallError, match="sha256") as erro:
+            installer.uninstall(repo, dry_run=dry)
+        assert "editado" not in str(erro.value) and "versão sem" in str(erro.value), str(erro.value)
+    assert fotografia(repo) == antes, "a receipt that cannot be trusted removes nothing, not even itself"
+    verificado = installer.verify_install(installer.plan_install(repo, host="codex"), bundle=bundle)
+    assert (RECIBO, "bad_receipt") in _problemas(verificado) and "sha256" in verificado["problems"][0]["detail"]
+    resultado = instala(repo, bundle, host="codex")  # an install over it ignores it, says why, and writes a new one
+    assert any("sha256" in aviso for aviso in resultado["warnings"]) and "sha256" in recibo_de(repo)
+
+
+def test_um_caminho_sem_sha256_no_recibo_fica_em_paz_com_a_mensagem_verdadeira(repo, bundle):
+    instala(repo, bundle)
+    recibo = recibo_de(repo)
+    del recibo["sha256"][SKILL]
+    (repo / RECIBO).write_text(json.dumps(recibo), encoding="utf-8")
     resultado = installer.uninstall(repo)
-    assert (repo / SKILL).is_file() and (repo / "AGENTS.md").is_file(), "no digest, no deletion"
-    assert sorted(resultado["left_alone"]) == sorted([SKILL, REF, "AGENTS.md"])
-    assert not (repo / RECIBO).exists()
+    assert (repo / SKILL).is_file() and SKILL in resultado["left_alone"] and REF in resultado["removed"]
+    aviso = next(a for a in resultado["warnings"] if a.startswith(SKILL))
+    assert "sha256" in aviso and "editado" not in aviso, aviso
 
 
 def test_reinstalar_depois_de_editar_a_entrada_a_tira_do_recibo(repo, bundle):
@@ -857,3 +877,262 @@ def test_global_uma_pasta_que_virou_link_depois_do_install_nao_derruba_o_resto_d
     assert not any(p.startswith(".config/amp") for p in recibo_de(casa)["paths"]), "the paths under the new link left the receipt"
     installer.uninstall(casa)
     assert not (casa / _skill_em(".codex/skills")).exists() and (movido / "skills" / "simplicio-video" / "SKILL.md").is_file()
+
+
+# --- review 2 of PR #117 (head a342a1c) ----------------------------------------------------------------------------------------------
+
+
+def _falha_a_escrita_de(monkeypatch, nome: str, erro: OSError):
+    real = os.replace
+
+    def falha(origem, destino, *a, **kw):
+        if Path(destino).name == nome:
+            raise erro
+        return real(origem, destino, *a, **kw)
+
+    monkeypatch.setattr(os, "replace", falha)
+    return real
+
+
+@pytest.mark.parametrize("erro", [OSError(28, "No space left on device", "x"), PermissionError(13, "Permission denied", "x")],
+                         ids=["disco-cheio", "permissao-negada"])
+def test_escrita_que_falha_na_atualizacao_nao_tira_a_skill_nossa_do_recibo(repo, bundle, monkeypatch, erro):
+    """I1: a file of ours that could not be updated is still ours, with the OLD sha256 (it is still on disk, atomically intact)."""
+    instala(repo, bundle)
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    real = _falha_a_escrita_de(monkeypatch, "SKILL.md", erro)
+    with pytest.raises(OSError):
+        instala(repo, bundle)
+    monkeypatch.setattr(os, "replace", real)
+    recibo = recibo_de(repo)
+    assert SKILL in recibo["paths"] and recibo["sha256"][SKILL] == sha("video\n"), "the failed file left the receipt: stale for ever"
+    assert (repo / SKILL).read_text(encoding="utf-8") == "video\n"
+
+
+def test_depois_da_escrita_que_falhou_o_retry_corrige_e_o_uninstall_remove(repo, bundle, monkeypatch):
+    instala(repo, bundle)
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    real = _falha_a_escrita_de(monkeypatch, "SKILL.md", OSError(28, "No space left on device", "x"))
+    with pytest.raises(OSError):
+        instala(repo, bundle)
+    monkeypatch.setattr(os, "replace", real)
+    resultado = instala(repo, bundle)  # the retry
+    assert SKILL in resultado["changes"]["updated"] and SKILL not in resultado["changes"]["left_alone"]
+    assert (repo / SKILL).read_text(encoding="utf-8") == "video v2\n" and recibo_de(repo)["sha256"][SKILL] == sha("video v2\n")
+    installer.uninstall(repo)
+    assert fotografia(repo) == {}
+
+
+def test_o_uninstall_logo_depois_da_escrita_que_falhou_remove_a_skill_velha(repo, bundle, monkeypatch):
+    instala(repo, bundle)
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    real = _falha_a_escrita_de(monkeypatch, "SKILL.md", PermissionError(13, "Permission denied", "x"))
+    with pytest.raises(OSError):
+        instala(repo, bundle)
+    monkeypatch.setattr(os, "replace", real)
+    resultado = installer.uninstall(repo)
+    assert SKILL in resultado["removed"] and fotografia(repo) == {}, "the old file was ours and nobody edited it: it goes"
+
+
+def test_global_escrita_que_falha_numa_pasta_de_host_mantem_a_copia_dela_no_recibo(casa, bundle, monkeypatch):
+    instala(casa, bundle, globally=True)
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    real = os.replace
+
+    def falha(origem, destino, *a, **kw):
+        if ".codex" in Path(destino).parts and Path(destino).name == "SKILL.md":
+            raise PermissionError(13, "Permission denied", str(destino))
+        return real(origem, destino, *a, **kw)
+
+    monkeypatch.setattr(os, "replace", falha)
+    with pytest.raises(OSError):
+        instala(casa, bundle, globally=True)
+    monkeypatch.setattr(os, "replace", real)
+    assert _skill_em(".codex/skills") in recibo_de(casa)["paths"], "the copy of the other host stays ours and gets fixed on retry"
+    resultado = instala(casa, bundle, globally=True)
+    assert (casa / _skill_em(".codex/skills")).read_text(encoding="utf-8") == "video v2\n"
+    assert _skill_em(".codex/skills") in resultado["changes"]["updated"]
+
+
+# I3 (mutants that survived): one test per safeguard
+
+
+@pytest.mark.parametrize("dry", [False, True])
+def test_a_recusa_do_recibo_plantado_vem_antes_da_trava_e_nada_nasce_no_repo_hostil(repo, bundle, dry):
+    """M1: the lock creates `.simplicio-video/install.lock`; a receipt that is refused must not have made a hostile repo grow a file."""
+    write(repo / "notes.md", "do repositório\n")
+    planta_recibo(repo, ["notes.md", ".git/config"])
+    antes = fotografia(repo)
+    with pytest.raises(installer.InstallError):
+        installer.uninstall(repo, dry_run=dry)
+    with pytest.raises(installer.InstallError):
+        installer.prune_project_copies(repo, dry_run=dry)
+    assert not (repo / TRAVA).exists() and fotografia(repo) == antes
+
+
+def test_arquivo_de_entrada_editado_nao_continua_no_recibo_quando_o_install_e_de_outro_host(repo, bundle):
+    """M2: the entry file of a host this run does not look at is carried forward ONLY while it still has the sha256 that was written."""
+    instala(repo, bundle, host="codex")
+    (repo / "AGENTS.md").write_text("# as minhas regras\n", encoding="utf-8")
+    instala(repo, bundle, host="claude")
+    recibo = recibo_de(repo)
+    assert "AGENTS.md" not in recibo["paths"] and "AGENTS.md" not in recibo["sha256"]
+    installer.uninstall(repo)
+    assert (repo / "AGENTS.md").read_text(encoding="utf-8") == "# as minhas regras\n"
+
+
+def test_arquivo_de_entrada_intacto_de_outro_host_continua_no_recibo(repo, bundle):
+    instala(repo, bundle, host="codex")
+    instala(repo, bundle, host="claude")
+    assert "AGENTS.md" in recibo_de(repo)["paths"]
+
+
+@posix_real
+def test_arquivo_do_recibo_que_virou_link_e_do_usuario_e_o_uninstall_e_o_prune_nao_apagam_o_link(tmp_path, repo, bundle):
+    """M3: the link points at a file with the SAME bytes as ours, so a check that follows it would match and delete the user's link."""
+    instala(repo, bundle)
+    alvo = write(tmp_path / "meu" / "SKILL.md", "video\n")
+    (repo / SKILL).unlink()
+    (repo / SKILL).symlink_to(alvo)
+    seco = installer.uninstall(repo, dry_run=True)
+    assert SKILL in seco["left_alone"] and SKILL not in seco["removed"]
+    podado = installer.prune_project_copies(repo)
+    assert (repo / SKILL).is_symlink() and alvo.read_text(encoding="utf-8") == "video\n"
+    assert SKILL in podado["left_alone"] and any("link" in aviso for aviso in podado["warnings"]), podado
+
+
+@posix_real
+def test_recibo_que_e_fifo_nao_trava_o_uninstall_o_prune_nem_o_verify(repo, bundle):
+    """M5: the receipt is read O_NONBLOCK and checked with fstat on the same descriptor; a plain open() would block for ever."""
+    instala(repo, bundle)
+    plano = installer.plan_install(repo)
+    (repo / RECIBO).unlink()
+    os.mkfifo(repo / RECIBO)
+
+    def tenta(funcao):
+        try:
+            funcao()
+        except installer.InstallError as erro:
+            return str(erro)
+        return None
+
+    for nome, funcao in (("uninstall", lambda: installer.uninstall(repo)), ("uninstall --dry-run", lambda: installer.uninstall(repo, dry_run=True)),
+                         ("prune", lambda: installer.prune_project_copies(repo, dry_run=True)),
+                         ("apply", lambda: installer.apply_plan(plano, bundle=bundle, dry_run=True))):
+        mensagem = roda_com_prazo(lambda f=funcao: tenta(f), destravar=lambda: solta_fifo(repo / RECIBO))
+        assert mensagem, f"{nome} on a FIFO receipt must fail with a message"
+    verificado = roda_com_prazo(lambda: installer.verify_install(plano, bundle=bundle), destravar=lambda: solta_fifo(repo / RECIBO))
+    assert verificado["ok"] is False and (RECIBO, "bad_receipt") in _problemas(verificado)
+
+
+@posix_real
+def test_link_abaixo_da_pasta_base_gravada_nao_e_atravessado_no_uninstall(tmp_path, repo, bundle):
+    """M6: `.claude` is a recorded dotfiles link; later `skills` BELOW it becomes a link to a copy with the same bytes."""
+    dot = tmp_path / "dot"
+    dot.mkdir()
+    (repo / ".claude").symlink_to(dot, target_is_directory=True)
+    instala(repo, bundle)
+    outro = tmp_path / "outro"
+    shutil.copytree(dot / "skills", outro)
+    shutil.rmtree(dot / "skills")
+    (dot / "skills").symlink_to(outro, target_is_directory=True)
+    resultado = installer.uninstall(repo)
+    assert (outro / "simplicio-video" / "SKILL.md").is_file() and (outro / "simplicio-video" / "references" / "a.md").is_file()
+    assert SKILL in resultado["left_alone"] and REF in resultado["left_alone"] and resultado["warnings"]
+
+
+def test_sha256_de_arquivo_maior_que_o_limite_e_none_nunca_o_digest_de_um_pedaco(tmp_path, monkeypatch):
+    """M7: `read_regular` hands back limit + 1 bytes of a bigger file; hashing that prefix would let a planted digest match."""
+    monkeypatch.setattr(installer, "MAX_FILE_BYTES", 8)
+    assert installer.sha256_of(write(tmp_path / "grande", "x" * 100)) is None
+    assert installer.sha256_of(write(tmp_path / "ok", "12345678")) == sha("12345678")
+
+
+def test_o_sha256_le_no_maximo_o_limite_mais_um_byte(tmp_path, monkeypatch):
+    from simplicio_video import hostos
+
+    pedidos = []
+    real = hostos.read_regular
+    monkeypatch.setattr(hostos, "read_regular", lambda caminho, limite: pedidos.append(limite) or real(caminho, limite))
+    installer.sha256_of(write(tmp_path / "a", "abc"))
+    assert pedidos == [installer.MAX_FILE_BYTES]
+
+
+def test_o_uninstall_nao_apaga_arquivo_maior_que_o_limite_mesmo_com_o_digest_do_pedaco(repo, bundle, monkeypatch):
+    instala(repo, bundle)
+    monkeypatch.setattr(installer, "MAX_FILE_BYTES", 8)
+    grande = "x" * 100
+    (repo / REF).write_text(grande, encoding="utf-8")
+    grava_recibo(repo, sha256={**recibo_de(repo)["sha256"], REF: sha(grande[:9])})  # the digest of the first limit + 1 bytes
+    resultado = installer.uninstall(repo)
+    assert (repo / REF).is_file() and REF in resultado["left_alone"]
+
+
+@posix_real
+def test_recibo_que_e_link_e_recusado_no_install_no_uninstall_e_no_verify(tmp_path, repo, bundle):
+    """M8: a receipt that is a link could be the victim's own receipt, pointed at by a repository."""
+    instala(repo, bundle)
+    conteudo = (repo / RECIBO).read_bytes()
+    fora = tmp_path / "fora.json"
+    fora.write_bytes(conteudo)
+    (repo / RECIBO).unlink()
+    (repo / RECIBO).symlink_to(fora)
+    plano = installer.plan_install(repo)
+    with pytest.raises(installer.InstallError):
+        installer.apply_plan(plano, bundle=bundle)
+    for dry in (True, False):
+        with pytest.raises(installer.InstallError, match="link"):
+            installer.uninstall(repo, dry_run=dry)
+    with pytest.raises(installer.InstallError, match="link"):
+        installer.prune_project_copies(repo)
+    assert (repo / RECIBO).is_symlink() and fora.read_bytes() == conteudo and (repo / SKILL).is_file()
+    verificado = installer.verify_install(plano, bundle=bundle)
+    assert verificado["ok"] is False and (RECIBO, "bad_receipt") in _problemas(verificado)
+
+
+def test_digest_que_falta_nao_autoriza_apagar_nem_quando_o_arquivo_nao_pode_ser_lido(repo, bundle, monkeypatch):
+    """M9: a path without a digest has `None`; an unreadable file also hashes to `None`; `None == None` must never delete."""
+    instala(repo, bundle)
+    monkeypatch.setattr(installer, "MAX_FILE_BYTES", 8)
+    (repo / REF).write_text("x" * 100, encoding="utf-8")  # now unreadable for the check: sha256_of -> None
+    recibo = recibo_de(repo)
+    del recibo["sha256"][REF]
+    (repo / RECIBO).write_text(json.dumps(recibo), encoding="utf-8")
+    resultado = installer.uninstall(repo)
+    assert (repo / REF).is_file() and REF in resultado["left_alone"]
+
+
+# minor (a): a forged `bases` must not reach the global install
+
+
+@posix_real
+def test_repo_com_claude_em_link_para_o_do_home_e_recibo_forjado_nao_apaga_a_instalacao_global(tmp_path, bundle):
+    casa = tmp_path / "casa"
+    instala(casa, bundle, globally=True)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".claude").symlink_to(casa / ".claude", target_is_directory=True)
+    real = os.path.realpath(casa / ".claude")
+    write(repo / RECIBO, json.dumps({
+        "schema": installer.OWNERSHIP_SCHEMA, "owner": "simplicio-video", "version": "0.0.1", "digest": "sha256:" + "0" * 64,
+        "paths": [SKILL, REF], "dirs": [], "sha256": {SKILL: sha("video\n"), REF: sha("ref a\n")}, "bases": {".claude": real}}))
+    cerca = [casa / raiz / nome for raiz in RAIZES_GLOBAIS.values() for nome in ("simplicio-video", "simplicio-video-social")]
+    resultado = installer.uninstall(repo, protect=cerca)
+    assert (casa / SKILL).is_file() and (casa / REF).is_file(), "a project uninstall removed the GLOBAL install through a forged base"
+    assert SKILL in resultado["left_alone"] and any("global" in aviso for aviso in resultado["warnings"])
+
+
+# minor (d): the verify's own message for a linked `.simplicio-video`
+
+
+@posix_real
+def test_verify_com_simplicio_video_em_link_tem_mensagem_propria_sem_dizer_que_nada_foi_escrito(tmp_path, repo, bundle):
+    instala(repo, bundle)
+    shutil.move(str(repo / ".simplicio-video"), str(tmp_path / "sv"))
+    (repo / ".simplicio-video").symlink_to(tmp_path / "sv", target_is_directory=True)
+    resultado = installer.verify_install(installer.plan_install(repo), bundle=bundle)
+    assert resultado["ok"] is False
+    achado = [p for p in resultado["problems"] if p["path"] == ".simplicio-video"]
+    assert achado and achado[0]["problem"] == "not_a_file" and "link" in achado[0]["detail"]
+    assert not any("Nada foi escrito" in p["detail"] for p in resultado["problems"]), "verify writes nothing, ever: no need to say it"
+    assert all(p["path"] != ".claude/skills" for p in resultado["problems"]), "the problem is labelled with its own path"

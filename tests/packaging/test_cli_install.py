@@ -728,6 +728,68 @@ def test_o_help_do_install_diz_o_que_o_global_ignora_e_o_que_o_verify_confere(ca
     assert "atualiza só" in texto and "nunca apaga" in texto
 
 
+# --- review 2 of #117: a home that cannot be trusted, a forged base, the text of the update ----------------------------------------------
+
+
+def test_global_sem_home_resolvivel_recusa_com_exit_2_e_nunca_cria_uma_pasta_chamada_til(falso, capsys, monkeypatch):
+    """No HOME, no USERPROFILE and no passwd entry (a container with an arbitrary UID): `Path("~")` used to become a folder named `~`."""
+    monkeypatch.delenv("HOME")
+    monkeypatch.delenv("USERPROFILE", raising=False)
+
+    def sem_home(cls):
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr("pathlib.Path.home", classmethod(sem_home))
+    monkeypatch.chdir(falso.alvo)
+    for opcao in ([], ["--check"], ["--dry-run"], ["--verify"], ["--uninstall"], ["--uninstall", "--dry-run"]):
+        rc, out, err = executa(["install", "--global", *opcao], capsys, main)
+        assert rc == 2 and "HOME" in out + err and "Traceback" not in out + err, (opcao, out, err)
+    rc, doc, _ = _json(capsys, "--global")
+    assert rc == 2 and doc["status"] == "error" and "HOME" in doc["error"] and erros_de_schema("install-plan", doc) == []
+    assert fotografia(falso.alvo) == {} and not (falso.alvo / "~").exists()
+
+
+@pytest.mark.parametrize("home", ["/", "casa-relativa", "~"])
+def test_global_com_home_que_e_a_raiz_ou_relativo_recusa_com_exit_2_sem_planejar_nada(falso, capsys, monkeypatch, home):
+    monkeypatch.setenv("HOME", home)
+    monkeypatch.chdir(falso.alvo)
+    for opcao in ([], ["--check"], ["--dry-run"], ["--uninstall"]):
+        rc, out, err = executa(["install", "--global", *opcao], capsys, main)
+        assert rc == 2 and "HOME" in out + err and "Traceback" not in out + err, (home, opcao, out, err)
+    assert fotografia(falso.alvo) == {}
+
+
+def test_o_home_que_nao_existe_tambem_e_recusado(falso, capsys, monkeypatch):
+    monkeypatch.setenv("HOME", str(falso.tmp / "nao-existe"))
+    rc, out, err = executa(["install", "--global", "--check"], capsys, main)
+    assert rc == 2 and "HOME" in out + err and not (falso.tmp / "nao-existe").exists()
+
+
+@posix_real
+def test_uninstall_de_projeto_com_recibo_forjado_nao_apaga_a_instalacao_global_pelo_link_do_claude(falso, capsys):
+    """A cloned repo with `.claude` -> ~/.claude and a receipt that records that real path as its base and the public sha256 of the skill."""
+    assert executa(["install", "--global"], capsys, main)[0] == 0
+    (falso.alvo / ".claude").symlink_to(falso.home / ".claude", target_is_directory=True)
+    skill = falso.home / SKILL
+    write(falso.alvo / RECIBO, json.dumps({
+        "schema": "simplicio.video-install-ownership/v1", "owner": "simplicio-video", "version": "0.0.1", "digest": "sha256:" + "0" * 64,
+        "paths": [SKILL], "dirs": [], "sha256": {SKILL: hashlib.sha256(skill.read_bytes()).hexdigest()},
+        "bases": {".claude": os.path.realpath(falso.home / ".claude")}}))
+    rc, out, err = executa(["install", "--uninstall", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0 and skill.is_file(), out + err
+    assert SKILL in out and "global" in out
+    assert executa(["install", "--global", "--check"], capsys, main)[0] == 0
+
+
+def test_o_update_do_pip_diz_que_o_install_global_mexe_nas_11_pastas_de_hosts(capsys):
+    rc, out, err = executa(["update", "--help"], capsys, main)
+    texto = " ".join(out.split())
+    assert rc == 0 and "install --global" in texto
+    frase = texto[texto.index("install --global"):][:400]
+    assert "11 pastas" in frase and "cria as que faltam" in frase, frase
+    assert "reinstala as skills em ~/.claude/skills" not in texto
+
+
 # --- the output must survive a Windows console ------------------------------------------------------------------------------------
 
 

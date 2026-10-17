@@ -204,9 +204,10 @@ def _existe_na_main(caminho: str):
 
 
 def _no_pacote(token: str) -> bool:
-    """`motion/patterns/<id>/pattern.json` -> a glob under simplicio_video/data/."""
+    """A path INSIDE the package is written with its package root (`simplicio_video/data/schema/contract.schema.json`), so that the reader
+    knows where it is. `schema/contract.schema.json` alone exists nowhere: not in the repo, not in the user's folder."""
     modelo = re.sub(r"<[^>]*>|\{[^}]*\}", "*", token).strip("/")
-    return bool(list(PACOTE.parent.glob(modelo)))
+    return modelo.startswith("simplicio_video/") and bool(list((ROOT / "src").glob(modelo)))
 
 
 def _problemas_de_caminho(texto: str) -> list:
@@ -245,7 +246,7 @@ def test_nenhum_caminho_citado_depende_do_checkout(nome):
 def test_o_varredor_de_caminhos_pega_o_que_o_usuario_do_pip_nao_tem():
     assert _problemas_de_caminho("Veja `ugc/README.md` e `docs/custos.md` e `clients/<slug>/coleta/` e `AGENTS.md` e `tools/video-use/`.")
     assert _problemas_de_caminho(f"[x]({URL_BASE}docs/nao-existe-mesmo.md)") or _existe_na_main("README.md") is None
-    assert not _problemas_de_caminho("`out/final.mp4`, `assets/openverse/`, `schema/contract.schema.json`, `bash scripts/dev_install.sh`, `timing.lock.json`")
+    assert not _problemas_de_caminho("`out/final.mp4`, `assets/openverse/`, `simplicio_video/data/schema/contract.schema.json`, `bash scripts/dev_install.sh`, `timing.lock.json`")
     assert not _problemas_de_caminho(f"Veja [o custo]({URL_BASE}docs/custos.md).") or _existe_na_main("docs/custos.md") is None
 
 
@@ -284,3 +285,24 @@ def test_todo_comando_do_motor_citado_em_codigo_existe_mesmo_sem_flag(nome):
         palavras = comando.split()
         if len(palavras) > 1 and re.fullmatch(r"[a-z][a-z-]*", palavras[1]):
             assert palavras[1] in raiz, f"{nome}: `{comando}`: `{palavras[1]}` is not a command ({sorted(raiz)})"
+
+
+def test_o_varredor_nao_aceita_caminho_do_pacote_sem_dizer_onde_ele_esta():
+    assert _problemas_de_caminho("O schema é `schema/contract.schema.json`.")
+    assert _problemas_de_caminho("O padrão é `motion/patterns/<id>/pattern.json`.")
+    assert not _problemas_de_caminho("O schema vai no pacote: `simplicio_video/data/schema/contract.schema.json`.")
+    assert _problemas_de_caminho("`simplicio_video/data/schema/nao-existe.json`")
+
+
+def test_a_skill_nao_cita_o_schema_do_contrato_por_um_caminho_que_nao_existe():
+    texto = _texto("simplicio-video")
+    assert not re.search(r"(?<!data/)schema/contract\.schema\.json", texto), "`schema/contract.schema.json` exists nowhere"
+    assert "simplicio_video/data/schema/contract.schema.json" in texto and "validate" in texto
+
+
+def test_o_update_do_pip_na_skill_diz_que_o_install_global_mexe_nas_11_pastas_de_hosts():
+    """The `update` of a pip package runs `install --global`, which creates up to 11 folders under the home: the text must say so."""
+    texto = " ".join(_texto("simplicio-video").split())
+    assert re.search(r"update[^.]{0,200}install --global[^.]{0,200}11 pastas", texto), "the update paragraph must name the 11 folders"
+    assert re.search(r"install --global[^.]{0,200}11 pastas[^.]{0,200}cria as que faltam", texto) or "cria as que faltam" in texto
+    assert not re.search(r"install --global`? \(o home\): copia a skill para `\.claude/skills`", texto), "it writes in 11 folders, not one"

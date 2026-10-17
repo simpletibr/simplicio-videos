@@ -267,3 +267,18 @@ def test_o_gitignore_cobre_o_que_o_install_deixa_na_raiz_do_repositorio():
     linhas = {l.strip() for l in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()}
     for padrao in (".simplicio-video/", ".claude/skills/simplicio-video/", ".claude/skills/simplicio-video-social/"):
         assert padrao in linhas, f".gitignore sem {padrao}: `simplicio-video install` na raiz do repositório criaria arquivos não rastreados"
+
+
+def test_o_how_to_diz_que_o_update_do_pip_cria_as_11_pastas_pelo_install_global():
+    texto = _texto(INSTALL_MD)
+    i = texto.index("**Num pacote instalado por pip**")
+    paragrafo = texto[i:i + 1400]
+    assert "install --global" in paragrafo and "11 pastas" in paragrafo and "cria as que faltam" in paragrafo, paragrafo
+    assert "acompanhar a versão (sem apagar" not in paragrafo and "a skill do `~/.claude/skills` acompanhar" not in paragrafo
+
+
+def test_o_changelog_lista_o_que_ficou_para_depois_e_a_limpeza_de_um_recibo_antigo():
+    unreleased = _unreleased()
+    for trecho in ("Para depois", "TOCTOU", "dir_fd", "-m pip", "argparse", "ensure_ascii", "install.lock", "2e3d95c"):
+        assert trecho in unreleased, f"CHANGELOG (Unreleased) não cita {trecho!r}"
+    assert re.search(r"2e3d95c[^.]{0,300}(apague|limpeza|à mão)", unreleased), "a manual cleanup note for the receipt of the first review head"
