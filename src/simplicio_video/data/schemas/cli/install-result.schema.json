@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.video-install/v1",
+  "title": "simplicio-video install --json",
+  "description": "Saída de `simplicio-video install --json` (stdout): o plano do ambiente do checkout (.venv com uv e o pacote editável). Contrato próprio: o `install` do simplicio-loop copia skills para o host do agente, este não. Num pacote instalado por pip não há .venv a criar: distribution=pip, nada pendente. Num erro (argumento inválido, uv ausente, .venv com outro Python...) o stdout continua sendo UM documento, com `error` e só o que o install já sabia.",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "distribution"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "simplicio.video-install/v1"
+    },
+    "version": {
+      "type": "string"
+    },
+    "up_to_date": {
+      "type": "boolean"
+    },
+    "pending": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Os passos que o install aplicaria."
+    },
+    "conflict": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "O .venv existe com outro Python; nada é trocado sozinho."
+    },
+    "python": {
+      "type": "string",
+      "pattern": "^3\\.\\d+$"
+    },
+    "extras": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "distribution": {
+      "enum": [
+        "source",
+        "pip"
+      ]
+    },
+    "error": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Só quando o install deu erro: a mesma mensagem que vai para o stderr."
+    }
+  },
+  "if": {
+    "required": [
+      "error"
+    ]
+  },
+  "then": {
+    "properties": {
+      "up_to_date": {
+        "const": false
+      }
+    }
+  },
+  "else": {
+    "required": [
+      "up_to_date",
+      "pending",
+      "conflict",
+      "python",
+      "extras"
+    ]
+  }
+}

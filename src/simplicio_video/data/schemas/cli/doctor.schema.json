@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.doctor/v1",
+  "title": "simplicio-video doctor --json",
+  "description": "Saída de `simplicio-video doctor --json` (stdout), no contrato do simplicio-loop: status é o pior dos checks (ok, warn, fail). O doctor sai com 1 só quando há um fail. Troca do formato antigo {ok, checks[{name, status, detail, fix}]}: sai `ok`, entra schema, status e version, e o texto vira summary.",
+  "type": "object",
+  "required": [
+    "schema",
+    "status",
+    "version",
+    "checks"
+  ],
+  "additionalProperties": false,
+  "propertyNames": {
+    "not": {
+      "enum": [
+        "access_token",
+        "refresh_token"
+      ]
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "simplicio.doctor/v1"
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "warn",
+        "fail"
+      ]
+    },
+    "version": {
+      "type": "string"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "summary",
+          "fix",
+          "detail"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warn",
+              "fail"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "O comando ou o passo que conserta."
+          },
+          "detail": {
+            "type": "object",
+            "propertyNames": {
+              "not": {
+                "enum": [
+                  "access_token",
+                  "refresh_token"
+                ]
+              }
+            },
+            "description": "Fatos estruturados do check. Nunca traz token nem valor de credencial."
+          }
+        }
+      }
+    }
+  }
+}

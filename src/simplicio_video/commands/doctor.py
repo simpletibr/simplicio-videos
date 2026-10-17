@@ -1,16 +1,24 @@
-"""`simplicio-video doctor [--json]` (issue #43): diagnóstico do ambiente, com a correção exata de cada falha.
+"""`simplicio-video doctor [all|login] [--json] [--online]`: the environment overview, in the loop's `simplicio.doctor/v1`.
 
-Checa: Python, Node 22 ou superior, ffmpeg com libass, 5 GB livres, portas de desenvolvimento, presença de
-credenciais (nunca o valor) e workspace. Não instala, não altera e não grava nada. Ferramentas são
-chamadas com subprocess.run (com timeout).
+Ported from simplicio-loop simplicio_loop/doctor_overview.py (2034e2d). Twelve checks, each `ok`, `warn` or `fail` with the
+command that fixes it, in this order:
 
-Contrato de saída:
-  {"ok": bool, "checks": [{"name": str, "status": "ok"|"warn"|"fail", "detail": str, "fix": str|null}, ...]}
-  Exit code 0 se nenhuma checagem falhou (aviso não reprova); 1 se alguma falhou.
+  login          the shared login file (never fails for a missing or expired login: it is a warning)
+  update         offline by default (the cached answer of the last `update --check`); --online asks GitHub or git
+  distribution   source (a checkout) or pip (an installed package)
+  runtime        the Simplicio Runtime (optional, always ok)
+  python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY (presence only, never the value)
+  setup          the workspace: a warning when `simplicio-video setup` never ran, a failure when it is there and invalid
+
+Output: `simplicio-video doctor: <status>`, then one line per check (`  ok    name   summary` and `        fix: ...`);
+with --json, {"schema": "simplicio.doctor/v1", "status", "version", "checks": [{name, status, summary, fix, detail}]}.
+Exit code 1 only when a check is `fail`. Nothing here installs, changes or prints a token. Breaking change: the old JSON was
+{"ok", "checks": [{name, status, detail (a string), fix}]}.
 
 Exemplos:
   simplicio-video doctor
   simplicio-video doctor --json
+  simplicio-video doctor login
   docker compose run --rm simplicio doctor
 """
 from __future__ import annotations
@@ -20,38 +28,40 @@ import os
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
+from typing import Any, Callable, Optional
 
 import yaml
 
-from .. import __version__, paths
-from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA, workspace_dir
+from .. import __version__, auth, distribution, hostos, paths
+from . import update
+from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA
 
+SCHEMA = "simplicio.doctor/v1"
+SECTIONS = ("login", "update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
+            "GEMINI_API_KEY", "setup")
+_RANK = {"ok": 0, "warn": 1, "fail": 2}
 GB = 1024**3
 MIN_DISCO_GB = 5
 NODE_MIN = 22
+MAX_WORKSPACE_BYTES = 1024 * 1024  # the two YAML files are a few hundred bytes
 PY_MIN = (3, 12)
-PY_MAX_EXCLUSIVO = (3, 14)  # os extras do CrewAI exigem Python < 3.14
+PY_MAX_EXCLUSIVO = (3, 14)  # the CrewAI extras need Python < 3.14
 PORTAS = {3000: "opencut dev", 8000: "montage serve"}
-CREDENCIAIS = ("GEMINI_API_KEY",)  # só presença; o valor nunca entra na saída
-
-NODE_FIX = "instale Node 22 ou superior (ex.: `nvm install 22`) e rode o doctor de novo"
-FFMPEG_FIX = ("instale ffmpeg com libass (macOS: `brew install ffmpeg`; Debian/Ubuntu: `apt install ffmpeg`) "
-              "e rode o doctor de novo")
-LIBASS_FIX = ("reinstale o ffmpeg com libass: no macOS, `brew install ffmpeg` já inclui libass; no Linux, use um "
-              "pacote compilado com --enable-libass")
 SETUP_FIX = "rode `simplicio-video setup` para criar o workspace"
-ROTULO = {"ok": "ok", "warn": "aviso", "fail": "falha"}
+SETUP_FORCE_FIX = "rode `simplicio-video setup --force` para regravar o workspace"
 
 
-def _c(name: str, status: str, detail: str, fix: str | None = None) -> dict:
-    return {"name": name, "status": status, "detail": detail, "fix": fix}
+def _row(name: str, status: str, summary: str, fix: Optional[str] = None, detail: Optional[dict] = None) -> dict:
+    return {"name": name, "status": status, "summary": summary, "fix": fix, "detail": detail or {}}
 
 
 def porta_livre(porta: int, host: str = "127.0.0.1") -> bool:
-    """True se um bind na porta funciona. Função isolada: os testes a trocam, porque sockets são bloqueados."""
+    """True if a bind on the port works. Kept as a function of its own: the tests replace it (sockets are blocked)."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.bind((host, porta))
@@ -60,165 +70,294 @@ def porta_livre(porta: int, host: str = "127.0.0.1") -> bool:
     return True
 
 
-def _checa_python() -> dict:
-    v = sys.version_info
-    nome = f"{v.major}.{v.minor}.{v.micro}"
-    if (v.major, v.minor) < PY_MIN:
-        return _c("python", "fail", f"Python {nome}",
-                  f"instale Python {PY_MIN[0]}.{PY_MIN[1]} (`./install.sh --python 3.12`) e rode o doctor de novo")
-    if (v.major, v.minor) >= PY_MAX_EXCLUSIVO:
-        return _c("python", "warn", f"Python {nome}",
-                  "os extras do CrewAI exigem Python < 3.14; use `./install.sh --python 3.12`")
-    return _c("python", "ok", f"Python {nome}")
+def python_version() -> tuple:
+    """(major, minor, micro) of the running Python. A function of its own so that the tests can say another one."""
+    return tuple(sys.version_info[:3])
 
 
-def _checa_node() -> dict:
-    caminho = shutil.which("node")
-    if not caminho:
-        return _c("node", "fail", "node não encontrado no PATH", NODE_FIX)
+# --- login, update, distribution, runtime ------------------------------------------------------------------------------
+
+
+def _login(environ: Optional[dict], now: float) -> dict:
+    doc = auth.describe(environ, now)
+    runtime = doc["runtime"]
+    rt = f"Runtime {runtime['version'] or 'de versão desconhecida'}" if runtime["found"] else "Runtime não instalado"
+    if not doc["logged_in"]:
+        status = "warn" if doc["reason_code"] in {"login_missing", "login_expired"} else "fail"
+        detail = f": {doc['detail']}" if doc.get("detail") else ""
+        return _row("login", status, f"não logado ({doc['reason_code']}); arquivo {doc['path']}; {rt}{detail}", doc["fix"], doc)
+    ent = doc.get("entitlement") or {}
+    tier = f"direitos {ent.get('tier')} ({ent.get('status')}, em cache)" if ent else "direitos ainda não estão em cache"
+    expiry = "expirou" if doc["access_expired"] else f"expira {hostos.utc_stamp(doc['access_expires_at'])}"
+    summary = (f"logado como {doc['email'] or 'uma conta desconhecida'}; token de acesso {expiry}; {tier}; {rt}; "
+               f"arquivo {doc['path']}")
+    return _row("login", "ok", summary, None, doc)
+
+
+def _update(online: bool, installed: str, fetch: Callable[[], str], state_dir: Path, kind: str, git: Callable) -> dict:
+    fix = "simplicio-video update"
+    if online:
+        try:
+            info = update.check_latest(kind, installed, fetch=fetch, git=git)
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError, update.Refused) as exc:
+            return _row("update", "warn", f"não consegui consultar a última versão de {update.REPO}: {exc}")
+        update.write_check(info, state_dir)
+        detail = {**info, "checked_at": int(time.time())}
+        if info["update_available"]:
+            return _row("update", "warn", f"atualização disponível: {installed} -> {info['latest']} (consultado agora)", fix, detail)
+        return _row("update", "ok", f"em dia: {installed} (última versão {info['latest']}, consultado agora)", None, detail)
     try:
-        r = subprocess.run([caminho, "--version"], capture_output=True, text=True, timeout=15)
+        cached = update.read_check(state_dir)
+    except update.CheckInvalid as exc:  # a corrupt or hostile file: a warning with the way out, never a traceback
+        return _row("update", "warn", f"a checagem em cache do update (update-check.json) está inválida ({exc}); "
+                    "rode `simplicio-video update --check` para regravá-la", "simplicio-video update --check")
+    if cached is None:
+        return _row("update", "ok", "nenhuma checagem em cache; rode `simplicio-video update --check` ou "
+                                    "`simplicio-video doctor --online`")
+    # `cached` is validated and holds only the keys of the schema: `latest` is a normalized release, `checked_at` a real instant
+    available = update.parse_version(cached["latest"]) > update.release_tuple(installed)
+    when = hostos.utc_stamp(cached["checked_at"])
+    detail = {**cached, "installed": installed, "update_available": available}
+    if available:
+        return _row("update", "warn", f"atualização disponível: {installed} -> {cached['latest']} "
+                                      f"(checagem em cache de {when}; `doctor --online` consulta agora)", fix, detail)
+    return _row("update", "ok", f"em dia: {installed} (última versão {cached['latest']}, checagem em cache de {when})", None, detail)
+
+
+def _distribution(kind: str, installed: str) -> dict:
+    what = {distribution.PIP: f"pip: pacote instalado {installed} (sem checkout)",
+            distribution.SOURCE: f"source: checkout git ou instalação editável, versão {installed}"}[kind]
+    return _row("distribution", "ok", what, None, {"kind": kind, "version": installed})
+
+
+def _runtime(environ: Optional[dict]) -> dict:
+    binary = auth.runtime_binary(environ)
+    if binary is None:
+        return _row("runtime", "ok", "Simplicio Runtime não instalado (opcional: só o `simplicio-video login` precisa dele)",
+                    None, {"found": False})
+    version = auth.runtime_version(binary)
+    return _row("runtime", "ok", f"Simplicio Runtime {version or '(versão desconhecida)'} em {binary}; "
+                "compartilha o arquivo de login com o simplicio-video", None,
+                {"found": True, "path": str(binary), "version": version, "shared_login": True})
+
+
+# --- python, node, ffmpeg, disk, ports, credentials ----------------------------------------------------------------------
+
+
+def _checa_python() -> dict:
+    v = python_version()
+    nome = ".".join(str(x) for x in v)
+    detail = {"version": nome}
+    if v[:2] < PY_MIN:
+        return _row("python", "fail", f"Python {nome}",
+                    f"instale Python {PY_MIN[0]}.{PY_MIN[1]} (`./install.sh --python 3.12`) e rode o doctor de novo", detail)
+    if v[:2] >= PY_MAX_EXCLUSIVO:
+        return _row("python", "warn", f"Python {nome}",
+                    "os extras do CrewAI exigem Python < 3.14; use `./install.sh --python 3.12`", detail)
+    return _row("python", "ok", f"Python {nome}", None, detail)
+
+
+def _checa_node(environ: Optional[dict]) -> dict:
+    fix = f"instale Node {NODE_MIN} ou superior ({hostos.hint('node')}) e rode o doctor de novo"
+    caminho = hostos.find_tool("node", environ)
+    if not caminho:
+        return _row("node", "fail", "node não encontrado no PATH", fix)
+    detail = {"path": caminho}
+    try:
+        r = subprocess.run([caminho, "--version"], capture_output=True, encoding="utf-8", errors="replace", timeout=15)
     except (OSError, subprocess.SubprocessError) as e:
-        return _c("node", "fail", f"node não executa: {e}", NODE_FIX)
+        return _row("node", "fail", f"node não executa: {e}", fix, detail)
     m = re.match(r"\s*v?(\d+)", r.stdout or "")
     if r.returncode != 0 or not m:
-        return _c("node", "fail", "node não respondeu à versão", NODE_FIX)
+        return _row("node", "fail", "node não respondeu à versão", fix, detail)
     major = int(m.group(1))
+    detail["version"] = r.stdout.strip()
     if major < NODE_MIN:
-        return _c("node", "fail", f"node v{major} (exigido: {NODE_MIN} ou superior)", NODE_FIX)
-    return _c("node", "ok", f"node {r.stdout.strip()}")
+        return _row("node", "fail", f"node v{major} (exigido: {NODE_MIN} ou superior)", fix, detail)
+    return _row("node", "ok", f"node {r.stdout.strip()}", None, detail)
 
 
-def _checa_ffmpeg() -> list[dict]:
-    caminho = shutil.which("ffmpeg")
+def _checa_ffmpeg(environ: Optional[dict]) -> list[dict]:
+    fix = f"instale ffmpeg com libass ({hostos.hint('ffmpeg')}) e rode o doctor de novo"
+    libass_fix = ("reinstale o ffmpeg com libass: o do Homebrew (`brew install ffmpeg`) e o Gyan.FFmpeg do winget já trazem; "
+                  "no Linux, use um pacote compilado com --enable-libass")
+    caminho = hostos.find_tool("ffmpeg", environ)
     if not caminho:
-        return [_c("ffmpeg", "fail", "ffmpeg não encontrado no PATH", FFMPEG_FIX)]
+        return [_row("ffmpeg", "fail", "ffmpeg não encontrado no PATH", fix)]
+    detail = {"path": caminho}
     try:
-        r = subprocess.run([caminho, "-version"], capture_output=True, text=True, timeout=30)
+        r = subprocess.run([caminho, "-version"], capture_output=True, encoding="utf-8", errors="replace", timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
-        return [_c("ffmpeg", "fail", f"ffmpeg não executa: {e}", FFMPEG_FIX)]
+        return [_row("ffmpeg", "fail", f"ffmpeg não executa: {e}", fix, detail)]
     saida = (r.stdout or "") + (r.stderr or "")
     if r.returncode != 0 or not saida.strip():
-        return [_c("ffmpeg", "fail", "ffmpeg não respondeu à versão", FFMPEG_FIX)]
+        return [_row("ffmpeg", "fail", "ffmpeg não respondeu à versão", fix, detail)]
     primeira = saida.strip().splitlines()[0]
-    achados = [_c("ffmpeg", "ok", primeira)]
+    achados = [_row("ffmpeg", "ok", primeira, None, detail)]
     if "--enable-libass" in saida:
-        achados.append(_c("ffmpeg libass", "ok", "compilado com --enable-libass"))
+        achados.append(_row("ffmpeg-libass", "ok", "compilado com --enable-libass", None, detail))
     else:
-        achados.append(_c("ffmpeg libass", "fail", "ffmpeg sem libass (legendas e textos do render exigem libass)",
-                          LIBASS_FIX))
+        achados.append(_row("ffmpeg-libass", "fail", "ffmpeg sem libass (legendas e textos do render exigem libass)",
+                            libass_fix, detail))
     return achados
 
 
-def _checa_disco() -> dict:
-    ancora = paths.home()
-    if not ancora.exists():
-        ancora = Path.cwd()
+def _checa_disco(anchor: Path, usage: Callable[[Any], Any]) -> dict:
+    where = anchor
+    while not hostos.exists(where) and where != where.parent:
+        where = where.parent
     try:
-        st = os.statvfs(str(ancora))
+        free = int(usage(where).free)
     except OSError as e:
-        return _c("disco livre", "warn", f"não consegui medir o disco em {ancora}: {e}")
-    livre_gb = st.f_bavail * st.f_frsize / GB
-    detalhe = f"{livre_gb:.1f} GB livres em {ancora}"
+        return _row("disk", "warn", f"não consegui medir o disco em {where}: {e}")
+    livre_gb = free / GB
+    detail = {"dir": str(where), "free_bytes": free, "floor_bytes": MIN_DISCO_GB * GB}
+    resumo = f"{livre_gb:.1f} GB livres em {where}"
     if livre_gb < MIN_DISCO_GB:
-        return _c("disco livre", "fail", detalhe,
-                  f"libere pelo menos {MIN_DISCO_GB} GB em {ancora} (hoje: {livre_gb:.1f} GB); o .venv e o render "
-                  "precisam de espaço")
-    return _c("disco livre", "ok", detalhe)
+        return _row("disk", "fail", resumo, f"libere pelo menos {MIN_DISCO_GB} GB em {where} (hoje: {livre_gb:.1f} GB); "
+                    "o .venv e o render precisam de espaço", detail)
+    return _row("disk", "ok", resumo, None, detail)
 
 
 def _checa_portas() -> dict:
-    ocupadas = [f"{p} ({uso})" for p, uso in PORTAS.items() if not porta_livre(p)]
-    if ocupadas:
-        return _c("portas", "warn", "em uso: " + ", ".join(ocupadas),
-                  "pare o processo que usa a porta, ou ignore se for o seu servidor (opencut dev e montage serve "
-                  "usam essas portas)")
-    return _c("portas", "ok", ", ".join(str(p) for p in PORTAS) + " livres")
+    busy = [p for p in PORTAS if not porta_livre(p)]
+    detail = {"ports": sorted(PORTAS), "busy": busy}
+    if busy:
+        return _row("ports", "warn", "em uso: " + ", ".join(f"{p} ({PORTAS[p]})" for p in busy),
+                    "pare o processo que usa a porta, ou ignore se for o seu servidor (opencut dev e montage serve "
+                    "usam essas portas)", detail)
+    return _row("ports", "ok", ", ".join(str(p) for p in PORTAS) + " livres", None, detail)
 
 
-def _checa_credenciais() -> list[dict]:
-    achados = []
-    for nome in CREDENCIAIS:
-        if os.environ.get(nome):
-            achados.append(_c(nome, "ok", f"{nome} definida (valor oculto)"))
-        else:
-            achados.append(_c(nome, "warn", f"{nome} não definida",
-                              f"defina {nome} para voz via Gemini (aistudio.google.com/apikey). Sem ela, o MVP usa a "
-                              "voz local, sem custo"))
-    return achados
+def _checa_credencial(environ: dict) -> dict:
+    nome = "GEMINI_API_KEY"
+    if environ.get(nome):
+        return _row(nome, "ok", f"{nome} definida (valor oculto)", None, {"set": True})
+    return _row(nome, "warn", f"{nome} não definida",
+                f"defina {nome} para voz via Gemini (aistudio.google.com/apikey). Sem ela, o MVP usa a voz local, sem custo",
+                {"set": False})
 
 
 def _carrega(caminho: Path):
-    """(dados, erro). dados é None quando o arquivo não existe, não lê ou não é um mapa YAML."""
+    """(data, error). data is None when the file does not read or is not a YAML mapping."""
     try:
-        dados = yaml.safe_load(caminho.read_text(encoding="utf8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
+        bruto = hostos.read_regular(caminho, MAX_WORKSPACE_BYTES)  # O_NONBLOCK and fstat: never blocks on a FIFO
+        if len(bruto) > MAX_WORKSPACE_BYTES:
+            return None, "ilegível: grande demais para ser um workspace"
+        dados = yaml.safe_load(bruto.decode("utf8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, RecursionError, ValueError) as e:  # RecursionError: deep nesting
         return None, f"ilegível: {e}"
     if not isinstance(dados, dict):
         return None, "não é um mapa YAML"
     return dados, None
 
 
-def _checa_workspace() -> list[dict]:
-    ws = workspace_dir()
-    achados = []
-    wsp = ws / "workspace.yaml"
-    if not wsp.is_file():
-        achados.append(_c("workspace", "fail", f"sem workspace.yaml em {ws}", SETUP_FIX))
+def _estado(caminho: Path) -> str:
+    """`ok` (a regular file), `ausente`, or `negado` (it cannot even be looked at: a folder of another user, a closed mode)."""
+    try:
+        info = os.stat(caminho)
+    except (FileNotFoundError, NotADirectoryError):
+        return "ausente"
+    except OSError:
+        return "negado"
+    return "ok" if stat.S_ISREG(info.st_mode) else "ausente"
+
+
+def _checa_setup() -> dict:
+    """warn when `setup` never ran (a file is missing); fail when a file is there and invalid or cannot be read."""
+    ws = paths.workspace_dir()
+    wsp, pol = ws / "workspace.yaml", ws / "policy.yaml"
+    estados = {"workspace.yaml": _estado(wsp), "policy.yaml": _estado(pol)}
+    detail = {"workspace": str(ws), "workspace_yaml": estados["workspace.yaml"] == "ok",
+              "policy_yaml": estados["policy.yaml"] == "ok"}
+    negados = [nome for nome, estado in estados.items() if estado == "negado"]
+    if negados:
+        return _row("setup", "fail", f"sem permissão para ler {' e '.join(negados)} em {ws} (a pasta é de outro usuário?)",
+                    f"ajuste o dono e as permissões de {ws} e rode o doctor de novo", detail)
+    invalidos, ausentes = [], []
+    dados = None
+    if estados["workspace.yaml"] != "ok":
+        ausentes.append("workspace.yaml")
     else:
         dados, erro = _carrega(wsp)
         if erro:
-            achados.append(_c("workspace", "fail", f"workspace.yaml {erro}",
-                              "rode `simplicio-video setup --force` para regravar o workspace"))
+            invalidos.append(f"workspace.yaml {erro}")
         elif dados.get("schema") != WS_SCHEMA or dados.get("workspace") != WS_LAYOUT:
-            achados.append(_c("workspace", "fail",
-                              f"workspace.yaml com schema {dados.get('schema')!r} e layout {dados.get('workspace')!r} "
-                              f"(esperado {WS_SCHEMA} e {WS_LAYOUT})",
-                              "rode `simplicio-video setup --force` para regravar o workspace"))
-        else:
-            achados.append(_c("workspace", "ok", f"{ws} (layout {WS_LAYOUT}, idioma {dados.get('language')})"))
-    pol = ws / "policy.yaml"
-    if not pol.is_file():
-        achados.append(_c("workspace policy", "fail", f"sem policy.yaml em {ws}", SETUP_FIX))
+            invalidos.append(f"workspace.yaml com schema {dados.get('schema')!r} e layout {dados.get('workspace')!r} "
+                             f"(esperado {WS_SCHEMA} e {WS_LAYOUT})")
+    autonomia = None
+    if estados["policy.yaml"] != "ok":
+        ausentes.append("policy.yaml")
     else:
-        dados, erro = _carrega(pol)
-        autonomia = (dados or {}).get("autonomy") if not erro else None
-        if erro or (dados or {}).get("schema") != POL_SCHEMA or not isinstance(autonomia, dict):
-            achados.append(_c("workspace policy", "fail", f"policy.yaml {erro or 'sem schema ou autonomia válidos'}",
-                              "rode `simplicio-video setup --force` para regravar a política"))
-        else:
-            achados.append(_c("workspace policy", "ok", f"autonomia {autonomia.get('default')}"))
-    return achados
+        pdados, perro = _carrega(pol)
+        autonomia = (pdados or {}).get("autonomy") if not perro else None
+        if perro or (pdados or {}).get("schema") != POL_SCHEMA or not isinstance(autonomia, dict):
+            invalidos.append(f"policy.yaml {perro or 'sem schema ou autonomia válidos'}")
+    if invalidos:
+        return _row("setup", "fail", f"workspace em {ws} inválido: " + "; ".join(invalidos), SETUP_FORCE_FIX, detail)
+    if ausentes:
+        return _row("setup", "warn", f"o setup ainda não rodou (falta {' e '.join(ausentes)} em {ws}); "
+                    "nenhum comando do motor lê o workspace", SETUP_FIX, detail)
+    return _row("setup", "ok", f"{ws} (layout {WS_LAYOUT}, idioma {dados.get('language')}, autonomia {autonomia.get('default')})",
+                None, detail)
 
 
-def relatorio() -> dict:
-    checks = [
-        _checa_python(),
-        _checa_node(),
-        *_checa_ffmpeg(),
-        _checa_disco(),
-        _checa_portas(),
-        *_checa_credenciais(),
-        *_checa_workspace(),
-    ]
-    return {"ok": not any(c["status"] == "fail" for c in checks), "checks": checks}
+# --- the overview -------------------------------------------------------------------------------------------------------
 
 
-def _texto(rel: dict) -> str:
-    linhas = [f"simplicio-video doctor ({__version__})"]
-    for c in rel["checks"]:
-        linhas.append(f"  [{ROTULO[c['status']]:<5}] {c['name']}: {c['detail']}")
-        if c["status"] != "ok" and c["fix"]:
-            linhas.append(f"           correção: {c['fix']}")
-    if rel["ok"]:
-        linhas.append("ok: nenhuma falha")
-    else:
-        n = sum(1 for c in rel["checks"] if c["status"] == "fail")
-        linhas.append(f"falhou: {n} checagem(ns). Corrija as correções acima e rode o doctor de novo.")
-    return "\n".join(linhas)
+def collect(*, online: bool = False, environ: Optional[dict] = None, now: Optional[float] = None,
+            fetch: Optional[Callable[[], str]] = None, only: Optional[str] = None, installed: Optional[str] = None,
+            kind: Optional[str] = None, state_dir: Optional[Path] = None, usage: Optional[Callable[[Any], Any]] = None,
+            git: Optional[Callable] = None) -> dict:
+    stamp = time.time() if now is None else now
+    env = dict(os.environ) if environ is None else environ
+    installed = installed or __version__
+    state_dir = state_dir or update.default_state_dir()
+    wanted = [only] if only else list(SECTIONS)
+    kind = kind or distribution.kind()
+    fetch = fetch or update.fetch_latest_tag
+    git = git or update._git
+    usage = usage or shutil.disk_usage
+    # a package has no checkout: measure the folder where the venvs, tools and renders go, never site-packages
+    anchor = paths.home() if kind == distribution.SOURCE else state_dir
+    cache: dict = {}
+
+    def ffmpeg() -> list:
+        if "ffmpeg" not in cache:
+            cache["ffmpeg"] = _checa_ffmpeg(env)
+        return cache["ffmpeg"]
+
+    makers: dict[str, Callable[[], dict]] = {
+        "login": lambda: _login(env, stamp),
+        "update": lambda: _update(online, installed, fetch, state_dir, kind, git),
+        "distribution": lambda: _distribution(kind, installed),
+        "runtime": lambda: _runtime(env),
+        "python": _checa_python,
+        "node": lambda: _checa_node(env),
+        "ffmpeg": lambda: ffmpeg()[0],
+        "ffmpeg-libass": lambda: ffmpeg()[1] if len(ffmpeg()) > 1 else _row(
+            "ffmpeg-libass", "warn", "sem ffmpeg não há como checar o libass", ffmpeg()[0]["fix"]),
+        "disk": lambda: _checa_disco(anchor, usage),
+        "ports": _checa_portas,
+        "GEMINI_API_KEY": lambda: _checa_credencial(env),
+        "setup": _checa_setup,
+    }
+    checks = [makers[name]() for name in wanted]
+    worst = max((check["status"] for check in checks), key=_RANK.__getitem__, default="ok")
+    return {"schema": SCHEMA, "status": worst, "version": installed, "checks": checks}
+
+
+def _texto(doc: dict) -> str:
+    lines = [f"simplicio-video doctor: {doc['status']}"]
+    for check in doc["checks"]:
+        lines.append(f"  {check['status']:<5} {check['name']:<14} {check['summary']}")
+        if check["fix"]:
+            lines.append(f"        fix: {check['fix']}")
+    return "\n".join(lines)
 
 
 def run(a) -> int:
-    rel = relatorio()
-    print(json.dumps(rel, indent=2, ensure_ascii=False) if a.json else _texto(rel))
-    return 0 if rel["ok"] else 1
+    only = None if a.what == "all" else a.what
+    doc = collect(online=a.online, only=only)
+    hostos.say(json.dumps(doc, sort_keys=True) if a.json else _texto(doc))  # ensure_ascii: valid on any console
+    return 1 if doc["status"] == "fail" else 0

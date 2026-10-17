@@ -51,6 +51,11 @@ Schema: `schema/contract.schema.json`. Instalação: `pip install -e .` na raiz 
 - [ ] Copy rastreável até `coleta/` (liste no README do vídeo).
 - [ ] Commit do contrato + `timing.lock.json` + `render.manifest.json` + `assets/audio/voz/` (MP4 fica em `out/`, gitignored).
 
+## Ambiente, atualização e login (só quando o usuário pedir ou algo falhar)
+- **Antes de renderizar num ambiente novo:** `simplicio-video doctor` (ou `--json`, `simplicio.doctor/v1`). `warn` não reprova (falta de login, de workspace ou de `GEMINI_API_KEY` é aviso); `fail` traz a correção exata. `install` cria o `.venv` do checkout (`--check` sai 0 ou 10, `--dry-run` não escreve nada) e `update --check` diz se há versão nova (0, 10 ou 2) sem alterar nada. `update` recusa árvore suja (exit 2): guarde com `git stash`, nunca descarte as alterações do usuário.
+- **Login do Runtime:** `simplicio-video auth status` mostra se está logado (conta mascarada, nunca token). Nenhum comando do motor depende do login: se faltar, siga o trabalho e avise. **Não rode `login` nem `logout --yes` por conta própria**: o `login` abre o navegador do usuário e o `logout` desloga o Runtime também. Nunca peça, copie ou imprima um token; o motor não guarda credencial.
+- Windows e macOS reais ainda não foram testados (UNVERIFIED): `scripts/smoke_so.py` roda a fumaça neles; ver `docs/how-to/testar-em-windows-e-macos.md`.
+
 ## Render: local × remoto
 - **local:** **padrão** (decisão do Wesley). Use sempre, salvo pedido explícito de backend remoto para um cliente via créditos. Referência de hash (mesma entrada → mesmo MP4 byte a byte). 8 vCPU renderizam a WJR (600 frames) em ~77 s.
 - **kaggle / colab-cli / colab (opcionais, clientes via créditos):** mesmo bundle + `render_bundle.sh`. A captura do Chrome headless é **CPU** (gargalo): Colab grátis = 2 vCPU → 1 worker (WJR 460 s); Kaggle = 4 vCPU → 2 workers. A GPU só entra no encode (NVENC, `--gpu-encode auto|1|0`), que muda os bytes do vídeo.

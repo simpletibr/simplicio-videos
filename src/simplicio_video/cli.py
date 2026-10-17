@@ -328,31 +328,90 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--grupo", choices=["problema", "prova", "desejo", "decisao", "estrategia"],
                    help="só com angles: lista só os ângulos desse grupo")
 
-    p = sub.add_parser("install", formatter_class=Fmt, help="ambiente idempotente: .venv com uv, Python e extras (--check mostra o plano)",
+    p = sub.add_parser("install", formatter_class=Fmt, help="ambiente do checkout: .venv com uv, Python e extras (--check e --dry-run mostram o plano)",
         description="Cria <checkout>/.venv com uv (Python --python; padrão: o último usado, ou 3.12) e instala o pacote\n"
                     "em modo editável com os extras. Idempotente: sem mudança em Python, extras ou pyproject.toml, não faz nada.\n"
-                    "--check mostra o plano sem criar nada e sai com 1 se houver mudança pendente. Não usa sudo.",
-        epilog="exemplos:\n  simplicio-video install --check\n  simplicio-video install\n"
+                    "Não copia skills para o host de nenhum agente e não usa sudo. Saída: --check 0 em dia, 10 com mudança pendente;\n"
+                    "--dry-run 0 sem criar nada; 1 se o install falhar ou o .venv tiver outro Python; 2 para argumento inválido.\n"
+                    "--json imprime um documento simplicio.video-install/v1 (as mensagens vão para o stderr). Num pacote instalado\n"
+                    "por pip não há .venv a criar: --check e --dry-run avisam e saem com 0, a instalação de verdade sai com 2.",
+        epilog="exemplos:\n  simplicio-video install --check\n  simplicio-video install --dry-run --json\n"
                "  simplicio-video install --python 3.12 --with local-tts")
-    p.add_argument("--check", action="store_true", help="mostra o que mudaria e não cria nada")
+    p.add_argument("--check", action="store_true", help="mostra o que mudaria e não cria nada; sai com 10 se houver mudança pendente")
+    p.add_argument("--dry-run", action="store_true", help="mostra o plano e não cria nada; sai com 0")
+    p.add_argument("--json", action="store_true", help="imprime o plano em JSON (simplicio.video-install/v1); mensagens vão para o stderr")
     p.add_argument("--python", metavar="VERSÃO", help="versão do Python do .venv, ex.: 3.12 (padrão: a última usada, ou 3.12)")
     p.add_argument("--with", dest="extras", metavar="EXTRAS",
                    help="extras separados por vírgula, ex.: local-tts,mcp (padrão: os da última instalação)")
 
-    p = sub.add_parser("update", formatter_class=Fmt, help="git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor",
-        description="Mostra os commits novos e o diff do CHANGELOG, aplica com git pull --ff-only, reexecuta install,\n"
-                    "reconstrói web/ e roda doctor. Recusa árvore suja (--force deixa seguir; o git ainda protege arquivos\n"
-                    "alterados). Imprime o commit anterior e o comando para voltar a ele (rollback).",
-        epilog="exemplos:\n  simplicio-video update --check\n  simplicio-video update\n  simplicio-video update --force")
-    p.add_argument("--check", action="store_true", help="mostra os commits novos e o diff do CHANGELOG; não altera nada")
-    p.add_argument("--force", action="store_true", help="segue com árvore suja (não descarta alterações)")
+    p = sub.add_parser("update", formatter_class=Fmt, help="atualiza: git pull --ff-only num checkout, ou pip (PyPI) num pacote instalado",
+        description="Num checkout: recusa árvore suja (guarde com `git stash`), mostra os commits novos e o diff do CHANGELOG, aplica com\n"
+                    "git pull --ff-only, reexecuta install, reconstrói web/ e roda doctor, e imprime o commit anterior (rollback).\n"
+                    "Num pacote instalado por pip: python -m pip install --upgrade \"simplicio-video==<última release>\" (PyPI); a última\n"
+                    "release vem do GitHub Releases. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas possíveis.\n"
+                    "Saída: --check 0 em dia, 10 com atualização, 2 erro; recusa 2; falha de rede 2 com --check, senão 1. Versão\n"
+                    "instalada mais nova que a última release (o PyPI sai antes do GitHub Release) é em dia: 0.\n"
+                    "--force reinstala mesmo em dia e permite downgrade, mas nunca ignora a árvore suja. --check grava o resultado em\n"
+                    "update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede. --dry-run só mostra o plano e sai com 0\n"
+                    "(junto com --check também; só o --check sozinho responde 10), num checkout e num pacote: num checkout não roda\n"
+                    "git fetch (ele mexeria nas refs do .git). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch do\n"
+                    "checkout (--check sai com 2, o update com 1). Todo git do update leva --no-optional-locks (para não regravar o\n"
+                    ".git/index); o git anterior à 2.15, que não conhece a opção, é chamado de novo uma vez sem ela. Versão instalada\n"
+                    "de desenvolvimento ou pré-release (0.5.0rc1) é anterior à release final (PEP 440).",
+        epilog="exemplos:\n  simplicio-video update --check\n  simplicio-video update --dry-run\n  simplicio-video update\n"
+               "  simplicio-video update --force")
+    p.add_argument("--check", action="store_true", help="não altera nada; sai com 0 (em dia), 10 (há atualização) ou 2 (erro)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="só mostra o plano e sai com 0 (também com --check); não altera nada, não grava o estado e não roda git fetch")
+    p.add_argument("--force", action="store_true", help="reinstala mesmo em dia e permite downgrade (não ignora a árvore suja)")
 
-    p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: Python, Node 22, ffmpeg+libass, disco, portas, credenciais, workspace",
-        description="Checa o ambiente e diz a correção exata de cada falha. Credenciais só mostram presença, nunca o valor.\n"
-                    "Aviso (warn) não reprova. Exit code 0 sem falhas; 1 se alguma checagem falhou. --json para máquinas.",
-        epilog="exemplos:\n  simplicio-video doctor\n  simplicio-video doctor --json\n"
-               "  docker compose run --rm simplicio doctor")
-    p.add_argument("--json", action="store_true", help="imprime {ok, checks[{name, status, detail, fix}]} em JSON")
+    p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: login, update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace",
+        description="Checa o ambiente e diz a correção exata de cada falha, no contrato simplicio.doctor/v1 do simplicio-loop:\n"
+                    "login, update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY e setup.\n"
+                    "Credenciais só mostram presença, nunca o valor, e nenhum token é impresso. warn não reprova: login ausente,\n"
+                    "workspace ausente e GEMINI_API_KEY ausente são avisos. Exit code 1 só quando alguma checagem é fail.\n"
+                    "Sem --online não usa rede: o update vem do cache do último `update --check`.",
+        epilog="exemplos:\n  simplicio-video doctor\n  simplicio-video doctor --json\n  simplicio-video doctor login\n"
+               "  simplicio-video doctor --online\n  docker compose run --rm simplicio doctor")
+    p.add_argument("what", nargs="?", choices=["all", "login"], default="all", metavar="all|login",
+                   help="all (padrão): todas as checagens; login: só a linha do login")
+    p.add_argument("--json", action="store_true", help="imprime {schema, status, version, checks[{name, status, summary, fix, detail}]} em JSON")
+    p.add_argument("--online", action="store_true", help="consulta a última versão (GitHub ou git) e regrava o cache do update")
+
+    p = sub.add_parser("login", formatter_class=Fmt, help="entra com o login do Simplicio, o mesmo do Runtime (delega a `simplicio login google`)",
+        description="Espelho do `login` do simplicio-loop: roda `simplicio login google` do Simplicio Runtime (com o terminal ligado) e\n"
+                    "confere o arquivo compartilhado ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE). Sem o Runtime o login próprio é\n"
+                    "UNVERIFIED (sem endpoint documentado): mostra como instalar o Runtime e sai com 1.\n"
+                    "O login não libera nem cobra nada no motor, não guarda credencial e não recebe token por argumento: o filho roda com\n"
+                    "ambiente mínimo (sem GH_TOKEN, chaves de API nem SIMPLICIO_LOGIN_TOKEN). A conta sai mascarada e nenhum token é impresso.\n"
+                    "Saída: 0 verificado, 1 não verificado, 2 recusado (--no-browser impossível no Windows: no_browser_unsupported).",
+        epilog="exemplos:\n  simplicio-video login\n  simplicio-video login --json\n  simplicio-video login --no-browser")
+    p.add_argument("--json", action="store_true", help="imprime um documento simplicio.login/v1 (a saída do Runtime vai para o stderr)")
+    p.add_argument("--no-browser", action="store_true", help="pede ao Runtime que não abra o navegador e mostra o endereço e o código (Linux e macOS)")
+
+    p = sub.add_parser("logout", formatter_class=Fmt, help="apaga o arquivo de login compartilhado (desloga o Runtime também)",
+        description="Apaga ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE) sob a trava login.lock. Esse arquivo é do Simplicio Runtime\n"
+                    "também: sair aqui desloga o Runtime, por isso sem --yes nada é apagado (REFUSED, exit 2). Só apaga um arquivo\n"
+                    "comum, pequeno e com a forma de login do Runtime: JSON com access_token (texto) e access_expires_at (número); só\n"
+                    "refresh_token, como nas credenciais do gcloud, não basta. Qualquer outro (uma chave ssh que SIMPLICIO_AUTH_FILE\n"
+                    "aponte, uma pasta) é recusado, exit 2, not_a_login_file, sem apagar nada. Um link simbólico (um ponto de reparse\n"
+                    "de link no Windows) também é recusado, exit 2, login_symlink, antes de qualquer trava, sem tocar no link nem no alvo.\n"
+                    "O token de renovação não é revogado no servidor. Sem arquivo de login: NO_LOGIN, exit 0, nada é criado.",
+        epilog="exemplos:\n  simplicio-video logout\n  simplicio-video logout --yes\n  simplicio-video logout --yes --json")
+    p.add_argument("--yes", action="store_true", help="confirma: sem isto nada é apagado")
+    p.add_argument("--json", action="store_true", help="imprime um documento simplicio.logout/v1")
+
+    p = sub.add_parser("auth", formatter_class=Fmt, help="inspeciona o login compartilhado com o Runtime (auth status)",
+        description="Ações: status. Mostra quem está logado (conta mascarada), a validade do token, os direitos em cache e a versão do\n"
+                    "Runtime, lendo ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE). Nunca imprime um token.",
+        epilog="exemplos:\n  simplicio-video auth status\n  simplicio-video auth status --json")
+    auth_sub = p.add_subparsers(dest="auth_cmd", metavar="AÇÃO", title="ações", required=True)
+    ps = auth_sub.add_parser("status", formatter_class=Fmt, help="quem está logado, validade e direitos em cache; nunca imprime token",
+        description="Lê o arquivo de login compartilhado (~/.simplicio/login.json ou SIMPLICIO_AUTH_FILE) e mostra: conta (mascarada),\n"
+                    "validade dos tokens (só se existem), direitos em cache, versão do Runtime e a correção quando o login não serve.\n"
+                    "Este comando nunca imprime um token. Saída: 0 logado, 1 não logado. Documento --json: simplicio.auth-status/v1.",
+        epilog="exemplos:\n  simplicio-video auth status\n  simplicio-video auth status --json")
+    ps.add_argument("--json", action="store_true", help="imprime um documento simplicio.auth-status/v1")
 
     p = sub.add_parser("setup", formatter_class=Fmt, help="primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)",
         description="Cria o workspace em $SIMPLICIO_WORKSPACE (padrão ~/.simplicio-video/workspaces/default) com\n"
@@ -542,6 +601,9 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "doctor":
         from .commands import doctor
         return doctor.run(a)
+    if a.cmd in ("login", "logout", "auth"):
+        from .commands import login
+        return login.run(a)
     if a.cmd == "setup":
         from .commands import setup
         return setup.run(a)

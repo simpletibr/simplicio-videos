@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "update-check.json",
+  "description": "Arquivo de estado que `simplicio-video update --check` grava em $SIMPLICIO_VIDEO_DATA (padrão ~/.simplicio-video) e que o `doctor` lê sem rede. Sem chave `schema`, como no simplicio-loop; commits_behind só existe em kind=source.",
+  "type": "object",
+  "required": [
+    "installed",
+    "latest",
+    "update_available",
+    "kind",
+    "checked_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "installed": {
+      "type": "string"
+    },
+    "latest": {
+      "type": "string",
+      "description": "pip: a última release do GitHub. source: a versão do pyproject.toml do upstream (ou a instalada, se ele não a dá)."
+    },
+    "update_available": {
+      "type": "boolean"
+    },
+    "kind": {
+      "enum": [
+        "source",
+        "pip"
+      ]
+    },
+    "commits_behind": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Só em kind=source: commits novos no upstream."
+    },
+    "checked_at": {
+      "type": "integer",
+      "description": "Segundos desde a época (UTC)."
+    }
+  },
+  "if": {
+    "properties": {
+      "kind": {
+        "const": "pip"
+      }
+    },
+    "required": [
+      "kind"
+    ]
+  },
+  "then": {
+    "not": {
+      "required": [
+        "commits_behind"
+      ]
+    }
+  }
+}
