@@ -244,7 +244,7 @@ def test_ponto_de_reparse_do_windows_conta_como_link(arq, monkeypatch, tag):
         info = real(caminho, *a, **kw)
         if str(caminho) == str(arq):
             return SimpleNamespace(st_mode=info.st_mode, st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
-                                   st_reparse_tag=getattr(stat, tag))
+                                   st_reparse_tag=getattr(auth, tag))
         return info
 
     monkeypatch.setattr(os, "lstat", lstat)

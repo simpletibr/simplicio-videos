@@ -42,6 +42,7 @@ CLEARED_ENV = ("SIMPLICIO_AUTH_FILE", "SIMPLICIO_247_LOGIN", "BROWSER", "PIP_BRE
 
 # Decided at import time, BEFORE any test simulates another system: the machine that really runs the suite.
 REAL_WINDOWS = os.name == "nt"
+REAL_PATH = os.environ.get("PATH", "")  # the PATH before `caixa` seals it: only used to find the real git
 posix_real = pytest.mark.skipif(REAL_WINDOWS, reason="needs real POSIX files (modes, symlinks, FIFOs, flock)")
 SISTEMAS = ["linux", "darwin", "win32"]
 
@@ -235,6 +236,24 @@ def write_fake_uv(directory: Path, launcher_name: str = "uv") -> Path:
         return launcher
     launcher = directory / launcher_name
     launcher.write_text(f"#!/bin/sh\nexec '{sys.executable}' '{script}' \"$@\"\n", encoding="utf-8")
+    launcher.chmod(0o755)
+    return launcher
+
+
+def write_git_launcher(directory: Path) -> Path:
+    """A `git` on the sealed PATH that runs the REAL git, so the update tests can use real repositories under tmp_path.
+
+    Only git is let through: the sealed PATH still has no `simplicio`, no gh, no node."""
+    real = shutil.which("git", path=REAL_PATH)
+    if real is None:
+        pytest.skip("git is not installed on this machine")
+    directory.mkdir(parents=True, exist_ok=True)
+    if REAL_WINDOWS:
+        launcher = directory / "git.cmd"
+        launcher.write_text(f'@"{real}" %*\r\n', encoding="utf-8")
+        return launcher
+    launcher = directory / "git"
+    launcher.write_text(f"#!/bin/sh\nexec '{real}' \"$@\"\n", encoding="utf-8")
     launcher.chmod(0o755)
     return launcher
 

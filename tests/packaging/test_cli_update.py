@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 import _caixa
-from _caixa import SISTEMAS, distribution, saida_cp1252, update_cmd, write_fake_tool
+from _caixa import SISTEMAS, distribution, saida_cp1252, update_cmd, write_fake_tool, write_git_launcher
 from _comum import executa, exige_registrado
 from simplicio_video import __version__
 from simplicio_video.cli import main
@@ -369,6 +369,8 @@ def fonte(monkeypatch):
 def remoto(caixa, fonte, monkeypatch):
     """origem.git (simulated remote), semente (the publisher) and checkout (the user's repo, one commit behind)."""
     tmp = caixa.tmp
+    write_git_launcher(caixa.tmp / "gitbin")
+    monkeypatch.setenv("PATH", os.pathsep.join([str(caixa.bin), str(caixa.tmp / "gitbin")]))
     _git("init", "--bare", "-b", "main", "origem.git", cwd=tmp)
     semente = tmp / "semente"
     _git("init", "-b", "main", "semente", cwd=tmp)

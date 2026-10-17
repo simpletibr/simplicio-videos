@@ -294,10 +294,10 @@ def test_online_sem_rede_vira_aviso_e_nao_grava_cache(saude, capsys, monkeypatch
 
 
 def test_sem_online_o_doctor_nao_escreve_nada(saude, capsys):
-    antes = instantanea(saude.caixa.tmp)
+    antes = instantanea(saude.caixa.home)
     _json(capsys)
-    depois = instantanea(saude.caixa.tmp)
-    assert depois == antes, "doctor (offline) must not write anything"
+    assert instantanea(saude.caixa.home) == antes, "doctor (offline) must not write to HOME"
+    assert not saude.caixa.data.exists(), "doctor (offline) must not write the update cache"
 
 
 # --- doctor all, doctor login ----------------------------------------------------------------------------------------

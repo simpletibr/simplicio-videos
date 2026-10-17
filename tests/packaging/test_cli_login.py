@@ -345,12 +345,12 @@ def test_o_login_nao_entra_no_plugin_nem_no_mcp():
 
 
 def test_nenhum_modulo_do_motor_depende_do_login():
-    """Nothing in the engine reads the login: only `auth`, the login/doctor commands and hostos know the file."""
+    """Nothing in the engine reads the login: only `auth`, the login/doctor commands know the file (cli.py only describes it)."""
     from _comum import ROOT
     quem_le = []
     for arq in (ROOT / "src" / "simplicio_video").rglob("*.py"):
         texto = arq.read_text(encoding="utf-8")
         if "login.json" in texto or "SIMPLICIO_AUTH_FILE" in texto:
             quem_le.append(arq.relative_to(ROOT / "src" / "simplicio_video").as_posix())
-    assert sorted(quem_le) == sorted(x for x in quem_le if x in {"auth.py", "commands/login.py", "commands/doctor.py"}), quem_le
+    assert sorted(quem_le) == sorted(x for x in quem_le if x in {"auth.py", "cli.py", "commands/login.py", "commands/doctor.py"}), quem_le
     assert os.path.basename(__file__)  # keep `os` used on every host

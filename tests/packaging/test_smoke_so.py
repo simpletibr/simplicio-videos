@@ -28,8 +28,12 @@ def smoke():
     assert SCRIPT.is_file(), "scripts/smoke_so.py does not exist"
     spec = importlib.util.spec_from_file_location("smoke_so_sob_teste", SCRIPT)
     modulo = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(modulo)
-    return modulo
+    sys.modules[spec.name] = modulo  # dataclasses look the module up by name while the script is executed
+    try:
+        spec.loader.exec_module(modulo)
+        yield modulo
+    finally:
+        sys.modules.pop(spec.name, None)
 
 
 def test_o_script_usa_so_a_biblioteca_padrao_no_topo():

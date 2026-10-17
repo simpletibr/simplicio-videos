@@ -46,7 +46,7 @@ def test_login_nao_promete_o_que_nao_faz(capsys):
     """The login is a mirror of the Runtime's: it unlocks and charges nothing, and stores no credential."""
     rc, out, err = executa(["login", "--help"], capsys, main)
     texto = " ".join(out.split())
-    assert "não libera" in texto and "não cobra" in texto
+    assert "não libera nem cobra nada" in texto
     assert "crédito" not in texto.lower().replace("não guarda credencial", "")
 
 
