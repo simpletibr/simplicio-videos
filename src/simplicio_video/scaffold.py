@@ -17,6 +17,16 @@ def drive_token(s: str) -> str:
     return "_".join(w[:1].upper() + w[1:] for w in re.split(r"[^A-Za-z0-9]+", s) if w)
 
 
+def default_out(campanha_id: str, slug: str) -> Path:
+    """Default contract path: <checkout>/clients/<slug>/<campaign>/contract.yaml.
+
+    `paths.home()` falls back to the package data dir when there is no checkout (pip install); that lives in
+    site-packages, which may be read-only and must never be written to, so the project goes under the cwd instead."""
+    home = paths.home()
+    base = Path.cwd() if home == paths.DATA_DIR else home
+    return base / "clients" / slug / campanha_id.lower().replace("_", "-") / "contract.yaml"
+
+
 def skeleton(home: Path, slug: str, campanha: str, template: str, ano: int | None, nome: str | None,
              drive_nome: str | None) -> dict:
     tj = paths.data_dir() / "templates" / template / "template.json"

@@ -46,7 +46,7 @@ def video_init(cliente: str, campanha: str, template: str, nome: str | None = No
     def _do(log):
         h = paths.home()
         data = scaffold.skeleton(h, cliente, campanha, template, ano, nome, None)
-        dst = Path(out) if out else h / "clients" / cliente / data["campanha"]["id"].lower().replace("_", "-") / "contract.yaml"
+        dst = Path(out) if out else scaffold.default_out(data["campanha"]["id"], cliente)
         scaffold.write(dst, data, force)
         log(f"contrato: {dst}")
         return {"contrato": str(dst)}

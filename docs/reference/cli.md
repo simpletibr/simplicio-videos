@@ -255,7 +255,8 @@ options:
   --nome NOME              nome de exibição do cliente (padrão: TODO)
   --drive-nome DRIVE_NOME  NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Clinica_Sorriso)
   --ano ANO                ano da campanha (padrão: ano atual)
-  --out, -o OUT            onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml)
+  --out, -o OUT            onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no checkout
+                           ou, instalado por pip, na pasta atual)
   --force                  sobrescreve um contrato existente
 
 exemplos:

@@ -119,7 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--nome", help="nome de exibição do cliente (padrão: TODO)")
     p.add_argument("--drive-nome", help="NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Clinica_Sorriso)")
     p.add_argument("--ano", type=int, help="ano da campanha (padrão: ano atual)")
-    p.add_argument("--out", "-o", type=Path, help="onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml)")
+    p.add_argument("--out", "-o", type=Path, help="onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no checkout ou, instalado por pip, na pasta atual)")
     p.add_argument("--force", action="store_true", help="sobrescreve um contrato existente")
 
     p = sub.add_parser("validate", formatter_class=Fmt, help="valida o contrato (schema, assets, durações, falas)",
@@ -582,7 +582,7 @@ def main(argv: list[str] | None = None) -> int:
         from . import scaffold
         h = paths.home()
         data = scaffold.skeleton(h, a.cliente, a.campanha, a.template, a.ano, a.nome, a.drive_nome)
-        out = a.out or h / "clients" / a.cliente / data["campanha"]["id"].lower().replace("_", "-") / "contract.yaml"
+        out = a.out or scaffold.default_out(data["campanha"]["id"], a.cliente)
         scaffold.write(out, data, a.force)
         print(f"contrato: {out}\npróximo: preencha os TODO (só fatos de coleta/) e rode `simplicio-video validate {out}`")
         return 0
