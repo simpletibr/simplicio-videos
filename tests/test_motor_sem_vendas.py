@@ -1,7 +1,7 @@
 """Issue #77: o CLI do motor não carrega os módulos de venda (prospect, venda, ugc, realoficial, publish).
 
-Os arquivos desses módulos continuam no repo até depois da campanha de 12/10. Aqui se prova só que o motor
-importa, registra e roda sem eles. Os subprocessos herdam o guard de socket (conftest.offline_env).
+Aqui se prova que o motor importa, registra e roda sem eles. Os mortos (prospect, venda, ugc) saíram do pacote
+do PyPI; `publish` e `realoficial` ficam porque ainda têm dependente. Os subprocessos herdam o guard de socket (conftest.offline_env).
 """
 from __future__ import annotations
 
@@ -84,7 +84,37 @@ def test_help_do_subcomando_motor_nao_cita_venda(sub):
         assert f"simplicio-video {nome}" not in r.stdout, f"{sub} --help cita {nome!r}"
 
 
-def test_modulos_de_venda_continuam_no_repo():
-    # A issue só corta o import no CLI: os arquivos saem do repo depois de 12/10, não agora.
-    for nome in MODULOS_VENDAS:
-        assert (ROOT / "src" / "simplicio_video" / f"{nome}.py").is_file(), f"{nome}.py não pode ser apagado pela #77"
+# Módulos de venda mortos: nada no CLI, no MCP nem no motor os importa (só os testes exclusivos deles os importavam),
+# então saíram do pacote que vai para o PyPI, com os dados que só eles liam. `publish` e `realoficial` ficam: `publish`
+# ainda é exercitado por tests/test_contrato_sem_drive.py e `commands/setup.py` importa REALOFICIAL_MCP_URL.
+MODULOS_MORTOS = ("prospect", "venda", "ugc")
+MODULOS_QUE_FICAM = ("publish", "realoficial")
+SRC = ROOT / "src" / "simplicio_video"
+
+
+def test_modulos_de_venda_mortos_nao_estao_no_pacote():
+    for nome in MODULOS_MORTOS:
+        assert not (SRC / f"{nome}.py").exists(), f"{nome}.py é código morto: não vai para o PyPI"
+    templates = SRC / "data" / "templates"
+    assert not (templates / "prospect-roteamento.json").exists()
+    assert not sorted(templates.glob("*/contract.base.yaml")), "contrato-base do prospect (marca d'água e @ do dono) no pacote"
+    assert not sorted(templates.glob("*/setores.json")), "regras de setor do prospect no pacote"
+
+
+def test_modulos_de_venda_com_dependente_continuam_no_repo():
+    for nome in MODULOS_QUE_FICAM:
+        assert (SRC / f"{nome}.py").is_file(), f"{nome}.py ainda tem dependente (setup.py / test_contrato_sem_drive.py)"
+
+
+def test_nada_no_pacote_importa_os_modulos_mortos():
+    import re
+
+    alvo = "|".join(MODULOS_MORTOS)
+    rx = re.compile(rf"^\s*(?:from\s+\.(?:{alvo})\b|from\s+\.\s+import\s+[^\n#]*\b(?:{alvo})\b|"
+                    rf"(?:from|import)\s+simplicio_video(?:\.|\s+import\s+[^\n#]*\b)(?:{alvo})\b)", re.M)
+    for exemplo in ("from . import venda", "from .prospect import x", "from . import cli, ugc", "import simplicio_video.ugc",
+                    "from simplicio_video import prospect as P"):
+        assert rx.search(exemplo), f"a regex não pega {exemplo!r}"
+    assert not rx.search("from . import publish\nfrom .realoficial import X")
+    achados = [f"{p.relative_to(SRC)}: {m.group(0).strip()}" for p in sorted(SRC.rglob("*.py")) for m in rx.finditer(p.read_text(encoding="utf8"))]
+    assert not achados, achados
