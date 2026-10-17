@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.video-install-ownership/v1",
+  "title": "simplicio-video: recibo de posse do install",
+  "description": "O arquivo `.simplicio-video/install-ownership.json` que o `simplicio-video install` grava no alvo (o projeto, ou o home com `--global`). Registra exatamente o que o install escreveu e as pastas que ele criou: o `install --uninstall` remove só isso, nunca algo fora do alvo, e recusa um recibo adulterado (caminho absoluto, `..`, letra de unidade, link simbólico que escapa do alvo, dono ou esquema desconhecido).",
+  "type": "object",
+  "required": [
+    "schema",
+    "owner",
+    "version",
+    "digest",
+    "paths",
+    "dirs"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "simplicio.video-install-ownership/v1"
+    },
+    "owner": {
+      "const": "simplicio-video"
+    },
+    "version": {
+      "type": "string"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Os arquivos que o install escreveu (ou achou idênticos), relativos ao alvo e com `/`. O uninstall remove só estes."
+    },
+    "dirs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "As pastas que o install criou, relativas ao alvo. O uninstall remove as que ficarem vazias; uma que já existia antes nunca entra."
+    }
+  }
+}

@@ -1,0 +1,393 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simplicio.video-install-plan/v1",
+  "title": "simplicio-video install --json",
+  "description": "Saída de `simplicio-video install --json` (stdout), no contrato do `simplicio.loop-install-plan/v1` do simplicio-loop, com as mesmas chaves: o `install` copia a skill do simplicio-video para o host do agente (o simplicio-video não tem hooks), registra o que escreveu no recibo `.simplicio-video/install-ownership.json` e nunca sobrescreve o que não é dele (`changes.left_alone`). `status` diz a forma do documento: `applied` (instalou) e `dry_run` (`--dry-run` e `--check`, nada foi escrito) trazem o plano completo; `verified` é o `--verify`; `removed` e `dry_run` com `removed` são o `--uninstall`; `error` é uma falha (host desconhecido, escrita negada, sem recibo): o stdout continua sendo UM documento, com `error`, e a mesma mensagem vai para o stderr.",
+  "type": "object",
+  "required": [
+    "schema",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "simplicio.video-install-plan/v1"
+    },
+    "status": {
+      "enum": [
+        "applied",
+        "dry_run",
+        "verified",
+        "removed",
+        "error"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "description": "A versão do simplicio-video que rodou."
+    },
+    "host": {
+      "type": "string",
+      "description": "O `--host` pedido (um dos hosts do registro, ou `all`)."
+    },
+    "written": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Quantos arquivos foram criados ou atualizados (0 no dry_run)."
+    },
+    "up_to_date": {
+      "type": "boolean",
+      "description": "Nada a criar nem atualizar, e nenhuma cópia de outro host desatualizada (com `--global`)."
+    },
+    "changes": {
+      "type": "object",
+      "required": [
+        "created",
+        "updated",
+        "unchanged",
+        "left_alone"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "created": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Arquivos novos (no dry_run, os que seriam criados)."
+        },
+        "updated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Arquivos que existiam e diferiam do pacote."
+        },
+        "unchanged": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Arquivos idênticos ao pacote: não são regravados."
+        },
+        "left_alone": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "O que existe no alvo e não é do simplicio-video (outras skills, um AGENTS.md seu, um link simbólico): intacto."
+        }
+      }
+    },
+    "owned": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Os caminhos que o recibo registra, sem repetição."
+    },
+    "ownership": {
+      "type": "object",
+      "required": [
+        "schema",
+        "owner",
+        "version",
+        "digest",
+        "paths",
+        "dirs"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "simplicio.video-install-ownership/v1"
+        },
+        "owner": {
+          "const": "simplicio-video"
+        },
+        "version": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Os arquivos que o install escreveu (ou achou idênticos), relativos ao alvo e com `/`. O uninstall remove só estes."
+        },
+        "dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "As pastas que o install criou, relativas ao alvo. O uninstall remove as que ficarem vazias; uma que já existia antes nunca entra."
+        }
+      },
+      "description": "O recibo de posse (o mesmo conteúdo de `.simplicio-video/install-ownership.json`)."
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "O digest do plano: esquema, versão, hosts, ações e escopo."
+    },
+    "resynced": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Só com `--global`: as cópias que os outros hosts já têm da skill (`~/.codex/skills`, `~/.cursor/skills`...). `null` sem `--global`. `rules` e `rules_counts` existem por contrato com o loop e ficam vazios: o simplicio-video não tem regras de host.",
+      "required": [
+        "skills",
+        "rules",
+        "skills_counts",
+        "rules_counts",
+        "errors",
+        "pending"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Os hosts cujas cópias foram atualizadas (ou estão desatualizadas, no --check)."
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skills_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "rules_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "host",
+              "error"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "error": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "pending": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Quantas cópias estão desatualizadas e o --check/--dry-run não tocou."
+        }
+      }
+    },
+    "pruned_project": {
+      "type": "object",
+      "description": "Só com `--global --prune-project-copies`: as cópias obsoletas do projeto que foram (ou seriam) removidas.",
+      "required": [
+        "status",
+        "removed",
+        "removed_dirs",
+        "kept"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "simplicio.video-install-plan/v1"
+        },
+        "status": {
+          "enum": [
+            "dry_run",
+            "removed"
+          ]
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removed_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "kept": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ok": {
+      "const": true,
+      "description": "Só no `--verify`."
+    },
+    "removed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Só no `--uninstall`: os arquivos que saíram (ou sairiam, no dry_run)."
+    },
+    "removed_dirs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Só no `--uninstall`: as pastas vazias que saíram."
+    },
+    "kept": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Só no `--uninstall`: pastas registradas que ficaram porque guardam arquivos que o simplicio-video não instalou."
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Só no `--uninstall`: caminhos registrados que são pasta onde se esperava arquivo; não são do simplicio-video apagar."
+    },
+    "error": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Só quando deu erro: a mesma mensagem que vai para o stderr."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "applied"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "version",
+          "host",
+          "written",
+          "up_to_date",
+          "changes",
+          "owned",
+          "ownership",
+          "digest",
+          "resynced"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "dry_run"
+          }
+        }
+      },
+      "then": {
+        "oneOf": [
+          {
+            "required": [
+              "version",
+              "host",
+              "written",
+              "up_to_date",
+              "changes",
+              "owned",
+              "ownership",
+              "digest",
+              "resynced"
+            ]
+          },
+          {
+            "required": [
+              "removed",
+              "removed_dirs",
+              "kept",
+              "skipped"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "removed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "removed",
+          "removed_dirs",
+          "kept",
+          "skipped"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "verified"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "version",
+          "ok",
+          "host",
+          "digest"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "version",
+          "error"
+        ],
+        "properties": {
+          "up_to_date": {
+            "const": false
+          }
+        }
+      }
+    }
+  ]
+}
