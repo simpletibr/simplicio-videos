@@ -13,7 +13,7 @@ O gate do projeto (`make check`) roda só em Linux e não usa GitHub Actions. Os
 
 `scripts/smoke_so.py` usa só a biblioteca padrão do Python 3.10 ou superior (a validação de schema importa o `jsonschema`, que o próprio pacote já exige). Ele:
 
-- cria uma **pasta temporária** e roda o CLI com `HOME`, `USERPROFILE`, `PATH`, `TEMP` e as pastas de dados dentro dela: nunca toca no seu `~` de verdade;
+- cria uma **pasta temporária** e roda o CLI com `HOME`, `USERPROFILE`, `PATH`, `TEMP` e as pastas de dados dentro dela: nunca toca no seu `~` de verdade. `HOME` e `USERPROFILE` apontam para **pastas diferentes** de propósito: o Runtime lê o login de `HOME` e só depois de `USERPROFILE` (em todo sistema, Windows incluído), e o CLI faz igual; com as duas na mesma pasta, um erro de ordem passaria sem ninguém ver;
 - deixa o `PATH` do filho sem `simplicio`, `git`, `node` nem `uv`, então **nunca dispara um login de verdade** nem abre navegador, e usa `SIMPLICIO_OFFLINE=1` (sem rede);
 - roda nove comandos, valida cada JSON contra o schema empacotado em `src/simplicio_video/data/schemas/cli/` e confere o `status` e o `reason_code` esperados;
 - imprime uma tabela Markdown (SO, versão do Python, comando, exit esperado e obtido, ok ou falhou) e **sai com 1 se algo falhar**;

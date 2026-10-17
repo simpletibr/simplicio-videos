@@ -76,17 +76,17 @@ Instalado por `pip install simplicio-video`, não há checkout nem `.venv`: `ins
 
 ```bash
 .venv/bin/simplicio-video update --check    # 0 em dia, 10 há atualização, 2 erro; não altera nada
-.venv/bin/simplicio-video update --dry-run  # mostra o que rodaria; não altera nada
+.venv/bin/simplicio-video update --dry-run  # mostra o plano; não altera nada e não roda git fetch
 .venv/bin/simplicio-video update            # git pull --ff-only, reinstala, reconstrói web/ e roda o doctor
 ```
 
-`update --check` faz `git fetch`, então precisa de rede, e grava o resultado em `~/.simplicio-video/update-check.json` (ou em `$SIMPLICIO_VIDEO_DATA`), que o `doctor` lê sem rede.
+`update --check` faz `git fetch`, então precisa de rede, e grava o resultado em `~/.simplicio-video/update-check.json` (ou em `$SIMPLICIO_VIDEO_DATA`), que o `doctor` lê sem rede. Com `SIMPLICIO_OFFLINE=1` nada de rede roda, o `git fetch` incluído: `update --check` sai com 2 e o `update` com 1. O `update --dry-run` nunca roda `git fetch` (ele mexe nas refs do `.git`): só mostra o plano.
 
 - Se a árvore tiver alterações não commitadas, o update recusa com exit 2. Guarde com `git stash` (ou faça commit) e rode de novo. O `--force` **não** ignora a árvore suja: nada é descartado.
 - `--force` reinstala mesmo em dia e permite downgrade.
 - Só há avanço rápido. Se a sua branch divergiu do remoto, o pull falha com exit 2 e nada muda.
 - O update imprime o commit anterior e o comando para voltar a ele, no formato `git -C <checkout> reset --keep <commit>`.
-- Falha de rede: exit 2 com `--check` e exit 1 sem ele.
+- Falha de rede: exit 2 com `--check` e exit 1 sem ele. Se a versão instalada é mais nova que a última release (o PyPI sai antes do GitHub Release), o `update` sai com 0 e não faz nada.
 
 Num pacote instalado por pip, o update faz `python -m pip install --upgrade "simplicio-video==<última release>"` (PyPI). Um Python gerenciado pelo sistema (PEP 668) é recusado com exit 2 e quatro saídas: um `venv`, `uv`, `pipx`, ou `PIP_BREAK_SYSTEM_PACKAGES=1 simplicio-video update` se você autoriza. Dentro do container, reconstrua a imagem (`docker compose build`).
 

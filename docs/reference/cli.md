@@ -418,8 +418,10 @@ exemplos:
 usage: simplicio-video logout [-h] [--yes] [--json]
 
 Apaga ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE) sob a trava login.lock. Esse arquivo é do Simplicio Runtime
-também: sair aqui desloga o Runtime, por isso sem --yes nada é apagado (REFUSED, exit 2). O token de renovação
-não é revogado no servidor. Sem arquivo de login: NO_LOGIN, exit 0, nada é criado.
+também: sair aqui desloga o Runtime, por isso sem --yes nada é apagado (REFUSED, exit 2). Só apaga um arquivo
+comum, pequeno e com a forma de login (JSON com access_token, refresh_token ou verification): qualquer outro
+(uma chave ssh que SIMPLICIO_AUTH_FILE aponte, uma pasta) é recusado, exit 2, not_a_login_file, sem apagar nada.
+O token de renovação não é revogado no servidor. Sem arquivo de login: NO_LOGIN, exit 0, nada é criado.
 
 options:
   -h, --help  show this help message and exit
@@ -814,14 +816,17 @@ Num checkout: recusa árvore suja (guarde com `git stash`), mostra os commits no
 git pull --ff-only, reexecuta install, reconstrói web/ e roda doctor, e imprime o commit anterior (rollback).
 Num pacote instalado por pip: python -m pip install --upgrade "simplicio-video==<última release>" (PyPI); a última
 release vem do GitHub Releases. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas possíveis.
-Saída: --check 0 em dia, 10 com atualização, 2 erro; recusa 2; falha de rede 2 com --check, senão 1.
+Saída: --check 0 em dia, 10 com atualização, 2 erro; recusa 2; falha de rede 2 com --check, senão 1. Versão
+instalada mais nova que a última release (o PyPI sai antes do GitHub Release) é em dia: 0.
 --force reinstala mesmo em dia e permite downgrade, mas nunca ignora a árvore suja. --check grava o resultado em
-update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede.
+update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede. --dry-run só mostra o plano: num checkout
+não roda git fetch (ele mexeria nas refs do .git). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch
+do checkout (--check sai com 2, o update com 1).
 
 options:
   -h, --help  show this help message and exit
   --check     não altera nada; sai com 0 (em dia), 10 (há atualização) ou 2 (erro)
-  --dry-run   mostra o que rodaria e não altera nada nem grava o estado
+  --dry-run   mostra o plano e não altera nada, não grava o estado e não roda git fetch
   --force     reinstala mesmo em dia e permite downgrade (não ignora a árvore suja)
 
 exemplos:
