@@ -1,0 +1,11 @@
+# sdist: src/ comes from setuptools; README/PYPI.md, LICENSE and NOTICE come from [project] (readme, license-files).
+# The only extra is the changelog. The test suite does NOT ship: it needs clients/, docs/, scripts/ and git, so it does
+# not run from an sdist (200 failures measured), and it names real customers; PyPI is immutable.
+include CHANGELOG.md
+prune tests
+# setuptools adds README.md by itself, but the package readme is PYPI.md (README.md is the GitHub page, with example videos).
+exclude README.md
+# `python -m build` builds the wheel from the extracted sdist and re-reads this file there, where the excluded files are
+# already gone: every `exclude` that finds nothing prints a warning. The sdist is final, so it does not carry the template.
+# Bytecode is excluded in pyproject.toml (exclude-package-data), not with global-exclude, which warns on every clean build.
+exclude MANIFEST.in

@@ -130,7 +130,7 @@ Windows e macOS reais continuam **UNVERIFIED** até alguém rodar `python script
 ## Docker
 
 - `Dockerfile` em três estágios: `node:22-bookworm-slim` (fonte do Node), `python:3.12-slim-bookworm` para o build do venv, e a imagem final com ffmpeg do Debian, Node 22 e um usuário não root (`simplicio`, UID 10001).
-- Workspace em `VOLUME ["/workspace"]`, com `SIMPLICIO_WORKSPACE=/workspace`. `HEALTHCHECK` roda `simplicio-video --version`.
+- Workspace em `VOLUME ["/workspace"]`, com `SIMPLICIO_WORKSPACE=/workspace`, e `WORKDIR /workspace`: o `init` grava `./clients/<cliente>/<campanha>/contract.yaml` na pasta atual, então o contrato cai no volume e sobrevive ao `docker compose run --rm` (num `WORKDIR` fora do volume ele sumia com o contêiner). `HEALTHCHECK` roda `simplicio-video --version`.
 - `compose.yaml` builda a partir do `Dockerfile` e nomeia a imagem `simplicio-video:local`. Não há `image:` pública.
 - `deploy/docker/doctor.sh` é um atalho para `docker compose run --rm simplicio doctor`.
 

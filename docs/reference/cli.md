@@ -81,12 +81,12 @@ comandos (na ordem do fluxo):
 
 exemplos:
   simplicio-video list templates
-  simplicio-video init lothus-odontologia Dia_Criancas --template saude-odontologia --nome "Lothus Odontologia" --ano 2026
-  simplicio-video validate clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml
-  simplicio-video voice clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider local
-  simplicio-video render clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml
-  simplicio-video render clients/wjr-informatica-games/video-01/contract.yaml --backend kaggle
-  simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini
+  simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome "<Nome do cliente>" --ano 2026
+  simplicio-video validate clients/<cliente>/<campanha>/contract.yaml
+  simplicio-video voice clients/<cliente>/<campanha>/contract.yaml --provider local
+  simplicio-video render clients/<cliente>/<campanha>/contract.yaml
+  simplicio-video render clients/<cliente>/<campanha>/contract.yaml --backend kaggle
+  simplicio-video run clients/<cliente>/<campanha>/contract.yaml --provider gemini
   simplicio-video render contract.yaml --preview          # 540x960, marca d'água e crédito final do contrato (marca)
 
 ambiente:
@@ -279,22 +279,23 @@ voz sugerida e trilha padrão. Campos com TODO precisam ser preenchidos
 (validate falha enquanto houver TODO). Schema: src/simplicio_video/data/schema/contract.schema.json.
 
 positional arguments:
-  cliente                  slug do cliente (pasta em clients/, ex.: lothus-odontologia)
+  cliente                  slug do cliente (pasta em clients/, ex.: clinica-sorriso)
   campanha                 campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)
 
 options:
   -h, --help               show this help message and exit
   --template, -t TEMPLATE  id do template de setor (ver `simplicio-video list templates`)
   --nome NOME              nome de exibição do cliente (padrão: TODO)
-  --drive-nome DRIVE_NOME  NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Lothus_Odontologia)
+  --drive-nome DRIVE_NOME  NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Clinica_Sorriso)
   --ano ANO                ano da campanha (padrão: ano atual)
-  --out, -o OUT            onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml)
+  --out, -o OUT            onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no checkout
+                           ou, instalado por pip, na pasta atual)
   --force                  sobrescreve um contrato existente
 
 exemplos:
-  simplicio-video init lothus-odontologia Dia_Criancas --template saude-odontologia --nome "Lothus Odontologia"
-  simplicio-video init wjr-informatica-games Black_Friday --template assistencia-tecnica-games --ano 2026 \
-      --out clients/wjr-informatica-games/video-03/contract.yaml
+  simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome "<Nome do cliente>"
+  simplicio-video init <cliente> <Campanha> --template assistencia-tecnica-games --ano 2026 \
+      --out clients/<cliente>/<campanha>/contract.yaml
 ```
 
 ## simplicio-video install
@@ -589,7 +590,7 @@ Com ativos do Openverse (asset com openverse: {id, pedido}), o manifesto traz a 
 e os créditos vão para <saida>.CREDITS-openverse.md ao lado do MP4.
 backends (todos sem navegador, exceto colab):
   local      PADRÃO. Renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver).
-             Referência de hash, sem custo (WJR 600 frames: 76,5 s em 8 núcleos).
+             Referência de hash, sem custo (vídeo de 600 frames: 76,5 s em 8 núcleos).
   -- opcionais, para clientes via créditos (custo e tempo medidos em docs/custos.md) --
   kaggle     bundle -> dataset privado Kaggle -> kernel (T4, internet) -> poll -> baixa o MP4.
              Precisa do CLI `kaggle`, KAGGLE_USERNAME + token (KAGGLE_API_TOKEN ou ~/.kaggle/access_token)
@@ -747,7 +748,7 @@ options:
 exemplos:
   simplicio-video status
   simplicio-video status --json
-  simplicio-video status --json clients/lothus-odontologia/video-01/contract.yaml
+  simplicio-video status --json clients/<cliente>/<campanha>/contract.yaml
 ```
 
 ## simplicio-video swap
@@ -865,7 +866,7 @@ options:
   --json         imprime {ok, errors, warnings} em JSON
 
 exemplos:
-  simplicio-video validate clients/wjr-informatica-games/video-01/contract.yaml
+  simplicio-video validate clients/<cliente>/<campanha>/contract.yaml
   simplicio-video validate contract.yaml --json      # relatório em JSON
   simplicio-video validate contract.yaml --need-lock # exige timing.lock.json (antes do render)
 ```

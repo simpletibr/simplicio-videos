@@ -88,7 +88,7 @@
   "voice_sync": "bpm = trilha.bpm para o pulso da camada média cair nas batidas.",
   "source": {
     "kind": "interno",
-    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças v02 'dopaminérgica', 30/09/2026); motion-video-kit (o primeiro plano vira a transição; variar velocidade) + receitas de cortes rápidos de 6-10 frames",
+    "ref": "Autoria para o template de odontologia infantil (Dia das Crianças v02 'dopaminérgica', 30/09/2026); motion-video-kit (o primeiro plano vira a transição; variar velocidade) + receitas de cortes rápidos de 6-10 frames",
     "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
   },
   "preview_at": 2.0

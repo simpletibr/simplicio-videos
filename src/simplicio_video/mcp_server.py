@@ -16,7 +16,7 @@ from typing import Any
 
 INSTRUCTIONS = ("simplicio-video: short marketing videos from a simplicio.video-contract/v1 YAML "
                 "(src/simplicio_video/data/schema/contract.schema.json; how to write it: skills/simplicio-video/SKILL.md). "
-                "Flow: video.init -> fill TODOs from clients/<slug>/coleta -> video.validate -> video.voice -> "
+                "Flow: video.init (pass `out`, an absolute path, in a pip-installed package) -> fill TODOs from clients/<slug>/coleta -> video.validate -> video.voice -> "
                 "video.render (or video.run for voice->render). Never invent client facts, never speed up the voice. "
                 "The upload is not a tool here: it is done by the operation tool.")
 
@@ -44,9 +44,19 @@ def video_init(cliente: str, campanha: str, template: str, nome: str | None = No
     from . import paths, scaffold
 
     def _do(log):
+        if scaffold.sem_checkout():
+            # No checkout there is no project folder, and the server's cwd is wherever the client started it (/, $HOME,
+            # the IDE folder): never write there. A relative `out` would resolve against that same cwd.
+            if not out:
+                raise SystemExit("video.init: este pacote foi instalado pelo pip (sem checkout), então o servidor MCP não tem uma pasta de projeto. "
+                                 "Informe `out`, o caminho absoluto do contract.yaml a criar (ex.: /home/voce/videos/acme/contract.yaml). "
+                                 "Sem ele o contrato iria para a pasta onde o servidor foi iniciado, que você não controla; nada foi gravado.")
+            if not Path(out).is_absolute():
+                raise SystemExit(f"video.init: num pacote instalado pelo pip `out` precisa ser um caminho absoluto (recebi {out!r}); "
+                                 "o relativo cairia na pasta onde o servidor foi iniciado. Nada foi gravado.")
         h = paths.home()
         data = scaffold.skeleton(h, cliente, campanha, template, ano, nome, None)
-        dst = Path(out) if out else h / "clients" / cliente / data["campanha"]["id"].lower().replace("_", "-") / "contract.yaml"
+        dst = Path(out) if out else scaffold.default_out(data["campanha"]["id"], cliente)
         scaffold.write(dst, data, force)
         log(f"contrato: {dst}")
         return {"contrato": str(dst)}
@@ -318,7 +328,7 @@ def video_moneyprinter(args: str = "") -> dict:
 
 
 TOOLS = [
-    ("video.init", video_init, "Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts)."),
+    ("video.init", video_init, "Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts). Writes <checkout>/clients/<cliente>/<campanha>/contract.yaml; in a pip-installed package (no checkout) `out`, the absolute path of the contract file, is required and nothing is written without it."),
     ("video.validate", video_validate, "Validate a contract: JSON Schema, assets, scene durations, every line fits (need_lock before render)."),
     ("video.voice", video_voice, "Generate/cache narration (provider file|local|gemini) and write timing.lock.json with real durations."),
     ("video.render", video_render, "Render the contract: backend local | kaggle (GPU T4) | colab-cli | colab (bundle only). Returns manifest summary."),

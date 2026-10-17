@@ -38,8 +38,6 @@ ENV_READERS = {"get", "pop", "setdefault"}
 # What each variable is for. A variable the code reads but this table does not describe is still listed, marked
 # as undescribed, so the gap shows up in the reference instead of being hidden.
 DESCRIPTIONS = {
-    "ABACATEPAY_API_KEY": "Chave da API AbacatePay (cobrança Pix da trilha de venda). Só no ambiente.",
-    "ABACATEPAY_WEBHOOK_SECRET": "Segredo que valida o webhook de pagamento da trilha de venda.",
     "GH_TOKEN": "Token do GitHub que o `update` manda só para `api.github.com` ao ler a última release (um redirect para outro host tira o cabeçalho). Só no ambiente; o `login` nunca o repassa ao Runtime.",
     "GITHUB_TOKEN": "O mesmo que `GH_TOKEN`, quando ele não está definido. Só vai para `api.github.com`; o `login` nunca o repassa ao Runtime.",
     "GEMINI_API_KEY": "Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo.",
@@ -63,7 +61,6 @@ DESCRIPTIONS = {
     "PIP_BREAK_SYSTEM_PACKAGES": "`1` autoriza o pip a mexer no Python do sistema (PEP 668). O `update` de um pacote instalado por pip respeita: sem ele, um Python gerenciado pelo sistema é recusado com exit 2.",
     "SIMPLICIO_AUTH_FILE": "Arquivo de login compartilhado com o Simplicio Runtime (padrão: `~/.simplicio/login.json`). Lido por `login`, `logout`, `auth status` e `doctor`; o motor não grava credencial nem lê o token. Mesmo nome que o Runtime lê.",
     "SIMPLICIO_COLAB_AUTH": "Modo de autenticação do Colab CLI, repassado a `--auth`.",
-    "SIMPLICIO_DRIVE_DESTINO": "JSON com `caminho` e `arquivo` da entrega no Drive da trilha de venda.",
     "SIMPLICIO_DRIVE_REMOTE": "Nome do remote do rclone para o Drive (padrão: `gdrive`).",
     "SIMPLICIO_FFMPEG_DIR": "Pasta do ffmpeg/ffprobe fixados (render local e `swap`).",
     "SIMPLICIO_FFMPEG_SHA256": "SHA-256 esperado do ffmpeg estático de `SIMPLICIO_FFMPEG_URL`.",
@@ -87,7 +84,6 @@ DESCRIPTIONS = {
     "SIMPLICIO_TTS_PY": "Python com kokoro-onnx e soundfile (TTS local; padrão: `~/.local/share/simplicio-tts/cbvenv`).",
     "SIMPLICIO_VIDEO_DATA": "Pasta de dados do simplicio-video (padrão: `~/.simplicio-video`). Lida pelas trilhas `montage`, `toonflow` e `moneyprinter`, pelo `jobs` (estado das tarefas em `jobs/`), pelo `busca` (cache, contador e registro em `busca/`) e pelo `update` (`update-check.json`, que o `doctor` lê sem rede).",
     "SIMPLICIO_VIDEO_HOME": "Checkout do simplicio-video (dados do motor e raiz do repo). Sem ela, o pacote procura o checkout.",
-    "SIMPLICIO_VOICE_REGEN": "Tomadas novas por fala antes de encurtar o texto (padrão: 3).",
     "SIMPLICIO_WORKSPACE": "Pasta do workspace da fábrica (padrão: `~/.simplicio-video/workspaces/default`).",
     "SV_BROWSER_GPU": "`1` liga a GPU do navegador na captura do render.",
     "SV_BUNDLE": "Caminho do bundle a renderizar no render remoto.",

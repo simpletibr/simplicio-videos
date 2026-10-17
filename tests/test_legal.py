@@ -3,7 +3,7 @@
 Contrato que a fase 2 precisa cumprir (estes testes leem arquivos do repo; nada de rede nem sockets):
 
 - LICENSE: texto integral da GNU AGPL v3 (cabeçalho nas primeiras linhas, "END OF TERMS AND CONDITIONS").
-- pyproject.toml: [project] license = { text = "AGPL-3.0-or-later" }.
+- pyproject.toml: [project] license = "AGPL-3.0-or-later" (expressão SPDX) e license-files = ["LICENSE", "NOTICE"].
 - NOTICE: aviso do produto (simplicio-video) com a licença.
 - docs/legal/README.md: índice que linka licenca.md, terceiros.md e historico.md.
 - docs/legal/licenca.md: por que AGPL e como contribuir (seções "## Por que" e "## Contribuição").
@@ -62,10 +62,11 @@ def test_license_termina_com_end_of_terms_and_conditions():
 def test_pyproject_declara_agpl_em_project_license():
     data = tomllib.loads(_ler("pyproject.toml"))
     licenca = data.get("project", {}).get("license")
-    assert isinstance(licenca, dict), "pyproject.toml: [project] license deve ser uma tabela com o campo text"
-    assert LICENSE_ID in licenca.get("text", ""), (
-        f"pyproject.toml: project.license.text deveria conter {LICENSE_ID!r}, mas é {licenca.get('text')!r}"
+    assert licenca == LICENSE_ID, (
+        f"pyproject.toml: [project] license deve ser a expressão SPDX {LICENSE_ID!r} (a tabela {{ text = ... }} está "
+        f"depreciada e some em 2027), mas é {licenca!r}"
     )
+    assert data["project"].get("license-files") == ["LICENSE", "NOTICE"]
 
 
 # --------------------------------------------------------------------------- NOTICE
@@ -85,6 +86,8 @@ def test_docs_legal_readme_linka_os_tres_documentos():
 def test_docs_legal_licenca_explica_agpl_e_contribuicao():
     text = _ler("docs/legal/licenca.md")
     assert LICENSE_ID in text, f"docs/legal/licenca.md não cita {LICENSE_ID}"
+    assert f'license = "{LICENSE_ID}"' in text, "docs/legal/licenca.md deve citar a forma atual do pyproject (expressão SPDX)"
+    assert "license = {" not in text, "docs/legal/licenca.md ainda cita a forma antiga (tabela { text = ... })"
     for secao in ("## Por que", "## Contribuição"):
         assert _tem_secao(text, secao), f"docs/legal/licenca.md não tem a seção {secao!r}"
 

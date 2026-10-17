@@ -1,7 +1,7 @@
 # institucional-odontologia — pronto (venda ativa, fora de data comemorativa)
 
 Vídeo institucional de 16 s (9:16, 128 BPM) para clínicas e consultórios odontológicos, para uso fora do Dia das Crianças
-(`simplicio-video prospect --campanha institucional`, ou coluna `template`/`campanha` no CSV). Mesmo ritmo e câmera da Lothus v02
+(venda ativa, fora do CLI do motor). Mesmo ritmo e câmera do piloto de odontologia (v02)
 (punch/whip nos cortes, palavra a palavra, mascote `tooth-character` + `toothbrush-sparkle`), estrelas nas batidas **sem
 confete nem balões**, trilha `institucional` com bateria suave (0,6). Voz **Laomedeia** (reserva Achernar), leva animada.
 
