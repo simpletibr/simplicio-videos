@@ -243,6 +243,7 @@ def test_init_no_checkout_continua_gravando_em_clients_do_checkout(tmp_path):
     trabalho = tmp_path / "trabalho"
     trabalho.mkdir()
     env = offline_env(SIMPLICIO_VIDEO_HOME=str(checkout))
+    env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])  # absolute: the cwd below is not the repo
     r = subprocess.run([sys.executable, "-m", "simplicio_video", "init", "acme", "Teste", "--template", "saude-odontologia"],
                        capture_output=True, text=True, cwd=trabalho, env=env, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
