@@ -669,3 +669,187 @@ def test_prune_protege_o_que_a_instalacao_global_acabou_de_escrever_mesmo_por_um
     resultado = installer.prune_project_copies(repo, protect=[protegida])
     assert (casa / SKILL).is_file() and (casa / REF).is_file(), "the global install was pruned through the project's link"
     assert SKILL not in resultado["removed"] and SKILL in resultado["kept"] + resultado["left_alone"]
+
+
+# --- `install --global`: the skill in ALL the global skill folders of the loop, with the ownership rules ------------------------------
+#
+# The loop's `skill_sync` knows 11 folders under the home (`~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`...). The owner asked
+# for "universal" and "igual ao loop": `install --global` puts the skills in every one of them. What keeps that from hurting is the
+# ownership rule of the review (B2/I5): create what is missing (it enters the receipt with its sha256); update ONLY a file that is in
+# the receipt and still has the recorded sha256 (our copy, not edited); never overwrite a file that was already there or that the user
+# edited (`left_alone`); never delete an extra file of the user inside those folders; the uninstall removes only what is ours.
+
+RAIZES_GLOBAIS = {
+    "claude": ".claude/skills", "cursor": ".cursor/skills", "codex": ".codex/skills", "grok": ".grok/skills", "agents": ".agents/skills",
+    "copilot": ".copilot/skills", "vscode": ".vscode/simplicio-skills", "opencode": ".config/opencode/skills",
+    "amp": ".config/amp/skills", "kiro": ".kiro/steering", "simplicio_agent": ".simplicio-loop/skills",
+}
+
+
+def _skill_em(raiz_global: str) -> str:
+    return f"{raiz_global}/simplicio-video/SKILL.md"
+
+
+@pytest.fixture
+def casa(tmp_path):
+    pasta = tmp_path / "casa"
+    pasta.mkdir()
+    return pasta
+
+
+def test_global_cria_a_skill_nas_onze_pastas_do_loop_e_registra_cada_arquivo_com_sha256(casa, bundle):
+    resultado = instala(casa, bundle, globally=True)
+    for raiz in RAIZES_GLOBAIS.values():
+        assert (casa / _skill_em(raiz)).read_text(encoding="utf-8") == "video\n", raiz
+        assert (casa / raiz / "simplicio-video" / "references" / "a.md").is_file(), raiz
+    recibo = recibo_de(casa)
+    for raiz in RAIZES_GLOBAIS.values():
+        assert _skill_em(raiz) in recibo["paths"] and recibo["sha256"][_skill_em(raiz)] == sha("video\n")
+    assert len(recibo["paths"]) == 2 * len(RAIZES_GLOBAIS) and set(recibo["sha256"]) == set(recibo["paths"])
+    assert resultado["up_to_date"] is False and len(resultado["changes"]["created"]) == 2 * len(RAIZES_GLOBAIS) + 1
+    assert installer.apply_plan(installer.plan_install(casa, globally=True), bundle=bundle)["up_to_date"] is True
+
+
+def test_global_o_host_pedido_nao_muda_nada_todas_as_pastas_recebem(casa, bundle):
+    for host in ("claude", "codex", "all"):
+        plano = installer.plan_install(casa, host=host, globally=True)
+        assert {a["destination"] for a in plano["actions"]} == set(RAIZES_GLOBAIS.values()), host
+        assert {a["kind"] for a in plano["actions"]} == {"skills"} and plano["scope"] == "global"
+
+
+def test_global_atualiza_so_a_copia_que_e_nossa_e_nao_foi_editada(casa, bundle):
+    instala(casa, bundle, globally=True)
+    (casa / _skill_em(".cursor/skills")).write_text("editada pelo usuário\n", encoding="utf-8")
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    resultado = instala(casa, bundle, globally=True)
+    assert (casa / _skill_em(".codex/skills")).read_text(encoding="utf-8") == "video v2\n", "our copy, not edited: updated"
+    assert (casa / _skill_em(".claude/skills")).read_text(encoding="utf-8") == "video v2\n"
+    assert (casa / _skill_em(".cursor/skills")).read_text(encoding="utf-8") == "editada pelo usuário\n", "an edited copy is the user's"
+    assert _skill_em(".cursor/skills") in resultado["changes"]["left_alone"]
+    assert _skill_em(".cursor/skills") not in recibo_de(casa)["paths"]
+    assert _skill_em(".codex/skills") in resultado["changes"]["updated"]
+
+
+def test_global_nao_sobrescreve_nem_toma_o_que_ja_existia_no_host(casa, bundle):
+    antiga = write(casa / _skill_em(".codex/skills"), "release antiga, copiada à mão\n")
+    identica = write(casa / _skill_em(".grok/skills"), "video\n")
+    resultado = instala(casa, bundle, globally=True)
+    assert antiga.read_text(encoding="utf-8") == "release antiga, copiada à mão\n"
+    assert _skill_em(".codex/skills") in resultado["changes"]["left_alone"] and _skill_em(".codex/skills") not in resultado["owned"]
+    assert _skill_em(".grok/skills") not in resultado["owned"] and _skill_em(".grok/skills") not in recibo_de(casa)["paths"]
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    instala(casa, bundle, globally=True)
+    assert antiga.read_text(encoding="utf-8") == "release antiga, copiada à mão\n" and identica.read_text(encoding="utf-8") == "video\n", \
+        "a copy the install never owned is never updated either"
+
+
+def test_global_nunca_apaga_um_arquivo_extra_do_usuario_nas_pastas_dos_hosts(casa, bundle):
+    instala(casa, bundle, globally=True)
+    notas = [write(casa / raiz / "simplicio-video" / "minhas-notas.md", "notas\n") for raiz in (".claude/skills", ".codex/skills")]
+    outra = write(casa / ".codex" / "skills" / "minha-skill" / "SKILL.md", "minha\n")
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    (bundle / "skills" / "simplicio-video" / "references" / "a.md").unlink()  # a file that LEFT the package is not deleted either
+    for _ in range(2):
+        resultado = instala(casa, bundle, globally=True)
+    assert all(n.read_text(encoding="utf-8") == "notas\n" for n in notas) and outra.is_file()
+    assert (casa / ".codex" / "skills" / "simplicio-video" / "references" / "a.md").is_file()
+    assert ".codex/skills/simplicio-video/minhas-notas.md" in resultado["changes"]["left_alone"]
+
+
+def test_global_check_fica_pendente_quando_uma_copia_nossa_e_nao_editada_esta_velha(casa, bundle):
+    instala(casa, bundle, globally=True)
+    plano = installer.plan_install(casa, globally=True)
+    assert installer.apply_plan(plano, bundle=bundle, dry_run=True)["up_to_date"] is True
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    seco = installer.apply_plan(plano, bundle=bundle, dry_run=True)
+    assert seco["up_to_date"] is False and _skill_em(".kiro/steering") in seco["changes"]["updated"]
+    assert (casa / _skill_em(".kiro/steering")).read_text(encoding="utf-8") == "video\n", "a dry run changes nothing"
+
+
+def test_global_uma_copia_antiga_que_nao_e_nossa_nao_deixa_o_check_pendente(casa, bundle):
+    write(casa / _skill_em(".codex/skills"), "release antiga\n")
+    instala(casa, bundle, globally=True)
+    assert installer.apply_plan(installer.plan_install(casa, globally=True), bundle=bundle, dry_run=True)["up_to_date"] is True
+
+
+def test_global_uninstall_remove_so_o_nosso_nas_onze_pastas(casa, bundle):
+    antiga = write(casa / _skill_em(".codex/skills"), "release antiga\n")
+    instala(casa, bundle, globally=True)
+    editada = casa / _skill_em(".cursor/skills")
+    editada.write_text("editada\n", encoding="utf-8")
+    notas = write(casa / ".claude" / "skills" / "simplicio-video" / "minhas-notas.md", "notas\n")
+    resultado = installer.uninstall(casa)
+    assert antiga.read_text(encoding="utf-8") == "release antiga\n" and editada.read_text(encoding="utf-8") == "editada\n"
+    assert notas.is_file() and _skill_em(".cursor/skills") in resultado["left_alone"]
+    for raiz in RAIZES_GLOBAIS.values():
+        if raiz not in (".codex/skills", ".cursor/skills", ".claude/skills"):
+            assert not (casa / raiz / "simplicio-video").exists(), raiz
+    assert not (casa / ".simplicio-loop").exists() and not (casa / ".config").exists(), "the folders the install created are gone"
+    assert (casa / ".codex" / "skills" / "simplicio-video" / "SKILL.md").is_file()
+
+
+def test_global_verify_confere_as_onze_pastas(casa, bundle):
+    plano = installer.plan_install(casa, globally=True)
+    assert installer.verify_install(plano, bundle=bundle)["ok"] is False
+    instala(casa, bundle, globally=True)
+    assert installer.verify_install(plano, bundle=bundle)["ok"] is True
+    (casa / _skill_em(".agents/skills")).write_text("adulterada\n", encoding="utf-8")
+    assert (_skill_em(".agents/skills"), "modified") in _problemas(installer.verify_install(plano, bundle=bundle))
+
+
+@posix_real
+def test_global_uma_pasta_secundaria_que_e_link_e_pulada_e_as_outras_seguem(tmp_path, casa, bundle):
+    dotfiles = tmp_path / "dotfiles-opencode"
+    dotfiles.mkdir()
+    (casa / ".config").mkdir()
+    (casa / ".config" / "opencode").symlink_to(dotfiles, target_is_directory=True)
+    resultado = instala(casa, bundle, globally=True)
+    assert fotografia(dotfiles) == {}, "nothing was written through the link of a secondary host"
+    assert ".config/opencode/skills" in resultado["changes"]["left_alone"]
+    assert any(".config/opencode/skills" in aviso and "link" in aviso for aviso in resultado["warnings"]), resultado["warnings"]
+    assert (casa / _skill_em(".claude/skills")).is_file() and (casa / _skill_em(".config/amp/skills")).is_file()
+    assert installer.apply_plan(installer.plan_install(casa, globally=True), bundle=bundle, dry_run=True)["up_to_date"] is True
+    assert installer.verify_install(installer.plan_install(casa, globally=True), bundle=bundle)["ok"] is True
+    installer.uninstall(casa)
+    assert fotografia(dotfiles) == {} and not (casa / _skill_em(".claude/skills")).exists()
+
+
+@posix_real
+def test_global_a_pasta_principal_claude_skills_que_e_link_continua_recusando_tudo(tmp_path, casa, bundle):
+    fora = tmp_path / "dotfiles"
+    fora.mkdir()
+    (casa / ".claude").mkdir()
+    (casa / ".claude" / "skills").symlink_to(fora, target_is_directory=True)
+    with pytest.raises(installer.InstallRefused):
+        instala(casa, bundle, globally=True)
+    assert not (casa / ".codex").exists() and fotografia(fora) == {}, "a refusal writes nothing, in any folder"
+
+
+@posix_real
+def test_global_a_pasta_base_de_um_host_que_e_link_de_dotfiles_fecha_o_ciclo(tmp_path, casa, bundle):
+    dotfiles = tmp_path / "dotfiles-codex"
+    dotfiles.mkdir()
+    (casa / ".codex").symlink_to(dotfiles, target_is_directory=True)
+    plano = installer.plan_install(casa, globally=True)
+    installer.apply_plan(plano, bundle=bundle)
+    assert (dotfiles / "skills" / "simplicio-video" / "SKILL.md").is_file()
+    assert recibo_de(casa)["bases"][".codex"] == str(dotfiles.resolve())
+    assert installer.apply_plan(plano, bundle=bundle)["up_to_date"] is True and installer.verify_install(plano, bundle=bundle)["ok"] is True
+    installer.uninstall(casa)
+    assert fotografia(dotfiles) == {} and (casa / ".codex").is_symlink()
+
+
+@posix_real
+def test_global_uma_pasta_que_virou_link_depois_do_install_nao_derruba_o_resto_do_recibo(tmp_path, casa, bundle):
+    instala(casa, bundle, globally=True)
+    movido = tmp_path / "amp-movido"
+    (casa / ".config" / "amp").rename(movido)
+    (casa / ".config" / "amp").symlink_to(movido, target_is_directory=True)  # the user moved it into a dotfiles repository
+    (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    resultado = instala(casa, bundle, globally=True)
+    assert (casa / _skill_em(".codex/skills")).read_text(encoding="utf-8") == "video v2\n", "the other folders stay ours and are updated"
+    assert (movido / "skills" / "simplicio-video" / "SKILL.md").read_text(encoding="utf-8") == "video\n", "nothing is written through the new link"
+    assert resultado["warnings"] and any("amp" in aviso for aviso in resultado["warnings"]), resultado["warnings"]
+    removido = installer.uninstall(casa)
+    assert not (casa / _skill_em(".codex/skills")).exists() and (movido / "skills" / "simplicio-video" / "SKILL.md").is_file()
+    assert any("amp" in aviso for aviso in removido["warnings"]), removido["warnings"]

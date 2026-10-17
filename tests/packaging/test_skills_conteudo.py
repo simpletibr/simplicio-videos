@@ -152,3 +152,135 @@ def test_a_skill_publica_nao_cita_dono_cliente_nem_email(nome):
 @pytest.mark.parametrize("nome", NOMES)
 def test_o_espelho_de_skills_e_a_copia_do_pacote_sao_iguais_byte_a_byte(nome):
     assert (ESPELHO / nome / "SKILL.md").read_bytes() == (PACOTE / nome / "SKILL.md").read_bytes()
+
+
+# --- what an agent of a `pip install` user can follow (review follow-up: the package copy is immutable on PyPI) -----------------------
+#
+# The two skills travel in the wheel. A path like `ugc/README.md`, `docs/custos.md` or `clients/<slug>/coleta/` is a file of the CHECKOUT:
+# the user of `pip install simplicio-video` does not have it (the `ugc` module is gone since #115). Everything the user will not have is an
+# absolute URL to a file that EXISTS in origin/main, or neutral text. A path may stay only when it is (a) inside the package, (b) a file the CLI
+# writes in the user's own folder (`out/`, `assets/`), or (c) a script the CLI itself tells a CHECKOUT to run (`scripts/dev_install.sh`).
+
+import subprocess  # noqa: E402
+
+URL_BASE = "https://github.com/simpletibr/simplicio-videos/blob/main/"
+SAIDAS_DO_CLI = ("out/", "assets/")                                         # written by the CLI next to the user's contract
+SCRIPTS_DO_CHECKOUT = ("scripts/dev_install.sh", "scripts/dev_install.ps1", "./install.sh")  # what `update` tells a checkout to run
+NOMES_PERMITIDOS = {"template.json", "contract.yaml", "brief.md", "pendencias.md", "intake.json", "fontes.md", "referencias.md",
+                    "timing.lock.json", "render.manifest.json", "social.plan.json", "legenda.txt", "index.json", "mix.wav",
+                    "CREDITS-openverse.md", "<video>.CREDITS-openverse.md", "busca.registro.jsonl", "render_bundle.sh", "pattern.json",
+                    "dev_install.ps1", "dev_install.sh", "install.sh", "vNN.mp4"}  # the last four: parts of a command and a naming convention
+PROIBIDAS = re.compile(r"\b(ugc|prospect|prospects|venda|vendas)\b", re.IGNORECASE)
+CAMINHO = re.compile(r"(?<![\w<>.\-])(?:\.{1,2}/)?[\w<>{}.\-~]+(?:/[\w<>{}.\-~]+)+/?")
+ARQUIVO = re.compile(r"(?<![\w<>/.\-])[\w<>.\-]+\.(?:md|json|jsonl|yaml|yml|py|sh|ps1|mp4|wav|txt|ipynb|jpg|png|srt)\b")
+
+
+def _sem_links(texto: str):
+    """(texto sem os links do Markdown e sem URLs, urls)."""
+    urls = re.findall(r"https?://[^\s)\]>`]+", texto)
+    semurl = re.sub(r"\[[^\]]*\]\(https?://[^)]+\)", " ", texto)
+    return re.sub(r"https?://[^\s)\]>`]+", " ", semurl), urls
+
+
+def _trechos_de_codigo(texto: str) -> list:
+    """The inline code spans and the lines of the fenced blocks: where a path or a command is written to be followed."""
+    trechos, dentro = [], False
+    for linha in texto.splitlines():
+        if linha.strip().startswith("```"):
+            dentro = not dentro
+        elif dentro:
+            trechos.append(re.sub(r"\s+#.*$", "", linha))  # the prose of a comment is not a path
+    return trechos + re.findall(r"`([^`\n]+)`", texto)
+
+
+def _existe_na_main(caminho: str):
+    """True/False when origin/main is there to ask, None when it is not (a source tarball)."""
+    try:
+        existe = subprocess.run(["git", "cat-file", "-e", f"origin/main:{caminho}"], cwd=ROOT, capture_output=True)
+        pronto = subprocess.run(["git", "rev-parse", "--verify", "--quiet", "origin/main"], cwd=ROOT, capture_output=True)
+    except OSError:
+        return None
+    return None if pronto.returncode != 0 else existe.returncode == 0
+
+
+def _no_pacote(token: str) -> bool:
+    """`motion/patterns/<id>/pattern.json` -> a glob under simplicio_video/data/."""
+    modelo = re.sub(r"<[^>]*>|\{[^}]*\}", "*", token).strip("/")
+    return bool(list(PACOTE.parent.glob(modelo)))
+
+
+def _problemas_de_caminho(texto: str) -> list:
+    sem_url, urls = _sem_links(texto)
+    ruins = []
+    for url in urls:
+        if url.startswith(URL_BASE):
+            alvo = url[len(URL_BASE):].split("#")[0]
+            achou = _existe_na_main(alvo)
+            if achou is False:
+                ruins.append(f"{url}: that file is not in origin/main")
+    for trecho in _trechos_de_codigo(sem_url):
+        trecho = re.sub(r"--[a-z][a-z0-9-]*", " ", trecho)
+        for token in {*CAMINHO.findall(trecho), *ARQUIVO.findall(trecho)}:
+            limpo = token.rstrip("/.,;:)")
+            if ("<" in limpo) != (">" in limpo) or limpo.startswith("../"):
+                continue  # a piece of a placeholder (`<nome que o export criou>.jpg`), or a folder next to the user's own contract
+            if re.fullmatch(r"simplicio\.[a-z-]+/v\d+|[A-Z][a-z]+/[A-Z][A-Za-z_]+|\d+/\d+|[\w<>.\-]+\|[\w<>.\-|]+", limpo):
+                continue  # a schema id, a time zone, an aspect ratio, an alternative list
+            if limpo.replace("\\", "/") in SCRIPTS_DO_CHECKOUT or limpo.startswith(SAIDAS_DO_CLI) or limpo in NOMES_PERMITIDOS:
+                continue
+            if limpo.startswith(".claude/skills"):
+                continue  # where `install` puts the skills in the user's own project
+            if "/" in limpo and _no_pacote(limpo):
+                continue
+            ruins.append(f"`{limpo}` is not in the package, not an output of the CLI and not an absolute URL")
+    return sorted(set(ruins))
+
+
+@pytest.mark.parametrize("nome", NOMES)
+def test_nenhum_caminho_citado_depende_do_checkout(nome):
+    ruins = _problemas_de_caminho(_texto(nome))
+    assert not ruins, f"{nome} cites files that a `pip install` user does not have:\n  " + "\n  ".join(ruins)
+
+
+def test_o_varredor_de_caminhos_pega_o_que_o_usuario_do_pip_nao_tem():
+    assert _problemas_de_caminho("Veja `ugc/README.md` e `docs/custos.md` e `clients/<slug>/coleta/` e `AGENTS.md` e `tools/video-use/`.")
+    assert _problemas_de_caminho(f"[x]({URL_BASE}docs/nao-existe-mesmo.md)") or _existe_na_main("README.md") is None
+    assert not _problemas_de_caminho("`out/final.mp4`, `assets/openverse/`, `schema/contract.schema.json`, `bash scripts/dev_install.sh`, `timing.lock.json`")
+    assert not _problemas_de_caminho(f"Veja [o custo]({URL_BASE}docs/custos.md).") or _existe_na_main("docs/custos.md") is None
+
+
+@pytest.mark.parametrize("nome", NOMES)
+def test_as_skills_do_pacote_nao_citam_o_que_saiu_do_cli(nome):
+    texto = _texto(nome)
+    achado = PROIBIDAS.search(texto)
+    assert not achado, f"{nome} still mentions {achado.group(0)!r}: those commands and the ugc module are gone"
+
+
+@pytest.mark.parametrize("nome", NOMES)
+def test_todo_link_para_o_repositorio_e_absoluto_e_aponta_para_um_arquivo_que_existe_na_main(nome):
+    _, urls = _sem_links(_texto(nome))
+    repo = [u for u in urls if "simpletibr/simplicio-videos" in u]
+    for url in repo:
+        assert url.startswith(URL_BASE), f"{nome}: {url} must be https://github.com/simpletibr/simplicio-videos/blob/main/<file>"
+        achou = _existe_na_main(url[len(URL_BASE):].split("#")[0])
+        if achou is not None:
+            assert achou, f"{nome}: {url} does not exist in origin/main"
+
+
+@pytest.mark.parametrize("nome", NOMES)
+def test_toda_tool_mcp_citada_existe_no_servidor(nome):
+    from simplicio_video import mcp_server
+
+    existentes = {t[0] for t in mcp_server.TOOLS}
+    citadas = set(re.findall(r"\bvideo\.[a-z]+\b", _texto(nome)))
+    assert citadas <= existentes | {"video.*"}, f"{nome} cites MCP tools that do not exist: {sorted(citadas - existentes)}"
+
+
+@pytest.mark.parametrize("nome", NOMES)
+def test_todo_comando_do_motor_citado_em_codigo_existe_mesmo_sem_flag(nome):
+    """`simplicio-video <word>` in a code span or line: the word is a command of the root parser (flags are checked in the other test)."""
+    raiz = set(_sub(build_parser()))
+    for comando in _comandos(_texto(nome)):
+        palavras = comando.split()
+        if len(palavras) > 1 and re.fullmatch(r"[a-z][a-z-]*", palavras[1]):
+            assert palavras[1] in raiz, f"{nome}: `{comando}`: `{palavras[1]}` is not a command ({sorted(raiz)})"

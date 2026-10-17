@@ -349,40 +349,64 @@ def test_global_instala_no_home_e_nao_toca_no_alvo(falso, capsys):
     assert (falso.home / SKILL).is_file() and (falso.home / RECIBO).is_file() and fotografia(falso.alvo) == {}
 
 
-def test_global_com_qualquer_host_escreve_so_em_claude_skills(falso, capsys):
+def test_global_instala_nas_onze_pastas_do_loop_e_o_host_pedido_nao_muda_nada(falso, capsys):
     rc, out, err = executa(["install", "--global", "--host", "codex"], capsys, main)
-    assert rc == 0 and (falso.home / SKILL).is_file() and not (falso.home / "AGENTS.md").exists()
+    assert rc == 0, out + err
+    for raiz in skill_sync.HOST_SKILL_ROOTS.values():
+        assert (falso.home / raiz / "simplicio-video" / "SKILL.md").read_text(encoding="utf-8") == "video\n", raiz
+    assert not (falso.home / "AGENTS.md").exists(), "an entry file is a project thing"
+    assert "cópias dos outros hosts instaladas ou atualizadas" in out and "codex (1)" in out and "cursor (1)" in out
 
 
-def test_global_nao_mexe_na_copia_de_outro_host_e_diz_que_a_deixou_em_paz(falso, capsys):
-    """The copy of another host is not in the receipt: it is not ours to overwrite (the loop refreshes it, ADR-0020)."""
+def test_global_check_e_dry_run_listam_o_que_falta_nos_outros_hosts_e_nao_escrevem(falso, capsys):
+    rc, out, err = executa(["install", "--global", "--check"], capsys, main)
+    assert rc == 10 and "pendentes" in out and "codex (1)" in out and list(falso.home.iterdir()) == []
+    rc, doc, _ = _json(capsys, "--global", "--dry-run")
+    assert rc == 0 and set(doc["resynced"]["skills"]) == set(skill_sync.HOST_SKILL_ROOTS) - {"claude"}
+    assert doc["resynced"]["pending"] == 10 and list(falso.home.iterdir()) == []
+
+
+def test_global_atualiza_so_a_copia_nossa_e_nao_editada_e_o_check_a_enxerga(falso, capsys):
+    assert executa(["install", "--global"], capsys, main)[0] == 0
+    assert executa(["install", "--global", "--check"], capsys, main)[0] == 0
+    (falso.bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    editada = falso.home / ".cursor" / "skills" / "simplicio-video" / "SKILL.md"
+    editada.write_text("a minha\n", encoding="utf-8")
+    rc, out, err = executa(["install", "--global", "--check"], capsys, main)
+    assert rc == 10 and "desatualizadas" in out and "codex (1)" in out and "cursor (1)" not in out, "the edited copy is not pending"
+    rc, out, err = executa(["install", "--global"], capsys, main)
+    assert rc == 0 and "instaladas ou atualizadas" in out
+    assert (falso.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md").read_text(encoding="utf-8") == "video v2\n"
+    assert editada.read_text(encoding="utf-8") == "a minha\n", "an edited copy is the user's"
+    assert ".cursor/skills/simplicio-video/SKILL.md" in out
+    assert executa(["install", "--global", "--check"], capsys, main)[0] == 0
+
+
+def test_global_nao_sobrescreve_a_copia_que_o_host_ja_tinha_e_ela_nao_deixa_o_check_pendente(falso, capsys):
+    """The copy of another host that this install never owned (copied by hand, or by the Runtime plugin) is left alone, always."""
     velha = falso.home / ".codex" / "skills" / "simplicio-video"
     write(velha / "SKILL.md", "release antiga\n")
     notas = write(velha / "minhas-notas.md", "notas do usuário\n")
     rc, out, err = executa(["install", "--global"], capsys, main)
     assert rc == 0, out + err
-    assert "deixadas em paz" in out and "codex (1)" in out
     assert (velha / "SKILL.md").read_text(encoding="utf-8") == "release antiga\n" and notas.read_text(encoding="utf-8") == "notas do usuário\n"
-    assert (falso.home / SKILL).is_file()
-
-
-def test_global_check_nao_fica_pendente_por_causa_da_copia_de_outro_host(falso, capsys):
-    """The home itself is up to date; another host's old copy is something `install` will never change, so it cannot keep `--check` at 10."""
-    assert executa(["install", "--global"], capsys, main)[0] == 0
-    write(falso.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md", "release antiga\n")
-    rc, out, err = executa(["install", "--global", "--check"], capsys, main)
-    assert rc == 0 and "codex (1)" in out and "0 criados, 0 atualizados" in out, out + err
-    rc, doc, _ = _json(capsys, "--global", "--check")
-    assert rc == 0 and doc["up_to_date"] is True and doc["resynced"]["pending"] == 0 and doc["resynced"]["skills"] == ["codex"]
+    assert "deixado em paz" in out and ".codex/skills/simplicio-video/SKILL.md" in out
+    assert "apague-a" in out, "it says how to hand the folder over"
+    assert executa(["install", "--global", "--check"], capsys, main)[0] == 0
+    (falso.bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    executa(["install", "--global"], capsys, main)
+    assert (velha / "SKILL.md").read_text(encoding="utf-8") == "release antiga\n"
 
 
 def test_global_json_traz_o_resynced_com_as_chaves_do_loop(falso, capsys):
-    write(falso.home / ".cursor" / "skills" / "simplicio-video" / "SKILL.md", "release antiga\n")
     rc, doc, _ = _json(capsys, "--global", "--check")
-    assert rc == 10 and erros_de_schema("install-plan", doc) == [], doc  # 10: the home itself has nothing installed yet
+    assert rc == 10 and erros_de_schema("install-plan", doc) == [], doc
     assert set(doc["resynced"]) == {"skills", "rules", "skills_counts", "rules_counts", "errors", "pending"}
-    assert doc["resynced"]["skills"] == ["cursor"] and doc["resynced"]["pending"] == 0 and doc["resynced"]["rules"] == []
-    assert doc["resynced"]["skills_counts"] == {"cursor": 1}, "the fake bundle of the fixture has one skill, and the copy differs in it"
+    assert doc["resynced"]["rules"] == [] and doc["resynced"]["errors"] == [] and doc["resynced"]["rules_counts"] == {}
+    assert "claude" not in doc["resynced"]["skills"] and doc["resynced"]["skills_counts"]["cursor"] == 1
+    assert doc["resynced"]["pending"] == 10 and doc["up_to_date"] is False
+    rc, doc, _ = _json(capsys, "--global")
+    assert rc == 0 and doc["resynced"]["pending"] == 0 and len(doc["resynced"]["skills"]) == 10
 
 
 def test_global_nao_apaga_arquivo_do_usuario_dentro_da_pasta_da_skill_nem_nas_copias_dos_hosts(falso, capsys):
@@ -390,7 +414,7 @@ def test_global_nao_apaga_arquivo_do_usuario_dentro_da_pasta_da_skill_nem_nas_co
     executa(["install", "--global"], capsys, main)
     notas_claude = write(falso.home / ".claude" / "skills" / "simplicio-video" / "minhas-notas.md", "notas\n")
     notas_codex = write(falso.home / ".codex" / "skills" / "simplicio-video" / "minhas-notas.md", "notas\n")
-    write(falso.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md", "release antiga\n")
+    (falso.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md").write_text("release antiga\n", encoding="utf-8")
     (falso.bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
     for _ in range(2):
         rc, out, err = executa(["install", "--global"], capsys, main)
@@ -398,6 +422,17 @@ def test_global_nao_apaga_arquivo_do_usuario_dentro_da_pasta_da_skill_nem_nas_co
     assert notas_claude.read_text(encoding="utf-8") == "notas\n" and notas_codex.read_text(encoding="utf-8") == "notas\n"
     assert (falso.home / SKILL).read_text(encoding="utf-8") == "video v2\n", "our own file is still updated"
     assert "minhas-notas.md" in out, "it says it left the user's file alone"
+
+
+def test_uninstall_global_remove_so_o_nosso_nas_onze_pastas(falso, capsys):
+    foreign = write(falso.home / ".grok" / "skills" / "simplicio-video" / "SKILL.md", "do usuário\n")
+    executa(["install", "--global"], capsys, main)
+    editada = falso.home / ".cursor" / "skills" / "simplicio-video" / "SKILL.md"
+    editada.write_text("editada\n", encoding="utf-8")
+    rc, out, err = executa(["install", "--uninstall", "--global"], capsys, main)
+    assert rc == 0 and foreign.read_text(encoding="utf-8") == "do usuário\n" and editada.read_text(encoding="utf-8") == "editada\n"
+    assert not (falso.home / SKILL).exists() and not (falso.home / ".codex").exists()
+    assert "editado" in out and ".cursor/skills/simplicio-video/SKILL.md" in out
 
 
 def test_global_em_dia_sai_0_no_check_mesmo_com_hosts_instalados(falso, capsys):
@@ -688,6 +723,9 @@ def test_o_help_do_install_diz_o_que_o_global_ignora_e_o_que_o_verify_confere(ca
     assert "já existir" in texto or "já existe" in texto, "an entry file that exists gets no pointer"
     assert "recibo" in texto and "sha256" in texto and "link" in texto
     assert "arquivos" in texto and "confere" in texto and "exit 1" in texto
+    assert "11 pastas" in texto and ".codex/skills" in texto and "só as lista" not in texto and "apenas listadas" not in texto, \
+        "--global puts the skills in the 11 folders of the loop (the ownership rule keeps it safe)"
+    assert "atualiza só" in texto and "nunca apaga" in texto
 
 
 # --- the output must survive a Windows console ------------------------------------------------------------------------------------

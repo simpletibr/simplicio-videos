@@ -212,9 +212,29 @@ def test_todo_comando_powershell_do_dev_install_leva_o_bypass_so_do_processo():
 def test_o_adr_0020_registra_as_regras_da_revisao():
     texto = _texto(ADR_20)
     for trecho in ("sha256", "install.lock", "dotfiles", "--no-deps", "Restricted", "-ExecutionPolicy Bypass", "UNVERIFIED",
-                   "só relata", "não toca", "left_alone", "nunca é link", "pasta base", "compara", "recibo plantado"):
+                   "left_alone", "nunca é link", "pasta base", "compara", "recibo plantado"):
         assert trecho in texto, f"ADR-0020 não cita {trecho!r}"
-    assert not re.search(r"cópias[^.]{0,80}(são|serão) atualizadas", texto), "the copies of other hosts are no longer refreshed"
+
+
+STALE_DO_GLOBAL = ("só as lista", "só são listadas", "apenas listadas", "só relata", "só as relata", "tira uma função do loop",
+                   "única diferença que tira", "não as atualiza nem apaga", "relata e não atualiza", "só as nomeiam")
+
+
+@pytest.mark.parametrize("caminho", [INSTALL_MD, PACKAGING_MD, ADR_20], ids=lambda p: p.name)
+def test_os_docs_dizem_que_o_global_instala_nas_onze_pastas_do_loop_com_a_regra_de_posse(caminho):
+    """The owner asked for "universal" and "igual ao loop": `--global` puts the skills in every folder of the loop's `skill_sync`, and the
+    ownership rule of the review (B2/I5) is what makes that safe: create what is missing, update only our unedited copy, never overwrite
+    what was already there or edited, never delete an extra file."""
+    texto = _texto(caminho)
+    assert re.search(r"(11|onze) pastas", texto), f"{caminho.name} must say that --global covers the 11 folders of the loop"
+    for pasta in (".claude/skills", ".codex/skills", ".cursor/skills", ".config/opencode/skills", ".kiro/steering", ".simplicio-loop/skills"):
+        assert pasta in texto, f"{caminho.name} does not name {pasta}"
+    assert re.search(r"cria[^.]{0,200}(falta|não existe)", texto), f"{caminho.name}: --global creates what is missing"
+    assert re.search(r"atualiza[^.]{0,200}(nossa|nosso|do recibo)[^.]{0,200}(editad|sha256)", texto), \
+        f"{caminho.name}: --global updates only our own copy that was not edited"
+    assert re.search(r"nunca (apaga|sobrescreve)[^.]{0,200}(extra|editou|já existia|não é d)", texto) or "nunca apaga" in texto
+    for velho in STALE_DO_GLOBAL:
+        assert velho not in texto, f"{caminho.name} still says {velho!r}: the copies of the other hosts are installed and updated again"
 
 
 @pytest.mark.parametrize("caminho", [INSTALL_MD, PACKAGING_MD], ids=lambda p: p.name)
@@ -235,8 +255,12 @@ def test_o_how_to_diz_como_o_install_assume_uma_skill_que_ja_existia_e_o_que_o_g
 
 def test_o_changelog_registra_as_correcoes_da_revisao_do_117():
     unreleased = _unreleased()
-    for trecho in ("sha256", "install.lock", "--verify", "-ExecutionPolicy Bypass", "dotfiles", "left_alone", "--no-deps"):
+    for trecho in ("sha256", "install.lock", "--verify", "-ExecutionPolicy Bypass", "dotfiles", "left_alone", "--no-deps",
+                   ".codex/skills", ".simplicio-loop/skills"):
         assert trecho in unreleased, f"CHANGELOG (Unreleased) não cita {trecho!r}"
+    assert re.search(r"(11|onze) pastas", unreleased)
+    for velho in STALE_DO_GLOBAL:
+        assert velho not in unreleased, f"CHANGELOG (Unreleased) still says {velho!r}"
 
 
 def test_o_gitignore_cobre_o_que_o_install_deixa_na_raiz_do_repositorio():

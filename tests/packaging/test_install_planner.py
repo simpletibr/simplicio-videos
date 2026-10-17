@@ -83,11 +83,14 @@ def test_cada_host_recebe_as_skills_em_claude_skills_e_so_o_seu_arquivo_de_entra
     assert "hooks" not in {a["kind"] for a in plano["actions"]}, "the video has no hooks"
 
 
-def test_global_so_escreve_as_skills_em_claude_skills_para_qualquer_host(repo):
+def test_global_escreve_as_skills_nas_onze_pastas_do_loop_para_qualquer_host(repo):
+    """The loop's `skill_sync` table has 11 folders under the home; `--global` puts the skills in all of them (and ignores `--host`)."""
+    todas = {".claude/skills", ".cursor/skills", ".codex/skills", ".grok/skills", ".agents/skills", ".copilot/skills",
+             ".vscode/simplicio-skills", ".config/opencode/skills", ".config/amp/skills", ".kiro/steering", ".simplicio-loop/skills"}
     for host in HOSTS_DO_LOOP:
         plano = installer.plan_install(repo, host=host, globally=True)
-        assert {a["destination"]: a["kind"] for a in plano["actions"]} == {".claude/skills": "skills"}
-        assert plano["scope"] == "global"
+        assert {a["destination"] for a in plano["actions"]} == todas and {a["kind"] for a in plano["actions"]} == {"skills"}
+        assert plano["scope"] == "global" and len(plano["actions"]) == 11
 
 
 def test_all_cobre_todos_os_hosts_e_o_dono_dos_arquivos_nao_repete(repo, bundle):
