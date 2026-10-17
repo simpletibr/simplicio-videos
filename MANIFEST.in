@@ -1,5 +1,10 @@
-# sdist: the whole test suite (conftest.py and fixtures included, so packagers can run it) and the changelog.
-# README/PYPI.md, LICENSE and NOTICE come from [project] (readme, license-files); src/ comes from setuptools.
-# Build from a clean checkout (git archive): `graft` takes whatever sits under tests/, bytecode caches included.
-graft tests
+# sdist: src/ comes from setuptools; README/PYPI.md, LICENSE and NOTICE come from [project] (readme, license-files).
+# The only extra is the changelog. The test suite does NOT ship: it needs clients/, docs/, scripts/ and git, so it does
+# not run from an sdist (200 failures measured), and it names real customers; PyPI is immutable.
 include CHANGELOG.md
+prune tests
+# setuptools adds README.md by itself, but the package readme is PYPI.md (README.md is the GitHub page, with example videos).
+exclude README.md
+# A dirty checkout (python -m build in a working tree) must not leak bytecode, not even from a data/ package-data glob.
+global-exclude *.py[cod]
+global-exclude __pycache__
