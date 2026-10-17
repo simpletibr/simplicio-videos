@@ -155,11 +155,11 @@ def test_pypi_md_plataformas_so_afirma_o_que_foi_medido(pypi_md):
     assert re.search(r"ainda\s+(NÃO|não)\s+(foram\s+)?confirmad[ao]s\s+em\s+máquina\s+real", plat), "diga que macOS e Windows não foram confirmados em máquina real"
 
 
-def test_pypi_md_nao_cita_o_que_so_existe_em_outro_pr(pypi_md):
-    """`scripts/smoke_so.py` e os testes com sistema simulado só chegam com o PR de operação: a página é imutável, então a
-    menção volta no PR da release, quando os dois estiverem na main."""
-    assert "smoke_so" not in pypi_md
-    assert not re.search(r"sistema\s+simulado", pypi_md, re.I)
+def test_pypi_md_cita_o_smoke_so_so_por_url_absoluta(pypi_md):
+    """`scripts/smoke_so.py` is not in the wheel: the page may name it only inside a link to the file on main."""
+    sem_links = re.sub(r"\[[^\]]*\]\(https://github\.com/simpletibr/simplicio-videos/blob/main/[^)]*\)", "", pypi_md)
+    assert "smoke_so" not in sem_links, "o smoke_so só pode aparecer dentro de um link absoluto para a main"
+    assert "https://github.com/simpletibr/simplicio-videos/blob/main/scripts/smoke_so.py" in pypi_md
 
 
 def test_pypi_md_voz_local_diz_o_que_o_extra_nao_instala(pypi_md):

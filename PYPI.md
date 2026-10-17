@@ -11,6 +11,15 @@ pip install simplicio-video              # ou: pipx install simplicio-video
 pip install "simplicio-video[mcp]"       # com o servidor MCP (simplicio-video-mcp)
 ```
 
+Para usar o `simplicio-video` dentro do seu agente (Claude Code, Cursor, Codex e outros), copie a skill para o host:
+
+```bash
+simplicio-video install --dry-run --global   # mostra o que seria copiado, sem escrever nada
+simplicio-video install --global             # copia a skill para as pastas dos hosts, sob o seu home
+```
+
+O `install` só copia a skill e grava um recibo com o hash de cada arquivo; nunca sobrescreve arquivo que não é dele, e o `--uninstall` remove só o que ele criou. Sem `--global`, ele instala no projeto atual.
+
 Extras opcionais: `[local-tts]` (as bibliotecas da voz local Kokoro; a voz ainda pede mais, veja os primeiros passos) e `[remote]` (render no Kaggle ou no Colab).
 
 ## Requisitos
@@ -43,7 +52,7 @@ simplicio-video run clients/<cliente>/<campanha>/contract.yaml --provider gemini
 ## Plataformas
 
 - Linux: testado, em Python 3.11, 3.12 e 3.13 (o piso 3.10 está declarado e ainda não foi exercitado).
-- macOS e Windows: ainda NÃO confirmados em máquina real. Por isso não aparecem nos classificadores do pacote.
+- macOS e Windows: ainda NÃO confirmados em máquina real. Por isso não aparecem nos classificadores do pacote. O código e os testes cobrem os dois por simulação, e o [`scripts/smoke_so.py`](https://github.com/simpletibr/simplicio-videos/blob/main/scripts/smoke_so.py) roda os comandos de operação numa pasta isolada para quem quiser confirmar na própria máquina ([guia](https://github.com/simpletibr/simplicio-videos/blob/main/docs/how-to/testar-em-windows-e-macos.md)).
 
 ## Documentação
 

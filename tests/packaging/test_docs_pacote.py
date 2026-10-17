@@ -121,7 +121,7 @@ def test_how_to_install_cobre_pip_checkout_e_o_login():
 
 def test_o_changelog_registra_as_mudancas_que_quebram_e_o_que_nao_foi_verificado():
     texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
-    unreleased = texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    unreleased = texto  # the entries stay in the CHANGELOG after the release cut
     plano = " ".join(unreleased.split())
     for trecho in ("Mudanças que quebram", "doctor --json", "`ok`", "install --check", "10", "--force", "update",
                    "exit 2", "UNVERIFIED", "Windows", "macOS", "scripts/smoke_so.py", "PyPI"):
@@ -172,7 +172,7 @@ def test_packaging_documenta_o_que_a_revisao_do_116_mudou():
 
 def test_o_changelog_registra_as_correcoes_da_revisao_do_116():
     texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
-    unreleased = " ".join(texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0].split())
+    unreleased = " ".join(texto.split())  # the entries stay in the CHANGELOG after the release cut
     for trecho in ("install.sh", "PyYAML", "not_a_login_file", "git fetch", "`HOME`", "1 MiB", "mais nova"):
         assert trecho in unreleased, f"CHANGELOG (Unreleased) não cita {trecho!r}"
 
@@ -190,7 +190,7 @@ def test_packaging_documenta_as_correcoes_da_segunda_revisao_do_116():
 
 def test_o_changelog_registra_a_segunda_revisao_do_116():
     texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
-    unreleased = " ".join(texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0].split())
+    unreleased = " ".join(texto.split())  # the entries stay in the CHANGELOG after the release cut
     for trecho in ("Segunda revisão independente do PR #116", "login_symlink", "StoredAuth", "O_NONBLOCK", "PEP 440",
                    "--no-optional-locks", "dubious ownership", "link simbólico"):
         assert trecho in unreleased, f"CHANGELOG (Unreleased) não cita {trecho!r}"
