@@ -426,7 +426,7 @@ def test_checkout_que_o_usuario_nao_consegue_abrir_nao_e_um_checkout_nem_derruba
 
 @pytest.mark.parametrize("argv,codigo", [(["install", "--check"], 10), (["install", "--check", "--json"], 10), (["install", "--dry-run"], 0),
                                          (["install"], 1), (["install", "--json"], 1), (["install", "--uninstall"], 1),
-                                         (["install", "--verify"], 0)])
+                                         (["install", "--verify"], 1)])
 def test_install_com_alvo_que_o_usuario_nao_consegue_abrir_nao_derruba_e_diz_o_que_aconteceu(caixa, capsys, monkeypatch, argv, codigo):
     """A target folder of another user (0700 after a `sudo`): looking at it says "not there yet" (the plan is to install), writing
     into it is a failed install (exit 1) with the reason, and nothing is a traceback."""

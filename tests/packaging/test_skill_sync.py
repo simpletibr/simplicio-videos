@@ -1,12 +1,12 @@
-"""`simplicio_video.skill_sync`: keep the skills that a host ALREADY has in step with the package.
+"""`simplicio_video.skill_sync`: which hosts ALREADY hold a copy of the skills, and whether that copy differs from the package.
 
-Ported from simplicio-loop (`simplicio_loop/skill_sync.py`, 2034e2d) for the video skills. `install --global` and the `update` of a
-pip package call it, so a host that has the video skill in its own folder (`~/.codex/skills`, `~/.cursor/skills`...) is refreshed
-and a host that never had it stays untouched. Every folder below is under tmp_path: the real home is never read.
+Ported from simplicio-loop (`simplicio_loop/skill_sync.py`, 2034e2d) for the video skills, with one deliberate difference (review of
+PR #117, ADR-0020): the loop REFRESHES those copies and deletes the files that left the package; this module only REPORTS them.
+Nothing here writes: a copy in `~/.codex/skills` or `~/.cursor/skills` is not in the ownership receipt, so it is not ours to overwrite
+or to delete (the review measured `minhas-notas.md` disappearing from two hosts, and `update` did it by itself through
+`install --global`). Every folder below is under tmp_path: the real home is never read.
 """
 from __future__ import annotations
-
-import os
 
 import pytest
 
@@ -109,68 +109,44 @@ def test_so_conta_o_host_que_ja_tem_a_skill_do_video(casa, pacote, host, rel):
 
 @pytest.mark.parametrize("host,rel", [("claude", ".claude/skills"), ("cursor", ".cursor/skills"), ("grok", ".grok/skills"),
                                       ("vscode", ".vscode/simplicio-skills"), ("opencode", ".config/opencode/skills")])
-def test_a_skill_velha_e_trocada_conforme_o_layout_de_cada_host(casa, pacote, host, rel):
+def test_a_skill_velha_e_apontada_conforme_o_layout_de_cada_host_e_nada_e_escrito(casa, pacote, host, rel):
     raiz = instala_como_o_host(casa, host, pacote, velhas=["simplicio-video"])
+    antes = fotografia(casa)
     assert [(e["host"], e["skill"], e["reason"]) for e in skill_sync.stale_skills(casa, source=pacote)] == [
         (host, "simplicio-video", "stale")]
-    relatorio = skill_sync.resync_installed_skills(casa, source=pacote)
-    assert relatorio == {"synced": [host], "errors": []}
-    assert (raiz / "simplicio-video" / "SKILL.md").read_text(encoding="utf-8") == "video v2\n"
-    assert not (raiz / "simplicio-video" / "removida-no-pacote.md").exists(), "a file that left the package goes too"
-    assert skill_sync.stale_skills(casa, source=pacote) == []
+    assert fotografia(casa) == antes, "reporting a stale copy must not touch it"
+    assert (raiz / "simplicio-video" / "SKILL.md").read_text(encoding="utf-8") == "release antiga\n"
 
 
-def test_o_host_que_tem_so_uma_das_skills_recebe_a_que_falta_como_missing(casa, pacote):
+def test_este_modulo_so_le_nao_tem_funcao_que_escreva_nas_copias_dos_hosts():
+    assert not hasattr(skill_sync, "resync_installed_skills"), "the copies of other hosts are not ours to overwrite or delete"
+
+
+def test_o_host_que_tem_so_uma_das_skills_aparece_com_a_que_falta_como_missing(casa, pacote):
     write(casa / ".claude" / "skills" / "simplicio-video" / "SKILL.md", "video v2\n")
     write(casa / ".claude" / "skills" / "simplicio-video" / "references" / "a.md", "ref a\n")
     assert [(e["skill"], e["reason"]) for e in skill_sync.stale_skills(casa, source=pacote)] == [("simplicio-video-social", "missing")]
-    skill_sync.resync_installed_skills(casa, source=pacote)
-    assert (casa / ".claude" / "skills" / "simplicio-video-social" / "SKILL.md").read_text(encoding="utf-8") == "social v2\n"
 
 
-def test_o_host_que_nunca_instalou_nao_ganha_nada(casa, pacote):
+def test_o_host_que_nunca_instalou_nao_aparece(casa, pacote):
     write(casa / ".claude" / "skills" / "minha-skill" / "SKILL.md", "minha\n")
     antes = fotografia(casa)
     assert skill_sync.stale_skills(casa, source=pacote) == []
-    assert skill_sync.resync_installed_skills(casa, source=pacote) == {"synced": [], "errors": []}
     assert fotografia(casa) == antes
 
 
-def test_a_resincronizacao_nao_mexe_no_que_e_do_usuario(casa, pacote):
-    raiz = instala_como_o_host(casa, "codex", pacote, velhas=["simplicio-video"])
-    minha = write(raiz / "minha-skill" / "SKILL.md", "minha\n")
-    estranho = write(raiz / "simplicio-video-meu.md", "meu\n")
-    skill_sync.resync_installed_skills(casa, source=pacote)
-    assert minha.read_text(encoding="utf-8") == "minha\n" and estranho.read_text(encoding="utf-8") == "meu\n"
-
-
-def test_so_conta_como_sincronizado_o_host_que_teve_algo_reescrito(casa, pacote):
-    instala_como_o_host(casa, "claude", pacote)
-    instala_como_o_host(casa, "codex", pacote, velhas=["simplicio-video-social"])
-    assert skill_sync.resync_installed_skills(casa, source=pacote)["synced"] == ["codex"]
-
-
-def test_um_erro_de_escrita_vira_item_de_errors_e_nao_derruba(casa, pacote, monkeypatch):
-    instala_como_o_host(casa, "codex", pacote, velhas=["simplicio-video"])
-    real = os.replace
-
-    def falha(origem, destino, *a, **kw):
-        raise PermissionError(13, "Permission denied", str(destino))
-
-    monkeypatch.setattr(os, "replace", falha)
-    relatorio = skill_sync.resync_installed_skills(casa, source=pacote)
-    monkeypatch.setattr(os, "replace", real)
-    assert relatorio["synced"] == [] and relatorio["errors"][0]["host"] == "codex"
-    assert "simplicio-video" in relatorio["errors"][0]["error"] and "Permission denied" in relatorio["errors"][0]["error"]
+def test_a_copia_em_dia_nao_aparece(casa, pacote):
+    instala_como_o_host(casa, "codex", pacote)
+    assert skill_sync.stale_skills(casa, source=pacote) == []
 
 
 @posix_real
-def test_a_skill_do_host_que_e_link_simbolico_nao_e_escrita_por_dentro(tmp_path, casa, pacote):
+def test_a_skill_do_host_que_e_link_simbolico_nao_e_julgada(tmp_path, casa, pacote):
     clone = tmp_path / "clone" / "simplicio-video"
     write(clone / "SKILL.md", "do clone\n")
     (casa / ".codex" / "skills").mkdir(parents=True)
     (casa / ".codex" / "skills" / "simplicio-video").symlink_to(clone, target_is_directory=True)
-    skill_sync.resync_installed_skills(casa, source=pacote)
+    assert [e for e in skill_sync.stale_skills(casa, source=pacote) if e["skill"] == "simplicio-video"] == []
     assert (clone / "SKILL.md").read_text(encoding="utf-8") == "do clone\n"
 
 

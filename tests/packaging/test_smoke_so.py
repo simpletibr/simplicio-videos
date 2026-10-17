@@ -99,7 +99,8 @@ def test_nenhum_passo_dispara_login_de_verdade(smoke):
         assert "google" not in passo.argv, "the smoke must never start `simplicio login google`"
     nomes = [" ".join(p.argv) for p in smoke.PASSOS]
     for esperado in ("--version", "doctor --json", "install --check --target {alvo}", "install --dry-run --json --target {alvo}",
-                     "install --verify --target {alvo}", "install --target {alvo}", "install --check --json --target {alvo}",
+                     "install --verify --json --target {alvo}", "install --target {alvo}", "install --verify --target {alvo}",
+                     "install --check --json --target {alvo}",
                      "install --uninstall --target {alvo}", "update --dry-run", "auth status --json", "login --json", "logout",
                      "logout --yes --json"):
         assert esperado in nomes, f"missing step {esperado!r}: {nomes}"
@@ -133,7 +134,9 @@ def test_cada_passo_json_tem_schema_e_cada_passo_tem_exit_esperado(smoke):
     assert esperados["install --check --target {alvo}"].esperado == {10}, "a fresh target has the skill pending"
     seco = esperados["install --dry-run --json --target {alvo}"]
     assert seco.esperado == {0} and seco.schema == "install-plan" and seco.status == "dry_run"
-    assert esperados["install --verify --target {alvo}"].esperado == {0}
+    antes = esperados["install --verify --json --target {alvo}"]
+    assert antes.esperado == {1} and antes.schema == "install-plan" and antes.status == "failed", "a target never installed fails the verify"
+    assert esperados["install --verify --target {alvo}"].esperado == {0}, "after the install the files match the receipt and the package"
     assert esperados["install --target {alvo}"].esperado == {0}
     de_novo = esperados["install --check --json --target {alvo}"]
     assert de_novo.esperado == {0} and de_novo.schema == "install-plan", "after the install the target is up to date"
@@ -209,3 +212,10 @@ def test_a_pasta_temporaria_e_apagada_no_fim_salvo_com_manter(smoke, capsys, tmp
     smoke.main(["--pasta", str(tmp_path / "ficar"), "--manter"])
     capsys.readouterr()
     assert (tmp_path / "ficar").is_dir()
+
+
+def test_o_verify_que_falha_vem_antes_do_install_e_o_que_passa_vem_depois(smoke):
+    nomes = [" ".join(p.argv) for p in smoke.PASSOS]
+    antes, instalar, depois = (nomes.index(n) for n in ("install --verify --json --target {alvo}", "install --target {alvo}",
+                                                         "install --verify --target {alvo}"))
+    assert antes < instalar < depois

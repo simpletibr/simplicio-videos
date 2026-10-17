@@ -402,3 +402,21 @@ def test_nenhum_consumidor_chama_mais_o_install_do_venv():
             assert "dev_install" not in re.sub(r"(?m)^\s*#.*$", "", corpo), f"{arquivo.name}: the image installs by pip, not by the dev install"
         assert not re.search(r"simplicio-video install[^\n]*--(python|with)\b", corpo), f"{arquivo.relative_to(ROOT)}: install --python/--with"
         assert not re.search(r"[\"']simplicio_video[\"'],\s*[\"']install[\"']\s*\]", corpo), f"{arquivo.relative_to(ROOT)} roda o install do venv"
+
+
+def test_dev_install_ps1_aceita_o_with_como_lista_do_powershell_e_como_texto_com_virgula():
+    """`-With local-tts,mcp` typed in PowerShell is an ARRAY: a plain [string] would join it with a space and refuse it (review of #117)."""
+    codigo = _ps1(DEV_PS1)
+    assert "[string[]]$With" in codigo and '-join ","' in codigo
+    assert "$WithTexto" in codigo and "$With -ne" not in codigo.replace("$WithTexto", ""), "every test of the extras reads the joined text"
+
+
+def test_os_usos_do_powershell_nos_scripts_levam_o_bypass_so_do_processo():
+    """The client Windows policy is Restricted: `powershell -File x.ps1` stops with "running scripts is disabled" (review of #117)."""
+    usos = []
+    for arquivo in (DEV_PS1, WRAP_PS1, DEV_SH, WRAP_SH):
+        usos += [(arquivo.name, l.strip()) for l in arquivo.read_text(encoding="utf-8-sig").splitlines()
+                 if re.search(r"powershell[^\n]*(dev_install|install)\.ps1", l, re.I)]
+    assert usos, "the scripts say how to run the PowerShell one"
+    for nome, linha in usos:
+        assert "-NoProfile -ExecutionPolicy Bypass -File" in linha, f"{nome}: {linha}"

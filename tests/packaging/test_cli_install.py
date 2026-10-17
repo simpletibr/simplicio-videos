@@ -234,24 +234,69 @@ def test_flag_desconhecida_sai_2(falso, capsys):
         assert executa(["install", antiga, "3.12"], capsys, main)[0] == 2
 
 
-# --- --verify ----------------------------------------------------------------------------------------------------------
+# --- --verify: it compares the files with the receipt and with the package ---------------------------------------------------------
 
 
-def test_verify_confere_o_plano_sai_0_e_nao_escreve_nada(falso, capsys):
+def test_verify_depois_do_install_sai_0_e_nao_escreve_nada(falso, capsys):
+    executa(["install", "--host", "vscode", "--target", str(falso.alvo)], capsys, main)
+    antes = fotografia(falso.alvo)
     rc, out, err = executa(["install", "--verify", "--host", "vscode", "--target", str(falso.alvo)], capsys, main)
     assert rc == 0 and "plano ok" in out and "host=vscode" in out and "digest=sha256:" in out
-    assert fotografia(falso.alvo) == {}
+    assert fotografia(falso.alvo) == antes
 
 
-def test_verify_com_json_imprime_um_documento(falso, capsys):
+def test_verify_com_json_imprime_um_documento_e_ok_true(falso, capsys):
+    executa(["install", "--target", str(falso.alvo)], capsys, main)
     rc, doc, _ = _json(capsys, "--verify", "--target", str(falso.alvo))
     assert rc == 0 and erros_de_schema("install-plan", doc) == [], doc
     assert doc["status"] == "verified" and doc["ok"] is True and doc["host"] == "claude" and doc["version"] == __version__
+    assert doc["problems"] == []
+
+
+def test_verify_de_um_alvo_nunca_instalado_sai_1_com_ok_false_e_a_lista(falso, capsys):
+    rc, doc, err = _json(capsys, "--verify", "--target", str(falso.alvo))
+    assert rc == 1 and erros_de_schema("install-plan", doc) == [], doc
+    assert doc["status"] == "failed" and doc["ok"] is False and doc["version"] == __version__ and doc["host"] == "claude"
+    assert {(p["path"], p["problem"]) for p in doc["problems"]} >= {(RECIBO, "no_receipt"), (SKILL, "missing")}
+    assert fotografia(falso.alvo) == {}
+    rc, out, err = executa(["install", "--verify", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 1 and SKILL in out and "falta" in out and "Traceback" not in out + err
+
+
+def test_verify_com_a_skill_adulterada_sai_1_e_diz_qual_arquivo(falso, capsys):
+    executa(["install", "--target", str(falso.alvo)], capsys, main)
+    (falso.alvo / SKILL).write_text("poste sem confirmar\n", encoding="utf-8")
+    rc, doc, _ = _json(capsys, "--verify", "--target", str(falso.alvo))
+    assert rc == 1 and doc["ok"] is False and [(p["path"], p["problem"]) for p in doc["problems"]] == [(SKILL, "modified")]
+    rc, out, err = executa(["install", "--verify", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 1 and SKILL in out and "modificado" in out
+
+
+def test_verify_com_o_recibo_trocado_por_lixo_sai_1(falso, capsys):
+    executa(["install", "--target", str(falso.alvo)], capsys, main)
+    (falso.alvo / RECIBO).write_text("lixo", encoding="utf-8")
+    rc, doc, _ = _json(capsys, "--verify", "--target", str(falso.alvo))
+    assert rc == 1 and doc["ok"] is False and (RECIBO, "bad_receipt") in {(p["path"], p["problem"]) for p in doc["problems"]}
+
+
+def test_verify_depois_de_um_pacote_novo_diz_que_esta_desatualizado(falso, capsys):
+    executa(["install", "--target", str(falso.alvo)], capsys, main)
+    (falso.bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    rc, out, err = executa(["install", "--verify", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 1 and "desatualizado" in out and "simplicio-video install" in out
 
 
 def test_verify_com_host_desconhecido_sai_1(falso, capsys):
     rc, out, err = executa(["install", "--verify", "--host", "x", "--target", str(falso.alvo)], capsys, main)
     assert rc == 1 and "host desconhecido" in out + err
+
+
+def test_verify_global_confere_o_home_e_nao_o_alvo(falso, capsys):
+    assert executa(["install", "--verify", "--global"], capsys, main)[0] == 1
+    executa(["install", "--global"], capsys, main)
+    assert executa(["install", "--verify", "--global"], capsys, main)[0] == 0
+    (falso.home / SKILL).write_text("adulterada\n", encoding="utf-8")
+    assert executa(["install", "--verify", "--global"], capsys, main)[0] == 1
 
 
 # --- --uninstall ---------------------------------------------------------------------------------------------------------
@@ -308,39 +353,50 @@ def test_global_com_qualquer_host_escreve_so_em_claude_skills(falso, capsys):
     assert rc == 0 and (falso.home / SKILL).is_file() and not (falso.home / "AGENTS.md").exists()
 
 
-def test_global_atualiza_a_skill_dos_hosts_que_ja_tem_e_o_check_enxerga_a_pendencia(falso, capsys):
+def test_global_nao_mexe_na_copia_de_outro_host_e_diz_que_a_deixou_em_paz(falso, capsys):
+    """The copy of another host is not in the receipt: it is not ours to overwrite (the loop refreshes it, ADR-0020)."""
     velha = falso.home / ".codex" / "skills" / "simplicio-video"
     write(velha / "SKILL.md", "release antiga\n")
-    rc, out, err = executa(["install", "--global", "--check"], capsys, main)
-    assert rc == 10 and not (falso.home / ".claude").exists()
-    assert "desatualizadas" in out and "codex (1)" in out
+    notas = write(velha / "minhas-notas.md", "notas do usuário\n")
     rc, out, err = executa(["install", "--global"], capsys, main)
-    assert rc == 0 and "ressincronizadas" in out and "codex" in out
-    assert (velha / "SKILL.md").read_text(encoding="utf-8") == "video\n"
-    rc, out, err = executa(["install", "--global", "--check"], capsys, main)
-    assert rc == 0, out
+    assert rc == 0, out + err
+    assert "deixadas em paz" in out and "codex (1)" in out
+    assert (velha / "SKILL.md").read_text(encoding="utf-8") == "release antiga\n" and notas.read_text(encoding="utf-8") == "notas do usuário\n"
+    assert (falso.home / SKILL).is_file()
 
 
-def test_global_check_sai_10_so_por_causa_da_copia_desatualizada_de_outro_host(falso, capsys):
-    """The home itself is up to date: the only thing pending is another host's old copy. That is still a pending change."""
+def test_global_check_nao_fica_pendente_por_causa_da_copia_de_outro_host(falso, capsys):
+    """The home itself is up to date; another host's old copy is something `install` will never change, so it cannot keep `--check` at 10."""
     assert executa(["install", "--global"], capsys, main)[0] == 0
-    assert executa(["install", "--global", "--check"], capsys, main)[0] == 0
     write(falso.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md", "release antiga\n")
     rc, out, err = executa(["install", "--global", "--check"], capsys, main)
-    assert rc == 10 and "codex (1)" in out and "0 criados, 0 atualizados" in out, out + err
+    assert rc == 0 and "codex (1)" in out and "0 criados, 0 atualizados" in out, out + err
     rc, doc, _ = _json(capsys, "--global", "--check")
-    assert rc == 10 and doc["up_to_date"] is False and doc["changes"]["created"] == [] and doc["resynced"]["pending"] == 1
+    assert rc == 0 and doc["up_to_date"] is True and doc["resynced"]["pending"] == 0 and doc["resynced"]["skills"] == ["codex"]
 
 
 def test_global_json_traz_o_resynced_com_as_chaves_do_loop(falso, capsys):
     write(falso.home / ".cursor" / "skills" / "simplicio-video" / "SKILL.md", "release antiga\n")
     rc, doc, _ = _json(capsys, "--global", "--check")
-    assert rc == 10 and erros_de_schema("install-plan", doc) == [], doc
+    assert rc == 10 and erros_de_schema("install-plan", doc) == [], doc  # 10: the home itself has nothing installed yet
     assert set(doc["resynced"]) == {"skills", "rules", "skills_counts", "rules_counts", "errors", "pending"}
-    assert doc["resynced"]["skills"] == ["cursor"] and doc["resynced"]["pending"] == 1 and doc["resynced"]["rules"] == []
-    assert doc["up_to_date"] is False, "a pending host copy is not up to date, even when the home itself is"
-    rc, doc, _ = _json(capsys, "--global")
-    assert rc == 0 and doc["resynced"]["skills"] == ["cursor"] and doc["resynced"]["pending"] == 0
+    assert doc["resynced"]["skills"] == ["cursor"] and doc["resynced"]["pending"] == 0 and doc["resynced"]["rules"] == []
+    assert doc["resynced"]["skills_counts"] == {"cursor": 2}, "the copy lacks the social skill and differs in the video one"
+
+
+def test_global_nao_apaga_arquivo_do_usuario_dentro_da_pasta_da_skill_nem_nas_copias_dos_hosts(falso, capsys):
+    """Review of #117: `minhas-notas.md` vanished from ~/.claude and ~/.codex, and `update` (pip) did it by itself."""
+    executa(["install", "--global"], capsys, main)
+    notas_claude = write(falso.home / ".claude" / "skills" / "simplicio-video" / "minhas-notas.md", "notas\n")
+    notas_codex = write(falso.home / ".codex" / "skills" / "simplicio-video" / "minhas-notas.md", "notas\n")
+    write(falso.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md", "release antiga\n")
+    (falso.bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
+    for _ in range(2):
+        rc, out, err = executa(["install", "--global"], capsys, main)
+        assert rc == 0, out + err
+    assert notas_claude.read_text(encoding="utf-8") == "notas\n" and notas_codex.read_text(encoding="utf-8") == "notas\n"
+    assert (falso.home / SKILL).read_text(encoding="utf-8") == "video v2\n", "our own file is still updated"
+    assert "minhas-notas.md" in out, "it says it left the user's file alone"
 
 
 def test_global_em_dia_sai_0_no_check_mesmo_com_hosts_instalados(falso, capsys):
@@ -351,7 +407,8 @@ def test_global_em_dia_sai_0_no_check_mesmo_com_hosts_instalados(falso, capsys):
 
 
 def test_global_prune_remove_as_copias_do_projeto_e_diz_quantas(falso, capsys):
-    obsoleta = write(falso.alvo / ".claude" / "skills" / "simplicio-video" / "SKILL.md", "velha\n")
+    assert executa(["install", "--target", str(falso.alvo)], capsys, main)[0] == 0  # the project copy, with its receipt
+    obsoleta = falso.alvo / SKILL
     do_usuario = write(falso.alvo / ".claude" / "settings.json", "{}")
     rc, out, err = executa(["install", "--global", "--prune-project-copies", "--check", "--target", str(falso.alvo)], capsys, main)
     assert rc == 10 and "podaria" in out and obsoleta.is_file(), "--check removes nothing"
@@ -361,9 +418,47 @@ def test_global_prune_remove_as_copias_do_projeto_e_diz_quantas(falso, capsys):
 
 
 def test_global_prune_json_traz_pruned_project(falso, capsys):
-    write(falso.alvo / ".claude" / "skills" / "simplicio-video" / "SKILL.md", "velha\n")
+    executa(["install", "--target", str(falso.alvo)], capsys, main)
     rc, doc, _ = _json(capsys, "--global", "--prune-project-copies", "--target", str(falso.alvo))
     assert rc == 0 and doc["pruned_project"]["status"] == "removed" and erros_de_schema("install-plan", doc) == []
+    assert SKILL in doc["pruned_project"]["removed"]
+
+
+def test_prune_nao_apaga_a_copia_do_projeto_que_nenhum_recibo_registra(falso, capsys):
+    copia = write(falso.alvo / SKILL, "velha\n")
+    rc, out, err = executa(["install", "--global", "--prune-project-copies", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0 and copia.read_text(encoding="utf-8") == "velha\n" and (falso.home / SKILL).is_file()
+
+
+def test_prune_com_o_alvo_igual_ao_home_sai_2_e_nao_apaga_a_instalacao_global(falso, capsys, monkeypatch):
+    """Review of #117: from the home (`--target` defaults to `.`), the prune deleted the global install it had just written."""
+    assert executa(["install", "--global"], capsys, main)[0] == 0
+    monkeypatch.chdir(falso.home)
+    antes = fotografia(falso.home)
+    rc, out, err = executa(["install", "--global", "--prune-project-copies"], capsys, main)
+    assert rc == 2 and "--prune-project-copies" in out + err and "home" in out + err
+    assert fotografia(falso.home) == antes and (falso.home / SKILL).is_file()
+    rc, doc, _ = _json(capsys, "--global", "--prune-project-copies", "--target", str(falso.home))
+    assert rc == 2 and doc["status"] == "error" and erros_de_schema("install-plan", doc) == []
+
+
+@posix_real
+def test_prune_com_o_alvo_que_e_um_link_para_o_home_tambem_sai_2(falso, capsys):
+    executa(["install", "--global"], capsys, main)
+    via = falso.tmp / "via"
+    via.symlink_to(falso.home, target_is_directory=True)
+    rc, out, err = executa(["install", "--global", "--prune-project-copies", "--target", str(via)], capsys, main)
+    assert rc == 2 and (falso.home / SKILL).is_file()
+
+
+@posix_real
+def test_prune_nao_leva_embora_a_instalacao_global_quando_o_claude_do_projeto_e_link_para_o_do_home(falso, capsys):
+    (falso.home / ".claude").mkdir()
+    (falso.alvo / ".claude").symlink_to(falso.home / ".claude", target_is_directory=True)
+    assert executa(["install", "--target", str(falso.alvo)], capsys, main)[0] == 0
+    rc, out, err = executa(["install", "--global", "--prune-project-copies", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0, out + err
+    assert (falso.home / SKILL).is_file() and executa(["install", "--global", "--check"], capsys, main)[0] == 0
 
 
 @pytest.mark.parametrize("so", SISTEMAS)
@@ -480,6 +575,96 @@ def test_o_alvo_que_e_um_arquivo_sai_1_sem_traceback(falso, capsys):
     arquivo = write(falso.tmp / "arquivo.txt", "x\n")
     rc, out, err = executa(["install", "--target", str(arquivo)], capsys, main)
     assert rc == 1 and "Traceback" not in out + err
+
+
+# --- review of #117: links, receipts and files that were already there ---------------------------------------------------------------
+
+
+@posix_real
+def test_claude_skills_que_e_link_sai_2_com_o_motivo_e_nada_e_escrito(falso, capsys):
+    fora = falso.tmp / "dotfiles"
+    fora.mkdir()
+    (falso.alvo / ".claude").mkdir()
+    (falso.alvo / ".claude" / "skills").symlink_to(fora, target_is_directory=True)
+    rc, out, err = executa(["install", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 2 and ".claude/skills" in out + err and "link" in out + err and "Traceback" not in out + err
+    rc, doc, err = _json(capsys, "--target", str(falso.alvo))
+    assert rc == 2 and doc["status"] == "error" and "link" in doc["error"] and erros_de_schema("install-plan", doc) == []
+    assert fotografia(fora) == {} and not (falso.alvo / ".simplicio-video").exists()
+    assert executa(["install", "--check", "--target", str(falso.alvo)], capsys, main)[0] == 2
+
+
+@posix_real
+def test_claude_que_e_link_de_dotfiles_instala_confere_e_desinstala_pelo_cli(falso, capsys):
+    dotfiles = falso.tmp / "dotfiles"
+    dotfiles.mkdir()
+    (falso.alvo / ".claude").symlink_to(dotfiles, target_is_directory=True)
+    assert executa(["install", "--target", str(falso.alvo)], capsys, main)[0] == 0
+    assert (dotfiles / "skills" / "simplicio-video" / "SKILL.md").is_file()
+    assert executa(["install", "--check", "--target", str(falso.alvo)], capsys, main)[0] == 0
+    assert executa(["install", "--verify", "--target", str(falso.alvo)], capsys, main)[0] == 0
+    rc, out, err = executa(["install", "--uninstall", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0 and fotografia(dotfiles) == {}, out + err
+
+
+def test_o_primeiro_install_nao_sobrescreve_a_skill_customizada_e_diz_como_assumir(falso, capsys):
+    custom = write(falso.alvo / SKILL, "a minha skill\n")
+    rc, out, err = executa(["install", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0 and custom.read_text(encoding="utf-8") == "a minha skill\n"
+    assert "deixado em paz" in out and SKILL in out
+    assert "apague" in out, "it says how to let the install take the folder over"
+    rc, out, err = executa(["install", "--uninstall", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0 and custom.read_text(encoding="utf-8") == "a minha skill\n"
+
+
+def test_uninstall_diz_o_que_deixou_porque_o_usuario_editou(falso, capsys):
+    executa(["install", "--host", "codex", "--target", str(falso.alvo)], capsys, main)
+    (falso.alvo / "AGENTS.md").write_text("# as minhas regras\n", encoding="utf-8")
+    rc, out, err = executa(["install", "--uninstall", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0 and "AGENTS.md" in out and "editado" in out
+    assert (falso.alvo / "AGENTS.md").read_text(encoding="utf-8") == "# as minhas regras\n"
+    executa(["install", "--host", "codex", "--target", str(falso.alvo)], capsys, main)
+    (falso.alvo / "AGENTS.md").write_text("# de novo\n", encoding="utf-8")
+    rc, doc, _ = _json(capsys, "--uninstall", "--target", str(falso.alvo))
+    assert rc == 0 and doc["left_alone"] == ["AGENTS.md"] and doc["warnings"] and erros_de_schema("install-plan", doc) == [], doc
+
+
+def test_recibo_plantado_no_repo_faz_o_uninstall_sair_1_sem_apagar_nada(falso, capsys):
+    notas = write(falso.alvo / "notes.md", "do repositório\n")
+    executa(["install", "--target", str(falso.alvo)], capsys, main)
+    recibo = json.loads((falso.alvo / RECIBO).read_text(encoding="utf-8"))
+    recibo["paths"].append("notes.md")
+    recibo["sha256"]["notes.md"] = "0" * 64
+    (falso.alvo / RECIBO).write_text(json.dumps(recibo), encoding="utf-8")
+    rc, doc, err = _json(capsys, "--uninstall", "--target", str(falso.alvo))
+    assert rc == 1 and doc["status"] == "error" and "recibo" in doc["error"] and erros_de_schema("install-plan", doc) == []
+    assert notas.is_file() and (falso.alvo / SKILL).is_file()
+
+
+@pytest.mark.parametrize("rel", ["a\u0000b/c", "x" * 5000])
+def test_recibo_com_nul_ou_gigante_nao_vira_traceback_em_nenhum_modo(falso, capsys, rel):
+    executa(["install", "--target", str(falso.alvo)], capsys, main)
+    recibo = json.loads((falso.alvo / RECIBO).read_text(encoding="utf-8"))
+    recibo["paths"] = [rel]
+    (falso.alvo / RECIBO).write_text(json.dumps(recibo), encoding="utf-8")
+    for opcao in ("--uninstall", "--uninstall --dry-run", "--verify"):
+        rc, out, err = executa(["install", *opcao.split(), "--target", str(falso.alvo)], capsys, main)
+        assert rc == 1 and "Traceback" not in out + err and "ValueError" not in out + err, (opcao, out, err)
+    rc, doc, _ = _json(capsys, "--uninstall", "--target", str(falso.alvo))
+    assert rc == 1 and doc["status"] == "error" and erros_de_schema("install-plan", doc) == []
+    rc, out, err = executa(["install", "--target", str(falso.alvo)], capsys, main)
+    assert rc == 0 and "aviso" in out and "Traceback" not in out + err, "an install ignores the receipt and says so"
+
+
+def test_o_help_do_install_diz_o_que_o_global_ignora_e_o_que_o_verify_confere(capsys):
+    rc, out, err = executa(["install", "--help"], capsys, main)
+    texto = " ".join(out.split())
+    assert rc == 0
+    assert "--host" in texto and "com --global" in texto and "ignora" in texto and ".claude/skills" in texto, \
+        "with --global the host is ignored and only ~/.claude/skills is written"
+    assert "já existir" in texto or "já existe" in texto, "an entry file that exists gets no pointer"
+    assert "recibo" in texto and "sha256" in texto and "link" in texto
+    assert "arquivos" in texto and "confere" in texto and "exit 1" in texto
 
 
 # --- the output must survive a Windows console ------------------------------------------------------------------------------------

@@ -255,7 +255,7 @@ def test_o_recibo_e_json_utf8_com_nova_linha_e_registra_arquivos_e_pastas(repo, 
     assert recibo["schema"] == installer.OWNERSHIP_SCHEMA and recibo["owner"] == "simplicio-video"
     assert recibo["paths"] == sorted([SKILL, REF]) and ".simplicio-video" in recibo["dirs"]
     assert ".claude/skills/simplicio-video/references" in recibo["dirs"]
-    assert set(recibo) == {"schema", "owner", "version", "digest", "paths", "dirs"}
+    assert set(recibo) == {"schema", "owner", "version", "digest", "paths", "dirs", "sha256"}
 
 
 def test_um_segundo_host_instalado_depois_nao_apaga_do_recibo_o_do_primeiro(repo, bundle):
@@ -312,27 +312,28 @@ def test_link_simbolico_no_lugar_do_arquivo_nao_e_nosso_e_o_alvo_nao_e_tocado(tm
 
 
 @posix_real
-def test_a_pasta_da_skill_que_e_link_simbolico_nao_e_escrita_por_dentro(tmp_path, repo, bundle):
-    """The owner's skills may be links into a clone (dotfiles, this repo): writing through them would edit the clone."""
+def test_a_pasta_da_skill_que_e_link_simbolico_e_recusada_e_nada_e_escrito_por_dentro(tmp_path, repo, bundle):
+    """A folder the install creates is never a link (ADR-0020): writing through it would edit the clone it points to, and the
+    uninstall could not tell later where the files went. The refusal says so; the user removes the link or picks another --target."""
     clone = tmp_path / "clone" / "skills" / "simplicio-video"
     write(clone / "SKILL.md", "do clone\n")
     (repo / ".claude" / "skills").mkdir(parents=True)
     (repo / ".claude" / "skills" / "simplicio-video").symlink_to(clone, target_is_directory=True)
-    resultado = instala(repo, bundle)
-    assert ".claude/skills/simplicio-video" in resultado["changes"]["left_alone"]
+    with pytest.raises(installer.InstallRefused, match="link"):
+        instala(repo, bundle)
     assert fotografia(clone.parent.parent) == {"skills": None, "skills/simplicio-video": None,
                                                "skills/simplicio-video/SKILL.md": "do clone\n"}
 
 
 @posix_real
-def test_claude_skills_pode_ser_um_link_do_dono_e_as_skills_vao_para_o_alvo_dele(tmp_path, repo, bundle):
+def test_claude_skills_que_e_link_do_dono_e_recusada_mas_claude_pode_ser(tmp_path, repo, bundle):
     destino = tmp_path / "dotfiles" / "skills"
     destino.mkdir(parents=True)
     (repo / ".claude").mkdir()
     (repo / ".claude" / "skills").symlink_to(destino, target_is_directory=True)
-    resultado = instala(repo, bundle)
-    assert (destino / "simplicio-video" / "SKILL.md").is_file() and resultado["up_to_date"] is False
-    assert instala(repo, bundle)["up_to_date"] is True
+    with pytest.raises(installer.InstallRefused):
+        instala(repo, bundle)
+    assert fotografia(destino) == {}
 
 
 @pytest.mark.parametrize("so", SISTEMAS)
@@ -423,7 +424,7 @@ def test_o_resultado_do_uninstall_tem_as_listas_do_loop(repo, bundle):
     instala(repo, bundle)
     write(repo / ".claude" / "skills" / "simplicio-video" / "minha.md", "m\n")  # a user file inside a folder we created
     resultado = desinstala(repo)
-    assert set(resultado) == {"schema", "status", "removed", "removed_dirs", "kept", "skipped"}
+    assert set(resultado) == {"schema", "status", "removed", "removed_dirs", "kept", "skipped", "left_alone", "warnings"}
     assert ".claude/skills/simplicio-video/references" in resultado["removed_dirs"]
     assert ".claude/skills/simplicio-video" in resultado["kept"] and (repo / ".claude/skills/simplicio-video/minha.md").is_file()
 
@@ -508,16 +509,16 @@ ADULTERACOES = [
     pytest.param(lambda r, o: _mais(r, "paths", "\\\\servidor\\share\\keep.txt"), True, id="paths-unc"),
     pytest.param(lambda r, o: _mais(r, "dirs", "..\\outside"), True, id="dirs-ponto-ponto-do-windows"),
     pytest.param(_por_elo_de_pasta, True, id="paths-por-elo-de-pasta"),
-    pytest.param(_elo_folha, False, id="paths-elo-folha-so-perde-o-elo"),
-    pytest.param(_elo_de_pasta_como_arquivo, False, id="paths-elo-de-pasta-listado-como-arquivo"),
-    pytest.param(lambda r, o: _mais(r, "paths", "*"), False, id="paths-glob-e-literal"),
+    pytest.param(_elo_folha, True, id="paths-elo-folha-fora-do-registro"),
+    pytest.param(_elo_de_pasta_como_arquivo, True, id="paths-elo-de-pasta-listado-como-arquivo"),
+    pytest.param(lambda r, o: _mais(r, "paths", "*"), True, id="paths-glob-fora-do-registro"),
     pytest.param(lambda r, o: tamper(r, paths=[1]), True, id="paths-item-inteiro"),
     pytest.param(lambda r, o: tamper(r, paths="abc"), True, id="paths-texto"),
     pytest.param(lambda r, o: tamper(r, paths=None), True, id="paths-nulo"),
     pytest.param(lambda r, o: _mais(r, "dirs", str(o)), True, id="dirs-absoluto-fora"),
     pytest.param(lambda r, o: _mais(r, "dirs", "../outside"), True, id="dirs-ponto-ponto"),
     pytest.param(lambda r, o: _mais(r, "dirs", "."), True, id="dirs-ponto"),
-    pytest.param(_elo_de_pasta_como_pasta, False, id="dirs-elo-para-pasta-de-fora"),
+    pytest.param(_elo_de_pasta_como_pasta, True, id="dirs-elo-para-pasta-de-fora"),
     pytest.param(lambda r, o: tamper(r, dirs=[None]), True, id="dirs-item-nulo"),
     pytest.param(lambda r, o: tamper(r, dirs="x"), True, id="dirs-texto"),
     pytest.param(lambda r, o: tamper(r, owner="outro"), True, id="dono-adulterado"),
@@ -555,9 +556,10 @@ def test_recibo_corrompido_e_recusado_e_nada_e_removido(repo, bundle, corpo):
 def test_diretorio_registrado_como_arquivo_nunca_e_apagado_como_se_fosse_arquivo(repo, bundle):
     minha = write(repo / ".claude" / "skills" / "minha-skill" / "SKILL.md", "m\n")
     instala(repo, bundle)
-    _mais(repo, "paths", ".claude/skills/minha-skill")
+    (repo / REF).unlink()
+    (repo / REF).mkdir()  # a folder where a registered file was
     resultado = desinstala(repo)
-    assert minha.is_file() and ".claude/skills/minha-skill" in resultado["skipped"]
+    assert minha.is_file() and REF in resultado["skipped"] and (repo / REF).is_dir()
 
 
 def test_um_alvo_alcancado_por_um_elo_ainda_e_desinstalado(tmp_path, repo, bundle):
@@ -590,13 +592,15 @@ def test_prune_remove_as_copias_do_projeto_e_preserva_o_que_e_do_usuario(repo, b
     write(repo / ".claude" / "settings.json", '{"meu": 1}')
     write(repo / ".claude" / "skills" / "minha-skill" / "SKILL.md", "m\n")
     seco = installer.prune_project_copies(repo, dry_run=True)
-    assert seco["status"] == "dry_run" and SKILL in seco["removed"] and ".cursor/skills/simplicio-video/SKILL.md" in seco["removed"]
+    assert seco["status"] == "dry_run" and SKILL in seco["removed"] and ".cursor/skills/simplicio-video/SKILL.md" not in seco["removed"]
     assert RECIBO in seco["removed"] and ".kiro/steering/simplicio-video.md" in seco["removed"]
     assert (repo / SKILL).is_file(), "a dry run removes nothing"
     feito = installer.prune_project_copies(repo)
     assert feito["status"] == "removed" and not (repo / SKILL).exists() and not (repo / RECIBO).exists()
     assert (repo / ".claude" / "settings.json").is_file() and (repo / ".claude" / "skills" / "minha-skill" / "SKILL.md").is_file()
-    assert ".claude/skills" in feito["kept"] and not (repo / ".cursor").exists()
+    assert ".claude/skills" in feito["kept"]
+    assert (repo / ".cursor" / "skills" / "simplicio-video" / "SKILL.md").read_text(encoding="utf-8") == "velha\n", \
+        "a copy that no receipt registers is not ours (test_install_seguranca.py)"
 
 
 def test_prune_nao_apaga_o_estado_de_outro_arquivo_em_simplicio_video(repo, bundle):
@@ -645,12 +649,12 @@ def test_prune_recusa_um_recibo_que_nomeia_algo_fora_do_alvo(tmp_path, repo, bun
     assert fora.read_text(encoding="utf-8") == "keep\n" and (repo / SKILL).is_file()
 
 
-def test_uma_juncao_do_windows_vale_como_link_e_nao_e_escrita_por_dentro(repo, bundle, monkeypatch):
+def test_uma_juncao_do_windows_na_pasta_da_skill_e_recusada_e_nao_e_escrita_por_dentro(repo, bundle, monkeypatch):
     """`os.path.islink` is False for an NTFS junction (3.12+ has `os.path.isjunction`): the skill folder that is one is a link too."""
     (repo / ".claude" / "skills" / "simplicio-video").mkdir(parents=True)
     juncao = str(repo / ".claude" / "skills" / "simplicio-video")
     monkeypatch.setattr(os.path, "isjunction", lambda caminho: os.fspath(caminho) == juncao, raising=False)
-    resultado = instala(repo, bundle)
-    assert ".claude/skills/simplicio-video" in resultado["changes"]["left_alone"]
+    with pytest.raises(installer.InstallRefused):
+        instala(repo, bundle)
     assert not (repo / SKILL).exists(), "nothing was written through the junction"
     assert installer.is_link(Path(juncao)) and not installer.is_link(repo)

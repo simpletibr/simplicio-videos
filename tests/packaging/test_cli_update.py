@@ -4,10 +4,12 @@ Exit codes (as simplicio-loop): `--check` 0 up to date, 10 update available, 2 e
 without --force) 2; a network failure is `2 if --check else 1`.
 Distributions: `pip` (install the latest release from PyPI: `python -m pip install --upgrade "simplicio-video==X"`, then
 `simplicio-video install --global` to reinstall the skills in the agent hosts, as the loop does) and `source` (a checkout or an
-editable install): REFUSED, exit 2, printing `git pull` and `bash scripts/dev_install.sh` (Windows: `powershell -File
-scripts/dev_install.ps1`). Breaking change (direct owner request): the update used to run `git pull --ff-only` there; the loop
+editable install): REFUSED, exit 2, printing `git pull` and `bash scripts/dev_install.sh` (Windows: `powershell -NoProfile
+-ExecutionPolicy Bypass -File scripts\\dev_install.ps1`: the policy of the client Windows is Restricted). Breaking change (direct owner request): the update used to run `git pull --ff-only` there; the loop
 refuses, so does this. `--check` of a checkout still answers 0/10/2 (it asks git how many commits are new) and records the cache.
-`--force` reinstalls the pip release even when up to date and allows a downgrade; `--dry-run` shows the plan and changes nothing.
+`--force` reinstalls the pip release even when up to date and allows a downgrade (only our package: `--force-reinstall --no-deps`,
+and only when there is nothing newer, so the dependencies of a newer release are never skipped); `--dry-run` shows the plan and changes
+nothing.
 
 Part 1 injects the network, git and subprocesses (like the loop's tests). Part 2 runs real git against a bare repo in
 tmp_path (transport by file, no network). Nothing touches the real repo, ~ or the network (pytest-socket).
@@ -40,6 +42,12 @@ simula_so = _caixa.simula_so
 
 PYPI = "simplicio-video=="
 INSTALL_GLOBAL = [sys.executable, "-m", "simplicio_video", "install", "--global"]
+
+
+@pytest.fixture(autouse=True)
+def _com_pip(monkeypatch):
+    """The tests must not depend on whether the interpreter that runs them has pip (a `uv tool` venv has none)."""
+    monkeypatch.setattr(update_cmd, "_has_pip", lambda: True, raising=False)
 
 
 class Chamadas:
@@ -141,12 +149,35 @@ def test_pip_dry_run_mostra_o_comando_nao_roda_e_nao_registra(capsys):
 def test_pip_force_em_dia_reinstala_a_mesma_versao(capsys):
     rc, c, _ = pip_update(capsys, installed="0.4.0", tag="v0.4.0", force=True)
     assert rc == 0
-    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", f"{PYPI}0.4.0"], INSTALL_GLOBAL]
+    assert c.argvs == [[sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", f"{PYPI}0.4.0"],
+                       INSTALL_GLOBAL], "only our package is reinstalled, not every dependency (the loop's own repair does the same)"
 
 
-def test_pip_sem_force_nao_usa_force_reinstall(capsys):
+def test_pip_force_com_versao_nova_nao_pula_as_dependencias(capsys):
+    """`--no-deps` on a NEWER release would skip a dependency that release adds: the force only reinstalls when nothing is newer."""
+    rc, c, _ = pip_update(capsys, installed="0.4.0", tag="v0.5.0", force=True)
+    assert rc == 0 and c.argvs[0] == [sys.executable, "-m", "pip", "install", "--upgrade", f"{PYPI}0.5.0"]
+
+
+def test_pip_sem_force_nao_usa_force_reinstall_nem_no_deps(capsys):
     _, c, _ = pip_update(capsys)
-    assert "--force-reinstall" not in c.argvs[0]
+    assert "--force-reinstall" not in c.argvs[0] and "--no-deps" not in c.argvs[0]
+
+
+def test_update_num_python_sem_pip_diz_o_que_fazer_e_sai_2_sem_rodar_nada(capsys, monkeypatch):
+    """A `uv tool install` venv has no pip: `python -m pip` would fail with "No module named pip" (review of #117)."""
+    monkeypatch.setattr(update_cmd, "_has_pip", lambda: False)
+    rc, c, texto = pip_update(capsys)
+    assert rc == 2 and c.argvs == []
+    assert "pip" in texto and "uv tool upgrade simplicio-video" in texto and "pipx upgrade simplicio-video" in texto
+    assert "Traceback" not in texto and "No module named" not in texto
+
+
+def test_update_sem_pip_nao_barra_o_check_nem_o_dry_run(capsys, monkeypatch):
+    monkeypatch.setattr(update_cmd, "_has_pip", lambda: False)
+    assert pip_update(capsys, check=True)[0] == 10
+    rc, c, texto = pip_update(capsys, dry_run=True)
+    assert rc == 0 and "executaria" in texto
 
 
 def test_pip_instalado_mais_novo_que_a_ultima_release_e_em_dia_e_sai_0(capsys):
@@ -631,7 +662,7 @@ def test_o_check_do_checkout_usa_a_versao_do_pyproject_do_upstream(remoto, coman
 
 PULL = "git pull"
 DEV_SH = "bash scripts/dev_install.sh"
-DEV_PS1 = "powershell -File scripts/dev_install.ps1"
+DEV_PS1 = "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1"
 
 
 @pytest.mark.parametrize("opcoes", [[], ["--force"], ["--dry-run"], ["--check", "--dry-run"], ["--force", "--dry-run"]])

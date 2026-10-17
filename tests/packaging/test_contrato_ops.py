@@ -170,7 +170,8 @@ CHAVES_DO_INSTALL_DO_LOOP = {"schema", "status", "written", "up_to_date", "chang
                              "version", "resynced", "pruned_project"}
 DIGEST = "sha256:" + "a" * 64
 RECIBO = {"schema": "simplicio.video-install-ownership/v1", "owner": "simplicio-video", "version": "0.4.0", "digest": DIGEST,
-          "paths": [".claude/skills/simplicio-video/SKILL.md"], "dirs": [".claude"]}
+          "paths": [".claude/skills/simplicio-video/SKILL.md"], "dirs": [".claude"],
+          "sha256": {".claude/skills/simplicio-video/SKILL.md": "b" * 64}}
 PLANO = {"schema": "simplicio.video-install-plan/v1", "status": "applied", "written": 3, "up_to_date": False, "host": "claude",
          "version": "0.4.0", "digest": DIGEST, "owned": [".claude/skills/simplicio-video/SKILL.md"], "ownership": RECIBO,
          "changes": {"created": ["a"], "updated": [], "unchanged": 0, "left_alone": []}, "resynced": None}
@@ -191,19 +192,21 @@ def test_o_schema_do_install_antigo_do_venv_saiu():
 def test_as_chaves_do_install_sao_as_do_loop_e_so_elas():
     props = set(schema("install-plan")["properties"])
     assert CHAVES_DO_INSTALL_DO_LOOP <= props
-    assert props - CHAVES_DO_INSTALL_DO_LOOP == {"ok", "removed", "removed_dirs", "kept", "skipped", "error"}, \
-        "only the verify, uninstall and error shapes add keys"
+    assert props - CHAVES_DO_INSTALL_DO_LOOP == {"ok", "problems", "removed", "removed_dirs", "kept", "skipped", "left_alone", "warnings",
+                                                 "error"}, "only the verify, uninstall and error shapes (and the warnings) add keys"
     mudancas = schema("install-plan")["properties"]["changes"]
     assert set(mudancas["properties"]) == {"created", "updated", "unchanged", "left_alone"} and mudancas["additionalProperties"] is False
 
 
 def test_o_resultado_do_install_aceita_applied_e_dry_run_e_exige_as_chaves():
     valida("install-plan", PLANO)
+    valida("install-plan", {**PLANO, "warnings": ["o recibo anterior foi ignorado"]})
+    assert erros("install-plan", {**PLANO, "warnings": "x"})
     valida("install-plan", {**PLANO, "status": "dry_run", "written": 0})
     valida("install-plan", {**PLANO, "resynced": {"skills": ["codex"], "rules": [], "skills_counts": {"codex": 1},
                                                   "rules_counts": {}, "errors": [], "pending": 1},
                             "pruned_project": {"schema": "simplicio.video-install-plan/v1", "status": "removed", "removed": [],
-                                               "removed_dirs": [], "kept": []}})
+                                               "removed_dirs": [], "kept": [], "left_alone": ["a"], "warnings": ["a foi editado"]}})
     for chave in ("changes", "owned", "ownership", "digest", "host", "version", "up_to_date", "written", "resynced"):
         assert erros("install-plan", {k: v for k, v in PLANO.items() if k != chave}), f"{chave} is required in an install result"
     assert erros("install-plan", {**PLANO, "digest": "sha1:abc"}) and erros("install-plan", {**PLANO, "written": -1})
@@ -213,14 +216,25 @@ def test_o_resultado_do_install_aceita_applied_e_dry_run_e_exige_as_chaves():
 
 def test_o_verify_o_uninstall_e_o_erro_tem_cada_um_a_sua_forma():
     verify = {"schema": "simplicio.video-install-plan/v1", "status": "verified", "ok": True, "host": "claude",
-              "version": "0.4.0", "digest": DIGEST}
+              "version": "0.4.0", "digest": DIGEST, "problems": []}
     valida("install-plan", verify)
     assert erros("install-plan", {k: v for k, v in verify.items() if k != "digest"})
+    assert erros("install-plan", {k: v for k, v in verify.items() if k != "problems"}), "the list of what differs is always there"
+    assert erros("install-plan", {**verify, "ok": False}), "`verified` and ok=false cannot both be"
+    falhou = {**verify, "status": "failed", "ok": False,
+              "problems": [{"path": ".claude/skills/simplicio-video/SKILL.md", "problem": "modified", "detail": "diferente do recibo"}]}
+    valida("install-plan", falhou)
+    assert erros("install-plan", {**falhou, "ok": True}), "`failed` and ok=true cannot both be"
+    assert erros("install-plan", {**falhou, "problems": []}), "`failed` lists what differs"
+    assert erros("install-plan", {**falhou, "problems": [{"path": "a", "problem": "inventado", "detail": "x"}]}), "problem codes are a closed set"
+    for codigo in ("no_receipt", "bad_receipt", "missing", "modified", "outdated", "foreign", "not_a_file"):
+        valida("install-plan", {**falhou, "problems": [{"path": "a", "problem": codigo, "detail": "x"}]})
     uninstall = {"schema": "simplicio.video-install-plan/v1", "status": "removed", "removed": ["a"], "removed_dirs": [],
-                 "kept": [], "skipped": [], "host": "claude", "version": "0.4.0"}
+                 "kept": [], "skipped": [], "left_alone": [], "warnings": [], "host": "claude", "version": "0.4.0"}
     valida("install-plan", uninstall)
-    valida("install-plan", {**uninstall, "status": "dry_run"})
+    valida("install-plan", {**uninstall, "status": "dry_run", "left_alone": ["AGENTS.md"], "warnings": ["AGENTS.md foi editado"]})
     assert erros("install-plan", {k: v for k, v in uninstall.items() if k != "kept"})
+    assert erros("install-plan", {k: v for k, v in uninstall.items() if k != "left_alone"}), "what was left alone is always said"
     erro = {"schema": "simplicio.video-install-plan/v1", "status": "error", "version": "0.4.0", "error": "host desconhecido: x"}
     valida("install-plan", erro)
     valida("install-plan", {**erro, "host": "x"})
@@ -236,6 +250,19 @@ def test_o_recibo_so_aceita_o_dono_e_o_esquema_do_video():
     assert erros("install-ownership", {**RECIBO, "paths": [1]}) and erros("install-ownership", {**RECIBO, "dirs": "x"})
     for chave in RECIBO:
         assert erros("install-ownership", {k: v for k, v in RECIBO.items() if k != chave}), chave
+
+
+def test_o_recibo_exige_o_sha256_de_cada_caminho_e_so_aceita_caminhos_relativos_simples():
+    caminho = ".claude/skills/simplicio-video/SKILL.md"
+    assert erros("install-ownership", {**RECIBO, "sha256": {caminho: "xyz"}}), "a digest is 64 lowercase hex digits"
+    assert erros("install-ownership", {**RECIBO, "sha256": {caminho: "B" * 64}})
+    valida("install-ownership", {**RECIBO, "bases": {".claude": "/home/u/dotfiles/claude"}})
+    assert erros("install-ownership", {**RECIBO, "bases": {".claude": ""}}) and erros("install-ownership", {**RECIBO, "bases": {"x": "/a"}})
+    for ruim in ("../x", "/etc/passwd", "C:\\x", "C:x", "a\\b", "a/../b", "a/..", "", "x\u0000y"):
+        assert erros("install-ownership", {**RECIBO, "paths": [ruim]}), f"{ruim!r} cannot be a path of the receipt"
+        assert erros("install-ownership", {**RECIBO, "dirs": [ruim]}), f"{ruim!r} cannot be a dir of the receipt"
+    for bom in ("AGENTS.md", ".kiro/steering/simplicio-video.md", "a/b/c.md"):
+        valida("install-ownership", {**RECIBO, "paths": [bom], "sha256": {bom: "c" * 64}})
 
 
 # --- the real outputs validate ---------------------------------------------------------------------------------------
@@ -335,14 +362,15 @@ def test_install_real_valida_check_dry_run_apply_verify_uninstall_e_o_recibo_no_
 
 def test_install_global_real_valida_com_resynced_e_pruned_project(caixa, capsys, tmp_path):
     alvo = tmp_path / "proj"
-    (alvo / ".claude" / "skills" / "simplicio-video").mkdir(parents=True)
-    (alvo / ".claude" / "skills" / "simplicio-video" / "SKILL.md").write_text("velha\n", encoding="utf-8")
+    alvo.mkdir()
+    assert executa(["install", "--target", str(alvo)], capsys, main)[0] == 0  # the project copy and its receipt
     (caixa.home / ".codex" / "skills" / "simplicio-video").mkdir(parents=True)
     (caixa.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md").write_text("velha\n", encoding="utf-8")
     for argv in (["--check"], []):
         rc, doc, _ = _doc(capsys, "install", "--json", "--global", "--prune-project-copies", "--target", str(alvo), *argv)
         valida("install-plan", doc)
-        assert doc["resynced"]["skills"] == ["codex"] and doc["pruned_project"]["removed"]
+        assert doc["resynced"]["skills"] == ["codex"] and doc["resynced"]["pending"] == 0
+        assert doc["pruned_project"]["removed"], "the dry run lists what it would prune, the real run what it pruned"
 
 
 def test_install_de_pacote_instalado_valida(caixa, capsys, monkeypatch, tmp_path):
