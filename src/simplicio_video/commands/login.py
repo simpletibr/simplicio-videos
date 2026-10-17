@@ -6,14 +6,16 @@ Ported from simplicio-loop simplicio_loop/auth_cli.py (2034e2d). The login file,
 * login: with the Runtime installed, run its flow (`simplicio login google`, terminal attached) and then check the shared
   file. WITHOUT the Runtime the login is UNVERIFIED: no authorize or device endpoint is documented in THIS repository, so
   none is invented; the command prints how to install the Runtime (and does not run those commands).
-* logout: delete the shared file. It logs the Runtime out too, so it needs --yes.
+* logout: delete the shared file. It logs the Runtime out too, so it needs --yes. It only deletes a file that has the shape of
+  a login (SIMPLICIO_AUTH_FILE can point anywhere, an ssh key included): anything else is refused, exit 2, `not_a_login_file`.
 * auth status: what the file says. Never a token, the e-mail is masked.
 
 Decision of the owner: this is a mirror. It stores no credential, takes no token by argument, unlocks nothing and charges
 nothing; no engine command depends on it, and it is not in plugin.json or the MCP server. The Runtime child gets a minimal
 environment (no GH_TOKEN, API keys or SIMPLICIO_LOGIN_TOKEN of the developer's shell).
 
-Exit codes: 0 done / logged in, 1 not logged in or not verified, 2 refused (logout without --yes, --no-browser impossible).
+Exit codes: 0 done / logged in, 1 not logged in or not verified, 2 refused (logout without --yes, logout of a file that is not a
+login, --no-browser impossible).
 
 Exemplos:
   simplicio-video login
@@ -32,7 +34,6 @@ import sys
 import tempfile
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 from urllib.parse import parse_qs, urlsplit
 
@@ -51,20 +52,26 @@ STANDALONE_UNVERIFIED = (
     "e rode: simplicio-video login"
 )
 
-# What `simplicio login google` is given. Everything else is left out on purpose: the shell of a developer holds other
-# programs' credentials (GH_TOKEN, API keys, SIMPLICIO_LOGIN_TOKEN) and a sign-in needs none of them.
+# What `simplicio login google` is given: a closed list of EXACT names. Everything else is left out on purpose, because the shell
+# of a developer holds other programs' credentials (GH_TOKEN, API keys, SIMPLICIO_LOGIN_TOKEN) and a sign-in needs none of
+# them. No prefix is let through (`LC_*` and `XDG_*` used to be): `LC_TOKEN` or `XDG_SECRET` would have gone along. Why each group:
+#   locale       LANG, LANGUAGE, LC_ALL, LC_CTYPE, LC_MESSAGES: the Runtime prints accents
+#   desktop      XDG_RUNTIME_DIR (the sockets of the session bus and the display), XDG_CURRENT_DESKTOP, XDG_SESSION_TYPE and
+#                XDG_SESSION_DESKTOP (what xdg-open reads to pick the opener), XDG_CONFIG_HOME, XDG_CONFIG_DIRS, XDG_DATA_HOME
+#                and XDG_DATA_DIRS (where it finds mimeapps.list and the browser's .desktop file): the browser has to open
 _CHILD_ENV = frozenset({
     "PATH", "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "USER", "LOGNAME", "SHELL", "TERM", "COLORTERM", "LANG", "LANGUAGE",
+    "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "XDG_RUNTIME_DIR", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP",
+    "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS", "XDG_DATA_HOME", "XDG_DATA_DIRS",
     "TZ", "TMPDIR", "TEMP", "TMP", "DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "BROWSER", "SYSTEMROOT", "WINDIR",
     "COMSPEC", "PATHEXT", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
     "http_proxy", "https_proxy", "all_proxy", "no_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR", auth.RUNTIME_ENV,
     "SIMPLICIO_AUTH_BASE_URL", "SIMPLICIO_HOME",
 })
-_CHILD_ENV_PREFIXES = ("LC_", "XDG_")
 
 
 def _runtime_env(env: dict) -> dict:
-    return {name: value for name, value in env.items() if name in _CHILD_ENV or name.startswith(_CHILD_ENV_PREFIXES)}
+    return {name: value for name, value in env.items() if name in _CHILD_ENV}
 
 
 def _print(doc: dict, as_json: bool, lines: list) -> None:
@@ -73,7 +80,7 @@ def _print(doc: dict, as_json: bool, lines: list) -> None:
 
 
 def _when(timestamp: int, now: float) -> str:
-    stamp = datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    stamp = hostos.utc_stamp(timestamp)  # the date is plain arithmetic: no OSError past year 3000 on Windows
     seconds = int(abs(timestamp - now))
     span = (f"{seconds // 86400} d" if seconds >= 2 * 86400 else f"{seconds // 3600} h" if seconds >= 2 * 3600
             else f"{seconds // 60} min" if seconds >= 120 else f"{seconds} s")
@@ -248,9 +255,13 @@ def login(*, as_json: bool = False, no_browser: bool = False, environ: Optional[
                                                     f"não puderam ser instalados ({exc})")
     previous = _trap_signals() if no_browser else {}
     sys.stdout.flush()
+    start_error = ""
     try:
         # --json: the Runtime's own output goes to stderr, so stdout stays one document. Nothing but `login google` is passed.
-        code = run([str(runtime), "login", "google"], child, 2 if as_json else None)
+        try:
+            code = run([str(runtime), "login", "google"], child, 2 if as_json else None)
+        except OSError as exc:  # a file called `simplicio` that cannot be executed (a bad download, the wrong architecture)
+            code, start_error = 127, str(exc.strerror or exc)
         sign_in = _read_sign_in(shim_dir)
     finally:
         if shim_dir is not None:
@@ -262,8 +273,11 @@ def login(*, as_json: bool = False, no_browser: bool = False, environ: Optional[
     doc.update(sign_in)
     if code != 0:
         doc.update(status="NOT_VERIFIED", reason_code="runtime_login_failed", logged_in=False, fix="simplicio-video login")
-        _print(doc, as_json, [f"login: o login do Runtime terminou com o código {code}; o login não foi verificado"]
-               + _sign_in_lines(sign_in))
+        if start_error:
+            doc["detail"] = f"não consegui iniciar o Runtime ({runtime}): {start_error}"
+        why = (f"não consegui iniciar o Runtime ({start_error}); o login não foi verificado" if start_error else
+               f"o login do Runtime terminou com o código {code}; o login não foi verificado")
+        _print(doc, as_json, [f"login: {why}"] + _sign_in_lines(sign_in))
         return 1
     if not doc["logged_in"]:
         doc["status"] = "NOT_VERIFIED"
@@ -292,9 +306,10 @@ def logout(*, yes: bool = False, as_json: bool = False, environ: Optional[dict] 
     try:
         removed = auth.clear_login(path)
     except auth.LoginError as exc:
-        doc.update(status="FAILED", reason_code=exc.reason_code, detail=str(exc))
+        refused = exc.reason_code == "not_a_login_file"  # not a login: a refusal (exit 2), nothing was tried
+        doc.update(status="REFUSED" if refused else "FAILED", reason_code=exc.reason_code, detail=str(exc))
         _print(doc, as_json, [f"logout: {exc}"])
-        return 1
+        return 2 if refused else 1
     doc["status"] = "LOGGED_OUT" if removed else "NO_LOGIN"
     lines = [f"logout: removido {path}. " + ("O Runtime também foi deslogado (arquivo compartilhado)." if shared else
                                              f"O Runtime lê {runtime_path}, então continua logado."),

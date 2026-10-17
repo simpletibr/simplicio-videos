@@ -748,8 +748,8 @@ def test_flock_que_o_sistema_de_arquivos_nao_suporta_e_login_invalid_e_nao_trace
 
 
 @pytest.mark.parametrize("campo", ["access_expires_at", "refresh_token_expires_at"])
-@pytest.mark.parametrize("valor", [float("inf"), float("-inf"), float("nan"), 999999999999, 253402300800, -1, True, [1], {"a": 1},
-                                   "amanha", "9" * 5000, 1e30], ids=repr)
+@pytest.mark.parametrize("valor", [float("inf"), float("-inf"), float("nan"), 999999999999, 253402300800, -1, True, False, [], [1],
+                                   {"a": 1}, "amanha", "9" * 5000, 1e30], ids=repr)
 def test_instante_invalido_no_login_e_login_invalid(campo, valor):
     """A number or date that is no instant a date can hold: `login_invalid`, never OverflowError or ValueError (year 33658)."""
     with pytest.raises(auth.LoginError) as err:
@@ -758,7 +758,7 @@ def test_instante_invalido_no_login_e_login_invalid(campo, valor):
     assert FAKE_ACCESS not in str(err.value)
 
 
-@pytest.mark.parametrize("valor,esperado", [(None, 0), ("", 0), (0, 0), (False, 0), (253402300799, 253402300799),
+@pytest.mark.parametrize("valor,esperado", [(None, 0), ("", 0), (0, 0), (253402300799, 253402300799),
                                             (1_900_000_000.5, 1_900_000_000), ("1900000000", 1_900_000_000)])
 def test_instante_valido_continua_valendo(valor, esperado):
     assert auth.summary(login_doc(access_expires_at=valor), now=1)["access_expires_at"] == esperado

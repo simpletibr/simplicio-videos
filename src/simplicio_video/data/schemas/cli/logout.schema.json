@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "simplicio.logout/v1",
   "title": "simplicio-video logout --json",
-  "description": "Saída de `simplicio-video logout --json` (stdout). Apagar o arquivo compartilhado também desloga o Runtime, por isso sem --yes nada é apagado (REFUSED). O token de renovação não é revogado no servidor.",
+  "description": "Saída de `simplicio-video logout --json` (stdout). Apagar o arquivo compartilhado também desloga o Runtime, por isso sem --yes nada é apagado (REFUSED). Só se apaga um arquivo que tenha a forma de um login: qualquer outro (uma chave ssh que SIMPLICIO_AUTH_FILE aponte, uma pasta) é recusado (REFUSED, not_a_login_file). O token de renovação não é revogado no servidor.",
   "type": "object",
   "required": [
     "schema",
@@ -44,6 +44,7 @@
     "reason_code": {
       "enum": [
         "confirmation_required",
+        "not_a_login_file",
         "login_missing",
         "login_symlink",
         "login_permissions",
@@ -51,11 +52,11 @@
         "login_expired",
         "login_lock_timeout"
       ],
-      "description": "Só em REFUSED (confirmation_required) e FAILED."
+      "description": "Só em REFUSED (confirmation_required, not_a_login_file) e FAILED."
     },
     "detail": {
       "type": "string",
-      "description": "Só em FAILED."
+      "description": "Só em FAILED e em REFUSED por not_a_login_file."
     }
   }
 }

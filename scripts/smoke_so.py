@@ -3,7 +3,9 @@
 
 Para rodar de verdade em Windows e macOS (Python 3.10 ou superior; só a biblioteca padrão no topo do script). O script
 roda o CLI com HOME, USERPROFILE, PATH e as pastas de dados dentro de uma pasta temporária: nunca toca no ~ real e nunca
-dispara um login de verdade, porque o PATH do filho não tem `simplicio`. Sem rede (SIMPLICIO_OFFLINE=1).
+dispara um login de verdade, porque o PATH do filho não tem `simplicio`. Sem rede (SIMPLICIO_OFFLINE=1). HOME e USERPROFILE
+apontam para pastas DIFERENTES de propósito: o Runtime lê o login de HOME e só depois de USERPROFILE (em todo sistema), e com
+as duas iguais um erro de ordem passaria sem ninguém ver.
 
 Comandos (exit esperado entre parênteses): --version (0), doctor --json (0 ou 1), install --check (0 ou 10),
 install --dry-run --json (0), update --dry-run (1 sem rede num pacote, 2 num checkout sem git), auth status --json (1,
@@ -36,6 +38,7 @@ REPO = Path(__file__).resolve().parent.parent
 TIMEOUT_S = 180
 # Windows needs these to start Python at all; nothing else of the real environment reaches the child.
 PASSA_DO_AMBIENTE = ("SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT")
+PASTAS = ("home", "profile", "bin", "tmp", "data", "workspace", "checkout")  # `profile` is USERPROFILE, `home` is HOME
 
 
 @dataclass
@@ -75,7 +78,8 @@ def build_env(base: Path, environ: Optional[dict] = None) -> dict:
     real = dict(os.environ if environ is None else environ)
     home = base / "home"
     env = {
-        "HOME": str(home), "USERPROFILE": str(home),  # Windows reads USERPROFILE, POSIX reads HOME
+        # DIFFERENT folders: the Runtime (and this CLI) read HOME first on every system, and USERPROFILE only without HOME
+        "HOME": str(home), "USERPROFILE": str(base / "profile"),
         "APPDATA": str(home / "AppData" / "Roaming"), "LOCALAPPDATA": str(home / "AppData" / "Local"),
         "TMP": str(base / "tmp"), "TEMP": str(base / "tmp"), "TMPDIR": str(base / "tmp"),
         "PATH": str(base / "bin"),
@@ -94,7 +98,7 @@ def build_env(base: Path, environ: Optional[dict] = None) -> dict:
 
 
 def preparar(base: Path) -> None:
-    for nome in ("home", "bin", "tmp", "data", "workspace", "checkout"):
+    for nome in PASTAS:
         (Path(base) / nome).mkdir(parents=True, exist_ok=True)
 
 
@@ -202,7 +206,7 @@ def main(argv: Optional[list] = None) -> int:
         print("# Fumaça multiplataforma do simplicio-video")
         print(f"- SO: {platform.platform()}")
         print(f"- Python: {platform.python_version()} ({sys.executable})")
-        print(f"- Pasta temporária isolada (HOME, USERPROFILE e PATH): {base}")
+        print(f"- Pasta temporária isolada (HOME, USERPROFILE e PATH, cada um numa pasta diferente): {base}")
         print()
         resultados = executar(PASSOS, base)
         print(tabela(resultados))
@@ -217,7 +221,7 @@ def main(argv: Optional[list] = None) -> int:
         if not args.manter and criada_aqui:
             shutil.rmtree(base, ignore_errors=True)
         elif not args.manter:
-            for nome in ("home", "bin", "tmp", "data", "workspace", "checkout"):
+            for nome in PASTAS:
                 shutil.rmtree(base / nome, ignore_errors=True)
 
 
