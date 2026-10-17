@@ -6,6 +6,7 @@ do PyPI; `publish` e `realoficial` ficam porque ainda têm dependente. Os subpro
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import subprocess
 import sys
@@ -85,9 +86,10 @@ def test_help_do_subcomando_motor_nao_cita_venda(sub):
 
 
 # Módulos de venda mortos: nada no CLI, no MCP nem no motor os importa (só os testes exclusivos deles os importavam),
-# então saíram do pacote que vai para o PyPI, com os dados que só eles liam. `publish` e `realoficial` ficam: `publish`
-# ainda é exercitado por tests/test_contrato_sem_drive.py e `commands/setup.py` importa REALOFICIAL_MCP_URL.
-MODULOS_MORTOS = ("prospect", "venda", "ugc")
+# então saíram do pacote que vai para o PyPI, com os dados que só eles liam (`layout` só o `prospect` importava).
+# `publish` e `realoficial` ficam: `publish` ainda é exercitado por tests/test_contrato_sem_drive.py e
+# `commands/setup.py` importa REALOFICIAL_MCP_URL.
+MODULOS_MORTOS = ("prospect", "venda", "ugc", "layout")
 MODULOS_QUE_FICAM = ("publish", "realoficial")
 SRC = ROOT / "src" / "simplicio_video"
 
@@ -106,15 +108,84 @@ def test_modulos_de_venda_com_dependente_continuam_no_repo():
         assert (SRC / f"{nome}.py").is_file(), f"{nome}.py ainda tem dependente (setup.py / test_contrato_sem_drive.py)"
 
 
-def test_nada_no_pacote_importa_os_modulos_mortos():
-    import re
+# A varredura de antes era uma regex de linha: não pegava `from . import (\n venda,\n)` nem `importlib.import_module("...")`.
+_REGEX_ANTIGA = re.compile(r"^\s*(?:from\s+\.(?:prospect|venda|ugc)\b|from\s+\.\s+import\s+[^\n#]*\b(?:prospect|venda|ugc)\b|"
+                           r"(?:from|import)\s+simplicio_video(?:\.|\s+import\s+[^\n#]*\b)(?:prospect|venda|ugc)\b)", re.M)
 
-    alvo = "|".join(MODULOS_MORTOS)
-    rx = re.compile(rf"^\s*(?:from\s+\.(?:{alvo})\b|from\s+\.\s+import\s+[^\n#]*\b(?:{alvo})\b|"
-                    rf"(?:from|import)\s+simplicio_video(?:\.|\s+import\s+[^\n#]*\b)(?:{alvo})\b)", re.M)
-    for exemplo in ("from . import venda", "from .prospect import x", "from . import cli, ugc", "import simplicio_video.ugc",
-                    "from simplicio_video import prospect as P"):
-        assert rx.search(exemplo), f"a regex não pega {exemplo!r}"
-    assert not rx.search("from . import publish\nfrom .realoficial import X")
-    achados = [f"{p.relative_to(SRC)}: {m.group(0).strip()}" for p in sorted(SRC.rglob("*.py")) for m in rx.finditer(p.read_text(encoding="utf8"))]
+
+def _nome_morto(nome: str | None) -> bool:
+    partes = [p for p in (nome or "").split(".") if p]
+    if partes[:1] == ["simplicio_video"]:
+        partes = partes[1:]
+    return bool(partes) and partes[0] in MODULOS_MORTOS
+
+
+def _importa_modulo_morto(codigo: str) -> list[str]:
+    """Imports de módulo morto no código, pela árvore sintática (qualquer formatação) e as chamadas de import dinâmico.
+
+    Um import dinâmico com nome que não é texto literal não dá para conferir: também é achado (o pacote não usa nenhum)."""
+    achados = []
+    for no in ast.walk(ast.parse(codigo)):
+        if isinstance(no, ast.Import):
+            achados += [f"import {a.name}" for a in no.names if a.name.startswith("simplicio_video.") and _nome_morto(a.name)]
+        elif isinstance(no, ast.ImportFrom):
+            if no.level == 0 and (no.module or "").split(".")[0] != "simplicio_video":
+                continue
+            if _nome_morto(no.module):  # from .venda import x, from simplicio_video.venda import x
+                achados.append(f"from {'.' * no.level}{no.module} import ...")
+            if no.module in (None, "simplicio_video"):  # from . import venda, from simplicio_video import venda
+                achados += [f"from {'.' * no.level}{no.module or ''} import {a.name}" for a in no.names if _nome_morto(a.name)]
+        elif isinstance(no, ast.Call):
+            f = no.func
+            nome = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else ""
+            if nome in ("import_module", "__import__"):
+                arg = no.args[0] if no.args else None
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    if _nome_morto(arg.value):
+                        achados.append(f"{nome}({arg.value!r})")
+                else:
+                    achados.append(f"{nome}(...) com nome que não é literal")
+    return achados
+
+
+@pytest.mark.parametrize("exemplo", [
+    "from . import venda",
+    "from .prospect import x",
+    "from . import cli, ugc",
+    "from . import layout",
+    "import simplicio_video.ugc",
+    "from simplicio_video import prospect as P",
+    "from simplicio_video.layout import x",
+    "def _lazy():\n    from . import (\n        venda,\n    )\n    return venda",
+    "def _lazy():\n    from . import (\n        cli,\n        prospect as p,\n    )",
+    "import importlib\nm = importlib.import_module('simplicio_video.prospect')",
+    "m = __import__('simplicio_video.venda', fromlist=['x'])",
+    "from importlib import import_module\nm = import_module('.ugc', 'simplicio_video')",
+    "from importlib import import_module\nm = import_module(f'simplicio_video.{nome}')",
+])
+def test_a_varredura_de_imports_pega_as_formas_de_burla(exemplo):
+    assert _importa_modulo_morto(exemplo), f"a varredura não pega {exemplo!r}"
+
+
+@pytest.mark.parametrize("exemplo", [
+    "from . import (\n    cli,\n    publish,\n)\nfrom .realoficial import X",
+    "import importlib\nm = importlib.import_module('simplicio_video.publish')",
+    "from simplicio_video import cli, paths",
+    "# from . import venda\nx = 'from . import venda'",
+])
+def test_a_varredura_de_imports_nao_acusa_o_que_fica(exemplo):
+    assert _importa_modulo_morto(exemplo) == []
+
+
+@pytest.mark.parametrize("exemplo", [
+    "def _lazy():\n    from . import (\n        venda,\n    )\n    return venda",
+    "import importlib\nm = importlib.import_module('simplicio_video.prospect')",
+    "from . import layout",
+])
+def test_a_regex_antiga_deixava_passar_estes(exemplo):
+    assert not _REGEX_ANTIGA.search(exemplo)
+
+
+def test_nada_no_pacote_importa_os_modulos_mortos():
+    achados = [f"{p.relative_to(SRC)}: {a}" for p in sorted(SRC.rglob("*.py")) for a in _importa_modulo_morto(p.read_text(encoding="utf8"))]
     assert not achados, achados

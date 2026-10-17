@@ -1,6 +1,7 @@
 """MCP stub: tool functions directly, and (when the SDK is installed) list/call over an in-process MCP client."""
 import asyncio
 import json
+import re
 
 import pytest
 
@@ -33,3 +34,11 @@ def test_mcp_protocol_lists_and_calls_tools(mini):
     payload = res.structured_content or json.loads(res.content[0].text)
     payload = payload.get("result", payload)
     assert payload["ok"] is True and payload["errors"] == []
+
+
+def test_video_init_descreve_onde_grava():
+    """O cliente LLM só enxerga a descrição da tool: ela diz onde o contrato é gravado e que, num pacote instalado, `out` é obrigatório."""
+    _, _, desc = next(t for t in mcp_server.TOOLS if t[0] == "video.init")
+    assert "clients/<cliente>/<campanha>/contract.yaml" in desc
+    assert re.search(r"pip-installed package.{0,40}`out`.{0,80}required", desc, re.S), desc
+    assert "nothing is written" in desc, desc
