@@ -11,7 +11,7 @@
     "implantes",
     "odontopediatria (fora da data)"
   ],
-  "referencia": "clients/lothus-odontologia/video-01-dia-das-criancas (ritmo v02); prospects gerados por simplicio-video prospect",
+  "referencia": "piloto de odontologia, Dia das Crianças 2026 (ritmo v02)",
   "formato": {
     "aspect": "9:16",
     "width": 1080,
@@ -73,14 +73,14 @@
     }
   ],
   "voz": {
-    "tipo": "feminina, animada e calorosa, pt-BR (Laomedeia, a voz da Lothus v02)",
+    "tipo": "feminina, animada e calorosa, pt-BR (Laomedeia, a voz do piloto de odontologia v02)",
     "gemini_voz": "Laomedeia",
     "gemini_voz_alternativa": "Achernar",
     "estilo": "Voz feminina brasileira animada e calorosa, sorrindo, energia média-alta, acolhedora e confiante, ritmo ágil sem correr, português do Brasil, sem exagero e sem voz infantilizada."
   },
   "musica": {
     "bpm": 128,
-    "mood": "institucional leve (pad, arpejo de sino, baixo; bateria suave 0,6: kick + chimbal), mesma grade de cortes da Lothus v02",
+    "mood": "institucional leve (pad, arpejo de sino, baixo; bateria suave 0,6: kick + chimbal), mesma grade de cortes do piloto de odontologia v02",
     "secoes": "groove até 15 s · outro com acorde final"
   },
   "paleta_padrao": {
@@ -132,6 +132,6 @@
       "s4-words",
       "s4-burst"
     ],
-    "_doc": "Modelo institucional do prospect (padrão v2: voz Laomedeia, logo real, ritmo Lothus). s2-main/s3-main via {{padrao:<bloco>}} de setores.json; base do contrato em contract.base.yaml; roteamento por setor em templates/prospect-roteamento.json."
+    "_doc": "Modelo institucional (padrão v2: voz Laomedeia, logo real, ritmo do piloto de odontologia). s2-main/s3-main via {{padrao:<bloco>}} no contrato."
   }
 }

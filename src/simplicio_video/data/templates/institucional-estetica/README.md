@@ -1,6 +1,6 @@
 # institucional-estetica — pronto (venda ativa, elegante)
 
-Vídeo institucional de 16 s (9:16, grade de 128 BPM da Lothus v02) para clínicas de estética, studios de beleza, harmonização,
+Vídeo institucional de 16 s (9:16, grade de 128 BPM do piloto de odontologia (v02)) para clínicas de estética, studios de beleza, harmonização,
 depilação, sobrancelhas e micropigmentação. Padrão v2 (voz **Laomedeia**, reserva Achernar; logo real; palavra a palavra; cortes
 de 8 frames na batida) com gramática elegante: ornamento `line-accent`, texto `calm` em Inter, estrelinhas discretas **sem
 confete**, sem mascote, push-in suave, trilha `institucional` com bateria leve (0,35).

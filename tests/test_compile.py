@@ -1,3 +1,5 @@
+import yaml
+
 from conftest import ROOT, WJR
 from simplicio_video import contract as ct
 from simplicio_video.compiler import compile_project, render_template
@@ -9,12 +11,31 @@ def test_placeholders(mini):
     assert out == "0|0.75|0.4|0.5|0.5|1|[0, 0.5, 1]|180x320@30|{{vars:<x>}}"
 
 
+def _client_strings_replaced_by_the_template():
+    """(real client string, generic placeholder) pairs: the packaged template (it ships to PyPI) carries placeholders,
+    while the legacy video-01 project in clients/ keeps the real WJR data. The values come from the WJR contract."""
+    d = yaml.safe_load(WJR.read_text(encoding="utf8"))
+    cta = next(s["textos"] for s in d["cenas"] if "whatsapp" in s.get("textos", {}))
+    return [
+        (cta["whatsapp"], "(00) 00000-0000"),
+        (cta["address"], "Rua Exemplo, 123 · Cidade"),
+        (cta["instagram"], "@suaempresa"),
+        ('alt="WJR Infogames"', 'alt="Logo"'),
+        ("Assistência técnica em Guarulhos", "Assistência técnica na sua cidade"),
+        ('WJR Infogames — video-01 "showreel"', 'Assistência técnica / games — "showreel"'),
+    ]
+
+
 def test_wjr_compiles_to_the_legacy_composition(tmp_path):
-    """The contract port must produce byte-identical index.html to the hand-authored video-01."""
+    """The contract port must produce the hand-authored video-01 index.html byte for byte, except for the client
+    strings that the template replaced with generic placeholders (each one must still exist in the legacy file)."""
     c = ct.load(WJR)
     compile_project(c, tmp_path / "wd", ct.load_lock(c))
-    legacy = (ROOT / "clients/wjr-informatica-games/video-01/index.html").read_bytes()
-    assert (tmp_path / "wd" / "index.html").read_bytes() == legacy
+    legacy = (ROOT / "clients/wjr-informatica-games/video-01/index.html").read_bytes().decode("utf8")
+    for real, generic in _client_strings_replaced_by_the_template():
+        assert real in legacy, f"the legacy video-01 no longer has {real!r}: update the pairs"
+        legacy = legacy.replace(real, generic)
+    assert (tmp_path / "wd" / "index.html").read_bytes().decode("utf8") == legacy
 
 
 def test_beat_and_words_placeholders(mini):

@@ -13,7 +13,7 @@
     "informática",
     "eletrônicos"
   ],
-  "referencia": "clients/wjr-informatica-games/video-01",
+  "referencia": "showreel de assistência técnica / games (projeto de cliente, fora do pacote)",
   "formato": {
     "aspect": "9:16",
     "width": 1080,
@@ -131,7 +131,7 @@
   ],
   "cuidados": [
     "Não citar preço, prazo, garantia ou avaliações sem confirmação registrada.",
-    "Não prometer resultado absoluto ('fim do drift'); o próprio site da WJR diz que o serviço depende da avaliação técnica.",
+    "Não prometer resultado absoluto ('fim do drift'); o site do cliente de referência diz que o serviço depende da avaliação técnica.",
     "Marcas (Xbox, PlayStation) só como compatibilidade, sem logotipos oficiais."
   ],
   "paleta_padrao": {
@@ -154,6 +154,6 @@
       "s6"
     ],
     "duracao_fixa_s": 20,
-    "_doc": "Composição monolítica portada de clients/wjr-informatica-games/video-01/index.html: coreografia na grade BASE de 20 s, remapeada pelos cortes do contrato ({{cuts}} -> CUTS/RETIME). Variáveis HyperFrames: kicker, promise, p1..p5, cta, whatsapp, address, instagram, primary, secondary, logo, photo_hero, photo_bench (+ clip_XX_on das placas)."
+    "_doc": "Composição monolítica portada do primeiro showreel de assistência técnica: coreografia na grade BASE de 20 s, remapeada pelos cortes do contrato ({{cuts}} -> CUTS/RETIME). Variáveis HyperFrames: kicker, promise, p1..p5, cta, whatsapp, address, instagram, primary, secondary, logo, photo_hero, photo_bench (+ clip_XX_on das placas)."
   }
 }

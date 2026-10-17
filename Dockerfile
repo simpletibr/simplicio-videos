@@ -13,7 +13,7 @@ FROM python:3.12-slim-bookworm AS build
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /src
-COPY pyproject.toml README.md ./
+COPY pyproject.toml PYPI.md LICENSE NOTICE ./
 COPY src ./src
 RUN python -m venv /opt/venv \
  && /opt/venv/bin/pip install .
@@ -36,7 +36,9 @@ RUN groupadd --system --gid 10001 simplicio \
  && mkdir -p /workspace \
  && chown simplicio:simplicio /workspace
 USER simplicio
-WORKDIR /home/simplicio
+# The work folder IS the volume: `init` writes ./clients/<client>/<campaign>/contract.yaml in the cwd, and anything
+# outside /workspace is lost with `docker compose run --rm`.
+WORKDIR /workspace
 VOLUME ["/workspace"]
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD ["simplicio-video", "--version"]

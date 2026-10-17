@@ -87,7 +87,7 @@
   "voice_sync": "t_burst na primeira sílaba forte da saudação.",
   "source": {
     "kind": "interno",
-    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
+    "ref": "Autoria para o template de odontologia infantil (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
     "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
   },
   "preview_at": 1.2

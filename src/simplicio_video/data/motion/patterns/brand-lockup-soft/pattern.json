@@ -15,14 +15,14 @@
       "id": "name",
       "type": "string",
       "label": "Nome",
-      "default": "LOTHUS",
+      "default": "MARCA",
       "maxLength": 16
     },
     {
       "id": "sub",
       "type": "string",
       "label": "Subtítulo",
-      "default": "ODONTOLOGIA",
+      "default": "EXEMPLO",
       "maxLength": 20
     },
     {
@@ -36,14 +36,14 @@
       "id": "handle",
       "type": "string",
       "label": "@ / contato",
-      "default": "@lothus_odontologia",
+      "default": "@empresa",
       "maxLength": 28
     },
     {
       "id": "city",
       "type": "string",
       "label": "Cidade",
-      "default": "Guarulhos · SP",
+      "default": "Cidade · UF",
       "maxLength": 32
     },
     {
@@ -152,7 +152,7 @@
   "voice_sync": "tagline entra junto da fala de assinatura.",
   "source": {
     "kind": "interno",
-    "ref": "Autoria para clients/lothus-odontologia (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
+    "ref": "Autoria para o template de odontologia infantil (Dia das Crianças, 30/09/2026); princípios do motion-video-kit (densidade por hierarquia, variar velocidade: pouso legível → saída rápida)",
     "url": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
   },
   "preview_at": 3.2

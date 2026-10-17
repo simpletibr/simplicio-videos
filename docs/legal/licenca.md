@@ -1,6 +1,6 @@
 # Licença
 
-O simplicio-video é distribuído sob a **GNU Affero General Public License, versão 3 ou posterior (AGPL-3.0-or-later)**. O texto integral está em [LICENSE](../../LICENSE) e o aviso do produto em [NOTICE](../../NOTICE). A declaração no `pyproject.toml` é `license = { text = "AGPL-3.0-or-later" }`.
+O simplicio-video é distribuído sob a **GNU Affero General Public License, versão 3 ou posterior (AGPL-3.0-or-later)**. O texto integral está em [LICENSE](../../LICENSE) e o aviso do produto em [NOTICE](../../NOTICE). A declaração no `pyproject.toml` é a expressão SPDX `license = "AGPL-3.0-or-later"`, com `license-files = ["LICENSE", "NOTICE"]` (a forma antiga, a tabela `{ text = ... }`, está depreciada e deixa de ser aceita pelo setuptools em 2027).
 
 ## Por que
 

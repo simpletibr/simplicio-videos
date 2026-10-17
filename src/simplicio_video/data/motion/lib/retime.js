@@ -1,7 +1,7 @@
 // simplicio-videos · motion/lib/retime.js
 // RETIME: author choreography on a base grid (beats), then remap it piecewise-linearly to the real cuts
 // that the narration needs (TTS durations change per voice/provider). Pure + deterministic.
-// Extracted from clients/wjr-informatica-games/video-01/index.html.
+// Extracted from the first repair-shop showreel (RETIME block).
 //
 //   const { M, Minv, TL } = createRetime(tl, BASE, CUTS);
 //   TL.fromTo(el, from, to, 4.0);   // 4.0 on the base grid -> moved to the matching real time

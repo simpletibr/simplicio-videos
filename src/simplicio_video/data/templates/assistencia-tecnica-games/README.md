@@ -2,7 +2,7 @@
 
 **Status: pronto** — tem vídeo de referência renderizado.
 
-Referência: [`clients/wjr-informatica-games/video-01`](../../../../../clients/wjr-informatica-games/video-01/)
+Referência: o primeiro showreel de assistência técnica / games (projeto de cliente, fora do pacote).
 
 Nichos que caem aqui: assistência técnica, conserto de console, conserto de controle, games, videogame, celular, informática, eletrônicos.
 
@@ -24,7 +24,7 @@ Nichos que caem aqui: assistência técnica, conserto de console, conserto de co
 
 **Cuidados do setor:**
 - Não citar preço, prazo, garantia ou avaliações sem confirmação registrada.
-- Não prometer resultado absoluto ('fim do drift'); o próprio site da WJR diz que o serviço depende da avaliação técnica.
+- Não prometer resultado absoluto ('fim do drift'); o site do cliente de referência diz que o serviço depende da avaliação técnica.
 - Marcas (Xbox, PlayStation) só como compatibilidade, sem logotipos oficiais.
 
-Como instanciar hoje: copiar a referência (`cp -r clients/wjr-informatica-games/video-01 clients/<novo>/video-01`), trocar `spec.json` com os fatos do intake e seguir `docs/esteira.md`. O gerador automático intake → spec é o próximo passo (ver `docs/esteira.md`, status).
+Como instanciar hoje: copiar um projeto de assistência técnica já renderizado (`cp -r clients/<cliente>/<campanha> clients/<novo>/<campanha>`), trocar `spec.json` com os fatos do intake e seguir `docs/esteira.md`. O gerador automático intake → spec é o próximo passo (ver `docs/esteira.md`, status).

@@ -5,7 +5,7 @@ the start of the processed take). Render only reads the lock, so the video stays
 
 Source of truth: faster-whisper word timestamps (python from SIMPLICIO_STT_PY, default the simplicio-tts venv),
 mapped onto the contract text (`texto`, not `say`) through a character timeline, so a recognition like
-"lotos ou dontologia" still yields the times of "Lothus Odontologia". Without faster-whisper the words are spread
+"clinica sorizo" still yields the times of "Clínica Sorriso". Without faster-whisper the words are spread
 over the take proportionally to their letters (words_source = "proporcional").
 """
 from __future__ import annotations

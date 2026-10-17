@@ -49,12 +49,12 @@ Skill para LLMs: skills/simplicio-video/SKILL.md"""
 MAIN_EPILOG = """\
 exemplos:
   simplicio-video list templates
-  simplicio-video init lothus-odontologia Dia_Criancas --template saude-odontologia --nome "Lothus Odontologia" --ano 2026
-  simplicio-video validate clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml
-  simplicio-video voice clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider local
-  simplicio-video render clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml
-  simplicio-video render clients/wjr-informatica-games/video-01/contract.yaml --backend kaggle
-  simplicio-video run clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml --provider gemini
+  simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome "<Nome do cliente>" --ano 2026
+  simplicio-video validate clients/<cliente>/<campanha>/contract.yaml
+  simplicio-video voice clients/<cliente>/<campanha>/contract.yaml --provider local
+  simplicio-video render clients/<cliente>/<campanha>/contract.yaml
+  simplicio-video render clients/<cliente>/<campanha>/contract.yaml --backend kaggle
+  simplicio-video run clients/<cliente>/<campanha>/contract.yaml --provider gemini
   simplicio-video render contract.yaml --preview          # 540x960, marca d'água e crédito final do contrato (marca)
 
 ambiente:
@@ -110,16 +110,16 @@ def build_parser() -> argparse.ArgumentParser:
                     "voz sugerida e trilha padrão. Campos com TODO precisam ser preenchidos\n"
                     f"(validate falha enquanto houver TODO). Schema: {SCHEMA_REL}.",
         epilog="exemplos:\n"
-               "  simplicio-video init lothus-odontologia Dia_Criancas --template saude-odontologia --nome \"Lothus Odontologia\"\n"
-               "  simplicio-video init wjr-informatica-games Black_Friday --template assistencia-tecnica-games --ano 2026 \\\n"
-               "      --out clients/wjr-informatica-games/video-03/contract.yaml")
-    p.add_argument("cliente", help="slug do cliente (pasta em clients/, ex.: lothus-odontologia)")
+               "  simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome \"<Nome do cliente>\"\n"
+               "  simplicio-video init <cliente> <Campanha> --template assistencia-tecnica-games --ano 2026 \\\n"
+               "      --out clients/<cliente>/<campanha>/contract.yaml")
+    p.add_argument("cliente", help="slug do cliente (pasta em clients/, ex.: clinica-sorriso)")
     p.add_argument("campanha", help="campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)")
     p.add_argument("--template", "-t", required=True, help="id do template de setor (ver `simplicio-video list templates`)")
     p.add_argument("--nome", help="nome de exibição do cliente (padrão: TODO)")
-    p.add_argument("--drive-nome", help="NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Lothus_Odontologia)")
+    p.add_argument("--drive-nome", help="NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Clinica_Sorriso)")
     p.add_argument("--ano", type=int, help="ano da campanha (padrão: ano atual)")
-    p.add_argument("--out", "-o", type=Path, help="onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml)")
+    p.add_argument("--out", "-o", type=Path, help="onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no checkout ou, instalado por pip, na pasta atual)")
     p.add_argument("--force", action="store_true", help="sobrescreve um contrato existente")
 
     p = sub.add_parser("validate", formatter_class=Fmt, help="valida o contrato (schema, assets, durações, falas)",
@@ -136,7 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
                     "--json: stdout só o objeto {ok, contrato, errors, warnings}; erro vira {ok: false, error: {code, message}}.\n"
                     "  Códigos de erro (error.code): CONTRATO_NAO_ENCONTRADO, CONTRATO_INVALIDO, RENDER_FALHOU, FERRAMENTA_AUSENTE.\n"
                     "Saída 0 = válido, 1 = erros.",
-        epilog="exemplos:\n  simplicio-video validate clients/wjr-informatica-games/video-01/contract.yaml\n"
+        epilog="exemplos:\n  simplicio-video validate clients/<cliente>/<campanha>/contract.yaml\n"
                "  simplicio-video validate contract.yaml --json      # relatório em JSON\n"
                "  simplicio-video validate contract.yaml --need-lock # exige timing.lock.json (antes do render)")
     _contract_arg(p)
@@ -175,7 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
                     "e os créditos vão para <saida>.CREDITS-openverse.md ao lado do MP4.\n"
                     "backends (todos sem navegador, exceto colab):\n"
                     "  local      PADRÃO. Renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver).\n"
-                    "             Referência de hash, sem custo (WJR 600 frames: 76,5 s em 8 núcleos).\n"
+                    "             Referência de hash, sem custo (vídeo de 600 frames: 76,5 s em 8 núcleos).\n"
                     "  -- opcionais, para clientes via créditos (custo e tempo medidos em docs/custos.md) --\n"
                     "  kaggle     bundle -> dataset privado Kaggle -> kernel (T4, internet) -> poll -> baixa o MP4.\n"
                     "             Precisa do CLI `kaggle`, KAGGLE_USERNAME + token (KAGGLE_API_TOKEN ou ~/.kaggle/access_token)\n"
@@ -314,7 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
                     "Com CONTRATO, acrescenta o estado do render (render.manifest.json ao lado do contrato): rendered,\n"
                     "contract_sha256 e finished_at. Ferramenta ausente não é erro: sai com 0. Sai com 2 se o contrato não existir.",
         epilog="exemplos:\n  simplicio-video status\n  simplicio-video status --json\n"
-               "  simplicio-video status --json clients/lothus-odontologia/video-01/contract.yaml")
+               "  simplicio-video status --json clients/<cliente>/<campanha>/contract.yaml")
     p.add_argument("contrato", nargs="?", metavar="CONTRATO.yaml", help="contrato cujo render (render.manifest.json) será lido")
     p.add_argument("--json", action="store_true", help="imprime tools (e render, com CONTRATO) em JSON")
 
@@ -582,7 +582,7 @@ def main(argv: list[str] | None = None) -> int:
         from . import scaffold
         h = paths.home()
         data = scaffold.skeleton(h, a.cliente, a.campanha, a.template, a.ano, a.nome, a.drive_nome)
-        out = a.out or h / "clients" / a.cliente / data["campanha"]["id"].lower().replace("_", "-") / "contract.yaml"
+        out = a.out or scaffold.default_out(data["campanha"]["id"], a.cliente)
         scaffold.write(out, data, a.force)
         print(f"contrato: {out}\npróximo: preencha os TODO (só fatos de coleta/) e rode `simplicio-video validate {out}`")
         return 0

@@ -1,7 +1,7 @@
-# institucional-advocacia — pronto (venda ativa, sóbrio)
+# institucional-advocacia — pronto (sóbrio)
 
-Vídeo institucional **informativo** de 16 s (9:16, 96 BPM) para escritórios e sociedades de advogados, gerado por
-`simplicio-video prospect` quando a coluna `setor` casa com advocacia (`advoca`, `advogad`, `juridic`, `direito`). Mesmo padrão v2
+Vídeo institucional **informativo** de 16 s (9:16, 96 BPM) para escritórios e sociedades de advogados (o roteamento por setor, `advoca`, `advogad`,
+`juridic` e `direito`, é da venda ativa, no repositório de operação). Mesmo padrão v2
 das prévias (voz Gemini 3.8 Flash TTS **Laomedeia**, reserva Achernar; logo real; palavra a palavra no tempo da fala; cortes na
 batida com transição de 8 frames), com gramática sóbria: sem confete, balões, mascote, estrelas, punch/whip/tremida de câmera,
 sem percussão e sem SFX lúdicos (só whoosh suave nos cortes).
@@ -9,8 +9,6 @@ sem percussão e sem SFX lúdicos (só whoosh suave nos cortes).
 | Arquivo | O que é |
 |---|---|
 | `composition/index.template.html` | composição: `bg-parallax` lento, `line-accent` (linha fina + cantoneiras), `kinetic-words` modo `calm` em Inter, `brand-lockup-soft` sem pontos; câmera com push-in curto e zoom lento |
-| `contract.base.yaml` | contrato-base (falas, trilha `institucional` 96 BPM `drums: 0`, voz Laomedeia estilo calmo) |
-| `setores.json` | regra do setor, frase da s3 (e variante curta), assinatura, `exige: oab` |
 
 ## Roteiro (texto exato)
 

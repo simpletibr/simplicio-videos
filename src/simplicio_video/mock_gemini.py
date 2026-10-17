@@ -1,9 +1,9 @@
-"""Local MOCK of the Gemini TTS API for dry runs of the batch runner (no network, no key, no cost).
+"""Local MOCK of the Gemini TTS API for dry runs of `simplicio-video voice --provider gemini` (no network, no key, no cost).
 
 Serves POST /v1beta/interactions and /v1beta/models/<m>:generateContent with a synthetic WAV (24 kHz mono 16-bit:
 a buzzy tone shaped like syllables, ~60 ms per character). NOT a voice: output of a mock run is for plumbing tests only.
   python -m simplicio_video.mock_gemini --port 8765 [--overlong-first N] [--log /tmp/mock-gemini-tts.jsonl]
-  SIMPLICIO_GEMINI_BASE=http://127.0.0.1:8765/v1beta GEMINI_API_KEY=mock simplicio-video prospect ...
+  SIMPLICIO_GEMINI_BASE=http://127.0.0.1:8765/v1beta GEMINI_API_KEY=mock simplicio-video voice <contract.yaml> --provider gemini
 --overlong-first N: the first N requests return a take 2.5x too long (exercises "regenerate, never speed up").
 Every request is appended to --log (JSON lines: path, model, voice, style, text) so a dry run can assert on it.
 """

@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  WJR Infogames — video-01 "showreel" (Instagram Reels 9:16, 20s, 30fps, 120 BPM)
+  Assistência técnica / games — "showreel" (Instagram Reels 9:16, 20s, 30fps, 120 BPM)
   HyperFrames composition (HTML + GSAP -> MP4). Deterministic:
     - all client copy/images/colors are variables (spec.json -> build/variables.json)
     - audio is pre-rendered from spec.json "audio" cues by scripts/build.mjs
@@ -17,7 +17,7 @@
     {"id":"logo","type":"string","label":"Logo (PNG/SVG)","default":"assets/placeholders/logo.svg"},
     {"id":"photo_hero","type":"string","label":"Foto 1 (loja/consoles)","default":"assets/placeholders/photo-hero.svg"},
     {"id":"photo_bench","type":"string","label":"Foto 2 (bancada/reparo)","default":"assets/placeholders/photo-bench.svg"},
-    {"id":"kicker","type":"string","label":"Kicker","default":"Assistência técnica em Guarulhos","maxLength":40},
+    {"id":"kicker","type":"string","label":"Kicker","default":"Assistência técnica na sua cidade","maxLength":40},
     {"id":"promise","type":"string","label":"Promessa","default":"A gente coloca ele de volta no jogo.","maxLength":48},
     {"id":"p1","type":"string","label":"Problema 1","default":"Controle com drift","maxLength":28},
     {"id":"p2","type":"string","label":"Problema 2","default":"Console não liga","maxLength":28},
@@ -25,9 +25,9 @@
     {"id":"p4","type":"string","label":"Problema 4","default":"Defeito no HDMI","maxLength":28},
     {"id":"p5","type":"string","label":"Problema 5","default":"Botões não funcionando","maxLength":28},
     {"id":"cta","type":"string","label":"CTA","default":"Volte para o jogo.","maxLength":32},
-    {"id":"whatsapp","type":"string","label":"WhatsApp","default":"(11) 99700-5234","maxLength":24},
-    {"id":"address","type":"string","label":"Endereço","default":"R. Siderópolis, 168 · Jardim Jovaia, Guarulhos","maxLength":60},
-    {"id":"instagram","type":"string","label":"Instagram","default":"@wjrinformaticagames","maxLength":32},
+    {"id":"whatsapp","type":"string","label":"WhatsApp","default":"(00) 00000-0000","maxLength":24},
+    {"id":"address","type":"string","label":"Endereço","default":"Rua Exemplo, 123 · Cidade","maxLength":60},
+    {"id":"instagram","type":"string","label":"Instagram","default":"@suaempresa","maxLength":32},
     {"id":"primary","type":"color","label":"Cor primária","default":"#e50914"},
     {"id":"secondary","type":"color","label":"Cor secundária","default":"#1565ff"},
     {"id":"clip_05_on","type":"boolean","label":"Clip 05 (S1) ativo","default":false},
@@ -354,11 +354,11 @@
           <div class="logo-wrap" id="s6-logowrap">
             <div class="ring" id="ring1"></div><div class="ring b" id="ring2"></div>
             <div class="burst" id="burst"></div>
-            <div class="logo" id="s6-logo"><img id="s6-img" data-var-src="logo" src="assets/placeholders/logo.svg" alt="WJR Infogames" /><div class="sweep" id="s6-sweep"></div></div>
+            <div class="logo" id="s6-logo"><img id="s6-img" data-var-src="logo" src="assets/placeholders/logo.svg" alt="Logo" /><div class="sweep" id="s6-sweep"></div></div>
           </div>
           <h2 class="display" id="s6-title"></h2>
-          <div class="wa" id="s6-wa"><span class="lbl">WhatsApp</span><span data-var-text="whatsapp">(11) 99700-5234</span></div>
-          <div class="meta" id="s6-meta"><div data-var-text="address">R. Siderópolis, 168 · Jardim Jovaia, Guarulhos</div><div><b data-var-text="instagram">@wjrinformaticagames</b></div></div>
+          <div class="wa" id="s6-wa"><span class="lbl">WhatsApp</span><span data-var-text="whatsapp">(00) 00000-0000</span></div>
+          <div class="meta" id="s6-meta"><div data-var-text="address">Rua Exemplo, 123 · Cidade</div><div><b data-var-text="instagram">@suaempresa</b></div></div>
         </section>
       </div>
 
@@ -373,7 +373,7 @@
     <script>
       // ---- variables (read once; fall back to defaults in preview) ----
       const V = Object.assign({
-        kicker: "Assistência técnica em Guarulhos", promise: "A gente coloca ele de volta no jogo.",
+        kicker: "Assistência técnica na sua cidade", promise: "A gente coloca ele de volta no jogo.",
         p1: "Controle com drift", p2: "Console não liga", p3: "Superaquecimento", p4: "Defeito no HDMI", p5: "Botões não funcionando",
         cta: "Volte para o jogo.", primary: "#e50914", secondary: "#1565ff",
       }, (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {});
