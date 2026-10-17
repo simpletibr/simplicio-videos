@@ -282,7 +282,8 @@ def test_toda_leitura_de_texto_e_todo_subprocesso_de_texto_tem_encoding_explicit
                 problemas.append(f"{onde} read_text() without encoding")
             if nome == "write_text" and len(chamada.args) < 2 and "encoding" not in kw:
                 problemas.append(f"{onde} write_text() without encoding")
-            if nome in ("open", "fdopen") and dono != "os" and not _e_binario(chamada) and "encoding" not in kw:
+            abre_arquivo = (nome == "open" and dono in (None, "io")) or nome == "fdopen"  # not `os.open`, nor an urllib opener
+            if abre_arquivo and not _e_binario(chamada) and "encoding" not in kw:
                 problemas.append(f"{onde} {nome}() in text mode without encoding")
             if dono == "subprocess" and nome in CHAMADAS_DE_SUBPROCESSO:
                 texto = any(isinstance(kw.get(k), ast.Constant) and kw[k].value is True for k in ("text", "universal_newlines"))

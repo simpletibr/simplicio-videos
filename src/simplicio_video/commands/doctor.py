@@ -28,10 +28,10 @@ import os
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -39,7 +39,7 @@ import yaml
 
 from .. import __version__, auth, distribution, hostos, paths
 from . import update
-from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA, workspace_dir
+from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA
 
 SCHEMA = "simplicio.doctor/v1"
 SECTIONS = ("login", "update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
@@ -57,10 +57,6 @@ SETUP_FORCE_FIX = "rode `simplicio-video setup --force` para regravar o workspac
 
 def _row(name: str, status: str, summary: str, fix: Optional[str] = None, detail: Optional[dict] = None) -> dict:
     return {"name": name, "status": status, "summary": summary, "fix": fix, "detail": detail or {}}
-
-
-def _stamp(seconds: float) -> str:
-    return datetime.fromtimestamp(seconds, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def porta_livre(porta: int, host: str = "127.0.0.1") -> bool:
@@ -91,7 +87,7 @@ def _login(environ: Optional[dict], now: float) -> dict:
         return _row("login", status, f"não logado ({doc['reason_code']}); arquivo {doc['path']}; {rt}{detail}", doc["fix"], doc)
     ent = doc.get("entitlement") or {}
     tier = f"direitos {ent.get('tier')} ({ent.get('status')}, em cache)" if ent else "direitos ainda não estão em cache"
-    expiry = "expirou" if doc["access_expired"] else f"expira {_stamp(doc['access_expires_at'])}"
+    expiry = "expirou" if doc["access_expired"] else f"expira {hostos.utc_stamp(doc['access_expires_at'])}"
     summary = (f"logado como {doc['email'] or 'uma conta desconhecida'}; token de acesso {expiry}; {tier}; {rt}; "
                f"arquivo {doc['path']}")
     return _row("login", "ok", summary, None, doc)
@@ -102,22 +98,24 @@ def _update(online: bool, installed: str, fetch: Callable[[], str], state_dir: P
     if online:
         try:
             info = update.check_latest(kind, installed, fetch=fetch, git=git)
-        except (OSError, ValueError, KeyError, update.Refused) as exc:
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError, update.Refused) as exc:
             return _row("update", "warn", f"não consegui consultar a última versão de {update.REPO}: {exc}")
         update.write_check(info, state_dir)
         detail = {**info, "checked_at": int(time.time())}
         if info["update_available"]:
             return _row("update", "warn", f"atualização disponível: {installed} -> {info['latest']} (consultado agora)", fix, detail)
         return _row("update", "ok", f"em dia: {installed} (última versão {info['latest']}, consultado agora)", None, detail)
-    cached = update.read_check(state_dir)
-    if not cached or not cached.get("latest"):
+    try:
+        cached = update.read_check(state_dir)
+    except update.CheckInvalid as exc:  # a corrupt or hostile file: a warning with the way out, never a traceback
+        return _row("update", "warn", f"a checagem em cache do update (update-check.json) está inválida ({exc}); "
+                    "rode `simplicio-video update --check` para regravá-la", "simplicio-video update --check")
+    if cached is None:
         return _row("update", "ok", "nenhuma checagem em cache; rode `simplicio-video update --check` ou "
                                     "`simplicio-video doctor --online`")
-    try:
-        available = update.parse_version(str(cached["latest"])) > update.parse_version(installed)
-    except ValueError:
-        return _row("update", "ok", "a checagem em cache está ilegível; rode `simplicio-video doctor --online`")
-    when = _stamp(float(cached.get("checked_at") or 0))
+    # `cached` is validated and holds only the keys of the schema: `latest` is a normalized release, `checked_at` a real instant
+    available = update.parse_version(cached["latest"]) > update.release_tuple(installed)
+    when = hostos.utc_stamp(cached["checked_at"])
     detail = {**cached, "installed": installed, "update_available": available}
     if available:
         return _row("update", "warn", f"atualização disponível: {installed} -> {cached['latest']} "
@@ -165,7 +163,7 @@ def _checa_node(environ: Optional[dict]) -> dict:
         return _row("node", "fail", "node não encontrado no PATH", fix)
     detail = {"path": caminho}
     try:
-        r = subprocess.run([caminho, "--version"], capture_output=True, text=True, timeout=15)
+        r = subprocess.run([caminho, "--version"], capture_output=True, encoding="utf-8", errors="replace", timeout=15)
     except (OSError, subprocess.SubprocessError) as e:
         return _row("node", "fail", f"node não executa: {e}", fix, detail)
     m = re.match(r"\s*v?(\d+)", r.stdout or "")
@@ -187,7 +185,7 @@ def _checa_ffmpeg(environ: Optional[dict]) -> list[dict]:
         return [_row("ffmpeg", "fail", "ffmpeg não encontrado no PATH", fix)]
     detail = {"path": caminho}
     try:
-        r = subprocess.run([caminho, "-version"], capture_output=True, text=True, timeout=30)
+        r = subprocess.run([caminho, "-version"], capture_output=True, encoding="utf-8", errors="replace", timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
         return [_row("ffmpeg", "fail", f"ffmpeg não executa: {e}", fix, detail)]
     saida = (r.stdout or "") + (r.stderr or "")
@@ -205,7 +203,7 @@ def _checa_ffmpeg(environ: Optional[dict]) -> list[dict]:
 
 def _checa_disco(anchor: Path, usage: Callable[[Any], Any]) -> dict:
     where = anchor
-    while not where.exists() and where != where.parent:
+    while not hostos.exists(where) and where != where.parent:
         where = where.parent
     try:
         free = int(usage(where).free)
@@ -243,21 +241,38 @@ def _carrega(caminho: Path):
     """(data, error). data is None when the file does not read or is not a YAML mapping."""
     try:
         dados = yaml.safe_load(caminho.read_text(encoding="utf8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, RecursionError, ValueError) as e:  # RecursionError: deep nesting
         return None, f"ilegível: {e}"
     if not isinstance(dados, dict):
         return None, "não é um mapa YAML"
     return dados, None
 
 
+def _estado(caminho: Path) -> str:
+    """`ok` (a regular file), `ausente`, or `negado` (it cannot even be looked at: a folder of another user, a closed mode)."""
+    try:
+        info = os.stat(caminho)
+    except (FileNotFoundError, NotADirectoryError):
+        return "ausente"
+    except OSError:
+        return "negado"
+    return "ok" if stat.S_ISREG(info.st_mode) else "ausente"
+
+
 def _checa_setup() -> dict:
-    """warn when `setup` never ran (a file is missing); fail when a file is there and invalid."""
-    ws = workspace_dir()
+    """warn when `setup` never ran (a file is missing); fail when a file is there and invalid or cannot be read."""
+    ws = paths.workspace_dir()
     wsp, pol = ws / "workspace.yaml", ws / "policy.yaml"
-    detail = {"workspace": str(ws), "workspace_yaml": wsp.is_file(), "policy_yaml": pol.is_file()}
+    estados = {"workspace.yaml": _estado(wsp), "policy.yaml": _estado(pol)}
+    detail = {"workspace": str(ws), "workspace_yaml": estados["workspace.yaml"] == "ok",
+              "policy_yaml": estados["policy.yaml"] == "ok"}
+    negados = [nome for nome, estado in estados.items() if estado == "negado"]
+    if negados:
+        return _row("setup", "fail", f"sem permissão para ler {' e '.join(negados)} em {ws} (a pasta é de outro usuário?)",
+                    f"ajuste o dono e as permissões de {ws} e rode o doctor de novo", detail)
     invalidos, ausentes = [], []
     dados = None
-    if not wsp.is_file():
+    if estados["workspace.yaml"] != "ok":
         ausentes.append("workspace.yaml")
     else:
         dados, erro = _carrega(wsp)
@@ -267,7 +282,7 @@ def _checa_setup() -> dict:
             invalidos.append(f"workspace.yaml com schema {dados.get('schema')!r} e layout {dados.get('workspace')!r} "
                              f"(esperado {WS_SCHEMA} e {WS_LAYOUT})")
     autonomia = None
-    if not pol.is_file():
+    if estados["policy.yaml"] != "ok":
         ausentes.append("policy.yaml")
     else:
         pdados, perro = _carrega(pol)
