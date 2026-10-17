@@ -36,7 +36,9 @@ RUN groupadd --system --gid 10001 simplicio \
  && mkdir -p /workspace \
  && chown simplicio:simplicio /workspace
 USER simplicio
-WORKDIR /home/simplicio
+# The work folder IS the volume: `init` writes ./clients/<client>/<campaign>/contract.yaml in the cwd, and anything
+# outside /workspace is lost with `docker compose run --rm`.
+WORKDIR /workspace
 VOLUME ["/workspace"]
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD ["simplicio-video", "--version"]

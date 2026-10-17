@@ -1,5 +1,6 @@
 # simplicio-video (issue #43). Só build local: não há imagem pública (ver Dockerfile e docs/host/packaging.md).
 # Uso: docker compose build && docker compose run --rm simplicio doctor
+# O contêiner trabalha em /workspace (o volume `workspace`): `init`, contratos e MP4 ficam lá e sobrevivem ao --rm.
 name: simplicio-video
 
 services:
