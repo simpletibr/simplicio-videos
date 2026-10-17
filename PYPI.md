@@ -11,7 +11,7 @@ pip install simplicio-video              # ou: pipx install simplicio-video
 pip install "simplicio-video[mcp]"       # com o servidor MCP (simplicio-video-mcp)
 ```
 
-Extras opcionais: `[local-tts]` (voz local Kokoro) e `[remote]` (render no Kaggle ou no Colab).
+Extras opcionais: `[local-tts]` (as bibliotecas da voz local Kokoro; a voz ainda pede mais, veja os primeiros passos) e `[remote]` (render no Kaggle ou no Colab).
 
 ## Requisitos
 
@@ -31,8 +31,8 @@ simplicio-video run clients/<cliente>/<campanha>/contract.yaml --provider gemini
 ```
 
 - O `doctor` sai com erro até você rodar o `setup` (o workspace e a política ainda não existem).
-- `simplicio-video list templates` mostra os templates. O `init` grava `./clients/<cliente>/<campanha>/contract.yaml` na pasta atual; preencha os `TODO` só com fatos do cliente (o `validate` falha enquanto houver `TODO`).
-- A voz vem de `--provider file` (WAVs seus), `local` (extra `[local-tts]`) ou `gemini` (a chave só pelo ambiente, em `GEMINI_API_KEY`). O `run` valida, gera a voz e renderiza o MP4.
+- `simplicio-video list templates` mostra os templates. O `init` grava só um esqueleto em `./clients/<cliente>/<campanha>/contract.yaml`, na pasta atual, cheio de `TODO`. Preencher os `TODO` não basta: o esqueleto ainda não traz os blocos de motion que o template exige. O `validate` aponta o que falta e recusa o contrato até ele ficar completo. Para ver um contrato que funciona de ponta a ponta, siga o [tutorial do primeiro vídeo](https://github.com/simpletibr/simplicio-videos/blob/main/docs/tutorials/primeiro-video.md) (usa o contrato mínimo `tests/fixtures/mini`, sem chave de API) e a [receita de vídeo para cliente](https://github.com/simpletibr/simplicio-videos/blob/main/docs/receita-video-cliente.md); a copy sai só de fatos do cliente.
+- A voz vem de `--provider file` (WAVs seus), `local` ou `gemini` (a chave só pelo ambiente, em `GEMINI_API_KEY`). A voz `local` (Kokoro) não vem pronta: o extra `[local-tts]` instala `kokoro-onnx` e `soundfile` no seu ambiente, mas o motor procura um Python com essas bibliotecas em `SIMPLICIO_TTS_PY` (padrão `~/.local/share/simplicio-tts/cbvenv/bin/python`) e os modelos `kokoro-v1.0.onnx` e `voices-v1.0.bin` em `KOKORO_DIR` (padrão `~/.local/share/simplicio-tts`). O pacote não baixa os modelos. O `run` valida, gera a voz e renderiza o MP4.
 - Cada comando tem `--help` com exemplos.
 
 ## O que não faz
@@ -43,11 +43,12 @@ simplicio-video run clients/<cliente>/<campanha>/contract.yaml --provider gemini
 ## Plataformas
 
 - Linux: testado, em Python 3.11, 3.12 e 3.13 (o piso 3.10 está declarado e ainda não foi exercitado).
-- macOS e Windows: cobertos por testes com sistema simulado e, quando existir, por `scripts/smoke_so.py`, mas ainda NÃO confirmados em máquina real. Por isso não aparecem nos classificadores do pacote.
+- macOS e Windows: ainda NÃO confirmados em máquina real. Por isso não aparecem nos classificadores do pacote.
 
 ## Documentação
 
 - [README do projeto](https://github.com/simpletibr/simplicio-videos/blob/main/README.md)
+- [Primeiro vídeo: do zero ao render](https://github.com/simpletibr/simplicio-videos/blob/main/docs/tutorials/primeiro-video.md)
 - [Receita passo a passo de um vídeo de cliente](https://github.com/simpletibr/simplicio-videos/blob/main/docs/receita-video-cliente.md)
 - [Skill para agentes (LLM)](https://github.com/simpletibr/simplicio-videos/blob/main/skills/simplicio-video/SKILL.md)
 - [Histórico de mudanças](https://github.com/simpletibr/simplicio-videos/blob/main/CHANGELOG.md)

@@ -167,7 +167,8 @@ def test_pypi_md_voz_local_diz_o_que_o_extra_nao_instala(pypi_md):
     for termo in ("SIMPLICIO_TTS_PY", "kokoro-v1.0.onnx", "voices-v1.0.bin", "KOKORO_DIR"):
         assert termo in pypi_md, f"PYPI.md não menciona {termo}, que a voz local exige"
     linha_do_extra = next(ln for ln in pypi_md.splitlines() if "[local-tts]" in ln and "extra" in ln.lower())
-    assert "voz local Kokoro" not in linha_do_extra, "o extra não entrega a voz local sozinho"
+    assert "(voz local Kokoro)" not in linha_do_extra, "o extra não entrega a voz local sozinho"
+    assert re.search(r"ainda\s+pede\s+mais|não\s+basta", linha_do_extra), "a linha do extra diz que ele não basta"
     assert re.search(r"não\s+baixa", pypi_md), "diga que o pacote não baixa os modelos"
 
 
