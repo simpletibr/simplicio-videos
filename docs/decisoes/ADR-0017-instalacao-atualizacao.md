@@ -1,7 +1,10 @@
 # ADR-0017: instalação e atualização (um comando, git pull --ff-only, Docker só build local)
 
+> **Superada em parte pelo [ADR-0020](ADR-0020-install-universal-e-update-igual-ao-loop.md):** o `install` e o `update` de um checkout (decisões 1 a 4) mudaram. Leia o ADR-0020 primeiro.
+
 - **Status:** aceito. Implementado na issue #43 (`install.sh`, `simplicio-video install|update|doctor|setup`, `Dockerfile`, `compose.yaml`, `deploy/docker/`).
 - **Data:** 08/10/2026 (BRT)
+- **Superada em parte pelo [ADR-0020](ADR-0020-install-universal-e-update-igual-ao-loop.md)** (17/10/2026): o `simplicio-video install` deixou de ser o `.venv` (virou `scripts/dev_install.sh`, e passou a copiar a skill para o host, como o do simplicio-loop) e o `update` de um checkout deixou de rodar `git pull --ff-only` (recusa e diz `git pull` e o dev install, como o loop). As decisões 1, 2, 3 e 4 abaixo valem só como histórico; as 5 (Docker) e 6 (doctor) seguem de pé.
 - **Revisado em 17/10/2026** pelo [ADR-0019](ADR-0019-login-compartilhado.md) e pelo PR de `install`, `update`, `doctor` e `login`: veja a seção "Revisão de 17/10/2026" no fim. As decisões 3 e 4 abaixo valem como foram escritas em 08/10/2026, com as mudanças registradas lá.
 - **Relaciona:** [docs/host/packaging.md](../host/packaging.md) (o que cada comando faz) · [docs/how-to/install.md](../how-to/install.md) (passo a passo) · [ADR-0005](ADR-0005-gate-sem-ci.md) (gate local, sem CI) · [monetization.md](../factory/monetization.md) (repositório público ou privado)
 
@@ -53,3 +56,11 @@ Os comandos passaram a seguir o contrato do simplicio-loop (mesmos códigos de s
 - **Pacote instalado por pip.** Sem checkout não há `.venv` a criar: `install --check` e `--dry-run` avisam e saem com 0, o `install` de verdade sai com 2 e nada é criado em `site-packages`. O `update` faz `python -m pip install --upgrade "simplicio-video==<última release>"` (PyPI); a última release vem do GitHub Releases. O pacote ainda não estava no PyPI em 17/10/2026. Antes, a alternativa "um pacote Python publicado" estava descartada por falta de distribuição pública; ela volta a ser possível, mas só para o motor (Node, ffmpeg com libass e `web/` continuam do host).
 - **Decisão 6 (doctor).** O JSON mudou para `simplicio.doctor/v1`: sai `ok`, entram `schema`, `status` e `version`, o texto vira `summary` e `detail` vira um objeto. Entraram as linhas `login`, `update`, `distribution` e `runtime`, e o workspace ausente passou de falha para aviso (nada no motor o lê). Um arquivo de login inseguro é `fail`.
 - **Windows e macOS.** O texto "Windows fica para o WSL ou o Docker" vale para o **render**. Os comandos de operação foram escritos para os três sistemas, mas Windows e macOS reais são UNVERIFIED até alguém rodar `scripts/smoke_so.py` ([guia](../how-to/testar-em-windows-e-macos.md)).
+
+## Revisão de 17/10/2026 (2): o ADR-0020 supersede o `install` e o `update` de um checkout
+
+O dono pediu que `install` e `update` sejam iguais aos do simplicio-loop e universais (todos os hosts do loop, Linux, macOS e Windows). Por isso, **superadas** pelo [ADR-0020](ADR-0020-install-universal-e-update-igual-ao-loop.md):
+
+- **Decisões 1 a 3 (`./install.sh`, `.venv` e registro em `.venv/simplicio-install.json`, idempotência pelo `install`).** O `.venv` com uv passou para `scripts/dev_install.sh` (Windows: `scripts/dev_install.ps1`); `./install.sh` e `install.ps1` são invólucros finos. `simplicio-video install` copia a skill para o host do agente e grava o recibo `.simplicio-video/install-ownership.json`. O `simplicio-install.json` e as opções `--python` e `--with` do `install` saíram.
+- **Decisão 4 (`git pull --ff-only`).** O `update` de um checkout **recusa** (exit 2) e imprime `git pull` e `bash scripts/dev_install.sh`; o pull, o `git reset --keep`, o build de `web/` e a recusa de árvore suja saíram. O ramo pip continua e agora termina com `simplicio-video install --global`.
+- **Seguem de pé:** a decisão 5 (Docker só por build local) e a 6 (doctor com correção exata).

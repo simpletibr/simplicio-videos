@@ -83,7 +83,7 @@ simplicio-video plugin new <kind> <id>             # scaffold with failing contr
 simplicio-video plugin check <path>                # runs the contract suite for the plugin's kind
 ```
 
-Related core commands: `simplicio-video doctor` (environment and every plugin's health checks), `simplicio-video install` (idempotent install of the environment, what `install.sh` calls), `simplicio-video update` (see `docs/host/packaging.md`, owned by #43).
+Related core commands: `simplicio-video doctor` (environment and every plugin's health checks), `simplicio-video install` (copies the bundled skills into the agent host, like the simplicio-loop `install`; the checkout's `.venv` is `scripts/dev_install.sh`, which `install.sh` wraps), `simplicio-video update` (see `docs/host/packaging.md`, owned by #43, and ADR-0020).
 
 ## Every command documents itself
 

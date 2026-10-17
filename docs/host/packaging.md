@@ -1,24 +1,25 @@
 ---
 title: Pacote de operação (install, update, doctor, setup)
 summary: O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites até as #32 e #34.
-commands: ./install.sh, simplicio-video install, simplicio-video update, simplicio-video doctor, simplicio-video setup, simplicio-video login, simplicio-video logout, simplicio-video auth status, python scripts/smoke_so.py, docker compose build
+commands: ./install.sh, bash scripts/dev_install.sh, powershell -File scripts/dev_install.ps1, simplicio-video install, simplicio-video update, simplicio-video doctor, simplicio-video setup, simplicio-video login, simplicio-video logout, simplicio-video auth status, python scripts/smoke_so.py, docker compose build
 issue: 43
 last_verified: 2026-10-17
 ---
 
 # Pacote de operação
 
-Como o host instala, atualiza, checa e prepara o workspace, e como o CLI espelha o login do Simplicio Runtime. Passo a passo para quem vai usar: [docs/how-to/install.md](../how-to/install.md). Decisões: [ADR-0017](../decisoes/ADR-0017-instalacao-atualizacao.md) (instalação e atualização) e [ADR-0019](../decisoes/ADR-0019-login-compartilhado.md) (login compartilhado). Como rodar a fumaça em Windows e macOS: [testar-em-windows-e-macos.md](../how-to/testar-em-windows-e-macos.md).
+Como o host instala, atualiza, checa e prepara o workspace, e como o CLI espelha o login do Simplicio Runtime. Passo a passo para quem vai usar: [docs/how-to/install.md](../how-to/install.md). Decisões: [ADR-0020](../decisoes/ADR-0020-install-universal-e-update-igual-ao-loop.md) (`install` universal e `update` iguais aos do simplicio-loop, que **supersede** a decisão do [ADR-0017](../decisoes/ADR-0017-instalacao-atualizacao.md) sobre o `.venv` e o `git pull`) e [ADR-0019](../decisoes/ADR-0019-login-compartilhado.md) (login compartilhado). Como rodar a fumaça em Windows e macOS: [testar-em-windows-e-macos.md](../how-to/testar-em-windows-e-macos.md).
 
-Os contratos de `install`, `update`, `doctor`, `login`, `logout` e `auth status` seguem o do simplicio-loop (mesmos códigos de saída, mesmos `reason_code`, mesmos documentos `simplicio.doctor/v1`, `simplicio.login/v1`, `simplicio.logout/v1` e `simplicio.auth-status/v1`). A única diferença de conteúdo é que a correção sugerida diz `simplicio-video login`.
+Os contratos de `install`, `update`, `doctor`, `login`, `logout` e `auth status` seguem o do simplicio-loop (mesmos códigos de saída, mesmos `reason_code`, mesmos documentos `simplicio.video-install-plan/v1` (o `simplicio.loop-install-plan/v1` com as mesmas chaves), `simplicio.doctor/v1`, `simplicio.login/v1`, `simplicio.logout/v1` e `simplicio.auth-status/v1`). A única diferença de conteúdo é que a correção sugerida diz `simplicio-video login`.
 
 ## Os comandos
 
 | Comando | O que faz | Toca em |
 |---|---|---|
-| `./install.sh` | checa Node 22, ffmpeg com libass e 5 GB livres; garante o uv (oferece instalar, só com confirmação); chama `simplicio-video install`; constrói `web/` se existir; roda o doctor e imprime os próximos passos | nada fora do checkout; sem sudo |
-| `simplicio-video install [--check] [--dry-run] [--json] [--python X] [--with EXTRAS]` | cria `<checkout>/.venv` com `uv venv` e instala o pacote em modo editável (`uv pip install -e .[extras]`). Grava `.venv/simplicio-install.json` com Python, extras e hash do `pyproject.toml`. Se nada mudou, não chama o uv. `--check` e `--dry-run` não criam nada. Não copia skills para o host de nenhum agente. O `./install.sh` roda este comando com o `python3` do sistema, antes de o `.venv` existir (sem PyYAML, por exemplo no macOS com as ferramentas do Xcode): por isso ele e tudo que ele importa no topo usam só a biblioteca padrão (um teste roda `--check`, `--dry-run`, `--json` e o install de verdade num interpretador que bloqueia qualquer terceiro). Com `--json`, o stdout é UM documento mesmo no erro (com a chave `error`) | só `.venv` dentro do checkout |
-| `simplicio-video update [--check] [--dry-run] [--force]` | num checkout: recusa árvore suja, `git fetch`, mostra commits novos e diff do CHANGELOG, `git pull --ff-only`, reexecuta `install`, constrói `web/`, roda o doctor e imprime o `git reset --keep` para voltar. Num pacote instalado por pip: `python -m pip install --upgrade "simplicio-video==<última release>"` (PyPI). `--check` grava o resultado em `update-check.json`. `--dry-run` só mostra o plano e sai com `0`, junto com `--check` ou não, num checkout e num pacote (o `--check` sozinho é que responde `10`): num checkout **não roda `git fetch`** (ele regrava `FETCH_HEAD`, as refs `origin/*` e o reflog, então não é um passo de leitura) | o checkout (via git) ou o ambiente Python do pip; `~/.simplicio-video/update-check.json` com `--check` |
+| `./install.sh` (Windows: `.\install.ps1`) | invólucro fino de `scripts/dev_install.sh` (Windows: `scripts/dev_install.ps1`), com as mesmas opções (`--dry-run`, `--with`, `--python`; no PowerShell `-DryRun`, `-With`, `-Python`) | nada fora do checkout; sem sudo |
+| `bash scripts/dev_install.sh [--with EXTRAS] [--python X] [--dry-run]` (Windows: `powershell -File scripts/dev_install.ps1`) | o ambiente de desenvolvimento do checkout, como o `scripts/dev_install.sh` do loop: checa Node 22, ffmpeg com libass e 5 GB livres; garante o uv (oferece instalar, só com confirmação); cria o `.venv` com `uv venv` e instala o pacote editável (`uv pip install -e .[extras]`); constrói `web/` se existir; roda o doctor e imprime os próximos passos. Rodar de novo não estraga nada; um `.venv` com outro Python é um conflito que o script explica e não troca. **Não usa o python do sistema** (o uv traz o Python): por isso um `python3` sem PyYAML, como o do macOS com as ferramentas do Xcode, não atrapalha. O `.ps1` é **UNVERIFIED**: nunca rodou num Windows de verdade | só `.venv` (e `web/`) dentro do checkout |
+| `simplicio-video install [--target DIR] [--global] [--host H] [--dry-run] [--check] [--json] [--verify] [--uninstall] [--prune-project-copies]` | copia as skills empacotadas (`simplicio-video` e `simplicio-video-social`) para o host do agente e grava o recibo `.simplicio-video/install-ownership.json`, **como o `install` do loop**. Padrão: o projeto (`--target`, a pasta atual) em `.claude/skills/` e, para o host que precisa, o arquivo de entrada dele (`AGENTS.md`, `GEMINI.md`, `CONVENTIONS.md`, `.github/copilot-instructions.md`, `.kiro/steering/simplicio-video.md`); `--global` instala em `~/.claude/skills` e atualiza as cópias que outros hosts já têm. Idempotente: arquivo igual não é regravado. Nunca sobrescreve o que não é dele (`left_alone`: outras skills, um `AGENTS.md` seu, um link simbólico). `--check` e `--dry-run` não escrevem nada; `--verify` confere a versão e o digest do plano; `--uninstall` remove só o que está no recibo; `--prune-project-copies` (com `--global`) remove as cópias obsoletas do projeto. **O simplicio-video não tem hooks: só skills.** Funciona igual num checkout e num pacote do pip, e só usa a biblioteca padrão (o `python3 -m simplicio_video install` do sistema não precisa de PyYAML; um teste roda tudo num interpretador que bloqueia qualquer terceiro). Com `--json`, o stdout é UM documento mesmo no erro (`status` `error`) | o alvo (o projeto, ou o `~` com `--global`); nunca `site-packages` |
+| `simplicio-video update [--check] [--dry-run] [--force]` | num pacote instalado por pip: `python -m pip install --upgrade "simplicio-video==<última release>"` (PyPI) e, depois, `simplicio-video install --global` para reinstalar as skills nos hosts. **Num checkout git ou instalação editável: recusa** (exit 2) e imprime `git pull` e `bash scripts/dev_install.sh` (Windows: `powershell -File scripts/dev_install.ps1`); nada é puxado, reconstruído nem apagado. `--check` grava o resultado em `update-check.json`; num checkout ele roda `git fetch`, mostra os commits novos e o diff do CHANGELOG. `--dry-run` só mostra o plano e sai com `0` num pacote, com `--check` ou não (o `--check` sozinho é que responde `10`); num checkout mostra a recusa e **não roda git nenhum** (o `git fetch` regrava `FETCH_HEAD`, as refs `origin/*` e o reflog, então não é um passo de leitura) | o ambiente Python do pip, as skills do `~` (o `install --global` do fim); `~/.simplicio-video/update-check.json` com `--check`; num checkout, nada |
 | `simplicio-video doctor [all\|login] [--json] [--online]` | checa o ambiente e diz a correção exata de cada falha. Sem `--online` não usa rede. Não instala e não altera nada; com `--online` regrava só o `update-check.json` | nada (com `--online`, `~/.simplicio-video/update-check.json`) |
 | `simplicio-video setup [--yes] [--theme] [--lang] [--force] [--realoficial]` | cria o workspace em `$SIMPLICIO_WORKSPACE` (padrão `~/.simplicio-video/workspaces/default`) com `workspace.yaml` (tema, idioma) e `policy.yaml` (autonomia L1; tokens, USD e créditos zerados). Não faz login nem grava credencial | o workspace |
 | `simplicio-video login [--json] [--no-browser]` | roda `simplicio login google` do Runtime (terminal ligado) e confere o arquivo compartilhado. Sem Runtime: `UNVERIFIED`, mostra como instalar e sai com 1. Não guarda credencial | nada: quem grava o login é o Runtime |
@@ -31,34 +32,51 @@ Todo comando tem `--help` com exemplos. Os testes da suíte conferem isso (`test
 
 | Comando | 0 | 1 | 2 | 10 |
 |---|---|---|---|---|
-| `install --check` | em dia | — | argumento inválido | há mudança pendente |
+| `install --check` | em dia | — | argumento inválido | há mudança pendente (um arquivo a criar ou atualizar, ou uma cópia de outro host desatualizada com `--global`) |
 | `install --dry-run` | sempre (não escreve nada) | — | argumento inválido | — |
-| `install` | instalou ou já estava em dia | falhou, ou o `.venv` usa outro Python | argumento inválido, ou pacote instalado por pip (não há `.venv`) | — |
-| `update --check` | em dia | — | erro (rede, git, árvore suja, sem upstream) | há atualização |
-| `update` | atualizou, já estava em dia, ou o instalado é mais novo que a última release | falha de rede, ou falha de um passo | recusado: árvore suja, sem upstream, sem fast-forward, PEP 668 | — |
+| `install` | instalou ou já estava em dia | falhou: host desconhecido, escrita negada, recibo em que não se confia | argumento inválido (`--prune-project-copies` sem `--global`) | — |
+| `install --verify` | o plano confere | host desconhecido, versão que não bate | argumento inválido | — |
+| `install --uninstall` | removeu (ou, com `--dry-run`, listou) | sem recibo, ou recibo adulterado ou ilegível | argumento inválido | — |
+| `update --check` | em dia | — | erro (rede, git, sem upstream, não é um repositório) | há atualização |
+| `update` | atualizou, já estava em dia, ou o instalado é mais novo que a última release | falha de rede, ou falha de um passo (o pip, ou o `install --global` que o segue) | recusado: é um checkout git ou instalação editável, PEP 668 | — |
 | `doctor` | nenhuma falha (aviso não reprova) | alguma checagem é `fail` | argumento inválido | — |
 | `login` | verificado | não verificado (inclui `UNVERIFIED`) | recusado (`--no-browser` no Windows) | — |
 | `logout` | saiu, ou não havia login | falhou ao apagar (`login_permissions`, trava) | recusado: faltou `--yes`, o arquivo não é um login (`not_a_login_file`) ou é um link simbólico (`login_symlink`) | — |
 | `auth status` | logado | não logado | — | — |
 
-`--force` do `update` reinstala mesmo em dia e permite downgrade; ele nunca ignora a árvore suja (nada é descartado: guarde com `git stash`). Falha de rede no `update` sai com `2` com `--check` e com `1` sem ele. Se a versão instalada é mais nova que a última release (o PyPI é publicado antes do GitHub Release), o `update` sai com `0` e diz `é mais novo que a última release`, como o loop; só o `--force` instala a release mesmo assim.
+`--force` do `update` reinstala a release do pip mesmo em dia e permite downgrade; num checkout ele também recusa (exit 2). Falha de rede no `update` sai com `2` com `--check` e com `1` sem ele. Se a versão instalada é mais nova que a última release (o PyPI é publicado antes do GitHub Release), o `update` sai com `0` e diz `é mais novo que a última release`, como o loop; só o `--force` instala a release mesmo assim.
 
-A versão instalada segue a ordem da PEP 440: `0.5.0.dev1` < `0.5.0a1` < `0.5.0b1` < `0.5.0rc1` < `0.5.0` < `0.5.0.post1`, e `+local` não conta. Uma versão de desenvolvimento ou pré-release instalada tem atualização frente à release final, mas uma pré-release nunca é alvo de upgrade. Os arquivos de estado que o CLI lê (`update-check.json`, `.venv/simplicio-install.json`, `pyvenv.cfg`, o YAML do workspace) são abertos com `O_NONBLOCK` e conferidos com `fstat` no mesmo descritor: um FIFO, uma pasta ou um dispositivo no lugar vale como cache inválido (aviso no doctor) ou como ausente (no install), e nunca trava o comando.
+A versão instalada segue a ordem da PEP 440: `0.5.0.dev1` < `0.5.0a1` < `0.5.0b1` < `0.5.0rc1` < `0.5.0` < `0.5.0.post1`, e `+local` não conta. Uma versão de desenvolvimento ou pré-release instalada tem atualização frente à release final, mas uma pré-release nunca é alvo de upgrade. Os arquivos que o CLI lê (`update-check.json`, o recibo do install, os arquivos que o install compara com os do pacote, o YAML do workspace) são abertos com `O_NONBLOCK` e conferidos com `fstat` no mesmo descritor: um FIFO, uma pasta ou um dispositivo no lugar vale como cache inválido (aviso no doctor), como ausente ou, onde o install ia escrever, como algo que não é dele (`left_alone`), e nunca trava o comando.
 
 A versão da release é lida com regra estrita: `X.Y`, `X.Y.Z` ou `X.Y.Z.W` com um `v` opcional e o sufixo `.postN`, e nada mais (`v0.5.0-rc1`, `0.5.0 --index-url=...`, `1!2.0.0` e dígitos de largura total são recusados). O argv do pip é remontado só de números: `python -m pip install --upgrade simplicio-video==X.Y.Z`, uma lista, sem shell.
 
 ### Rede e `SIMPLICIO_OFFLINE=1`
 
-`SIMPLICIO_OFFLINE=1` bloqueia **toda** a rede do `update` e do `doctor --online`. Num pacote instalado por pip, nem o `gh` nem a API do GitHub são chamados. Num checkout, o `git fetch` também não roda (nem `git pull`, `ls-remote` ou qualquer outro comando de rede): `update --check` sai com `2`, o `update` sai com `1` e o `doctor --online` mostra um aviso; as refs e o `.git` não são tocados. O `update --dry-run` nunca roda `git fetch`, com ou sem a variável, e todo comando git do update usa `--no-optional-locks` para que um passo de leitura não regrave o `.git/index`. Um git anterior à 2.15, que não conhece a opção (`Unknown option: --no-optional-locks`, exit 129), é chamado de novo UMA vez sem ela, então o update continua funcionando (e, nesse git, o `git status` regrava o índice como sempre fez). Quando o git recusa o repositório (`dubious ownership` num checkout de outro usuário, por exemplo), a recusa mostra o que o git disse (uma linha, cortada em 300 caracteres e sem escapes de terminal), e um `git status` que falha não vale como árvore limpa.
+`SIMPLICIO_OFFLINE=1` bloqueia **toda** a rede do `update` e do `doctor --online`. Num pacote instalado por pip, nem o `gh` nem a API do GitHub são chamados. Num checkout, o `git fetch` do `--check` também não roda (nem `ls-remote` ou qualquer outro comando de rede): `update --check` sai com `2` e o `doctor --online` mostra um aviso; as refs e o `.git` não são tocados. O `update` de um checkout (a recusa) e o `--dry-run` nunca rodam git nenhum, com ou sem a variável, e todo comando git do `--check` usa `--no-optional-locks` para que um passo de leitura não regrave o `.git/index`. Um git anterior à 2.15, que não conhece a opção (`Unknown option: --no-optional-locks`, exit 129), é chamado de novo UMA vez sem ela, então o update continua funcionando (e, nesse git, o `git status` regrava o índice como sempre fez). Quando o git recusa o repositório (`dubious ownership` num checkout de outro usuário, por exemplo), a recusa mostra o que o git disse (uma linha, cortada em 300 caracteres e sem escapes de terminal), e o `--check` não olha a árvore de trabalho (nada é puxado, então alterações locais não atrapalham).
 
 ## Duas distribuições: checkout e pacote
 
-`update`, `install` e `doctor` perguntam a `distribution.kind()`:
+`update` e `doctor` perguntam a `distribution.kind()`; `install` não liga para ela (copia a skill do pacote nos dois casos):
 
-- **source**: um checkout git (ou `pip install -e`). `install` cria o `.venv` do checkout e `update` usa `git pull --ff-only`.
-- **pip**: um pacote instalado (`pip install simplicio-video`). Não há checkout nem `.venv` a criar: `install --check` e `install --dry-run` dizem `instalado por pip: não há .venv a criar; use pip install --upgrade simplicio-video` e saem com 0, o `install` de verdade sai com 2, e nada é criado em `site-packages`. O `update` faz `pip install --upgrade "simplicio-video==<versão>"`, que vem do PyPI; a versão mais nova vem do GitHub Releases (`gh release view -R simpletibr/simplicio-videos`, ou a API `releases/latest`). Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas possíveis (`venv`, `uv`, `pipx` ou `PIP_BREAK_SYSTEM_PACKAGES=1`).
+- **source**: um checkout git (ou `pip install -e`). O `update` **recusa** e manda rodar `git pull` e `bash scripts/dev_install.sh` (no Windows, `powershell -File scripts/dev_install.ps1`); o `--check` pergunta ao git quantos commits são novos.
+- **pip**: um pacote instalado (`pip install simplicio-video`). O `install` copia a skill que veio no wheel (`simplicio_video/data/skills`) para o `--target` ou o `~`, e nada é criado em `site-packages`. O `update` faz `pip install --upgrade "simplicio-video==<versão>"`, que vem do PyPI, e depois `simplicio-video install --global`; a versão mais nova vem do GitHub Releases (`gh release view -R simpletibr/simplicio-videos`, ou a API `releases/latest`). Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas possíveis (`venv`, `uv`, `pipx` ou `PIP_BREAK_SYSTEM_PACKAGES=1`).
 
-O pacote ainda não estava no PyPI na última conferência (a página `pypi.org/pypi/simplicio-video/json` respondia 404 em 17/10/2026): até a primeira publicação, o `update` de um pacote instalado acha a release no GitHub e o `pip install` falha com a mensagem do pip. Dentro do container o pacote é instalado por pip (`Dockerfile`): para atualizar, reconstrua a imagem.
+O pacote ainda não estava no PyPI na última conferência (a página `pypi.org/pypi/simplicio-video/json` respondia 404 em 17/10/2026; ele deve entrar na release 0.5.0): até a primeira publicação, o `update` de um pacote instalado acha a release no GitHub e o `pip install` falha com a mensagem do pip. Dentro do container o pacote é instalado por pip (`Dockerfile`): para atualizar, reconstrua a imagem.
+
+## Os hosts do `install`
+
+O registro é o do planejador do loop (`simplicio_loop/install/planner.py`): `claude`, `codex`, `cursor`, `vscode`, `grok`, `kiro`, `antigravity`, `opencode`, `gemini`, `aider`, `simplicio_agent` e `openclaw` (`--host all` junta todos). As skills vão sempre para `.claude/skills` (o `--global` também); o que muda por host é o arquivo de entrada, criado só se ainda não existir e removido pelo `--uninstall` só se foi o install que o criou:
+
+| Host | Arquivo de entrada (no projeto) |
+|---|---|
+| `claude`, `cursor`, `simplicio_agent`, `openclaw` | nenhum |
+| `codex`, `grok`, `antigravity`, `opencode` | `AGENTS.md` |
+| `vscode` | `.github/copilot-instructions.md` |
+| `kiro` | `.kiro/steering/simplicio-video.md` |
+| `gemini` | `GEMINI.md` |
+| `aider` | `CONVENTIONS.md` |
+
+Com `--global`, o `install` também atualiza as cópias da skill que cada host **já tem** (nunca cria em host que nunca a teve), nestas pastas sob o HOME, as mesmas nos três sistemas (o loop usa a mesma tabela): `.claude/skills`, `.cursor/skills`, `.codex/skills`, `.grok/skills`, `.agents/skills`, `.copilot/skills`, `.vscode/simplicio-skills`, `.config/opencode/skills`, `.config/amp/skills`, `.kiro/steering` e `.simplicio-loop/skills` (a pasta que o loop define para o `simplicio_agent`). Uma pasta de skill que é link simbólico (o dono costuma apontar para um clone) nunca é escrita por dentro. Não foram portados: os hooks e as regras de host do loop (o simplicio-video não os tem; `resynced.rules` fica vazio por contrato) e os hosts "listed" do catálogo do loop que só o `install_lib.py` do checkout dele escreve ([ADR-0020](../decisoes/ADR-0020-install-universal-e-update-igual-ao-loop.md)).
 
 ## O que o doctor checa
 
@@ -68,7 +86,7 @@ As linhas saem nesta ordem. Cada uma tem `name`, `status` (`ok`, `warn` ou `fail
 |---|---|---|---|
 | `login` | o arquivo existe mas não é seguro ou não é um login (link simbólico, permissão frouxa, outro dono, JSON inválido, data que não é um instante, mais de 1 MiB) ou não dá para abri-lo (`login_permissions`, `login_invalid`) | não há login ou o token expirou | `simplicio-video login`, ou o `chmod` exato |
 | `update` | — | há versão nova (no cache do último `update --check`, ou na consulta de `--online`), a consulta online falhou, ou o `update-check.json` está corrompido (data ou versão inválida, grande demais) | `simplicio-video update` |
-| `distribution` | — | — | mostra `source` ou `pip` e a versão |
+| `distribution` | — | — | mostra `source` ou `pip` e a versão (não há linha de skills: o doctor do loop também não tem) |
 | `runtime` | — | — | o Runtime é opcional; mostra versão e caminho quando existe |
 | `python` | Python menor que 3.12 | Python 3.14 ou superior (os extras do CrewAI exigem menos de 3.14) | `./install.sh --python 3.12` |
 | `node` | ausente, não executa ou versão menor que 22 | — | instalar Node 22 (`nvm install 22`; no Windows, https://nodejs.org) |
@@ -106,7 +124,7 @@ O `login` do CLI é um **espelho** do `login` do simplicio-loop: o motor continu
 
 ## Os schemas
 
-Em `src/simplicio_video/data/schemas/cli/` (Draft 2020-12), conferidos por `tests/packaging/test_contrato_ops.py`:
+Em `src/simplicio_video/data/schemas/cli/` (Draft 2020-12), conferidos por `tests/packaging/test_contrato_ops.py` (sete, mais os cinco do render e do validate):
 
 | Arquivo | `$id` | Para quê |
 |---|---|---|
@@ -115,17 +133,18 @@ Em `src/simplicio_video/data/schemas/cli/` (Draft 2020-12), conferidos por `test
 | `logout.schema.json` | `simplicio.logout/v1` | saída de `logout --json` |
 | `auth-status.schema.json` | `simplicio.auth-status/v1` | saída de `auth status --json`; proíbe `access_token` e `refresh_token` |
 | `update-check.schema.json` | (arquivo de estado, sem `schema`) | `update-check.json`: `installed`, `latest`, `update_available`, `kind`, `checked_at`; `commits_behind` só em `source` |
-| `install-result.schema.json` | `simplicio.video-install/v1` | saída de `install --json` (contrato próprio: o `install` do loop copia skills, este não) |
+| `install-plan.schema.json` | `simplicio.video-install-plan/v1` | saída de `install --json`: o `simplicio.loop-install-plan/v1` do loop com as mesmas chaves, mais as formas do `--verify`, do `--uninstall` e do erro (`status` diz qual) |
+| `install-ownership.schema.json` | `simplicio.video-install-ownership/v1` | o recibo `.simplicio-video/install-ownership.json` |
 
 ## Linux, macOS e Windows
 
-O código não assume POSIX: o Python do `.venv` é `Scripts\python.exe` no Windows e `bin/python` nos outros; a pasta pessoal vem de `HOME` e, só depois, de `USERPROFILE`, em todo sistema (a ordem do Runtime, `runtime_auth.rs`, e do loop; com `USERPROFILE` na frente no Windows este CLI leria, e apagaria, outro arquivo que o Runtime grava quando as duas variáveis diferem, como no MSYS2 e no Cygwin); programas são achados no PATH com `PATHEXT` (`simplicio`, `simplicio.exe`, `simplicio.cmd`) e em `~/.simplicio/bin`, **nunca no diretório atual**; o `uv` é achado em `~/.local/bin`, `~/.cargo/bin` e, no macOS, nos prefixos do Homebrew (`/opt/homebrew/bin`, `/usr/local/bin`, também usados para `ffmpeg` e `node`); a trava é `fcntl` no POSIX e `msvcrt` no Windows; o disco é medido com `shutil.disk_usage`; e nenhum passo roda `sh`.
+O código não assume POSIX: o `install` copia arquivos (nunca cria link simbólico, que no Windows exige privilégio) com escrita atômica e `encoding="utf-8"`; o Python do `.venv` é `Scripts\python.exe` no Windows e `bin/python` nos outros (no `dev_install`); a pasta pessoal vem de `HOME` e, só depois, de `USERPROFILE`, em todo sistema (a ordem do Runtime, `runtime_auth.rs`, e do loop; com `USERPROFILE` na frente no Windows este CLI leria, e apagaria, outro arquivo que o Runtime grava quando as duas variáveis diferem, como no MSYS2 e no Cygwin); programas são achados no PATH com `PATHEXT` (`simplicio`, `simplicio.exe`, `simplicio.cmd`) e em `~/.simplicio/bin`, **nunca no diretório atual**; o `dev_install` acha o `uv` em `~/.local/bin`, `~/.cargo/bin` e, no macOS, nos prefixos do Homebrew (`/opt/homebrew/bin`, `/usr/local/bin`, também usados para `ffmpeg` e `node`); a trava é `fcntl` no POSIX e `msvcrt` no Windows; o disco é medido com `shutil.disk_usage`; e nenhum passo roda `sh`.
 
 | Sistema | O que foi verificado | O que **não** foi |
 |---|---|---|
-| Linux | a suíte inteira roda aqui (gate local), `scripts/smoke_so.py` rodou | — |
+| Linux | a suíte inteira roda aqui (gate local), `scripts/smoke_so.py` rodou (inclui o install num alvo temporário), `scripts/dev_install.sh` rodou com `uv`, `node` e `ffmpeg` falsos | — |
 | macOS | simulado no Linux (`sys.platform`, caminhos do Homebrew, substituto de `open`) | **UNVERIFIED**: nada rodou num macOS de verdade |
-| Windows | simulado no Linux (`sys.platform`, `PureWindowsPath`, `msvcrt` falso, PATHEXT, ponto de reparse) | **UNVERIFIED**: nada rodou num Windows de verdade; `msvcrt.locking` × `LockFileEx` do Runtime e as ACLs não foram conferidos |
+| Windows | simulado no Linux (`sys.platform`, `PureWindowsPath`, `msvcrt` falso, PATHEXT, ponto de reparse); o recibo recusa caminho de Windows (letra de unidade, `\\x`, `..\\x`) em qualquer sistema | **UNVERIFIED**: nada rodou num Windows de verdade; `scripts/dev_install.ps1` e `install.ps1` são PowerShell que **nunca foi executado** (só lido por testes estáticos); `msvcrt.locking` × `LockFileEx` do Runtime e as ACLs não foram conferidos |
 
 Windows e macOS reais continuam **UNVERIFIED** até alguém rodar `python scripts/smoke_so.py` (e `python -m pytest tests/packaging`) lá e registrar a tabela. Veja [testar-em-windows-e-macos.md](../how-to/testar-em-windows-e-macos.md). A suíte marca com `posix_real` os testes que precisam de arquivos POSIX de verdade, para a mesma suíte rodar nesses sistemas sem falhar à toa.
 
@@ -140,11 +159,11 @@ Não publicamos imagem pronta. As builds do ffmpeg trazem obrigações de GPL ou
 
 ## Atualização
 
-A atualização está num módulo só, `src/simplicio_video/commands/update.py`: `git pull --ff-only` num checkout e `pip install --upgrade` num pacote. Se o repositório virar privado com archives assinados, a troca é local nesse módulo. Os comandos e a documentação do usuário não mudam.
+A atualização está num módulo só, `src/simplicio_video/commands/update.py`: `pip install --upgrade` num pacote (e o `install --global` que o segue) e a recusa num checkout, que manda rodar `git pull` e o dev install. Se o repositório virar privado com archives assinados, a troca é local nesse módulo. Os comandos e a documentação do usuário não mudam.
 
 ## Limites atuais
 
-- **web/ (#34):** o build de `web/` ainda não existe. `install` e `update` registram `web/ chega com a #34: nada a construir` e seguem.
+- **web/ (#34):** o build de `web/` ainda não existe. O `dev_install` registra `web/ chega com a #34: nada a construir` e segue.
 - **Workspace de checagem (#35):** o doctor checa só a presença e o schema do workspace. As checagens de saúde do workspace chegam com a #35.
 - **Windows e macOS reais:** UNVERIFIED (veja a tabela acima).
 - **Runtime com `login google`:** o `INSTALL.md` do Runtime documenta o comando, mas o motor nunca o rodou de verdade aqui: os testes usam um Runtime falso. UNVERIFIED.
@@ -153,12 +172,20 @@ A atualização está num módulo só, `src/simplicio_video/commands/update.py`:
 
 ## Mudanças que quebram (desde a 0.4.0)
 
+O `install` e o `update` ficaram iguais aos do simplicio-loop ([ADR-0020](../decisoes/ADR-0020-install-universal-e-update-igual-ao-loop.md)). Nada disso foi lançado antes: as linhas abaixo descrevem a diferença para a 0.4.0.
+
 | Antes | Agora |
 |---|---|
 | `doctor --json` era `{ok, checks[{name, status, detail (texto), fix}]}` | é `simplicio.doctor/v1`: `{schema, status, version, checks[{name, status, summary, fix, detail (objeto)}]}`; sai `ok`, o texto vira `summary` |
-| `install --check` saía com `1` quando havia mudança pendente | sai com `10` (`0` em dia) |
-| `update --force` seguia com árvore suja | reinstala mesmo em dia e permite downgrade; a árvore suja é sempre recusada |
-| `update` recusado (árvore suja, sem upstream, sem fast-forward) saía com `1` | sai com `2` |
+| `simplicio-video install` era o `.venv` do checkout (uv, `--python`, `--with`, `.venv/simplicio-install.json`) | copia as skills para o host do agente (`--target`, `--global`, `--host`...), com recibo de posse; o `.venv` é `bash scripts/dev_install.sh` (Windows: `scripts/dev_install.ps1`) |
+| `./install.sh` fazia o trabalho e chamava `simplicio-video install` com o python do sistema | é um invólucro fino de `scripts/dev_install.sh` (e `install.ps1` de `scripts/dev_install.ps1`); não usa o python do sistema |
+| `install --check` saía com `1` quando havia mudança pendente (e, antes do `.venv`, com 0 ou 10 só do ambiente) | sai com `10` quando falta criar ou atualizar uma skill (`0` em dia) |
+| `install --json` era `simplicio.video-install/v1` (`pending`, `conflict`, `python`, `extras`) | é `simplicio.video-install-plan/v1`, as chaves do loop (`changes`, `owned`, `digest`, `resynced`...) |
+| `update` num checkout rodava `git pull --ff-only`, `install`, o build de `web/` e o doctor | **recusa** (exit 2) e imprime `git pull` e `bash scripts/dev_install.sh` |
+| `update` num pacote só rodava o `pip install --upgrade` | roda também `simplicio-video install --global` para reinstalar as skills nos hosts |
+| `update --check` num checkout recusava árvore suja | responde 0, 10 ou 2 sem olhar a árvore (nada é puxado) |
+| `update --force` seguia com árvore suja | reinstala a release do pip mesmo em dia e permite downgrade (num checkout recusa) |
+| `update` recusado (árvore suja, sem upstream, sem fast-forward) saía com `1` | a recusa sai com `2` (um checkout, PEP 668) |
 | `update --check` saía sempre com `0` | sai com `0` (em dia), `10` (há atualização) ou `2` (erro) e grava `update-check.json` |
 | workspace ausente era `fail` no doctor | é `warn` (a linha `setup`) |
 | nomes `ffmpeg libass`, `disco livre`, `portas`, `workspace`, `workspace policy` | `ffmpeg-libass`, `disk`, `ports` e uma linha `setup` |

@@ -23,8 +23,8 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `OPENVERSE_LIBRARY_DIR` | Pasta da biblioteca do Openverse: `index.json`, `files/<sha256>`, `cache/` e `sheets/` (padrão: `~/.simplicio-video/openverse-library`). | `src/simplicio_video/openverse.py:184` |
 | `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:50` |
 | `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:49` |
-| `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `login` e o `doctor` procuram `simplicio`, `node`, `ffmpeg` e `uv` só nas pastas absolutas dela, nunca no diretório atual. | `src/simplicio_video/auth.py:445`<br>`src/simplicio_video/engine/remote_render.py:178` |
-| `PATHEXT` | Extensões executáveis do Windows (`.EXE;.CMD`...). Lida só no Windows, ao procurar `simplicio`, `node`, `ffmpeg`, `uv` e `npm` no PATH. | `src/simplicio_video/hostos.py:166` |
+| `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `login` e o `doctor` procuram `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual. | `src/simplicio_video/auth.py:445`<br>`src/simplicio_video/engine/remote_render.py:178` |
+| `PATHEXT` | Extensões executáveis do Windows (`.EXE;.CMD`...). Lida só no Windows, ao procurar `simplicio`, `node`, `ffmpeg` e `npm` no PATH. | `src/simplicio_video/hostos.py:159` |
 | `PIP_BREAK_SYSTEM_PACKAGES` | `1` autoriza o pip a mexer no Python do sistema (PEP 668). O `update` de um pacote instalado por pip respeita: sem ele, um Python gerenciado pelo sistema é recusado com exit 2. | `src/simplicio_video/commands/update.py:72` |
 | `PYTHONPATH` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:412` |
 | `SIMPLICIO_AUTH_FILE` | Arquivo de login compartilhado com o Simplicio Runtime (padrão: `~/.simplicio/login.json`). Lido por `login`, `logout`, `auth status` e `doctor`; o motor não grava credencial nem lê o token. Mesmo nome que o Runtime lê. | `src/simplicio_video/auth.py:76` |
