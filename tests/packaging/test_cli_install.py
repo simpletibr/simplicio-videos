@@ -765,6 +765,19 @@ def test_o_home_que_nao_existe_tambem_e_recusado(falso, capsys, monkeypatch):
     assert rc == 2 and "HOME" in out + err and not (falso.tmp / "nao-existe").exists()
 
 
+def test_um_home_relativo_que_existe_na_pasta_atual_tambem_e_recusado(falso, capsys, monkeypatch):
+    """`HOME=casa` is a folder that exists under the current directory, so "it is not a directory" does not refuse it: only "it is not
+    absolute" does, and without that the install would write the 11 host folders into whatever folder the shell happens to be in."""
+    (falso.tmp / "casa").mkdir()
+    monkeypatch.chdir(falso.tmp)
+    for valor in ("casa", ".", "./casa"):
+        monkeypatch.setenv("HOME", valor)
+        for opcao in ("--check", "--dry-run", "--verify", "--uninstall"):
+            rc, out, err = executa(["install", "--global", opcao], capsys, main)
+            assert rc == 2 and "HOME" in out + err and "Traceback" not in out + err, (valor, opcao, out, err)
+    assert fotografia(falso.tmp / "casa") == {}
+
+
 @posix_real
 def test_uninstall_de_projeto_com_recibo_forjado_nao_apaga_a_instalacao_global_pelo_link_do_claude(falso, capsys):
     """A cloned repo with `.claude` -> ~/.claude and a receipt that records that real path as its base and the public sha256 of the skill."""
