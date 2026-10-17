@@ -1,13 +1,14 @@
 """How this simplicio-video was installed: as a source checkout (or an editable install) or as a package (pip).
 
-`update` acts on it (a checkout is left to `git pull --ff-only`, a package is upgraded from PyPI), `install` refuses to
-create a `.venv` inside site-packages and `doctor` shows it. There is no binary distribution here (the loop has one).
+`update` acts on it (a checkout is REFUSED, as in the loop: `git pull` and `scripts/dev_install.sh` are the update; a package is
+upgraded from PyPI) and `doctor` shows it. `install` does not care: it copies the bundled skills into the agent host from either
+(`bundle_root`). There is no binary distribution here (the loop has one).
 Ported from simplicio-loop simplicio_loop/distribution.py (2034e2d), reduced to the two kinds this engine ships.
 """
 from __future__ import annotations
 
 import json
-from importlib import metadata
+from importlib import metadata, resources
 from pathlib import Path
 from typing import Optional
 
@@ -54,3 +55,10 @@ def kind(*, editable: Optional[bool] = None, checkout: Optional[bool] = None) ->
     if in_checkout() if checkout is None else checkout:
         return SOURCE
     return PIP if _installed() is not None else SOURCE
+
+
+def bundle_root():
+    """The package data (`data/`: the skills that `install` copies, the schemas...) as a Traversable.
+
+    `importlib.resources`, as the loop does: the same call works from a wheel and from a checkout, and nothing needs a real path."""
+    return resources.files("simplicio_video") / "data"

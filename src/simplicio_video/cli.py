@@ -38,8 +38,8 @@ Fluxo completo:
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse/busca
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
-  install      ambiente do checkout: .venv com uv, Python 3.12 e extras (--check mostra o plano)
-  update       git pull --ff-only (recusa árvore suja), reinstala, reconstrói web/ e roda doctor
+  install      copia as skills do simplicio-video para o host do agente (12 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
+  update       pacote pip: PyPI e reinstala as skills; checkout git: recusa (git pull e scripts/dev_install.sh); --check sai 0, 10 ou 2
   doctor       diagnóstico: Python, Node 22, ffmpeg com libass, disco, portas, credenciais, workspace
   setup        primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
 
@@ -328,42 +328,76 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--grupo", choices=["problema", "prova", "desejo", "decisao", "estrategia"],
                    help="só com angles: lista só os ângulos desse grupo")
 
-    p = sub.add_parser("install", formatter_class=Fmt, help="ambiente do checkout: .venv com uv, Python e extras (--check e --dry-run mostram o plano)",
-        description="Cria <checkout>/.venv com uv (Python --python; padrão: o último usado, ou 3.12) e instala o pacote\n"
-                    "em modo editável com os extras. Idempotente: sem mudança em Python, extras ou pyproject.toml, não faz nada.\n"
-                    "Não copia skills para o host de nenhum agente e não usa sudo. Saída: --check 0 em dia, 10 com mudança pendente;\n"
-                    "--dry-run 0 sem criar nada; 1 se o install falhar ou o .venv tiver outro Python; 2 para argumento inválido.\n"
-                    "--json imprime um documento simplicio.video-install/v1 (as mensagens vão para o stderr). Num pacote instalado\n"
-                    "por pip não há .venv a criar: --check e --dry-run avisam e saem com 0, a instalação de verdade sai com 2.",
-        epilog="exemplos:\n  simplicio-video install --check\n  simplicio-video install --dry-run --json\n"
-               "  simplicio-video install --python 3.12 --with local-tts")
-    p.add_argument("--check", action="store_true", help="mostra o que mudaria e não cria nada; sai com 10 se houver mudança pendente")
-    p.add_argument("--dry-run", action="store_true", help="mostra o plano e não cria nada; sai com 0")
-    p.add_argument("--json", action="store_true", help="imprime o plano em JSON (simplicio.video-install/v1); mensagens vão para o stderr")
-    p.add_argument("--python", metavar="VERSÃO", help="versão do Python do .venv, ex.: 3.12 (padrão: a última usada, ou 3.12)")
-    p.add_argument("--with", dest="extras", metavar="EXTRAS",
-                   help="extras separados por vírgula, ex.: local-tts,mcp (padrão: os da última instalação)")
+    p = sub.add_parser("install", formatter_class=Fmt, help="copia as skills do simplicio-video para o host do agente (o projeto, ou o home com --global)",
+        description="Copia as skills empacotadas (simplicio-video e simplicio-video-social) para o host do agente e grava o recibo de posse\n"
+                    ".simplicio-video/install-ownership.json, como o `install` do simplicio-loop. Por padrão instala no projeto (--target, padrão: a\n"
+                    "pasta atual) em .claude/skills/ e, para o host que precisa, no arquivo de entrada dele (AGENTS.md, GEMINI.md, CONVENTIONS.md,\n"
+                    ".github/copilot-instructions.md ou .kiro/steering/simplicio-video.md). Um arquivo de entrada que já existe não recebe\n"
+                    "apontador: fica como está. Com --global instala nas 11 pastas de skills do loop sob o home (~/.claude/skills, ~/.codex/skills,\n"
+                    "~/.cursor/skills, ~/.grok/skills, ~/.agents/skills, ~/.copilot/skills, ~/.vscode/simplicio-skills, ~/.config/opencode/skills,\n"
+                    "~/.config/amp/skills, ~/.kiro/steering e ~/.simplicio-loop/skills); com --global o --host é ignorado (o loop faz o mesmo). Em cada\n"
+                    "pasta o install cria o que falta (entra no recibo com o sha256), atualiza só a cópia que é dele e que ninguém editou, deixa em\n"
+                    "paz o que já existia ou que você editou e nunca apaga um arquivo extra seu; uma pasta secundária que é link é pulada, e\n"
+                    "~/.claude/skills que é link recusa tudo.\n"
+                    "Hosts (--host, padrão claude; all = todos): claude, codex, cursor, vscode, grok, kiro, antigravity, opencode, gemini, aider,\n"
+                    "simplicio_agent, openclaw. O simplicio-video não tem hooks: só skills.\n"
+                    "O install nunca sobrescreve nem apaga o que não é dele: outras skills, o seu AGENTS.md, uma SKILL.md que já existia ou que\n"
+                    "você editou, um link simbólico. O install deixa isso em paz (left_alone) e diz. O recibo guarda o sha256 de cada arquivo: o --uninstall e\n"
+                    "o --prune-project-copies só removem o que o recibo registra, que o registro de hosts consegue produzir e que ainda tem o sha256\n"
+                    "gravado; um recibo com outro caminho (.git/config, src/app.py...) é recusado inteiro, e um install por cima dele o ignora.\n"
+                    "As pastas que o install cria (.claude/skills, a da skill e .simplicio-video) nunca são link: com link ele recusa (exit 2) e\n"
+                    "não escreve nada. A pasta base do host (~/.claude) pode ser link para o seu repositório de dotfiles: o install a resolve uma\n"
+                    "vez, escreve no caminho real e o recibo o grava. Dois installs ao mesmo tempo no mesmo alvo esperam um pelo outro\n"
+                    "(.simplicio-video/install.lock).\n"
+                    "--verify confere os arquivos instalados com o recibo e com o pacote: se o alvo nunca foi instalado, uma skill foi alterada, falta\n"
+                    "um arquivo ou o recibo é lixo, sai com exit 1, ok false e a lista do que difere (problems).\n"
+                    "Saída: --check 0 em dia, 10 com mudança pendente; --dry-run 0 sem escrever; 1 se a instalação falhar (host desconhecido,\n"
+                    "escrita negada, recibo em que não se confia, --verify que acha diferença); 2 para argumento inválido ou link nas pastas que o\n"
+                    "install cria. --json imprime UM documento simplicio.video-install-plan/v1 (as mesmas chaves do plano do loop), também no\n"
+                    "erro. Funciona igual num checkout e num pacote do pip. O ambiente de desenvolvimento do checkout (o .venv) é\n"
+                    "`bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`). No\n"
+                    "fim, se o setup nunca rodou, ele roda num terminal e senão diz como rodar.",
+        epilog="exemplos:\n  simplicio-video install --check\n  simplicio-video install --dry-run --json\n  simplicio-video install\n"
+               "  simplicio-video install --host codex --target ~/meu-projeto\n  simplicio-video install --global\n"
+               "  simplicio-video install --global --prune-project-copies --target ~/meu-projeto\n  simplicio-video install --verify\n"
+               "  simplicio-video install --uninstall --dry-run")
+    p.add_argument("--target", default=".", metavar="DIR", help="pasta do projeto onde instalar (padrão: a pasta atual)")
+    p.add_argument("--global", dest="globally", action="store_true", help="instala nas 11 pastas de skills sob o home (~/.claude/skills, ~/.codex/skills...) em vez do projeto")
+    p.add_argument("--host", default="claude", metavar="HOST", help="id do host ou all (padrão: claude); com --global é ignorado")
+    p.add_argument("--dry-run", action="store_true", help="mostra o plano e não escreve nada; sai com 0")
+    p.add_argument("--check", action="store_true", help="não escreve nada; sai com 0 se está em dia e com 10 se há mudança pendente")
+    p.add_argument("--json", action="store_true", help="imprime UM documento JSON (simplicio.video-install-plan/v1), também no erro")
+    p.add_argument("--verify", action="store_true",
+                   help="confere os arquivos instalados com o recibo e com o pacote (exit 1 e a lista se algo difere); não escreve nada")
+    p.add_argument("--uninstall", action="store_true",
+                   help="remove só o que o recibo registra e ainda tem o sha256 gravado; com --dry-run, lista e não remove")
+    p.add_argument("--prune-project-copies", action="store_true",
+                   help="com --global: remove a cópia do projeto (--target) que o recibo dele registra, depois de instalar no home")
 
-    p = sub.add_parser("update", formatter_class=Fmt, help="atualiza: git pull --ff-only num checkout, ou pip (PyPI) num pacote instalado",
-        description="Num checkout: recusa árvore suja (guarde com `git stash`), mostra os commits novos e o diff do CHANGELOG, aplica com\n"
-                    "git pull --ff-only, reexecuta install, reconstrói web/ e roda doctor, e imprime o commit anterior (rollback).\n"
-                    "Num pacote instalado por pip: python -m pip install --upgrade \"simplicio-video==<última release>\" (PyPI); a última\n"
-                    "release vem do GitHub Releases. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas possíveis.\n"
-                    "Saída: --check 0 em dia, 10 com atualização, 2 erro; recusa 2; falha de rede 2 com --check, senão 1. Versão\n"
-                    "instalada mais nova que a última release (o PyPI sai antes do GitHub Release) é em dia: 0.\n"
-                    "--force reinstala mesmo em dia e permite downgrade, mas nunca ignora a árvore suja. --check grava o resultado em\n"
-                    "update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede. --dry-run só mostra o plano e sai com 0\n"
-                    "(junto com --check também; só o --check sozinho responde 10), num checkout e num pacote: num checkout não roda\n"
-                    "git fetch (ele mexeria nas refs do .git). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch do\n"
-                    "checkout (--check sai com 2, o update com 1). Todo git do update leva --no-optional-locks (para não regravar o\n"
-                    ".git/index); o git anterior à 2.15, que não conhece a opção, é chamado de novo uma vez sem ela. Versão instalada\n"
-                    "de desenvolvimento ou pré-release (0.5.0rc1) é anterior à release final (PEP 440).",
+    p = sub.add_parser("update", formatter_class=Fmt, help="atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar",
+        description="Segue o `update` do simplicio-loop. Num pacote instalado por pip: python -m pip install --upgrade \"simplicio-video==<última\n"
+                    "release>\" (PyPI; a última release vem do GitHub Releases) e, depois, `simplicio-video install --global`, que instala ou atualiza\n"
+                    "as skills nas 11 pastas de hosts sob o home (~/.claude/skills, ~/.codex/skills, ...) e cria as que faltam, mas só atualiza o\n"
+                    "arquivo que o recibo registra e que você não editou, e nunca apaga nada. Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas\n"
+                    "possíveis, e um Python sem pip (um `uv tool install`) também (exit 2): use `uv tool upgrade simplicio-video` ou `pipx upgrade`.\n"
+                    "Num checkout git ou instalação editável o update RECUSA e sai com 2: o que atualiza é, dentro do checkout, `git pull` e\n"
+                    "`bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`; o Windows de\n"
+                    "cliente vem com a política Restricted, e o Bypass vale só para esse processo). Nada é puxado, reconstruído nem apagado.\n"
+                    "Saída: --check 0 em dia, 10 com atualização, 2 erro; recusa 2; falha de rede 2 com --check, senão 1. Versão instalada mais nova\n"
+                    "que a última release (o PyPI sai antes do GitHub Release) é em dia: 0. --force reinstala a release mesmo em dia e permite\n"
+                    "downgrade (pip): só o nosso pacote, com --force-reinstall --no-deps, e só quando não há versão mais nova (com uma nova, o\n"
+                    "--upgrade normal, que traz as dependências dela). --check grava o resultado em update-check.json (em $SIMPLICIO_VIDEO_DATA), que o doctor lê sem rede; num\n"
+                    "checkout ele pergunta ao git quantos commits são novos (git fetch; alterações locais não atrapalham). --dry-run só mostra o plano e\n"
+                    "sai com 0 no pacote (num checkout mostra a recusa). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch do checkout\n"
+                    "(--check sai com 2). Todo git do `--check` leva --no-optional-locks (para não regravar o .git/index); o git anterior à 2.15,\n"
+                    "que não conhece a opção, é chamado de novo uma vez sem ela. Versão instalada de desenvolvimento ou pré-release (0.5.0rc1) é\n"
+                    "anterior à release final (PEP 440).",
         epilog="exemplos:\n  simplicio-video update --check\n  simplicio-video update --dry-run\n  simplicio-video update\n"
                "  simplicio-video update --force")
     p.add_argument("--check", action="store_true", help="não altera nada; sai com 0 (em dia), 10 (há atualização) ou 2 (erro)")
     p.add_argument("--dry-run", action="store_true",
-                   help="só mostra o plano e sai com 0 (também com --check); não altera nada, não grava o estado e não roda git fetch")
-    p.add_argument("--force", action="store_true", help="reinstala mesmo em dia e permite downgrade (não ignora a árvore suja)")
+                   help="só mostra o plano e sai com 0 (no pacote; num checkout mostra a recusa); não altera nada nem grava o estado")
+    p.add_argument("--force", action="store_true", help="reinstala a release do pip mesmo em dia e permite downgrade")
 
     p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: login, update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace",
         description="Checa o ambiente e diz a correção exata de cada falha, no contrato simplicio.doctor/v1 do simplicio-loop:\n"

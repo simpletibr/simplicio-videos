@@ -1,226 +1,290 @@
-"""`simplicio-video install [--check] [--dry-run] [--json] [--python X] [--with extras]`: the checkout environment.
+"""`simplicio-video install [--target DIR] [--global] [--host H] [--dry-run] [--check] [--json] [--verify] [--uninstall]
+[--prune-project-copies]`: copy the bundled skills into the agent host, exactly as the `install` of simplicio-loop does.
 
-Creates <checkout>/.venv with Python X (uv venv), installs the package in editable mode with the extras (uv pip install -e) and
-writes .venv/simplicio-install.json with what was installed. If Python, extras and pyproject.toml did not change since the last
-record, it does not call uv. It does NOT copy skills into an agent host (the simplicio-loop `install` does that). No sudo; it
-writes only inside the checkout. The install.sh calls this command, and the update calls it again after the git pull.
+Breaking change (direct owner request, ADR-0020): `install` used to be the `.venv` of the checkout (uv). That is now
+`bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`). Here `install`
+copies the skills that ship in the package (`.claude/skills/simplicio-video` and `simplicio-video-social`) into the project, or into
+the home with `--global`, and the entry file of the host when it has one (`AGENTS.md`, `GEMINI.md`, `CONVENTIONS.md`,
+`.github/copilot-instructions.md`, `.kiro/steering/simplicio-video.md`; never over a file that exists). It writes an ownership receipt
+(`.simplicio-video/install-ownership.json`, with the sha256 of every file) and never overwrites or deletes a file that is not its own:
+the uninstall removes only what the receipt registers and that still has the sha256 it was written with. The video has no hooks:
+only skills. The same command works for a pip package and for a checkout.
 
-An installed package (pip) has no checkout and no .venv to create: `--check` and `--dry-run` say so and exit 0, a real install
-exits 2, and nothing is ever created inside site-packages.
+Exit codes (as the loop): `--check` 0 up to date, 10 something pending; `--dry-run` 0 (it writes nothing); 1 a failed install, an
+unknown host, a receipt that cannot be trusted, a `--verify` that finds a difference or a disk that says no; 2 an invalid argument
+or a folder that the install creates being a link. With `--json`, stdout is ONE `simplicio.video-install-plan/v1` document, an
+error included (the message also goes to stderr).
 
-Exit codes (as the loop): `--check` 0 up to date, 10 something pending; `--dry-run` 0 (it writes nothing); 1 a failed install or a
-.venv with another Python; 2 an invalid argument, or a pip-installed package. With --json, stdout is ONE
-`simplicio.video-install/v1` document and every message goes to stderr; an error also prints a document (the same keys the
-install already knew, plus `error`), so a program reading stdout never has to guess.
+At the end of a real install, if `setup` never ran on this machine, it starts it in a terminal and otherwise says how to run it.
 
-Standard library only, and so is everything it imports at the top: `./install.sh` runs this under the SYSTEM python, before the
-`.venv` exists, and that python has no PyYAML (macOS with the Xcode tools, a minimal Debian). Do not import `setup` here.
+Standard library only, and so is everything it imports at the top: `python3 -m simplicio_video install` also runs under the SYSTEM
+python of a checkout, which has no PyYAML (macOS with the Xcode tools, a minimal Debian). Do not import `setup` here.
 
 Exemplos:
   simplicio-video install --check
-  simplicio-video install --dry-run --json
-  simplicio-video install --python 3.12 --with local-tts
+  simplicio-video install --global
+  simplicio-video install --host codex --target ~/meu-projeto
 """
 from __future__ import annotations
 
-import hashlib
 import json
-import re
+import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable, Optional
 
-from .. import __version__, distribution, hostos, paths
+from .. import __version__, hostos, installer, paths, skill_sync
 
-PYTHON_PADRAO = "3.12"
-REGISTRO = "simplicio-install.json"
-SCHEMA = "simplicio.video-install/v1"
 EXIT_PENDING = 10
-EXTRA_RE = re.compile(r"^[a-z][a-z0-9-]*$")
-PY_RE = re.compile(r"^3\.\d+$")
-PIP_MESSAGE = "instalado por pip: não há .venv a criar; use pip install --upgrade simplicio-video"
+EXIT_USAGE = 2
+SETUP_ARGV = [sys.executable, "-m", "simplicio_video", "setup"]
 
 
-class InstallError(Exception):
-    pass
+def _fail(message: str, code: int, as_json: bool, host: str) -> int:
+    """The message on stderr and, with --json, ONE document on stdout (status `error`): a program never has to guess."""
+    print(f"install: {message}", file=sys.stderr)
+    if as_json:
+        hostos.say(json.dumps({"schema": installer.SCHEMA, "status": "error", "version": __version__, "host": host,
+                               "error": message}, sort_keys=True))
+    return code
 
 
-def parse_extras(texto: str | None) -> list[str] | None:
-    """'local-tts, mcp' -> ['local-tts', 'mcp']. None when the user did not pass --with."""
-    if texto is None:
-        return None
-    itens = [x.strip() for x in texto.split(",") if x.strip()]
-    for item in itens:
-        if not EXTRA_RE.match(item):
-            raise InstallError(f"extra inválido {item!r}: use nomes como local-tts,mcp")
-    return list(dict.fromkeys(itens))
+def _resynced(result: dict, applied: bool) -> dict:
+    """The loop's `resynced` for `--global`: the other hosts whose copy of a skill was installed or updated by this run (or, in a
+    `--check` or `--dry-run`, would be: `pending`). Counts are (host, skill) pairs, `pending` is 0 once it was applied, as in the loop.
+
+    `rules` and `rules_counts` are the loop's keys and stay empty (the video has no host rules). `errors` is always empty: an OSError of
+    one folder fails the install with its message, as it does for `~/.claude`. A copy the install does not own (it was there before, or
+    the user edited it) is not here: it is `left_alone`, in `changes`."""
+    pairs: dict[str, set] = {}
+    for rel in [*result["changes"]["created"], *result["changes"]["updated"]]:
+        for host, dest in skill_sync.HOST_SKILL_ROOTS.items():
+            parts = rel.split("/")
+            root = dest.split("/")
+            if host != "claude" and parts[:len(root)] == root and len(parts) > len(root):
+                pairs.setdefault(host, set()).add(parts[len(root)])
+    counts = {host: len(skills) for host, skills in pairs.items()}
+    return {"skills": sorted(counts), "rules": [], "skills_counts": counts, "rules_counts": {}, "errors": [],
+            "pending": 0 if applied else sum(counts.values())}
 
 
-def _alvo(extras: list[str]) -> str:
-    return ".[" + ",".join(extras) + "]" if extras else "."
+def _cut_list(prefix: str, items: list) -> str:
+    """`prefix` + the items that fit in about 80 columns (at most 5, always at least one), then `(+N mais)`."""
+    shown: list[str] = []
+    width = len(prefix)
+    for i, item in enumerate(items):
+        added = len(", " if shown else "") + len(item)
+        if i >= 5 or (shown and width + added + 12 > 80):
+            break
+        shown.append(item)
+        width += added
+    more = len(items) - len(shown)
+    return prefix + ", ".join(shown) + (f" (+{more} mais)" if more > 0 else "")
 
 
-def _le(caminho: Path, limite: int) -> bytes | None:
-    """The bytes of a REGULAR file (O_NONBLOCK and fstat: a FIFO there must not hang the install), or None for a file that is not
-    there, cannot be read, is not a regular one or is over `limite`: all of them count as "no state", and the plan says to install."""
-    try:
-        dados = hostos.read_regular(caminho, limite)
-    except OSError:
-        return None
-    return dados if len(dados) <= limite else None
+def _blocked(left_alone: list, skills_dir) -> list:
+    """The files the install WANTED to write and found something else in the way (a customized SKILL.md that was already there):
+    only for these is "delete the folder and install again" the way to hand the folder over. A note of the user inside the folder is
+    left alone too, and must never be advice to delete."""
+    wanted = {"/".join((dest, *parts)) for dest in installer.GLOBAL_ROOTS for parts, _node in installer.iter_files(skills_dir)}
+    return [rel for rel in left_alone if rel in wanted]
 
 
-def _sha(caminho: Path) -> str | None:
-    dados = _le(caminho, 16 * 1024 * 1024)
-    return hashlib.sha256(dados).hexdigest() if dados is not None else None
+def _install_lines(result: dict, host: str, head: str, resync: Optional[dict], prune_project: Optional[dict] = None,
+                   blocked: tuple = ()) -> list:
+    changes = result["changes"]
+    owned = sorted(set(result.get("owned") or []))
+    pretend = head.startswith(("check", "dry-run"))
+    lines = [f"simplicio-video {__version__} {head}:", f"  host      -> {host}", f"  próprios  -> {len(owned)} arquivos",
+             f"  mudanças  -> {len(changes['created'])} criados, {len(changes['updated'])} atualizados, {changes['unchanged']} iguais"]
+    for key, label in (("created", "criado"), ("updated", "atualizado")):
+        lines += [f"    {label}: {path}" for path in changes[key][:8]]
+        if len(changes[key]) > 8:
+            lines.append(f"    {label}: ... e mais {len(changes[key]) - 8}")
+    if changes["left_alone"]:
+        left = changes["left_alone"]
+        lines.append(_cut_list(f"  deixado em paz -> {len(left)} que não são do simplicio-video: ", left))
+        if blocked:
+            lines.append(f"  {len(blocked)} arquivo(s) da skill já existiam e não são do simplicio-video ({blocked[0]}...): para ele "
+                         "cuidar da pasta, apague-a (ou renomeie) e rode `simplicio-video install` de novo")
+    if resync is not None and resync["skills"]:
+        counts = resync.get("skills_counts") or {}
+        names = ", ".join(f"{h} ({counts[h]})" for h in sorted(counts)) if counts else ", ".join(resync["skills"])
+        verb = ("cópias dos outros hosts desatualizadas ou a instalar (pendentes)" if pretend
+                else "cópias dos outros hosts instaladas ou atualizadas")
+        lines.append(f"  {verb}:")
+        lines.append(f"    skills -> {names}")
+    if prune_project is not None:
+        removed = prune_project.get("removed") or []
+        if removed:
+            verb = "podaria as cópias do projeto" if pretend else "cópias do projeto podadas"
+            lines.append(_cut_list(f"  {verb} -> {len(removed)} arquivos obsoletos: ", removed))
+        else:
+            lines.append("  cópias do projeto -> 0 arquivos obsoletos")
+        if prune_project.get("left_alone"):
+            lines.append(_cut_list("  cópias do projeto deixadas -> ", prune_project["left_alone"]))
+    for warning in [*(result.get("warnings") or []), *((prune_project or {}).get("warnings") or [])]:
+        lines.append(f"  aviso: {warning}")
+    return lines
 
 
-def _registro(venv: Path) -> dict | None:
-    bruto = _le(venv / REGISTRO, 1024 * 1024)
-    try:
-        dados = json.loads(bruto.decode("utf8")) if bruto is not None else None
-    except (ValueError, RecursionError):
-        return None
-    return dados if isinstance(dados, dict) else None
+def _home_problem(home: Path) -> str:
+    """Why `home` cannot be the base of a global install, or "". `hostos.home_dir` hands back `~` when nothing resolves a home, and a
+    relative `~` would become a folder with that name in the current directory; `/` would plant 11 folders at the root of the disk."""
+    if not home.is_absolute():
+        return (f"não achei o seu home (HOME/USERPROFILE ausente ou relativo: `{home}`); defina HOME com o caminho absoluto da sua "
+                "pasta de usuário, ou instale num projeto com --target. Nada foi escrito.")
+    if home.parent == home:
+        return f"o home resolvido é a raiz do disco (`{home}`); defina HOME com a sua pasta de usuário. Nada foi escrito."
+    if not home.is_dir():
+        return f"o home resolvido (HOME/USERPROFILE: `{home}`) não é uma pasta que existe; corrija o HOME. Nada foi escrito."
+    return ""
 
 
-def _versao_do_venv(venv: Path) -> str | None:
-    bruto = _le(venv / "pyvenv.cfg", 64 * 1024)
-    try:
-        texto = bruto.decode("utf8") if bruto is not None else None
-    except UnicodeDecodeError:
-        return None
-    if texto is None:
-        return None
-    m = re.search(r"^version(?:_info)?\s*=\s*(\d+\.\d+)", texto, re.M)
-    return m.group(1) if m else None
+def _protect_global(home: Path, target: Path) -> list:
+    """The folders of the global install, as the real paths a PROJECT uninstall must never remove from: a cloned repository whose
+    `.claude` is a link to `~/.claude`, with a receipt that records that real folder as its base, must not take the global install away.
+    Empty when the home cannot be trusted or the project IS the home (then the uninstall is the global one)."""
+    if _home_problem(home) or os.path.realpath(target) == os.path.realpath(home):
+        return []
+    return [home / dest / name for dest in installer.GLOBAL_ROOTS for name in installer.SKILLS]
 
 
-def plano(home: Path, python: str, extras: list[str]) -> tuple[list[str], str | None]:
-    """(pending steps, conflict). Conflict: the .venv exists with another Python. Nothing is replaced on its own."""
-    venv = home / ".venv"
-    pendentes: list[str] = []
-    conflito = None
-    if not hostos.is_dir(venv):
-        pendentes.append(f"criar .venv com Python {python}: uv venv --python {python} .venv")
-    else:
-        atual = _versao_do_venv(venv)
-        if atual != python:
-            conflito = (f".venv usa Python {atual or 'desconhecido'} e o pedido é {python}: "
-                        "apague .venv (rm -rf .venv) e rode de novo")
-    reg = _registro(venv)
-    if reg is None or reg.get("python") != python or reg.get("extras") != extras \
-            or reg.get("pyproject_sha256") != _sha(home / "pyproject.toml"):
-        pendentes.append(f"instalar o pacote e os extras ({', '.join(extras) or 'nenhum'}): "
-                         f"uv pip install -e {_alvo(extras)}")
-    return pendentes, conflito
-
-
-def _doc(python: str, extras: list[str], pendentes: list[str], conflito: str | None, kind: str) -> dict:
-    return {"schema": SCHEMA, "version": __version__, "up_to_date": not pendentes and not conflito, "pending": pendentes,
-            "conflict": conflito, "python": python, "extras": extras, "distribution": kind}
-
-
-def _executa(argv: list[str], cwd: Path, para_stderr: bool) -> None:
-    # --json: whatever uv prints goes to stderr (fd 2), so that stdout stays one JSON document
-    r = subprocess.run(argv, cwd=str(cwd), stdout=2 if para_stderr else None)
-    if r.returncode != 0:
-        raise InstallError(f"comando falhou (código {r.returncode}): {' '.join(argv)}")
-
-
-def _erro(a, mensagem: str, codigo: int, kind: str, **campos) -> int:
-    """The message on stderr and, with --json, ONE document on stdout: `error` plus whatever the install already knew."""
-    print(f"install: {mensagem}", file=sys.stderr)
-    if a.json:
-        hostos.say(json.dumps({"schema": SCHEMA, "version": __version__, "distribution": kind, "error": mensagem, **campos},
-                              sort_keys=True))
-    return codigo
-
-
-def _run_pip(a) -> int:
-    """A package installed by pip: no checkout, no .venv. Never touch site-packages."""
-    python = f"{sys.version_info.major}.{sys.version_info.minor}"
-    if not (a.check or a.dry_run):
-        return _erro(a, PIP_MESSAGE, 2, distribution.PIP, python=python, extras=[], pending=[], conflict=None, up_to_date=False)
-    if a.json:
-        print(f"install: {PIP_MESSAGE}", file=sys.stderr)
-        hostos.say(json.dumps(_doc(python, [], [], None, distribution.PIP), sort_keys=True))
-    else:
-        hostos.say(f"simplicio-video install\n  {PIP_MESSAGE}")
+def _uninstall(root: Path, globally: bool, dry_run: bool, as_json: bool, host: str) -> int:
+    protect = [] if globally else _protect_global(hostos.home_dir(os.environ), root)
+    payload = installer.uninstall(root, dry_run=dry_run, protect=protect)
+    if as_json:
+        hostos.say(json.dumps({**payload, "host": host, "version": __version__}, sort_keys=True))
+        return 0
+    verb = "removeria" if dry_run else "removido"
+    hostos.say(f"simplicio-video uninstall {'dry-run (nada foi removido)' if dry_run else 'aplicado'}: "
+               f"{'removeria' if dry_run else 'removidos'} {len(payload['removed'])} arquivos, {len(payload['removed_dirs'])} pastas vazias")
+    for rel in payload["removed"] + [f"{rel}/" for rel in payload["removed_dirs"]]:
+        hostos.say(f"  {verb}: {rel}")
+    if payload["left_alone"]:
+        hostos.say(f"  deixado em paz (editado depois do install, ou não é do recibo): {', '.join(payload['left_alone'])}")
+    if payload["kept"]:
+        hostos.say(f"  mantido (não vazio, guarda arquivos que o simplicio-video não instalou): {', '.join(payload['kept'])}")
+    if payload["skipped"]:
+        hostos.say(f"  ignorado (é pasta onde se esperava arquivo): {', '.join(payload['skipped'])}")
+    for warning in payload["warnings"]:
+        hostos.say(f"  aviso: {warning}")
+    if globally:
+        hostos.say("  não removido (fora do recibo): a cópia da skill que um host já tinha antes do install, ou que você editou "
+                   "(~/.codex/skills e semelhantes); o install nunca a tocou, apague à mão se quiser")
     return 0
+
+
+def _terminal() -> bool:
+    try:
+        return bool(sys.stdin.isatty() and sys.stdout.isatty())
+    except (ValueError, AttributeError):  # a closed or replaced stream is not a terminal
+        return False
+
+
+def _run_setup(argv: list) -> int:
+    try:
+        return subprocess.call(argv)
+    except OSError as exc:
+        print(f"install: não consegui iniciar o setup: {exc}", file=sys.stderr)
+        return 1
+
+
+def _setup_done() -> bool:
+    workspace = paths.workspace_dir()
+    return hostos.is_file(workspace / "workspace.yaml") and hostos.is_file(workspace / "policy.yaml")
+
+
+def after_install(*, interactive: Optional[bool] = None, runner: Optional[Callable[[list], int]] = None) -> None:
+    """The last lines of `install`: start the setup in a terminal, else say how to run it. Never fails the install.
+
+    Once a workspace exists the setup has run, so a later install stays quiet (`doctor` shows the state)."""
+    if _setup_done():
+        return
+    if _terminal() if interactive is None else interactive:
+        hostos.say("\nPróximo passo: setup (workspace, tema, idioma).\n")
+        code = (runner or _run_setup)(list(SETUP_ARGV))
+        if code != 0:
+            hostos.say(f"install: o setup terminou com código {code}; rode `simplicio-video setup` de novo quando quiser.")
+    else:
+        hostos.say("\nPróximo passo: rode `simplicio-video setup` (workspace, tema, idioma).")
+
+
+def _verify_lines(doc: dict, host: str) -> list:
+    if doc["ok"]:
+        return [f"simplicio-video install --verify: plano ok, os arquivos conferem com o recibo e com o pacote host={host} "
+                f"digest={doc['digest']}"]
+    lines = [f"simplicio-video install --verify: falhou ({len(doc['problems'])} problemas) host={host} digest={doc['digest']}"]
+    return lines + [f"  - {item['path']}: {item['detail']}" for item in doc["problems"]]
+
+
+def install(target: Path, globally: bool, host: str = "claude", dry_run: bool = False, uninstall: bool = False,
+            verify: bool = False, check: bool = False, as_json: bool = False, prune_project_copies: bool = False) -> int:
+    if prune_project_copies and not globally:
+        return _fail("--prune-project-copies só vale com --global (ele remove as cópias do projeto depois de instalar no home)",
+                     EXIT_USAGE, as_json, host)
+    root = hostos.home_dir(os.environ) if globally else Path(target)
+    problem = _home_problem(root) if globally else ""
+    if problem:
+        return _fail(problem, EXIT_USAGE, as_json, host)
+    if prune_project_copies and os.path.realpath(target) == os.path.realpath(root):
+        return _fail(f"--prune-project-copies: o alvo é o próprio home ({root}), e podar as cópias do projeto apagaria a instalação "
+                     "global que acabou de ser feita; rode de dentro do projeto ou passe --target <o projeto>", EXIT_USAGE, as_json, host)
+    try:
+        if uninstall:
+            return _uninstall(root, globally, dry_run, as_json, host)
+        plan = installer.plan_install(root, host=host, globally=globally)
+        bundle = installer.bundle_root()
+        if verify:
+            verified = installer.verify_install(plan, bundle=bundle)
+            if as_json:
+                hostos.say(json.dumps({"schema": installer.SCHEMA, "status": "verified" if verified["ok"] else "failed", **verified,
+                                       "host": host}, sort_keys=True))
+            else:
+                hostos.say("\n".join(_verify_lines(verified, host)))
+            return 0 if verified["ok"] else 1
+        result = installer.apply_plan(plan, dry_run=dry_run or check, bundle=bundle)
+        resync = _resynced(result, applied=not (dry_run or check)) if globally else None
+        prune_result = None
+        if globally and prune_project_copies:
+            protect = [root / dest / name for dest in installer.GLOBAL_ROOTS for name in installer.SKILLS]  # the global install itself
+            prune_result = installer.prune_project_copies(target, dry_run=dry_run or check, protect=protect)
+    except installer.InstallRefused as exc:
+        return _fail(str(exc), EXIT_USAGE, as_json, host)
+    except (installer.InstallError, OSError, ValueError) as exc:
+        return _fail(str(exc), 1, as_json, host)
+    pending = not result["up_to_date"]
+    if as_json:
+        payload = {**result, "host": host, "version": __version__, "resynced": resync}
+        if prune_result is not None:
+            payload["pruned_project"] = prune_result
+        hostos.say(json.dumps(payload, sort_keys=True))
+        return EXIT_PENDING if check and pending else 0
+    if check:
+        head = "check: há mudanças pendentes" if pending else "check: em dia"
+    elif dry_run:
+        head = "dry-run (nada foi escrito)"
+    else:
+        head = "já está em dia" if result["up_to_date"] else "instalado"
+    blocked = _blocked(result["changes"]["left_alone"], bundle.joinpath("skills"))
+    hostos.say("\n".join(_install_lines(result, host, head, resync, prune_project=prune_result, blocked=blocked)))
+    if not (dry_run or check):
+        hostos.say("")
+        hostos.say("Use no seu agente (Claude Code, Cursor, Codex, ...):")
+        hostos.say("  /simplicio-video <o vídeo que você quer>")
+        after_install()
+    return EXIT_PENDING if check and pending else 0
+
+
+def _target(text: str) -> Path:
+    """`--target ~/proj` quoted by the shell (or typed in PowerShell) is still the home's `proj`."""
+    try:
+        return Path(text).expanduser()
+    except RuntimeError:  # `~someone` of a user that does not exist: the text is used as it is
+        return Path(text)
 
 
 def run(a) -> int:
-    kind = distribution.kind()
-    if kind == distribution.PIP:
-        return _run_pip(a)
-    home = paths.home()
-    try:
-        pedidos = parse_extras(a.extras)
-        reg = _registro(home / ".venv") or {}
-        python = a.python or reg.get("python") or PYTHON_PADRAO
-        if not PY_RE.match(python):
-            raise InstallError(f"versão de Python inválida {python!r}: use algo como 3.12")
-        extras = pedidos if pedidos is not None else list(reg.get("extras") or [])
-    except InstallError as e:
-        return _erro(a, str(e), 2, kind)
-
-    def say(texto: str) -> None:
-        if a.json:
-            print(texto, file=sys.stderr)
-        else:
-            hostos.say(texto)
-
-    pendentes, conflito = plano(home, python, extras)
-    say(f"simplicio-video install (checkout: {home})")
-    say(f"  Python: {python} · extras: {', '.join(extras) or 'nenhum'}")
-    if conflito:
-        say(f"  conflito: {conflito}")
-    for passo in pendentes:
-        say(f"  pendente: {passo}")
-
-    def emite(doc: dict) -> None:
-        if a.json:
-            hostos.say(json.dumps(doc, sort_keys=True))
-
-    def falha(mensagem: str) -> int:  # a failure of the real install: the plan that was known, plus `error`
-        return _erro(a, mensagem, 1, kind, python=python, extras=extras, pending=pendentes, conflict=conflito, up_to_date=False)
-
-    if a.check:
-        emite(_doc(python, extras, pendentes, conflito, kind))
-        if conflito or pendentes:
-            say("  --check: há mudanças pendentes. Rode `simplicio-video install` para aplicar.")
-            return EXIT_PENDING
-        say("  --check: nada a mudar")
-        return 0
-    if a.dry_run:
-        emite(_doc(python, extras, pendentes, conflito, kind))
-        say("  dry-run: nada foi criado nem alterado.")
-        return 0
-    if conflito:
-        return falha(f"conflito: {conflito}")
-    proximo = "simplicio-video doctor" + ("" if hostos.is_file(paths.workspace_dir() / "workspace.yaml")
-                                          else " e, depois, simplicio-video setup")
-    if not pendentes:
-        say(f"nada a mudar: o ambiente já está em dia. Próximo passo: {proximo}")
-        emite(_doc(python, extras, [], None, kind))
-        return 0
-
-    uv = hostos.find_uv()
-    if not uv:
-        return falha("uv não encontrado. O install.sh oferece instalar; ou instale com:\n"
-                     f"  {hostos.hint('uv')}\n(veja https://docs.astral.sh/uv/)")
-    venv = home / ".venv"
-    try:
-        if not hostos.is_dir(venv):
-            _executa([uv, "venv", "--python", python, ".venv"], home, a.json)
-        _executa([uv, "pip", "install", "--python", str(hostos.venv_python(venv)), "-e", _alvo(extras)], home, a.json)
-    except InstallError as e:
-        return falha(str(e))
-    if not hostos.is_dir(venv):
-        return falha(f"o uv não criou {venv}")
-    registro = {"python": python, "extras": extras, "pyproject_sha256": _sha(home / "pyproject.toml")}
-    (venv / REGISTRO).write_text(json.dumps(registro, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
-    say(f"ok: ambiente instalado em {venv}. Próximo passo: {proximo}")
-    emite(_doc(python, extras, [], None, kind))
-    return 0
+    return install(_target(a.target), a.globally, host=a.host, dry_run=a.dry_run, uninstall=a.uninstall, verify=a.verify, check=a.check,
+                   as_json=a.json, prune_project_copies=a.prune_project_copies)

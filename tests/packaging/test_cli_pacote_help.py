@@ -9,9 +9,15 @@ COMANDOS = ["install", "update", "doctor", "setup", "login", "logout", "auth", "
 
 # what each --help must mention (flags, exit codes, files)
 DEVE_CITAR = {
-    "install": ["--check", "--dry-run", "--json", "--python", "--with", "10", "simplicio.video-install/v1"],
-    "update": ["--check", "--dry-run", "--force", "10", "git pull --ff-only", "PyPI", "git stash", "update-check.json",
-               "git fetch", "SIMPLICIO_OFFLINE", "só mostra o plano e sai com 0", "--no-optional-locks", "2.15"],
+    "install": ["--target", "--global", "--host", "--check", "--dry-run", "--json", "--verify", "--uninstall", "--prune-project-copies",
+                "10", "simplicio.video-install-plan/v1", "skills", "não tem hooks", ".claude/skills", "install-ownership.json",
+                "scripts/dev_install.sh", "dev_install.ps1", "AGENTS.md", "claude", "codex", "cursor", "vscode", "grok", "kiro",
+                "antigravity", "opencode", "gemini", "aider", "simplicio_agent", "openclaw", "deixa", "recibo", "sha256",
+                "-NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1", "install.lock", "problems"],
+    "update": ["--check", "--dry-run", "--force", "10", "git pull", "PyPI", "update-check.json", "git fetch", "SIMPLICIO_OFFLINE",
+               "só mostra o plano e sai com 0", "--no-optional-locks", "2.15", "bash scripts/dev_install.sh",
+               "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1", "install --global", "recusa",
+               "--force-reinstall --no-deps"],
     "doctor": ["--json", "--online", "all", "login", "simplicio.doctor/v1", "warn", "fail"],
     "setup": ["--yes", "--theme", "--lang"],
     "login": ["--json", "--no-browser", "simplicio login google", "login.json", "SIMPLICIO_AUTH_FILE", "UNVERIFIED",
@@ -42,6 +48,22 @@ def test_o_help_raiz_lista_os_comandos_novos(capsys):
     rc, out, err = executa(["--help"], capsys, main)
     for nome in ("login", "logout", "auth"):
         assert f"    {nome} " in out, f"o help raiz não lista `{nome}`"
+
+
+def test_o_install_nao_oferece_mais_as_opcoes_do_venv_e_o_update_nao_promete_o_pull(capsys):
+    rc, out, err = executa(["install", "--help"], capsys, main)
+    assert "--python" not in out and "--with" not in out and "uv" not in out.replace("scripts/dev_install", ""), \
+        "the .venv options live in scripts/dev_install.sh now"
+    rc, out, err = executa(["update", "--help"], capsys, main)
+    texto = " ".join(out.split())
+    assert "git pull --ff-only" not in texto and "stash" not in texto and "árvore suja" not in texto
+
+
+def test_o_help_raiz_descreve_install_como_skills_no_host_e_update_como_recusa_no_checkout(capsys):
+    rc, out, err = executa(["--help"], capsys, main)
+    linha = {nome: next(l for l in out.splitlines() if l.startswith(f"  {nome} ")) for nome in ("install", "update")}
+    assert "skills" in linha["install"] and "host" in linha["install"] and ".venv" not in linha["install"]
+    assert "recusa" in linha["update"] and "pip" in linha["update"] and "git pull --ff-only" not in linha["update"]
 
 
 def test_login_nao_promete_o_que_nao_faz(capsys):

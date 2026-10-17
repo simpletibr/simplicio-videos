@@ -45,46 +45,7 @@ def test_nome_do_executavel(simula_so, so, sufixo):
     assert hostos.exe_name("simplicio") == "simplicio" + sufixo
 
 
-# --- the python of the venv --------------------------------------------------------------------------------------------
-
-
-def test_python_do_venv_no_windows_usa_scripts_e_exe():
-    venv = PureWindowsPath(r"C:\Users\Maria Souza\proj\.venv")
-    assert str(hostos.venv_python(venv, "win32")) == r"C:\Users\Maria Souza\proj\.venv\Scripts\python.exe"
-
-
-@pytest.mark.parametrize("so", ["linux", "darwin"])
-def test_python_do_venv_no_posix_usa_bin_python(so):
-    venv = PurePosixPath("/home/maria/proj/.venv")
-    assert str(hostos.venv_python(venv, so)) == "/home/maria/proj/.venv/bin/python"
-
-
-def test_python_do_venv_sem_sistema_explicito_usa_o_atual(simula_so):
-    simula_so("win32")
-    assert hostos.venv_python(Path("x") / ".venv").parts[-2:] == ("Scripts", "python.exe")
-    simula_so("linux")
-    assert hostos.venv_python(Path("x") / ".venv").parts[-2:] == ("bin", "python")
-
-
-# --- where uv, node and ffmpeg live -------------------------------------------------------------------------------------
-
-
-def test_uv_no_linux_usa_local_bin_e_cargo_bin_e_nada_de_homebrew():
-    casa = PurePosixPath("/home/maria")
-    assert [str(p) for p in hostos.uv_candidates(casa, {}, "linux")] == ["/home/maria/.local/bin/uv", "/home/maria/.cargo/bin/uv"]
-
-
-def test_uv_no_macos_inclui_os_dois_prefixos_do_homebrew():
-    casa = PurePosixPath("/Users/maria")
-    achados = [str(p) for p in hostos.uv_candidates(casa, {}, "darwin")]
-    assert achados[:2] == ["/Users/maria/.local/bin/uv", "/Users/maria/.cargo/bin/uv"]
-    assert "/opt/homebrew/bin/uv" in achados and "/usr/local/bin/uv" in achados
-
-
-def test_uv_no_windows_e_uv_exe_em_local_bin_e_cargo_bin_do_userprofile():
-    casa = PureWindowsPath(r"C:\Users\Maria")
-    achados = [str(p) for p in hostos.uv_candidates(casa, {}, "win32")]
-    assert achados == [r"C:\Users\Maria\.local\bin\uv.exe", r"C:\Users\Maria\.cargo\bin\uv.exe"]
+# --- where Homebrew puts the tools -------------------------------------------------------------------------------------
 
 
 def test_o_homebrew_so_entra_no_macos(simula_so):
@@ -96,9 +57,6 @@ def test_o_homebrew_so_entra_no_macos(simula_so):
 
 
 @pytest.mark.parametrize("ferramenta,so,trecho", [
-    ("uv", "linux", "curl -LsSf https://astral.sh/uv/install.sh | sh"),
-    ("uv", "darwin", "brew install uv"),
-    ("uv", "win32", "irm https://astral.sh/uv/install.ps1 | iex"),
     ("ffmpeg", "linux", "apt install ffmpeg"),
     ("ffmpeg", "darwin", "brew install ffmpeg"),
     ("ffmpeg", "win32", "winget install Gyan.FFmpeg"),
@@ -183,13 +141,6 @@ def test_find_tool_olha_o_path_e_depois_os_diretorios_extras(tmp_path, simula_so
     assert hostos.find_tool("ferramenta", {"PATH": str(tmp_path / "vazio")}) is None
 
 
-def test_find_uv_acha_o_do_home_quando_nao_esta_no_path(caixa, simula_so):
-    simula_so("linux")
-    achado = _exe(caixa.home / ".cargo" / "bin", "uv")
-    assert hostos.find_uv({"HOME": str(caixa.home), "PATH": ""}) == str(achado)
-    assert hostos.find_uv({"HOME": str(caixa.tmp / "outro"), "PATH": ""}) is None
-
-
 # --- the output must survive a Windows console --------------------------------------------------------------------------
 
 
@@ -200,6 +151,8 @@ def test_a_saida_dos_comandos_cabe_no_cp1252(caixa, capsys, simula_so, monkeypat
     simula_so(so)
     monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(caixa.tmp))
     exige_registrado(argv[0], capsys, main)
+    if argv[0] == "install":
+        argv = [*argv, "--target", str(caixa.tmp / "alvo")]
     rc, out, err = executa(argv, capsys, main)
     assert out.strip(), f"{argv} printed nothing"
     saida_cp1252(out, err)
@@ -212,6 +165,8 @@ def test_os_comandos_nao_tem_traceback_em_nenhum_sistema(caixa, capsys, simula_s
     for argv in (["auth", "status", "--json"], ["login", "--json"], ["logout", "--json"], ["doctor", "login", "--json"],
                  ["install", "--check", "--json"]):
         exige_registrado(argv[0], capsys, main)
+        if argv[0] == "install":
+            argv = [*argv, "--target", str(caixa.tmp / "alvo")]
         rc, out, err = executa(argv, capsys, main)
         assert "Traceback" not in out + err, (argv, err)
         json.loads(out)  # one JSON document, whatever the system
@@ -249,8 +204,8 @@ def test_o_runtime_e_achado_com_o_pathext_do_ambiente_passado(tmp_path, simula_s
 # --- Windows: every text read and every text subprocess names its encoding ------------------------------------------------------
 
 
-FONTES_DE_OPERACAO = ["auth.py", "hostos.py", "distribution.py", "paths.py", "commands/install.py", "commands/update.py",
-                      "commands/doctor.py", "commands/login.py", "commands/setup.py"]
+FONTES_DE_OPERACAO = ["auth.py", "hostos.py", "distribution.py", "paths.py", "installer.py", "skill_sync.py", "commands/install.py",
+                      "commands/update.py", "commands/doctor.py", "commands/login.py", "commands/setup.py"]
 CHAMADAS_DE_SUBPROCESSO = {"run", "call", "check_output", "check_call", "Popen"}
 
 
@@ -338,3 +293,22 @@ def test_o_verificador_de_encoding_pega_cada_forma_de_leitura_de_texto_sem_encod
 ])
 def test_o_verificador_de_encoding_nao_acusa_o_que_esta_certo_nem_o_que_nao_e_arquivo(codigo):
     assert problemas_de_encoding(codigo, "x.py") == [], codigo
+
+
+# --- the folders of every host, the same relative to the home on the three systems -------------------------------------------------
+
+
+@pytest.mark.parametrize("so", SISTEMAS)
+def test_as_pastas_de_cada_host_ficam_sob_o_home_em_todo_sistema(caixa, simula_so, so):
+    """The loop keeps one table of host skill folders under the home (skill_sync.HOST_SKILL_ROOTS) and uses it on Linux, macOS and
+    Windows alike: pathlib joins them with the right separator. They are never anchored anywhere else (no APPDATA, no /Library)."""
+    simula_so(so)
+    tabela = _caixa.skill_sync.HOST_SKILL_ROOTS
+    assert len(tabela) == 11
+    for host, relativo in tabela.items():
+        assert not PurePosixPath(relativo).is_absolute() and ".." not in PurePosixPath(relativo).parts, host
+        assert not PureWindowsPath(relativo).drive and not PureWindowsPath(relativo).root, host
+        assert "\\" not in relativo, f"{host}: the table uses `/`, pathlib converts it"
+    raiz = PureWindowsPath(r"C:\Users\Maria Souza")
+    assert str(raiz.joinpath(*PurePosixPath(tabela["codex"]).parts)) == r"C:\Users\Maria Souza\.codex\skills"
+    assert str(raiz.joinpath(*PurePosixPath(tabela["opencode"]).parts)) == r"C:\Users\Maria Souza\.config\opencode\skills"

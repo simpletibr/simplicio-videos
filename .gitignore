@@ -30,3 +30,8 @@ prospects/*
 
 # client facts never enter the repo (briefs, sources, contacts, saved sites)
 clients/*/coleta/
+# recibo de posse do `simplicio-video install` (e a pasta do projeto onde ele roda)
+.simplicio-video/
+# as skills que `simplicio-video install` copia para a raiz deste repositório (a fonte é src/simplicio_video/data/skills/)
+.claude/skills/simplicio-video/
+.claude/skills/simplicio-video-social/

@@ -107,7 +107,7 @@ def test_packaging_documenta_login_update_doctor_e_o_que_cada_comando_toca():
     texto = _texto(PACKAGING_MD)
     for trecho in ("simplicio-video login", "simplicio-video logout", "simplicio-video auth status", "--dry-run", "--online",
                    "simplicio.doctor/v1", "update-check.json", "~/.simplicio/login.json", "login.lock", "SIMPLICIO_AUTH_FILE",
-                   "PyPI", "git stash", "exit", "10"):
+                   "PyPI", "exit", "10"):
         assert trecho in texto, f"packaging.md não cita {trecho!r}"
     assert "Windows" in texto and "macOS" in texto and "UNVERIFIED" in texto
 
@@ -115,7 +115,7 @@ def test_packaging_documenta_login_update_doctor_e_o_que_cada_comando_toca():
 def test_how_to_install_cobre_pip_checkout_e_o_login():
     texto = _texto(INSTALL_MD)
     for trecho in ("pip install --upgrade simplicio-video", "simplicio-video login", "instalado por pip",
-                   "simplicio-video doctor --online", "git stash"):
+                   "simplicio-video doctor --online"):
         assert trecho in texto, f"install.md não cita {trecho!r}"
 
 
@@ -141,7 +141,7 @@ def test_a_referencia_gerada_descreve_as_variaveis_novas_e_lista_os_schemas():
         assert linha, f"{nome} não está em docs/reference/config.md"
         assert "sem descrição" not in linha, f"{nome} sem descrição em gen_reference.DESCRIPTIONS"
     schemas = (ROOT / "docs" / "reference" / "schemas.md").read_text(encoding="utf8")
-    for nome in ("doctor", "login", "logout", "auth-status", "update-check", "install-result"):
+    for nome in ("doctor", "login", "logout", "auth-status", "update-check", "install-plan", "install-ownership"):
         assert f"schemas/cli/{nome}.schema.json" in schemas, f"{nome} fora de docs/reference/schemas.md"
     cli = (ROOT / "docs" / "reference" / "cli.md").read_text(encoding="utf8")
     for nome in ("login", "logout", "auth"):

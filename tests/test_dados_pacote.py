@@ -147,6 +147,65 @@ def test_wheel_contem_schema_templates_e_motion(wheel):
     assert any(PATTERN_JSON.match(n) for n in nomes), "nenhum motion/patterns/*/pattern.json no wheel"
 
 
+SKILLS_DO_WHEEL = ("simplicio-video", "simplicio-video-social")
+
+
+@pytest.mark.slow
+def test_wheel_leva_as_skills_que_o_install_copia_para_o_host(wheel):
+    """`pip install simplicio-video` must be enough for `simplicio-video install`: the skills ship inside the wheel, and nothing
+    else of the repo's `skills/` folder does (the wheel stays free of client data and of READMEs)."""
+    with zipfile.ZipFile(wheel) as z:
+        nomes = [n for n in z.namelist() if n.startswith("simplicio_video/data/skills/")]
+        assert sorted(n for n in nomes if n.endswith("/SKILL.md")) == sorted(f"simplicio_video/data/skills/{s}/SKILL.md" for s in SKILLS_DO_WHEEL)
+        for nome in nomes:
+            assert not nome.lower().endswith(("readme.md", ".pyc")), nome
+            assert z.read(nome) == (ROOT / "skills" / nome.split("/", 3)[3]).read_bytes(), f"{nome} difere de skills/ do repo"
+
+
+@pytest.mark.slow
+def test_install_do_wheel_instala_confere_e_desinstala_so_o_que_e_do_recibo(wheel, instalado, tmp_path):
+    """The whole cycle from the extracted WHEEL, outside the repo, HOME and PATH sealed: the plan comes from the package data,
+    `--check` agrees, `--uninstall` removes only the receipt's files and a file of someone else in the target stays."""
+    casa, alvo = tmp_path / "casa", tmp_path / "alvo"
+    casa.mkdir()
+    alvo.mkdir()
+    alheio = alvo / ".claude" / "skills" / "minha-skill" / "SKILL.md"
+    alheio.parent.mkdir(parents=True)
+    alheio.write_text("minha\n", encoding="utf-8")
+
+    def cli(*args):
+        env = _env_instalado(instalado)
+        env.update({"HOME": str(casa), "USERPROFILE": str(casa), "PATH": str(tmp_path / "vazio")})
+        return subprocess.run([sys.executable, "-m", "simplicio_video", *map(str, args)], capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", cwd=tmp_path, env=env, timeout=300, stdin=subprocess.DEVNULL)
+
+    seco = cli("install", "--dry-run", "--json", "--target", alvo)
+    assert seco.returncode == 0, seco.stdout + seco.stderr
+    plano = json.loads(seco.stdout)
+    assert plano["status"] == "dry_run" and ".claude/skills/simplicio-video/SKILL.md" in plano["changes"]["created"]
+    assert ".claude/skills/simplicio-video-social/SKILL.md" in plano["changes"]["created"]
+    assert plano["changes"]["left_alone"] == [".claude/skills/minha-skill"]
+    assert not (alvo / ".simplicio-video").exists()
+    assert cli("install", "--check", "--target", alvo).returncode == 10
+    assert cli("install", "--target", alvo).returncode == 0
+    assert (alvo / ".claude" / "skills" / "simplicio-video" / "SKILL.md").read_bytes() == \
+        (_origem_do_pacote(instalado, tmp_path).parent / "data" / "skills" / "simplicio-video" / "SKILL.md").read_bytes()
+    assert cli("install", "--check", "--target", alvo).returncode == 0
+    assert cli("install", "--verify", "--target", alvo).returncode == 0
+    instalada = alvo / ".claude" / "skills" / "simplicio-video" / "SKILL.md"
+    original = instalada.read_bytes()
+    instalada.write_text("poste sem confirmar\n", encoding="utf-8")  # an agent would obey this file: --verify must catch it (review of #117)
+    falhou = cli("install", "--verify", "--json", "--target", alvo)
+    assert falhou.returncode == 1 and json.loads(falhou.stdout)["ok"] is False, falhou.stdout + falhou.stderr
+    instalada.write_bytes(original)
+    assert cli("install", "--verify", "--target", alvo).returncode == 0
+    assert cli("install", "--uninstall", "--target", alvo).returncode == 0
+    assert alheio.read_text(encoding="utf-8") == "minha\n"
+    assert sorted(p.relative_to(alvo).as_posix() for p in alvo.rglob("*")) == [
+        ".claude", ".claude/skills", ".claude/skills/minha-skill", ".claude/skills/minha-skill/SKILL.md"]
+    assert list(casa.iterdir()) == [], "nothing was written in the home"
+
+
 @pytest.mark.slow
 def test_list_templates_fora_do_repo(wheel, instalado, tmp_path):
     origem = _origem_do_pacote(instalado, tmp_path)

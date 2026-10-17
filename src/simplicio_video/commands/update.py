@@ -2,21 +2,24 @@
 
 Ported from simplicio-loop simplicio_loop/self_update.py (2034e2d). Two distributions (see distribution.py):
 
-* pip (an installed package): `python -m pip install --upgrade "simplicio-video==<latest>"` (PyPI); the latest release comes
-  from GitHub Releases (`gh release view`, else the API). A PEP 668 environment is refused with the four ways out.
-* source (a checkout, or an editable install): refuse a dirty tree, `git fetch`, show the new commits and the CHANGELOG diff,
-  `git pull --ff-only`, then install, the web/ build and doctor, with the commit to go back to. Nothing is ever discarded.
+* pip (an installed package): `python -m pip install --upgrade "simplicio-video==<latest>"` (PyPI), then
+  `simplicio-video install --global` to reinstall the skills in the agent hosts, as the loop does; the latest release comes from
+  GitHub Releases (`gh release view`, else the API). A PEP 668 environment is refused with the four ways out, and so is a Python
+  without pip (a `uv tool install` venv): `uv tool upgrade` or `pipx upgrade` is what updates that one. `--force` on a release that
+  is not newer reinstalls only our package (`--force-reinstall --no-deps`); on a newer one it is a plain `--upgrade`.
+* source (a checkout, or an editable install): REFUSED, exit 2, printing `git pull` and `bash scripts/dev_install.sh` (Windows:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`: the policy of a client Windows is Restricted, and
+  the Bypass is for that one process; UNVERIFIED without a real Windows). Breaking change (direct owner request, ADR-0020): the update used to pull there;
+  the loop never does, so nothing is pulled, rebuilt or discarded. `--check` still asks git how many commits are new.
 
-Exit codes (as the loop): `--check` 0 up to date, 10 update available, 2 error; a refusal (dirty tree, no upstream, not a
-fast-forward, PEP 668) 2; a network failure `2 if --check else 1`. An installed version NEWER than the latest release (PyPI is
-published before the GitHub Release) is up to date: 0, as in the loop.
-`--force` reinstalls even when up to date and allows a downgrade; it never skips the dirty-tree refusal.
-`--dry-run` prints the plan, records nothing and exits 0, with or without `--check` (which alone answers 10); in a checkout it
-does NOT run `git fetch` either (a fetch rewrites FETCH_HEAD, the
-remote-tracking refs and the reflog, so it is not a read-only step). `--check` records the answer in update-check.json (in
-$SIMPLICIO_VIDEO_DATA, default ~/.simplicio-video) so that `doctor` can show it without the network.
-SIMPLICIO_OFFLINE=1 blocks ALL the network: the GitHub release lookup (no `gh`, no API call) and, in a checkout, `git fetch` too.
-The network, git and the subprocesses are parameters of run_update, so the tests use fakes.
+Exit codes (as the loop): `--check` 0 up to date, 10 update available, 2 error; a refusal (a checkout, PEP 668) 2; a network failure
+`2 if --check else 1`. An installed version NEWER than the latest release (PyPI is published before the GitHub Release) is up to
+date: 0, as in the loop. `--force` reinstalls the pip release even when up to date and allows a downgrade. `--dry-run` prints the
+plan, records nothing and exits 0 for a pip package, with or without `--check` (which alone answers 10); for a checkout it prints the
+refusal (2) and runs no git at all (a fetch rewrites FETCH_HEAD, the remote-tracking refs and the reflog, so it is not a read-only
+step). `--check` records the answer in update-check.json (in $SIMPLICIO_VIDEO_DATA, default ~/.simplicio-video) so that `doctor`
+can show it without the network. SIMPLICIO_OFFLINE=1 blocks ALL the network: the GitHub release lookup (no `gh`, no API call) and the
+`git fetch` of a checkout's `--check`. The network, git and the subprocesses are parameters of run_update, so the tests use fakes.
 
 Exemplos:
   simplicio-video update --check
@@ -26,6 +29,7 @@ Exemplos:
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import json
 import os
 import re
@@ -94,6 +98,24 @@ def is_pep668_environment(
         except OSError:
             continue
     return False, None
+
+
+POWERSHELL_DEV_INSTALL = "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1"
+
+
+def _has_pip() -> bool:
+    """Whether this interpreter can run `python -m pip` (the venv of a `uv tool install` has none)."""
+    return importlib.util.find_spec("pip") is not None
+
+
+def no_pip_message() -> str:
+    return "\n".join([
+        "update: este Python não tem o pip (um `uv tool install` ou um venv sem pip): `python -m pip install` falharia.",
+        "O jeito de atualizar essa instalação é a ferramenta que a criou:",
+        f"       uv tool upgrade {PYPI_NAME}",
+        f"       pipx upgrade {PYPI_NAME}",
+        f"  e depois: {PYPI_NAME} install --global   (reinstala as skills nos hosts)",
+    ])
 
 
 def pep668_message(details: Optional[str] = None) -> str:
@@ -376,24 +398,16 @@ def _upstream_version(git: Git, checkout: Path) -> Optional[str]:
 
 
 def _source_state(git: Git, checkout: Path, installed: str, *, fetch_remote: bool = True) -> dict:
-    """Refuse or answer: is `checkout` a git work tree, clean, with an upstream? Then fetch and count the new commits.
+    """Answer for `--check` and `doctor --online`: is `checkout` a git work tree with an upstream? Then fetch and count the new commits.
 
-    `fetch_remote=False` (the dry-run) does not fetch: the count then comes from the refs the last fetch left.
-    Returns {upstream, head, behind, new, latest}. Raises Refused (exit 2) or OSError (the fetch failed, or SIMPLICIO_OFFLINE=1)."""
+    Nothing is pulled, so local changes do not matter. `fetch_remote=False` does not fetch: the count then comes from the refs the
+    last fetch left. Returns {upstream, head, behind, new, latest}. Raises Refused (exit 2) or OSError (the fetch failed, or
+    SIMPLICIO_OFFLINE=1)."""
     inside = git(checkout, "rev-parse", "--is-inside-work-tree")
     if inside.returncode != 0:
         why = _motivo(inside)
         raise Refused(f"{checkout} não é um repositório git" + (f" (o git disse: {why})" if why else "")
-                      + ". O update de um checkout usa git pull --ff-only.")
-    status = git(checkout, "status", "--porcelain", "--untracked-files=no")
-    if status.returncode != 0:  # a status that fails says nothing: it must not read as a clean tree
-        raise Refused(f"o git não conseguiu ver o estado da árvore em {checkout} (o git disse: {_motivo(status)})")
-    dirty = status.stdout.strip()
-    if dirty:
-        raise Refused("update recusado: a árvore está suja (alterações não commitadas em arquivos rastreados):\n"
-                      + textwrap.indent(dirty, "  ")
-                      + "\nGuarde as mudanças com `git stash` (ou faça commit) e rode o update de novo. "
-                        "O --force não ignora isso: nada é descartado.")
+                      + ". O update de um checkout é `git pull` e `bash scripts/dev_install.sh` (veja `simplicio-video update --help`).")
     head = git(checkout, "rev-parse", "HEAD").stdout.strip()
     if fetch_remote:
         if _offline():  # `git fetch` is network: SIMPLICIO_OFFLINE=1 blocks it like the release lookup of the pip package
@@ -424,19 +438,6 @@ def check_latest(kind: str, installed: str, *, fetch: Callable[[], str] = fetch_
             "kind": kind}
 
 
-# --- the web/ build ---------------------------------------------------------------------------------------------------
-
-
-def _web_steps(checkout: Path) -> list:
-    """The npm commands that rebuild web/ (none while web/ does not exist: it arrives with #34)."""
-    if not hostos.is_file(checkout / "web" / "package.json"):
-        return []
-    npm = hostos.find_tool("npm")
-    if npm is None:
-        raise Refused("web/ existe, mas o npm não foi encontrado no PATH; instale o Node 22 e rode o update de novo")
-    return [[npm, "--prefix", "web", "ci"], [npm, "--prefix", "web", "run", "build"]]
-
-
 # --- the command ------------------------------------------------------------------------------------------------------
 
 
@@ -459,10 +460,9 @@ def run_update(
     kind = kind or distribution.kind()
     if dry_run:
         runner = _dry_runner
-        check = False  # ONE rule for both distributions: the dry-run only shows the plan and exits 0 (`--check` alone answers 10)
+        check = False  # ONE rule: the dry-run only shows the plan (`--check` alone answers 10)
     if kind == distribution.SOURCE:
-        return _update_source(check=check, force=force, dry_run=dry_run, installed=installed, runner=runner, git=git,
-                              record=record, checkout=checkout or paths.home())
+        return _update_source(check=check, installed=installed, git=git, record=record, checkout=checkout or paths.home())
     return _update_pip(check=check, force=force, dry_run=dry_run, installed=installed, fetch=fetch, runner=runner,
                        record=record, externally_managed=externally_managed)
 
@@ -494,12 +494,23 @@ def _update_pip(*, check, force, dry_run, installed, fetch, runner, record, exte
     if managed:
         print(pep668_message(details))
         return 2
-    # the argv is a list (no shell) rebuilt from integers: a fixed `==`, one version, nothing from the tag's text
-    command = [sys.executable, "-m", "pip", "install", "--upgrade", *(["--force-reinstall"] if force else []),
+    if not dry_run and not _has_pip():
+        print(no_pip_message())
+        return 2
+    # the argv is a list (no shell) rebuilt from integers: a fixed `==`, one version, nothing from the tag's text. `--force` only
+    # reinstalls when nothing is newer, and only our package: `--no-deps` on a NEWER release would skip a dependency it adds
+    reinstall = force and not available
+    command = [sys.executable, "-m", "pip", "install", "--upgrade", *(["--force-reinstall", "--no-deps"] if reinstall else []),
                f"{PYPI_NAME}=={label}"]
     rc = runner(command)
     if rc != 0:
         print("update: o pip install falhou; rode `simplicio-video update` de novo quando o acesso ao PyPI voltar.")
+        return rc
+    # as the loop: the skills that the hosts hold are the old release's until `install --global` runs, and it must be the NEW code
+    rc = runner([sys.executable, "-m", "simplicio_video", "install", "--global"])
+    if rc != 0:
+        print(f"update: o pip instalou a release, mas `simplicio-video install --global` falhou (código {rc}); rode "
+              "`simplicio-video install --global` à mão para reinstalar as skills.")
         return rc
     if dry_run:
         print("update: simulação, nada foi alterado.")
@@ -509,73 +520,39 @@ def _update_pip(*, check, force, dry_run, installed, fetch, runner, record, exte
     return 0
 
 
-def _update_source(*, check, force, dry_run, installed, runner, git, record, checkout) -> int:
+def refusal_text(checkout: Path) -> str:
+    """What a checkout is told instead of an update: the two commands, with the dev install of this system. On Windows the script
+    is run with the policy of that process only: the client Windows is Restricted and `powershell -File x.ps1` would refuse it."""
+    dev_install = (POWERSHELL_DEV_INSTALL if hostos.is_windows() else "bash scripts/dev_install.sh")
+    return (f"update: este é um checkout git (ou uma instalação editável): o update não mexe nele e recusa (exit 2).\n"
+            f"Para atualizar, rode dentro do checkout ({checkout}):\n  git pull\n  {dev_install}")
+
+
+def _update_source(*, check, installed, git, record, checkout) -> int:
+    if not check:  # a plain update, `--force` and `--dry-run` (which turned `check` off): the refusal, no git, no network
+        print(refusal_text(checkout), file=sys.stderr)
+        return 2
     try:
-        # the dry-run never fetches: `git fetch` rewrites FETCH_HEAD, refs/remotes/origin/* and the reflog
-        state = _source_state(git, checkout, installed, fetch_remote=not dry_run)
+        state = _source_state(git, checkout, installed)
     except Refused as exc:
-        print(f"update: {exc}" if not str(exc).startswith("update") else str(exc), file=sys.stderr)
+        print(f"update: {exc}", file=sys.stderr)
         return 2
     except OSError as exc:
         print(f"update: {exc}", file=sys.stderr)
-        return 2 if check else 1
-    behind, upstream, head = state["behind"], state["upstream"], state["head"]
-    info = {"installed": installed, "latest": state["latest"], "update_available": behind > 0,
-            "kind": distribution.SOURCE, "commits_behind": behind}
-    if not dry_run:
-        record(info)
-        if not behind and not force:
-            print(f"já está atualizado com {upstream} ({head[:7]}): nada a fazer.")
-            return 0
-        if behind:
-            print(f"simplicio-video {installed} -> {state['latest']} ({behind} commit(s) novo(s) em {upstream})")
-            print(f"commits novos em {upstream}:")
-            print(textwrap.indent(state["new"], "  "))
-            diff = git(checkout, "diff", "HEAD", "@{u}", "--", "CHANGELOG.md").stdout.rstrip()
-            print("CHANGELOG.md (diff):")
-            print(diff or "  (sem mudanças no CHANGELOG neste intervalo)")
-        else:
-            print(f"--force: {upstream} não tem commits novos; reinstalando mesmo assim.")
-        if check:
-            return EXIT_UPDATE_AVAILABLE if behind else 0
-    try:
-        web = _web_steps(checkout)
-    except Refused as exc:
-        print(f"update: {exc}", file=sys.stderr)
         return 2
-    if dry_run:
-        print("update: simulação, nada foi alterado. O --dry-run não roda `git fetch` (ele mexeria nas refs do .git), então só "
-              "mostra o plano, sem dizer se há commits novos. Rodaria, nesta ordem:")
-        print("  executaria: git fetch --quiet")
-        print("  executaria: git pull --ff-only")
-    elif behind:
-        pull = git(checkout, "pull", "--ff-only", "--quiet")
-        if pull.returncode != 0:
-            print("update: o pull não é fast-forward (há commits locais). Nada foi alterado; veja git status e git log.",
-                  file=sys.stderr)
-            print((pull.stderr or "").strip(), file=sys.stderr)
-            return 2
-        novo = git(checkout, "rev-parse", "HEAD").stdout.strip()
-        print(f"atualizado: {head[:7]} -> {novo[:7]}")
-        print("para voltar à versão anterior (rollback):")
-        print(f"  git -C {checkout} reset --keep {head}")
-        print("  depois: simplicio-video install && simplicio-video doctor")
-    py = sys.executable
-    steps = [("instalar dependências (simplicio-video install)", [[py, "-m", "simplicio_video", "install"]])]
-    steps.append(("reconstruir web/", web))
-    for title, commands in steps:
-        print(f"> {title}")
-        if not commands and title == "reconstruir web/":
-            print("web/ chega com a #34: nada a construir")
-        for command in commands:
-            rc = runner(command, checkout)
-            if rc != 0:
-                print(f"update: falhou em '{title}' (código {rc}). Para voltar: git -C {checkout} reset --keep {head}",
-                      file=sys.stderr)
-                return rc
-    print("> checar o ambiente (simplicio-video doctor)")
-    rc = runner([py, "-m", "simplicio_video", "doctor"], checkout)
-    return rc
+    behind, upstream, head = state["behind"], state["upstream"], state["head"]
+    record({"installed": installed, "latest": state["latest"], "update_available": behind > 0,
+            "kind": distribution.SOURCE, "commits_behind": behind})
+    if not behind:
+        print(f"já está atualizado com {upstream} ({head[:7]}): nada a fazer.")
+        return 0
+    print(f"simplicio-video {installed} -> {state['latest']} ({behind} commit(s) novo(s) em {upstream})")
+    print(f"commits novos em {upstream}:")
+    print(textwrap.indent(state["new"], "  "))
+    diff = git(checkout, "diff", "HEAD", "@{u}", "--", "CHANGELOG.md").stdout.rstrip()
+    print("CHANGELOG.md (diff):")
+    print(diff or "  (sem mudanças no CHANGELOG neste intervalo)")
+    return EXIT_UPDATE_AVAILABLE
 
 
 def run(a) -> int:

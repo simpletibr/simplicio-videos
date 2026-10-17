@@ -9,7 +9,7 @@ current directory first (a planted `simplicio.exe` would be run by `simplicio-vi
 without PATH would silently fall back to the real PATH of the process, and PATHEXT must come from the environment that
 was passed in, not from the process's own.
 
-Standard library only: `install` runs under the SYSTEM python, before the `.venv` (and PyYAML) exists.
+Standard library only: `install` can run under the SYSTEM python of a checkout (no PyYAML: macOS with the Xcode tools).
 
 Looking at a file never raises: `Path.is_file()` and `Path.exists()` raise PermissionError on Python 3.12 and 3.13 when
 a folder cannot be searched (a PATH folder with mode 0000, a `~/.simplicio` of another user after `sudo`), where
@@ -21,7 +21,7 @@ import os
 import stat
 import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Any, Mapping, Optional
 
 # macOS GUI and ssh sessions often lack the Homebrew prefixes on PATH (Apple Silicon, then Intel).
@@ -92,13 +92,6 @@ def utc_stamp(seconds: Any) -> str:
 
 def exe_name(base: str) -> str:
     return base + ".exe" if is_windows() else base
-
-
-def venv_python(venv: PurePath, system_name: Optional[str] = None):
-    """The interpreter inside a virtual environment: Scripts/python.exe on Windows, bin/python elsewhere."""
-    if (system_name or system()) == "win32":
-        return venv / "Scripts" / "python.exe"
-    return venv / "bin" / "python"
 
 
 # --- looking at files: never an exception ------------------------------------------------------------------------------------
@@ -194,31 +187,7 @@ def find_tool(name: str, environ: Optional[Mapping[str, str]] = None) -> Optiona
     return str(found) if found else None
 
 
-def uv_candidates(home: PurePath, environ: Optional[Mapping[str, str]] = None, system_name: Optional[str] = None) -> list:
-    """Where uv usually lives when it is not on PATH: ~/.local/bin and ~/.cargo/bin, plus Homebrew on macOS."""
-    name = system_name or system()
-    exe = "uv.exe" if name == "win32" else "uv"
-    found = [home / ".local" / "bin" / exe, home / ".cargo" / "bin" / exe]
-    if name == "darwin":
-        found += [type(home)(directory) / exe for directory in EXTRA_TOOL_DIRS["darwin"]]
-    return found
-
-
-def find_uv(environ: Optional[Mapping[str, str]] = None) -> Optional[str]:
-    found = find_tool("uv", environ)
-    if found:
-        return found
-    for candidate in uv_candidates(home_dir(environ), environ):
-        path = Path(candidate)
-        if is_file(path) and os.access(path, os.X_OK):
-            return str(path)
-    return None
-
-
 _HINTS = {
-    ("uv", "linux"): "curl -LsSf https://astral.sh/uv/install.sh | sh",
-    ("uv", "darwin"): "brew install uv (ou: curl -LsSf https://astral.sh/uv/install.sh | sh)",
-    ("uv", "win32"): 'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"',
     ("ffmpeg", "linux"): "Debian/Ubuntu: apt install ffmpeg",
     ("ffmpeg", "darwin"): "brew install ffmpeg",
     ("ffmpeg", "win32"): "winget install Gyan.FFmpeg",
@@ -229,5 +198,5 @@ _HINTS = {
 
 
 def hint(tool: str, system_name: Optional[str] = None) -> str:
-    """How to install `tool` (uv, ffmpeg or node) on this system."""
+    """How to install `tool` (ffmpeg or node) on this system: what the doctor shows as the fix. (uv is the dev install's business.)"""
     return _HINTS[(tool, system_name or system())]

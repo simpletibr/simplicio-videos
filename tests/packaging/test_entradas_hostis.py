@@ -170,13 +170,12 @@ def test_which_pula_a_pasta_sem_permissao_e_acha_na_seguinte(tmp_path, monkeypat
     assert hostos.which("simplicio", str(negada)) is None
 
 
-def test_find_tool_e_find_uv_tambem_pulam_a_pasta_sem_permissao(tmp_path, monkeypatch):
+def test_find_tool_tambem_pula_a_pasta_sem_permissao(tmp_path, monkeypatch):
     negada = tmp_path / "negada"
     negada.mkdir()
     nega_acesso(monkeypatch, negada, tmp_path / "home" / ".local")
     ambiente = {"PATH": str(negada), "HOME": str(tmp_path / "home")}
     assert hostos.find_tool("node", ambiente) is None
-    assert hostos.find_uv(ambiente) is None
 
 
 @pytest.mark.parametrize("argv,esquema", COMANDOS, ids=lambda x: " ".join(x) if isinstance(x, list) else str(x))
@@ -425,17 +424,16 @@ def test_checkout_que_o_usuario_nao_consegue_abrir_nao_e_um_checkout_nem_derruba
     assert paths.home() == raiz.resolve(), "an unreadable SIMPLICIO_VIDEO_HOME is still the folder that was asked for"
 
 
-@pytest.mark.parametrize("argv", [["install", "--check"], ["install", "--check", "--json"], ["install", "--dry-run"]])
-def test_install_com_checkout_ilegivel_nao_derruba_e_diz_o_plano(caixa, capsys, monkeypatch, argv):
-    import shutil
-
-    from _comum import ROOT
-    repo = caixa.tmp / "checkout"
-    repo.mkdir()
-    for nome in ("pyproject.toml", "plugin.json"):
-        shutil.copy2(ROOT / nome, repo / nome)
-    monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(repo))
-    monkeypatch.setattr(_caixa.distribution, "kind", lambda **kw: "source")
-    nega_acesso(monkeypatch, repo)
-    rc, out, err = verifica(argv, "install-result" if "--json" in argv else None, capsys)
-    assert rc == (10 if "--check" in argv else 0) and ".venv" in out + err
+@pytest.mark.parametrize("argv,codigo", [(["install", "--check"], 10), (["install", "--check", "--json"], 10), (["install", "--dry-run"], 0),
+                                         (["install"], 1), (["install", "--json"], 1), (["install", "--uninstall"], 1),
+                                         (["install", "--verify"], 1)])
+def test_install_com_alvo_que_o_usuario_nao_consegue_abrir_nao_derruba_e_diz_o_que_aconteceu(caixa, capsys, monkeypatch, argv, codigo):
+    """A target folder of another user (0700 after a `sudo`): looking at it says "not there yet" (the plan is to install), writing
+    into it is a failed install (exit 1) with the reason, and nothing is a traceback."""
+    alvo = caixa.tmp / "proj"
+    alvo.mkdir()
+    nega_acesso(monkeypatch, alvo)
+    rc, out, err = verifica([*argv, "--target", str(alvo)], "install-plan" if "--json" in argv else None, capsys)
+    assert rc == codigo, (rc, out, err)
+    if codigo == 1:
+        assert "Permission denied" in out + err or "negado" in out + err or "recibo" in out + err or "não consegui travar" in out + err
