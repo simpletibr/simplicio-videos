@@ -333,15 +333,24 @@ def _manifest() -> list[str]:
     return [ln.strip() for ln in p.read_text(encoding="utf8").splitlines() if ln.strip() and not ln.startswith("#")]
 
 
-def test_manifest_poe_so_o_changelog_e_tira_testes_readme_e_bytecode():
+def test_manifest_poe_so_o_changelog_e_tira_testes_readme_e_ele_mesmo():
     """A suíte não vai para o sdist (precisa de clients/, docs/, scripts/ e git, e leva nomes e fixtures de cliente), o
-    README.md do GitHub também (o do pacote é o PYPI.md) e o bytecode de um checkout sujo muito menos."""
+    README.md do GitHub também (o do pacote é o PYPI.md). O MANIFEST.in também não: o wheel feito a partir do sdist o relê e
+    cada `exclude` que não acha o arquivo (o README.md e a suíte já saíram) vira um aviso no build."""
     linhas = _manifest()
     assert "include CHANGELOG.md" in linhas
     assert "prune tests" in linhas
     assert "exclude README.md" in linhas
+    assert "exclude MANIFEST.in" in linhas
     assert "graft tests" not in linhas
-    assert "global-exclude *.py[cod]" in linhas and "global-exclude __pycache__" in linhas
+    assert not [ln for ln in linhas if ln.startswith(("global-exclude", "recursive-exclude"))], \
+        "global-exclude avisa em todo build limpo; o bytecode sai por exclude-package-data no pyproject"
+
+
+def test_pyproject_tira_o_bytecode_do_package_data(projeto):
+    """O glob `data/**/*` leva um .pyc que esteja em data/ (sdist e wheel): o exclude-package-data o tira sem aviso."""
+    excluidos = projeto["tool"]["setuptools"]["exclude-package-data"]["simplicio_video"]
+    assert "*.pyc" in excluidos and "**/__pycache__/*" in excluidos, excluidos
 
 
 def test_manifest_nao_puxa_dado_de_cliente_nem_pastas_de_operacao():

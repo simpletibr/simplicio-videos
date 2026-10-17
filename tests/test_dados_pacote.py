@@ -350,15 +350,16 @@ def test_wheel_declara_os_metadados_do_pypi(wheel):
 
 
 # O sdist sai de uma cópia do checkout (tudo que o git rastreia ou ainda não ignora, como um `git archive` do que está na
-# mesa) com cache de bytecode plantado em tests/, no pacote e dentro de data/: o que um `python -m build` num checkout
-# sujo encontraria. A guarda de dado de cliente roda sobre o sdist inteiro, não só sobre src/.
+# mesa). A cópia "suja" leva cache de bytecode plantado em tests/, no pacote e dentro de data/: o que um `python -m build`
+# num checkout sujo encontraria. A "limpa" é a de uma release: sem aviso nenhum do build. A guarda de dado de cliente roda
+# sobre o sdist inteiro, não só sobre src/.
 LIXO_DE_BYTECODE = ("tests/__pycache__/planted.cpython-313.pyc", "src/simplicio_video/__pycache__/planted.cpython-313.pyc",
                     "src/simplicio_video/data/motion/__pycache__/planted.cpython-313.pyc")
-# Tudo o que o sdist pode ter na raiz: o resto (tests/, README.md, clients/, docs/, scripts/...) fica de fora.
-RAIZ_DO_SDIST = {"src", "pyproject.toml", "PKG-INFO", "setup.cfg", "MANIFEST.in", "CHANGELOG.md", "LICENSE", "NOTICE", "PYPI.md"}
+# Tudo o que o sdist pode ter na raiz: o resto (tests/, README.md, MANIFEST.in, clients/, docs/, scripts/...) fica de fora.
+RAIZ_DO_SDIST = {"src", "pyproject.toml", "PKG-INFO", "setup.cfg", "CHANGELOG.md", "LICENSE", "NOTICE", "PYPI.md"}
 
 
-def _copia_do_checkout(destino: Path) -> Path:
+def _copia_do_checkout(destino: Path, *, sujo: bool) -> Path:
     r = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, f"git ls-files falhou (o teste do sdist precisa do checkout): {r.stderr}"
@@ -367,43 +368,64 @@ def _copia_do_checkout(destino: Path) -> Path:
         if origem.is_file():
             (destino / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(origem, destino / rel)
-    for lixo in LIXO_DE_BYTECODE:
+    for lixo in LIXO_DE_BYTECODE if sujo else ():
         (destino / lixo).parent.mkdir(parents=True, exist_ok=True)
         (destino / lixo).write_bytes(b"\0")
     return destino
 
 
-def _setuptools_77(base: Path) -> str:
-    """PYTHONPATH extra com setuptools>=77: vazio se o interpretador já tem; senão o pip instala numa pasta temporária.
+@pytest.fixture(scope="module")
+def env_de_build(tmp_path_factory) -> dict:
+    """Ambiente com setuptools>=77: o do interpretador se já tem; senão o pip o instala numa pasta temporária.
 
     Falha (nunca pula) se não houver como obter a ferramenta: sem ela o sdist não é medido e o teste não vale nada."""
+    env = os.environ.copy()
     try:
         import setuptools
         if int(setuptools.__version__.split(".")[0]) >= 77:
-            return ""
+            return env
     except ImportError:
         pass
-    alvo = base / "setuptools"
+    alvo = tmp_path_factory.mktemp("setuptools-77") / "pacotes"
     r = subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--no-deps", "--target", str(alvo), "setuptools>=77"],
                        capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
         pytest.fail("sem setuptools>=77 para construir o sdist (instale: pip install 'setuptools>=77'):\n"
                     + r.stdout[-800:] + r.stderr[-800:], pytrace=False)
-    return str(alvo)
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(alvo), env.get("PYTHONPATH", "")]))
+    return env
+
+
+def _construir(pasta: Path, env: dict, comando: str, saida: Path) -> tuple[Path, str]:
+    """Roda `setuptools.build_meta.<comando>` em `pasta`; devolve o arquivo gerado e tudo o que o build escreveu."""
+    saida.mkdir()
+    prog = f"from setuptools import build_meta; print(build_meta.{comando}({str(saida)!r}))"
+    r = subprocess.run([sys.executable, "-c", prog], capture_output=True, text=True, cwd=pasta, env=env, timeout=900)
+    assert r.returncode == 0, r.stdout[-1500:] + r.stderr[-1500:]
+    return saida / r.stdout.strip().splitlines()[-1], r.stdout + r.stderr
+
+
+def _extrai(tar_gz: Path, destino: Path) -> Path:
+    with tarfile.open(tar_gz) as tar:
+        tar.extractall(destino, filter="data")
+    return next(destino.iterdir())
 
 
 @pytest.fixture(scope="module")
-def sdist(tmp_path_factory) -> Path:
+def sdist(tmp_path_factory, env_de_build) -> Path:
+    """O sdist de um checkout sujo (bytecode plantado)."""
     base = tmp_path_factory.mktemp("sdist")
-    fonte = _copia_do_checkout(base / "fonte")
-    saida = base / "saida"
-    saida.mkdir()
-    env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(filter(None, [_setuptools_77(base), env.get("PYTHONPATH", "")]))
-    prog = f"from setuptools import build_meta; print(build_meta.build_sdist({str(saida)!r}))"
-    r = subprocess.run([sys.executable, "-c", prog], capture_output=True, text=True, cwd=fonte, env=env, timeout=900)
-    assert r.returncode == 0, r.stdout[-1500:] + r.stderr[-1500:]
-    return next(saida.glob("simplicio_video-*.tar.gz"))
+    return _construir(_copia_do_checkout(base / "fonte", sujo=True), env_de_build, "build_sdist", base / "saida")[0]
+
+
+@pytest.fixture(scope="module")
+def build_de_release(tmp_path_factory, env_de_build) -> dict:
+    """O que `python -m build` faz numa cópia limpa: o sdist e, a partir dele extraído, o wheel (com tudo o que escreveram)."""
+    base = tmp_path_factory.mktemp("release")
+    tar_gz, log_sdist = _construir(_copia_do_checkout(base / "fonte", sujo=False), env_de_build, "build_sdist", base / "sdist")
+    extraido = _extrai(tar_gz, base / "extraido")
+    whl, log_wheel = _construir(extraido, env_de_build, "build_wheel", base / "wheel")
+    return {"sdist": tar_gz, "wheel": whl, "log_sdist": log_sdist, "log_wheel": log_wheel}
 
 
 @pytest.fixture(scope="module")
@@ -414,10 +436,7 @@ def sdist_nomes(sdist) -> set[str]:
 
 @pytest.fixture(scope="module")
 def sdist_extraido(sdist, tmp_path_factory) -> Path:
-    destino = tmp_path_factory.mktemp("sdist-extraido")
-    with tarfile.open(sdist) as tar:
-        tar.extractall(destino, filter="data")
-    return next(destino.iterdir())
+    return _extrai(sdist, tmp_path_factory.mktemp("sdist-extraido"))
 
 
 @pytest.mark.slow
@@ -454,3 +473,23 @@ def test_sdist_nao_leva_dado_de_cliente(sdist_extraido):
 
     achados = guarda.varrer_arvore(sdist_extraido)
     assert not achados, f"{len(achados)} achado(s) de dado de cliente no sdist:\n" + "\n".join(achados[:40])
+
+
+@pytest.mark.slow
+def test_build_de_release_nao_emite_aviso(build_de_release):
+    """Numa cópia limpa nem o sdist nem o wheel feito a partir dele avisam nada. Um `exclude` ou `global-exclude` que não acha
+    o arquivo avisa ("warning: no previously-included files ..."), e o wheel relê o MANIFEST.in do sdist, onde o README.md e a
+    suíte já ficaram de fora: por isso o sdist também não leva o MANIFEST.in."""
+    for qual in ("log_sdist", "log_wheel"):
+        avisos = [ln for ln in build_de_release[qual].splitlines() if ln.lower().startswith("warning")]
+        assert not avisos, f"{qual}: {avisos}"
+
+
+@pytest.mark.slow
+def test_wheel_feito_a_partir_do_sdist_leva_as_licencas_e_nao_leva_bytecode(build_de_release):
+    with zipfile.ZipFile(build_de_release["wheel"]) as z:
+        nomes = z.namelist()
+    assert any(n.endswith(".dist-info/licenses/LICENSE") for n in nomes)
+    assert any(n.endswith(".dist-info/licenses/NOTICE") for n in nomes)
+    assert CONTRACT_SCHEMA in nomes
+    assert not [n for n in nomes if "__pycache__" in n or n.endswith((".pyc", ".pyo"))]
