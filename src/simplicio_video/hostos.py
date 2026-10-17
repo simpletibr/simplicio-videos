@@ -39,13 +39,15 @@ def is_macos() -> bool:
 
 def home_dir(environ: Optional[Mapping[str, str]] = None) -> Path:
     """The user's home: USERPROFILE first on Windows, HOME first elsewhere; Path.home() when the environment has none."""
-    if environ is None:
+    if environ is not None:
+        for name in (("USERPROFILE", "HOME") if is_windows() else ("HOME", "USERPROFILE")):
+            value = (environ.get(name) or "").strip()
+            if value:
+                return Path(value)
+    try:
         return Path.home()
-    for name in (("USERPROFILE", "HOME") if is_windows() else ("HOME", "USERPROFILE")):
-        value = (environ.get(name) or "").strip()
-        if value:
-            return Path(value)
-    return Path.home()
+    except (RuntimeError, KeyError):  # no HOME and no passwd entry: a path that finds nothing, not a traceback
+        return Path("~")
 
 
 def say(text: str) -> None:
