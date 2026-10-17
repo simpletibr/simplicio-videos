@@ -70,7 +70,7 @@
     },
     "email": {
       "type": "string",
-      "description": "Conta mascarada (w***@gmail.com), nunca o endereço inteiro."
+      "description": "Conta mascarada (a primeira letra, `***` e o domínio), nunca o endereço inteiro."
     },
     "access_expires_at": {
       "type": "integer"

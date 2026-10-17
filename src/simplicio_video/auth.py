@@ -395,7 +395,7 @@ def _timestamp(value: Any, name: str) -> int:
 
 
 def mask_email(email: str) -> str:
-    """`wesley@gmail.com` -> `w***@gmail.com`; anything that is not an address gives ''."""
+    """`maria@example.org` -> `m***@example.org`; anything that is not an address gives ''."""
     found = _EMAIL.fullmatch(email.strip())
     return f"{found.group(1)}***@{found.group(2)}" if found else ""
 

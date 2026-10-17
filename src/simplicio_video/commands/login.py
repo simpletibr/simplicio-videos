@@ -40,7 +40,7 @@ from urllib.parse import parse_qs, urlsplit
 from .. import auth, hostos
 
 # Printed by the UNVERIFIED answer; this command never runs them. The commands are the ones in the Runtime's own INSTALL.md
-# (simplicio-runtime 1c7919a). simplicio-loop 2034e2d still prints the old organisation name `wesleysimplicio/simplicio`.
+# (simplicio-runtime 1c7919a). simplicio-loop 2034e2d still prints the Runtime's old organisation name.
 RUNTIME_INSTALL = {
     "macOS / Linux": "curl -fsSL https://raw.githubusercontent.com/simpletibr/simplicio/master/install.sh | sh",
     "Windows (PowerShell)": "irm https://raw.githubusercontent.com/simpletibr/simplicio/master/install.ps1 | iex",
