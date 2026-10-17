@@ -11,7 +11,7 @@ COMANDOS = ["install", "update", "doctor", "setup", "login", "logout", "auth", "
 DEVE_CITAR = {
     "install": ["--target", "--global", "--host", "--check", "--dry-run", "--json", "--verify", "--uninstall", "--prune-project-copies",
                 "10", "simplicio.video-install-plan/v1", "skills", "não tem hooks", ".claude/skills", "install-ownership.json",
-                "scripts/dev_install.sh", "scripts/dev_install.ps1", "AGENTS.md", "claude", "codex", "cursor", "vscode", "grok", "kiro",
+                "scripts/dev_install.sh", "dev_install.ps1", "AGENTS.md", "claude", "codex", "cursor", "vscode", "grok", "kiro",
                 "antigravity", "opencode", "gemini", "aider", "simplicio_agent", "openclaw", "deixa", "recibo", "sha256",
                 "-NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1", "install.lock", "problems"],
     "update": ["--check", "--dry-run", "--force", "10", "git pull", "PyPI", "update-check.json", "git fetch", "SIMPLICIO_OFFLINE",

@@ -12,6 +12,7 @@ Tests run in process with HOME, USERPROFILE and PATH sealed under tmp_path (`cai
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -72,7 +73,7 @@ def test_check_volta_a_ficar_pendente_quando_o_pacote_muda(falso, capsys):
     executa(["install", "--target", str(falso.alvo)], capsys, main)
     (falso.bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
     rc, out, err = executa(["install", "--check", "--target", str(falso.alvo)], capsys, main)
-    assert rc == 10 and "1 atualizados" in out
+    assert rc == 10 and "2 atualizados" in out, "the skill and the receipt (its sha256 changed)"
 
 
 # --- --dry-run -------------------------------------------------------------------------------------------------------
@@ -381,7 +382,7 @@ def test_global_json_traz_o_resynced_com_as_chaves_do_loop(falso, capsys):
     assert rc == 10 and erros_de_schema("install-plan", doc) == [], doc  # 10: the home itself has nothing installed yet
     assert set(doc["resynced"]) == {"skills", "rules", "skills_counts", "rules_counts", "errors", "pending"}
     assert doc["resynced"]["skills"] == ["cursor"] and doc["resynced"]["pending"] == 0 and doc["resynced"]["rules"] == []
-    assert doc["resynced"]["skills_counts"] == {"cursor": 2}, "the copy lacks the social skill and differs in the video one"
+    assert doc["resynced"]["skills_counts"] == {"cursor": 1}, "the fake bundle of the fixture has one skill, and the copy differs in it"
 
 
 def test_global_nao_apaga_arquivo_do_usuario_dentro_da_pasta_da_skill_nem_nas_copias_dos_hosts(falso, capsys):
@@ -623,7 +624,8 @@ def test_uninstall_diz_o_que_deixou_porque_o_usuario_editou(falso, capsys):
     rc, out, err = executa(["install", "--uninstall", "--target", str(falso.alvo)], capsys, main)
     assert rc == 0 and "AGENTS.md" in out and "editado" in out
     assert (falso.alvo / "AGENTS.md").read_text(encoding="utf-8") == "# as minhas regras\n"
-    executa(["install", "--host", "codex", "--target", str(falso.alvo)], capsys, main)
+    (falso.alvo / "AGENTS.md").unlink()
+    executa(["install", "--host", "codex", "--target", str(falso.alvo)], capsys, main)  # ours again: created by this install
     (falso.alvo / "AGENTS.md").write_text("# de novo\n", encoding="utf-8")
     rc, doc, _ = _json(capsys, "--uninstall", "--target", str(falso.alvo))
     assert rc == 0 and doc["left_alone"] == ["AGENTS.md"] and doc["warnings"] and erros_de_schema("install-plan", doc) == [], doc
@@ -639,6 +641,18 @@ def test_recibo_plantado_no_repo_faz_o_uninstall_sair_1_sem_apagar_nada(falso, c
     rc, doc, err = _json(capsys, "--uninstall", "--target", str(falso.alvo))
     assert rc == 1 and doc["status"] == "error" and "recibo" in doc["error"] and erros_de_schema("install-plan", doc) == []
     assert notas.is_file() and (falso.alvo / SKILL).is_file()
+
+
+def test_recibo_no_home_com_authorized_keys_nao_apaga_a_chave_no_uninstall_global(falso, capsys):
+    chave = write(falso.home / ".ssh" / "authorized_keys", "ssh-ed25519 AAAA fake\n")
+    executa(["install", "--global"], capsys, main)
+    recibo = json.loads((falso.home / RECIBO).read_text(encoding="utf-8"))
+    recibo["paths"].append(".ssh/authorized_keys")
+    recibo["sha256"][".ssh/authorized_keys"] = hashlib.sha256(chave.read_bytes()).hexdigest()
+    (falso.home / RECIBO).write_text(json.dumps(recibo), encoding="utf-8")
+    rc, out, err = executa(["install", "--uninstall", "--global"], capsys, main)
+    assert rc == 1 and "recibo" in out + err and chave.read_text(encoding="utf-8") == "ssh-ed25519 AAAA fake\n"
+    assert (falso.home / SKILL).is_file()
 
 
 @pytest.mark.parametrize("rel", ["a\u0000b/c", "x" * 5000])

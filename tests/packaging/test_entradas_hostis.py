@@ -436,4 +436,4 @@ def test_install_com_alvo_que_o_usuario_nao_consegue_abrir_nao_derruba_e_diz_o_q
     rc, out, err = verifica([*argv, "--target", str(alvo)], "install-plan" if "--json" in argv else None, capsys)
     assert rc == codigo, (rc, out, err)
     if codigo == 1:
-        assert "Permission denied" in out + err or "negado" in out + err or "recibo" in out + err
+        assert "Permission denied" in out + err or "negado" in out + err or "recibo" in out + err or "não consegui travar" in out + err

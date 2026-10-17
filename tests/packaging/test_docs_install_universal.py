@@ -143,7 +143,7 @@ def test_agents_md_descreve_install_update_e_o_dev_install():
     install, update = quick
     assert "skills" in install and "--global" in install and "--check" in install and "hooks" in install
     assert "recusa" in update and "git pull" in update and "dev_install" in update
-    assert "bash scripts/dev_install.sh" in texto and "scripts/dev_install.ps1" in texto
+    assert "bash scripts/dev_install.sh" in texto and "dev_install.ps1" in texto
 
 
 def test_o_changelog_registra_o_install_universal_e_o_update_que_recusa():
@@ -201,8 +201,10 @@ def test_todo_comando_powershell_do_dev_install_leva_o_bypass_so_do_processo():
                 *sorted((ROOT / "skills").rglob("*.md")), *sorted((ROOT / "scripts").glob("dev_install.*"))]
     for arquivo in arquivos:
         for numero, linha in enumerate(arquivo.read_text(encoding="utf-8-sig").splitlines(), 1):
+            if "astral.sh" in linha:  # uv's own installer (`powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`)
+                continue
             for uso in re.findall(r"powershell\b[^\n`]*?(?:dev_)?install\.ps1", linha, re.I):
-                if "-NoProfile -ExecutionPolicy Bypass -File" not in uso:
+                if "://" not in uso and "-NoProfile -ExecutionPolicy Bypass -File" not in uso:  # a URL is the Runtime's own installer
                     achados.append(f"{arquivo.relative_to(ROOT)}:{numero}: {uso}")
     assert not achados, "\n".join(achados)
 

@@ -416,7 +416,7 @@ def test_os_usos_do_powershell_nos_scripts_levam_o_bypass_so_do_processo():
     usos = []
     for arquivo in (DEV_PS1, WRAP_PS1, DEV_SH, WRAP_SH):
         usos += [(arquivo.name, l.strip()) for l in arquivo.read_text(encoding="utf-8-sig").splitlines()
-                 if re.search(r"powershell[^\n]*(dev_install|install)\.ps1", l, re.I)]
+                 if re.search(r"powershell[^\n]*(dev_install|install)\.ps1", l, re.I) and "astral.sh" not in l]  # not uv's own installer
     assert usos, "the scripts say how to run the PowerShell one"
     for nome, linha in usos:
         assert "-NoProfile -ExecutionPolicy Bypass -File" in linha, f"{nome}: {linha}"

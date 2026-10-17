@@ -158,8 +158,8 @@ def test_arquivo_do_pacote_que_mudou_e_atualizado_e_o_apagado_e_criado_de_novo(r
     (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
     (repo / REF).unlink()
     resultado = instala(repo, bundle)
-    assert resultado["changes"]["updated"] == [SKILL] and resultado["changes"]["created"] == [REF]
-    assert resultado["changes"]["unchanged"] == 1
+    assert resultado["changes"]["updated"] == [SKILL, RECIBO] and resultado["changes"]["created"] == [REF]
+    assert resultado["changes"]["unchanged"] == 0, "the receipt holds the sha256 of the skill: it changed too"
     assert (repo / SKILL).read_text(encoding="utf-8") == "video v2\n"
 
 

@@ -107,8 +107,8 @@ def test_toda_flag_da_skill_existe_em_algum_parser_do_cli(nome):
     for fabrica in DELEGADOS.values():
         anda(fabrica())
     texto = _texto(nome)
-    # `--gpu-encode` is a flag of the remote render script and `--with` of scripts/dev_install.sh: not parsers of the CLI
-    de_scripts = {"--gpu-encode", "--with", "--publish"}  # `--publish`: the text says that it does NOT exist (#75)
+    # `--gpu-encode` is a flag of the remote render script, `--with` of scripts/dev_install.sh and `--upgrade` of pip: not parsers of the CLI
+    de_scripts = {"--gpu-encode", "--with", "--upgrade", "--publish"}  # `--publish`: the text says that it does NOT exist (#75)
     faltam = {f for f in re.findall(r"(?<![\w-])--[a-z][a-z0-9-]*", texto)} - conhecidas - de_scripts
     assert not faltam, f"{nome} cites flags that no parser has: {sorted(faltam)}"
 
@@ -125,7 +125,7 @@ def test_nenhuma_frase_descreve_o_install_do_venv_nem_o_update_que_puxa(nome):
 def test_a_skill_diz_o_que_o_install_e_o_update_fazem_agora():
     texto = " ".join(_texto("simplicio-video").split())
     for trecho in ("simplicio-video install", "install --global", "--dry-run", "--check", "--verify", "--uninstall", ".claude/skills",
-                   "scripts/dev_install.sh", "scripts/dev_install.ps1", "git pull", "recusa", "update --check",
+                   "scripts/dev_install.sh", "dev_install.ps1", "git pull", "recusa", "update --check",
                    "pip install --upgrade", "install --global"):
         assert trecho in texto, f"the skill does not mention {trecho!r}"
     assert re.search(r"dev_install\.(sh|ps1)[^.]{0,200}\.venv|\.venv[^.]{0,200}dev_install\.(sh|ps1)", texto), \

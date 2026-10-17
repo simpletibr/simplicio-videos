@@ -36,6 +36,7 @@ import pytest
 import _caixa
 from _caixa import installer, posix_real
 from _comum import fotografia, make_bundle, write
+from simplicio_video import __version__
 
 caixa = _caixa.caixa
 
@@ -299,7 +300,7 @@ def test_a_skill_nossa_e_intacta_continua_sendo_atualizada(repo, bundle):
     instala(repo, bundle)
     (bundle / "skills" / "simplicio-video" / "SKILL.md").write_text("video v2\n", encoding="utf-8")
     resultado = instala(repo, bundle)
-    assert resultado["changes"]["updated"] == [SKILL] and (repo / SKILL).read_text(encoding="utf-8") == "video v2\n"
+    assert resultado["changes"]["updated"] == [SKILL, RECIBO] and (repo / SKILL).read_text(encoding="utf-8") == "video v2\n"
     assert recibo_de(repo)["sha256"][SKILL] == sha("video v2\n")
 
 
@@ -468,7 +469,7 @@ def test_verify_de_uma_instalacao_inteira_passa_e_traz_as_chaves_do_loop(repo, b
     instala(repo, bundle, host="codex")
     plano = installer.plan_install(repo, host="codex")
     resultado = installer.verify_install(plano, bundle=bundle)
-    assert resultado == {"ok": True, "version": installer.__version__, "digest": plano["digest"], "problems": []}
+    assert resultado == {"ok": True, "version": __version__, "digest": plano["digest"], "problems": []}
 
 
 def test_verify_pega_a_skill_adulterada(repo, bundle):
