@@ -60,7 +60,7 @@ caixa GPU (Docker): worker -- puxa a Queue por HTTP --> ComfyUI :8188 -> R2 (out
 
 | Risco | Efeito | Como fechar |
 |---|---|---|
-| Licença comercial MiniMax H3 / LoRA | pode inviabilizar a venda | ler a licença no HF |
+| Licença comercial MiniMax H3 / LoRA | pode inviabilizar a venda. Fontes secundárias (não li o texto) relatam: exibir "MiniMax H3" na interface, teto de US$ 20 milhões de receita, lei de Hong Kong, proibido treinar outros modelos com a saída, e uma cláusula de território que pode ou não incluir o Brasil | ler a licença no HF antes de cobrar. Plano B aberto: Wan 2.2 Animate Replace (Apache 2.0), sem velocidade nem VRAM publicadas; entra no `bench/` como segundo candidato |
 | Tempo de GPU por segundo de vídeo | margem sai de ~54-77% (estimado) para prejuízo se for 3x pior | `bench/` numa 5090 real |
 | LoRA de swap (Ref2VA) x Continuum (FL2VA) | fluxo pode não encadear chunks > 15 s | testar 30 s no benchmark |
 | GPU mínima em 768p desconhecida | não sei se uma placa menor que a 5090 roda 768p com o LoRA. O card do Comfy-Org diz que o encoder NVFP4 **não** exige Blackwell (eu tinha afirmado o contrário, errado). O único teste público de placa pequena é uma RTX 5060 Ti 16 GB a 512x512 | `bench/` em 3 placas (5090, 4090/3090, uma de 16 GB) e comparar custo por segundo de vídeo |
