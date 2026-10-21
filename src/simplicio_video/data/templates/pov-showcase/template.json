@@ -1,0 +1,167 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "pov-showcase",
+  "setor": "Consultoria / portfólio com entregáveis visuais (imagem pessoal, design, arquitetura, estética): gancho POV com rosto + pan nas pranchas + fecho",
+  "status": "pronto",
+  "nichos": [
+    "consultoria de imagem",
+    "colorimetria",
+    "personal stylist",
+    "portfólio visual"
+  ],
+  "referencia": "Reel de consultoria de imagem (18/10/2026): só a forma — gancho POV com rosto, pan com zoom nas pranchas, fecho retrato + prancha; sem imagem, texto ou áudio do original",
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 26.1,
+  "cenas": [
+    {
+      "id": "s1",
+      "papel": "gancho",
+      "dur_s": 3.767,
+      "padroes": [
+        "pov-face-hook"
+      ],
+      "campos": [
+        "marca.retrato",
+        "gancho (frase POV)"
+      ]
+    },
+    {
+      "id": "s2",
+      "papel": "prova",
+      "dur_s": 3.467,
+      "padroes": [
+        "board-pan"
+      ],
+      "campos": [
+        "prancha 1"
+      ]
+    },
+    {
+      "id": "s3",
+      "papel": "prova",
+      "dur_s": 3.733,
+      "padroes": [
+        "board-pan"
+      ],
+      "campos": [
+        "prancha 2"
+      ]
+    },
+    {
+      "id": "s4",
+      "papel": "prova",
+      "dur_s": 3.9,
+      "padroes": [
+        "board-pan"
+      ],
+      "campos": [
+        "prancha 3"
+      ]
+    },
+    {
+      "id": "s5",
+      "papel": "prova",
+      "dur_s": 2.067,
+      "padroes": [
+        "board-pan"
+      ],
+      "campos": [
+        "prancha 4"
+      ]
+    },
+    {
+      "id": "s6",
+      "papel": "prova",
+      "dur_s": 2.067,
+      "padroes": [
+        "board-pan"
+      ],
+      "campos": [
+        "prancha 5"
+      ]
+    },
+    {
+      "id": "s7",
+      "papel": "prova",
+      "dur_s": 3.967,
+      "padroes": [
+        "board-pan"
+      ],
+      "campos": [
+        "prancha 6"
+      ]
+    },
+    {
+      "id": "s8",
+      "papel": "cta",
+      "dur_s": 3.132,
+      "padroes": [
+        "portrait-board-close"
+      ],
+      "campos": [
+        "marca.retrato",
+        "prancha",
+        "chamada",
+        "@perfil",
+        "site"
+      ]
+    }
+  ],
+  "voz": {
+    "padrao": "none",
+    "habilitada": false
+  },
+  "musica": {
+    "bpm": 128,
+    "mood": "pop dance ~128 BPM de energia constante, kick em 4 no chão e drop na última prancha; trilha gerada pela esteira (estilo club, sections intro/groove/build/drop) ou faixa licenciada do cliente colocada depois do render (a esteira não tem entrada de arquivo de música); não reaproveitar a música do vídeo de referência sem autorização do dono"
+  },
+  "paleta_padrao": {
+    "ink": "#2a221d",
+    "background": "#efe9e1",
+    "accent": "#a8825a"
+  },
+  "tom": "Primeira pessoa e curioso ('POV: você …'); só fatos que estão em coleta/ (produto, @perfil, site)",
+  "transicoes": [
+    "corte seco nos instantes 3,77 / 7,23 / 10,97 / 14,87 / 16,93 / 19,0 / 22,97 s (cenas de 3,47–3,97 s e 2,07 s, ritmo do Reel de referência, que é uma sequência de quadros fixos em corte seco na batida)",
+    "dentro da prancha: pan linear (ease none) com soco de zoom de 7% (board-pan punch) e whoosh + hit em cada corte; zoom 1,4 para mostrar bastante conteúdo da prancha",
+    "pranchas em tela cheia, sem selo nem sombra de legenda (label e badge vazios), como no Reel de referência"
+  ],
+  "cuidados": [
+    "Gancho: a frase POV já inteira no 1º quadro (lead 0 e word_step 0 no pov-face-hook) e o rosto bem grande (photo_h ~1560, foco nos olhos): é o que segura o scroll nos primeiros 0,3 s",
+    "Rosto e prancha de outra pessoa: só com autorização por escrito dela (o exemplo do próprio dono da conta é livre)",
+    "Número, prazo, nota ou promessa da página (ex.: '5 min', '4,9/5') só entram com confirmação do dono; sem isso, fora do vídeo",
+    "Pranchas têm 2:3 (1024x1536); retratos recortados de prancha têm ~540 px de largura: ampliar antes (ffmpeg lanczos 3x + unsharp leve) e usar com zoom ≤ 3x do original",
+    "Prancha com pouca altura de conteúdo (ex.: só 2 públicas) pode ocupar duas cenas, com pans diferentes (topo e base)",
+    "Faixa de terceiros no vídeo final: confirmar direito de uso fora da biblioteca do Instagram; o Instagram pode silenciar o Reel"
+  ],
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": [
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s5",
+      "s6",
+      "s7",
+      "s8"
+    ],
+    "blocos": [
+      "s1-hook",
+      "s2-board",
+      "s3-board",
+      "s4-board",
+      "s5-board",
+      "s6-board",
+      "s7-board",
+      "s8-close"
+    ],
+    "_doc": "Blocos só de motion/patterns (pov-face-hook, board-pan ×6, portrait-board-close). Imagens vêm de contract.yaml assets[] e entram nos params de cada bloco."
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "schema": "simplicio.render-manifest/v1",
+  "contract": "clients/ligne/video-05-pov-amanda/contract.yaml",
+  "contract_sha256": "16d9c0aed02864decc6161399724fcd7d5eb4d13c2669072ec0208442d6e96f4",
+  "timing_lock_sha256": null,
+  "template": "pov-showcase",
+  "backend": "local",
+  "quality": "delivery",
+  "gpu_encode": false,
+  "inputs_sha256": "55312197eaf8de4477a2e4622863ba6a7545c9499b89e40faf59a394618ca9b2",
+  "inputs": {
+    "assets/audio/build/mix.wav": "36747af6c8a97c93ae5c302705f34422eae7b1395cafb326e41b1877fd929c56",
+    "assets/client/prancha-1.jpg": "2b8ddb76d4f2934a64edd661d6989d01004f975eb4ee16223a1b2929ebfe4480",
+    "assets/client/prancha-2.jpg": "1ddfa5eacfe18137ba10693b2054a14f02760e0ddd05e7ac57544baadbec8f6b",
+    "assets/client/rosto.png": "a95c05c56a0217d628a68e85f5b05d52428722869028fcd82ad8b39c7729d992",
+    "assets/fonts/Inter.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "assets/fonts/OFL-Inter.txt": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+    "build/mix.raw.wav": "5003d0f403e44365ce652277c24b916fbdbdc565b0ccb772fcfab04c35426681",
+    "build/variables.json": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "compositions/board-pan.html": "3635a4077bfc6f5cc516060ef158efbccbeabfc2018d8b8e43effbd7e70c78c3",
+    "compositions/portrait-board-close.html": "768f71931fa4e62647c16c82e24c133ff3cae24ea57b210e6c9f8e938380f356",
+    "compositions/pov-face-hook.html": "40f4ff0538beb716bea099dafe22c579caeb378ca2df37b0d007c7c8dfda30d3",
+    "hyperframes.json": "7760693dcdca6a31fffd9ed53b7fe9b4d7877089b1778edc5a5de0cb4bac517d",
+    "index.html": "d4931eeeb78ed525541465c89c12cff6cd52b1624cefe4626fc467518ac15981",
+    "meta.json": "7bf509433433f1c062c1864d1086fd722ba932b87f548ba85440fa37920d895f",
+    "scripts/build.mjs": "024ee74254a9c26916dea00d9e9441927968ab3060e37a71740a1380b0a1caab",
+    "scripts/master.sh": "ce717e9f1e6f2c7c28f39e795c93f0b16657206a69448eeb7cb37742d021f4ea",
+    "spec.json": "fde5c76c3a8631c2d4b04bf31cae4cc0f978a3add498094a25e7cbfa70506b3a"
+  },
+  "tools": {
+    "simplicio_video": "0.5.0",
+    "hyperframes": "hyperframes@0.8.97",
+    "node": "v26.8.2",
+    "ffmpeg": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.12.13"
+  },
+  "output": {
+    "path": "out/ligne-pov-pov-amanda-v1-silencioso.mp4",
+    "sha256": "f7a469cf1c4a343ed0b17f4454ed044e787a7f1ddd90b89642e95aaec6946162",
+    "duration_s": 26.1,
+    "frames": 783,
+    "video_frames_sha256": "27ea215221d1fe161d6d426460b5c500e4b25a7f6e61513920006c5a74ac16c5",
+    "audio_pcm_sha256": "ece9e98252ccc0b413a9ee717238fcde9b4bcc0f955aad2d7ef14e02768b62a6"
+  },
+  "loudness": {
+    "integrated_lufs": -14.1,
+    "true_peak_dbfs": -1.5
+  },
+  "timings_s": {
+    "compile_build": 5.29,
+    "render": 79.45,
+    "capture": 72.1,
+    "encode": 72.0,
+    "master": 4.5
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "pov-face-hook",
+  "title": "Gancho POV: rosto + frase palavra a palavra",
+  "description": "Retrato com zoom lento no alto, desfocado como fundo no resto, e a frase 'POV: …' entrando palavra a palavra (ou já inteira no 1º quadro, com lead 0 e word_step 0) embaixo — gancho de selfie para Reels.",
+  "status": "pronto",
+  "duration_s": 3.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "image",
+      "type": "string",
+      "label": "Retrato",
+      "default": "assets/placeholder-photo.svg"
+    },
+    {
+      "id": "text",
+      "type": "string",
+      "label": "Frase",
+      "default": "POV: você pediu uma consultoria de imagem completa pra você",
+      "maxLength": 110
+    },
+    {
+      "id": "strong",
+      "type": "number",
+      "label": "Palavras iniciais em destaque",
+      "default": 1
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Cor do texto",
+      "default": "#ffffff"
+    },
+    {
+      "id": "accent",
+      "type": "color",
+      "label": "Cor do destaque",
+      "default": "#f1d9b5"
+    },
+    {
+      "id": "bg",
+      "type": "color",
+      "label": "Fundo",
+      "default": "#241d19"
+    },
+    {
+      "id": "photo_h",
+      "type": "number",
+      "label": "Altura do retrato (px)",
+      "default": 1280
+    },
+    {
+      "id": "focus_y",
+      "type": "number",
+      "label": "Foco vertical do retrato (0-1)",
+      "default": 0.3
+    },
+    {
+      "id": "text_y",
+      "type": "number",
+      "label": "Topo do texto (px)",
+      "default": 1310
+    },
+    {
+      "id": "size",
+      "type": "number",
+      "label": "Tamanho da fonte (px)",
+      "default": 70
+    },
+    {
+      "id": "lead",
+      "type": "number",
+      "label": "Atraso da 1ª palavra (s; 0 = texto já no 1º quadro)",
+      "default": 0.35
+    },
+    {
+      "id": "word_step",
+      "type": "number",
+      "label": "Intervalo entre palavras (s; 0 = frase inteira de uma vez)",
+      "default": 0.15
+    },
+    {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s)",
+      "default": 3.5
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "texto",
+  "tags": [
+    "pov",
+    "gancho",
+    "rosto",
+    "selfie",
+    "legenda"
+  ],
+  "use_when": "Abertura de Reels em primeira pessoa ('POV: você …') com o rosto do cliente; funciona com qualquer retrato.",
+  "source": {
+    "kind": "interno",
+    "ref": "forma de um Reel de consultoria de imagem (gancho POV com rosto → pan nas pranchas → fecho), só a estrutura; sem imagem, texto ou áudio do original",
+    "url": null
+  },
+  "preview_at": 2.8
+}

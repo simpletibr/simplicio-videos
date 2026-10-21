@@ -279,18 +279,20 @@ voz sugerida e trilha padrão. Campos com TODO precisam ser preenchidos
 (validate falha enquanto houver TODO). Schema: src/simplicio_video/data/schema/contract.schema.json.
 
 positional arguments:
-  cliente                  slug do cliente (pasta em clients/, ex.: clinica-sorriso)
-  campanha                 campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)
+  cliente                         slug do cliente (pasta em clients/, ex.: clinica-sorriso)
+  campanha                        campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)
 
 options:
-  -h, --help               show this help message and exit
-  --template, -t TEMPLATE  id do template de setor (ver `simplicio-video list templates`)
-  --nome NOME              nome de exibição do cliente (padrão: TODO)
-  --drive-nome DRIVE_NOME  NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Clinica_Sorriso)
-  --ano ANO                ano da campanha (padrão: ano atual)
-  --out, -o OUT            onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no checkout
-                           ou, instalado por pip, na pasta atual)
-  --force                  sobrescreve um contrato existente
+  -h, --help                      show this help message and exit
+  --template TEMPLATE, -t TEMPLATE
+                                  id do template de setor (ver `simplicio-video list templates`)
+  --nome NOME                     nome de exibição do cliente (padrão: TODO)
+  --drive-nome DRIVE_NOME         NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.:
+                                  Clinica_Sorriso)
+  --ano ANO                       ano da campanha (padrão: ano atual)
+  --out OUT, -o OUT               onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no
+                                  checkout ou, instalado por pip, na pasta atual)
+  --force                         sobrescreve um contrato existente
 
 exemplos:
   simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome "<Nome do cliente>"
@@ -647,14 +649,14 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --backend, -b {local,kaggle,colab-cli,colab}
+  --backend {local,kaggle,colab-cli,colab}, -b {local,kaggle,colab-cli,colab}
                                   onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via
                                   créditos)
-  --out, -o OUT                   MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo
+  --out OUT, -o OUT               MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo
   --accelerator ACCELERATOR       kaggle: NvidiaTeslaT4 (padrão) | NvidiaL4 | none; colab-cli: T4 (padrão) |
                                   L4 | A100 | none
   --timeout TIMEOUT               kaggle/colab-cli: limite do render remoto em s (padrão 3600)
-  --quality, -q {draft,looks,delivery}
+  --quality {draft,looks,delivery}, -q {draft,looks,delivery}
                                   qualidade HyperFrames (padrão: saida.qualidade)
   --gpu                           local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo
   --gpu-encode {auto,1,0}         kaggle/colab-cli/colab: NVENC no encode (auto = usa se o teste de encode
@@ -701,14 +703,14 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio}
+  --provider {file,local,gemini,voxcpm,openvoice,voicestudio}, -p {file,local,gemini,voxcpm,openvoice,voicestudio}
                                   override voz.provider
   --force-voice                   regera todas as falas (ignora o cache)
-  --backend, -b {local,kaggle,colab-cli,colab}
+  --backend {local,kaggle,colab-cli,colab}, -b {local,kaggle,colab-cli,colab}
                                   onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via
                                   créditos)
   --accelerator ACCELERATOR       ver `render --help` (none = CPU)
-  --quality, -q {draft,looks,delivery}
+  --quality {draft,looks,delivery}, -q {draft,looks,delivery}
                                   qualidade HyperFrames
   --timeout TIMEOUT               limite do render remoto em s
   --json                          imprime o resumo em JSON no stdout (com erro, error.code); os logs vão para
@@ -943,7 +945,7 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}
+  --provider {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}, -p {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}
                                   override voz.provider
   --force                         ignora o cache (com ids: só esses)
   --concurrency N                 falas geradas ao mesmo tempo, só em provedor de rede (gemini; padrão 4; 1 =

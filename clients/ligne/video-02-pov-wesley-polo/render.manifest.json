@@ -1,0 +1,61 @@
+{
+  "schema": "simplicio.render-manifest/v1",
+  "contract": "clients/ligne/video-02-pov-wesley-polo/contract.yaml",
+  "contract_sha256": "2d4744140f00bd6370f824ff6bb090343643e5a02781ebc90a84d87ff007a4ed",
+  "timing_lock_sha256": null,
+  "template": "pov-showcase",
+  "backend": "local",
+  "quality": "delivery",
+  "gpu_encode": false,
+  "inputs_sha256": "e0fa5c69e2e82c5e59632ef65e8266f070f98d6e5d3935ba01f63b5b7926ba23",
+  "inputs": {
+    "assets/audio/build/mix.wav": "36747af6c8a97c93ae5c302705f34422eae7b1395cafb326e41b1877fd929c56",
+    "assets/client/prancha-1.jpg": "1a348921018153b7e7c7f1cf9ddd62f785aa58f1fdb55aa06a20950fcd7b3a29",
+    "assets/client/prancha-2.jpg": "7651ef03510913bab4076acc80a5c62be221d9f4c23a819fe11802d5200563da",
+    "assets/client/prancha-3.jpg": "51dac672340de63bbfbb25b35915f3d09a903cdb60a240aaede28531d1b4744b",
+    "assets/client/prancha-4.jpg": "f3422e1824f382a96f341a181e0a379a3aa0038a365c58ade5aaa907f723d817",
+    "assets/client/prancha-5.jpg": "b3940a6f75a4bd446684066ae29339da201646ce2adff30d3077df78485d8e38",
+    "assets/client/prancha-6.jpg": "35cf8245705610dd1a65dcd73e248853a9741aca830ccd08b1e42f624d875d2d",
+    "assets/client/prancha-7.jpg": "b58c42877749780a9359228034cf0b45f3dd4f87dbe846e21f7539142830e5ac",
+    "assets/client/rosto.png": "ab6323cdabc7d5d5c490530620cbaf125649aa542cb0d978c1d16b8cb537b8b2",
+    "assets/fonts/Inter.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "assets/fonts/OFL-Inter.txt": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+    "build/mix.raw.wav": "5003d0f403e44365ce652277c24b916fbdbdc565b0ccb772fcfab04c35426681",
+    "build/variables.json": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "compositions/board-pan.html": "3635a4077bfc6f5cc516060ef158efbccbeabfc2018d8b8e43effbd7e70c78c3",
+    "compositions/portrait-board-close.html": "768f71931fa4e62647c16c82e24c133ff3cae24ea57b210e6c9f8e938380f356",
+    "compositions/pov-face-hook.html": "40f4ff0538beb716bea099dafe22c579caeb378ca2df37b0d007c7c8dfda30d3",
+    "hyperframes.json": "7760693dcdca6a31fffd9ed53b7fe9b4d7877089b1778edc5a5de0cb4bac517d",
+    "index.html": "637fd125839439c0ea4e5748039f65c6425854c2a95d0c5dc7dbf29d8d1cbdfb",
+    "meta.json": "1334a3093b811d7cfd0945fcd4206adda24d28d4f78c18cc35ad53248f94fdcb",
+    "scripts/build.mjs": "024ee74254a9c26916dea00d9e9441927968ab3060e37a71740a1380b0a1caab",
+    "scripts/master.sh": "ce717e9f1e6f2c7c28f39e795c93f0b16657206a69448eeb7cb37742d021f4ea",
+    "spec.json": "5acc970a050de1579a6511e69d63ff6a53819a4a69697f3a0b225838ddbf6de9"
+  },
+  "tools": {
+    "simplicio_video": "0.5.0",
+    "hyperframes": "hyperframes@0.8.97",
+    "node": "v26.8.2",
+    "ffmpeg": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.12.13"
+  },
+  "output": {
+    "path": "out/ligne-pov-pov-wesley-polo-v1-silencioso.mp4",
+    "sha256": "5da2ced77e3ee7dcd9b8fad83febf1c696f9ce88fd671fbd67ddee9cb4889d32",
+    "duration_s": 26.1,
+    "frames": 783,
+    "video_frames_sha256": "a2b1bb0830deb28e642ff6dee640b543498c7a7714d8fb99076c2c3c33a311c2",
+    "audio_pcm_sha256": "ece9e98252ccc0b413a9ee717238fcde9b4bcc0f955aad2d7ef14e02768b62a6"
+  },
+  "loudness": {
+    "integrated_lufs": -14.1,
+    "true_peak_dbfs": -1.5
+  },
+  "timings_s": {
+    "compile_build": 5.37,
+    "render": 92.76,
+    "capture": 84.9,
+    "encode": 84.9,
+    "master": 4.82
+  }
+}

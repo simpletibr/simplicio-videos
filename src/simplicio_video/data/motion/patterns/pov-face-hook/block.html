@@ -1,0 +1,67 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/pov-face-hook/block.html — Gancho POV: rosto + frase palavra a palavra
+  Retrato com zoom lento no alto, desfocado como fundo no resto, e a frase 'POV: …' entrando palavra a palavra embaixo — gancho de selfie para Reels.
+  HyperFrames block (sub-composition), 1080x1920, 3.5s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/pov-face-hook.html and add
+    <div id="..." class="clip" data-composition-id="pov-face-hook" data-composition-src="compositions/pov-face-hook.html"
+         data-start="T" data-duration="3.5" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "pov-face-hook" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="pov-face-hook"].
+-->
+<html lang="pt-BR" data-composition-id="pov-face-hook" data-composition-duration="3.5" data-composition-variables='[{"id": "image", "type": "string", "label": "Retrato", "default": "assets/placeholder-photo.svg"}, {"id": "text", "type": "string", "label": "Frase", "default": "POV: você pediu uma consultoria de imagem completa pra você", "maxLength": 110}, {"id": "strong", "type": "number", "label": "Palavras iniciais em destaque", "default": 1}, {"id": "ink", "type": "color", "label": "Cor do texto", "default": "#ffffff"}, {"id": "accent", "type": "color", "label": "Cor do destaque", "default": "#f1d9b5"}, {"id": "bg", "type": "color", "label": "Fundo", "default": "#241d19"}, {"id": "photo_h", "type": "number", "label": "Altura do retrato (px)", "default": 1280}, {"id": "focus_y", "type": "number", "label": "Foco vertical do retrato (0-1)", "default": 0.3}, {"id": "text_y", "type": "number", "label": "Topo do texto (px)", "default": 1310}, {"id": "size", "type": "number", "label": "Tamanho da fonte (px)", "default": 70}, {"id": "lead", "type": "number", "label": "Atraso da 1ª palavra (s; 0 = texto já no 1º quadro)", "default": 0.35}, {"id": "word_step", "type": "number", "label": "Intervalo entre palavras (s; 0 = frase inteira de uma vez)", "default": 0.15}, {"id": "dur", "type": "number", "label": "Duração (s)", "default": 3.5}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Gancho POV: rosto + frase palavra a palavra</title>
+  </head>
+  <body>
+    <template>
+      <div id="pov-face-hook-root" data-composition-id="pov-face-hook" data-duration="3.5" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="pov-face-hook"] { position: absolute; inset: 0; overflow: hidden; color: var(--ink); font-family: "Inter", sans-serif; background: var(--bg); }
+          [data-composition-id="pov-face-hook"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="pov-face-hook"] .bgimg { position: absolute; left: -10%; top: -10%; width: 120%; height: 120%; object-fit: cover; filter: blur(46px) brightness(.4) saturate(1.1); }
+          [data-composition-id="pov-face-hook"] .ph { position: absolute; left: 0; top: 0; width: 1080px; height: var(--photo-h); overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%); mask-image: linear-gradient(to bottom, #000 72%, transparent 100%); }
+          [data-composition-id="pov-face-hook"] .img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: 50% 30%; }
+          [data-composition-id="pov-face-hook"] .txt { position: absolute; left: 90px; right: 90px; top: var(--text-y); text-align: center; font-size: var(--size); font-weight: 800; line-height: 1.14; letter-spacing: -.01em; text-shadow: 0 4px 24px rgba(0,0,0,.55); text-wrap: balance; }
+          [data-composition-id="pov-face-hook"] .wd { display: inline-block; }
+          [data-composition-id="pov-face-hook"] .wd.strong { color: var(--accent); }
+        </style>
+        <img class="bgimg" alt="" /><div class="ph"><img class="img" alt="" /></div><div class="txt"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"image": "assets/placeholder-photo.svg", "text": "POV: você pediu uma consultoria de imagem completa pra você", "strong": 1, "ink": "#ffffff", "accent": "#f1d9b5", "bg": "#241d19", "photo_h": 1280, "focus_y": 0.3, "text_y": 1310, "size": 70, "lead": 0.35, "word_step": 0.15, "dur": 3.5};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("pov-face-hook-root");
+            const $ = (s) => root.querySelector(s);
+            const num = (x, d) => (Number.isFinite(Number(x)) ? Number(x) : d);
+            const tl = gsap.timeline({ paused: true });
+            root.style.setProperty("--ink", V.ink); root.style.setProperty("--accent", V.accent); root.style.setProperty("--bg", V.bg);
+            root.style.setProperty("--photo-h", num(V.photo_h, 1280) + "px"); root.style.setProperty("--text-y", num(V.text_y, 1310) + "px"); root.style.setProperty("--size", num(V.size, 70) + "px");
+            $(".img").src = V.image; $(".bgimg").src = V.image;
+            $(".img").style.objectPosition = "50% " + num(V.focus_y, 0.3) * 100 + "%";
+            const dur = num(V.dur, 3.5);
+            const words = String(V.text).trim().split(/\s+/).filter(Boolean);
+            const txt = $(".txt"); txt.textContent = "";
+            const spans = words.map((w, i) => { const s = document.createElement("span"); s.className = "wd" + (i < num(V.strong, 1) ? " strong" : ""); s.textContent = w; txt.appendChild(s); if (i < words.length - 1) txt.appendChild(document.createTextNode(" ")); return s; });
+            const lead = Math.max(0, num(V.lead, 0.35));
+            const instant = num(V.word_step, 0.15) <= 0;
+            const step = Math.max(0.04, Math.min(num(V.word_step, 0.15), (dur - lead - 0.9) / Math.max(1, words.length)));
+            tl.fromTo($(".img"), { scale: 1 }, { scale: 1.08, duration: dur, ease: "none" }, 0);
+            if (instant) tl.set(spans, { opacity: 1, y: 0 }, 0);
+            else tl.fromTo(spans, { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out", stagger: step }, lead);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["pov-face-hook"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

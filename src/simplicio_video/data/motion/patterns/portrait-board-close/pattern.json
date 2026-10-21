@@ -1,0 +1,110 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "portrait-board-close",
+  "title": "Fecho: retrato + prancha + chamada",
+  "description": "Retrato em cartão arredondado, prancha inclinada sobreposta no canto e, embaixo, a chamada com @perfil e site — último quadro de consultoria/portfólio.",
+  "status": "pronto",
+  "duration_s": 3.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "portrait",
+      "type": "string",
+      "label": "Retrato",
+      "default": "assets/placeholder-photo.svg"
+    },
+    {
+      "id": "board",
+      "type": "string",
+      "label": "Prancha",
+      "default": "assets/placeholder-photo.svg"
+    },
+    {
+      "id": "focus_y",
+      "type": "number",
+      "label": "Foco vertical do retrato (0-1)",
+      "default": 0.3
+    },
+    {
+      "id": "focus_x",
+      "type": "number",
+      "label": "Foco horizontal do retrato (0-1)",
+      "default": 0.6
+    },
+    {
+      "id": "kicker",
+      "type": "string",
+      "label": "Linha pequena",
+      "default": "consultoria de imagem",
+      "maxLength": 32
+    },
+    {
+      "id": "cta",
+      "type": "string",
+      "label": "Chamada",
+      "default": "Peça a sua consultoria de imagem",
+      "maxLength": 60
+    },
+    {
+      "id": "handle",
+      "type": "string",
+      "label": "@perfil",
+      "default": "@perfil",
+      "maxLength": 28
+    },
+    {
+      "id": "site",
+      "type": "string",
+      "label": "Site (vazio oculta)",
+      "default": "",
+      "maxLength": 32
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Texto",
+      "default": "#2a221d"
+    },
+    {
+      "id": "accent",
+      "type": "color",
+      "label": "Destaque",
+      "default": "#a8825a"
+    },
+    {
+      "id": "bg",
+      "type": "color",
+      "label": "Fundo",
+      "default": "#efe9e1"
+    },
+    {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s)",
+      "default": 3.5
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "marca",
+  "tags": [
+    "fecho",
+    "cta",
+    "retrato",
+    "prancha",
+    "perfil"
+  ],
+  "use_when": "Último quadro de vídeos de consultoria, portfólio ou antes/depois: pessoa + entregável + chamada para o perfil.",
+  "source": {
+    "kind": "interno",
+    "ref": "forma de um Reel de consultoria de imagem (gancho POV com rosto → pan nas pranchas → fecho), só a estrutura; sem imagem, texto ou áudio do original",
+    "url": null
+  },
+  "preview_at": 3.0
+}
