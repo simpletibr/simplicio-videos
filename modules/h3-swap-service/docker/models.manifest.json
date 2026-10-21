@@ -1,0 +1,120 @@
+[
+  {
+    "r2_key": "models/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "dest": "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "MiniMax H3 FL2VA pruned INT8 (convrot) diffusion model. Comfy-Org card: prefer int8_convrot 'if you are able to use pytorch with cu130'. Size and sha256 unknown until uploaded."
+  },
+  {
+    "r2_key": "models/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "dest": "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "Default text encoder: Qwen3-VL-32B nvfp4_awq quant. Comfy-Org card: 'This nvfp4 text encoder does not require Blackwell GPU to use.'"
+  },
+  {
+    "r2_key": "models/vae/minimax_h3_video_vae_int8_convrot.safetensors",
+    "dest": "vae/minimax_h3_video_vae_int8_convrot.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "MiniMax H3 video VAE, INT8 (convrot)."
+  },
+  {
+    "r2_key": "models/vae/minimax_h3_audio_vae_fp32.safetensors",
+    "dest": "vae/minimax_h3_audio_vae_fp32.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "MiniMax H3 audio VAE, FP32."
+  },
+  {
+    "r2_key": "models/loras/h3_character_swap_v1.5.safetensors",
+    "dest": "loras/h3_character_swap_v1.5.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "note": "akatz-ai Character-Swap LoRA for H3, v1.5."
+  },
+  {
+    "r2_key": "models/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+    "dest": "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "VERIFY which Ref2VA INT8 file the example workflow loads; the non-pruned minimax_h3_ref2va_int8_convrot.safetensors also exists. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/diffusion_models/minimax_h3_ref2va_int8_convrot.safetensors",
+    "dest": "diffusion_models/minimax_h3_ref2va_int8_convrot.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Non-pruned Ref2VA INT8 (convrot). Alternative to the pruned file; see its note. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+    "dest": "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Turbo LoRA. The LoRA card names minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors while the Comfy-Org list shows minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors, minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors and minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors: VERIFY which one the workflow uses. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+    "dest": "loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Turbo LoRA. The LoRA card names minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors while the Comfy-Org list shows minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors, minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors and minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors: VERIFY which one the workflow uses. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+    "dest": "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Turbo LoRA. The LoRA card names minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors while the Comfy-Org list shows minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors, minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors and minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors: VERIFY which one the workflow uses. Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+    "dest": "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Alternative text encoder for smaller or non-NVFP4 setups (Qwen3-VL-32B, int8_convrot). Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "models/text_encoders/qwen3vl_32b_minimax_h3_bf16.safetensors",
+    "dest": "text_encoders/qwen3vl_32b_minimax_h3_bf16.safetensors",
+    "size_bytes": null,
+    "sha256": null,
+    "required": false,
+    "note": "Alternative text encoder for smaller or non-NVFP4 setups (Qwen3-VL-32B, bf16, largest). Optional: fetched only when selected."
+  },
+  {
+    "r2_key": "config/workflow_api.json",
+    "dest": "workflow_api.json",
+    "dest_root": "/app",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "always_download": true,
+    "optional_if_env": "WORKFLOW_OPTIONAL",
+    "note": "User-exported ComfyUI workflow (API format). Re-fetched at every boot. Read by the worker from WORKFLOW_TEMPLATE (default /app/workflow_api.json). WORKFLOW_OPTIONAL=1 makes a missing file a warning (the worker then fails every job)."
+  },
+  {
+    "r2_key": "config/workflow_map.json",
+    "dest": "workflow_map.json",
+    "dest_root": "/app",
+    "size_bytes": null,
+    "sha256": null,
+    "required": true,
+    "always_download": true,
+    "optional_if_env": "WORKFLOW_OPTIONAL",
+    "note": "Node map for the workflow (which node input the worker sets). Re-fetched at every boot. Read from WORKFLOW_MAP (default /app/workflow_map.json). WORKFLOW_OPTIONAL=1 makes a missing file a warning (the worker then fails every job)."
+  }
+]
