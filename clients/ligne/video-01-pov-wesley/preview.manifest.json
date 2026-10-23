@@ -1,0 +1,36 @@
+{
+  "schema": "simplicio.preview-manifest/v1",
+  "contract_sha256": "8d9cde814407f7375b856c0199120a75d82a0a3a19c7c742ad196fb404827e69",
+  "inputs_sha256": "d19726d303f57e5dd5f95d82d07ddc2395c337990f689e6edda2d3eb3faeb626",
+  "preview": {
+    "path": "out/ligne-pov-wesley-v2-previa.mp4",
+    "sha256": "46c1165cca95616abb1612c49951312d781769c025a99ba8a65d4c551fdb1ee4",
+    "duration_s": 26.267,
+    "bytes": 2446259,
+    "watermark": "Prévia · Ligne",
+    "logo": null
+  },
+  "spec": {
+    "width": 540,
+    "height": 960,
+    "fps": 30,
+    "crf": 30,
+    "end_card_s": 2.5,
+    "badge": "PRÉVIA",
+    "end_note": "Prévia em baixa resolução",
+    "marca": {
+      "dagua": "Prévia · Ligne",
+      "credito": null
+    }
+  },
+  "timings_s": {
+    "compile_build": 4.06,
+    "render": 45.4,
+    "capture": 40.9,
+    "encode": 40.9,
+    "master": 2.76,
+    "render_total": 52.23,
+    "preview_post": 9.7,
+    "total": 61.92
+  }
+}

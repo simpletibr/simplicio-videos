@@ -1,0 +1,58 @@
+{
+  "schema": "simplicio.render-manifest/v1",
+  "contract": "clients/ligne/video-04-pov-bruna-4/contract.yaml",
+  "contract_sha256": "bfdafa5525a077c38c6ea374923d17085eb8309989a224a91092d72db5688462",
+  "timing_lock_sha256": null,
+  "template": "pov-showcase",
+  "backend": "local",
+  "quality": "delivery",
+  "gpu_encode": false,
+  "inputs_sha256": "0f52c4fe5e8640c72f19521c14ab42afd794c65fb4782597acb0845c301361da",
+  "inputs": {
+    "assets/audio/build/mix.wav": "36747af6c8a97c93ae5c302705f34422eae7b1395cafb326e41b1877fd929c56",
+    "assets/client/prancha-1.jpg": "e3944db4d8ffe0c9c49d28e11f8718cadb05efc979d8da550bd70f2bc01d292a",
+    "assets/client/prancha-2.jpg": "24ae7d53ca5acd6b6b690c493b7f03119f7b1c68512c5613fadcee453ec19d76",
+    "assets/client/prancha-3.jpg": "9b1a6f4c3065d97aeeb0a4490575e74364699b606c1af83092c9e22d95f4b3f7",
+    "assets/client/prancha-4.jpg": "2081f3a3e1e5f0304b57878f5decb9dc804a5606f902656b711a309a44a7e6e0",
+    "assets/client/rosto.png": "76ce4360510e775d4fdf2dd08cbf8d652c50b676423e23e192629a27e192ca32",
+    "assets/fonts/Inter.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "assets/fonts/OFL-Inter.txt": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+    "build/mix.raw.wav": "5003d0f403e44365ce652277c24b916fbdbdc565b0ccb772fcfab04c35426681",
+    "build/variables.json": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "compositions/board-pan.html": "3635a4077bfc6f5cc516060ef158efbccbeabfc2018d8b8e43effbd7e70c78c3",
+    "compositions/portrait-board-close.html": "768f71931fa4e62647c16c82e24c133ff3cae24ea57b210e6c9f8e938380f356",
+    "compositions/pov-face-hook.html": "40f4ff0538beb716bea099dafe22c579caeb378ca2df37b0d007c7c8dfda30d3",
+    "hyperframes.json": "7760693dcdca6a31fffd9ed53b7fe9b4d7877089b1778edc5a5de0cb4bac517d",
+    "index.html": "67eaad2262b6e3071343a9c3025f69bf1a506159796121262ab9772b2bdd0118",
+    "meta.json": "e04b61a564ec6d461cd225fe6c7964a79e438783c7de2a6b06180e8353e9d4d2",
+    "scripts/build.mjs": "024ee74254a9c26916dea00d9e9441927968ab3060e37a71740a1380b0a1caab",
+    "scripts/master.sh": "ce717e9f1e6f2c7c28f39e795c93f0b16657206a69448eeb7cb37742d021f4ea",
+    "spec.json": "9f02bb3aaa03cd6dde9a16cbf9cdfb025f6c8315ae64dc6c66c96b4f5db884e0"
+  },
+  "tools": {
+    "simplicio_video": "0.5.0",
+    "hyperframes": "hyperframes@0.8.97",
+    "node": "v26.8.2",
+    "ffmpeg": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.12.13"
+  },
+  "output": {
+    "path": "out/ligne-pov-pov-bruna-4-v1-silencioso.mp4",
+    "sha256": "025bd2d9c5e493f2ec7aaede132377e62ba42e84144ee88392b2fe8cb8edb640",
+    "duration_s": 26.1,
+    "frames": 783,
+    "video_frames_sha256": "1f51a15792bbdeedf6ea73ca53bd37dece44c67c7359109707437f9b987a9152",
+    "audio_pcm_sha256": "ece9e98252ccc0b413a9ee717238fcde9b4bcc0f955aad2d7ef14e02768b62a6"
+  },
+  "loudness": {
+    "integrated_lufs": -14.1,
+    "true_peak_dbfs": -1.5
+  },
+  "timings_s": {
+    "compile_build": 5.08,
+    "render": 78.27,
+    "capture": 70.4,
+    "encode": 70.4,
+    "master": 5.19
+  }
+}

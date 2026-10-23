@@ -1,0 +1,132 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "board-pan",
+  "title": "Pan com zoom sobre uma prancha",
+  "description": "Prancha (infográfico vertical) ampliada que desliza de um ponto de foco a outro, com selo de etapa e legenda embaixo — leitura de 'rolando a consultoria'.",
+  "status": "pronto",
+  "duration_s": 4.5,
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "params": [
+    {
+      "id": "image",
+      "type": "string",
+      "label": "Prancha",
+      "default": "assets/placeholder-photo.svg"
+    },
+    {
+      "id": "aspect",
+      "type": "number",
+      "label": "Altura/largura da prancha",
+      "default": 1.5
+    },
+    {
+      "id": "zoom",
+      "type": "number",
+      "label": "Zoom (1 = largura da tela)",
+      "default": 1.5
+    },
+    {
+      "id": "x0",
+      "type": "number",
+      "label": "Foco inicial X (0-1)",
+      "default": 0.3
+    },
+    {
+      "id": "y0",
+      "type": "number",
+      "label": "Foco inicial Y (0-1)",
+      "default": 0.2
+    },
+    {
+      "id": "x1",
+      "type": "number",
+      "label": "Foco final X (0-1)",
+      "default": 0.7
+    },
+    {
+      "id": "y1",
+      "type": "number",
+      "label": "Foco final Y (0-1)",
+      "default": 0.8
+    },
+    {
+      "id": "badge",
+      "type": "string",
+      "label": "Selo (ex.: 2/7; vazio oculta)",
+      "default": "",
+      "maxLength": 8
+    },
+    {
+      "id": "label",
+      "type": "string",
+      "label": "Legenda (vazio oculta)",
+      "default": "",
+      "maxLength": 40
+    },
+    {
+      "id": "ink",
+      "type": "color",
+      "label": "Texto da legenda",
+      "default": "#ffffff"
+    },
+    {
+      "id": "accent",
+      "type": "color",
+      "label": "Cor do selo",
+      "default": "#c9a77c"
+    },
+    {
+      "id": "bg",
+      "type": "color",
+      "label": "Fundo",
+      "default": "#efe9e1"
+    },
+    {
+      "id": "shade",
+      "type": "color",
+      "label": "Sombra da legenda",
+      "default": "#241d19"
+    },
+    {
+      "id": "ease",
+      "type": "string",
+      "label": "Curva do pan (none = linear; power1.inOut = suave)",
+      "default": "power1.inOut"
+    },
+    {
+      "id": "punch",
+      "type": "number",
+      "label": "Soco de zoom no corte (0 = sem; 0.06 = 6%)",
+      "default": 0
+    },
+    {
+      "id": "dur",
+      "type": "number",
+      "label": "Duração (s)",
+      "default": 4.5
+    }
+  ],
+  "files": {
+    "block": "block.html",
+    "preview": "preview.png"
+  },
+  "category": "imagem",
+  "tags": [
+    "pan",
+    "prancha",
+    "zoom",
+    "scroll",
+    "infográfico"
+  ],
+  "use_when": "Mostrar uma imagem longa/densa (prancha, tabela, relatório) em movimento, uma região por vez; uma cena por prancha ou por trecho.",
+  "source": {
+    "kind": "interno",
+    "ref": "forma de um Reel de consultoria de imagem (gancho POV com rosto → pan nas pranchas → fecho), só a estrutura; sem imagem, texto ou áudio do original",
+    "url": null
+  },
+  "preview_at": 2.0
+}

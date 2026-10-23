@@ -1,0 +1,68 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/board-pan/block.html — Pan com zoom sobre uma prancha
+  Prancha (infográfico vertical) ampliada que desliza de um ponto de foco a outro, com selo de etapa e legenda embaixo — leitura de 'rolando a consultoria'.
+  HyperFrames block (sub-composition), 1080x1920, 4.5s. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/board-pan.html and add
+    <div id="..." class="clip" data-composition-id="board-pan" data-composition-src="compositions/board-pan.html"
+         data-start="T" data-duration="4.5" data-track-index="N" data-variable-values='{...}'></div>
+  Contract (same as the HyperFrames registry components): the runtime clones only the <template>; the
+  paused timeline registers under the literal "board-pan" key. Deterministic: seeded rng only, no Math.random,
+  Date.now, fetch or infinite repeats. Styles are scoped under [data-composition-id="board-pan"].
+-->
+<html lang="pt-BR" data-composition-id="board-pan" data-composition-duration="4.5" data-composition-variables='[{"id": "image", "type": "string", "label": "Prancha", "default": "assets/placeholder-photo.svg"}, {"id": "aspect", "type": "number", "label": "Altura/largura da prancha", "default": 1.5}, {"id": "zoom", "type": "number", "label": "Zoom (1 = largura da tela)", "default": 1.5}, {"id": "x0", "type": "number", "label": "Foco inicial X (0-1)", "default": 0.3}, {"id": "y0", "type": "number", "label": "Foco inicial Y (0-1)", "default": 0.2}, {"id": "x1", "type": "number", "label": "Foco final X (0-1)", "default": 0.7}, {"id": "y1", "type": "number", "label": "Foco final Y (0-1)", "default": 0.8}, {"id": "badge", "type": "string", "label": "Selo (ex.: 2/7; vazio oculta)", "default": "", "maxLength": 8}, {"id": "label", "type": "string", "label": "Legenda (vazio oculta)", "default": "", "maxLength": 40}, {"id": "ink", "type": "color", "label": "Texto da legenda", "default": "#ffffff"}, {"id": "accent", "type": "color", "label": "Cor do selo", "default": "#c9a77c"}, {"id": "bg", "type": "color", "label": "Fundo", "default": "#efe9e1"}, {"id": "shade", "type": "color", "label": "Sombra da legenda", "default": "#241d19"}, {"id": "ease", "type": "string", "label": "Curva do pan (none = linear; power1.inOut = suave)", "default": "power1.inOut"}, {"id": "punch", "type": "number", "label": "Soco de zoom no corte (0 = sem; 0.06 = 6%)", "default": 0}, {"id": "dur", "type": "number", "label": "Duração (s)", "default": 4.5}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Pan com zoom sobre uma prancha</title>
+  </head>
+  <body>
+    <template>
+      <div id="board-pan-root" data-composition-id="board-pan" data-duration="4.5" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="board-pan"] { position: absolute; inset: 0; overflow: hidden; color: var(--ink); font-family: "Inter", sans-serif; background: var(--bg); }
+          [data-composition-id="board-pan"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="board-pan"] .cam { position: absolute; inset: 0; transform-origin: 50% 50%; will-change: transform; }
+          [data-composition-id="board-pan"] .img { position: absolute; left: 0; top: 0; max-width: none; will-change: transform; }
+          [data-composition-id="board-pan"] .shade { position: absolute; left: 0; right: 0; bottom: 0; height: 640px; background: linear-gradient(to bottom, rgba(0,0,0,0), var(--shade) 70%); }
+          [data-composition-id="board-pan"] .cap { position: absolute; left: 70px; right: 70px; bottom: 300px; display: flex; align-items: center; gap: 22px; }
+          [data-composition-id="board-pan"] .badge { flex: none; font-size: 40px; font-weight: 800; letter-spacing: .06em; color: var(--shade); background: var(--accent); padding: 12px 24px; border-radius: 999px; }
+          [data-composition-id="board-pan"] .lbl { font-size: 54px; font-weight: 800; line-height: 1.08; letter-spacing: -.01em; text-shadow: 0 3px 18px rgba(0,0,0,.5); text-wrap: balance; }
+          [data-composition-id="board-pan"] .empty { display: none; }
+        </style>
+        <div class="cam"><img class="img" alt="" /></div><div class="shade"></div><div class="cap"><span class="badge"></span><span class="lbl"></span></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            // ---- params: block defaults < host data-variable-values < CLI --variables ----
+            const DEF = {"image": "assets/placeholder-photo.svg", "aspect": 1.5, "zoom": 1.5, "x0": 0.3, "y0": 0.2, "x1": 0.7, "y1": 0.8, "badge": "", "label": "", "ink": "#ffffff", "accent": "#c9a77c", "bg": "#efe9e1", "shade": "#241d19", "ease": "power1.inOut", "punch": 0, "dur": 4.5};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("board-pan-root");
+            const $ = (s) => root.querySelector(s);
+            const num = (x, d) => (Number.isFinite(Number(x)) ? Number(x) : d);
+            const tl = gsap.timeline({ paused: true });
+            root.style.setProperty("--ink", V.ink); root.style.setProperty("--accent", V.accent); root.style.setProperty("--bg", V.bg); root.style.setProperty("--shade", V.shade);
+            const dur = num(V.dur, 4.5), z = Math.max(1, num(V.zoom, 1.5));
+            const W = 1080 * z, H = W * num(V.aspect, 1.5);
+            const img = $(".img"); img.src = V.image; img.style.width = W + "px"; img.style.height = H + "px";
+            // foco normalizado (0-1) -> deslocamento que centraliza o ponto e nunca mostra borda da prancha
+            const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+            const posX = (f) => clamp(540 - f * W, 1080 - W, 0);
+            const posY = (f) => (H <= 1920 ? (1920 - H) / 2 : clamp(960 - f * H, 1920 - H, 0));
+            const badge = $(".badge"), lbl = $(".lbl");
+            badge.textContent = V.badge || ""; lbl.textContent = V.label || "";
+            if (!V.badge) badge.classList.add("empty");
+            if (!V.label) { lbl.classList.add("empty"); $(".shade").classList.add("empty"); $(".cap").classList.add("empty"); }
+            tl.fromTo(img, { x: posX(num(V.x0, 0.3)), y: posY(num(V.y0, 0.2)) }, { x: posX(num(V.x1, 0.7)), y: posY(num(V.y1, 0.8)), duration: dur, ease: V.ease || "power1.inOut" }, 0);
+            if (num(V.punch, 0) > 0) tl.fromTo($(".cam"), { scale: 1 + num(V.punch, 0) }, { scale: 1, duration: 0.3, ease: "power3.out" }, 0);
+            tl.fromTo($(".cap"), { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.25);
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["board-pan"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

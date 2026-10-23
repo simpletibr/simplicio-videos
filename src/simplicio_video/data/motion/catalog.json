@@ -1,8 +1,8 @@
 {
   "schema": "simplicio.motion-catalog/v1",
-  "count": 52,
+  "count": 55,
   "by_status": {
-    "pronto": 30,
+    "pronto": 33,
     "lib": 1,
     "inline": 2,
     "proposto": 19
@@ -195,6 +195,41 @@
       "block": "patterns/toothbrush-sparkle/block.html",
       "preview": "patterns/toothbrush-sparkle/preview.png",
       "source": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md"
+    },
+    {
+      "id": "board-pan",
+      "title": "Pan com zoom sobre uma prancha",
+      "status": "pronto",
+      "category": "imagem",
+      "tags": [
+        "pan",
+        "prancha",
+        "zoom",
+        "scroll",
+        "infográfico"
+      ],
+      "duration_s": 4.5,
+      "params": [
+        "image",
+        "aspect",
+        "zoom",
+        "x0",
+        "y0",
+        "x1",
+        "y1",
+        "badge",
+        "label",
+        "ink",
+        "accent",
+        "bg",
+        "shade",
+        "ease",
+        "punch",
+        "dur"
+      ],
+      "block": "patterns/board-pan/block.html",
+      "preview": "patterns/board-pan/preview.png",
+      "source": "forma de um Reel de consultoria de imagem (gancho POV com rosto → pan nas pranchas → fecho), só a estrutura; sem imagem, texto ou áudio do original"
     },
     {
       "id": "card-3d-pushin-sweep",
@@ -417,6 +452,37 @@
       "source": "https://x.com/Mounnna/status/2103802871934497266"
     },
     {
+      "id": "portrait-board-close",
+      "title": "Fecho: retrato + prancha + chamada",
+      "status": "pronto",
+      "category": "marca",
+      "tags": [
+        "fecho",
+        "cta",
+        "retrato",
+        "prancha",
+        "perfil"
+      ],
+      "duration_s": 3.5,
+      "params": [
+        "portrait",
+        "board",
+        "focus_y",
+        "focus_x",
+        "kicker",
+        "cta",
+        "handle",
+        "site",
+        "ink",
+        "accent",
+        "bg",
+        "dur"
+      ],
+      "block": "patterns/portrait-board-close/block.html",
+      "preview": "patterns/portrait-board-close/preview.png",
+      "source": "forma de um Reel de consultoria de imagem (gancho POV com rosto → pan nas pranchas → fecho), só a estrutura; sem imagem, texto ou áudio do original"
+    },
+    {
       "id": "beat-burst",
       "title": "Estrelas + confete explodindo nas batidas",
       "status": "pronto",
@@ -537,6 +603,38 @@
       "block": "patterns/process-timeline/block.html",
       "preview": "patterns/process-timeline/preview.png",
       "source": "showreel piloto de assistência técnica (S5)"
+    },
+    {
+      "id": "pov-face-hook",
+      "title": "Gancho POV: rosto + frase palavra a palavra",
+      "status": "pronto",
+      "category": "texto",
+      "tags": [
+        "pov",
+        "gancho",
+        "rosto",
+        "selfie",
+        "legenda"
+      ],
+      "duration_s": 3.5,
+      "params": [
+        "image",
+        "text",
+        "strong",
+        "ink",
+        "accent",
+        "bg",
+        "photo_h",
+        "focus_y",
+        "text_y",
+        "size",
+        "lead",
+        "word_step",
+        "dur"
+      ],
+      "block": "patterns/pov-face-hook/block.html",
+      "preview": "patterns/pov-face-hook/preview.png",
+      "source": "forma de um Reel de consultoria de imagem (gancho POV com rosto → pan nas pranchas → fecho), só a estrutura; sem imagem, texto ou áudio do original"
     },
     {
       "id": "kinetic-bounce-title",

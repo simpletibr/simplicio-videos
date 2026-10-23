@@ -1,0 +1,251 @@
+# simplicio.video-contract/v1 — Ligne · video-01 POV (Wesley) · Reels 26 s, 9:16.
+# Forma do Reel @useligne Den1y0iMUNY (gancho POV com rosto → pan nas pranchas → fecho); imagem, texto e áudio são do próprio Wesley.
+# Fatos só de ../coleta/ (fontes.md): produto, @useligne, ligne.site e as 7 pranchas do exemplo do Wesley (3e51ebb8…).
+# Sem números da página (5 min, 4,9/5, 100%): não confirmados. Sem voz (o original é só música); trilha gerada pela esteira.
+# v4: revisão contra o original (gancho com texto já no 1º quadro e rosto maior; pranchas sem selo/sombra e com zoom 1,4 para mostrar mais conteúdo). v3: cortes nos instantes do Reel original (3,77/7,23/10,97/14,87/16,93/19,0/22,97 s); áudio da faixa do post trocado depois do render (ver legenda.md/pendencias.md). v2: 128 BPM (pop dance como o original), cortes a cada 1–2 compassos (3,75 s / 1,875 s), 7 pranchas, soco de zoom + whoosh/hit em cada corte, drop na última prancha.
+# Schema: ../../../src/simplicio_video/data/schema/contract.schema.json
+schema: simplicio.video-contract/v1
+cliente:
+  slug: ligne
+  nome: Ligne Studio
+  drive_nome: Ligne_Studio
+  coleta: ../coleta
+campanha:
+  id: POV_Consultoria
+  ano: 2026
+  titulo: POV consultoria de imagem (Wesley) — Reels 26 s
+  objetivo: Mostrar a consultoria de imagem em 25 s e levar ao @useligne / ligne.site
+formato:
+  aspect: '9:16'
+  width: 1080
+  height: 1920
+  fps: 30
+  duracao_s: 26.1
+template: pov-showcase
+marca:
+  # cores lidas das pranchas (informativas, não é paleta oficial da marca)
+  paleta:
+    ink: '#2a221d'
+    background: '#efe9e1'
+    accent: '#a8825a'
+  logo: null
+  fontes:
+  - Inter
+  dagua: Prévia · Ligne
+assets:
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/recortes/rosto-wesley.png
+  destino: assets/client/rosto-wesley.png
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/recortes/rosto-wesley-hd.png
+  destino: assets/client/rosto-wesley-hd.png
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/step-1-master-chart.jpg
+  destino: assets/client/prancha-1.jpg
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/step-2-makeup.jpg
+  destino: assets/client/prancha-2.jpg
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/step-3-colorimetry.jpg
+  destino: assets/client/prancha-3.jpg
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/step-4-top-comparison.jpg
+  destino: assets/client/prancha-4.jpg
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/step-5-hair.jpg
+  destino: assets/client/prancha-5.jpg
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/step-6-accessories.jpg
+  destino: assets/client/prancha-6.jpg
+- arquivo: ../coleta/showcase/3e51ebb867cbf603f55b8df2/step-7-complete-looks.jpg
+  destino: assets/client/prancha-7.jpg
+cenas:
+- id: s1
+  papel: gancho
+  duracao_s: 3.767
+  motion:
+  - padrao: pov-face-hook
+    bloco: s1-hook
+    params:
+      image: assets/client/rosto-wesley-hd.png
+      text: 'POV: você pediu pro ChatGPT fazer uma consultoria de imagem pessoal completa pra você'
+      photo_h: 1560
+      focus_y: 0.4
+      text_y: 1170
+      size: 80
+      lead: 0
+      word_step: 0
+      dur: '{{dur:s1}}'
+  tela:
+  - 'POV: você pediu pro ChatGPT fazer uma consultoria de imagem pessoal completa pra você'
+  sfx:
+  - { id: kick-hook, t: 0.0, tipo: hit, gain_db: -10 }
+  - { id: pop-hook, t: 0.3, tipo: pop, gain_db: -12 }
+- id: s2
+  papel: prova
+  duracao_s: 3.467
+  motion:
+  - padrao: board-pan
+    bloco: s2-board
+    params:
+      image: assets/client/prancha-1.jpg
+      zoom: 1.4
+      x0: 0.5
+      y0: 0.22
+      x1: 0.5
+      y1: 0.8
+      ease: none
+      punch: 0.07
+      dur: '{{dur:s2}}'
+  tela:
+  - 'prancha 1/7 · Cartela mestra de imagem'
+  sfx:
+  - { id: whoosh-s2, t: 0.0, tipo: whoosh, gain_db: -12, pan: 0.25 }
+  - { id: hit-s2, t: 0.0, tipo: hit, gain_db: -13 }
+- id: s3
+  papel: prova
+  duracao_s: 3.733
+  motion:
+  - padrao: board-pan
+    bloco: s3-board
+    params:
+      image: assets/client/prancha-3.jpg
+      zoom: 1.4
+      x0: 0.35
+      y0: 0.3
+      x1: 0.65
+      y1: 0.7
+      ease: none
+      punch: 0.07
+      dur: '{{dur:s3}}'
+  tela:
+  - 'prancha 3/7 · Colorimetria pessoal'
+  sfx:
+  - { id: whoosh-s3, t: 0.0, tipo: whoosh, gain_db: -12, pan: -0.25 }
+  - { id: hit-s3, t: 0.0, tipo: hit, gain_db: -13 }
+- id: s4
+  papel: prova
+  duracao_s: 3.9
+  motion:
+  - padrao: board-pan
+    bloco: s4-board
+    params:
+      image: assets/client/prancha-4.jpg
+      zoom: 1.4
+      x0: 0.4
+      y0: 0.25
+      x1: 0.6
+      y1: 0.7
+      ease: none
+      punch: 0.07
+      dur: '{{dur:s4}}'
+  tela:
+  - 'prancha 4/7 · Valoriza vs apaga'
+  sfx:
+  - { id: whoosh-s4, t: 0.0, tipo: whoosh, gain_db: -12, pan: 0.25 }
+  - { id: hit-s4, t: 0.0, tipo: hit, gain_db: -13 }
+- id: s5
+  papel: prova
+  duracao_s: 2.067
+  motion:
+  - padrao: board-pan
+    bloco: s5-board
+    params:
+      image: assets/client/prancha-5.jpg
+      zoom: 1.4
+      x0: 0.65
+      y0: 0.3
+      x1: 0.35
+      y1: 0.75
+      ease: none
+      punch: 0.07
+      dur: '{{dur:s5}}'
+  tela:
+  - 'prancha 5/7 · Cabelos que combinam com você'
+  sfx:
+  - { id: whoosh-s5, t: 0.0, tipo: whoosh, gain_db: -12, pan: -0.25 }
+  - { id: hit-s5, t: 0.0, tipo: hit, gain_db: -13 }
+- id: s6
+  papel: prova
+  duracao_s: 2.067
+  motion:
+  - padrao: board-pan
+    bloco: s6-board
+    params:
+      image: assets/client/prancha-6.jpg
+      zoom: 1.4
+      x0: 0.4
+      y0: 0.25
+      x1: 0.6
+      y1: 0.75
+      ease: none
+      punch: 0.07
+      dur: '{{dur:s6}}'
+  tela:
+  - 'prancha 6/7 · Acessórios que assinam o look'
+  sfx:
+  - { id: whoosh-s6, t: 0.0, tipo: whoosh, gain_db: -12, pan: 0.25 }
+  - { id: hit-s6, t: 0.0, tipo: hit, gain_db: -13 }
+  - { id: riser-drop, t: 0.0, tipo: riser, args: [1.8], gain_db: -14 }
+- id: s7
+  papel: prova
+  duracao_s: 3.967
+  motion:
+  - padrao: board-pan
+    bloco: s7-board
+    params:
+      image: assets/client/prancha-7.jpg
+      zoom: 1.4
+      x0: 0.5
+      y0: 0.15
+      x1: 0.5
+      y1: 0.85
+      ease: none
+      punch: 0.07
+      dur: '{{dur:s7}}'
+  tela:
+  - 'prancha 7/7 · Looks completos por ocasião'
+  sfx:
+  - { id: whoosh-s7, t: 0.0, tipo: whoosh, gain_db: -12, pan: -0.25 }
+  - { id: hit-s7, t: 0.0, tipo: hit, gain_db: -13 }
+  - { id: impact-drop, t: 0.0, tipo: impact, gain_db: -9 }
+- id: s8
+  papel: cta
+  duracao_s: 3.132
+  motion:
+  - padrao: portrait-board-close
+    bloco: s8-close
+    params:
+      portrait: assets/client/rosto-wesley.png
+      board: assets/client/prancha-2.jpg
+      focus_x: 0.6
+      kicker: consultoria de imagem
+      cta: Peça a sua consultoria de imagem
+      handle: '@useligne'
+      site: ligne.site
+      dur: '{{dur:s8}}'
+  tela:
+  - 'retrato + prancha de maquiagem'
+  - 'Peça a sua consultoria de imagem · @useligne · ligne.site'
+  sfx:
+  - { id: whoosh-s8, t: 0.0, tipo: whoosh, gain_db: -12, pan: 0.25 }
+  - { id: hit-s8, t: 0.0, tipo: hit, gain_db: -13 }
+  - { id: shimmer-close, t: 0.7, tipo: shimmer, args: [0.8, 2637], gain_db: -16 }
+voz:
+  provider: file
+  habilitada: false
+trilha:
+  bpm: 128
+  seed: 20261018
+  music:
+    gain_db: -5
+    fade_in_s: 0.1
+    fade_out_s: 1.0
+    progression:
+    - [48, [60, 64, 67]]
+    - [45, [57, 60, 64]]
+    - [41, [60, 65, 69]]
+    - [43, [59, 62, 67]]
+    sections:
+    - { name: intro, from: 0, to: 3.767 }
+    - { name: groove, from: 3.767, to: 16.933 }
+    - { name: build, from: 16.933, to: 19.0 }
+    - { name: drop, from: 19.0, to: 26.1 }
+  master:
+    target_lufs: -14
+    true_peak_db: -1.5
+saida:
+  arquivo: out/ligne-pov-wesley-v4-silencioso.mp4
+  qualidade: delivery

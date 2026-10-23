@@ -1,0 +1,45 @@
+<!doctype html>
+<!--
+  pov-showcase: gancho POV com rosto + 6 pans de prancha + fecho retrato/prancha/chamada. Composta ONLY com blocos de
+  motion/patterns (pov-face-hook, board-pan, portrait-board-close): params vêm do contrato (cenas[].motion[].params ->
+  {{vars:<bloco>}}), tempos das cenas de cenas[].duracao_s. Corte seco entre cenas; nenhum mecanismo de render novo.
+  Deterministic: no Math.random, Date.now, fetch or infinite repeats. Fatos só de coleta/.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width={{width}}, height={{height}}" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: {{width}}px; height: {{height}}px; overflow: hidden; background: #efe9e1; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+      .clip { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{duracao}}" data-width="{{width}}" data-height="{{height}}">
+      <!-- S1 gancho -->
+      <div id="s1-hook" class="clip" data-composition-id="pov-face-hook" data-composition-src="compositions/pov-face-hook.html" data-start="{{t:s1}}" data-duration="{{dur:s1}}" data-track-index="1" data-variable-values='{{vars:s1-hook}}'></div>
+
+      <!-- S2..S7 pranchas -->
+      <div id="s2-board" class="clip" data-composition-id="board-pan" data-composition-src="compositions/board-pan.html" data-start="{{t:s2}}" data-duration="{{dur:s2}}" data-track-index="1" data-variable-values='{{vars:s2-board}}'></div>
+      <div id="s3-board" class="clip" data-composition-id="board-pan" data-composition-src="compositions/board-pan.html" data-start="{{t:s3}}" data-duration="{{dur:s3}}" data-track-index="1" data-variable-values='{{vars:s3-board}}'></div>
+      <div id="s4-board" class="clip" data-composition-id="board-pan" data-composition-src="compositions/board-pan.html" data-start="{{t:s4}}" data-duration="{{dur:s4}}" data-track-index="1" data-variable-values='{{vars:s4-board}}'></div>
+      <div id="s5-board" class="clip" data-composition-id="board-pan" data-composition-src="compositions/board-pan.html" data-start="{{t:s5}}" data-duration="{{dur:s5}}" data-track-index="1" data-variable-values='{{vars:s5-board}}'></div>
+      <div id="s6-board" class="clip" data-composition-id="board-pan" data-composition-src="compositions/board-pan.html" data-start="{{t:s6}}" data-duration="{{dur:s6}}" data-track-index="1" data-variable-values='{{vars:s6-board}}'></div>
+      <div id="s7-board" class="clip" data-composition-id="board-pan" data-composition-src="compositions/board-pan.html" data-start="{{t:s7}}" data-duration="{{dur:s7}}" data-track-index="1" data-variable-values='{{vars:s7-board}}'></div>
+
+      <!-- S8 fecho -->
+      <div id="s8-close" class="clip" data-composition-id="portrait-board-close" data-composition-src="compositions/portrait-board-close.html" data-start="{{t:s8}}" data-duration="{{dur:s8}}" data-track-index="1" data-variable-values='{{vars:s8-close}}'></div>
+
+      <audio id="soundtrack" src="assets/audio/build/mix.wav" data-start="0" data-duration="{{duracao}}" data-track-index="10" data-volume="1"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.set({}, {}, {{duracao}});
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
