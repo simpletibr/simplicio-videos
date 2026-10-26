@@ -128,12 +128,9 @@ def test_write_srt_desloca_pelo_inicio_do_corte(tmp_path):
 
 def test_build_filter_so_queima_legenda_quando_pedida():
     sem = shorts.build_filter("blur")
-    com = shorts.build_filter("blur", None)
-    assert sem == com
-    com_srt = shorts.build_filter("crop", None)
-    assert "boxblur" not in com_srt and "crop=1080:1920" in com_srt
-    com_legenda = shorts.build_filter("crop", (shorts.Path if False else None) or None) if False else None
-    assert com_legenda is None
+    assert "subtitles=" not in sem and "boxblur" in sem and sem.endswith("[v]")
+    crop = shorts.build_filter("crop")
+    assert "boxblur" not in crop and "crop=1080:1920" in crop and crop.endswith("[v]")
 
 
 def test_build_filter_com_legenda_usa_subtitles(tmp_path):
