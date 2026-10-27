@@ -75,6 +75,12 @@ TOOLS: dict[str, Tool] = {
                               "`curl -fsSL https://voicestudio.sh/install | sh`; from source the alternative is "
                               "`bun install && bun run dev` (this pin clones that source checkout). Loopback needs no "
                               "credential; the app is only reached over local HTTP (AGPL-3.0, never vendored)"),
+    "video-use": Tool("video-use", "git", "https://github.com/browser-use/video-use",
+                        "b877063", "MIT",
+                        "EDL editing over any MP4: word-accurate cuts, subtitles, overlays and filmstrip review; "
+                        "the agent decides the EDL, ffmpeg executes it", marker="render.py",
+                        note="pinned by tools/video-use/setup.sh (23/09/2026); the checkout lives in "
+                             "~/.cache/simplicio/video-use, not in the tools cache"),
     "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.50.1", "not declared in the npm package (no license field, no LICENSE file; read 2026-10-16)",
                      "web search and page fetch for research (`simplicio-video busca`); installed by the user, never bundled and never installed by the engine",
                      note="the engine uses only `search query`, `fetch content get`, `auth status` and `--version`: agent, browser and monitor (browser "
@@ -85,6 +91,7 @@ TOOLS: dict[str, Tool] = {
 
 # CLI command that fronts each track (the `tools` listing reads this, never a second table).
 COMMANDS: dict[str, str] = {
+    "video-use": "edit",
     "openmontage": "montage",
     "opencut": "opencut",
     "hypit": "clone",

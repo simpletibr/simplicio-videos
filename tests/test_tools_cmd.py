@@ -8,7 +8,7 @@ import pytest
 from simplicio_video import tools
 from simplicio_video.cli import main
 
-NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "tinyfish", "voicestudio"}
+NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "tinyfish", "voicestudio", "video-use"}
 
 
 def _run(argv, capsys):
@@ -106,3 +106,7 @@ def test_help_is_complete(capsys):
     assert rc == 0
     for word in ("trilhas externas", "tools.py", "SIMPLICIO_TOOLS_DIR", "render determinístico", "exemplos:"):
         assert word in out, word
+
+def test_video_use_is_the_edit_command():
+    assert tools.command(tools.TOOLS["video-use"]) == "simplicio-video edit"
+    assert tools.TOOLS["video-use"].ref == "b877063"
