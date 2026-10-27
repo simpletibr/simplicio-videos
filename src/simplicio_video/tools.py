@@ -1,13 +1,15 @@
-"""Pinned versions and install location for the external tools behind the existing commands
-`montage` (OpenMontage), `opencut` (OpenCut), `clone` (Hypit), `toonflow` (Toonflow), `moneyprinter`
-(MoneyPrinterTurbo) and `busca` (TinyFish CLI). No command of its own.
+"""Pinned versions and install location for the external tracks: `montage` (OpenMontage), `opencut` (OpenCut),
+`clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `busca` (TinyFish CLI) and
+`voicestudio` (VoiceStudio). `simplicio-video tools` lists the whole registry (text or --json).
 
-The engine drives: OpenMontage, OpenCut, Hypit, Toonflow and MoneyPrinterTurbo, each pinned to a known version.
+The engine drives: OpenMontage, OpenCut, Hypit, Toonflow, MoneyPrinterTurbo and VoiceStudio, each pinned to a known
+version.
 
 The deterministic render (contract -> MP4) never depends on them. They are optional tracks: an agentic
 producer (OpenMontage), a manual editor (OpenCut), an agentic cloner (Hypit) and a creation studio for
-short dramas and comics (Toonflow) and a topic-to-short-video generator (MoneyPrinterTurbo). Whatever they produce enters a contract as a file with a hash, so the
-final render stays reproducible.
+short dramas and comics (Toonflow), a topic-to-short-video generator (MoneyPrinterTurbo) and a local voice studio
+for TTS, voice cloning and transcription (VoiceStudio). Whatever they produce enters a contract as a file with a hash,
+so the final render stays reproducible.
 
 Install location: $SIMPLICIO_TOOLS_DIR (default ~/.simplicio-video/tools/<name>).
 Pins: $SIMPLICIO_<NAME>_REF overrides the commit (git tools) or version (npm tools).
@@ -63,11 +65,33 @@ TOOLS: dict[str, Tool] = {
                               "Pexels, Pixabay and Coverr) and needs your own API keys in its config.toml; the terms were not "
                               "reviewed here. Its API config listens on 0.0.0.0 by default and the WebUI has no login: serve "
                               "forces 127.0.0.1 unless --lan"),
+    "voicestudio": Tool("voicestudio", "git", "https://github.com/debpalash/VoiceStudio",
+                         "beeaae08204f0de5f49d4a087ef2b0ea8fecfcb9", "AGPL-3.0",
+                         "local voice studio: cloned/designed voice profiles, TTS and transcription over a loopback "
+                         "OpenAI-compatible API and an MCP server on :3900; runs as a separate program, never imported",
+                         marker="package.json",
+                         note="pin = release v0.5.7 (published 2026-10-26), commit beaae08 read from the GitHub API on "
+                              "2026-10-27. The desktop app is installed with "
+                              "`curl -fsSL https://voicestudio.sh/install | sh`; from source the alternative is "
+                              "`bun install && bun run dev` (this pin clones that source checkout). Loopback needs no "
+                              "credential; the app is only reached over local HTTP (AGPL-3.0, never vendored)"),
     "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.50.1", "not declared in the npm package (no license field, no LICENSE file; read 2026-10-16)",
                      "web search and page fetch for research (`simplicio-video busca`); installed by the user, never bundled and never installed by the engine",
                      note="the engine uses only `search query`, `fetch content get`, `auth status` and `--version`: agent, browser and monitor (browser "
                           "automation, metered by step or minute) are out of scope. The package declares Node >= 24. The query or URL goes to a third "
                           "party (TinyFish): the engine refuses secrets and, unless told otherwise, personal data"),
+}
+
+
+# CLI command that fronts each track (the `tools` listing reads this, never a second table).
+COMMANDS: dict[str, str] = {
+    "openmontage": "montage",
+    "opencut": "opencut",
+    "hypit": "clone",
+    "toonflow": "toonflow",
+    "moneyprinter": "moneyprinter",
+    "tinyfish": "busca",
+    "voicestudio": "voicestudio",
 }
 
 
@@ -142,3 +166,35 @@ def npm_command(name: str) -> list[str]:
     if not npx:
         raise ToolError(f"nem `{t.name}` nem `npx` foram encontrados no PATH. Instale o Node (>= 18).")
     return [npx, "--yes", f"{t.source}@{pinned_ref(t)}"]
+
+def command(t: Tool) -> str:
+    """The CLI command that fronts a track (COMMANDS, defaulting to the tool name)."""
+    return f"simplicio-video {COMMANDS.get(t.name, t.name)}"
+
+
+def is_installed(t: Tool) -> bool:
+    """Git tools: the pinned checkout in the tools cache. npm tools: the binary on PATH (as `status` does)."""
+    if t.kind == "git":
+        return find(t.name) is not None
+    return shutil.which(t.name) is not None
+
+
+def listing() -> list[dict]:
+    """Every pinned external track, read from TOOLS (never a second table). Offline: only the filesystem is checked."""
+    return [{"name": t.name, "command": command(t), "repo": t.source, "version": pinned_ref(t),
+             "installed": is_installed(t), "license": t.license, "produces": t.role}
+            for t in TOOLS.values()]
+
+
+def text_listing(rows: list[dict]) -> str:
+    lines = ["trilhas externas (versão fixada em tools.py; o render determinístico não depende de nenhuma delas):"]
+    for r in rows:
+        estado = "sim" if r["installed"] else "não"
+        lines.append(f"  {r['name']:<13} instalada: {estado:<4} versão fixada: {r['version']}")
+        lines.append(f"    comando: {r['command']}  ({r['license']})")
+        lines.append(f"    repo: {r['repo']}")
+        lines.append(f"    produz: {r['produces']}")
+    lines.append("instalada = checkout no cache de tools ($SIMPLICIO_TOOLS_DIR, padrão ~/.simplicio-video/tools) ou, "
+                 "para trilhas npm, o binário no PATH.")
+    return "\n".join(lines)
+
