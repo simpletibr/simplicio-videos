@@ -38,7 +38,10 @@ def voxcpm(S: dict, text: str, dst: Path, ref: Path | None) -> None:
         cmd = [exe, "design", "--text", text, "--output", str(dst)]
         if S.get("control"):
             cmd += ["--control", S["control"]]
-    cmd += ["--seed", str(S["seed"])]
+    # no `--seed`: the installed VoxCPM2 CLI (voxcpm, 2026-10) rejects it, so every clone failed. `seed` stays in the contract
+    # and in the cache key only; the take is not bit-reproducible, as voices/voxcpm.md says.
+    if os.environ.get("VOXCPM_DEVICE"):  # e.g. mps on Apple silicon; `auto` picked cpu there, ~20x slower
+        cmd += ["--device", os.environ["VOXCPM_DEVICE"]]
     subprocess.run(cmd, check=True)
 
 

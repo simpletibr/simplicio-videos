@@ -194,8 +194,9 @@ def audio_signals(path: Path, formato: str, rec: dict) -> dict:
     lufs = _grep(r"Integrated loudness:\s*\n\s*I:\s*(\S+)\s*LUFS", summary)
     lra = _grep(r"Loudness range:\s*\n\s*LRA:\s*(\S+)\s*LU", summary)
     tp = _grep(r"True peak:\s*\n\s*Peak:\s*(\S+)\s*dBFS", summary)
-    starts = [float(x) for x in re.findall(r"^\[silencedetect @ [^\]\n]+\] silence_start: (-?[\d.]+)\s*$", log, re.M)]
-    spans = [float(x) for x in re.findall(r"^\[silencedetect @ [^\]\n]+\] silence_end: -?[\d.]+ \| silence_duration: ([\d.]+)\s*$", log, re.M)]
+    # ffmpeg names the filter's log prefix `silencedetect` in old builds and `Parsed_silencedetect_N` in new ones
+    starts = [float(x) for x in re.findall(r"^\[(?:Parsed_)?silencedetect(?:_\d+)? @ [^\]\n]+\] silence_start: (-?[\d.]+)\s*$", log, re.M)]
+    spans = [float(x) for x in re.findall(r"^\[(?:Parsed_)?silencedetect(?:_\d+)? @ [^\]\n]+\] silence_end: -?[\d.]+ \| silence_duration: ([\d.]+)\s*$", log, re.M)]
     silencio = sum(spans) + (max(0.0, duracao - starts[-1]) if len(starts) > len(spans) else 0.0)
     overall = _last_block(log, r"^\[Parsed_astats_\d+ @ [^\]\n]+\] Overall\n", prefix=r"^\[Parsed_astats_\d+ @ [^\]\n]+\] ")
     pico = _grep(r"^Peak level dB:\s*(\S+)", overall, re.M)

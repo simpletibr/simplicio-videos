@@ -24,7 +24,7 @@ def test_voxcpm_cli_args(monkeypatch, tmp_path):
     S = {"control": "warm", "reference_audio": "r.wav", "reference_text": "hello", "seed": 7}
     voice_clone.voxcpm(S, "hi", tmp_path / "o.wav", tmp_path / "r.wav")
     cmd = calls[0]
-    assert cmd[:2] == ["/bin/voxcpm", "clone"] and "--prompt-text" in cmd and cmd[-2:] == ["--seed", "7"]
+    assert cmd[:2] == ["/bin/voxcpm", "clone"] and "--prompt-text" in cmd and "--seed" not in cmd
     voice_clone.voxcpm({"control": "warm", "seed": 1}, "hi", tmp_path / "o.wav", None)
     assert calls[1][1] == "design"
 

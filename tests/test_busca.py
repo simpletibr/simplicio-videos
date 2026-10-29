@@ -1214,7 +1214,7 @@ def test_agents_readme_e_skill_documentam_a_busca():
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf8")
     assert "simplicio-video busca" in agents and "busca.registro.jsonl" in agents and "não substitui a coleta" in agents
     assert "fonte e data" in agents
-    readme = (ROOT / "README.md").read_text(encoding="utf8")
+    readme = (ROOT / "README.pt-BR.md").read_text(encoding="utf8")  # the detailed guarantees live in the Portuguese README
     assert "### Busca na internet (TinyFish)" in readme and "npm install -g @tiny-fish/cli" in readme and "enviada a um terceiro" in readme
     for promessa in ("UNVERIFIED", ".internal", "nip.io", "auth status", "redirecion"):
         assert promessa in readme, promessa
