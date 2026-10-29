@@ -18,7 +18,7 @@
 - **Perpustakaan berlesen (`openverse`):** carian, muat turun selamat, semakan bagi setiap permintaan dan eksport dengan kredit.
 - **Penyelidikan web (`busca`):** pertanyaan dan bacaan halaman melalui TinyFish, dengan sumber dan tarikh bagi setiap hasil serta had panggilan harian.
 - **Trek UGC:** fail prompt untuk watak sintetik dan saluran manual, di luar render.
-- **Integrasi ejen:** pelayan MCP dengan 19 alat `video.*`, enam skills dan `install` untuk 11 hos ejen.
+- **Integrasi ejen:** pelayan MCP dengan 28 alat `video.*`, enam skills dan `install` untuk 11 hos ejen.
 - **Operasi:** status, alat yang dikunci versinya, diagnostik, ruang kerja, kemas kini dan log masuk Simplicio yang dikongsi.
 
 ## Permulaan pantas
@@ -38,7 +38,6 @@ simplicio-video render contract.yaml  # out/<cliente>-<campanha>.mp4 + render.ma
 
 ## Had
 
-- **Liputan MCP:** `media`, `shorts`, `tools`, `status`, `doctor` dan `install` setakat ini hanya melalui CLI.
 - **Penyesuai swap yang tidak disahkan:** `fal`, `wavespeed`, `kie` dan `alibaba` ditulis berdasarkan dokumentasi awam dan belum diperiksa terhadap API langsung.
 - **Tiada penerbitan:** enjin tidak pernah menyiarkan atau memuat naik apa-apa ke rangkaian sosial.
 - **Platform:** pakej dikelaskan untuk Linux; macOS dan Windows belum disahkan pada mesin sebenar.

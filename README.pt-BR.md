@@ -44,7 +44,7 @@ Decisões: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) (visão do plugin)
 | Biblioteca de imagens e áudio com licença | `openverse` | Busca, download seguro, folha de revisão por pedido, aprovação por (ativo, sha256, pedido), exportação com créditos, verificação offline de um contrato | As licenças vêm das fontes; não é parecer jurídico |
 | Pesquisa na web | `busca` | `consulta`, `pagina`, `status`, `log` pelo TinyFish, com fonte e data por resultado, teto diário de chamadas e registro de procedência | A consulta vai para um terceiro; segredos e dados pessoais são recusados |
 | Trilha de UGC | `ugc/` (sem CLI) | 10 personagens sintéticos, 5 arquivos de prompt, um pipeline manual de 7 passos | Generativo; fora do render |
-| Integração com agentes | `mcp`, `install`, skills | Servidor MCP com 19 ferramentas `video.*`; 6 skills; `install` copia as skills para 11 hosts de agente | O MCP ainda não expõe `media`, `shorts`, `tools`, `status`, `doctor` nem `install` |
+| Integração com agentes | `mcp`, `install`, skills | Servidor MCP com 28 ferramentas `video.*`, uma por comando da CLI; 6 skills; `install` copia as skills para 11 hosts de agente | Só no terminal de propósito: `login`, `logout`, gasto (`swap run`), instalar ou remover software e servidores que não terminam |
 | Operação | `status`, `tools`, `doctor`, `setup`, `update`, `login`, `logout`, `auth` | Estado das ferramentas e do render, trilhas fixadas, diagnóstico, workspace, atualizações, login Simplicio compartilhado | O motor nunca guarda credencial |
 
 ## Referência de comandos
@@ -238,7 +238,7 @@ simplicio-video install [--global] [--check|--dry-run] [--json] [--verify] [--un
 simplicio-video install --global     # copia as seis skills para todos os hosts de agente conhecidos (11)
 ```
 
-O servidor MCP expõe 19 ferramentas: `video.init`, `video.validate`, `video.voice`, `video.render`, `video.run`, `video.list`, `video.clone`, `video.montage`, `video.edit`, `video.opencut`, `video.formats`, `video.swap`, `video.jobs`, `video.social`, `video.openverse`, `video.voicestudio`, `video.busca`, `video.toonflow` e `video.moneyprinter`. Algumas são só de leitura ou propositalmente limitadas: `video.swap` estima mas não gasta, `video.social` nunca publica, `video.openverse` não baixa nem exporta, e `video.jobs` só submete voz local. O manifesto é o [`plugin.json`](plugin.json).
+O servidor MCP expõe 28 ferramentas, uma para cada comando da CLI: `video.init`, `video.validate`, `video.voice`, `video.render`, `video.run`, `video.list`, `video.clone`, `video.montage`, `video.edit`, `video.opencut`, `video.formats`, `video.swap`, `video.jobs`, `video.social`, `video.openverse`, `video.voicestudio`, `video.busca`, `video.toonflow`, `video.moneyprinter`, `video.shorts`, `video.media`, `video.tools`, `video.status`, `video.doctor`, `video.setup`, `video.install`, `video.update`, `video.auth`. Algumas são só de leitura ou propositalmente limitadas: `video.swap` estima mas nunca gasta, `video.social` nunca publica, `video.openverse` não baixa nem exporta, `video.jobs` só submete voz local, `video.auth` só lê o login, `video.update` só verifica, e `video.install` não remove skills nem grava sem `--global` ou `--target` absoluto. Comandos que abrem navegador, gastam dinheiro, instalam software ou sobem um servidor que não termina recusam com o comando do terminal. O manifesto é o [`plugin.json`](plugin.json).
 
 As seis skills, em [`skills/`](skills/):
 
@@ -313,7 +313,7 @@ O motor nunca vendoriza nem importa essas trilhas. O render determinístico não
 
 ## Limites e lacunas conhecidas
 
-- **Cobertura do MCP.** `media`, `shorts`, `tools`, `status`, `doctor` e `install` são só CLI por enquanto. A regra do motor é expor cada capacidade pela CLI e, quando couber, pelo MCP.
+- **Cobertura do MCP.** Todo comando da CLI é uma ferramenta MCP, exceto `mcp` (o próprio servidor), `login` e `logout` (abrem navegador e mudam o login compartilhado) e as ações só de terminal listadas na seção de integração com agentes.
 - **Adaptadores de troca não conferidos.** `fal`, `wavespeed`, `kie` e `alibaba` foram escritos a partir da documentação pública e não foram conferidos nas APIs reais.
 - **Voz.** `elevenlabs` e `xai` são stubs. O VoiceStudio precisa do app aberto.
 - **Downloads.** As plataformas restringem download nos próprios termos; essa responsabilidade é de quem baixa. Uma página também pode chegar cortada: nesse caso o `fetch` falha e não grava nada.

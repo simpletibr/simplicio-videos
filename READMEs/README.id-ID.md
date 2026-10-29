@@ -18,7 +18,7 @@
 - **Pustaka berlisensi (`openverse`):** pencarian, unduhan aman, tinjauan per permintaan, dan ekspor dengan kredit.
 - **Riset web (`busca`):** kueri dan pembacaan halaman lewat TinyFish, dengan sumber dan tanggal pada setiap hasil serta batas panggilan harian.
 - **Jalur UGC:** file prompt untuk karakter sintetis dan pipeline manual, di luar render.
-- **Integrasi agen:** server MCP dengan 19 alat `video.*`, enam skills, dan `install` untuk 11 host agen.
+- **Integrasi agen:** server MCP dengan 28 alat `video.*`, enam skills, dan `install` untuk 11 host agen.
 - **Operasi:** status, alat yang dipatok, diagnostik, workspace, pembaruan, dan login Simplicio bersama.
 
 ## Mulai cepat
@@ -38,7 +38,6 @@ simplicio-video render contract.yaml  # out/<cliente>-<campanha>.mp4 + render.ma
 
 ## Batasan
 
-- **Cakupan MCP:** `media`, `shorts`, `tools`, `status`, `doctor`, dan `install` untuk saat ini hanya lewat CLI.
 - **Adapter swap yang belum diverifikasi:** `fal`, `wavespeed`, `kie`, dan `alibaba` ditulis dari dokumentasi publik dan belum diperiksa terhadap API langsung.
 - **Tidak ada publikasi:** mesin tidak pernah memposting atau mengunggah apa pun ke jaringan sosial.
 - **Platform:** paket diklasifikasikan untuk Linux; macOS dan Windows belum dikonfirmasi pada mesin sungguhan.

@@ -44,7 +44,7 @@ Decisions: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) (plugin vision) ·
 | Licensed image and audio library | `openverse` | Search, safe download, per-request review sheet, approval per (asset, sha256, request), export with credits, offline verification of a contract | Licenses come from the sources; not legal advice |
 | Web research | `busca` | `consulta`, `pagina`, `status`, `log` through TinyFish, with source and date per result, daily call cap, provenance log | The query goes to a third party; secrets and personal data are refused |
 | UGC prompt track | `ugc/` (no CLI) | 10 synthetic characters, 5 prompt files, a 7-step manual pipeline | Generative; outside the render |
-| Agent integration | `mcp`, `install`, skills | MCP server with 19 `video.*` tools; 6 skills; `install` copies them into 11 agent hosts | MCP does not yet expose `media`, `shorts`, `tools`, `status`, `doctor` or `install` |
+| Agent integration | `mcp`, `install`, skills | MCP server with 28 `video.*` tools, one per CLI command; 6 skills; `install` copies them into 11 agent hosts | Terminal-only on purpose: `login`, `logout`, spending (`swap run`), installing or removing software, and servers that never end |
 | Operations | `status`, `tools`, `doctor`, `setup`, `update`, `login`, `logout`, `auth` | Tool and render status, pinned tracks, diagnostics, workspace, updates, the shared Simplicio login | The engine never stores a credential |
 
 ## Command reference
@@ -238,7 +238,7 @@ simplicio-video install [--global] [--check|--dry-run] [--json] [--verify] [--un
 simplicio-video install --global     # copy the six skills into every agent host it knows (11 hosts)
 ```
 
-The MCP server exposes 19 tools: `video.init`, `video.validate`, `video.voice`, `video.render`, `video.run`, `video.list`, `video.clone`, `video.montage`, `video.edit`, `video.opencut`, `video.formats`, `video.swap`, `video.jobs`, `video.social`, `video.openverse`, `video.voicestudio`, `video.busca`, `video.toonflow` and `video.moneyprinter`. Several of them are read-only or deliberately limited: `video.swap` estimates but does not spend, `video.social` never publishes, `video.openverse` cannot download or export, and `video.jobs` submits only local voice. The manifest is [`plugin.json`](plugin.json).
+The MCP server exposes 28 tools, one for each CLI command: `video.init`, `video.validate`, `video.voice`, `video.render`, `video.run`, `video.list`, `video.clone`, `video.montage`, `video.edit`, `video.opencut`, `video.formats`, `video.swap`, `video.jobs`, `video.social`, `video.openverse`, `video.voicestudio`, `video.busca`, `video.toonflow`, `video.moneyprinter`, `video.shorts`, `video.media`, `video.tools`, `video.status`, `video.doctor`, `video.setup`, `video.install`, `video.update`, `video.auth`. Some are read-only or deliberately limited: `video.swap` estimates but never spends, `video.social` never publishes, `video.openverse` cannot download or export, `video.jobs` submits only local voice, `video.auth` only reads the login, `video.update` only checks, and `video.install` refuses to remove skills or to write without a `--global` or absolute `--target`. Commands that open a browser, spend money, install software or run a server that never ends refuse with the terminal command to run instead. The manifest is [`plugin.json`](plugin.json).
 
 The six skills, in [`skills/`](skills/):
 
@@ -313,7 +313,7 @@ The engine never vendors or imports these tracks. The deterministic render does 
 
 ## Limits and known gaps
 
-- **MCP coverage.** `media`, `shorts`, `tools`, `status`, `doctor` and `install` are CLI-only for now. The engine's own rule is to expose each capability over the CLI and, where it fits, over MCP.
+- **MCP coverage.** Every CLI command is an MCP tool except `mcp` (the server itself), `login` and `logout` (they open a browser and change the shared login), and the terminal-only actions listed in the Agent integration section.
 - **Unverified swap adapters.** `fal`, `wavespeed`, `kie` and `alibaba` were written from public documentation and have not been checked against the live APIs.
 - **Voice.** `elevenlabs` and `xai` are stubs. VoiceStudio needs its app running.
 - **Downloads.** Platforms restrict downloads in their own terms; that responsibility is the user's. A page can also arrive cut short, in which case `fetch` fails and writes nothing.
