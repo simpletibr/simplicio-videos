@@ -116,18 +116,31 @@ def _stop_group(proc: subprocess.Popen) -> None:
         os.killpg(proc.pid, signal.SIGKILL)
 
 
+def _sinais_de_parada() -> list[int]:
+    """SIGTERM, and SIGHUP (terminal closed, ssh dropped) where the platform has it."""
+    return [n for n in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None)) if n is not None]
+
+
+def _parar(proc: subprocess.Popen) -> None:
+    # The stop signals are ignored from here on: a second Ctrl+C or SIGTERM must not abort the stop and leave the group listening
+    # (the same rule as moneyprinter's _stop_all). The handlers are put back by _serve.
+    for n in _sinais_de_parada():
+        signal.signal(n, signal.SIG_IGN)
+    _stop_group(proc)
+
+
 def _run_server(bun: str, d: Path, data: Path) -> int:
     """`bun build/server/index.js`, the command upstream's Dockerfile runs: one process, in its own group."""
     proc = subprocess.Popen([bun, "build/server/index.js"], cwd=d,
                             env={**os.environ, "TOONFLOW_DATA_DIR": str(data)}, start_new_session=True)
     try:
         return proc.wait()
-    except KeyboardInterrupt:  # Ctrl+C is how the user stops the server: not an error
-        _stop_group(proc)
+    except KeyboardInterrupt:  # Ctrl+C or a stop signal is how the user stops the server: not an error
+        _parar(proc)
         return 0
     finally:
         if proc.poll() is None:  # the wait was cut short by something else: never leave the server running
-            _stop_group(proc)
+            _parar(proc)
 
 
 def _serve(d: Path, args: list[str]) -> int:
@@ -151,11 +164,12 @@ def _serve(d: Path, args: list[str]) -> int:
         return 130
     (data / "workspaces" / "myProject").mkdir(parents=True, exist_ok=True)
     print(f"Toonflow em http://localhost:{PORT}, também em todas as interfaces e sem login (dados: {data}). Ctrl+C para parar.")
-    previous = signal.signal(signal.SIGTERM, _on_term)
+    previous = {n: signal.signal(n, _on_term) for n in _sinais_de_parada()}
     try:
         return _run_server(bun, d, data)
     finally:
-        signal.signal(signal.SIGTERM, previous)
+        for n, handler in previous.items():
+            signal.signal(n, handler)
 
 
 def run_toonflow(args: list[str]) -> int:

@@ -38,7 +38,8 @@ SCHEMA_RECIPE = "simplicio.social-recipe/v1"
 PLAN_NAME = "social.plan.json"
 OFFICIAL = "official"
 UNVERIFIED = "UNVERIFIED"
-NETWORKS = ("youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky")
+NETWORKS = ("youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky",
+            "reddit", "snapchat")
 FIELDS = ("duration_min_s", "duration_max_s", "aspect_ratios", "size_max_mb", "caption_max_chars", "title_max_chars", "hashtags_max")
 DEFAULT_PROVIDER = "realoficial"
 ASPECT_TOLERANCE = 0.02

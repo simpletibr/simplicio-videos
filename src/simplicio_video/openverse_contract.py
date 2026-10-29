@@ -61,14 +61,14 @@ def _folded(part: str) -> str:
 
 
 def in_openverse_dir(path: Path, base: Path) -> bool:
-    """True when the resolved file sits in an assets/openverse folder: anywhere under the contract folder `base` (so a project that
-    lives inside some other `assets/openverse` path is not flagged as a whole), or, for a file outside it, directly in such a folder.
+    """True when the resolved file sits in an assets/openverse folder at any depth: under the contract folder `base` (so a project that
+    lives inside some other `assets/openverse` path is not flagged as a whole), or, for a file outside it, anywhere in its path.
     Case and Unicode form do not matter (macOS and Windows file systems treat `assets/OpenVerse` as the export folder)."""
     path = path.resolve()
     try:
         parts = path.relative_to(base.resolve()).parts[:-1]
     except ValueError:
-        parts = path.parts[-3:-1]
+        parts = path.parts[:-1]
     parts = [_folded(p) for p in parts]
     return any(a == "assets" and b == "openverse" for a, b in zip(parts, parts[1:]))
 
@@ -144,13 +144,14 @@ def check_workdir(c, files: dict, ver: Verification | None = None) -> list[str]:
                           "para o que vai ao vídeo (dois arquivos para o mesmo destino, ou um arquivo trocado depois da conferência)")
     approved = {(destino, sha) for destino, _, sha in declared}
     try:
-        itens = ov.load_index()["itens"]
+        idx = ov.load_index()
     except ov.OpenverseError:
-        return errors
-    por_sha = {r["sha256"]: id_ for id_, r in itens.items()}
+        idx = None  # the files/ folder still tells which bytes are library bytes
+    por_sha = ov.library_hashes(idx)
     for rel, sha in sorted(files.items()):
         if sha in por_sha and (rel, sha) not in approved:
-            errors.append(f"{rel} tem os mesmos bytes do ativo {por_sha[sha]} da biblioteca do Openverse, mas não é o destino de nenhum asset com o bloco "
+            ativo = por_sha[sha] or "(índice ilegível, id desconhecido)"
+            errors.append(f"{rel} tem os mesmos bytes do ativo {ativo} da biblioteca do Openverse, mas não é o destino de nenhum asset com o bloco "
                           f"openverse aprovado: o arquivo veio de uma pasta de template, de uma placa ou de uma cópia à mão; declare o ativo em assets[] "
                           f"com o bloco openverse ({BLOCK_HINT}) ou tire o arquivo da composição")
     return errors

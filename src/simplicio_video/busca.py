@@ -38,6 +38,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1010,29 +1011,32 @@ def _registro_view(rec: dict) -> dict:
 
 
 def log(ultimos=20) -> dict:
-    """The last records of `busca.registro.jsonl`; a broken line is counted and skipped, never fatal."""
+    """The last records of `busca.registro.jsonl`; a broken line is counted and skipped, never fatal. The file is read line by line
+    and only the last N valid records are kept, so a long registro does not sit whole in memory."""
     n = _inteiro(ultimos, 1, 10000, "--ultimos")
-    validos, invalidas = [], 0
+    recentes: deque = deque(maxlen=n)
+    total = invalidas = 0
     try:
-        linhas = _caminho_registro().read_text(encoding="utf8", errors="replace").splitlines()
+        with _caminho_registro().open(encoding="utf8", errors="replace") as f:
+            for linha in f:
+                if not linha.strip():
+                    continue
+                try:
+                    rec = json.loads(linha)
+                except (ValueError, RecursionError):
+                    invalidas += 1
+                    continue
+                if isinstance(rec, dict) and rec.get("schema") == SCHEMA_REGISTRO and rec.get("comando") in ("consulta", "pagina"):
+                    total += 1
+                    recentes.append(rec)
+                else:
+                    invalidas += 1
     except FileNotFoundError:
-        linhas = []
+        pass
     except OSError as e:
         raise BuscaError(f"não consegui ler o registro: {e.strerror}") from None
-    for linha in linhas:
-        if not linha.strip():
-            continue
-        try:
-            rec = json.loads(linha)
-        except (ValueError, RecursionError):
-            invalidas += 1
-            continue
-        if isinstance(rec, dict) and rec.get("schema") == SCHEMA_REGISTRO and rec.get("comando") in ("consulta", "pagina"):
-            validos.append(rec)
-        else:
-            invalidas += 1
-    mostrados = [_registro_view(r) for r in validos[-n:]]
-    return {"schema": SCHEMA_LOG, "aviso_untrusted": UNTRUSTED_NOTICE, "arquivo": str(_caminho_registro()), "total": len(validos),
+    mostrados = [_registro_view(r) for r in recentes]
+    return {"schema": SCHEMA_LOG, "aviso_untrusted": UNTRUSTED_NOTICE, "arquivo": str(_caminho_registro()), "total": total,
             "mostrados": len(mostrados), "invalidas": invalidas, "registros": mostrados}
 
 

@@ -64,7 +64,7 @@ def server(monkeypatch):
     """Fakes the long-running server process. Records how it is started and which signal reaches its group.
     state.interrupt: the next blocking wait() raises KeyboardInterrupt (Ctrl+C on this process).
     state.ignore_sigint: the server ignores SIGINT, so the stop must escalate to SIGKILL."""
-    state = SimpleNamespace(started=[], signals=[], interrupt=False, ignore_sigint=False, term_handler=None)
+    state = SimpleNamespace(started=[], signals=[], interrupt=False, ignore_sigint=False, term_handler=None, hup_handler=None)
 
     class Proc:
         pid = 4242
@@ -77,6 +77,7 @@ def server(monkeypatch):
         def wait(self, timeout=None):
             if timeout is None:
                 state.term_handler = signal.getsignal(signal.SIGTERM)
+                state.hup_handler = signal.getsignal(signal.SIGHUP)
                 if state.interrupt:
                     state.interrupt = False  # one Ctrl+C: the wait after SIGKILL must return normally
                     raise KeyboardInterrupt
@@ -252,6 +253,17 @@ def test_serve_sigterm_is_handled_like_ctrl_c_and_restored_afterwards(checkout, 
     with pytest.raises(KeyboardInterrupt):
         handler(signal.SIGTERM, None)
     assert signal.getsignal(signal.SIGTERM) is before
+
+
+def test_serve_sighup_para_o_servidor_como_ctrl_c_e_restaura_depois(checkout, bun, calls, server):
+    # ssh caiu ou o terminal fechou: o SIGHUP tem de parar o servidor, não matar só o processo de frente e deixá-lo escutando
+    before = signal.getsignal(signal.SIGHUP)
+    assert toonflow.run_toonflow(["serve", "--lan"]) == 0
+    handler = server.hup_handler
+    assert callable(handler) and handler is not before
+    with pytest.raises(KeyboardInterrupt):
+        handler(signal.SIGHUP, None)
+    assert signal.getsignal(signal.SIGHUP) is before
 
 
 @pytest.mark.skipif(not Path("/proc").is_dir(), reason="o teste lê /proc (Linux)")
