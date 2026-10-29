@@ -20,7 +20,7 @@ from . import HYPERFRAMES, __version__, tools
 
 SEM_VERSAO = "sem versão fixada"
 MANIFEST = "render.manifest.json"
-ENGINE_TOOLS = ("openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "tinyfish", "ffmpeg", "node")
+ENGINE_TOOLS = ("openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "voicestudio", "tinyfish", "ffmpeg", "node")
 PLAIN_TOOLS = ("ffmpeg", "node")  # só detectadas: o motor não fixa versão delas
 
 

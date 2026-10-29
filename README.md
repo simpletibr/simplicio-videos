@@ -48,6 +48,20 @@ simplicio-video moneyprinter status   # config.toml exists? which keys are fille
 
 It needs Python 3.11 or newer and uses ffmpeg. Upstream's API listens on `0.0.0.0` by default and neither the WebUI nor an API with an empty `app.api_key` has a login, so `serve` forces `127.0.0.1` by argument (it starts uvicorn on the same `app.asgi:app` instead of `main.py`, whose host comes from `config.toml`) and only listens on every interface with `--lan`. The generator calls third-party services with their own terms (an LLM provider, a TTS service and stock footage such as Pexels, Pixabay and Coverr) using **your own** API keys, typed in its WebUI or in `config.toml`; this command never prints them and the MCP tool never runs `setup` or `serve`. Generated videos go to `~/.simplicio-video/moneyprinter-data/storage` (set `MONEYPRINTER_DATA_DIR` to move it). Whatever it produces enters a contract as a file with a hash.
 
+VoiceStudio is the audio track, outside the engine like the video apps: it does not replace `contract.yaml -> MP4`. It is a local app (AGPL-3.0, never vendored or imported) that serves an OpenAI-compatible API and an MCP server on `http://127.0.0.1:3900` (`/mcp/`), and the engine only reaches it over loopback HTTP:
+
+```bash
+simplicio-video voicestudio status              # backend health + active GPU
+simplicio-video voicestudio voices --json       # saved voice profiles (id, name, kind)
+simplicio-video voicestudio tts "olá" --out fala.wav --profile <id> --language pt-BR
+simplicio-video voicestudio transcribe audio.m4a         # MCP transcribe (audio as base64)
+simplicio-video voicestudio transcribe audio.m4a --rest  # POST /v1/audio/transcriptions (OpenAI-compatible)
+simplicio-video voicestudio clone referencia.wav --name "Minha voz"
+simplicio-video voicestudio mcp                 # MCP client block (Streamable HTTP)
+```
+
+Install and open the app yourself (`curl -fsSL https://voicestudio.sh/install | sh`, or `bun install && bun run dev` from the source); the engine never installs it and a closed app fails with a clear message instead of a traceback. The tracked version is pinned in `src/simplicio_video/tools.py` and `simplicio-video tools` lists it with every other track. `simplicio-video voice --provider voicestudio` uses the same app for a contract's narration; the deterministic render still needs only the cached WAVs.
+
 ### Audio apps
 
 | App | License | Role | Provider (`voz.provider` / `--provider`) | Setup | Doc |

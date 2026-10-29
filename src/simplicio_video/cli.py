@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from . import (CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, moneyprinter, montage, opencut,
-               paths, shorts, toonflow)
+               paths, shorts, toonflow, voicestudio)
 from .aio import positive_int
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
@@ -35,6 +35,8 @@ Fluxo completo:
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
+  voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
+  tools        lista as trilhas externas fixadas (versão, comando, se estão no cache de tools e o que produzem)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
@@ -279,6 +281,20 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api\n  simplicio-video moneyprinter status")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | where | status")
 
+    p = sub.add_parser("voicestudio", formatter_class=Fmt, help="VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900",
+        description="Fala com o VoiceStudio (https://github.com/debpalash/VoiceStudio, AGPL-3.0), app local de voz: TTS, "
+                    "clonagem e desenho de vozes e transcrição. A API fica em http://127.0.0.1:3900 (OpenAI-compatible) e o "
+                    "servidor MCP em http://127.0.0.1:3900/mcp/ (Streamable HTTP). O app é um programa separado, só é "
+                    "alcançado por HTTP local e não é importado nem vendorizado; a variável VOICESTUDIO_URL/OMNIVOICE_URL "
+                    "aponta outra base. Fica fora do render determinístico.",
+        epilog="exemplos:\n  simplicio-video voicestudio status\n  simplicio-video voicestudio voices --json\n"
+               "  simplicio-video voicestudio tts \"olá\" --out fala.wav --profile <id> --language pt-BR\n"
+               "  simplicio-video voicestudio transcribe audio.m4a --rest\n"
+               "  simplicio-video voicestudio clone referencia.wav --name \"Minha voz\"\n"
+               "  simplicio-video voicestudio mcp")
+    p.add_argument("args", nargs=argparse.REMAINDER,
+                   help="status | voices | languages | personalities | tts | transcribe | clone | describe | design | mcp")
+
     p = sub.add_parser("formats", formatter_class=Fmt, help="biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy",
         description="Os 50 formatos da pasta 'Swipe File - 50 Formatos' (Drive): descrição, estrutura e o exemplo de cada um. "
                     "`prompt` monta o pedido para adaptar uma copy ao formato; quem adapta é o LLM, não o CLI.",
@@ -316,6 +332,14 @@ def build_parser() -> argparse.ArgumentParser:
                     f"Contratos seguem {SCHEMA_REL}.",
         epilog="exemplos:\n  simplicio-video mcp                  # stdio (o runtime lança este processo)\n"
                "  simplicio-video-mcp                  # mesmo servidor, entrypoint dedicado")
+
+    p = sub.add_parser("tools", formatter_class=Fmt, help="lista as trilhas externas fixadas (versão, comando, instalada)",
+        description="Lista as trilhas externas fixadas, lendo o registro de src/simplicio_video/tools.py: nome, repo, versão "
+                    "fixada, comando, se está instalada no cache de tools (SIMPLICIO_TOOLS_DIR, padrão "
+                    "~/.simplicio-video/tools) e o que produz. Funciona offline e não instala nada: o render "
+                    "determinístico nunca depende dessas trilhas.",
+        epilog="exemplos:\n  simplicio-video tools\n  simplicio-video tools --json")
+    p.add_argument("--json", action="store_true", help="imprime a lista em JSON")
 
     p = sub.add_parser("status", formatter_class=Fmt, help="ferramentas instaladas, versões fixadas e estado do render",
         description="Estado do motor para o looping: ferramentas (OpenMontage, OpenCut, Hypit, ffmpeg, node) com\n"
@@ -557,7 +581,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "toonflow", "moneyprinter", "formats", "swap", "jobs", "social", "openverse", "busca"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "toonflow", "moneyprinter", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
         antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
         if any(h in antes_do_traco for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
@@ -628,6 +652,8 @@ def main(argv: list[str] | None = None) -> int:
             except moneyprinter.MoneyPrinterError as e:
                 print(f"moneyprinter: {e}", file=sys.stderr)
                 return 1
+        if cmd == "voicestudio":
+            return voicestudio.run_voicestudio(sub_args)
 
     a = ap.parse_args(argv)
     if a.version:
@@ -656,6 +682,12 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "setup":
         from .commands import setup
         return setup.run(a)
+
+    if a.cmd == "tools":
+        from . import tools
+        rows = tools.listing()
+        print(json.dumps(rows, indent=2, ensure_ascii=False) if a.json else tools.text_listing(rows))
+        return 0
 
     if a.cmd == "status":
         from . import status
