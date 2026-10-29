@@ -43,7 +43,7 @@ Fluxo completo:
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
   mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse/busca
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
-  install      copia as skills do simplicio-video para o host do agente (12 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
+  install      copia as skills do simplicio-video para o host do agente (11 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
   update       pacote pip: PyPI e reinstala as skills; checkout git: recusa (git pull e scripts/dev_install.sh); --check sai 0, 10 ou 2
   doctor       diagnóstico: Python, Node 22, ffmpeg com libass, disco, portas, credenciais, workspace
   setup        primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
@@ -368,7 +368,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="só com angles: lista só os ângulos desse grupo")
 
     p = sub.add_parser("install", formatter_class=Fmt, help="copia as skills do simplicio-video para o host do agente (o projeto, ou o home com --global)",
-        description="Copia as skills empacotadas (simplicio-video e simplicio-video-social) para o host do agente e grava o recibo de posse\n"
+        description="Copia as skills empacotadas (simplicio-video, simplicio-video-social, -media, -shorts, -voicestudio e -edit) para o host do agente e grava o recibo de posse\n"
                     ".simplicio-video/install-ownership.json, como o `install` do simplicio-loop. Por padrão instala no projeto (--target, padrão: a\n"
                     "pasta atual) em .claude/skills/ e, para o host que precisa, no arquivo de entrada dele (AGENTS.md, GEMINI.md, CONVENTIONS.md,\n"
                     ".github/copilot-instructions.md ou .kiro/steering/simplicio-video.md). Um arquivo de entrada que já existe não recebe\n"

@@ -27,7 +27,8 @@ RAIZES_DO_LOOP = {
 
 
 def test_as_skills_sao_as_do_simplicio_video():
-    assert skill_sync.SKILLS == ("simplicio-video", "simplicio-video-social")
+    assert skill_sync.SKILLS == ("simplicio-video", "simplicio-video-social", "simplicio-video-media",
+                                 "simplicio-video-voicestudio", "simplicio-video-shorts", "simplicio-video-edit")
 
 
 def test_a_tabela_de_hosts_e_a_do_loop():

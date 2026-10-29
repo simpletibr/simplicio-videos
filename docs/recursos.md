@@ -9,11 +9,11 @@ Estrelas conferidas via GitHub API em 30/09/2026.
 - [mexicat/pdoom-video](https://github.com/mexicat/pdoom-video) — ⭐2k · MIT. Videoclipe 100% renderizado em código (three.js), feito com Opus 5.5 no Claude Code.
 
 ### Vídeo com IA (geração/automação)
-- [harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) — ⭐127k · MIT. Tema/palavra-chave → vídeo curto com legendas. Integrado como `simplicio-video moneyprinter` (ver [README](../README.md#video-apps)).
+- [harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) — ⭐127k · MIT. Tema/palavra-chave → vídeo curto com legendas. Integrado como `simplicio-video moneyprinter` (ver [README](../README.md#capability-map)).
 - [calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) — ⭐62k · AGPL-3.0. Produção de vídeo agentic (pipelines, Remotion/FFmpeg, text-to-video, custos por vídeo).
 - [browser-use/video-use](https://github.com/browser-use/video-use) — ⭐27.8k · MIT. Editar vídeos com coding agents.
 - [hypit-ai/hypit](https://github.com/hypit-ai/hypit) — ⭐17.9k. Clonar vídeos virais: troca de rosto, falas, B-roll; 100 variações.
-- [HBAI-Ltd/Toonflow-app](https://github.com/HBAI-Ltd/Toonflow-app) — MIT (estrelas não conferidas aqui). Estúdio open-source de séries, quadrinhos e vídeos com IA: canvas para roteiro e storyboard, personagens e cenas, imagens e vídeos; app Bun com interface web local. Integrado como `simplicio-video toonflow` (ver [README](../README.md#video-apps)).
+- [HBAI-Ltd/Toonflow-app](https://github.com/HBAI-Ltd/Toonflow-app) — MIT (estrelas não conferidas aqui). Estúdio open-source de séries, quadrinhos e vídeos com IA: canvas para roteiro e storyboard, personagens e cenas, imagens e vídeos; app Bun com interface web local. Integrado como `simplicio-video toonflow` (ver [README](../README.md#capability-map)).
 - [wide-trace/open-higgsfield](https://github.com/wide-trace/open-higgsfield) — ⭐3.9k. Estúdio de geração de imagem + vídeo.
 - [vargHQ/sdk](https://github.com/vargHQ/sdk) — ⭐340 · Apache-2.0. JSX para vídeo com IA (Kling, Flux, ElevenLabs, Veed).
 - [taruma/SceneFlow](https://github.com/taruma/SceneFlow) — ⭐335 · MIT. Sincroniza roteiro ↔ vídeo e avalia footage gerado por IA.
