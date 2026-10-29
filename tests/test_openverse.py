@@ -2309,7 +2309,8 @@ def test_modulo_nao_importa_cliente_de_llm_nem_biblioteca_de_rede_de_terceiros()
 
 
 def test_docs_dizem_o_que_o_pedido_exige():
-    readme = (ROOT / "README.md").read_text(encoding="utf8")
+    # the detailed guarantees live in the Portuguese README (the English one summarises them)
+    readme = (ROOT / "README.pt-BR.md").read_text(encoding="utf8")
     assert "### Openverse: biblioteca de imagens e áudio revisada" in readme
     secao = readme.split("### Openverse: biblioteca de imagens e áudio revisada", 1)[1].split("\n### ", 1)[0]
     for trecho in ("openverse search", "openverse get", "library review", "--folha", "--aprovar", "library export", "library credits",
