@@ -8,6 +8,7 @@
 | [host/README.md](host/README.md) | **Índice do host**: gate local, pacote de operação e licenças |
 | [decisoes/ADR-0001-visao-plugin.md](decisoes/ADR-0001-visao-plugin.md) | **Decisão de produto** (Wesley, 30/09/2026): plugin do Simplicio Runtime, esteira determinística por setor |
 | [receita-video-cliente.md](receita-video-cliente.md) | **Receita atual:** o agente escreve o contrato, o CLI `simplicio-video` executa (coleta → contrato → validate → voice → render → Drive) |
+| [shorts.md](shorts.md) | **Cortes verticais 9:16 de um vídeo longo:** transcrição -> `plan.json` (janelas e nota) -> `cut` com legenda opcional e `manifest.json`; determinístico, só ffmpeg |
 | [decisoes/ADR-0002-cli-contrato-colab-creditos.md](decisoes/ADR-0002-cli-contrato-colab-creditos.md) | CLI + contrato YAML, backend Colab (GPU), design de créditos para clientes pagantes |
 | [custos.md](custos.md) | **Custo por vídeo** (voz Gemini, render local/Colab/Kaggle/Modal, Drive) em US$ e R$, com o que é medido, oficial ou estimativa, e margem (WJR a R$ 60) |
 | [venda-ativa.md](venda-ativa.md) | **Venda ativa em massa** (saiu do CLI do motor na #77; fica no repositório de operação): lista → coleta pública → contrato por setor → prévia com marca d'água Wesley Simplicio), limites (dados públicos, Instagram sem login, LGPD), custo por prévia (local = R$ 0), piloto Dia das Crianças e script de abordagem |
