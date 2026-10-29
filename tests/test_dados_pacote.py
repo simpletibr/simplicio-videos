@@ -147,7 +147,8 @@ def test_wheel_contem_schema_templates_e_motion(wheel):
     assert any(PATTERN_JSON.match(n) for n in nomes), "nenhum motion/patterns/*/pattern.json no wheel"
 
 
-SKILLS_DO_WHEEL = ("simplicio-video", "simplicio-video-social")
+SKILLS_DO_WHEEL = ("simplicio-video", "simplicio-video-social", "simplicio-video-media", "simplicio-video-shorts",
+                   "simplicio-video-voicestudio", "simplicio-video-edit")
 
 
 @pytest.mark.slow

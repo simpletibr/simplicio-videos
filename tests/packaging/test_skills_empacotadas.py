@@ -17,14 +17,15 @@ from _comum import ROOT
 
 PACOTE = ROOT / "src" / "simplicio_video" / "data" / "skills"
 ESPELHO = ROOT / "skills"
-NOMES = ("simplicio-video", "simplicio-video-social")
+NOMES = ("simplicio-video", "simplicio-video-edit", "simplicio-video-media", "simplicio-video-shorts",
+         "simplicio-video-social", "simplicio-video-voicestudio")
 
 
 def _arquivos(raiz):
     return {p.relative_to(raiz).as_posix(): p.read_bytes() for p in sorted(raiz.rglob("*")) if p.is_file()}
 
 
-def test_o_pacote_traz_as_duas_skills_do_simplicio_video():
+def test_o_pacote_traz_as_seis_skills_do_simplicio_video():
     assert tuple(sorted(p.name for p in PACOTE.iterdir() if p.is_dir())) == NOMES
     assert tuple(sorted(skill_sync.SKILLS)) == NOMES
     for nome in NOMES:

@@ -4,6 +4,16 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+- README em três níveis, seguindo o padrão dos repos Simplicio: `README.md` (inglês, canônico, com o mapa de capacidades e a referência de comandos), `README.pt-BR.md` (português, mesmas seções) e `READMEs/README.<idioma>.md` (resumos nos outros idiomas, com a barra de idiomas no topo).
+- Skills novas (`media`, `voicestudio`, `shorts`, `edit`) passam a ir no pacote e são instaladas por `simplicio-video install`: antes ficavam só em `skills/` e não chegavam ao wheel nem aos hosts. Os testes de pacote agora esperam as seis skills.
+- `install`: a contagem de hosts de agente é 11 (a ajuda e o README diziam 12).
+
+- `media`: operações de áudio e vídeo sobre qualquer MP4, só ffmpeg e determinísticas: `probe`, `audio`, `sheet` (folha de quadros para ver texto na tela), `subs` (SRT ou ASS a partir de cues), `burn` (queima legenda), `mask` (apaga texto numa caixa, com janela de tempo), `replace-audio` e `voice-track` (monta a trilha de voz por cue, acelerando só até o limite). Skill em `skills/simplicio-video-media`.
+
+- `media fetch`: baixa uma página pública de vídeo com o yt-dlp, fixado em `tools.py` como wheel de PyPI com sha256 conferido (`--require-hashes`), num venv próprio do cache de ferramentas. Exige `--autorizo`, nunca sobrescreve o MP4, recusa URL com credencial e grava `<nome>.fetch.json` (origem sem query, sha256, versão do yt-dlp, hora; título e autor só em `untrusted_*`). Tipo de trilha novo na registry: `pip`.
+
+- Skills por comando de áudio e vídeo: `simplicio-video-voicestudio`, `simplicio-video-shorts` e `simplicio-video-edit`, com exemplos. `AGENTS.md` ganhou o mapa de comandos e a receita de vídeo em outro idioma.
+
 - `shorts`: trilha nova (pedido direto do dono, sem issue). `simplicio-video shorts inspect | plan | cut | run` corta um vídeo longo em N clipes 1080x1920 a partir da transcrição do `edit transcribe`. A decisão fica num `plan.json` versionado (janelas, nota, motivo) e o render é só ffmpeg, com `manifest.json` e sha256 por arquivo; `--subs` queima a legenda do trecho, `--fit blur|crop` escolhe o enquadramento e `--dry-run` mostra os comandos sem gravar nada.
 
 - `modules/h3-swap-service/`: módulo opcional de troca de personagem em GPU alugada (Vast/Salad, fila na Cloudflare). Fora do pacote e do motor; sem adaptador em `swap_providers/` ainda. Pedido direto do dono, sem issue.
