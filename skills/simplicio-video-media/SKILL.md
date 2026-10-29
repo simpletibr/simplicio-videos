@@ -1,11 +1,11 @@
 ---
 name: simplicio-video-media
-description: Use for audio-visual work on any MP4 with the simplicio-video CLI: read metadata, extract audio, review on-screen text frames, generate subtitles (SRT/ASS), burn them into the picture, erase on-screen text in a box and time window, replace the sound track, and assemble a voice track from timed clips (for dubbing). Trigger on requests to translate a video's subtitles or on-screen text, dub a video, clean text off a picture, or change a video's audio. Deterministic, local, ffmpeg and ffprobe only.
+description: Use for audio-visual work on any MP4 with the simplicio-video CLI: download a public video page (fetch, with the pinned yt-dlp and a provenance record), read metadata, extract audio, review on-screen text frames, generate subtitles (SRT/ASS), burn them into the picture, erase on-screen text in a box and time window, replace the sound track, and assemble a voice track from timed clips (for dubbing). Trigger on requests to download a video the user may use, translate a video's subtitles or on-screen text, dub a video, clean text off a picture, or change a video's audio. Deterministic and local (ffmpeg and ffprobe); only fetch uses the network.
 ---
 
 # simplicio-video media — áudio e vídeo sobre qualquer MP4
 
-`simplicio-video media` faz uma operação por subcomando. Cada um monta um comando ffmpeg a partir dos argumentos, roda e imprime um JSON com o resultado. Nada sai da máquina e nenhum modelo roda aqui.
+`simplicio-video media` faz uma operação por subcomando. Cada um monta um comando ffmpeg a partir dos argumentos, roda e imprime um JSON com o resultado. Nenhum modelo roda aqui. A única exceção é `fetch`, que baixa uma página pública com o yt-dlp fixado.
 
 **Quem decide é você (o agente).** Você escreve a tradução, os tempos e a escolha do que apagar. O CLI só aplica. Nunca invente um tempo de legenda: use a transcrição (`simplicio-video edit transcribe`) ou o texto do autor.
 
@@ -13,11 +13,13 @@ description: Use for audio-visual work on any MP4 with the simplicio-video CLI: 
 
 - `ffmpeg` e `ffprobe` com **libass** (para `burn`). Confira com `simplicio-video doctor`.
 - No macOS com Homebrew, o `ffmpeg` padrão pode estar quebrado (biblioteca do libvpx faltando). Use o `ffmpeg-full` e ponha o `bin` dele primeiro no PATH.
+- `fetch` instala o yt-dlp fixado no primeiro uso, num venv próprio em `$SIMPLICIO_TOOLS_DIR` (padrão `~/.simplicio-video/tools/yt-dlp`), com o wheel conferido por sha256. Precisa de rede. Se o yt-dlp falhar, veja a mensagem: a página pode ter vindo cortada, e nada é gravado.
 
 ## Subcomandos
 
 | Subcomando | Faz | Entrada | Saída |
 |---|---|---|---|
+| `fetch` | baixa uma página pública de vídeo (yt-dlp); exige `--autorizo` | URL | MP4 + `.fetch.json` |
 | `probe` | metadados: duração, largura, altura, fps, se tem áudio, sha256 | MP4 | JSON |
 | `audio` | trilha mono PCM (para transcrição ou referência de voz) | MP4 | `.wav` |
 | `sheet` | folha de contato de quadros a cada N segundos (revisar texto na tela) | MP4 | `.jpg` |
@@ -43,6 +45,18 @@ description: Use for audio-visual work on any MP4 with the simplicio-video CLI: 
 - `text` é usado por `subs`. `audio` é usado só por `voice-track`; caminho relativo ao arquivo de cues.
 
 ## Exemplos
+
+**0. Baixar um vídeo público que você pode usar**
+
+```bash
+simplicio-video media fetch https://www.instagram.com/veramundopet/reel/DfDdh8ugFWN/ -o reel.mp4 --autorizo
+simplicio-video media fetch https://example.com/aula.mp4 -o aula.mp4 --autorizo --max-mb 200 --timeout 300
+```
+
+- `--autorizo` é obrigatório: é a sua confirmação de que pode usar o arquivo. O motor não verifica o direito de uso.
+- Grava `reel.mp4` e `reel.fetch.json` (origem sem query, extrator, sha256, bytes, versão do yt-dlp, hora, e título e autor como `untrusted_*`). Nunca sobrescreve: escolha outro `-o`.
+- Não passa cookies, login nem credencial. URL com `usuário:senha` é recusada. Playlist não é baixada.
+- Se a plataforma recusar ou cortar a página, o comando sai com a mensagem do yt-dlp e nada fica pela metade.
 
 **1. Ver o texto que está na tela antes de apagar nada**
 
@@ -91,6 +105,7 @@ simplicio-video media audio reel.mp4 -o ref.wav --rate 16000
 ## Regras
 
 - Nenhum subcomando altera a fonte: todos gravam em `-o`, que precisa ser um arquivo novo.
+- Baixe só o que você pode usar. `--autorizo` é a sua confirmação, não uma checagem do motor; guarde a autorização por escrito com o projeto.
 - Texto da tela: `mask` apaga, não traduz. Para texto novo na tela, faça a legenda com `subs`.
 - Não publique vídeo de outra pessoa sem autorização por escrito; a versão traduzida também é derivada.
 - Nunca use `burn` com legenda sem revisão humana quando o texto for de saúde (ex.: receitas para animais): revise antes.

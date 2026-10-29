@@ -1,8 +1,8 @@
 """`simplicio-video media`: audio-visual operations on any MP4, deterministic and local (ffmpeg and ffprobe only).
 
-Each subcommand builds one ffmpeg command from its arguments and runs it; nothing is sent anywhere and no model runs here.
-The translation, the cue timing and the voice are inputs (JSON files written by the agent or by `voicestudio`); this module
-only places them on the picture and in the sound.
+Each subcommand builds one ffmpeg command from its arguments and runs it; no model runs here. The translation, the cue
+timing and the voice are inputs (JSON files written by the agent or by `voicestudio`); this module only places them on the
+picture and in the sound. The one exception is `fetch`, which downloads a public video with the pinned yt-dlp (download.py).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import shorts
+from . import download, shorts
 
 CUES_SCHEMA = "simplicio.media-cues/v1"
 
@@ -23,8 +23,11 @@ class MediaError(Exception):
     pass
 
 
-HELP = """media (audio-visual on any MP4: ffmpeg/ffprobe only, deterministic)
+HELP = """media (audio-visual on any MP4: ffmpeg/ffprobe, deterministic; fetch uses the pinned yt-dlp)
 
+  fetch URL -o OUT.mp4 --autorizo [--max-mb 500] [--timeout 600]
+                                                   download one public video page to a new MP4 and write
+                                                   OUT.fetch.json (source, sha256, yt-dlp version, time); needs --autorizo
   probe FONTE [-o info.json]                       metadata: duration, size, fps, audio
   audio FONTE -o OUT.wav [--rate 16000]            mono PCM track (for transcription or a voice reference)
   sheet FONTE -o SHEET.jpg [--every 4] [--cols 8]  contact sheet of frames, to review on-screen text
@@ -44,6 +47,7 @@ Cues file: {"schema": "simplicio.media-cues/v1", "cues": [{"start": 0.0, "end": 
 The "audio" key is used only by voice-track. Times are seconds.
 
 Examples:
+  simplicio-video media fetch https://www.instagram.com/veramundopet/reel/DfDdh8ugFWN/ -o reel.mp4 --autorizo
   simplicio-video media probe reel.mp4
   simplicio-video media mask reel.mp4 --box 150,622,430,104 -o clean.mp4
   simplicio-video media subs cues.json -o subs.ass --style band
@@ -52,7 +56,7 @@ Examples:
   simplicio-video media replace-audio clean.mp4 voice.wav -o dubbed.mp4
 """
 
-SUBCOMMANDS = ("probe", "audio", "sheet", "subs", "burn", "mask", "replace-audio", "voice-track")
+SUBCOMMANDS = ("fetch", "probe", "audio", "sheet", "subs", "burn", "mask", "replace-audio", "voice-track")
 
 ASS_STYLES = {
     # centred on the picture, where short-form captions usually sit (matches the reel used in the first test)
@@ -264,7 +268,7 @@ def _parse(args: list[str]) -> tuple[list[str], dict[str, str]]:
     pos: list[str] = []
     vals: dict[str, str] = {}
     i = 0
-    flags_sem_valor = {"--keep-length"}
+    flags_sem_valor = {"--keep-length", "--autorizo"}
     while i < len(args):
         a = args[i]
         if a in flags_sem_valor:
@@ -314,6 +318,19 @@ def _out(vals: dict[str, str], cmd: str) -> Path:
     dest = Path(vals["-o"]).expanduser()
     dest.parent.mkdir(parents=True, exist_ok=True)
     return dest
+
+
+def cmd_fetch(pos, vals) -> dict:
+    if not pos:
+        raise MediaError("fetch: informe a URL pública do vídeo")
+    if "--autorizo" not in vals:
+        raise MediaError("fetch: confirme que você pode usar este vídeo com --autorizo (o motor não verifica o direito de uso)")
+    dest = _out(vals, "fetch")
+    try:
+        return download.fetch(pos[0], dest, autorizo=True, max_mb=_int(vals, "--max-mb", download.DEFAULT_MAX_MB),
+                              timeout=_int(vals, "--timeout", download.DEFAULT_TIMEOUT_S))
+    except download.DownloadError as e:
+        raise MediaError(str(e)) from None
 
 
 def cmd_probe(pos, vals) -> dict:
@@ -449,7 +466,7 @@ def cmd_voice_track(pos, vals) -> dict:
 
 
 DISPATCH = {
-    "probe": cmd_probe, "audio": cmd_audio, "sheet": cmd_sheet, "subs": cmd_subs, "burn": cmd_burn,
+    "fetch": cmd_fetch, "probe": cmd_probe, "audio": cmd_audio, "sheet": cmd_sheet, "subs": cmd_subs, "burn": cmd_burn,
     "mask": cmd_mask, "replace-audio": cmd_replace_audio, "voice-track": cmd_voice_track,
 }
 

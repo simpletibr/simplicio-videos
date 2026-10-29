@@ -20,6 +20,7 @@ Qualquer tarefa de áudio ou vídeo (legendar, traduzir texto da tela, dublar, t
 | Necessidade | Comando | Skill (com exemplos) |
 |---|---|---|
 | Metadados, áudio, folha de quadros, legenda, queimar, apagar texto na caixa, trocar trilha, montar voz por cues | `simplicio-video media probe\|audio\|sheet\|subs\|burn\|mask\|replace-audio\|voice-track` | [`skills/simplicio-video-media`](skills/simplicio-video-media/SKILL.md) |
+| Baixar um vídeo público que você pode usar (yt-dlp fixado, `--autorizo`, registro de procedência) | `simplicio-video media fetch URL -o out.mp4 --autorizo` | [`skills/simplicio-video-media`](skills/simplicio-video-media/SKILL.md) |
 | Voz local: status, vozes, idiomas, TTS, transcrição, clonagem, design de voz (app em `:3900`) | `simplicio-video voicestudio status\|voices\|languages\|tts\|transcribe\|clone\|describe\|design` | [`skills/simplicio-video-voicestudio`](skills/simplicio-video-voicestudio/SKILL.md) |
 | Cortes verticais 9:16 de vídeo longo | `simplicio-video shorts inspect\|plan\|cut\|run` | [`skills/simplicio-video-shorts`](skills/simplicio-video-shorts/SKILL.md) |
 | Edição por EDL, transcrição local (faster-whisper) | `simplicio-video edit setup\|transcribe\|pack\|render\|verify` | [`skills/simplicio-video-edit`](skills/simplicio-video-edit/SKILL.md) |
@@ -38,7 +39,7 @@ Qualquer tarefa de áudio ou vídeo (legendar, traduzir texto da tela, dublar, t
 
 ### Regras
 
-- Não use `ffmpeg`, `yt-dlp`, `whisper` ou um app de voz por fora quando já existir subcomando: se faltar algo, implemente no `simplicio-video` e adicione teste.
+- Não use `ffmpeg`, `yt-dlp`, `whisper` ou um app de voz por fora quando já existir subcomando (`media`, `media fetch` para download, `voicestudio`, `edit`): se faltar algo, implemente no `simplicio-video` e adicione teste.
 - Cada subcomando tem `--help` com exemplos; cada skill acima explica o subcomando com exemplos e limites.
 - Nada de publicar: o motor gera o arquivo; a publicação é de outra camada.
 - Voz de pessoa real só com consentimento registrado (ver `voicestudio` e a licença de cada modelo).

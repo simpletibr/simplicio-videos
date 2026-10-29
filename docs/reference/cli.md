@@ -24,12 +24,16 @@ Fluxo completo:
   clone        trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA (https://github.com/hypit-ai/hypit)
   montage      trilha Montage (OpenMontage): produção de vídeo com agentes de IA (https://github.com/calesthio/OpenMontage)
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
+  shorts       cortes verticais 9:16 de um vídeo longo (inspect/plan/cut/run): transcrição -> janelas pontuadas -> MP4 com legenda; determinístico, só ffmpeg
+  media        áudio e vídeo sobre qualquer MP4 (fetch, probe, audio, sheet, subs, burn, mask, replace-audio, voice-track); ffmpeg, e yt-dlp no fetch
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
+  voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
+  tools        lista as trilhas externas fixadas (versão, comando, se estão no cache de tools e o que produzem)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
@@ -58,9 +62,13 @@ comandos (na ordem do fluxo):
     clone         trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA
     montage       trilha Montage (OpenMontage): produção de vídeo com agentes de IA
     edit          edição por EDL com video-use sobre qualquer MP4
+    shorts        cortes verticais 9:16 de um vídeo longo (determinístico, só ffmpeg)
+    media         áudio e vídeo sobre qualquer MP4 (fetch, probe, audio, sheet, subs, burn, mask, replace-
+                  audio, voice-track); ffmpeg, e yt-dlp no fetch
     opencut       editor OpenCut (open-source) para acabamento manual
     toonflow      Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
     moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
+    voicestudio   VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900
     formats       biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
     swap          troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
     jobs          tarefas em segundo plano (swap run, voice) num processo separado
@@ -68,6 +76,7 @@ comandos (na ordem do fluxo):
     openverse     biblioteca de imagens e áudio do Openverse, revisada por pedido
     busca         pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário
     mcp           servidor MCP (stdio) para o simplicio-runtime
+    tools         lista as trilhas externas fixadas (versão, comando, instalada)
     status        ferramentas instaladas, versões fixadas e estado do render
     list          lista templates, padrões de motion, providers de voz ou ângulos de anúncio
     install       copia as skills do simplicio-video para o host do agente (o projeto, ou o home com --global)
@@ -279,20 +288,18 @@ voz sugerida e trilha padrão. Campos com TODO precisam ser preenchidos
 (validate falha enquanto houver TODO). Schema: src/simplicio_video/data/schema/contract.schema.json.
 
 positional arguments:
-  cliente                         slug do cliente (pasta em clients/, ex.: clinica-sorriso)
-  campanha                        campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)
+  cliente                  slug do cliente (pasta em clients/, ex.: clinica-sorriso)
+  campanha                 campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)
 
 options:
-  -h, --help                      show this help message and exit
-  --template TEMPLATE, -t TEMPLATE
-                                  id do template de setor (ver `simplicio-video list templates`)
-  --nome NOME                     nome de exibição do cliente (padrão: TODO)
-  --drive-nome DRIVE_NOME         NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.:
-                                  Clinica_Sorriso)
-  --ano ANO                       ano da campanha (padrão: ano atual)
-  --out OUT, -o OUT               onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no
-                                  checkout ou, instalado por pip, na pasta atual)
-  --force                         sobrescreve um contrato existente
+  -h, --help               show this help message and exit
+  --template, -t TEMPLATE  id do template de setor (ver `simplicio-video list templates`)
+  --nome NOME              nome de exibição do cliente (padrão: TODO)
+  --drive-nome DRIVE_NOME  NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Clinica_Sorriso)
+  --ano ANO                ano da campanha (padrão: ano atual)
+  --out, -o OUT            onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no checkout
+                           ou, instalado por pip, na pasta atual)
+  --force                  sobrescreve um contrato existente
 
 exemplos:
   simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome "<Nome do cliente>"
@@ -492,6 +499,27 @@ exemplos:
   simplicio-video-mcp                  # mesmo servidor, entrypoint dedicado
 ```
 
+## simplicio-video media
+
+```text
+usage: simplicio-video media [-h] ...
+
+Operações de áudio e vídeo com ffmpeg/ffprobe: baixar um vídeo público (fetch, com yt-dlp fixado), ler metadados, extrair áudio, ver quadros, gerar legendas, queimá-las, apagar texto da tela, trocar a trilha e montar a voz por cues.
+
+positional arguments:
+  args        subcomando e argumentos (--help mostra tudo)
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video media fetch https://www.instagram.com/veramundopet/reel/DfDdh8ugFWN/ -o reel.mp4 --autorizo
+  simplicio-video media probe reel.mp4
+  simplicio-video media mask reel.mp4 --box 150,622,430,104 -o clean.mp4
+  simplicio-video media subs cues.json -o subs.ass --style band
+  simplicio-video media burn clean.mp4 subs.ass -o final.mp4
+```
+
 ## simplicio-video moneyprinter
 
 ```text
@@ -649,14 +677,14 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --backend {local,kaggle,colab-cli,colab}, -b {local,kaggle,colab-cli,colab}
+  --backend, -b {local,kaggle,colab-cli,colab}
                                   onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via
                                   créditos)
-  --out OUT, -o OUT               MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo
+  --out, -o OUT                   MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo
   --accelerator ACCELERATOR       kaggle: NvidiaTeslaT4 (padrão) | NvidiaL4 | none; colab-cli: T4 (padrão) |
                                   L4 | A100 | none
   --timeout TIMEOUT               kaggle/colab-cli: limite do render remoto em s (padrão 3600)
-  --quality {draft,looks,delivery}, -q {draft,looks,delivery}
+  --quality, -q {draft,looks,delivery}
                                   qualidade HyperFrames (padrão: saida.qualidade)
   --gpu                           local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo
   --gpu-encode {auto,1,0}         kaggle/colab-cli/colab: NVENC no encode (auto = usa se o teste de encode
@@ -703,14 +731,14 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --provider {file,local,gemini,voxcpm,openvoice,voicestudio}, -p {file,local,gemini,voxcpm,openvoice,voicestudio}
+  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio}
                                   override voz.provider
   --force-voice                   regera todas as falas (ignora o cache)
-  --backend {local,kaggle,colab-cli,colab}, -b {local,kaggle,colab-cli,colab}
+  --backend, -b {local,kaggle,colab-cli,colab}
                                   onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via
                                   créditos)
   --accelerator ACCELERATOR       ver `render --help` (none = CPU)
-  --quality {draft,looks,delivery}, -q {draft,looks,delivery}
+  --quality, -q {draft,looks,delivery}
                                   qualidade HyperFrames
   --timeout TIMEOUT               limite do render remoto em s
   --json                          imprime o resumo em JSON no stdout (com erro, error.code); os logs vão para
@@ -744,6 +772,25 @@ exemplos:
   simplicio-video setup
   simplicio-video setup --yes --theme br --lang pt-BR
   simplicio-video setup --yes --realoficial
+```
+
+## simplicio-video shorts
+
+```text
+usage: simplicio-video shorts [-h] ...
+
+Vídeo longo -> N cortes 1080x1920 a partir da transcrição (a mesma do edit transcribe). inspect lê a fonte, plan grava plan.json com as janelas e a nota de cada uma, cut renderiza e grava manifest.json com sha256; run faz plan + cut. Nada de rede e nenhum modelo no render.
+
+positional arguments:
+  args        inspect | plan | cut | run (--help mostra tudo)
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video shorts inspect FONTE.mp4
+  simplicio-video shorts plan FONTE.mp4 --transcript words.json --clips 5
+  simplicio-video shorts cut FONTE.mp4 shorts/plan.json --subs
 ```
 
 ## simplicio-video social
@@ -827,6 +874,22 @@ exemplos:
   simplicio-video swap run --provider gemini --video in.mp4 --ref avatar.png --out out/swap.mp4 --autorizo
   simplicio-video swap run --provider gemini --video in.mp4 --ref avatar.png --out out/swap.mp4 --autorizo --yes --max-usd 2
   simplicio-video swap status out/swap.manifest.json --json
+```
+
+## simplicio-video tools
+
+```text
+usage: simplicio-video tools [-h] [--json]
+
+Lista as trilhas externas fixadas, lendo o registro de src/simplicio_video/tools.py: nome, repo, versão fixada, comando, se está instalada no cache de tools (SIMPLICIO_TOOLS_DIR, padrão ~/.simplicio-video/tools) e o que produz. Funciona offline e não instala nada: o render determinístico nunca depende dessas trilhas.
+
+options:
+  -h, --help  show this help message and exit
+  --json      imprime a lista em JSON
+
+exemplos:
+  simplicio-video tools
+  simplicio-video tools --json
 ```
 
 ## simplicio-video toonflow
@@ -945,7 +1008,7 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --provider {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}, -p {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}
+  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}
                                   override voz.provider
   --force                         ignora o cache (com ids: só esses)
   --concurrency N                 falas geradas ao mesmo tempo, só em provedor de rede (gemini; padrão 4; 1 =
@@ -955,4 +1018,26 @@ exemplos:
   simplicio-video voice contract.yaml                    # provider do contrato (voz.provider)
   simplicio-video voice contract.yaml --provider file    # depois de baixar line-01..NN.wav do AI Studio
   simplicio-video voice contract.yaml --force vo2        # refaz só a vo2
+```
+
+## simplicio-video voicestudio
+
+```text
+usage: simplicio-video voicestudio [-h] ...
+
+Fala com o VoiceStudio (https://github.com/debpalash/VoiceStudio, AGPL-3.0), app local de voz: TTS, clonagem e desenho de vozes e transcrição. A API fica em http://127.0.0.1:3900 (OpenAI-compatible) e o servidor MCP em http://127.0.0.1:3900/mcp/ (Streamable HTTP). O app é um programa separado, só é alcançado por HTTP local e não é importado nem vendorizado; a variável VOICESTUDIO_URL/OMNIVOICE_URL aponta outra base. Fica fora do render determinístico.
+
+positional arguments:
+  args        status | voices | languages | personalities | tts | transcribe | clone | describe | design | mcp
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video voicestudio status
+  simplicio-video voicestudio voices --json
+  simplicio-video voicestudio tts "olá" --out fala.wav --profile <id> --language pt-BR
+  simplicio-video voicestudio transcribe audio.m4a --rest
+  simplicio-video voicestudio clone referencia.wav --name "Minha voz"
+  simplicio-video voicestudio mcp
 ```

@@ -1,8 +1,8 @@
 """Pinned versions and install location for the external tracks: `montage` (OpenMontage), `opencut` (OpenCut),
 `clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `busca` (TinyFish CLI) and
-`voicestudio` (VoiceStudio). `simplicio-video tools` lists the whole registry (text or --json).
+`voicestudio` (VoiceStudio) and `media fetch` (yt-dlp). `simplicio-video tools` lists the whole registry (text or --json).
 
-The engine drives: OpenMontage, OpenCut, Hypit, Toonflow, MoneyPrinterTurbo and VoiceStudio, each pinned to a known
+The engine drives: OpenMontage, OpenCut, Hypit, Toonflow, MoneyPrinterTurbo, VoiceStudio and yt-dlp, each pinned to a known
 version.
 
 The deterministic render (contract -> MP4) never depends on them. They are optional tracks: an agentic
@@ -12,13 +12,15 @@ for TTS, voice cloning and transcription (VoiceStudio). Whatever they produce en
 so the final render stays reproducible.
 
 Install location: $SIMPLICIO_TOOLS_DIR (default ~/.simplicio-video/tools/<name>).
-Pins: $SIMPLICIO_<NAME>_REF overrides the commit (git tools) or version (npm tools).
+Pins: $SIMPLICIO_<NAME>_REF overrides the commit (git tools) or version (npm tools). A pip tool has no override:
+its wheel is pinned by version and sha256 here, and pip refuses anything else (--require-hashes).
 """
 from __future__ import annotations
 
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,13 +32,14 @@ class ToolError(Exception):
 @dataclass(frozen=True)
 class Tool:
     name: str
-    kind: str          # "git" or "npm"
-    source: str        # git URL or npm package
+    kind: str          # "git", "npm" or "pip" (a wheel in its own venv)
+    source: str        # git URL, npm package, or the home page of a pip project (its PyPI name is the tool name)
     ref: str           # pinned commit or version
     license: str
     role: str
     marker: str = ""   # a file or folder that proves a git checkout is the right one
     note: str = ""
+    sha256: str = ""   # pip tools: the sha256 of the pinned wheel, checked by pip --require-hashes
 
 
 TOOLS: dict[str, Tool] = {
@@ -86,6 +89,14 @@ TOOLS: dict[str, Tool] = {
                      note="the engine uses only `search query`, `fetch content get`, `auth status` and `--version`: agent, browser and monitor (browser "
                           "automation, metered by step or minute) are out of scope. The package declares Node >= 24. The query or URL goes to a third "
                           "party (TinyFish): the engine refuses secrets and, unless told otherwise, personal data"),
+    "yt-dlp": Tool("yt-dlp", "pip", "https://github.com/yt-dlp/yt-dlp", "2026.10.26", "Unlicense",
+                   "downloads one public video page to a local MP4 (`simplicio-video media fetch`); the engine never logs in, "
+                   "never reads browser cookies and never downloads a playlist",
+                   note="installed in its own venv under the tools cache, never on the global PATH; the wheel has no required "
+                        "dependencies and is checked by sha256 (pip --require-hashes). The download needs --autorizo: the user "
+                        "confirms the right to use the file, and the engine does not verify it. Platforms such as Instagram "
+                        "restrict downloads in their own terms; that responsibility is the user's",
+                   sha256="a05c5b5d8562f7e8a62f5334348b406af4930d56d3a65f8021d14af0e22339ae"),
 }
 
 
@@ -99,6 +110,7 @@ COMMANDS: dict[str, str] = {
     "moneyprinter": "moneyprinter",
     "tinyfish": "busca",
     "voicestudio": "voicestudio",
+    "yt-dlp": "media fetch",
 }
 
 
@@ -141,11 +153,53 @@ def find(name: str) -> Path | None:
     return d.resolve() if d.is_dir() and (d / t.marker).exists() else None
 
 
+PIP_BIN_DIR = "Scripts" if os.name == "nt" else "bin"
+
+
+def _venv_python(venv: Path) -> Path:
+    return venv / PIP_BIN_DIR / ("python.exe" if os.name == "nt" else "python")
+
+
+def pip_binary(name: str) -> Path | None:
+    """The executable of a pip tool inside its venv, or None when it is not installed."""
+    t = get(name)
+    if t.kind != "pip":
+        return None
+    exe = checkout_dir(t) / "venv" / PIP_BIN_DIR / (f"{t.name}.exe" if os.name == "nt" else t.name)
+    return exe if exe.is_file() else None
+
+
+def _install_pip(t: Tool) -> str:
+    """A pip tool: a venv of its own under the tools cache, and the pinned wheel installed with its sha256 checked."""
+    ref = pinned_ref(t)
+    if ref != t.ref:
+        raise ToolError(f"{t.name}: o override de versão ({ref}) não tem hash neste registro; a versão e o sha256 andam juntos em tools.py")
+    d = checkout_dir(t)
+    d.mkdir(parents=True, exist_ok=True)
+    venv = d / "venv"
+    if not _venv_python(venv).is_file():
+        r = subprocess.run([sys.executable, "-m", "venv", str(venv)], capture_output=True, text=True)
+        if r.returncode:
+            raise ToolError(f"venv de {t.name}: {r.stderr.strip()[-300:]}")
+    requisitos = d / "requirements.txt"
+    requisitos.write_text(f"{t.name}=={ref} --hash=sha256:{t.sha256}\n", encoding="utf8")
+    r = subprocess.run([str(_venv_python(venv)), "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
+                        "--require-hashes", "-r", str(requisitos)], capture_output=True, text=True)
+    if r.returncode:
+        raise ToolError(f"pip install {t.name}=={ref}: {r.stderr.strip()[-300:]}")
+    exe = pip_binary(t.name)
+    if exe is None:
+        raise ToolError(f"{t.name}: o pip terminou, mas o executável não apareceu em {venv}")
+    return str(exe)
+
+
 def install(name: str) -> str:
-    """Install a tool at its pinned version. Git tools are cloned and checked out at the pinned commit;
-    npm tools are fetched into the npx cache. Returns where it lives."""
+    """Install a tool at its pinned version. Git tools are cloned and checked out at the pinned commit; npm tools are
+    fetched into the npx cache; pip tools get a venv with the pinned wheel. Returns where it lives."""
     t = get(name)
     ref = pinned_ref(t)
+    if t.kind == "pip":
+        return _install_pip(t)
     if t.kind == "npm":
         npx = shutil.which("npx")
         if not npx:
@@ -180,9 +234,12 @@ def command(t: Tool) -> str:
 
 
 def is_installed(t: Tool) -> bool:
-    """Git tools: the pinned checkout in the tools cache. npm tools: the binary on PATH (as `status` does)."""
+    """Git tools: the pinned checkout in the tools cache. pip tools: the executable in their venv. npm tools: the binary
+    on PATH (as `status` does)."""
     if t.kind == "git":
         return find(t.name) is not None
+    if t.kind == "pip":
+        return pip_binary(t.name) is not None
     return shutil.which(t.name) is not None
 
 
@@ -201,7 +258,7 @@ def text_listing(rows: list[dict]) -> str:
         lines.append(f"    comando: {r['command']}  ({r['license']})")
         lines.append(f"    repo: {r['repo']}")
         lines.append(f"    produz: {r['produces']}")
-    lines.append("instalada = checkout no cache de tools ($SIMPLICIO_TOOLS_DIR, padrão ~/.simplicio-video/tools) ou, "
-                 "para trilhas npm, o binário no PATH.")
+    lines.append("instalada = checkout no cache de tools ($SIMPLICIO_TOOLS_DIR, padrão ~/.simplicio-video/tools); para trilhas npm, "
+                 "o binário no PATH; para trilhas pip, o executável no venv da trilha.")
     return "\n".join(lines)
 

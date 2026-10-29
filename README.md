@@ -27,6 +27,8 @@ Every external tool is a **track** with one CLI command, one MCP verb (`plugin.j
 | Tarefas em segundo plano (`jobs`) | n/a | `swap run` e `voice` num processo separado, sem daemon nem porta; pedaços e falas em paralelo | `simplicio-video jobs submit\|status\|list\|cancel\|result` | `video.jobs` (sem gasto) | [docs/recursos.md](docs/recursos.md) |
 | Biblioteca de imagens e áudio (`openverse`) | n/a | Busca no [Openverse](https://openverse.org/), baixa com segurança, gera a folha de revisão, só exporta o que foi aprovado para o pedido e só deixa o ativo entrar no vídeo (`validate`/`render`) com procedência declarada no contrato, revisão aprovada e crédito; o render grava a procedência no manifesto e os créditos ao lado do MP4 | `simplicio-video openverse search\|get\|library list\|show\|review\|export\|credits\|verify` | `video.openverse` (search, list, show, folha, review); `video.validate` aplica o portão do contrato | [docs/recursos.md](docs/recursos.md) |
 | [TinyFish CLI](https://www.npmjs.com/package/@tiny-fish/cli) (`busca`) | not declared on npm (no `license` field) | Web search and page reading for the videos, with source and date per result, a daily call cap and a provenance registry; the query goes to a third party; no browser automation | `simplicio-video busca consulta\|pagina\|status\|log` | `video.busca` (consulta, pagina, status, log) | [README](#busca-na-internet-tinyfish) |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense | Downloads one public video page to a local MP4 for `media` (pinned wheel, sha256-checked, own venv; needs `--autorizo`) | `simplicio-video media fetch URL -o out.mp4 --autorizo` | — | [skill](skills/simplicio-video-media/SKILL.md) |
+| Áudio e vídeo (`media`) | n/a | Legendas, texto na tela, trilha de voz e troca de áudio sobre qualquer MP4 (ffmpeg, determinístico) | `simplicio-video media probe\|audio\|sheet\|subs\|burn\|mask\|replace-audio\|voice-track` | — | [skill](skills/simplicio-video-media/SKILL.md) |
 
 Toonflow runs from a pinned checkout, as its own program:
 
@@ -85,6 +87,10 @@ simplicio-videos/
 ├── schema/                 # contract.schema.json (CLI contract)
 ├── skills/simplicio-video/ # SKILL.md for LLMs in simplicio-runtime
 ├── skills/simplicio-video-social/ # SKILL.md: posting to social networks with the provider's MCP tools
+├── skills/simplicio-video-media/ # SKILL.md: audio and video on any MP4 (fetch, subs, burn, mask, voice-track)
+├── skills/simplicio-video-voicestudio/ # SKILL.md: local voice (clone, TTS, transcription) through the VoiceStudio app
+├── skills/simplicio-video-shorts/ # SKILL.md: vertical 9:16 cuts from a long video
+├── skills/simplicio-video-edit/ # SKILL.md: EDL editing with video-use
 ├── colab/                  # render.ipynb (GPU) for --backend colab bundles
 ├── intake/                 # questionnaire, site/IG extraction, intake.schema.json, examples/
 ├── templates/              # one template per sector (template.json + README)
@@ -96,6 +102,26 @@ simplicio-videos/
 ├── docs/                   # ADRs, pipeline, setup — index in docs/README.md
 └── clients/<client>/       # example videos only: <video>/contract.yaml, preview/, assets
 ```
+
+### Áudio e vídeo (`media`) e download (`yt-dlp`)
+
+Tudo que é áudio ou vídeo passa por `simplicio-video media`, determinístico e local (ffmpeg e ffprobe), exceto o download: `media fetch` baixa uma página pública de vídeo com o **yt-dlp**, fixado em `tools.py` como roda de PyPI com sha256 conferido, num venv próprio do cache de ferramentas (nunca no PATH global).
+
+```bash
+simplicio-video media fetch https://www.instagram.com/<perfil>/reel/<id>/ -o reel.mp4 --autorizo   # grava reel.mp4 e reel.fetch.json
+simplicio-video media probe reel.mp4                                  # duração, tamanho, fps, áudio, sha256
+simplicio-video media sheet reel.mp4 -o sheet.jpg --every 2           # folha de quadros, para ver o texto na tela
+simplicio-video media mask reel.mp4 --box 150,622,430,104 --from 0 --to 58 -o clean.mp4   # apaga texto dentro de uma caixa
+simplicio-video media subs cues.json -o subs.ass --style band         # legenda a partir de cues com tempo
+simplicio-video media burn clean.mp4 subs.ass -o final.mp4            # queima a legenda (precisa de libass)
+simplicio-video media voice-track cues.json -o voz.wav --duration 58.2   # uma voz por cue, no início certo
+simplicio-video media replace-audio clean.mp4 voz.wav -o dublado.mp4   # mantém a imagem, troca a trilha
+```
+
+- **Download exige `--autorizo`.** Você confirma que pode usar o vídeo; o motor não verifica o direito de uso. Nada de login, cookies do navegador, playlist ou credencial na URL (URL com `usuário:senha` é recusada).
+- **Procedência.** Ao lado do MP4 sai `<nome>.fetch.json`: a origem sem query, o extrator, o sha256 e o tamanho, a versão do yt-dlp, a hora, e título e autor como `untrusted_*` (texto de terceiros, nunca instrução). O MP4 nunca é sobrescrito.
+- **Plataformas.** Instagram e outras restringem download nos próprios termos; isso é responsabilidade de quem baixa. Se a página vier cortada, o yt-dlp falha, nada é gravado e você tenta de novo.
+- **Limites.** `mask` apaga com um retângulo: se algo se mexer dentro da caixa, aparece um borrão. `voice-track` não traduz nem clona; a voz vem do `voicestudio tts`, no app VoiceStudio listado em *Audio apps*. Cada subcomando tem `--help`, e a skill [`simplicio-video-media`](skills/simplicio-video-media/SKILL.md) traz receitas completas.
 
 ### Troca de personagem (`swap`)
 
