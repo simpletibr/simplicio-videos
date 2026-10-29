@@ -210,27 +210,28 @@ def score_window(text: str, duration: float, min_s: float, max_s: float) -> tupl
 
 
 def candidate_windows(words: list[dict], duration: float, min_s: float, max_s: float) -> list[dict]:
-    """Uma janela por fala de abertura: a mais longa que ainda cabe em max_s."""
+    """Uma janela por par (fala de abertura, fala de fechamento) que cabe entre min_s e max_s.
+
+    Todas as durações válidas entram: se só a mais longa entrasse, a seleção gulosa
+    travaria em janelas de 60 s que se sobrepõem e não acharia cortes curtos para completar.
+    """
     utts = utterances(words)
     out: list[dict] = []
     for i in range(len(utts)):
         inicio = max(0.0, utts[i]["start"] - PAD)
-        fim = None
         for j in range(i, len(utts)):
             e = utts[j]["end"]
             if e - inicio > max_s:
                 break
-            if e - inicio >= min_s:
-                fim = e
-        if fim is None:
-            continue
-        fim = min(duration, fim + PAD) if duration else fim + PAD
-        if fim - inicio < min_s:
-            continue
-        texto = _norm(" ".join(u["text"] for u in utts[i:] if u["start"] < fim))
-        nota, motivos = score_window(texto, fim - inicio, min_s, max_s)
-        out.append({"start": round(inicio, 3), "end": round(fim, 3), "score": nota,
-                    "reasons": motivos, "text": texto})
+            if e - inicio < min_s:
+                continue
+            fim = min(duration, e + PAD) if duration else e + PAD
+            if fim - inicio < min_s:
+                continue
+            texto = _norm(" ".join(u["text"] for u in utts[i:j + 1]))
+            nota, motivos = score_window(texto, fim - inicio, min_s, max_s)
+            out.append({"start": round(inicio, 3), "end": round(fim, 3), "score": nota,
+                        "reasons": motivos, "text": texto})
     return out
 
 
