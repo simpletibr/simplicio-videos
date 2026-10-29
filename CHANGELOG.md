@@ -4,6 +4,10 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+- `media`: operações de áudio e vídeo sobre qualquer MP4, só ffmpeg e determinísticas: `probe`, `audio`, `sheet` (folha de quadros para ver texto na tela), `subs` (SRT ou ASS a partir de cues), `burn` (queima legenda), `mask` (apaga texto numa caixa, com janela de tempo), `replace-audio` e `voice-track` (monta a trilha de voz por cue, acelerando só até o limite). Skill em `skills/simplicio-video-media`.
+
+- Skills por comando de áudio e vídeo: `simplicio-video-voicestudio`, `simplicio-video-shorts` e `simplicio-video-edit`, com exemplos. `AGENTS.md` ganhou o mapa de comandos e a receita de vídeo em outro idioma.
+
 - `shorts`: trilha nova (pedido direto do dono, sem issue). `simplicio-video shorts inspect | plan | cut | run` corta um vídeo longo em N clipes 1080x1920 a partir da transcrição do `edit transcribe`. A decisão fica num `plan.json` versionado (janelas, nota, motivo) e o render é só ffmpeg, com `manifest.json` e sha256 por arquivo; `--subs` queima a legenda do trecho, `--fit blur|crop` escolhe o enquadramento e `--dry-run` mostra os comandos sem gravar nada.
 
 - `modules/h3-swap-service/`: módulo opcional de troca de personagem em GPU alugada (Vast/Salad, fila na Cloudflare). Fora do pacote e do motor; sem adaptador em `swap_providers/` ainda. Pedido direto do dono, sem issue.

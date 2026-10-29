@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from . import (CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, moneyprinter, montage, opencut,
-               paths, shorts, toonflow, voicestudio)
+               paths, media, shorts, toonflow, voicestudio)
 from .aio import positive_int
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
@@ -29,6 +29,7 @@ Fluxo completo:
   montage      trilha Montage (OpenMontage): produção de vídeo com agentes de IA (https://github.com/calesthio/OpenMontage)
   edit         video-use: edita qualquer MP4 (HyperFrames, OpenMontage, OpenCut) por EDL (https://github.com/browser-use/video-use)
   shorts       cortes verticais 9:16 de um vídeo longo (inspect/plan/cut/run): transcrição -> janelas pontuadas -> MP4 com legenda; determinístico, só ffmpeg
+  media        áudio e vídeo sobre qualquer MP4 (probe, audio, sheet, subs, burn, mask, replace-audio, voice-track); só ffmpeg, determinístico
   opencut      editor open-source OpenCut para acabamento manual (https://github.com/OpenCut-app/OpenCut)
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
@@ -259,6 +260,11 @@ def build_parser() -> argparse.ArgumentParser:
                     "grava manifest.json com sha256; run faz plan + cut. Nada de rede e nenhum modelo no render.",
         epilog="exemplos:\n  simplicio-video shorts inspect FONTE.mp4\n  simplicio-video shorts plan FONTE.mp4 --transcript words.json --clips 5\n  simplicio-video shorts cut FONTE.mp4 shorts/plan.json --subs")
     p.add_argument("args", nargs=argparse.REMAINDER, help="inspect | plan | cut | run (--help mostra tudo)")
+
+    p = sub.add_parser("media", formatter_class=Fmt, help="áudio e vídeo sobre qualquer MP4 (probe, audio, sheet, subs, burn, mask, replace-audio, voice-track); só ffmpeg",
+        description="Operações de áudio e vídeo determinísticas com ffmpeg/ffprobe: ler metadados, extrair áudio, ver quadros, gerar legendas, queimá-las, apagar texto da tela, trocar a trilha e montar a voz por cues.",
+        epilog="exemplos:\n  simplicio-video media probe reel.mp4\n  simplicio-video media mask reel.mp4 --box 150,622,430,104 -o clean.mp4\n  simplicio-video media subs cues.json -o subs.ass --style band\n  simplicio-video media burn clean.mp4 subs.ass -o final.mp4")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="subcomando e argumentos (--help mostra tudo)")
 
     p = sub.add_parser("opencut", formatter_class=Fmt, help="editor OpenCut (open-source) para acabamento manual",
         description="Clona e sobe o OpenCut (https://github.com/OpenCut-app/OpenCut, MIT; usa o opencut-classic até o rewrite ter API).",
@@ -581,7 +587,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "toonflow", "moneyprinter", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "toonflow", "moneyprinter", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
         antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
         if any(h in antes_do_traco for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
@@ -611,6 +617,12 @@ def main(argv: list[str] | None = None) -> int:
                 return shorts.run_shorts(sub_args)
             except shorts.ShortsError as e:
                 print(f"shorts: {e}", file=sys.stderr)
+                return 1
+        if cmd == "media":
+            try:
+                return media.run_media(sub_args)
+            except media.MediaError as e:
+                print(f"media: {e}", file=sys.stderr)
                 return 1
         if cmd == "opencut":
             try:

@@ -13,6 +13,36 @@ Rules:
 3. The engine must keep working standalone. Add no UI, accounts, billing, projects/channels, plans or publishing/posting here, and never add a dependency on a host application to make a feature easier.
 4. Where an older section of this file conflicts with the boundary above, the boundary wins.
 
+## Áudio e vídeo: tudo passa pelo `simplicio-video`
+
+Qualquer tarefa de áudio ou vídeo (legendar, traduzir texto da tela, dublar, trocar trilha, apagar texto, cortar, clonar voz, transcrever) é feita por comando do `simplicio-video`, com `--json` quando o resultado for usado por outro programa. Ferramenta externa só entra como trilha fixada em `src/simplicio_video/tools.py` e é chamada pelo CLI; nunca por comando solto fora do repo.
+
+| Necessidade | Comando | Skill (com exemplos) |
+|---|---|---|
+| Metadados, áudio, folha de quadros, legenda, queimar, apagar texto na caixa, trocar trilha, montar voz por cues | `simplicio-video media probe\|audio\|sheet\|subs\|burn\|mask\|replace-audio\|voice-track` | [`skills/simplicio-video-media`](skills/simplicio-video-media/SKILL.md) |
+| Voz local: status, vozes, idiomas, TTS, transcrição, clonagem, design de voz (app em `:3900`) | `simplicio-video voicestudio status\|voices\|languages\|tts\|transcribe\|clone\|describe\|design` | [`skills/simplicio-video-voicestudio`](skills/simplicio-video-voicestudio/SKILL.md) |
+| Cortes verticais 9:16 de vídeo longo | `simplicio-video shorts inspect\|plan\|cut\|run` | [`skills/simplicio-video-shorts`](skills/simplicio-video-shorts/SKILL.md) |
+| Edição por EDL, transcrição local (faster-whisper) | `simplicio-video edit setup\|transcribe\|pack\|render\|verify` | [`skills/simplicio-video-edit`](skills/simplicio-video-edit/SKILL.md) |
+| Contrato YAML → MP4 (render HyperFrames) | `simplicio-video init\|validate\|voice\|render\|run` | [`skills/simplicio-video`](skills/simplicio-video/SKILL.md) |
+| Redes sociais (plano, sem postar) | `simplicio-video social` | [`skills/simplicio-video-social`](skills/simplicio-video-social/SKILL.md) |
+
+### Receita: vídeo de um creator em outro idioma (legenda, texto na tela e voz)
+
+1. `media probe` e `media sheet` para ver o que está na tela.
+2. `edit transcribe` (ou `voicestudio transcribe`) para ter as falas com tempo.
+3. Você escreve a tradução em `cues.json` (um cue por frase, com `start`/`end`).
+4. `media mask --box ... --from --to` apaga o texto original da tela; revise o resultado com `sheet`.
+5. `media subs` gera a legenda; `media burn` queima.
+6. Para voz: `voicestudio clone` (com consentimento da voz) e `voicestudio tts` gera um `.wav` por cue; `media voice-track` monta a trilha; `media replace-audio` troca o som.
+7. Revisão humana (falante nativo; veterinário para receitas de animais) antes de publicar.
+
+### Regras
+
+- Não use `ffmpeg`, `yt-dlp`, `whisper` ou um app de voz por fora quando já existir subcomando: se faltar algo, implemente no `simplicio-video` e adicione teste.
+- Cada subcomando tem `--help` com exemplos; cada skill acima explica o subcomando com exemplos e limites.
+- Nada de publicar: o motor gera o arquivo; a publicação é de outra camada.
+- Voz de pessoa real só com consentimento registrado (ver `voicestudio` e a licença de cada modelo).
+
 ## Missão e operação de vendas
 
 Este repositório é só a **execução dos scripts e a geração dos vídeos** (CLI `simplicio-video`). A **missão de vendas e o guia de operação** (preços, mensagens aprovadas, funil, planilha de controle, Paperclip, times, estado atual e próximos passos) ficam no Google Drive, em [`simplicio-video/AGENTS.md`](https://drive.google.com/file/d/19Y0BvZw-st_YasMk39vNkbNGd_4pJ4ir/view?usp=drivesdk) (conta wesleybob4). Leia esse guia antes de qualquer trabalho de venda ativa.
