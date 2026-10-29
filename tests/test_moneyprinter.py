@@ -729,7 +729,7 @@ def test_mcp_where_returns_the_checkout(checkout):
     assert str(checkout.resolve()) in r["log"]
 
 
-@pytest.mark.parametrize("args", ["serve", "serve --lan", "serve --api", "setup", "status", "", "--help"])
+@pytest.mark.parametrize("args", ["serve", "serve --lan", "serve --api", "setup", "", "--help"])
 def test_mcp_refuses_everything_but_where_and_clone(checkout, venv, calls, server, args):
     # an agent does not install packages, start servers or pick folders: serve and setup are terminal-only
     recorded, _ = calls

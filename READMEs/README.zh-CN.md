@@ -18,7 +18,7 @@
 - **授权素材库（`openverse`）：** 搜索、安全下载、按请求审核、带署名导出。
 - **网络检索（`busca`）：** 通过 TinyFish 进行查询和页面读取，每条结果附来源和日期，并有每日调用上限。
 - **UGC 轨道：** 合成人物的提示词文件和手动流程，不参与渲染。
-- **智能体集成：** MCP 服务器（19 个 `video.*` 工具）、6 个 skills，以及可安装到 11 个智能体宿主的 `install`。
+- **智能体集成：** MCP 服务器（28 个 `video.*` 工具）、6 个 skills，以及可安装到 11 个智能体宿主的 `install`。
 - **运维：** 状态、已固定的工具、诊断、工作区、更新，以及共享的 Simplicio 登录。
 
 ## 快速开始
@@ -38,7 +38,6 @@ simplicio-video render contract.yaml  # out/<cliente>-<campanha>.mp4 + render.ma
 
 ## 限制
 
-- **MCP 覆盖：** `media`、`shorts`、`tools`、`status`、`doctor` 和 `install` 目前仅可通过 CLI 使用。
 - **未验证的替换适配器：** `fal`、`wavespeed`、`kie` 和 `alibaba` 依据公开文档编写，尚未在真实 API 上验证。
 - **不发布：** 引擎从不向社交网络发布或上传内容。
 - **平台：** 该软件包被归类为 Linux；macOS 和 Windows 尚未在实机上确认。

@@ -1564,7 +1564,7 @@ def test_mcp_search_list_show_folha_e_review(env, midia):
     assert mcp_server.video_openverse("show", id=ID_IMG, pedido=PEDIDO)["status"] == "aprovado"
 
 
-@pytest.mark.parametrize("acao", ["get", "download", "baixar", "export", "exportar", "credits", "creditos", "nada"])
+@pytest.mark.parametrize("acao", ["get", "download", "baixar", "export", "exportar", "nada"])
 def test_mcp_nao_baixa_nem_exporta(env, acao):
     r = mcp_server.video_openverse(acao)
     assert r["ok"] is False and env.api.calls == [] and env.net.gets == []
@@ -1572,9 +1572,16 @@ def test_mcp_nao_baixa_nem_exporta(env, acao):
         assert "terminal" in r["error"]
 
 
+def test_mcp_credits_e_verify_sao_so_leitura(env):
+    # `contrato` is an input to verify (read-only): the agent names a contract to check, never a place to write
+    assert mcp_server.video_openverse("credits")["ok"] is True
+    assert mcp_server.video_openverse("verify")["ok"] is False
+    assert env.api.calls == [] and env.net.gets == []
+
+
 def test_mcp_nao_deixa_o_agente_escolher_onde_grava_nem_atualizar_a_busca():
     params = set(inspect.signature(mcp_server.video_openverse).parameters)
-    assert not params & {"para", "contrato", "out", "destino", "pasta", "url", "atualizar", "force", "yes", "aceito_restricao"}
+    assert not params & {"para", "out", "destino", "pasta", "url", "atualizar", "force", "yes", "aceito_restricao"}
     assert [n for n, _, _ in mcp_server.TOOLS].count("video.openverse") == 1
     assert not [n for n, _, _ in mcp_server.TOOLS if re.search(r"openverse.*(get|export|download)", n)]
 

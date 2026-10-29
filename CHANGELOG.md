@@ -4,6 +4,8 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+- MCP com todos os comandos da CLI: o servidor passa de 19 para 28 ferramentas `video.*`. Entram `video.shorts`, `video.media`, `video.tools`, `video.status`, `video.doctor`, `video.setup`, `video.install`, `video.update` e `video.auth`, e as ações `jobs clean` e `openverse credits|verify`. Ficam só no terminal, de propósito: `login` e `logout` (abrem navegador e mudam o login compartilhado), `swap run` (gasta), `update` que instala pacote, `install --uninstall`, e servidores que não terminam (`montage open|serve`, `opencut dev`, `toonflow serve`, `moneyprinter serve|setup`). Ferramentas que gravam exigem `-o`/`--out` absoluto, e `install` exige `--global` ou `--target` absoluto. `plugin.json` (`mcp.tools`) passa a listar as 28 e tira `video.publish` e `video.realoficial`, que não existem.
+
 - README em três níveis, seguindo o padrão dos repos Simplicio: `README.md` (inglês, canônico, com o mapa de capacidades e a referência de comandos), `README.pt-BR.md` (português, mesmas seções) e `READMEs/README.<idioma>.md` (resumos nos outros idiomas, com a barra de idiomas no topo).
 - Skills novas (`media`, `voicestudio`, `shorts`, `edit`) passam a ir no pacote e são instaladas por `simplicio-video install`: antes ficavam só em `skills/` e não chegavam ao wheel nem aos hosts. Os testes de pacote agora esperam as seis skills.
 - `install`: a contagem de hosts de agente é 11 (a ajuda e o README diziam 12).

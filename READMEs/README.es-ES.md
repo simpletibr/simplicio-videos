@@ -18,7 +18,7 @@
 - **Biblioteca con licencia (`openverse`):** búsqueda, descarga segura, revisión por solicitud y exportación con créditos.
 - **Investigación web (`busca`):** consultas y lecturas de páginas a través de TinyFish, con fuente y fecha por resultado y un límite diario de llamadas.
 - **Pista UGC:** archivos de prompts para personajes sintéticos y un flujo manual, fuera del render.
-- **Integración con agentes:** servidor MCP con 19 herramientas `video.*`, seis skills, e `install` para 11 hosts de agentes.
+- **Integración con agentes:** servidor MCP con 28 herramientas `video.*`, seis skills, e `install` para 11 hosts de agentes.
 - **Operaciones:** estado, herramientas fijadas, diagnóstico, espacio de trabajo, actualizaciones e inicio de sesión Simplicio compartido.
 
 ## Inicio rápido
@@ -38,7 +38,6 @@ simplicio-video render contract.yaml  # out/<cliente>-<campanha>.mp4 + render.ma
 
 ## Límites
 
-- **Cobertura de MCP:** `media`, `shorts`, `tools`, `status`, `doctor` e `install` son solo CLI por ahora.
 - **Adaptadores de cambio sin verificar:** `fal`, `wavespeed`, `kie` y `alibaba` se escribieron a partir de documentación pública y no se han comprobado contra las APIs reales.
 - **Sin publicación:** el motor nunca publica ni sube nada a una red social.
 - **Plataformas:** el paquete está clasificado para Linux; macOS y Windows no están confirmados en equipos reales.

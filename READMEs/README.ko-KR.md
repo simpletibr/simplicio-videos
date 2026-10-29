@@ -18,7 +18,7 @@
 - **라이선스 라이브러리(`openverse`):** 검색, 안전한 다운로드, 요청별 검토, 크레딧을 포함한 내보내기.
 - **웹 조사(`busca`):** TinyFish를 통한 검색과 페이지 읽기. 결과마다 출처와 날짜를 붙이며, 하루 호출 한도가 있습니다.
 - **UGC 트랙:** 가상 캐릭터용 프롬프트 파일과 수동 파이프라인. 렌더링 밖에서 동작합니다.
-- **에이전트 연동:** 19개의 `video.*` 도구를 가진 MCP 서버, 6개의 skills, 11개 에이전트 호스트에 설치하는 `install`.
+- **에이전트 연동:** 28개의 `video.*` 도구를 가진 MCP 서버, 6개의 skills, 11개 에이전트 호스트에 설치하는 `install`.
 - **운영:** 상태, 고정된 트랙, 진단, 작업 공간, 업데이트, 공용 Simplicio 로그인.
 
 ## 빠른 시작
@@ -38,7 +38,6 @@ simplicio-video render contract.yaml  # out/<cliente>-<campanha>.mp4 + render.ma
 
 ## 한계
 
-- **MCP 범위:** `media`, `shorts`, `tools`, `status`, `doctor`, `install`은 현재 CLI로만 사용할 수 있습니다.
 - **검증되지 않은 교체 어댑터:** `fal`, `wavespeed`, `kie`, `alibaba`는 공개 문서를 바탕으로 작성되었으며, 실제 API에 대해 검증되지 않았습니다.
 - **게시 기능 없음:** 엔진은 소셜 네트워크에 게시하거나 업로드하지 않습니다.
 - **플랫폼:** 패키지는 Linux용으로 분류되어 있으며, macOS와 Windows는 실제 기기에서 확인되지 않았습니다.
