@@ -4,6 +4,10 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+- `shorts`: trilha nova (pedido direto do dono, sem issue). `simplicio-video shorts inspect | plan | cut | run` corta um vídeo longo em N clipes 1080x1920 a partir da transcrição do `edit transcribe`. A decisão fica num `plan.json` versionado (janelas, nota, motivo) e o render é só ffmpeg, com `manifest.json` e sha256 por arquivo; `--subs` queima a legenda do trecho, `--fit blur|crop` escolhe o enquadramento e `--dry-run` mostra os comandos sem gravar nada.
+
+- `modules/h3-swap-service/`: módulo opcional de troca de personagem em GPU alugada (Vast/Salad, fila na Cloudflare). Fora do pacote e do motor; sem adaptador em `swap_providers/` ainda. Pedido direto do dono, sem issue.
+
 ## 0.5.0 — 2026-10-17
 
 Primeira versão publicada no PyPI (`pip install simplicio-video`). Reúne o pacote pronto para o PyPI (sem dado de cliente no wheel nem no sdist, `init` fora do site-packages, metadados e `PYPI.md`), `login`, `logout`, `auth status`, `doctor` e `update --check` no contrato do simplicio-loop, e `install` universal (skills nos hosts) com `update` igual ao do loop. Windows e macOS: testados só por simulação e pelo `scripts/smoke_so.py`; ainda não confirmados em máquina real.

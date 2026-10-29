@@ -1,0 +1,70 @@
+name = "h3-swap-api"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Secrets: set with `npx wrangler secret put <NAME>` (never commit values).
+#   VAST_API_KEY, SALAD_API_KEY, WORKER_SECRET, ADMIN_SECRET,
+#   CF_ACCOUNT_ID, CF_QUEUE_ID, CF_API_TOKEN,
+#   R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET,
+#   API_BASE_URL
+# CF_* and R2_* are also forwarded to the GPU workers as env (see src/providers/types.ts).
+
+[[d1_databases]]
+binding = "DB"
+database_name = "h3-swap"
+database_id = "TODO_FILL"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "h3-swap"
+
+# Producer only. The queue uses an HTTP PULL consumer (GPU boxes pull over HTTP).
+# Do NOT add a [[queues.consumers]] block here; create the consumer with:
+#   npx wrangler queues consumer http add h3-jobs
+[[queues.producers]]
+binding = "JOBS_QUEUE"
+queue = "h3-jobs"
+
+# Autoscaler: runs the scheduled() handler every minute.
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+PRICE_CENTS_PER_SECOND = "16"
+MAX_DURATION_S = "30"
+
+# Scaling (total across providers).
+MAX_WORKERS = "2"
+JOBS_PER_WORKER = "4"
+IDLE_DESTROY_S = "900"
+HEARTBEAT_LOST_S = "1200"
+BOOT_GRACE_S = "3600"
+BOOT_FAIL_S = "1500"          # a worker that never heartbeats is a boot failure after this
+
+# Provider order and fallback (CONTRACT 9b). Flip to "salad,vast" only if bench/ proves it.
+PROVIDER_ORDER = "vast,salad"
+PROVIDER_COOLDOWN_S = "900"
+
+# Recovery: a lost run or a stale claim consumes one attempt; MAX_ATTEMPTS total runs per job.
+MAX_ATTEMPTS = "3"
+# A claim whose worker has been idle this long (per its last heartbeat) is requeued.
+STALE_CLAIM_S = "180"
+
+# Vast
+MAX_DPH = "1.0"
+VAST_IMAGE = "ghcr.io/YOUR_ORG/h3-swap-worker:latest"
+VAST_DISK_GB = "150"
+VAST_OFFER_FILTER_JSON = "{}"
+# Optional worker boot knobs, forwarded to every worker only when non-empty (docker/README_docker.md):
+#   FETCH_OPTIONAL    = "diffusion_models/<ref2va file>,loras/<turbo file>"  # optional model dests the workflow needs
+#   MODELS_MODE       = "baked"                                              # Vast image with weights inside
+#   WORKFLOW_OPTIONAL = "1"                                                  # benchmark boots without workflow files
+
+# Salad (UNVERIFIED values, see README_api.md section 5). SALAD_IMAGE empty = use VAST_IMAGE.
+SALAD_ORG = "YOUR_SALAD_ORG"
+SALAD_PROJECT = "YOUR_SALAD_PROJECT"
+SALAD_GPU_CLASS_NAME = "RTX 5090"
+SALAD_CPU = "8"
+SALAD_MEMORY_MB = "65536"
+SALAD_IMAGE = ""
+# Optional: add SALAD_PRIORITY = "<value>" here to send a priority field (UNVERIFIED); unset = not sent.

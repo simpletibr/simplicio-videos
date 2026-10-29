@@ -2,7 +2,7 @@ import pytest
 
 from conftest import run_cli
 
-SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "jobs", "social", "openverse", "busca", "mcp", "list",
+SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "shorts", "opencut", "toonflow", "swap", "moneyprinter", "jobs", "social", "openverse", "busca", "mcp", "list",
         "install", "update", "doctor", "setup", "login", "logout", "auth"]
 
 
