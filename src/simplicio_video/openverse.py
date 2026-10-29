@@ -1076,8 +1076,9 @@ def _md(text, limite: int = MAX_TITLE_CHARS) -> str:
 
 
 def _credit_marker(rec: dict) -> str:
-    """The text that identifies an asset's credit line (id and bytes): export looks for it to stay idempotent, verify to find the credit."""
-    return f"id `{rec['id']}`, sha256 `{rec['sha256']}`"
+    """The text that identifies an asset's credit line (id, bytes and license): export looks for it to stay idempotent, verify to find
+    the credit. The license is in it so a line left from another license does not pass for the current one."""
+    return f"id `{rec['id']}`, sha256 `{rec['sha256']}`, licença {_md(license_label(rec.get('licenca'), rec.get('licenca_versao')))}"
 
 
 def _credit_line(rec: dict, nome: str) -> str:
@@ -1219,6 +1220,28 @@ def credits_markdown(pares, idx: dict | None = None) -> str:
 
 # ---------------------------------------------------------------------------------------------------------- the gate behind validate/render
 
+def _library_sizes(idx: dict) -> set[int]:
+    """Sizes of the library files the index points at: a candidate file with another size cannot have their bytes, so it is not hashed."""
+    tamanhos = set()
+    for rec in idx["itens"].values():
+        try:
+            tamanhos.add((library_dir() / rec["arquivo"]).stat().st_size)
+        except OSError:
+            continue  # a missing library file is reported by its own check, not here
+    return tamanhos
+
+
+def library_hashes(idx: dict | None) -> dict:
+    """{sha256: id or None} for the library files. With a readable index the id comes from it; with an unreadable one the files in
+    files/ are still listed by their names (`<sha256>.<ext>`), so the copy-by-hand rule keeps working without the id."""
+    if idx is not None:
+        return {r["sha256"]: id_ for id_, r in idx["itens"].items()}
+    pasta = library_dir() / "files"
+    if not pasta.is_dir():
+        return {}
+    return {f.name.split(".", 1)[0]: None for f in pasta.iterdir() if SHA_RE.fullmatch(f.name.split(".", 1)[0])}
+
+
 def verify_asset(arquivo, bloco=None, idx: dict | None = None) -> dict:
     """Offline check of ONE contract asset against the library: no network, no LLM, nothing is written. A refusal is not an
     exception: it comes back in `erros` (every problem found, in plain words), so `validate` can list them all.
@@ -1239,8 +1262,10 @@ def verify_asset(arquivo, bloco=None, idx: dict | None = None) -> dict:
         erros.append(str(e))
         return res
     if bloco is None:
-        sha = sha256_file(arquivo) if idx["itens"] else None
-        ids = sorted(k for k, r in idx["itens"].items() if r["sha256"] == sha)
+        ids = []
+        if idx["itens"] and arquivo.stat().st_size in _library_sizes(idx):  # hash only what could be a library file (size first)
+            sha = sha256_file(arquivo)
+            ids = sorted(k for k, r in idx["itens"].items() if r["sha256"] == sha)
         if ids:
             erros.append(f"o arquivo tem os mesmos bytes do ativo {ids[0]} da biblioteca do Openverse e o asset não declara o bloco openverse: "
                          f"declare openverse: {{id: {ids[0]}, pedido: \"...\"}} (a revisão aprovada para o pedido e o crédito valem para o ativo, não para a cópia)")

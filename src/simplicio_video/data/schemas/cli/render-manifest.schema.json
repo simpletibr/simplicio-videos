@@ -52,6 +52,7 @@
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "required": ["arquivo", "destino", "id", "sha256", "tipo", "licenca", "pedido", "pedido_normalizado", "aprovacao", "aceito_restricao"],
             "properties": {
               "arquivo": { "type": "string", "description": "arquivo do contrato (em assets/openverse/)" },

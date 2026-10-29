@@ -844,7 +844,8 @@ def test_ambiente_repassado_e_so_a_lista_fechada(env):
     status_ = env.b.status()
     assert status_["binario"]["encontrado"]
     for chamada in env.fake.chamadas():
-        filho = chamada["env"]
+        # macOS `sh` adds __CF_USER_TEXT_ENCODING to every process it starts: the fake is a shell script, so it is not ours to filter
+        filho = {k: v for k, v in chamada["env"].items() if k != "__CF_USER_TEXT_ENCODING"}
         assert set(filho) <= PERMITIDAS, sorted(set(filho) - PERMITIDAS)
         assert not set(OUTROS_SEGREDOS.values()) & set(filho.values())
         assert filho["NO_COLOR"] == "1" and filho["TINYFISH_NO_TELEMETRY"] == "1" and filho["HOME"] == str(env.tmp / "home")
@@ -1265,7 +1266,8 @@ def test_status_geral_nao_repassa_chaves_ao_tinyfish_e_ainda_mostra_a_versao(env
     chamadas = env.fake.chamadas()
     assert len(chamadas) == 2 and all(c["argv"] == ["--version"] for c in chamadas)  # status geral só lê a versão
     for chamada in chamadas:
-        filho = chamada["env"]
+        # macOS `sh` adds __CF_USER_TEXT_ENCODING to every process it starts: the fake is a shell script, so it is not ours to filter
+        filho = {k: v for k, v in chamada["env"].items() if k != "__CF_USER_TEXT_ENCODING"}
         assert set(filho) <= PERMITIDAS, sorted(set(filho) - PERMITIDAS)
         assert "gem-segredo-111" not in filho.values() and "ghp_segredo444444444444444444" not in filho.values()
         assert filho["TINYFISH_NO_TELEMETRY"] == "1"

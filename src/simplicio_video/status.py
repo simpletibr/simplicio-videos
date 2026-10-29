@@ -32,9 +32,13 @@ def version_info() -> dict:
     return {"version": __version__, "engine": HYPERFRAMES}
 
 
+ENV_FERRAMENTA = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")  # the only variables a version probe gets; no keys or tokens of the shell
+
+
 def _primeira_linha(cmd: list[str]) -> str | None:
+    env = {k: os.environ[k] for k in ENV_FERRAMENTA if k in os.environ}
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, env=env)
     except (OSError, subprocess.SubprocessError):
         return None
     linhas = (r.stdout or r.stderr or "").strip().splitlines()
