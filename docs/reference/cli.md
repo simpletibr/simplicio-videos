@@ -1060,5 +1060,6 @@ exemplos:
   simplicio-video voicestudio tts "olá" --out fala.wav --profile <id> --language pt-BR
   simplicio-video voicestudio transcribe audio.m4a --rest
   simplicio-video voicestudio clone referencia.wav --name "Minha voz"
+  simplicio-video voicestudio dub-export --job ID --lang pl -o dublado.mp4
   simplicio-video voicestudio mcp
 ```
