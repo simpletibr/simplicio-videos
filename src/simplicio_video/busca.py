@@ -12,6 +12,9 @@ Rules that do not bend:
   and drops the `key_preview` that `tinyfish auth status` prints.
 - Privacy: the query (or the URL) is sent to a third party. A query with a secret is refused always, with personal data
   (e-mail, CPF, CNPJ) unless the terminal user says so; the check runs BEFORE a call is spent.
+- Destination: `pagina` resolves the host before any call to the binary and refuses the page when any of the addresses is private,
+  loopback, link-local, reserved, multicast or unspecified, or when the name does not resolve. The check runs on this machine; the
+  fetch runs on the TinyFish side, which resolves names by itself. DNS rebinding is not covered.
 - Spend: each run of the binary for a search or a page counts in a per-day counter (UTC) written atomically under a lock; over
   the cap the call is refused with a clear message. A cached answer never spends. A failed call still counts.
 - Provenance: every consulta and every pagina appends a line to `busca.registro.jsonl` (when, query or URL, CLI version, URLs
@@ -31,11 +34,13 @@ import argparse
 import contextlib
 import hashlib
 import html
+import ipaddress
 import json
 import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -446,6 +451,35 @@ def _url_do_usuario(url) -> str:
         raise BuscaError("a URL leva credencial na query ou no fragmento (chave, token, senha, assinatura ou código): ela é enviada a um "
                          "terceiro, nada foi enviado")
     return ok
+
+
+_CLASSES_PROIBIDAS = (("is_loopback", "loopback"), ("is_link_local", "link-local"), ("is_private", "privado"),
+                      ("is_multicast", "multicast"), ("is_reserved", "reservado"), ("is_unspecified", "não especificado"))
+
+
+def _resolver(host: str) -> list[str]:
+    """Every address the name resolves to (IPv4 and IPv6). A module function so the tests replace it: no test depends on DNS."""
+    return [endereco[4][0] for endereco in socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)]
+
+
+def _confere_destino(url: str) -> None:
+    """Before a page is fetched, every address of its host must be public. A private, loopback, link-local, reserved, multicast or
+    unspecified address refuses it, and so does a name that does not resolve. A refusal sends nothing and spends nothing."""
+    host = _URL_RE.fullmatch(url).group(2).partition(":")[0].lower()
+    try:
+        enderecos = _resolver(host)
+    except OSError as e:
+        raise BuscaError(f"não consegui resolver o host {host} ({e.strerror or e}): nada foi enviado ao TinyFish") from None
+    if not enderecos:
+        raise BuscaError(f"o host {host} não resolve para nenhum endereço: nada foi enviado ao TinyFish")
+    for texto in enderecos:
+        try:
+            ip = ipaddress.ip_address(texto.partition("%")[0])
+        except ValueError:
+            raise BuscaError(f"o host {host} resolve para {texto!r}, que não é um endereço IP: nada foi enviado ao TinyFish") from None
+        for attr, nome in _CLASSES_PROIBIDAS:
+            if getattr(ip, attr):
+                raise BuscaError(f"o host {host} resolve para {texto} ({nome}): o motor não busca endereço interno. Nada foi enviado ao TinyFish")
 
 
 # ---------------------------------------------------------------------------------------------------------- third-party text
@@ -884,6 +918,7 @@ def pagina(url, max_bytes=MAX_BYTES_PADRAO, atualizar=False, max_chamadas_dia=No
     do_cache = doc is not None
     if doc is None:
         _exige_rede()
+        _confere_destino(url)  # antes de qualquer chamada ao binário: recusa sem enviar nem gastar
         exe = _achar_binario()
         _reservar(teto)
         versao = _versao_cli(exe)

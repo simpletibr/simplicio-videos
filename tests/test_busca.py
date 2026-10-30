@@ -160,7 +160,7 @@ IP_PUBLICO = "93.184.216.34"  # endereço público (é o que example.com tem); n
 @pytest.fixture(autouse=True)
 def dns_publico(monkeypatch):
     """Antes de cada `pagina`, o motor resolve o host (#113 b). Aqui todo host vira um IP público; os testes de DNS trocam a resolução."""
-    monkeypatch.setattr(importlib.import_module("simplicio_video.busca"), "_resolver", lambda host: [IP_PUBLICO], raising=False)
+    monkeypatch.setattr(importlib.import_module("simplicio_video.busca"), "_resolver", lambda host: [IP_PUBLICO])
 
 
 def linhas_do_registro(env) -> list[dict]:
@@ -1746,7 +1746,7 @@ def _resolve_para(env, *ips) -> list[str]:
         perguntados.append(host)
         return list(ips)
 
-    env.mp.setattr(importlib.import_module("simplicio_video.busca"), "_resolver", resolver, raising=False)
+    env.mp.setattr(importlib.import_module("simplicio_video.busca"), "_resolver", resolver)
     return perguntados
 
 
@@ -1771,7 +1771,7 @@ def test_host_que_nao_resolve_e_recusado_sem_chamar_o_binario(env):
     def falha(host):
         raise socket.gaierror(-2, "Name or service not known")
 
-    env.mp.setattr(importlib.import_module("simplicio_video.busca"), "_resolver", falha, raising=False)
+    env.mp.setattr(importlib.import_module("simplicio_video.busca"), "_resolver", falha)
     with pytest.raises(env.b.BuscaError, match="não consegui resolver"):
         env.b.pagina("https://exemplo-publico.test/a")
     assert env.fake.chamadas() == []
