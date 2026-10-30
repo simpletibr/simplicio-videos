@@ -10,6 +10,7 @@ A voz é um **passo de geração com cache**: o TTS roda uma vez por frase, o WA
 | `voxcpm` (**local**, clone/design) | roda no box, GPU recomendada | grátis (Apache-2.0) | ótima, 30 idiomas | [voxcpm.md](voxcpm.md) |
 | `openvoice` (**local**, clone) | timbre da referência sobre base Kokoro | grátis (MIT) | boa | [openvoice.md](openvoice.md) |
 | `voicestudio` (**local**, API HTTP) | app VoiceStudio em `localhost:3900` | grátis (AGPL-3.0, só via HTTP) | depende do engine | [voicestudio.md](voicestudio.md) |
+| `audio8` (**local**, CLI `audio8-tts`) | GPU recomendada, env própria (`AUDIO8_TTS_BIN`) | grátis (Apache-2.0, 0.6B) | clone zero-shot | [audio8.md](audio8.md) |
 | `elevenlabs` | nuvem (API) | pago, `ELEVENLABS_API_KEY` | ótima, muitas vozes pt-BR | [elevenlabs.md](elevenlabs.md) |
 | `xai` | nuvem (API) | pago, `XAI_API_KEY` (US$ 15 / 1M caracteres em 30/09/2026) | boa | [xai.md](xai.md) |
 | `chatterbox` / `kokoro` (**local**) | roda no box/CPU, offline | grátis (MIT / Apache-2.0) | boa / razoável | [local.md](local.md) |

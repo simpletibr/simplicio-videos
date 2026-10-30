@@ -31,6 +31,7 @@ TRIM = ("silenceremove=start_periods=1:start_threshold=-55dB:start_silence=0.06,
 TRIM_TIGHT = ("silenceremove=start_periods=1:start_threshold=-42dB:start_silence=0.04,areverse,"
               "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.08,areverse")
 GEMINI_MODEL = "gemini-3.8-flash-tts"   # cheaper: gemini-3.8-flash-lite-tts (same schema)
+AUDIO8_MODEL = "Edge0/Audio8-TTS-Realistic-0.6b"  # Apache-2.0; the 0.1B checkpoint has its own license, so it is not the default
 GEMINI_SR = 24000
 PROVIDERS = {
     "file": "WAV/MP3 per line generated elsewhere (Gemini in Google AI Studio). Default dir assets/audio/vo/external, line-01.wav ...",
@@ -39,6 +40,7 @@ PROVIDERS = {
     "voxcpm": "VoxCPM2 (Apache-2.0): voice design (control) or cloning from reference_audio via the `voxcpm` CLI; fixed seed",
     "openvoice": "OpenVoice V2 (MIT): Kokoro base take converted to the reference_audio speaker (needs OPENVOICE_PY + checkpoints_v2)",
     "voicestudio": "VoiceStudio (AGPL-3.0, used over local HTTP only): OpenAI-compatible /v1/audio/speech at VOICESTUDIO_URL (default http://localhost:3900); voice = profile id",
+    "audio8": "Audio8 TTS (Apache-2.0 code and 0.6B weights): zero-shot cloning from reference_audio via the `audio8-tts` CLI in its own env (AUDIO8_TTS_BIN)",
     "elevenlabs": "stub in v0.2 (generate elsewhere, then use provider=file)",
     "xai": "stub in v0.2 (generate elsewhere, then use provider=file)",
 }
@@ -92,6 +94,9 @@ def settings_for(c: Contract, prov: str) -> dict:
     if prov == "voxcpm":
         return {"control": P.get("control", ""), "reference_audio": P.get("reference_audio", ""), "reference_text": P.get("reference_text", ""),
                 "seed": P.get("seed", 42)}
+    if prov == "audio8":
+        return {"model": P.get("model", AUDIO8_MODEL), "reference_audio": P.get("reference_audio", ""),
+                "reference_text": P.get("reference_text", ""), "device": P.get("device", "")}
     if prov == "openvoice":
         return {"reference_audio": P.get("reference_audio", ""), "base": settings_for(c, "local")}
     if prov == "voicestudio":
@@ -100,7 +105,7 @@ def settings_for(c: Contract, prov: str) -> dict:
 
 
 # generative providers keep the raw take; gemini keeps the historical dir, the others a per-provider subdir
-GENERATIVE = ("gemini", "voxcpm", "openvoice", "voicestudio")
+GENERATIVE = ("gemini", "voxcpm", "openvoice", "voicestudio", "audio8")
 
 
 def keep_path(fdir: Path, prov: str, idx: int) -> Path:
@@ -112,6 +117,8 @@ def _generate(c: Contract, prov: str, S: dict, text: str, dst: Path, ref: Path |
         return _gemini(S, text, dst)
     if prov == "voxcpm":
         voice_clone.voxcpm(S, text, dst, ref)
+    elif prov == "audio8":
+        voice_clone.audio8(S, text, dst, ref)
     elif prov == "openvoice":
         voice_clone.openvoice(S, text, dst, ref, lambda t, p: _local(S["base"], t, p))
     else:

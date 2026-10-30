@@ -82,3 +82,19 @@ def voicestudio(S: dict, text: str, dst: Path) -> None:
         raise CloneVoiceError(f"provider=voicestudio: backend not reachable at {voicestudio_url()} ({e.reason}). Start VoiceStudio or set VOICESTUDIO_URL.") from None
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_bytes(data)
+
+
+def audio8(S: dict, text: str, dst: Path, ref: Path | None) -> None:
+    """Audio8 TTS (Apache-2.0): zero-shot cloning from `ref` (+ its transcript). Runs the `audio8-tts` CLI from its own env."""
+    exe = os.environ.get("AUDIO8_TTS_BIN") or shutil.which("audio8-tts")
+    if not exe:
+        raise CloneVoiceError("provider=audio8: `audio8-tts` CLI not found. Install the audio8_tts repo in its own venv and set AUDIO8_TTS_BIN.")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [exe, "--model", S["model"], "--text", text, "--output", str(dst)]
+    if ref:
+        cmd += ["--reference-audio", str(ref)]
+        if S.get("reference_text"):
+            cmd += ["--reference-text", S["reference_text"]]
+    if S.get("device"):
+        cmd += ["--device", S["device"]]
+    subprocess.run(cmd, check=True)

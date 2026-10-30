@@ -8,7 +8,7 @@ from simplicio_video import voice, voice_clone
 
 
 def test_new_providers_registered():
-    for p in ("voxcpm", "openvoice", "voicestudio"):
+    for p in ("voxcpm", "openvoice", "voicestudio", "audio8"):
         assert p in voice.PROVIDERS and p in voice.GENERATIVE
 
 
@@ -27,6 +27,27 @@ def test_voxcpm_cli_args(monkeypatch, tmp_path):
     assert cmd[:2] == ["/bin/voxcpm", "clone"] and "--prompt-text" in cmd and "--seed" not in cmd
     voice_clone.voxcpm({"control": "warm", "seed": 1}, "hi", tmp_path / "o.wav", None)
     assert calls[1][1] == "design"
+
+
+def test_audio8_cli_args(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setenv("AUDIO8_TTS_BIN", "/bin/audio8-tts")
+    monkeypatch.setattr("subprocess.run", lambda cmd, check: calls.append(cmd))
+    S = {"model": "Edge0/Audio8-TTS-Realistic-0.6b", "reference_text": "hello", "device": "cuda:0"}
+    voice_clone.audio8(S, "hi", tmp_path / "o.wav", tmp_path / "r.wav")
+    cmd = calls[0]
+    assert cmd[0] == "/bin/audio8-tts" and cmd[cmd.index("--output") + 1] == str(tmp_path / "o.wav")
+    assert cmd[cmd.index("--reference-audio") + 1] == str(tmp_path / "r.wav")
+    assert cmd[cmd.index("--reference-text") + 1] == "hello" and cmd[cmd.index("--device") + 1] == "cuda:0"
+    voice_clone.audio8({"model": S["model"]}, "hi", tmp_path / "o.wav", None)
+    assert "--reference-audio" not in calls[1] and "--device" not in calls[1]
+
+
+def test_audio8_missing_cli_is_clear(monkeypatch, tmp_path):
+    monkeypatch.delenv("AUDIO8_TTS_BIN", raising=False)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    with pytest.raises(voice_clone.CloneVoiceError, match="AUDIO8_TTS_BIN"):
+        voice_clone.audio8({"model": "x"}, "hi", tmp_path / "o.wav", None)
 
 
 def test_openvoice_requires_reference_and_env(monkeypatch, tmp_path):
