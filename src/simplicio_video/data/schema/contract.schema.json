@@ -92,7 +92,7 @@
       "type": "object", "additionalProperties": false, "required": ["provider"],
       "properties": {
         "habilitada": { "type": "boolean", "default": true },
-        "provider": { "enum": ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "elevenlabs", "xai"] },
+        "provider": { "enum": ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"] },
         "voice": { "type": "string", "description": "voice name for the active provider (e.g. pf_dora for local/kokoro, Sulafat for gemini)" },
         "estilo": { "type": "string", "description": "delivery style instruction (Gemini speech_metadata style)" },
         "idioma": { "type": "string", "default": "pt-BR" },
@@ -111,6 +111,7 @@
             "voxcpm": { "type": "object", "additionalProperties": false, "properties": { "control": { "type": "string", "description": "voice-design / style description, e.g. 'Young female voice, warm and gentle'" }, "reference_audio": { "type": "string", "description": "clean clip of an authorized speaker (relative to the contract); enables cloning" }, "reference_text": { "type": "string", "description": "exact transcript of reference_audio (ultimate cloning)" }, "seed": { "type": "integer", "default": 42 } } },
             "openvoice": { "type": "object", "additionalProperties": false, "properties": { "reference_audio": { "type": "string", "description": "clean 10-30 s clip of an authorized speaker (relative to the contract)" } } },
             "voicestudio": { "type": "object", "additionalProperties": false, "properties": { "model": { "type": "string", "default": "omnivoice" }, "voice": { "type": "string", "description": "voice-profile id from GET /v1/audio/voices" } } },
+            "audio8": { "type": "object", "additionalProperties": false, "properties": { "model": { "type": "string", "default": "Edge0/Audio8-TTS-Realistic-0.6b" }, "reference_audio": { "type": "string", "description": "clean clip of an authorized speaker (relative to the contract); enables cloning" }, "reference_text": { "type": "string", "description": "exact transcript of reference_audio" }, "device": { "type": "string", "description": "auto, cpu, cuda or cuda:N (empty = the CLI default)" } } },
             "elevenlabs": { "type": "object" },
             "xai": { "type": "object" }
           }
