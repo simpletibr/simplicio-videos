@@ -70,8 +70,8 @@ simplicio-video init my-brand campaign-1 --template brand-promo --nome "My brand
 simplicio-video validate clients/my-brand/campaign-1/contract.yaml
 ```
 
-- `init` generates the contract with TODO markers. Tested.
-- `validate` lists what is still missing: each TODO and what the template requires. Tested.
+- `init` generates the contract with placeholder fields to fill. Tested.
+- `validate` lists what is still missing: each unfilled field and what the template requires. Tested.
 - Not verified: `voice` and `run`/`render`. They need a filled contract and a working ffmpeg and Node, which I could not test on this macOS check.
 
 ### Media
@@ -130,7 +130,7 @@ Not on main yet. This section gets the commands when the audio cleanup PR is mer
 | A track shows as not installed | Empty cache | Run the command that uses the track. `simplicio-video tools` shows the state |
 | `fetch: confirme que você pode usar este vídeo com --autorizo` | Authorization not given | Pass `--autorizo` only after confirming you may use the video. Without the flag nothing is downloaded (tested) |
 | `template: X has no 'composicao'` | Skeleton template | Pick a ready template (`simplicio-video list templates`) |
-| `still has a TODO` in `validate` | Contract generated but not filled in | Fill the TODOs only with collected facts |
+| `still has a placeholder` in `validate` | Contract generated but not filled in | Fill the placeholders only with collected facts |
 | `não logado` in `doctor` | Shared login not done | Not required for the render. Only matters for Runtime |
 | Python 3.14 warning in `doctor` | CrewAI extras | Use a Python below 3.14 if you need those extras. Not verified |
 | `testada: 0.50.1` in `busca status` | TinyFish at another version | The engine keeps working; the tested version is 0.50.1 |

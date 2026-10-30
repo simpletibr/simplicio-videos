@@ -70,8 +70,8 @@ simplicio-video init minha-marca campanha-1 --template brand-promo --nome "Minha
 simplicio-video validate clients/minha-marca/campanha-1/contract.yaml
 ```
 
-- `init` gera o contrato com os TODO. Testado.
-- `validate` lista o que falta preencher: cada TODO e o que o template exige. Testado.
+- `init` gera o contrato com os campos a preencher. Testado.
+- `validate` lista o que falta preencher: cada campo vazio e o que o template exige. Testado.
 - Não verificado: `voice` e `run`/`render`. Precisam de um contrato preenchido e de ffmpeg e Node funcionando, o que não foi possível testar no macOS desta verificação.
 
 ### Mídia
@@ -130,7 +130,7 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 | Trilha aparece como não instalada | Cache vazio | Rodar o comando que usa a trilha. `simplicio-video tools` mostra o estado |
 | `fetch: confirme que você pode usar este vídeo com --autorizo` | Autorização não dada | Passar `--autorizo` só depois de confirmar o direito de uso. Sem a flag, nada é baixado (testado) |
 | `template: X has no 'composicao'` | Template de esqueleto | Escolher um template pronto (`simplicio-video list templates`) |
-| `ainda tem TODO` no `validate` | Contrato gerado e não preenchido | Preencher os TODO só com fatos da coleta |
+| campo pendente no `validate` | Contrato gerado e não preenchido | Preencher os campos só com fatos da coleta |
 | `não logado` no `doctor` | Login compartilhado não feito | Não é exigido para o render. Só importa para o Runtime |
 | Aviso de Python 3.14 no `doctor` | Extras do CrewAI | Usar Python abaixo de 3.14 se for usar esses extras. Não verificado |
 | `testada: 0.50.1` no `busca status` | TinyFish em outra versão | O motor segue funcionando; a versão testada é 0.50.1 |
