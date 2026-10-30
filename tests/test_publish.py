@@ -5,6 +5,7 @@ import subprocess
 
 import pytest
 
+from conftest import ROOT
 from simplicio_video import contract as ct
 from simplicio_video import publish as pub
 
@@ -100,3 +101,10 @@ def test_publish_dry_run_needs_no_rclone(mini, mp4, monkeypatch):
 def test_publish_missing_mp4(mini):
     with pytest.raises(SystemExit, match="render"):
         pub.publish(ct.load(mini), destino=DESTINO, dry_run=True, log=lambda *_: None)
+
+
+def test_plugin_json_nao_tem_o_verbo_publish_que_a_cli_nao_tem():
+    """#113 (c): `publish` saiu da CLI (#77). O verbo `video.publish` do plugin.json apontava para `simplicio-video publish`, que não existe."""
+    data = json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))
+    assert "video.publish" not in {c["verb"] for c in data["commands"]}
+    assert not [c["verb"] for c in data["commands"] if c.get("argv", [None, None])[1:2] == ["publish"]]
