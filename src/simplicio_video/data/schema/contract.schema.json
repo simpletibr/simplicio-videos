@@ -100,6 +100,14 @@
         "gain_db": { "type": "number" },
         "duck_music_db": { "type": "number" },
         "duck_sfx_db": { "type": "number" },
+        "ducking": {
+          "type": "object", "additionalProperties": false,
+          "description": "ducking em duas bandas sob a voz, só na trilha de arquivo (trilha.music.arquivo): graves abaixo de 250 Hz e agudos acima de 2.5 kHz baixam só nas janelas de voz; o meio não muda. duck_music_db e duck_sfx_db continuam como antes",
+          "properties": {
+            "graves_db": { "type": "number", "default": -2.5, "description": "ganho dos graves (< 250 Hz) durante a voz, em dB" },
+            "agudos_db": { "type": "number", "default": -8.0, "description": "ganho dos agudos (> 2.5 kHz) durante a voz, em dB" }
+          }
+        },
         "jcut_max_s": { "type": "number", "minimum": 0, "default": 0.15, "description": "how far a line may run past its scene end (J-cut)" },
         "cache_dir": { "type": "string", "default": "assets/audio/voz" },
         "providers": {

@@ -121,6 +121,55 @@ def converte(fonte: Path, saida: Path) -> dict:
     return {"saida": saida, "duracao_s": round(duracao_s(saida), 6), "crossfade_ms": 0.0, "trechos": 0}
 
 
+def _janela_expr(janelas: list[tuple[float, float]], rampa_s: float) -> str:
+    """Expressão ffmpeg do ganho de voz w(t): 1 dentro das janelas, 0 fora, com rampas de rampa_s nas bordas."""
+    termos = [f"clip((t-{a:.6f})/{rampa_s:.6f},0,1)*clip(({b:.6f}-t)/{rampa_s:.6f},0,1)" for a, b in janelas]
+    return f"min(1,{'+'.join(termos)})"
+
+
+def _passa(tipo: str, freq: float) -> str:
+    """Butterworth de 4.ª ordem de FASE ZERO (ida e volta com areverse, como filtfilt): o ganho da banda sai exato nos tons
+    e o corte fica em -3 dB na frequência pedida. Um filtro causal girava a fase e errava o ganho (40 Hz saía em -2.1 dB)."""
+    f = f"{freq:g}"
+    ida = f"{tipo}=f={f}:width_type=q:width=0.5412,{tipo}=f={f}:width_type=q:width=1.3066"
+    return f"{ida},areverse,{ida},areverse"
+
+
+def aplica_ducking(entrada: Path, saida: Path, janelas: list[tuple[float, float]], graves_db: float = DUCKING_PADRAO["graves_db"],
+                   agudos_db: float = DUCKING_PADRAO["agudos_db"], rampa_s: float = RAMPA_DUCKING_S) -> dict:
+    """Ducking em duas bandas: abaixo de 250 Hz baixa graves_db e acima de 2.5 kHz baixa agudos_db, só dentro das janelas
+    de voz (em segundos da trilha). O meio não muda. Saída: WAV 48 kHz estéreo PCM s16."""
+    for a, b in janelas:
+        if b <= a:
+            raise ValueError(f"janela de voz inválida: {a}..{b}")
+    g_graves = 10 ** (graves_db / 20.0)
+    g_agudos = 10 ** (agudos_db / 20.0)
+    w = _janela_expr(janelas, rampa_s) if janelas else "0"
+    # a banda é somada à entrada com o ganho (G-1)*w, negativo: a entrada fora da janela passa intacta
+    filtro = (
+        "[0:a]aformat=sample_fmts=fltp:channel_layouts=stereo,asplit=3[in][lo][hi];"
+        f"[lo]{_passa('lowpass', CORTE_GRAVES_HZ)},volume=volume='({g_graves:.6f}-1)*{w}':eval=frame[dl];"
+        f"[hi]{_passa('highpass', CORTE_AGUDOS_HZ)},volume=volume='({g_agudos:.6f}-1)*{w}':eval=frame[dh];"
+        "[in][dl][dh]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[out]"
+    )
+    saida.parent.mkdir(parents=True, exist_ok=True)
+    _ffmpeg(["-i", str(entrada), "-filter_complex", filtro, "-map", "[out]", "-ar", str(SR), "-c:a", "pcm_s16le", str(saida)])
+    return {"saida": saida, "janelas": len(janelas), "graves_db": graves_db, "agudos_db": agudos_db, "rampa_s": rampa_s}
+
+
+def janelas_de_voz(c, lock: dict | None) -> list[tuple[float, float]]:
+    """Janelas de voz na trilha: início da fala e duração do take (timing.lock.json). Vazio sem voz."""
+    v = c.data["voz"]
+    if not v.get("habilitada", True) or not lock:
+        return []
+    janelas = []
+    for linha in c.lines():
+        m = lock.get("lines", {}).get(linha["id"])
+        if m:
+            janelas.append((float(linha["t"]), float(linha["t"]) + float(m["dur_s"])))
+    return janelas
+
+
 def prepara(c, workdir: Path, lock: dict | None) -> str:
     """Monta a trilha de arquivo do contrato dentro do workdir e devolve o caminho relativo a ele (vai para o spec.json)."""
     music = c.data["trilha"]["music"]
@@ -134,6 +183,13 @@ def prepara(c, workdir: Path, lock: dict | None) -> str:
         monta_arranjo(fonte, cortes, dst, cf)
     else:
         converte(fonte, dst)
+    if "ducking" in c.data["voz"]:  # voz.ducking presente (mesmo {}): ducking em duas bandas nas janelas de voz
+        janelas = janelas_de_voz(c, lock)
+        if janelas:
+            ducking = {**DUCKING_PADRAO, **c.data["voz"]["ducking"]}
+            tmp = dst.with_name("arranjo-ducked.wav")
+            aplica_ducking(dst, tmp, janelas, ducking["graves_db"], ducking["agudos_db"])
+            tmp.replace(dst)
     video_s = float(c.data["formato"]["duracao_s"])
     arranjo_s = duracao_s(dst)
     if arranjo_s + 0.02 < video_s:

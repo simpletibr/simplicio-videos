@@ -242,6 +242,8 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
                     rep.errors.append(f"trilha: os cortes somam {r4(arranjo)} s e o vídeo tem {d['formato']['duracao_s']} s")
             except ValueError as e:
                 rep.errors.append(f"trilha: {e}")
+    if "ducking" in d["voz"] and not music.get("arquivo"):
+        rep.warnings.append("voz.ducking só tem efeito com trilha.music.arquivo (a trilha sintetizada usa duck_music_db e duck_sfx_db)")
     # ---- sfx inside the video ----
     for cue in c.cues():
         if cue["t"] >= d["formato"]["duracao_s"]:
