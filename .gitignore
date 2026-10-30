@@ -35,3 +35,6 @@ clients/*/coleta/
 # as skills que `simplicio-video install` copia para a raiz deste repositório (a fonte é src/simplicio_video/data/skills/)
 .claude/skills/simplicio-video/
 .claude/skills/simplicio-video-social/
+
+# dados de cliente nunca vão para o git (AGENTS.md; backup fora do repo)
+clients/

@@ -1,3 +1,4 @@
+import pytest
 import yaml
 
 from conftest import ROOT, WJR, contract_with_coleta_placeholders
@@ -26,6 +27,7 @@ def _client_strings_replaced_by_the_template():
     ]
 
 
+@pytest.mark.skipif(not WJR.exists(), reason="clients/ fica fora do git: sem o contrato WJR não há o que comparar")
 def test_wjr_compiles_to_the_legacy_composition(tmp_path):
     """The contract port must produce the hand-authored video-01 index.html byte for byte, except for the client
     strings that the template replaced with generic placeholders (each one must still exist in the legacy file)."""

@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
-<defs><pattern id="s" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="20" height="40" fill="#1a1a1d"/></pattern></defs>
-<rect width="1080" height="1350" fill="#101012"/><rect width="1080" height="1350" fill="url(#s)"/>
-<rect x="12" y="12" width="1056" height="1326" fill="none" stroke="#1565ff" stroke-width="6" stroke-dasharray="24 16" rx="28"/>
-<text x="50%" y="47%" text-anchor="middle" font-family="sans-serif" font-size="77" font-weight="700" fill="#ffffff">SLOT: FOTO 1</text>
-<text x="50%" y="56%" text-anchor="middle" font-family="sans-serif" font-size="36" fill="#a5a5aa">Loja / bancada / console (cliente)</text>
-</svg>
