@@ -665,15 +665,16 @@ exemplos:
 ## simplicio-video qc
 
 ```text
-usage: simplicio-video qc [-h] ...
+usage: simplicio-video qc [-h] AÇÃO ...
 
 Controle de qualidade de um MP4 com ffmpeg e ffprobe, sem modelo e sem rede. `congelado` lista os trechos em que o vídeo fica num mesmo quadro por pelo menos --min-s segundos.
 
-positional arguments:
-  args        congelado MP4 [--min-s 0.5] [--json] (--help mostra tudo)
-
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+
+ações:
+  AÇÃO
+    congelado  intervalos de quadro congelado (ffmpeg freezedetect)
 
 exemplos:
   simplicio-video qc congelado out/video.mp4

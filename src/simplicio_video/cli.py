@@ -270,7 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("qc", formatter_class=Fmt, help="controle de qualidade de um MP4: quadro congelado (congelado), ffmpeg freezedetect",
         description="Controle de qualidade de um MP4 com ffmpeg e ffprobe, sem modelo e sem rede. `congelado` lista os trechos em que o vídeo fica num mesmo quadro por pelo menos --min-s segundos.",
         epilog="exemplos:\n  simplicio-video qc congelado out/video.mp4\n  simplicio-video qc congelado out/video.mp4 --min-s 0.3 --json")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="congelado MP4 [--min-s 0.5] [--json] (--help mostra tudo)")
+    qc.adiciona_acoes(p)
 
     p = sub.add_parser("opencut", formatter_class=Fmt, help="editor OpenCut (open-source) para acabamento manual",
         description="Clona e sobe o OpenCut (https://github.com/OpenCut-app/OpenCut, MIT; usa o opencut-classic até o rewrite ter API).",

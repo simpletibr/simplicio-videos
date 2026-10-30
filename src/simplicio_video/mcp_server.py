@@ -449,6 +449,15 @@ def video_media(args: list[str] | str = "") -> dict:
     return _cli(["media", *argv])
 
 
+def video_qc(args: list[str] | str = "") -> dict:
+    """Quality control of an MP4 with ffmpeg (no model, no network). `congelado MP4 [--min-s 0.5]` lists the intervals in which
+    the picture stays on the same frame for at least --min-s seconds (start, end, duration). Pass an absolute path to the file."""
+    argv = _argv(args)
+    if "--json" not in argv:
+        argv = [*argv, "--json"]
+    return _cli(["qc", *argv])
+
+
 def video_tools() -> dict:
     """The pinned external tracks: command, repository, pinned version, license, and whether each one is installed. Read-only."""
     return _cli(["tools", "--json"])
@@ -529,6 +538,7 @@ TOOLS = [
     ("video.shorts", video_shorts, "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; only new files are written."),
     ("video.media", video_media, "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Writes new files with -o."),
     ("video.tools", video_tools, "The pinned external tracks: command, repository, pinned version, license and whether each is installed. Read-only."),
+    ("video.qc", video_qc, "Quality control of an MP4 with ffmpeg, no model: `congelado MP4 [--min-s 0.5]` lists the intervals where the picture is frozen on one frame (start, end, duration). Read-only; pass an absolute path."),
     ("video.status", video_status, "Installed tools, pinned versions and, with a contract, the render state. Read-only."),
     ("video.doctor", video_doctor, "Diagnosis: login, update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace (all|login, --online for network checks). Read-only."),
     ("video.setup", video_setup, "First run: creates the workspace (theme, language, L1 autonomy, zero budgets). Pass --yes to accept the defaults; without a terminal it refuses instead of asking. Writes no credential."),

@@ -6,6 +6,7 @@ do ffmpeg, ruído 0.001). Um quadro congelado até o fim do arquivo é fechado c
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import subprocess
@@ -14,21 +15,30 @@ from pathlib import Path
 SCHEMA = "simplicio.qc-congelado/v1"
 RUIDO = 0.001
 
-HELP = """qc (controle de qualidade de um MP4; ffmpeg e ffprobe, sem modelo e sem rede)
-
-  congelado MP4 [--min-s 0.5] [--json]
-                                                   intervalos em que o vídeo fica num mesmo quadro por pelo menos
-                                                   --min-s segundos (ffmpeg freezedetect); --json grava
-                                                   simplicio.qc-congelado/v1 em stdout com inicio_s, fim_s, duracao_s
-
-Exemplos:
-  simplicio-video qc congelado out/video.mp4
-  simplicio-video qc congelado out/video.mp4 --min-s 0.3 --json
-"""
-
 
 class QcError(Exception):
     pass
+
+
+def adiciona_acoes(ap: argparse.ArgumentParser) -> None:
+    """Acrescenta as ações do qc a um parser (o da CLI e o próprio run_qc usam o mesmo)."""
+    acoes = ap.add_subparsers(dest="acao", metavar="AÇÃO", title="ações", required=True)
+    c = acoes.add_parser("congelado", help="intervalos de quadro congelado (ffmpeg freezedetect)",
+                         description="Lista os trechos em que o vídeo fica num mesmo quadro por pelo menos --min-s segundos. "
+                                     "Um quadro congelado até o fim do arquivo é fechado com a duração do arquivo.",
+                         epilog="exemplos:\n  simplicio-video qc congelado out/video.mp4\n"
+                                "  simplicio-video qc congelado out/video.mp4 --min-s 0.3 --json")
+    c.add_argument("mp4", help="MP4 a conferir")
+    c.add_argument("--min-s", type=float, default=0.5, metavar="S",
+                   help="duração mínima do quadro congelado, em segundos (padrão 0.5)")
+    c.add_argument("--json", action="store_true", help=f"saída JSON ({SCHEMA}): intervalos com inicio_s, fim_s e duracao_s")
+
+
+def _parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(prog="simplicio-video qc", description="Controle de qualidade de um MP4 com ffmpeg e ffprobe, "
+                                 "sem modelo e sem rede.")
+    adiciona_acoes(ap)
+    return ap
 
 
 def _duracao_arquivo(mp4: Path) -> float:
@@ -61,43 +71,20 @@ def detecta_congelado(mp4: Path, min_s: float) -> list[dict]:
 
 
 def run_qc(args: list[str]) -> int:
-    if not args or args[0] in ("-h", "--help"):
-        print(HELP)
-        return 0
-    if args[0] != "congelado":
-        raise QcError(f"qc: subcomando desconhecido: {args[0]} (use: congelado)")
-    mp4, min_s, como_json = None, 0.5, False
-    resto = args[1:]
-    i = 0
-    while i < len(resto):
-        a = resto[i]
-        if a == "--json":
-            como_json = True
-        elif a == "--min-s":
-            i += 1
-            if i >= len(resto):
-                raise QcError("qc: --min-s pede um número de segundos")
-            try:
-                min_s = float(resto[i])
-            except ValueError:
-                raise QcError(f"qc: --min-s inválido: {resto[i]!r}") from None
-        elif a.startswith("-"):
-            raise QcError(f"qc: opção desconhecida: {a}")
-        elif mp4 is None:
-            mp4 = Path(a).expanduser()
-        else:
-            raise QcError(f"qc: argumento extra: {a}")
-        i += 1
-    if mp4 is None:
-        raise QcError("qc congelado: falta o MP4 (simplicio-video qc congelado MP4 [--min-s 0.5] [--json])")
+    """Roda `simplicio-video qc ...` e devolve o código de saída (0 ok; 2 uso; erros de dado levantam QcError)."""
+    try:
+        ns = _parser().parse_args(args)
+    except SystemExit as e:  # argparse já imprimiu a ajuda ou o erro de uso
+        return int(e.code or 0)
+    mp4 = Path(ns.mp4).expanduser()
     if not mp4.is_file():
         raise QcError(f"qc: arquivo não encontrado: {mp4}")
-    intervalos = detecta_congelado(mp4, min_s)
-    if como_json:
-        doc = {"schema": SCHEMA, "arquivo": str(mp4), "min_s": min_s, "intervalos": intervalos}
+    intervalos = detecta_congelado(mp4, ns.min_s)
+    if ns.json:
+        doc = {"schema": SCHEMA, "arquivo": str(mp4), "min_s": ns.min_s, "intervalos": intervalos}
         print(json.dumps(doc, ensure_ascii=False, indent=2))
         return 0
-    print(f"{len(intervalos)} intervalo(s) de quadro congelado com pelo menos {min_s:g} s em {mp4.name}")
+    print(f"{len(intervalos)} intervalo(s) de quadro congelado com pelo menos {ns.min_s:g} s em {mp4.name}")
     for iv in intervalos:
         print(f"  de {iv['inicio_s']:.3f} s a {iv['fim_s']:.3f} s ({iv['duracao_s']:.3f} s)")
     return 0
