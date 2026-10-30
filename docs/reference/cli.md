@@ -706,7 +706,8 @@ options:
                                   L4 | A100 | none
   --timeout TIMEOUT               kaggle/colab-cli: limite do render remoto em s (padrão 3600)
   --quality, -q {draft,looks,delivery}
-                                  qualidade HyperFrames (padrão: saida.qualidade)
+                                  qualidade HyperFrames (padrão: derivada de saida.qualidade: master/lite =
+                                  delivery, thumb = draft)
   --gpu                           local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo
   --gpu-encode {auto,1,0}         kaggle/colab-cli/colab: NVENC no encode (auto = usa se o teste de encode
                                   passar; 0 = libx264, necessário p/ comparar frames com o local). A captura

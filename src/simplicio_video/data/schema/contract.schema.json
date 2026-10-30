@@ -132,7 +132,7 @@
       "type": "object", "additionalProperties": false, "required": ["arquivo"],
       "properties": {
         "arquivo": { "type": "string", "pattern": "\\.mp4$", "description": "output path relative to the contract (gitignored out/)" },
-        "qualidade": { "enum": ["draft", "looks", "delivery"], "default": "delivery" },
+        "qualidade": { "enum": ["master", "lite", "thumb"], "default": "master", "description": "perfil de saída (src/simplicio_video/perfis.py): master = H.264 CRF 16, BT.709, AAC 320k, +faststart; lite = H.264 maxrate 10 Mbps, AAC 192k; thumb = só o PNG do quadro 0, sem MP4" },
         "preview": { "type": "string", "description": "optional 720p preview path relative to the contract" }
       }
     }
