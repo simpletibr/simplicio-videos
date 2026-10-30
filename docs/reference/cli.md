@@ -32,12 +32,13 @@ Fluxo completo:
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
+  matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; só baixa o commit fixado, o uso exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
   tools        lista as trilhas externas fixadas (versão, comando, se estão no cache de tools e o que produzem)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/social/openverse/busca
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/matchcut/social/openverse/busca
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      copia as skills do simplicio-video para o host do agente (11 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
   update       pacote pip: PyPI e reinstala as skills; checkout git: recusa (git pull e scripts/dev_install.sh); --check sai 0, 10 ou 2
@@ -68,6 +69,7 @@ comandos (na ordem do fluxo):
     opencut       editor OpenCut (open-source) para acabamento manual
     toonflow      Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
     moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
+    matchcut      match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta
     voicestudio   VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900
     formats       biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
     swap          troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
@@ -480,6 +482,25 @@ exemplos:
   simplicio-video logout
   simplicio-video logout --yes
   simplicio-video logout --yes --json
+```
+
+## simplicio-video matchcut
+
+```text
+usage: simplicio-video matchcut [-h] ...
+
+Baixa o match-cut (https://github.com/Sac-Y/match-cut, MIT) no commit fixado em tools.py e mostra onde está o SKILL.md. É um skill de Claude Code ou Codex: o comando não roda o skill nem chama o Renoise. O uso do skill exige login no Renoise pela sua conta e gasta créditos pagos.
+
+positional arguments:
+  args        clone [dir] | where | status
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video matchcut clone
+  simplicio-video matchcut where
+  simplicio-video matchcut status
 ```
 
 ## simplicio-video mcp

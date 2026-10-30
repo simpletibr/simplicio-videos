@@ -1,5 +1,5 @@
 """Pinned versions and install location for the external tracks: `montage` (OpenMontage), `opencut` (OpenCut),
-`clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `busca` (TinyFish CLI) and
+`clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `matchcut` (match-cut), `busca` (TinyFish CLI) and
 `voicestudio` (VoiceStudio) and `media fetch` (yt-dlp). `simplicio-video tools` lists the whole registry (text or --json).
 
 The engine drives: OpenMontage, OpenCut, Hypit, Toonflow, MoneyPrinterTurbo, VoiceStudio and yt-dlp, each pinned to a known
@@ -68,6 +68,13 @@ TOOLS: dict[str, Tool] = {
                               "Pexels, Pixabay and Coverr) and needs your own API keys in its config.toml; the terms were not "
                               "reviewed here. Its API config listens on 0.0.0.0 by default and the WebUI has no login: serve "
                               "forces 127.0.0.1 unless --lan"),
+    "matchcut": Tool("matchcut", "git", "https://github.com/Sac-Y/match-cut",
+                     "b51c98f5c795b046ceb1c69396368dbabd88d5d9", "MIT",
+                     "agent skill (SKILL.md, scripts, references) for product films in the match-cut relay style; "
+                     "the engine only downloads the pinned commit and points at it, it never runs the skill",
+                     marker="SKILL.md",
+                     note="the skill is used from Claude Code or Codex and needs a Renoise sign-in (the user's own "
+                          "account) and paid Renoise credits; the engine never calls Renoise and never asks for a secret"),
     "voicestudio": Tool("voicestudio", "git", "https://github.com/debpalash/VoiceStudio",
                          "beeaae08204f0de5f49d4a087ef2b0ea8fecfcb9", "AGPL-3.0",
                          "local voice studio: cloned/designed voice profiles, TTS and transcription over a loopback "
@@ -108,6 +115,7 @@ COMMANDS: dict[str, str] = {
     "hypit": "clone",
     "toonflow": "toonflow",
     "moneyprinter": "moneyprinter",
+    "matchcut": "matchcut",
     "tinyfish": "busca",
     "voicestudio": "voicestudio",
     "yt-dlp": "media fetch",
