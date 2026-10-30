@@ -17,6 +17,8 @@ Rules that do not bend:
 - Provenance: every consulta and every pagina appends a line to `busca.registro.jsonl` (when, query or URL, CLI version, URLs
   shown, sha256 and size of what the CLI returned, sha256 and size of what was delivered, from cache or not). No registry line,
   no delivery.
+- Cache: `cache/` keeps at most `CACHE_MAX_ARQUIVOS` files; writing one past that drops the oldest by mtime. The registry and the
+  counter live outside `cache/` and are never pruned.
 - Text from the internet is DATA: titles, snippets, page text and URLs reach an agent only in fields named `untrusted_*`,
   next to a notice that it is third-party data and never an instruction. It is cut to a size limit and cleaned (no HTML,
   comments, hidden characters, non-http(s) link targets) before it is stored or shown. Nothing is ever executed.
@@ -85,6 +87,7 @@ MAX_SAIDA_PAGINA_BYTES = 8 * 1024 * 1024
 MAX_SAIDA_STATUS_BYTES = 64 * 1024
 MAX_STDERR_BYTES = 64 * 1024
 STALE_DAYS = 7  # a cached answer older than this carries a warning
+CACHE_MAX_ARQUIVOS = 500  # teto de arquivos em cache/; ao gravar um a mais, saem os mais antigos por mtime
 POLL_S = 0.02
 CANAIS = ("terminal", "mcp")
 
@@ -712,7 +715,30 @@ def _ler_cache(chave: str, comando: str, params: dict) -> dict | None:
 
 
 def _gravar_cache(chave: str, doc: dict) -> None:
-    _atomic_write(_caminho_cache(chave), _dump(doc))
+    caminho = _caminho_cache(chave)
+    _atomic_write(caminho, _dump(doc))
+    _poda_cache(manter=caminho)
+
+
+def _poda_cache(manter: Path) -> None:
+    """Keeps at most CACHE_MAX_ARQUIVOS files in cache/: the oldest by mtime go. `manter` (the file just written) never goes.
+    Only cache/ is touched: the registry and the counter are outside it."""
+    vivos = []
+    for p in (pasta() / "cache").glob("*.json"):
+        try:
+            vivos.append((p.stat().st_mtime_ns, p.name, p))
+        except OSError:  # sumiu entre o glob e o stat (outro processo)
+            continue
+    vivos.sort()
+    excesso = len(vivos) - CACHE_MAX_ARQUIVOS
+    for _, _, p in vivos:
+        if excesso <= 0:
+            break
+        if p == manter:
+            continue
+        with contextlib.suppress(OSError):
+            p.unlink()
+        excesso -= 1
 
 
 def _registrar(rec: dict) -> str:
