@@ -2,7 +2,7 @@ import json
 
 import yaml
 
-from conftest import LOTHUS, WJR
+from conftest import LOTHUS, WJR, contract_with_coleta_placeholders
 from simplicio_video import contract as ct
 
 
@@ -12,9 +12,9 @@ def _edit(path, fn):
     path.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False))
 
 
-def test_real_contracts_are_valid_with_lock():
-    for p in (WJR, LOTHUS):
-        rep = ct.validate(ct.load(p), need_lock=True)
+def test_real_contracts_are_valid_with_lock(tmp_path):
+    for i, p in enumerate((WJR, LOTHUS)):
+        rep = ct.validate(ct.load(contract_with_coleta_placeholders(p, tmp_path / str(i))), need_lock=True)
         assert rep.ok, rep.errors
 
 

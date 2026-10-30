@@ -452,9 +452,9 @@ def test_o_login_nao_entra_no_plugin_nem_no_mcp():
     """The login is a terminal command like `openverse get`: no plugin verb and no MCP tool."""
     from _comum import ROOT
     plugin = (ROOT / "plugin.json").read_text(encoding="utf-8")
-    assert "video.login" not in plugin and "video.logout" not in plugin and "video.auth" not in plugin
+    assert "video.login" not in plugin and "video.logout" not in plugin
     mcp = (ROOT / "src" / "simplicio_video" / "mcp_server.py").read_text(encoding="utf-8")
-    assert "video.login" not in mcp and "video.auth" not in mcp
+    assert "video.login" not in mcp and "video.logout" not in mcp  # `video.auth` is the read-only status tool (#125)
     assert "login.json" not in mcp
 
 

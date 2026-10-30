@@ -944,7 +944,8 @@ def test_aceite_de_by_sa_nao_vale_para_by_nc_depois_da_troca_de_licenca(env, apr
     # `get --atualizar` traz os mesmos bytes como by-nc e o revisor aprova de novo: ninguém aceitou a restrição NC
     _mudar_e_reaprovar(env, aprovado["id"], licenca="by-nc", licenca_url="https://creativecommons.org/licenses/by-nc/2.0/")
     erros = _ov_erros(mini)
-    assert len(erros) == 1 and "aceito-restricao" in erros[0] and "by-nc" in erros[0], erros
+    # two errors: the restriction was not accepted for by-nc, and the credit line left by the export is the by-sa one (the marker has the license)
+    assert len(erros) == 2 and "aceito-restricao" in erros[0] and "by-nc" in erros[0] and "crédito ausente" in erros[1], erros
     ov.export(aprovado["id"], PEDIDO, contrato=mini, aceito_restricao=True)  # aceitar a nova restrição: novo registro, com a licença nova
     _ok(mini)
     exp = json.loads((env.lib / "index.json").read_text(encoding="utf8"))["exportacoes"]
@@ -1025,7 +1026,7 @@ def test_creditos_do_video_trocam_o_link_em_vez_de_seguir_o_link(env, aprovado, 
 # ------------------------------------------------------------------------------------------------ docs
 
 def test_docs_explicam_o_fluxo_do_ativo_no_contrato():
-    readme = (ROOT / "README.md").read_text(encoding="utf8")
+    readme = (ROOT / "README.pt-BR.md").read_text(encoding="utf8")  # README.md is the English one; the section title below is Portuguese
     secao = readme.split("### Openverse: biblioteca de imagens e áudio revisada", 1)[1].split("\n### ", 1)[0]
     for trecho in ("openverse:", "pedido:", "library verify", "validate", "CREDITS-openverse.md", "render.manifest.json", "assets/openverse/",
                    "--aceito-restricao", "sem rede"):

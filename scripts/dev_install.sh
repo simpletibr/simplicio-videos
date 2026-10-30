@@ -87,13 +87,15 @@ node_ok() {
 }
 
 # O uv no PATH e, se não estiver, onde o instalador dele costuma deixá-lo (~/.local/bin, ~/.cargo/bin, Homebrew).
+# SIMPLICIO_UV_SYSTEM_DIRS troca as pastas do sistema (padrão: Homebrew e /usr/local/bin); os testes a esvaziam para não achar um uv real.
 acha_uv() {
-  local candidato
+  local candidato pastas
   if command -v uv >/dev/null 2>&1; then
     UV="$(command -v uv)"
     return 0
   fi
-  for candidato in "${HOME:-/nao-existe}/.local/bin/uv" "${HOME:-/nao-existe}/.cargo/bin/uv" /opt/homebrew/bin/uv /usr/local/bin/uv; do
+  IFS=' ' read -r -a pastas <<< "${SIMPLICIO_UV_SYSTEM_DIRS-/opt/homebrew/bin /usr/local/bin}"
+  for candidato in "${HOME:-/nao-existe}/.local/bin/uv" "${HOME:-/nao-existe}/.cargo/bin/uv" ${pastas[@]+"${pastas[@]/%//uv}"}; do
     if [ -x "$candidato" ]; then
       UV="$candidato"
       return 0

@@ -184,12 +184,27 @@ def _read_bounded(fd: int, path: Path) -> bytes:
     return b"".join(chunks)
 
 
+MAX_LOGIN_DEPTH = 32  # a real login is flat; Python 3.14's json no longer raises RecursionError on deep objects
+
+
+def _too_deep(value: Any) -> bool:
+    stack = [(value, 1)]
+    while stack:
+        item, depth = stack.pop()
+        if isinstance(item, (dict, list)):
+            if depth > MAX_LOGIN_DEPTH:
+                return True
+            stack.extend((child, depth + 1) for child in (item.values() if isinstance(item, dict) else item))
+    return False
+
+
 def _parse(raw: bytes) -> Any:
     """The JSON in `raw`, or None when it is not UTF-8 JSON: a corrupt or hostile file (deep nesting included)."""
     try:
-        return json.loads(raw.decode("utf-8"))
+        data = json.loads(raw.decode("utf-8"))
     except (ValueError, RecursionError):  # UnicodeDecodeError is a ValueError
         return None
+    return None if _too_deep(data) else data
 
 
 def read_login(path: Optional[Path] = None) -> dict:

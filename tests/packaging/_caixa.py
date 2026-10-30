@@ -67,6 +67,10 @@ class _Lazy:
         except ImportError as exc:
             pytest.fail(f"module {object.__getattribute__(self, '_name')} does not exist yet: {exc}", pytrace=False)
 
+    @property
+    def __dict__(self):  # pytest >= 9.2 monkeypatch reads the old value from target.__dict__: it must be the real module's
+        return self._real().__dict__
+
     def __getattr__(self, item):
         if item.startswith("__") or item == "pytestmark":  # pytest probes every module-level name while collecting
             raise AttributeError(item)

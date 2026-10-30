@@ -366,11 +366,12 @@ def test_install_global_real_valida_com_resynced_e_pruned_project(caixa, capsys,
     assert executa(["install", "--target", str(alvo)], capsys, main)[0] == 0  # the project copy and its receipt
     (caixa.home / ".codex" / "skills" / "simplicio-video").mkdir(parents=True)
     (caixa.home / ".codex" / "skills" / "simplicio-video" / "SKILL.md").write_text("velha\n", encoding="utf-8")  # not ours: left alone
-    for argv, pendentes in ((["--check"], 19), ([], 0)):  # 10 hosts x 2 skills, minus the video skill codex already had (not ours)
+    n_skills = sum(1 for d in (ROOT / "skills").iterdir() if (d / "SKILL.md").is_file())
+    for argv, pendentes in ((["--check"], 10 * n_skills - 1), ([], 0)):  # 10 hosts x every skill, minus the video skill codex already had (not ours)
         rc, doc, _ = _doc(capsys, "install", "--json", "--global", "--prune-project-copies", "--target", str(alvo), *argv)
         valida("install-plan", doc)
         assert "claude" not in doc["resynced"]["skills"] and len(doc["resynced"]["skills"]) == 10
-        assert doc["resynced"]["skills_counts"]["codex"] == 1 and doc["resynced"]["skills_counts"]["cursor"] == 2
+        assert doc["resynced"]["skills_counts"]["codex"] == n_skills - 1 and doc["resynced"]["skills_counts"]["cursor"] == n_skills
         assert doc["resynced"]["pending"] == pendentes
         assert doc["pruned_project"]["removed"], "the dry run lists what it would prune, the real run what it pruned"
         assert any(a.startswith(".codex/skills/simplicio-video") for a in doc["changes"]["left_alone"])
