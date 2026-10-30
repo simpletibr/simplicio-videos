@@ -30,7 +30,7 @@ def test_mcp_protocol_lists_and_calls_tools(mini):
             return names, res
 
     names, res = asyncio.run(go())
-    assert names == sorted(n for n, _, _ in mcp_server.TOOLS) and len(names) == 28
+    assert names == sorted(n for n, _, _ in mcp_server.TOOLS) and len(names) == 29
     payload = res.structured_content or json.loads(res.content[0].text)
     payload = payload.get("result", payload)
     assert payload["ok"] is True and payload["errors"] == []

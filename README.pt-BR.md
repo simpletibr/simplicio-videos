@@ -39,12 +39,12 @@ Decisões: [ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md) (visão do plugin)
 | Templates, motion, formatos, ângulos | `list`, `formats` | 14 templates de setor (8 prontos, 6 skeleton); 55 entradas no catálogo de motion (33 prontas, 19 propostas, 2 inline, 1 lib); 50 formatos de anúncio; 50 ângulos em 5 grupos | Catálogos |
 | Troca de personagem | `swap`, `jobs` | Seis adaptadores: `gemini` (conferido com a documentação), `fal`, `wavespeed`, `kie`, `alibaba` (UNVERIFIED), `fake` (testes); estimativa de custo; teto `--max-usd` | Pago; só roda pelo terminal, com `--autorizo` e `--yes` |
 | Tarefas em segundo plano | `jobs` | `submit`, `status`, `list`, `cancel`, `result`, `clean` para `swap-run` e para `voice` local | Sem daemon e sem porta aberta |
-| Trilhas externas de produção | `clone`, `montage`, `opencut`, `toonflow`, `moneyprinter` | Hypit (clonagem com agentes), OpenMontage (produção com agentes), OpenCut (acabamento manual), Toonflow (estúdio de séries e quadrinhos), MoneyPrinterTurbo (tema vira vídeo curto) | Checkouts fixados, rodam como programas separados, nunca importados |
+| Trilhas externas de produção | `clone`, `montage`, `opencut`, `toonflow`, `moneyprinter`, `matchcut` | Hypit (clonagem com agentes), OpenMontage (produção com agentes), OpenCut (acabamento manual), Toonflow (estúdio de séries e quadrinhos), MoneyPrinterTurbo (tema vira vídeo curto) | Checkouts fixados, rodam como programas separados, nunca importados |
 | Planejamento de redes sociais | `social` | Provedores Real Oficial (padrão) e Zernio; confere um MP4 contra os limites por rede; grava um plano; mostra a sequência de chamadas MCP | **Nunca posta.** O agente posta com as ferramentas do provedor, após o consentimento explícito de cada postagem |
 | Biblioteca de imagens e áudio com licença | `openverse` | Busca, download seguro, folha de revisão por pedido, aprovação por (ativo, sha256, pedido), exportação com créditos, verificação offline de um contrato | As licenças vêm das fontes; não é parecer jurídico |
 | Pesquisa na web | `busca` | `consulta`, `pagina`, `status`, `log` pelo TinyFish, com fonte e data por resultado, teto diário de chamadas e registro de procedência | A consulta vai para um terceiro; segredos e dados pessoais são recusados |
 | Trilha de UGC | `ugc/` (sem CLI) | 10 personagens sintéticos, 5 arquivos de prompt, um pipeline manual de 7 passos | Generativo; fora do render |
-| Integração com agentes | `mcp`, `install`, skills | Servidor MCP com 28 ferramentas `video.*`, uma por comando da CLI; 6 skills; `install` copia as skills para 11 hosts de agente | Só no terminal de propósito: `login`, `logout`, gasto (`swap run`), instalar ou remover software e servidores que não terminam |
+| Integração com agentes | `mcp`, `install`, skills | Servidor MCP com 29 ferramentas `video.*`, uma por comando da CLI; 6 skills; `install` copia as skills para 11 hosts de agente | Só no terminal de propósito: `login`, `logout`, gasto (`swap run`), instalar ou remover software e servidores que não terminam |
 | Operação | `status`, `tools`, `doctor`, `setup`, `update`, `login`, `logout`, `auth` | Estado das ferramentas e do render, trilhas fixadas, diagnóstico, workspace, atualizações, login Simplicio compartilhado | O motor nunca guarda credencial |
 
 ## Referência de comandos
@@ -253,6 +253,7 @@ simplicio-video montage [clone|open|serve|demo|args]   # OpenMontage: pipelines 
 simplicio-video opencut clone|dev|where       # OpenCut: editor para acabamento manual
 simplicio-video toonflow clone|serve|where    # Toonflow: estúdio de IA para séries e quadrinhos (serve exige --lan)
 simplicio-video moneyprinter clone|setup|serve|where|status   # MoneyPrinterTurbo: tema vira vídeo curto
+simplicio-video matchcut clone|where|status   # match-cut: skill de agente para vídeo de produto (só baixa e aponta)
 ```
 
 Cada trilha é clonada no commit fixado em [`tools.py`](src/simplicio_video/tools.py) e roda como programa próprio. O que ela produz entra num contrato como arquivo com hash.
@@ -260,6 +261,18 @@ Cada trilha é clonada no commit fixado em [`tools.py`](src/simplicio_video/tool
 - **Toonflow.** O servidor não tem login e escuta em todas as interfaces (`0.0.0.0:3000`), por isso `serve` não sobe sem `--lan`. Os dados vão para `~/.simplicio-video/toonflow-data`.
 - **MoneyPrinterTurbo.** Ele chama serviços de terceiros (um LLM, um serviço de TTS, banco de imagens e vídeos) com **as suas** chaves, no WebUI ou no `config.toml`. O motor nunca as imprime. `serve` escuta em `127.0.0.1`, a menos que se passe `--lan`.
 - **VoiceStudio e video-use** estão descritos acima (voz e edição por EDL).
+
+### Vídeos de produto com cortes de correspondência (`matchcut`)
+
+O [match-cut](https://github.com/Sac-Y/match-cut) (MIT) é um skill de agente (`SKILL.md`, scripts, referências) para vídeo de produto com cortes de correspondência, feito para usar no Claude Code ou no Codex.
+
+```bash
+simplicio-video matchcut clone [dir]   # baixa o commit fixado (MATCHCUT_DIR ou ~/.simplicio-video/tools)
+simplicio-video matchcut where         # imprime o caminho do SKILL.md
+simplicio-video matchcut status        # commit fixado e commit do checkout
+```
+
+O comando só baixa o commit fixado e aponta: nunca roda o skill, nunca usa `npx` e nunca chama o Renoise. Usar o skill exige login no Renoise pela **sua** conta e gasta créditos pagos do Renoise. O motor não pede nem grava segredo. As mesmas três ações são a ferramenta MCP `video.matchcut` (`clone` só na pasta padrão).
 
 ### Integração com agentes: MCP, skills e install
 
@@ -269,7 +282,7 @@ simplicio-video install [--global] [--check|--dry-run] [--json] [--verify] [--un
 simplicio-video install --global     # copia as seis skills para todos os hosts de agente conhecidos (11)
 ```
 
-O servidor MCP expõe 28 ferramentas, uma para cada comando da CLI: `video.init`, `video.validate`, `video.voice`, `video.render`, `video.run`, `video.list`, `video.clone`, `video.montage`, `video.edit`, `video.opencut`, `video.formats`, `video.swap`, `video.jobs`, `video.social`, `video.openverse`, `video.voicestudio`, `video.busca`, `video.toonflow`, `video.moneyprinter`, `video.shorts`, `video.media`, `video.tools`, `video.status`, `video.doctor`, `video.setup`, `video.install`, `video.update`, `video.auth`. Algumas são só de leitura ou propositalmente limitadas: `video.swap` estima mas nunca gasta, `video.social` nunca publica, `video.openverse` não baixa nem exporta, `video.jobs` só submete voz local, `video.auth` só lê o login, `video.update` só verifica, e `video.install` não remove skills nem grava sem `--global` ou `--target` absoluto. Comandos que abrem navegador, gastam dinheiro, instalam software ou sobem um servidor que não termina recusam com o comando do terminal. O manifesto é o [`plugin.json`](plugin.json).
+O servidor MCP expõe 29 ferramentas, uma para cada comando da CLI: `video.init`, `video.validate`, `video.voice`, `video.render`, `video.run`, `video.list`, `video.clone`, `video.montage`, `video.edit`, `video.opencut`, `video.formats`, `video.swap`, `video.jobs`, `video.social`, `video.openverse`, `video.voicestudio`, `video.busca`, `video.toonflow`, `video.moneyprinter`, `video.matchcut`, `video.shorts`, `video.media`, `video.tools`, `video.status`, `video.doctor`, `video.setup`, `video.install`, `video.update`, `video.auth`. Algumas são só de leitura ou propositalmente limitadas: `video.swap` estima mas nunca gasta, `video.social` nunca publica, `video.openverse` não baixa nem exporta, `video.jobs` só submete voz local, `video.auth` só lê o login, `video.update` só verifica, e `video.install` não remove skills nem grava sem `--global` ou `--target` absoluto. Comandos que abrem navegador, gastam dinheiro, instalam software ou sobem um servidor que não termina recusam com o comando do terminal. O manifesto é o [`plugin.json`](plugin.json).
 
 As seis skills, em [`skills/`](skills/):
 
@@ -335,6 +348,7 @@ Todas as versões estão fixadas em [`src/simplicio_video/tools.py`](src/simplic
 | [Hypit](https://www.npmjs.com/package/@hypit/hypit) | `clone` | npm `0.2.17` | licença Hypit (Apache-2.0 modificada); sem redistribuição comercial | clonagem com agentes, instalada pelo usuário |
 | [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | `toonflow` | commit `d2e94ac` | MIT | estúdio de IA para séries e quadrinhos |
 | [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | `moneyprinter` | commit `4b7b965` | MIT | tema vira vídeo curto |
+| [match-cut](https://github.com/Sac-Y/match-cut) | `matchcut` | commit `b51c98f` | MIT | skill de agente para vídeo de produto com cortes de correspondência |
 | [TinyFish CLI](https://www.npmjs.com/package/@tiny-fish/cli) | `busca` | npm `0.50.1` | não declarada | pesquisa e leitura de páginas |
 | [VoiceStudio](https://github.com/debpalash/VoiceStudio) | `voicestudio` | commit `beeaae0` (v0.5.7) | AGPL-3.0 | app local de voz, usado só por HTTP |
 | [video-use](https://github.com/browser-use/video-use) | `edit` | commit `b877063` | MIT | edição por EDL |
