@@ -55,6 +55,8 @@ const N = Math.round(SR * DUR);
 const BEAT = 60 / audio.bpm;
 const L = new Float32Array(N), R = new Float32Array(N); // music bus
 const SL = new Float32Array(N), SRr = new Float32Array(N); // sfx bus
+// trilha de arquivo (trilha.music.arquivo, arranjada e ducked pelo compilador em trilha.py): substitui a síntese (etapa 1 BRASA)
+const musicFile = audio.music?.arquivo ? join(ROOT, audio.music.arquivo) : null;
 
 // ---------- helpers ----------
 function mulberry32(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -120,7 +122,7 @@ function snare() { const o = len(0.22), bp = biquad("bp"); bp.set(2200, 0.6); le
 
 const SFX = { whoosh, impact, hit, click, blip, riser, glitch, shimmer, pop, boing, chime, slide, tambourine, woodblock };
 
-// ---------- music (arrangement driven by spec.audio.music.sections) ----------
+if (!musicFile) { // ---------- music (arrangement driven by spec.audio.music.sections) ----------
 const prog = audio.music.progression; // array of [rootMidi, [chord midis]] per bar
 const barLen = BEAT * 4;
 const kickS = kick(), clapS = clap(), hatS = hat(false), ohatS = hat(true);
@@ -200,6 +202,12 @@ for (let b = 0; !playful && !festive && !inst && b * BEAT < DUR; b++) {
   if (b % 4 === 0) { const p = pad(chord.map(midi), barLen); add(L, R, t, p, drop ? 0.2 : 0.13, -0.2); add(L, R, t, p, drop ? 0.2 : 0.13, 0.2); }
 }
 if (!playful && !festive && !inst) for (let i = 0; i < N; i++) { L[i] *= sidechain[i] ** 0.6; R[i] *= sidechain[i] ** 0.6; }
+} // fim da síntese (sem trilha de arquivo)
+if (musicFile) { // trilha de arquivo: o barramento de música é o WAV arranjado (48 kHz estéreo), sem síntese
+  const st = readWavStereo(musicFile);
+  L.fill(0); R.fill(0);
+  L.set(st.L.subarray(0, N)); R.set(st.R.subarray(0, N));
+}
 
 // ---------- SFX cues + ducking ----------
 const duck = new Float32Array(N).fill(1);
@@ -216,6 +224,17 @@ for (const cue of audio.cues) {
 const VO = new Float32Array(N), voEnv = new Float32Array(N);
 const voice = spec.voice;
 let voLines = 0;
+function readWavStereo(path) { // RIFF reader da trilha de arquivo: PCM s16, 48 kHz, mono ou estéreo (o que trilha.py grava)
+  const b = readFileSync(path); let off = 12, fmt = null;
+  while (off < b.length) { const id = b.toString("ascii", off, off + 4), size = b.readUInt32LE(off + 4);
+    if (id === "fmt ") fmt = { ch: b.readUInt16LE(off + 10), sr: b.readUInt32LE(off + 12), bits: b.readUInt16LE(off + 22) };
+    if (id === "data") { if (!fmt || fmt.sr !== SR || fmt.bits !== 16 || fmt.ch < 1 || fmt.ch > 2) throw new Error(`${path}: expected PCM s16 48 kHz mono/stereo`);
+      const n = size / (2 * fmt.ch), l = new Float32Array(n), r = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const o = off + 8 + i * 2 * fmt.ch; l[i] = b.readInt16LE(o) / 32768; r[i] = fmt.ch === 2 ? b.readInt16LE(o + 2) / 32768 : l[i]; }
+      return { L: l, R: r }; }
+    off += 8 + size + (size & 1); }
+  throw new Error(`${path}: no data chunk`);
+}
 function readWavMono(path) { // minimal RIFF reader: PCM s16, mono, 48 kHz (what voice.py writes)
   const b = readFileSync(path); let off = 12, fmt = null;
   while (off < b.length) { const id = b.toString("ascii", off, off + 4), size = b.readUInt32LE(off + 4);

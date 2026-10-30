@@ -20,7 +20,7 @@ import re
 import shutil
 from pathlib import Path
 
-from . import paths, perfis
+from . import paths, perfis, trilha
 from .contract import Contract, r4
 
 PH = re.compile(r"\{\{\s*([a-z]+)(?::([\w-]+?)([+-][0-9][0-9.]*)?)?\s*\}\}")
@@ -171,6 +171,8 @@ def compile_project(c: Contract, workdir: Path, lock: dict | None) -> dict:
             (workdir / slot["file"]).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, workdir / slot["file"])
     spec = build_spec(c, lock)
+    if c.data["trilha"]["music"].get("arquivo"):  # trilha de arquivo: arranjada aqui (cortes); o build.mjs só a lê
+        spec["audio"]["music"] = {**spec["audio"]["music"], "arquivo": trilha.prepara(c, workdir, lock)}
     # narration from timing.lock.json -> engine manifest
     if spec["voice"]["enabled"]:
         if not lock:
