@@ -27,4 +27,4 @@ trilha:
   seed: 7
   music: { gain_db: -6, fade_in_s: 0.05, fade_out_s: 0.2, progression: [[48, [60, 64, 67]]], sections: [{ name: groove, from: 0, to: 1 }] }
   master: { target_lufs: -14, true_peak_db: -1.5 }
-saida: { arquivo: out/mini.mp4, qualidade: draft }
+saida: { arquivo: out/mini.mp4, qualidade: master }

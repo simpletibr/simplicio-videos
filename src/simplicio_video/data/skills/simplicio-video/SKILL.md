@@ -36,6 +36,7 @@ simplicio-video render <contrato.yaml> --backend colab-cli  # OPCIONAL (crédito
 simplicio-video render <contrato.yaml> --backend colab    # OPCIONAL: bundle zip com o notebook do Colab (manual)
 simplicio-video run <contrato.yaml> --provider gemini     # tudo em sequência (voz -> validate -> render), termina no MP4; render local (padrão)
 simplicio-video render <contrato.yaml> --preview          # prévia 540x960 crf 30 + marca d'água e crédito final do contrato (marca.dagua, marca.credito)
+simplicio-video qc congelado <mp4> [--min-s 0.5] [--json] # quadros congelados: intervalos com início, fim e duração (ffmpeg freezedetect)
 simplicio-video mcp                                       # mesmas operações como tools MCP (stdio)
 ```
 Schema do contrato: vai no pacote (`simplicio_video/data/schema/contract.schema.json`) e o `simplicio-video validate` o aplica. Instalação: `pip install simplicio-video` (Python ≥ 3.10, Node ≥ 22, ffmpeg) ou, num checkout, `bash scripts/dev_install.sh` (`./install.sh`; Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`, UNVERIFIED), que cria o `.venv` com os extras (`./install.sh --with local-tts,mcp`; extras reais: `test`, `local-tts`, `mcp`, `remote`). O `.venv` vem desses scripts, não do `install` do CLI. Esta skill chega ao agente com `simplicio-video install` (o projeto) ou `simplicio-video install --global` (o home: a skill vai para as pastas de skills de 11 hosts, a do Claude, a do Codex, a do Cursor e as outras, e cria as que faltam): no projeto copia a skill para `.claude/skills` e, se o host precisar, o arquivo de entrada dele; não há hooks. `--dry-run` e `--check` (0 em dia, 10 pendente) não escrevem nada, `--verify` confere os arquivos instalados (sai 1 e lista o que difere) e `--uninstall` remove só o que o recibo registra e que ninguém editou. O `install` nunca sobrescreve nem apaga arquivo que não é dele: diz "deixado em paz". `simplicio-video update --check` diz se há versão nova; no pacote do pip o `update` roda `pip install --upgrade` e depois `install --global`, que instala ou atualiza as skills nas 11 pastas de hosts sob o home (cria as que faltam), sem sobrescrever o que o usuário editou, e num checkout o `update` recusa (exit 2) e manda rodar `git pull` e `bash scripts/dev_install.sh`.
@@ -92,9 +93,15 @@ trilha:
   seed: 20261012
   music: { style: playful, gain_db: -5, fade_in_s: 0.05, fade_out_s: 1.2, progression: [[48, [60, 64, 67]]] }
   master: { target_lufs: -14, true_peak_db: -1.5 }
-saida: { arquivo: out/acme-dia-criancas.mp4, qualidade: delivery }
+saida: { arquivo: out/acme-dia-criancas.mp4, qualidade: master }
 ```
 O esqueleto de um contrato completo sai de `simplicio-video init <slug> <Campanha> --template <id>`.
+
+## Saída, trilha de arquivo e ducking
+- **Perfil de saída (`saida.qualidade`).** `saida.qualidade: master` (padrão): H.264 CRF 16, pico de 32 Mbps, tags BT.709, AAC 320 kbps e `+faststart`. `saida.qualidade: lite`: H.264 com pico de 10 Mbps e AAC 192 kbps, para envio leve. `saida.qualidade: thumb`: só o PNG do quadro 0 (sem fade), sem MP4; roda só local e `--preview` não se aplica a ele. Os valores antigos (`delivery`, `draft`, `looks`) não validam mais: troque por `master`. O AAC é pedido a 320 kbps, mas o encoder nativo do ffmpeg desta build entrega cerca de 240 kbps em estéreo.
+- **Trilha de arquivo.** `trilha.music.arquivo` (WAV, MP3 ou outro que o ffmpeg leia) substitui a trilha sintetizada. Com `cortes`, cada trecho tem `de_s` e `ate_s` (na fonte) e `em_s` (onde o trecho entra na trilha de saída, já descontado o crossfade: o primeiro é 0); `db` e `passa_baixa_hz` são opcionais. Os trechos são encadeados com crossfade de `crossfade_ms` (padrão 8). O `validate` confere o `em_s` e se os cortes cobrem o vídeo.
+- **Ducking em duas bandas (`voz.ducking`).** `voz.ducking: { graves_db: -2.5, agudos_db: -8.0 }` (são os padrões): só na trilha de arquivo e só nas falas, os graves abaixo de 250 Hz e os agudos acima de 2,5 kHz baixam; o meio não muda. Sem trilha de arquivo, o `validate` avisa que o ducking não se aplica. `duck_music_db` e `duck_sfx_db` continuam como estavam.
+- **QC de quadro congelado.** `simplicio-video qc congelado <mp4> [--min-s 0.5] [--json]` lista os trechos em que o vídeo fica num mesmo quadro por pelo menos `--min-s` segundos. Use antes de entregar um vídeo com cena parada por engano.
 
 ## Imagens e áudio do Openverse (opcional, revisados por pedido)
 Use quando o vídeo precisa de foto, ilustração, ambiente sonoro ou efeito que não vem do cliente nem do template. O motor não decide se o ativo serve: **você (ou uma pessoa) revisa, por pedido**.

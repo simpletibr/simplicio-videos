@@ -248,4 +248,4 @@ trilha:
     true_peak_db: -1.5
 saida:
   arquivo: out/ligne-pov-wesley-v4-silencioso.mp4
-  qualidade: delivery
+  qualidade: master

@@ -227,6 +227,23 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
                     rep.errors.append(f"voice: {l['id']} take {m['dur_s']:.3f} s > max_s {l['max_s']} s (no time-stretch: shorten text or widen the slot)")
                 if not c.rel(m["file"]).is_file():
                     rep.errors.append(f"voice: {l['id']} file missing: {m['file']}")
+    # ---- trilha de arquivo (etapa 1 BRASA): arquivo existe, cortes conferidos (em_s), arranjo cobre o vídeo ----
+    music = (d.get("trilha") or {}).get("music") or {}
+    if music.get("arquivo"):
+        if not c.rel(music["arquivo"]).is_file():
+            rep.errors.append(f"trilha: arquivo não encontrado: {music['arquivo']}")
+        if music.get("cortes"):
+            from . import trilha  # sem ciclo: trilha não importa o contrato
+            cf = float(music.get("crossfade_ms", trilha.CROSSFADE_PADRAO_MS))
+            try:
+                trilha.valida_cortes(music["cortes"], cf)
+                arranjo = trilha.duracao_arranjo_s(music["cortes"], cf)
+                if arranjo + 0.02 < d["formato"]["duracao_s"]:
+                    rep.errors.append(f"trilha: os cortes somam {r4(arranjo)} s e o vídeo tem {d['formato']['duracao_s']} s")
+            except ValueError as e:
+                rep.errors.append(f"trilha: {e}")
+    if "ducking" in d["voz"] and not music.get("arquivo"):
+        rep.warnings.append("voz.ducking só tem efeito com trilha.music.arquivo (a trilha sintetizada usa duck_music_db e duck_sfx_db)")
     # ---- sfx inside the video ----
     for cue in c.cues():
         if cue["t"] >= d["formato"]["duracao_s"]:

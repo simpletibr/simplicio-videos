@@ -743,5 +743,5 @@ trilha:
     true_peak_db: -1.5
 saida:
   arquivo: out/lothus-dia-criancas.mp4
-  qualidade: delivery
+  qualidade: master
   preview: preview/lothus-dia-criancas-preview-720p.mp4
