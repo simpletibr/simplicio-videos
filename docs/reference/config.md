@@ -25,9 +25,9 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `OPENCUT_DIR` | Pasta do OpenCut, lida pelo próprio editor (trilha `opencut`). | `src/simplicio_video/opencut.py:29` |
 | `OPENMONTAGE_DIR` | Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage. | `src/simplicio_video/montage.py:32`<br>`src/simplicio_video/montage.py:51`<br>`src/simplicio_video/montage.py:52`<br>`src/simplicio_video/montage.py:57`<br>`src/simplicio_video/montage.py:59` |
 | `OPENVERSE_LIBRARY_DIR` | Pasta da biblioteca do Openverse: `index.json`, `files/<sha256>`, `cache/` e `sheets/` (padrão: `~/.simplicio-video/openverse-library`). | `src/simplicio_video/openverse.py:184` |
-| `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:50` |
-| `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:49` |
-| `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `login` e o `doctor` procuram `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual. | `src/simplicio_video/auth.py:445`<br>`src/simplicio_video/engine/remote_render.py:178` |
+| `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:53` |
+| `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:52` |
+| `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `login` e o `doctor` procuram `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual. | `src/simplicio_video/auth.py:460`<br>`src/simplicio_video/engine/remote_render.py:178` |
 | `PATHEXT` | Extensões executáveis do Windows (`.EXE;.CMD`...). Lida só no Windows, ao procurar `simplicio`, `node`, `ffmpeg` e `npm` no PATH. | `src/simplicio_video/hostos.py:159` |
 | `PIP_BREAK_SYSTEM_PACKAGES` | `1` autoriza o pip a mexer no Python do sistema (PEP 668). O `update` de um pacote instalado por pip respeita: sem ele, um Python gerenciado pelo sistema é recusado com exit 2. | `src/simplicio_video/commands/update.py:76` |
 | `PYTHONPATH` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:412` |
@@ -60,7 +60,8 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `TINYFISH_API_KEY` | Chave da API do TinyFish, lida só pelo binário `tinyfish` (que também a guarda em `~/.tinyfish/config.json`). O `busca` a repassa ao binário se estiver no ambiente e nunca a lê, imprime nem grava; nunca em argumento. | `src/simplicio_video/busca.py:166`<br>`src/simplicio_video/busca.py:996` |
 | `TOONFLOW_DATA_DIR` | Pasta de dados do servidor Toonflow (padrão: `~/.simplicio-video/toonflow-data`, fora do checkout). | `src/simplicio_video/toonflow.py:54` |
 | `TOONFLOW_DIR` | Checkout do Toonflow (alternativa a `SIMPLICIO_TOOLS_DIR/toonflow`). | `src/simplicio_video/toonflow.py:65`<br>`src/simplicio_video/toonflow.py:66`<br>`src/simplicio_video/toonflow.py:71`<br>`src/simplicio_video/toonflow.py:73` |
-| `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:70`<br>`src/simplicio_video/voice_clone.py:71`<br>`src/simplicio_video/voicestudio.py:92` |
+| `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:73`<br>`src/simplicio_video/voice_clone.py:74`<br>`src/simplicio_video/voicestudio.py:92` |
 | `VOICESTUDIO_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:84` |
-| `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voice_clone.py:63`<br>`src/simplicio_video/voicestudio.py:81` |
+| `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voice_clone.py:66`<br>`src/simplicio_video/voicestudio.py:81` |
 | `VOXCPM_BIN` | Executável do VoxCPM (provider `openvoice`, clonagem com clipe de referência). | `src/simplicio_video/voice_clone.py:27` |
+| `VOXCPM_DEVICE` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:43`<br>`src/simplicio_video/voice_clone.py:44` |

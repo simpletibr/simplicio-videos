@@ -51,9 +51,9 @@ def copia(caixa):
     return caixa
 
 
-def roda(copia, *argv, script="scripts/dev_install.sh", path=None, entrada=None):
+def roda(copia, *argv, script="scripts/dev_install.sh", path=None, entrada=None, extra_env=None):
     """`bash <script> ...` in the copy with HOME and PATH sealed (fakes first, then only the system tools)."""
-    env = {"HOME": str(copia.home), "PATH": path or f"{copia.bin}:{SISTEMA}", "LANG": "C.UTF-8"}
+    env = {"HOME": str(copia.home), "PATH": path or f"{copia.bin}:{SISTEMA}", "LANG": "C.UTF-8", **(extra_env or {})}
     return subprocess.run(["bash", script, *argv], cwd=copia.repo, env=env, capture_output=True, text=True, encoding="utf-8",
                           errors="replace", input=entrada if entrada is not None else "", timeout=120)
 
@@ -228,7 +228,7 @@ def test_sem_uv_e_sem_terminal_falha_com_a_instrucao(copia):
     if shutil.which("uv", path=SISTEMA):
         pytest.skip("a real uv in /usr/bin")
     disco_suficiente(copia.tmp)
-    feito = roda(copia)
+    feito = roda(copia, extra_env={"SIMPLICIO_UV_SYSTEM_DIRS": ""})  # a real uv in /usr/local/bin or Homebrew must not be found
     assert feito.returncode == 1 and "uv não encontrado" in texto(feito) and "docs.astral.sh/uv" in texto(feito)
     assert not (copia.repo / ".venv").exists()
 

@@ -1,6 +1,6 @@
 import yaml
 
-from conftest import ROOT, WJR
+from conftest import ROOT, WJR, contract_with_coleta_placeholders
 from simplicio_video import contract as ct
 from simplicio_video.compiler import compile_project, render_template
 
@@ -29,7 +29,7 @@ def _client_strings_replaced_by_the_template():
 def test_wjr_compiles_to_the_legacy_composition(tmp_path):
     """The contract port must produce the hand-authored video-01 index.html byte for byte, except for the client
     strings that the template replaced with generic placeholders (each one must still exist in the legacy file)."""
-    c = ct.load(WJR)
+    c = ct.load(contract_with_coleta_placeholders(WJR, tmp_path / "client"))
     compile_project(c, tmp_path / "wd", ct.load_lock(c))
     legacy = (ROOT / "clients/wjr-informatica-games/video-01/index.html").read_bytes().decode("utf8")
     for real, generic in _client_strings_replaced_by_the_template():

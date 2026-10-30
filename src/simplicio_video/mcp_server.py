@@ -152,7 +152,6 @@ def video_list(what: str = "templates", grupo: str | None = None) -> dict:
 
 
 def video_clone(args: str = "") -> dict:
-    from . import clone
     argv = args.split() if isinstance(args, str) else list(args)
     return _cli(["clone", *argv])
 
@@ -161,7 +160,6 @@ def video_montage(args: str = "") -> dict:
     """OpenMontage over MCP: `clone` into the default folder, `doctor`, `preflight` and help. `open` (the default with no args) and
     `serve` start an interface that never ends; `demo` renders with OpenMontage pipelines; `clone <dir>` picks where the checkout is
     written, and any other argument (a script, `-c` or `-m`) would run Python code of the client's choice: all of that is terminal-only."""
-    from . import montage
     argv = _argv(args)
     if argv[:1] == ["clone"] and len(argv) > 1:
         return _so_terminal("montage clone <dir>", "clonar o OpenMontage num diretório escolhido")
@@ -175,7 +173,6 @@ def video_montage(args: str = "") -> dict:
 def video_opencut(args: str = "") -> dict:
     """OpenCut over MCP: `clone` into the default folder, `where`, `--help`. `dev` starts a server that never ends, and
     `clone <dir>` picks where the checkout is written: both run in the terminal."""
-    from . import opencut
     argv = _argv(args)
     if argv[:1] == ["dev"]:
         return _so_terminal("opencut dev", "opencut dev sobe um servidor que não termina")
@@ -185,7 +182,6 @@ def video_opencut(args: str = "") -> dict:
 
 
 def video_edit(args: str = "") -> dict:
-    from . import edit
     argv = args.split() if isinstance(args, str) else list(args)
     return _cli(["edit", *argv])
 
