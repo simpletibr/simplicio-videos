@@ -170,38 +170,6 @@
       }
     },
     {
-      "verb": "video.publish",
-      "description": "Upload saida.arquivo to Google Drive (rclone remote, default gdrive) at drive.caminho/drive.arquivo; never overwrites, idempotent, link from the file ID; records it in clients/<slug>/README.md. Only with an explicit request from the user; otherwise dry_run.",
-      "argv": [
-        "simplicio-video",
-        "publish",
-        "{contrato}"
-      ],
-      "args_schema": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "contrato"
-        ],
-        "properties": {
-          "contrato": {
-            "type": "string"
-          },
-          "file": {
-            "type": "string"
-          },
-          "remote": {
-            "type": "string",
-            "default": "gdrive"
-          },
-          "dry_run": {
-            "type": "boolean",
-            "default": true
-          }
-        }
-      }
-    },
-    {
       "verb": "video.run",
       "description": "validate -> voice -> validate --need-lock -> render -> publish (dry-run unless publish=true).",
       "argv": [
