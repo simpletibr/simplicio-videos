@@ -33,7 +33,7 @@ def test_real_contracts_match_schema(path):
     (lambda d: d.update(extra=1), "extra"),
 ])
 def test_schema_rejects_bad_contracts(mutate, needle):
-    d = copy.deepcopy(yaml.safe_load(LOTHUS.read_text()))
+    d = copy.deepcopy(yaml.safe_load((FIXTURE / "contract.yaml").read_text()))
     mutate(d)
     errs = schema_errors(d)
     assert errs and any(needle in e for e in errs), errs
