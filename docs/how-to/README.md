@@ -4,7 +4,7 @@ Guias para uma tarefa específica. Cada página responde a uma pergunta do tipo 
 
 | Guia | Para quê |
 |---|---|
-| [Instalar, atualizar e checar](install.md) | Instalar o simplicio-video no checkout, atualizar com `update` (checkout ou pip), conferir o ambiente com `doctor` e entrar com `login` |
+| [Instalar, atualizar e checar](install.md) | Instalar o simplicio-video no checkout, atualizar com `update` (checkout ou pip), conferir o ambiente com `doctor` |
 | [Testar em Windows e macOS](testar-em-windows-e-macos.md) | Rodar `scripts/smoke_so.py` num Windows ou macOS de verdade, ler a tabela e registrar o resultado (esses sistemas são UNVERIFIED até lá) |
 | [Receita de vídeo para cliente](../receita-video-cliente.md) | O passo a passo atual: o agente escreve o contrato e o CLI valida, gera a voz, renderiza e entrega |
 | [Usar o LangFlow como cliente do motor](langflow.md) | Instalar o LangFlow à parte, apontar o executável do motor, importar o componente e o fluxo de exemplo, e rodar ponta a ponta |

@@ -452,53 +452,18 @@ def build_parser() -> argparse.ArgumentParser:
                    help="só mostra o plano e sai com 0 (no pacote; num checkout mostra a recusa); não altera nada nem grava o estado")
     p.add_argument("--force", action="store_true", help="reinstala a release do pip mesmo em dia e permite downgrade")
 
-    p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: login, update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace",
+    p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace",
         description="Checa o ambiente e diz a correção exata de cada falha, no contrato simplicio.doctor/v1 do simplicio-loop:\n"
-                    "login, update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY e setup.\n"
-                    "Credenciais só mostram presença, nunca o valor, e nenhum token é impresso. warn não reprova: login ausente,\n"
-                    "workspace ausente e GEMINI_API_KEY ausente são avisos. Exit code 1 só quando alguma checagem é fail.\n"
+                    "update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY e setup.\n"
+                    "Credenciais só mostram presença, nunca o valor, e nenhum token é impresso. warn não reprova: workspace ausente e\n"
+                    "GEMINI_API_KEY ausente são avisos. Exit code 1 só quando alguma checagem é fail.\n"
                     "Sem --online não usa rede: o update vem do cache do último `update --check`.",
-        epilog="exemplos:\n  simplicio-video doctor\n  simplicio-video doctor --json\n  simplicio-video doctor login\n"
+        epilog="exemplos:\n  simplicio-video doctor\n  simplicio-video doctor --json\n"
                "  simplicio-video doctor --online\n  docker compose run --rm simplicio doctor")
-    p.add_argument("what", nargs="?", choices=["all", "login"], default="all", metavar="all|login",
-                   help="all (padrão): todas as checagens; login: só a linha do login")
+    p.add_argument("what", nargs="?", choices=["all"], default="all", metavar="all",
+                   help="all (padrão): todas as checagens")
     p.add_argument("--json", action="store_true", help="imprime {schema, status, version, checks[{name, status, summary, fix, detail}]} em JSON")
     p.add_argument("--online", action="store_true", help="consulta a última versão (GitHub ou git) e regrava o cache do update")
-
-    p = sub.add_parser("login", formatter_class=Fmt, help="entra com o login do Simplicio, o mesmo do Runtime (delega a `simplicio login google`)",
-        description="Espelho do `login` do simplicio-loop: roda `simplicio login google` do Simplicio Runtime (com o terminal ligado) e\n"
-                    "confere o arquivo compartilhado ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE). Sem o Runtime o login próprio é\n"
-                    "UNVERIFIED (sem endpoint documentado): mostra como instalar o Runtime e sai com 1.\n"
-                    "O login não libera nem cobra nada no motor, não guarda credencial e não recebe token por argumento: o filho roda com\n"
-                    "ambiente mínimo (sem GH_TOKEN, chaves de API nem SIMPLICIO_LOGIN_TOKEN). A conta sai mascarada e nenhum token é impresso.\n"
-                    "Saída: 0 verificado, 1 não verificado, 2 recusado (--no-browser impossível no Windows: no_browser_unsupported).",
-        epilog="exemplos:\n  simplicio-video login\n  simplicio-video login --json\n  simplicio-video login --no-browser")
-    p.add_argument("--json", action="store_true", help="imprime um documento simplicio.login/v1 (a saída do Runtime vai para o stderr)")
-    p.add_argument("--no-browser", action="store_true", help="pede ao Runtime que não abra o navegador e mostra o endereço e o código (Linux e macOS)")
-
-    p = sub.add_parser("logout", formatter_class=Fmt, help="apaga o arquivo de login compartilhado (desloga o Runtime também)",
-        description="Apaga ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE) sob a trava login.lock. Esse arquivo é do Simplicio Runtime\n"
-                    "também: sair aqui desloga o Runtime, por isso sem --yes nada é apagado (REFUSED, exit 2). Só apaga um arquivo\n"
-                    "comum, pequeno e com a forma de login do Runtime: JSON com access_token (texto) e access_expires_at (número); só\n"
-                    "refresh_token, como nas credenciais do gcloud, não basta. Qualquer outro (uma chave ssh que SIMPLICIO_AUTH_FILE\n"
-                    "aponte, uma pasta) é recusado, exit 2, not_a_login_file, sem apagar nada. Um link simbólico (um ponto de reparse\n"
-                    "de link no Windows) também é recusado, exit 2, login_symlink, antes de qualquer trava, sem tocar no link nem no alvo.\n"
-                    "O token de renovação não é revogado no servidor. Sem arquivo de login: NO_LOGIN, exit 0, nada é criado.",
-        epilog="exemplos:\n  simplicio-video logout\n  simplicio-video logout --yes\n  simplicio-video logout --yes --json")
-    p.add_argument("--yes", action="store_true", help="confirma: sem isto nada é apagado")
-    p.add_argument("--json", action="store_true", help="imprime um documento simplicio.logout/v1")
-
-    p = sub.add_parser("auth", formatter_class=Fmt, help="inspeciona o login compartilhado com o Runtime (auth status)",
-        description="Ações: status. Mostra quem está logado (conta mascarada), a validade do token, os direitos em cache e a versão do\n"
-                    "Runtime, lendo ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE). Nunca imprime um token.",
-        epilog="exemplos:\n  simplicio-video auth status\n  simplicio-video auth status --json")
-    auth_sub = p.add_subparsers(dest="auth_cmd", metavar="AÇÃO", title="ações", required=True)
-    ps = auth_sub.add_parser("status", formatter_class=Fmt, help="quem está logado, validade e direitos em cache; nunca imprime token",
-        description="Lê o arquivo de login compartilhado (~/.simplicio/login.json ou SIMPLICIO_AUTH_FILE) e mostra: conta (mascarada),\n"
-                    "validade dos tokens (só se existem), direitos em cache, versão do Runtime e a correção quando o login não serve.\n"
-                    "Este comando nunca imprime um token. Saída: 0 logado, 1 não logado. Documento --json: simplicio.auth-status/v1.",
-        epilog="exemplos:\n  simplicio-video auth status\n  simplicio-video auth status --json")
-    ps.add_argument("--json", action="store_true", help="imprime um documento simplicio.auth-status/v1")
 
     p = sub.add_parser("setup", formatter_class=Fmt, help="primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)",
         description="Cria o workspace em $SIMPLICIO_WORKSPACE (padrão ~/.simplicio-video/workspaces/default) com\n"
@@ -714,9 +679,6 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "doctor":
         from .commands import doctor
         return doctor.run(a)
-    if a.cmd in ("login", "logout", "auth"):
-        from .commands import login
-        return login.run(a)
     if a.cmd == "setup":
         from .commands import setup
         return setup.run(a)

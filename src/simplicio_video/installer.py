@@ -42,7 +42,7 @@ OWNERSHIP_SCHEMA = "simplicio.video-install-ownership/v1"
 OWNER = "simplicio-video"
 RECEIPT = Path(".simplicio-video") / "install-ownership.json"
 RECEIPT_REL = RECEIPT.as_posix()
-LOCK_FILE = "install.json"  # `auth.file_lock` swaps the extension: the lock file is `.simplicio-video/install.lock`
+LOCK_FILE = "install.json"  # `lockfile.file_lock` swaps the extension: the lock file is `.simplicio-video/install.lock`
 LOCK_REL = (RECEIPT.parent / "install.lock").as_posix()
 LOCK_WAIT_S = 10.0  # a normal install takes milliseconds: waiting this long means another one is stuck
 SKILLS_DEST = HOST_SKILL_ROOTS["claude"]  # where every install lands, and what `--verify` is anchored to
@@ -286,14 +286,14 @@ def _locked(root: Path, dry_run: bool):
     if dry_run:
         yield
         return
-    from . import auth
+    from . import lockfile
 
     lock = root / RECEIPT.parent / "install.lock"
     with contextlib.ExitStack() as stack:
         try:
-            stack.enter_context(auth.file_lock(root / RECEIPT.parent / LOCK_FILE, wait_s=LOCK_WAIT_S, strict=False))
-        except auth.LoginError as exc:
-            if exc.reason_code == "login_lock_timeout":
+            stack.enter_context(lockfile.file_lock(root / RECEIPT.parent / LOCK_FILE, wait_s=LOCK_WAIT_S))
+        except lockfile.LockError as exc:
+            if exc.reason_code == "lock_timeout":
                 raise InstallError(f"outro `simplicio-video install` está rodando neste alvo (segura {lock}); espere ele terminar "
                                    "e rode de novo") from None
             raise InstallError(f"não consegui travar {lock}: {exc}") from None

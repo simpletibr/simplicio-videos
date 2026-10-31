@@ -1249,8 +1249,7 @@
       "video.doctor",
       "video.setup",
       "video.install",
-      "video.update",
-      "video.auth"
+      "video.update"
     ]
   }
 }

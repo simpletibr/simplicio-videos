@@ -1,11 +1,11 @@
-"""Host facts for install, update, doctor and login: which system this is, where tools live and how to find them.
+"""Host facts for install, update and doctor: which system this is, where tools live and how to find them.
 
 Everything here reads `sys.platform` and the environment at CALL time, never at import time, so the tests can simulate
 Linux, macOS and Windows (tests/packaging/_caixa.py: `simula_so`). It never reads `os.name` for decisions: pathlib picks
 its flavour from `os.name`, and a fake `nt` on Linux breaks every Path().
 
 Finding a program is done here and not with `shutil.which`, for three reasons: on Windows `shutil.which` looks in the
-current directory first (a planted `simplicio.exe` would be run by `simplicio-video login`), an injected environment
+current directory first (a planted `simplicio.exe` would be run by `simplicio-video doctor`), an injected environment
 without PATH would silently fall back to the real PATH of the process, and PATHEXT must come from the environment that
 was passed in, not from the process's own.
 
@@ -49,9 +49,9 @@ def is_macos() -> bool:
 def home_dir(environ: Optional[Mapping[str, str]] = None) -> Path:
     """The user's home: HOME, then USERPROFILE, then Path.home(), on EVERY system.
 
-    This is the order the Runtime reads it (runtime_auth.rs `auth_file`) and the loop too (auth.py `_home`). The login file is
-    shared with the Runtime: with USERPROFILE first on Windows this program would read, and delete, another file than the one
-    the Runtime writes (MSYS2, Cygwin, a HOME set by hand). A blank value is skipped, as in the loop."""
+    This is the order the Runtime reads it (runtime_auth.rs `auth_file`) and the loop too (simplicio-loop auth.py `_home`). The Runtime's copy
+    in ~/.simplicio/bin is found through it: with USERPROFILE first on Windows this program would look in another folder than
+    the Runtime does (MSYS2, Cygwin, a HOME set by hand). A blank value is skipped, as in the loop."""
     if environ is not None:
         for name in ("HOME", "USERPROFILE"):
             value = (environ.get(name) or "").strip()

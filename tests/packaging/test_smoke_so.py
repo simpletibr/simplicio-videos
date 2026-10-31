@@ -1,7 +1,7 @@
 """`scripts/smoke_so.py`: the script that someone runs on a REAL Windows or macOS machine (Python 3.10+, standard library).
 
-It runs the operations commands against a sealed HOME/USERPROFILE/PATH in a temporary folder (never the real ~, never a real
-login: there is no `simplicio` on its PATH), validates each JSON against the packaged schema, prints a Markdown table (OS,
+It runs the operations commands against a sealed HOME/USERPROFILE/PATH in a temporary folder (never the real ~, never the real
+Runtime: there is no `simplicio` on its PATH), validates each JSON against the packaged schema, prints a Markdown table (OS,
 Python, command, expected x obtained exit, ok/failed) and exits 1 when anything fails.
 
 These tests run the script here, on Linux, and prove its guarantees. They do NOT prove anything about Windows or macOS:
@@ -74,19 +74,6 @@ def test_o_ambiente_do_filho_e_isolado(smoke, tmp_path):
         assert str(tmp_path) in env[nome], f"{nome} must be under the temporary folder"
 
 
-def test_o_login_do_filho_vem_de_home_como_o_runtime_e_nao_do_userprofile(smoke, tmp_path):
-    """The old smoke set both variables to ONE folder and so could not see which one the CLI reads. The Runtime reads HOME first."""
-    import json
-    import subprocess
-    smoke.preparar(tmp_path)
-    env = smoke.build_env(tmp_path, dict(os.environ))
-    feito = subprocess.run([sys.executable, "-m", "simplicio_video", "auth", "status", "--json"], env=env, cwd=str(tmp_path),
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
-    doc = json.loads(feito.stdout)
-    assert Path(doc["path"]) == tmp_path / "home" / ".simplicio" / "login.json", doc["path"]
-    assert not (tmp_path / "profile" / ".simplicio").exists()
-
-
 def test_nao_existe_simplicio_no_path_do_filho(smoke, tmp_path):
     env = smoke.build_env(tmp_path, dict(os.environ))
     for nome in ("simplicio", "simplicio.exe", "simplicio.cmd"):
@@ -94,15 +81,14 @@ def test_nao_existe_simplicio_no_path_do_filho(smoke, tmp_path):
     assert not any(Path(p, "simplicio").exists() for p in env["PATH"].split(os.pathsep) if p)
 
 
-def test_nenhum_passo_dispara_login_de_verdade(smoke):
+def test_nenhum_passo_fala_com_login(smoke):
     for passo in smoke.PASSOS:
-        assert "google" not in passo.argv, "the smoke must never start `simplicio login google`"
+        assert "login" not in passo.argv and "logout" not in passo.argv, passo.argv
     nomes = [" ".join(p.argv) for p in smoke.PASSOS]
     for esperado in ("--version", "doctor --json", "install --check --target {alvo}", "install --dry-run --json --target {alvo}",
                      "install --verify --json --target {alvo}", "install --target {alvo}", "install --verify --target {alvo}",
                      "install --check --json --target {alvo}",
-                     "install --uninstall --target {alvo}", "update --dry-run", "auth status --json", "login --json", "logout",
-                     "logout --yes --json"):
+                     "install --uninstall --target {alvo}", "update --dry-run"):
         assert esperado in nomes, f"missing step {esperado!r}: {nomes}"
     assert len(nomes) == len(set(nomes)), "two steps with the same name hide each other"
 
@@ -128,9 +114,6 @@ def test_cada_passo_json_tem_schema_e_cada_passo_tem_exit_esperado(smoke):
         if "--json" in passo.argv:
             assert passo.schema, f"{passo.argv} prints JSON and must be validated against a packaged schema"
     esperados = {" ".join(p.argv): p for p in smoke.PASSOS}
-    assert esperados["login --json"].esperado == {1} and esperados["login --json"].status == "UNVERIFIED"
-    assert esperados["logout"].esperado == {2}
-    assert esperados["logout --yes --json"].esperado == {0} and esperados["logout --yes --json"].status == "NO_LOGIN"
     assert esperados["install --check --target {alvo}"].esperado == {10}, "a fresh target has the skill pending"
     seco = esperados["install --dry-run --json --target {alvo}"]
     assert seco.esperado == {0} and seco.schema == "install-plan" and seco.status == "dry_run"
@@ -171,7 +154,7 @@ def test_sai_1_e_diz_falhou_quando_um_passo_falha(smoke, monkeypatch, capsys, tm
 
 
 def test_um_schema_que_nao_bate_reprova_o_passo(smoke, monkeypatch, capsys, tmp_path):
-    passo = smoke.Passo(argv=["auth", "status", "--json"], esperado={1}, schema="logout")  # wrong schema on purpose
+    passo = smoke.Passo(argv=["doctor", "--json"], esperado={0, 1}, schema="install-plan")  # wrong schema on purpose
     monkeypatch.setattr(smoke, "PASSOS", [passo])
     rc = smoke.main(["--pasta", str(tmp_path / "pasta")])
     out = capsys.readouterr().out
@@ -198,7 +181,6 @@ def test_roda_de_verdade_no_linux_passa_e_nao_toca_no_home_real(smoke, capsys, t
     assert out.count("| ok |") == len(smoke.PASSOS) and "falhou" not in out
     assert platform.python_version() in out and platform.system() in out
     assert {n: (casa / n).exists() for n in antes} == antes, "the smoke touched the real home"
-    assert not (tmp_path / "pasta" / "home" / ".simplicio").exists(), "NO_LOGIN writes nothing, not even the folder"
     assert not (tmp_path / "pasta" / "profile" / ".simplicio").exists()
     assert list((tmp_path / "pasta" / "alvo").iterdir()) == [], "the install of the temporary target was uninstalled again"
     assert list((tmp_path / "pasta" / "home").iterdir()) == [] and list((tmp_path / "pasta" / "profile").iterdir()) == []

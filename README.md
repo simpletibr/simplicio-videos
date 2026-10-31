@@ -25,7 +25,7 @@ Who it is for: people who make ads and short videos with voice, subtitles, and c
 | Openverse library | `openverse` | Ready | Review per request. The license comes from the source |
 | Web research | `busca` | Ready | Needs TinyFish and a key. Daily call cap |
 | External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `edit` | Installed on demand, pinned version | Licenses differ; see the tracks table |
-| MCP server | `simplicio-video-mcp` | 29 `video.*` tools | No login, no logout, no `swap run` spending, no software removal |
+| MCP server | `simplicio-video-mcp` | 29 `video.*` tools | No `swap run` spending, no software removal |
 | Audio cleanup | not available yet | In a PR, not on main yet | not applicable |
 | Dubbing with preserved background | not available in the CLI yet | Today only in the VoiceStudio app; exposure in progress | not applicable |
 
@@ -113,7 +113,6 @@ Not on main yet. This section gets the commands when the audio cleanup PR is mer
 - Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 29 `video.*` tools over the stdio protocol.
 - Tool list: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Excluded on purpose, for safety:**
-  - `login` and `logout`: terminal only;
   - `swap run`: spends credits;
   - `install --uninstall` and `--prune-project-copies`: remove software;
   - `montage` with subcommands other than `clone`, `doctor`, `hyperframes-doctor`, `preflight`, and `help`;
@@ -141,7 +140,6 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 | `fetch: confirme que você pode usar este vídeo com --autorizo` | Authorization not given | Pass `--autorizo` only after confirming you may use the video. Without the flag nothing is downloaded (tested) |
 | `template: X has no 'composicao'` | Skeleton template | Pick a ready template (`simplicio-video list templates`) |
 | `still has a placeholder` in `validate` | Contract generated but not filled in | Fill the placeholders only with collected facts |
-| `não logado` in `doctor` | Shared login not done | Not required for the render. Only matters for Runtime |
 | Python 3.14 warning in `doctor` | CrewAI extras | Use a Python below 3.14 if you need those extras. Not verified |
 | `testada: 0.50.1` in `busca status` | TinyFish at another version | The engine keeps working; the tested version is 0.50.1 |
 
@@ -174,3 +172,4 @@ Each version is pinned in [`src/simplicio_video/tools.py`](src/simplicio_video/t
 - [CHANGELOG.md](CHANGELOG.md): changes by version.
 - [AGENTS.md](AGENTS.md): operating rules for agents.
 - [Decisions (ADRs)](docs/decisoes/): plugin vision, CLI and contract, 100% script flow.
+

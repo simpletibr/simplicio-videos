@@ -1,7 +1,7 @@
 ---
 title: Instalar, atualizar e checar o simplicio-video
-summary: Como criar o ambiente do checkout, instalar a skill no agente (como o simplicio-loop), atualizar com segurança (pip ou checkout), checar o ambiente, entrar com o login do Runtime e rodar pelo Docker local.
-commands: ./install.sh, bash scripts/dev_install.sh, powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1, simplicio-video install, simplicio-video update, simplicio-video doctor, simplicio-video setup, simplicio-video login, simplicio-video logout, simplicio-video auth status, docker compose build
+summary: Como criar o ambiente do checkout, instalar a skill no agente (como o simplicio-loop), atualizar com segurança (pip ou checkout), checar o ambiente e rodar pelo Docker local.
+commands: ./install.sh, bash scripts/dev_install.sh, powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1, simplicio-video install, simplicio-video update, simplicio-video doctor, simplicio-video setup, docker compose build
 issue: 43
 last_verified: 2026-10-17
 ---
@@ -13,7 +13,7 @@ São duas coisas, como no simplicio-loop:
 1. **O ambiente do checkout** (Python 3.12 num `.venv`, o pacote, os extras e uma checagem final): `bash scripts/dev_install.sh` (no Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`; o `-ExecutionPolicy Bypass` vale só para esse processo, porque o Windows de cliente vem com a política `Restricted`). O `./install.sh` da raiz faz o mesmo.
 2. **A skill no seu agente**: `simplicio-video install` copia a skill do simplicio-video para o host (Claude Code, Codex, Cursor...), exatamente como o `install` do simplicio-loop. Funciona igual num checkout e num pacote do pip.
 
-Nada usa sudo, e os dois podem rodar de novo sem estragar nada. O que cada passo faz e por que está assim: [packaging.md](../host/packaging.md) e [ADR-0020](../decisoes/ADR-0020-install-universal-e-update-igual-ao-loop.md) (que supersede a decisão do [ADR-0017](../decisoes/ADR-0017-instalacao-atualizacao.md) sobre o `.venv` e o `git pull`). O login compartilhado com o Runtime: [ADR-0019](../decisoes/ADR-0019-login-compartilhado.md).
+Nada usa sudo, e os dois podem rodar de novo sem estragar nada. O que cada passo faz e por que está assim: [packaging.md](../host/packaging.md) e [ADR-0020](../decisoes/ADR-0020-install-universal-e-update-igual-ao-loop.md) (que supersede a decisão do [ADR-0017](../decisoes/ADR-0017-instalacao-atualizacao.md) sobre o `.venv` e o `git pull`). O login compartilhado com o Runtime (ADR-0019, histórico) não é mais tocado por este CLI: [packaging.md](../host/packaging.md#o-login-do-simplicio-runtime).
 
 ## Requisitos (do ambiente do checkout)
 
@@ -67,7 +67,7 @@ Depois, crie o workspace e confira o ambiente:
 
 ```bash
 .venv/bin/simplicio-video setup --yes     # workspace com tema br, idioma pt-BR, autonomia L1 e orçamentos zerados
-.venv/bin/simplicio-video doctor          # confere login, Python, Node, ffmpeg, disco, credenciais e workspace
+.venv/bin/simplicio-video doctor          # confere Python, Node, ffmpeg, disco, credenciais e workspace
 ```
 
 ### Só o ambiente Python
@@ -154,28 +154,14 @@ O `update` não puxa, não reconstrói e não apaga nada. O `update --check` de 
 ```bash
 .venv/bin/simplicio-video doctor            # tabela com ok, warn e fail; a correção de cada falha
 .venv/bin/simplicio-video doctor --json     # o mesmo em JSON (simplicio.doctor/v1), para scripts
-.venv/bin/simplicio-video doctor login      # só a linha do login
 .venv/bin/simplicio-video doctor --online   # consulta a última versão e regrava o cache do update
 ```
 
-O doctor sai com `0` quando nenhuma checagem falhou e com `1` quando alguma falhou. Aviso não reprova: login ausente, workspace ausente e `GEMINI_API_KEY` ausente são avisos. Ele nunca imprime o valor de uma credencial nem um token, só se existem. A lista completa do que é checado está em [packaging.md](../host/packaging.md).
+O doctor sai com `0` quando nenhuma checagem falhou e com `1` quando alguma falhou. Aviso não reprova: workspace ausente e `GEMINI_API_KEY` ausente são avisos. Ele nunca imprime o valor de uma credencial nem um token, só se existem. A lista completa do que é checado está em [packaging.md](../host/packaging.md).
 
-## Login do Simplicio (o mesmo do Runtime)
+## O login do Runtime
 
-O Runtime exige login para os comandos protegidos dele. O `simplicio-video` não tem login próprio: ele **espelha** o do simplicio-loop e usa o mesmo arquivo, `~/.simplicio/login.json` (ou `SIMPLICIO_AUTH_FILE`).
-
-```bash
-.venv/bin/simplicio-video login              # roda `simplicio login google` e confere o arquivo compartilhado
-.venv/bin/simplicio-video login --no-browser # mostra o endereço e o código em vez de abrir o navegador (Linux e macOS)
-.venv/bin/simplicio-video auth status        # conta (mascarada), validade, direitos em cache e versão do Runtime
-.venv/bin/simplicio-video logout --yes       # apaga o arquivo: desloga o Runtime também
-```
-
-- O login **não libera nem cobra nada** no motor e não guarda credencial: nenhum comando do motor depende dele, e ele não está no `plugin.json` nem no MCP.
-- Sem o Runtime instalado, `login` diz `UNVERIFIED`, mostra como instalar o Runtime e sai com 1. Ele não inicia um login por conta própria.
-- `auth status` sai com 0 logado e 1 não logado; nunca imprime token, e a conta sai mascarada (`w***@gmail.com`).
-- `logout` sem `--yes` não apaga nada (exit 2), porque o arquivo é do Runtime também. O token de renovação não é revogado no servidor.
-- Linux e macOS recusam arquivo de login legível por outros (`chmod 600`) e pasta gravável por outros (`chmod 700`). No Windows essas checagens não existem e as ACLs não são verificadas.
+O simplicio-video não tem `login`, `logout` nem `auth`: o arquivo de login compartilhado (`~/.simplicio/login.json`) é do Simplicio Runtime, e este CLI não o lê, não o grava e não o apaga. Para entrar, use o próprio Runtime (`simplicio login google`).
 
 ## Docker (build local)
 
@@ -213,8 +199,6 @@ Sem a chave, o doctor mostra aviso e o MVP usa a voz local.
 | `install --verify` sai com 1 | veja a lista: `modified` (você editou), `outdated` (rode `install`), `foreign` (já existia), `missing`, `no_receipt` |
 | `outro simplicio-video install está rodando ... install.lock` | espere ele terminar; a trava é do sistema e some sozinha se o processo morrer |
 | para atualizar o pacote do pip | `simplicio-video update`, ou `pip install --upgrade simplicio-video` e depois `simplicio-video install --global` |
-| `login: ... pode ser lido pelo grupo ou por outros` | rode o `chmod 600` que o `auth status` mostra |
-| `login: Simplicio Runtime não encontrado` | instale o Runtime (o comando aparece na saída) e rode `simplicio-video login` de novo |
 | `sem workspace.yaml` / `o setup ainda não rodou` | `.venv/bin/simplicio-video setup --yes` |
 | `.venv usa Python 3.13 e o pedido é 3.12` | `rm -rf .venv` e rode o `dev_install` de novo |
 
@@ -223,4 +207,3 @@ Sem a chave, o doctor mostra aviso e o MVP usa a voz local.
 - O doctor ainda não checa plugins: o health check de plugin chega com a #32.
 - Não há build de `web/`: ele chega com a #34. Até lá, o `dev_install` registra isso e segue.
 - Windows e macOS reais são UNVERIFIED até alguém rodar `scripts/smoke_so.py` lá ([guia](testar-em-windows-e-macos.md)); o `scripts/dev_install.ps1` e o `install.ps1` nunca foram executados.
-- O `login google` do Runtime nunca foi rodado de verdade por este CLI (os testes usam um Runtime falso): UNVERIFIED.
