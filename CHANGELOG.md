@@ -6,7 +6,7 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## 0.6.0 — 2026-10-31
 
-Reúne o que entrou na `main` depois da 0.5.0 (2026-10-17): PRs #119 a #136, todas mescladas. Esta versão sai como tag e GitHub Release. O upload no PyPI não faz parte desta versão.
+Reúne o que entrou na `main` depois da 0.5.0 (2026-10-17): PRs #119 a #136, todas mescladas. Esta versão sai como tag, GitHub Release e pacote no PyPI, publicado em 2026-10-31 a partir da tag v0.6.0.
 
 ### Mudança quebrante
 - **`login`, `logout` e `auth` saem do simplicio-video**: comandos da CLI, tool MCP `video.auth`, check de login do `doctor` e os schemas de login (#134). Quem chamava esses comandos em script deixa de funcionar. O login compartilhado continua sendo do Simplicio Runtime; o simplicio-video não lê, grava nem apaga `~/.simplicio/login.json`.
@@ -44,7 +44,7 @@ Reúne o que entrou na `main` depois da 0.5.0 (2026-10-17): PRs #119 a #136, tod
 - **Trilhas externas:** diretórios presentes em `/var/lib/openbot/simplicio-tools` para matchcut, moneyprinter, opencut, openmontage, toonflow, video-use e voicestudio. Hypit (`clone`) não aparece nessa pasta. Não há verificação pelo `tools` do engine nesta versão.
 - **BRASA etapa 1:** cobre só o código e os testes do gate. O vídeo final e os assets pagos não foram gerados.
 - **Fora desta versão:** `enhance` (resemble-enhance; código só na VPS, sem PR) e `video.yt-dlp` no MCP (branch sem rebase).
-- **PyPI:** não publicado nesta versão.
+- **PyPI:** publicado em 2026-10-31 a partir da tag v0.6.0 (`pip install simplicio-video==0.6.0`). Wheel sha256 `2bd9f3ec2901dcba4a190265ef39ff174d3688b6806e305c3697695941dc0802`; sdist sha256 `00cdec92a28e04528fac2505f2ac54d4a6909cde76612cfc9f097e8626350d97`. Instalação a partir do PyPI verificada na VPS: `simplicio-video --version` mostrou `simplicio-video 0.6.0 (hyperframes@0.8.97)`.
 - **Histórico público:** o repositório ainda contém os dados que saíram de `clients/`. Reescrita de histórico não foi feita.
 
 ## 0.5.0 — 2026-10-17
