@@ -16,7 +16,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import HYPERFRAMES, __version__, paths
+from . import HYPERFRAMES, __version__, paths, perfis
 from .compiler import MARCA_PADRAO_DAGUA, compile_project
 from .contract import Contract, load_lock, validate
 from .voice import sha256_file
@@ -51,7 +51,7 @@ mkdir -p out
 t0=$(date +%s.%N)
 npx --yes __HF__ render --quality "$Q" --strict-variables --variables-file build/variables.json --output out/raw.mp4 $GPU $BROWSER $WORKERS 2>&1 | tee out/render.log
 t1=$(date +%s.%N)
-bash scripts/master.sh out/raw.mp4 out/final.mp4
+bash scripts/master.sh out/raw.mp4 out/final.mp4 perfil.args
 t2=$(date +%s.%N)
 python3 - "$t0" "$t1" "$t2" "$GPU" "$GPU_WHY" "$BROWSER" <<'PY'
 import json, os, re, shutil, subprocess, sys
@@ -173,10 +173,16 @@ def prepare(c: Contract, workdir: Path, log) -> tuple[dict, dict]:
     return {"inputs_sha256": inputs_sha, "files": files, "compile_build_s": round(time.time() - t0, 2)}, lock or {}
 
 
+def _perfil(c: Contract) -> str:
+    """Perfil de saída do contrato (saida.qualidade): master (padrão), lite ou thumb. Ver perfis.py."""
+    return c.data["saida"].get("qualidade", "master")
+
+
 def render_local(c: Contract, out: Path | None = None, quality: str | None = None, workdir: Path | None = None,
                  gpu: bool = False, log=print, manifest: bool = True) -> dict:
     wd = workdir or (c.dir / "build" / "simplicio-video")
-    q = quality or c.data["saida"].get("qualidade", "delivery")
+    perfil = _perfil(c)
+    q = quality or perfis.qualidade_render(perfil)
     info, lock = prepare(c, wd, log)
     dst = (out or c.rel(c.data["saida"]["arquivo"])).resolve()
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -187,7 +193,12 @@ def render_local(c: Contract, out: Path | None = None, quality: str | None = Non
     # software raster + BeginFrame capture, pinned explicitly (same pixels as the remote bundles, see ADR-0003)
     rlog = _run(cmd, wd, log, {"PRODUCER_FORCE_SCREENSHOT": "false"})
     t1 = time.time()
-    mlog = _run(["bash", "scripts/master.sh", "out/raw.mp4", str(dst)], wd, log)
+    if perfil == "thumb":  # sem MP4: só o PNG do quadro 0 do raw (perfis.encerra_thumb)
+        res = perfis.encerra_thumb(wd / "out" / "raw.mp4", dst)
+        log(f"thumb: {res['saida']} (quadro 0; nenhum MP4 gerado)")
+        return {"output": str(res["saida"]), "perfil": perfil, "quality": q, "inputs_sha256": info["inputs_sha256"],
+                "files": info["files"], "timings_s": {"compile_build": info["compile_build_s"], "render": round(t1 - t0, 2)}}
+    mlog = _run(["bash", "scripts/master.sh", "out/raw.mp4", str(dst), "perfil.args"], wd, log)
     t2 = time.time()
     rlog = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", rlog)
     (wd / "out" / "render.log").write_text(rlog)
@@ -233,8 +244,10 @@ def build_bundle(c: Contract, out: Path | None = None, quality: str | None = Non
                  log=print) -> dict:
     """Compile + engine build, then zip the workdir into a reproducible bundle (fixed timestamps) with
     render_bundle.sh and bundle.json. Shared by the colab, colab-cli and kaggle backends."""
+    if _perfil(c) == "thumb":
+        raise SystemExit("saida.qualidade: thumb gera só o PNG do quadro 0 e roda local: use `render` sem --backend remoto")
     wd = c.dir / "build" / "simplicio-video"
-    q = quality or c.data["saida"].get("qualidade", "delivery")
+    q = quality or perfis.qualidade_render(_perfil(c))
     info, _ = prepare(c, wd, log)
     (wd / "render_bundle.sh").write_text(bundle_script(q, gpu_encode))
     bundle_meta = {"schema": "simplicio.render-bundle/v1", "contract": os.path.relpath(c.path, c.home), "contract_sha256": c.sha256(),
@@ -389,6 +402,8 @@ def render_preview(c: Contract, out: Path | None = None, workdir: Path | None = 
                    chrome: dict | None = None) -> dict:
     """`render --preview`: draft local render (no delivery manifest) -> make_preview. The brand (marca) is read from the
     workdir's spec.json. Writes preview.manifest.json."""
+    if _perfil(c) == "thumb":
+        raise SystemExit("render --preview não se aplica a saida.qualidade: thumb (a prévia é um MP4 de baixa resolução)")
     t0 = time.time()
     raw = c.dir / "out" / "draft-full.mp4"
     wd = workdir or (c.dir / "build" / "simplicio-video")

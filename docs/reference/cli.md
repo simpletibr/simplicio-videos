@@ -66,6 +66,7 @@ comandos (na ordem do fluxo):
     shorts        cortes verticais 9:16 de um vídeo longo (determinístico, só ffmpeg)
     media         áudio e vídeo sobre qualquer MP4 (fetch, probe, audio, sheet, subs, burn, mask, replace-
                   audio, voice-track); ffmpeg, e yt-dlp no fetch
+    qc            controle de qualidade de um MP4: quadro congelado (congelado), ffmpeg freezedetect
     opencut       editor OpenCut (open-source) para acabamento manual
     toonflow      Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
     moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
@@ -661,6 +662,25 @@ exemplos:
   simplicio-video openverse library verify clients/acme/video-01/contract.yaml
 ```
 
+## simplicio-video qc
+
+```text
+usage: simplicio-video qc [-h] AÇÃO ...
+
+Controle de qualidade de um MP4 com ffmpeg e ffprobe, sem modelo e sem rede. `congelado` lista os trechos em que o vídeo fica num mesmo quadro por pelo menos --min-s segundos.
+
+options:
+  -h, --help   show this help message and exit
+
+ações:
+  AÇÃO
+    congelado  intervalos de quadro congelado (ffmpeg freezedetect)
+
+exemplos:
+  simplicio-video qc congelado out/video.mp4
+  simplicio-video qc congelado out/video.mp4 --min-s 0.3 --json
+```
+
 ## simplicio-video render
 
 ```text
@@ -706,7 +726,8 @@ options:
                                   L4 | A100 | none
   --timeout TIMEOUT               kaggle/colab-cli: limite do render remoto em s (padrão 3600)
   --quality, -q {draft,looks,delivery}
-                                  qualidade HyperFrames (padrão: saida.qualidade)
+                                  qualidade HyperFrames (padrão: derivada de saida.qualidade: master/lite =
+                                  delivery, thumb = draft)
   --gpu                           local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo
   --gpu-encode {auto,1,0}         kaggle/colab-cli/colab: NVENC no encode (auto = usa se o teste de encode
                                   passar; 0 = libx264, necessário p/ comparar frames com o local). A captura

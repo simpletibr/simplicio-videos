@@ -70,7 +70,7 @@ def skeleton(home: Path, slug: str, campanha: str, template: str, ano: int | Non
                    "music": {"gain_db": -5, "fade_in_s": 0.05, "fade_out_s": 1.0,
                              "progression": [[48, [60, 64, 67]], [43, [59, 62, 67]], [45, [57, 60, 64]], [41, [57, 60, 65]]]},
                    "master": {"target_lufs": -14, "true_peak_db": -1.5}},
-        "saida": {"arquivo": f"out/{slug}-{camp.lower().replace('_', '-')}.mp4", "qualidade": "delivery"},
+        "saida": {"arquivo": f"out/{slug}-{camp.lower().replace('_', '-')}.mp4", "qualidade": "master"},
     }
 
 

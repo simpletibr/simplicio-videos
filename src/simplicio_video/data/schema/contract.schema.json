@@ -100,6 +100,14 @@
         "gain_db": { "type": "number" },
         "duck_music_db": { "type": "number" },
         "duck_sfx_db": { "type": "number" },
+        "ducking": {
+          "type": "object", "additionalProperties": false,
+          "description": "ducking em duas bandas sob a voz, só na trilha de arquivo (trilha.music.arquivo): graves abaixo de 250 Hz e agudos acima de 2.5 kHz baixam só nas janelas de voz; o meio não muda. duck_music_db e duck_sfx_db continuam como antes",
+          "properties": {
+            "graves_db": { "type": "number", "default": -2.5, "description": "ganho dos graves (< 250 Hz) durante a voz, em dB" },
+            "agudos_db": { "type": "number", "default": -8.0, "description": "ganho dos agudos (> 2.5 kHz) durante a voz, em dB" }
+          }
+        },
         "jcut_max_s": { "type": "number", "minimum": 0, "default": 0.15, "description": "how far a line may run past its scene end (J-cut)" },
         "cache_dir": { "type": "string", "default": "assets/audio/voz" },
         "providers": {
@@ -123,7 +131,30 @@
       "properties": {
         "bpm": { "type": "number", "minimum": 40, "maximum": 220 },
         "seed": { "type": "integer" },
-        "music": { "type": "object", "required": ["gain_db", "fade_in_s", "fade_out_s", "progression"], "description": "engine arrangement (build.mjs): style, progression, sections, melody..." },
+        "music": {
+          "type": "object", "required": ["gain_db", "fade_in_s", "fade_out_s"],
+          "if": { "not": { "required": ["arquivo"] } }, "then": { "required": ["progression"] },
+          "dependentRequired": { "cortes": ["arquivo"], "crossfade_ms": ["cortes"] },
+          "description": "trilha: sem arquivo, a síntese do build.mjs (style, progression, sections, melody...); com arquivo, a trilha de arquivo (arquivo + cortes arranjados com crossfade; voz.ducking aplica o ducking em duas bandas)",
+          "properties": {
+            "arquivo": { "type": "string", "minLength": 1, "description": "trilha de arquivo, relative to the contract (WAV/MP3/FLAC...): substitui a síntese" },
+            "crossfade_ms": { "type": "number", "minimum": 0, "maximum": 500, "default": 8, "description": "crossfade entre os trechos de cortes (ms); 0 = emenda seca" },
+            "cortes": {
+              "type": "array", "minItems": 1,
+              "description": "trechos da fonte na ordem da trilha: de_s/ate_s na fonte, em_s = posição de entrada na trilha de saída (já descontado o crossfade; o primeiro é 0)",
+              "items": {
+                "type": "object", "additionalProperties": false, "required": ["de_s", "ate_s", "em_s"],
+                "properties": {
+                  "de_s": { "type": "number", "minimum": 0 },
+                  "ate_s": { "type": "number", "minimum": 0 },
+                  "em_s": { "type": "number", "minimum": 0 },
+                  "db": { "type": "number", "description": "ganho do trecho em dB" },
+                  "passa_baixa_hz": { "type": "number", "exclusiveMinimum": 0, "description": "passa-baixa do trecho (4.ª ordem)" }
+                }
+              }
+            }
+          }
+        },
         "master": { "type": "object", "additionalProperties": false, "required": ["target_lufs", "true_peak_db"],
           "properties": { "target_lufs": { "type": "number", "maximum": -8, "minimum": -30 }, "true_peak_db": { "type": "number", "maximum": 0 } } }
       }
@@ -132,7 +163,7 @@
       "type": "object", "additionalProperties": false, "required": ["arquivo"],
       "properties": {
         "arquivo": { "type": "string", "pattern": "\\.mp4$", "description": "output path relative to the contract (gitignored out/)" },
-        "qualidade": { "enum": ["draft", "looks", "delivery"], "default": "delivery" },
+        "qualidade": { "enum": ["master", "lite", "thumb"], "default": "master", "description": "perfil de saída (src/simplicio_video/perfis.py): master = H.264 CRF 16, BT.709, AAC 320k, +faststart; lite = H.264 maxrate 10 Mbps, AAC 192k; thumb = só o PNG do quadro 0, sem MP4" },
         "preview": { "type": "string", "description": "optional 720p preview path relative to the contract" }
       }
     }

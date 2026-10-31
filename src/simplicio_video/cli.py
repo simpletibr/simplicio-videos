@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from . import (CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, matchcut, moneyprinter, montage, opencut,
-               paths, media, shorts, toonflow, voicestudio)
+               paths, media, qc, shorts, toonflow, voicestudio)
 from .aio import positive_int
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
@@ -206,7 +206,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", "-o", type=Path, help="MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo")
     p.add_argument("--accelerator", help="kaggle: NvidiaTeslaT4 (padrão) | NvidiaL4 | none; colab-cli: T4 (padrão) | L4 | A100 | none")
     p.add_argument("--timeout", type=int, default=3600, help="kaggle/colab-cli: limite do render remoto em s (padrão 3600)")
-    p.add_argument("--quality", "-q", choices=["draft", "looks", "delivery"], help="qualidade HyperFrames (padrão: saida.qualidade)")
+    p.add_argument("--quality", "-q", choices=["draft", "looks", "delivery"], help="qualidade HyperFrames (padrão: derivada de saida.qualidade: master/lite = delivery, thumb = draft)")
     p.add_argument("--gpu", action="store_true", help="local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo")
     p.add_argument("--gpu-encode", choices=["auto", "1", "0"], default="auto",
                    help="kaggle/colab-cli/colab: NVENC no encode (auto = usa se o teste de encode passar; 0 = libx264, "
@@ -266,6 +266,11 @@ def build_parser() -> argparse.ArgumentParser:
         description="Operações de áudio e vídeo com ffmpeg/ffprobe: baixar um vídeo público (fetch, com yt-dlp fixado), ler metadados, extrair áudio, ver quadros, gerar legendas, queimá-las, apagar texto da tela, trocar a trilha e montar a voz por cues.",
         epilog="exemplos:\n  simplicio-video media fetch https://www.instagram.com/veramundopet/reel/DfDdh8ugFWN/ -o reel.mp4 --autorizo\n  simplicio-video media probe reel.mp4\n  simplicio-video media mask reel.mp4 --box 150,622,430,104 -o clean.mp4\n  simplicio-video media subs cues.json -o subs.ass --style band\n  simplicio-video media burn clean.mp4 subs.ass -o final.mp4")
     p.add_argument("args", nargs=argparse.REMAINDER, help="subcomando e argumentos (--help mostra tudo)")
+
+    p = sub.add_parser("qc", formatter_class=Fmt, help="controle de qualidade de um MP4: quadro congelado (congelado), ffmpeg freezedetect",
+        description="Controle de qualidade de um MP4 com ffmpeg e ffprobe, sem modelo e sem rede. `congelado` lista os trechos em que o vídeo fica num mesmo quadro por pelo menos --min-s segundos.",
+        epilog="exemplos:\n  simplicio-video qc congelado out/video.mp4\n  simplicio-video qc congelado out/video.mp4 --min-s 0.3 --json")
+    qc.adiciona_acoes(p)
 
     p = sub.add_parser("opencut", formatter_class=Fmt, help="editor OpenCut (open-source) para acabamento manual",
         description="Clona e sobe o OpenCut (https://github.com/OpenCut-app/OpenCut, MIT; usa o opencut-classic até o rewrite ter API).",
@@ -596,7 +601,7 @@ def _render_json(a) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "toonflow", "moneyprinter", "matchcut", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "qc", "toonflow", "moneyprinter", "matchcut", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
         antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
         if any(h in antes_do_traco for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
@@ -632,6 +637,12 @@ def main(argv: list[str] | None = None) -> int:
                 return media.run_media(sub_args)
             except media.MediaError as e:
                 print(f"media: {e}", file=sys.stderr)
+                return 1
+        if cmd == "qc":
+            try:
+                return qc.run_qc(sub_args)
+            except qc.QcError as e:
+                print(e, file=sys.stderr)
                 return 1
         if cmd == "opencut":
             try:

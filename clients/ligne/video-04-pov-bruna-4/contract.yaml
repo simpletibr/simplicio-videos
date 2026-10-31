@@ -324,4 +324,4 @@ trilha:
     true_peak_db: -1.5
 saida:
   arquivo: out/ligne-pov-pov-bruna-4-v1-silencioso.mp4
-  qualidade: delivery
+  qualidade: master

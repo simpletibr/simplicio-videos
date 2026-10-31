@@ -12,11 +12,16 @@ Rules that do not bend:
   and drops the `key_preview` that `tinyfish auth status` prints.
 - Privacy: the query (or the URL) is sent to a third party. A query with a secret is refused always, with personal data
   (e-mail, CPF, CNPJ) unless the terminal user says so; the check runs BEFORE a call is spent.
+- Destination: `pagina` resolves the host before any call to the binary and refuses the page when any of the addresses is private,
+  loopback, link-local, reserved, multicast or unspecified, or when the name does not resolve. The check runs on this machine; the
+  fetch runs on the TinyFish side, which resolves names by itself. DNS rebinding is not covered.
 - Spend: each run of the binary for a search or a page counts in a per-day counter (UTC) written atomically under a lock; over
   the cap the call is refused with a clear message. A cached answer never spends. A failed call still counts.
 - Provenance: every consulta and every pagina appends a line to `busca.registro.jsonl` (when, query or URL, CLI version, URLs
   shown, sha256 and size of what the CLI returned, sha256 and size of what was delivered, from cache or not). No registry line,
   no delivery.
+- Cache: `cache/` keeps at most `CACHE_MAX_ARQUIVOS` files; writing one past that drops the oldest by mtime. The registry and the
+  counter live outside `cache/` and are never pruned.
 - Text from the internet is DATA: titles, snippets, page text and URLs reach an agent only in fields named `untrusted_*`,
   next to a notice that it is third-party data and never an instruction. It is cut to a size limit and cleaned (no HTML,
   comments, hidden characters, non-http(s) link targets) before it is stored or shown. Nothing is ever executed.
@@ -29,11 +34,13 @@ import argparse
 import contextlib
 import hashlib
 import html
+import ipaddress
 import json
 import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -85,6 +92,7 @@ MAX_SAIDA_PAGINA_BYTES = 8 * 1024 * 1024
 MAX_SAIDA_STATUS_BYTES = 64 * 1024
 MAX_STDERR_BYTES = 64 * 1024
 STALE_DAYS = 7  # a cached answer older than this carries a warning
+CACHE_MAX_ARQUIVOS = 500  # teto de arquivos em cache/; ao gravar um a mais, saem os mais antigos por mtime
 POLL_S = 0.02
 CANAIS = ("terminal", "mcp")
 
@@ -445,6 +453,35 @@ def _url_do_usuario(url) -> str:
     return ok
 
 
+_CLASSES_PROIBIDAS = (("is_loopback", "loopback"), ("is_link_local", "link-local"), ("is_private", "privado"),
+                      ("is_multicast", "multicast"), ("is_reserved", "reservado"), ("is_unspecified", "não especificado"))
+
+
+def _resolver(host: str) -> list[str]:
+    """Every address the name resolves to (IPv4 and IPv6). A module function so the tests replace it: no test depends on DNS."""
+    return [endereco[4][0] for endereco in socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)]
+
+
+def _confere_destino(url: str) -> None:
+    """Before a page is fetched, every address of its host must be public. A private, loopback, link-local, reserved, multicast or
+    unspecified address refuses it, and so does a name that does not resolve. A refusal sends nothing and spends nothing."""
+    host = _URL_RE.fullmatch(url).group(2).partition(":")[0].lower()
+    try:
+        enderecos = _resolver(host)
+    except OSError as e:
+        raise BuscaError(f"não consegui resolver o host {host} ({e.strerror or e}): nada foi enviado ao TinyFish") from None
+    if not enderecos:
+        raise BuscaError(f"o host {host} não resolve para nenhum endereço: nada foi enviado ao TinyFish")
+    for texto in enderecos:
+        try:
+            ip = ipaddress.ip_address(texto.partition("%")[0])
+        except ValueError:
+            raise BuscaError(f"o host {host} resolve para {texto!r}, que não é um endereço IP: nada foi enviado ao TinyFish") from None
+        for attr, nome in _CLASSES_PROIBIDAS:
+            if getattr(ip, attr):
+                raise BuscaError(f"o host {host} resolve para {texto} ({nome}): o motor não busca endereço interno. Nada foi enviado ao TinyFish")
+
+
 # ---------------------------------------------------------------------------------------------------------- third-party text
 
 def _base(valor) -> str:
@@ -712,7 +749,30 @@ def _ler_cache(chave: str, comando: str, params: dict) -> dict | None:
 
 
 def _gravar_cache(chave: str, doc: dict) -> None:
-    _atomic_write(_caminho_cache(chave), _dump(doc))
+    caminho = _caminho_cache(chave)
+    _atomic_write(caminho, _dump(doc))
+    _poda_cache(manter=caminho)
+
+
+def _poda_cache(manter: Path) -> None:
+    """Keeps at most CACHE_MAX_ARQUIVOS files in cache/: the oldest by mtime go. `manter` (the file just written) never goes.
+    Only cache/ is touched: the registry and the counter are outside it."""
+    vivos = []
+    for p in (pasta() / "cache").glob("*.json"):
+        try:
+            vivos.append((p.stat().st_mtime_ns, p.name, p))
+        except OSError:  # sumiu entre o glob e o stat (outro processo)
+            continue
+    vivos.sort()
+    excesso = len(vivos) - CACHE_MAX_ARQUIVOS
+    for _, _, p in vivos:
+        if excesso <= 0:
+            break
+        if p == manter:
+            continue
+        with contextlib.suppress(OSError):
+            p.unlink()
+        excesso -= 1
 
 
 def _registrar(rec: dict) -> str:
@@ -858,6 +918,7 @@ def pagina(url, max_bytes=MAX_BYTES_PADRAO, atualizar=False, max_chamadas_dia=No
     do_cache = doc is not None
     if doc is None:
         _exige_rede()
+        _confere_destino(url)  # antes de qualquer chamada ao binário: recusa sem enviar nem gastar
         exe = _achar_binario()
         _reservar(teto)
         versao = _versao_cli(exe)

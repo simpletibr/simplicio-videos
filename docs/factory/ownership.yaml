@@ -628,3 +628,12 @@ issues:
       - "docs/host/licenses.md"   # nota de licença do produto (AGPL), não mais "proprietário"
       - "clients/wjr-informatica-games/coleta/**"   # coleta de cliente saiu do índice (regra do .gitignore)
       - "tests/test_legal.py"
+  # ------------------------------------------------------------------ follow-ups das revisões do Openverse (#111) e da busca (#112)
+  113:
+    track: followups
+    status: ready
+    owns:
+      - "src/simplicio_video/busca.py"
+      - "tests/test_busca.py"
+      - "tests/test_publish.py"
+      - "plugin.json"   # na lista `generated`, mas a remoção do verbo video.publish é edição manual: não há gerador no repo

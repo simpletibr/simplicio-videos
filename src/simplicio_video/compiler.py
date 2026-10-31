@@ -20,7 +20,7 @@ import re
 import shutil
 from pathlib import Path
 
-from . import paths
+from . import paths, perfis, trilha
 from .contract import Contract, r4
 
 PH = re.compile(r"\{\{\s*([a-z]+)(?::([\w-]+?)([+-][0-9][0-9.]*)?)?\s*\}\}")
@@ -171,6 +171,8 @@ def compile_project(c: Contract, workdir: Path, lock: dict | None) -> dict:
             (workdir / slot["file"]).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, workdir / slot["file"])
     spec = build_spec(c, lock)
+    if c.data["trilha"]["music"].get("arquivo"):  # trilha de arquivo: arranjada aqui (cortes); o build.mjs só a lê
+        spec["audio"]["music"] = {**spec["audio"]["music"], "arquivo": trilha.prepara(c, workdir, lock)}
     # narration from timing.lock.json -> engine manifest
     if spec["voice"]["enabled"]:
         if not lock:
@@ -186,6 +188,9 @@ def compile_project(c: Contract, workdir: Path, lock: dict | None) -> dict:
                                      "text": l["text"], "say": m["say"]}
         (vo / "manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
     (workdir / "spec.json").write_text(json.dumps(spec, indent=2, ensure_ascii=False) + "\n", encoding="utf8")
+    perfil = c.data["saida"].get("qualidade", "master")
+    if perfil != "thumb":  # argumentos de saída do ffmpeg para o master.sh (um por linha); thumb não grava MP4
+        (workdir / "perfil.args").write_text("\n".join(perfis.args_saida(perfil)) + "\n", encoding="utf8")
     html = render_template((comp / entry).read_text(encoding="utf8"), c, spec["blocks"], lock)
     (workdir / "index.html").write_text(html, encoding="utf8")
     meta = {"id": f"{c.data['cliente']['slug']}-{c.data['campanha']['id'].lower()}",
