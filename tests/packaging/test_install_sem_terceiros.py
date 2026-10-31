@@ -110,8 +110,8 @@ def test_o_bloqueio_do_teste_funciona(selado, terceiro):
 
 @pytest.mark.parametrize("modulo", ["simplicio_video", "simplicio_video.paths", "simplicio_video.hostos",
                                     "simplicio_video.distribution", "simplicio_video.installer", "simplicio_video.skill_sync",
-                                    "simplicio_video.auth", "simplicio_video.commands.install", "simplicio_video.commands.update",
-                                    "simplicio_video.commands.login", "simplicio_video.cli"])
+                                    "simplicio_video.lockfile", "simplicio_video.commands.install", "simplicio_video.commands.update",
+                                    "simplicio_video.cli"])
 def test_o_que_o_install_puxa_no_topo_so_usa_a_biblioteca_padrao(selado, modulo):
     feito = _no_interpretador_sem_terceiros("importa", modulo, env=selado.env)
     assert feito.returncode == 0, f"{modulo} needs a third-party module at import time:\n{feito.stderr[-600:]}"

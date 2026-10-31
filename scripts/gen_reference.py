@@ -38,8 +38,8 @@ ENV_READERS = {"get", "pop", "setdefault"}
 # What each variable is for. A variable the code reads but this table does not describe is still listed, marked
 # as undescribed, so the gap shows up in the reference instead of being hidden.
 DESCRIPTIONS = {
-    "GH_TOKEN": "Token do GitHub que o `update` manda só para `api.github.com` ao ler a última release (um redirect para outro host tira o cabeçalho). Só no ambiente; o `login` nunca o repassa ao Runtime.",
-    "GITHUB_TOKEN": "O mesmo que `GH_TOKEN`, quando ele não está definido. Só vai para `api.github.com`; o `login` nunca o repassa ao Runtime.",
+    "GH_TOKEN": "Token do GitHub que o `update` manda só para `api.github.com` ao ler a última release (um redirect para outro host tira o cabeçalho). Só no ambiente.",
+    "GITHUB_TOKEN": "O mesmo que `GH_TOKEN`, quando ele não está definido. Só vai para `api.github.com`.",
     "GEMINI_API_KEY": "Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo.",
     "HYPERFRAMES_BROWSER_PATH": "Chrome headless que o HyperFrames usa na captura. Definido pelo render remoto.",
     "HYPERFRAMES_FFMPEG_PATH": "ffmpeg que o HyperFrames usa. Definido pelo render remoto.",
@@ -57,10 +57,9 @@ DESCRIPTIONS = {
     "OPENMONTAGE_DIR": "Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage.",
     "OPENVOICE_CHECKPOINTS": "Pasta dos checkpoints do OpenVoice (provider `openvoice`).",
     "OPENVOICE_PY": "Python com o OpenVoice instalado (provider `openvoice`).",
-    "PATH": "Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `login` e o `doctor` procuram `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual.",
+    "PATH": "Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `doctor` procura `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual.",
     "PATHEXT": "Extensões executáveis do Windows (`.EXE;.CMD`...). Lida só no Windows, ao procurar `simplicio`, `node`, `ffmpeg` e `npm` no PATH.",
     "PIP_BREAK_SYSTEM_PACKAGES": "`1` autoriza o pip a mexer no Python do sistema (PEP 668). O `update` de um pacote instalado por pip respeita: sem ele, um Python gerenciado pelo sistema é recusado com exit 2.",
-    "SIMPLICIO_AUTH_FILE": "Arquivo de login compartilhado com o Simplicio Runtime (padrão: `~/.simplicio/login.json`). Lido por `login`, `logout`, `auth status` e `doctor`; o motor não grava credencial nem lê o token. Mesmo nome que o Runtime lê.",
     "SIMPLICIO_COLAB_AUTH": "Modo de autenticação do Colab CLI, repassado a `--auth`.",
     "SIMPLICIO_DRIVE_REMOTE": "Nome do remote do rclone para o Drive (padrão: `gdrive`).",
     "SIMPLICIO_FFMPEG_DIR": "Pasta do ffmpeg/ffprobe fixados (render local e `swap`).",

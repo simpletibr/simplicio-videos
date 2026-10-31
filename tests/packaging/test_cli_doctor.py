@@ -1,15 +1,15 @@
-"""Contract of `simplicio-video doctor [all|login] [--json] [--online]`: the loop's `simplicio.doctor/v1`.
+"""Contract of `simplicio-video doctor [all] [--json] [--online]`: the loop's `simplicio.doctor/v1`.
 
 JSON (stdout with --json):
   {"schema": "simplicio.doctor/v1", "status": "ok|warn|fail" (the worst), "version": str,
    "checks": [{"name": str, "status": "ok|warn|fail", "summary": str, "fix": str|null, "detail": {...}}, ...]}
-Sections, in order: login, update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY,
-setup. Exit 1 only when a check is `fail`. A missing login, a missing workspace and a missing GEMINI_API_KEY are `warn`.
+Sections, in order: update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY,
+setup. Exit 1 only when a check is `fail`. A missing workspace and a missing GEMINI_API_KEY are `warn`.
 No token is ever printed.
 
 Environment (fixture `saude`): HOME, PATH and the workspace are sealed under tmp_path (see _caixa.py); `node` and `ffmpeg`
 are fake programs on that PATH (so the same tests run on Windows too), the disk and the ports are injected. A real
-ffmpeg, node, Runtime or login file is never touched.
+ffmpeg, node or Runtime is never touched.
 """
 from __future__ import annotations
 
@@ -19,8 +19,7 @@ import os
 import pytest
 
 import _caixa
-from _caixa import (FFMPEG_COM_LIBASS, FFMPEG_SEM_LIBASS, LEAKY_ENV, SENTINELA, assert_no_secret,
-                    distribution, doctor_cmd, hostos, login_doc, posix_real, put_login, saida_cp1252,
+from _caixa import (FFMPEG_COM_LIBASS, FFMPEG_SEM_LIBASS, SENTINELA, distribution, doctor_cmd, hostos, posix_real, saida_cp1252,
                     so_incompativel, update_cmd, write_fake_tool)
 from _comum import erros_de_schema, executa, exige_registrado, instantanea
 from simplicio_video import __version__
@@ -32,7 +31,7 @@ saude = _caixa.saude
 simula_so = _caixa.simula_so
 
 GB = 1024**3
-SECOES = ["login", "update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
+SECOES = ["update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
           "GEMINI_API_KEY", "setup"]
 
 
@@ -86,18 +85,10 @@ def test_o_status_geral_e_o_pior_dos_checks(saude, capsys):
     assert rel["status"] == max((c["status"] for c in rel["checks"]), key=ordem.get)
 
 
-def test_ambiente_saudavel_so_tem_o_aviso_do_login_ausente(saude, capsys):
+def test_ambiente_saudavel_fica_ok_sem_nenhum_aviso(saude, capsys):
     rc, rel, _, _ = _json(capsys)
-    assert rc == 0 and rel["status"] == "warn"
-    assert [c["name"] for c in rel["checks"] if c["status"] == "warn"] == ["login"]
-    assert [c for c in rel["checks"] if c["status"] == "fail"] == []
-
-
-def test_com_login_valido_o_ambiente_saudavel_fica_ok(saude, capsys):
-    put_login(saude.caixa.login)
-    rc, rel, out, err = _json(capsys)
-    assert rc == 0 and rel["status"] == "ok", [c for c in rel["checks"] if c["status"] != "ok"]
-    assert_no_secret(out, err)
+    assert rc == 0 and rel["status"] == "ok"
+    assert [c["name"] for c in rel["checks"] if c["status"] != "ok"] == []
 
 
 # --- fail ------------------------------------------------------------------------------------------------------------
@@ -157,17 +148,6 @@ def test_o_disco_e_medido_com_shutil_e_nao_com_statvfs(saude, capsys, monkeypatc
     assert _linha(rel, "disk")["status"] == "ok" and saude.medidos
 
 
-@posix_real
-def test_login_com_permissao_frouxa_e_falha_e_diz_o_chmod(saude, capsys):
-    put_login(saude.caixa.login, mode=0o644)
-    rc, rel, out, err = _json(capsys)
-    assert rc == 1 and rel["status"] == "fail"
-    c = _linha(rel, "login")
-    assert c["status"] == "fail" and c["fix"] == f"chmod 600 {saude.caixa.login}"
-    assert c["detail"]["reason_code"] == "login_permissions"
-    assert_no_secret(out, err)
-
-
 def test_setup_com_workspace_invalido_falha_e_manda_regravar(saude, capsys):
     (saude.caixa.workspace / "workspace.yaml").write_text("schema: errado\n", encoding="utf8")
     rc, rel, _, _ = _json(capsys)
@@ -183,19 +163,6 @@ def test_setup_com_policy_ilegivel_falha(saude, capsys):
 
 
 # --- warn ------------------------------------------------------------------------------------------------------------
-
-
-def test_login_ausente_e_aviso_nunca_falha(saude, capsys):
-    rc, rel, _, _ = _json(capsys)
-    c = _linha(rel, "login")
-    assert rc == 0 and c["status"] == "warn" and c["fix"] == "simplicio-video login"
-    assert c["detail"]["reason_code"] == "login_missing" and c["detail"]["schema"] == "simplicio.auth-status/v1"
-
-
-def test_login_expirado_e_aviso(saude, capsys):
-    put_login(saude.caixa.login, login_doc(access_expires_at=1, refresh_token="", refresh_token_expires_at=0))
-    rc, rel, _, _ = _json(capsys)
-    assert rc == 0 and _linha(rel, "login")["status"] == "warn"
 
 
 def test_workspace_ausente_e_aviso_e_manda_rodar_o_setup(saude, capsys):
@@ -300,14 +267,7 @@ def test_sem_online_o_doctor_nao_escreve_nada(saude, capsys):
     assert not saude.caixa.data.exists(), "doctor (offline) must not write the update cache"
 
 
-# --- doctor all, doctor login ----------------------------------------------------------------------------------------
-
-
-def test_doctor_login_roda_so_a_linha_do_login(saude, capsys):
-    exige_registrado("doctor", capsys, main)
-    rc, out, err = executa(["doctor", "login", "--json"], capsys, main)
-    rel = json.loads(out)
-    assert [c["name"] for c in rel["checks"]] == ["login"] and rc == 0 and rel["status"] == "warn"
+# --- doctor all ----------------------------------------------------------------------------------------
 
 
 def test_doctor_all_e_igual_a_doctor_sem_subcomando(saude, capsys):
@@ -318,9 +278,9 @@ def test_doctor_all_e_igual_a_doctor_sem_subcomando(saude, capsys):
 
 
 def test_collect_aceita_so_e_devolve_o_documento(saude):
-    rel = doctor_cmd.collect(only="login")
-    assert rel["schema"] == "simplicio.doctor/v1" and [c["name"] for c in rel["checks"]] == ["login"]
-    assert rel["status"] == "warn" and rel["version"] == __version__
+    rel = doctor_cmd.collect(only="update")
+    assert rel["schema"] == "simplicio.doctor/v1" and [c["name"] for c in rel["checks"]] == ["update"]
+    assert rel["status"] == "ok" and rel["version"] == __version__
 
 
 # --- text layout ------------------------------------------------------------------------------------------------------
@@ -330,10 +290,9 @@ def test_texto_tem_o_layout_do_loop_com_resumo_em_portugues(saude, capsys):
     exige_registrado("doctor", capsys, main)
     rc, out, err = executa(["doctor"], capsys, main)
     linhas = out.splitlines()
-    assert linhas[0] == "simplicio-video doctor: warn"
+    assert linhas[0] == "simplicio-video doctor: ok"
     assert any(l.startswith("  ok    python") for l in linhas), out
-    assert any(l.startswith("  warn  login") for l in linhas), out
-    assert "        fix: simplicio-video login" in linhas
+    assert any(l.startswith("  ok    update") for l in linhas), out
     saida_cp1252(out, err)
 
 
@@ -341,18 +300,6 @@ def test_texto_sem_ffmpeg_sai_com_1_e_mostra_a_correcao(saude, capsys):
     _tira(saude, "ffmpeg")
     rc, out, err = executa(["doctor"], capsys, main)
     assert rc == 1 and "fail" in out.splitlines()[0] and "ffmpeg" in out.lower() and "fix:" in out
-
-
-def test_nenhum_modo_imprime_token_nem_email_com_um_login_presente(saude, capsys, monkeypatch):
-    for nome, valor in LEAKY_ENV.items():
-        monkeypatch.setenv(nome, valor)
-    put_login(saude.caixa.login)
-    saude.caixa.runtime()
-    rc, out, err = executa(["doctor"], capsys, main)
-    assert_no_secret(out, err)
-    rc, rel, out, err = _json(capsys)
-    assert_no_secret(out, err)
-    assert "w***@example.org" in _linha(rel, "login")["summary"]
 
 
 # --- macOS, Windows and an installed package -------------------------------------------------------------------------
@@ -467,7 +414,7 @@ def test_cache_do_update_invalido_e_aviso_com_a_dica_e_nunca_excecao(saude, nome
 def test_o_doctor_inteiro_sobrevive_ao_cache_invalido_em_texto_e_em_json(saude, capsys, nome):
     _escreve_cache(saude, CACHES_INVALIDOS[nome])
     rc, rel, out, err = _json(capsys)
-    assert rc == 0 and len(rel["checks"]) == 12, "the twelve checks must not be lost to one corrupt cache"
+    assert rc == 0 and len(rel["checks"]) == 11, "the eleven checks must not be lost to one corrupt cache"
     assert _linha(rel, "update")["status"] == "warn" and erros_de_schema("doctor", rel) == []
     rc, out, err = executa(["doctor"], capsys, main)
     assert rc == 0 and "Traceback" not in out + err and "\x1b" not in out + err and "warn  update" in out

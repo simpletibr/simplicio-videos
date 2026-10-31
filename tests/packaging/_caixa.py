@@ -1,10 +1,10 @@
-"""Fixture `caixa` and helpers for the login, update, doctor and install tests (direct owner request, PRs #108-#112 style).
+"""Fixture `caixa` and helpers for the update, doctor and install tests (direct owner request, PRs #108-#112 style).
 
-`caixa` is a sealed box: HOME, USERPROFILE and PATH point at folders under tmp_path, the login variables are cleared and
-a tripwire on subprocess.Popen refuses to start any program called `simplicio` that does not live under tmp_path.
-The machine that develops this repo has a REAL Runtime in ~/.simplicio/bin: with this box a test can never find it, and
-if a bug computed its real path anyway, the tripwire fails the test instead of opening a browser. Every login, token and
-e-mail below is FAKE.
+`caixa` is a sealed box: HOME, USERPROFILE and PATH point at folders under tmp_path, and a tripwire on subprocess.Popen
+refuses to start any program called `simplicio` that does not live under tmp_path. The machine that develops this repo has
+a REAL Runtime in ~/.simplicio/bin: with this box a test can never find it, and if a bug computed its real path anyway, the
+tripwire fails the test instead of running it. Nothing here reads or writes the shared login file (~/.simplicio/login.json):
+the video CLI does not use it any more, and the tests never create it.
 
 The fake Runtime is a Python script (not a shell script) with a tiny launcher, so the same tests run on Linux, macOS
 and Windows. Tests that need POSIX file semantics (modes, symlinks, FIFOs, flock) use `posix_real`.
@@ -20,18 +20,12 @@ import shutil
 import subprocess
 import sys
 import threading
-import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import yaml
 
-FAKE_ACCESS = "fake-access-token-AAAA"
-FAKE_REFRESH = "fake-refresh-token-BBBB"
-FAKE_EMAIL = "wesley.fake@example.org"
-MASKED = "w***@example.org"
-SECRETS = (FAKE_ACCESS, FAKE_REFRESH, FAKE_EMAIL, "wesley.fake")
 # Credentials of OTHER programs that must never reach a child process, an output or a log.
 LEAKY_ENV = {
     "GH_TOKEN": "fake-gh-1", "GITHUB_TOKEN": "fake-gh-2", "SIMPLICIO_LOGIN_TOKEN": "fake-lt-3",
@@ -83,44 +77,13 @@ class _Lazy:
         delattr(self._real(), key)
 
 
-auth = _Lazy("simplicio_video.auth")
 hostos = _Lazy("simplicio_video.hostos")
 distribution = _Lazy("simplicio_video.distribution")
-login_cmd = _Lazy("simplicio_video.commands.login")
 update_cmd = _Lazy("simplicio_video.commands.update")
 doctor_cmd = _Lazy("simplicio_video.commands.doctor")
 install_cmd = _Lazy("simplicio_video.commands.install")
 installer = _Lazy("simplicio_video.installer")
 skill_sync = _Lazy("simplicio_video.skill_sync")
-
-
-def login_doc(**over) -> dict:
-    """A FAKE login file as the Runtime writes it (the video CLI only reads it)."""
-    doc = {"access_token": FAKE_ACCESS, "refresh_token": FAKE_REFRESH,
-           "access_expires_at": int(time.time()) + 900, "refresh_token_expires_at": 0,
-           "verification": {"validated": {"user": {"email": FAKE_EMAIL},
-                                          "entitlement": {"tier": "pro", "status": "active", "source": "stripe",
-                                                          "plan": "p", "active": True}}}}
-    doc.update(over)
-    return doc
-
-
-def put_login(path: Path, doc=None, mode: int = 0o600) -> Path:
-    """Write a FAKE login file. The folder is 0700 because the reader refuses a folder others can write."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.parent.chmod(0o700)
-    path.write_text(json.dumps(doc if doc is not None else login_doc()), encoding="utf-8")
-    path.chmod(mode)
-    return path
-
-
-def put_raw(path: Path, data: bytes | str, mode: int = 0o600) -> Path:
-    """Write a file with exactly these bytes (a hostile or corrupt login, say). The folder is 0700, like `put_login`."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.parent.chmod(0o700)
-    path.write_bytes(data.encode("utf-8") if isinstance(data, str) else data)
-    path.chmod(mode)
-    return path
 
 
 def nega_acesso(monkeypatch, *pastas: Path) -> None:
@@ -228,59 +191,33 @@ def solta_fifo(caminho) -> None:
 
 def assert_no_secret(*channels: str) -> None:
     for text in channels:
-        for secret in (*SECRETS, *LEAKY_ENV.values()):
+        for secret in LEAKY_ENV.values():
             assert secret not in text, f"{secret!r} leaked"
 
 
 _FAKE_RUNTIME_PY = r'''
-import json, os, subprocess, sys
+import json, os, sys
 
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "fake_simplicio.json"), encoding="utf-8") as handle:
-    cfg = json.load(handle)
-args = sys.argv[1:]
-if args[:1] == ["--version"]:
-    print("simplicio " + cfg["version"])
+    version = json.load(handle)["version"]
+if sys.argv[1:2] == ["--version"]:
+    print("simplicio " + version)
     print("executable: " + sys.argv[0])
-    print("component: runtime-kernel " + cfg["version"])
+    print("component: runtime-kernel " + version)
     sys.exit(0)
-with open(cfg["log"], "a", encoding="utf-8") as handle:
-    handle.write("argv: " + " ".join(args) + "\n")
-    handle.write("auth_file: " + os.environ.get("SIMPLICIO_AUTH_FILE", "") + "\n")
-    handle.write("browser: " + os.environ.get("BROWSER", "") + "\n")
-with open(cfg["envlog"], "w", encoding="utf-8") as handle:
-    json.dump(dict(os.environ), handle)
-print("Open https://example.invalid/device to sign in")
-if cfg.get("opens"):
-    subprocess.call(["xdg-open", cfg["opens"]])
-target = os.environ.get("SIMPLICIO_AUTH_FILE") or os.path.join(os.path.expanduser("~"), ".simplicio", "login.json")
-if cfg["writes"]:
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    try:
-        os.chmod(os.path.dirname(target), 0o700)
-    except OSError:
-        pass
-    with open(target, "w", encoding="utf-8") as handle:
-        json.dump(cfg["doc"], handle)
-    os.chmod(target, cfg["file_mode"])
-sys.exit(cfg["exit_code"])
+sys.exit(2)
 '''
 
 
-def write_fake_runtime(directory: Path, *, version: str = "3.10.0", writes: bool = True, exit_code: int = 0,
-                       file_mode: int = 0o600, log: Path | None = None, envlog: Path | None = None,
-                       doc: dict | None = None, launcher_name: str = "simplicio") -> Path:
-    """A `simplicio` for tests: answers --version and, on `login google`, logs argv and env and writes a FAKE login.
+def write_fake_runtime(directory: Path, *, version: str = "3.10.0", launcher_name: str = "simplicio") -> Path:
+    """A `simplicio` for tests: it answers `--version` and nothing else.
 
     The launcher uses the absolute path of this interpreter, so the child needs nothing on PATH.
     `launcher_name` only matters on POSIX (on real Windows the launcher is always simplicio.cmd)."""
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "fake_simplicio.py").write_text(_FAKE_RUNTIME_PY, encoding="utf-8")
-    (directory / "fake_simplicio.json").write_text(json.dumps({
-        "version": version, "writes": writes, "exit_code": exit_code, "file_mode": file_mode,
-        "log": str(log or directory / "runtime.log"), "envlog": str(envlog or directory / "runtime-env.json"),
-        "doc": doc if doc is not None else login_doc(access_expires_at=int(time.time()) + 900), "opens": None}),
-        encoding="utf-8")
+    (directory / "fake_simplicio.json").write_text(json.dumps({"version": version}), encoding="utf-8")
     script = str(directory / "fake_simplicio.py")
     if REAL_WINDOWS:
         launcher = directory / "simplicio.cmd"
@@ -409,7 +346,7 @@ def _guard_runtime(monkeypatch, root: Path) -> None:
 
 @pytest.fixture
 def caixa(tmp_path, monkeypatch):
-    """HOME, USERPROFILE and PATH sealed under tmp_path; login variables cleared; real Runtime unreachable."""
+    """HOME, USERPROFILE and PATH sealed under tmp_path; env of other programs cleared; real Runtime unreachable."""
     home = tmp_path / "home"
     home.mkdir()
     bindir = tmp_path / "bin"
@@ -423,16 +360,10 @@ def caixa(tmp_path, monkeypatch):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     _guard_runtime(monkeypatch, tmp_path)
-    box = SimpleNamespace(home=home, bin=bindir, tmp=tmp_path, login=home / ".simplicio" / "login.json",
-                          data=tmp_path / "data", workspace=tmp_path / "workspace",
-                          log=tmp_path / "runtime.log", envlog=tmp_path / "runtime-env.json")
-
-    def runtime(**kw):
-        box.login.parent.mkdir(parents=True, exist_ok=True)
-        box.login.parent.chmod(0o700)
-        return write_fake_runtime(bindir, log=box.log, envlog=box.envlog, **kw)
-
-    box.runtime = runtime
+    # Sockets are blocked in the tests: the doctor's port check is replaced by a function that says "free" (as in `saude`).
+    monkeypatch.setattr(doctor_cmd, "porta_livre", lambda porta, *a, **kw: True)
+    box = SimpleNamespace(home=home, bin=bindir, tmp=tmp_path, data=tmp_path / "data", workspace=tmp_path / "workspace")
+    box.runtime = lambda **kw: write_fake_runtime(bindir, **kw)
     return box
 
 

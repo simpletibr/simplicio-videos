@@ -25,7 +25,7 @@ Para quem é: quem produz anúncios e vídeos curtos com voz, legenda e cortes, 
 | Biblioteca Openverse | `openverse` | Pronto | Revisão por pedido. A licença é da fonte |
 | Pesquisa na web | `busca` | Pronto | Exige TinyFish e chave. Teto diário de chamadas |
 | Trilhas externas | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `edit` | Instalação sob demanda, versão fixada | A licença varia; veja a tabela de trilhas |
-| Servidor MCP | `simplicio-video-mcp` | 29 tools `video.*` | Sem login, logout, gasto em `swap run` nem remoção de software |
+| Servidor MCP | `simplicio-video-mcp` | 29 tools `video.*` | Sem gasto em `swap run` nem remoção de software |
 | Limpeza de áudio | não há ainda | Em PR, não está no main | não se aplica |
 | Dublagem com fundo preservado | não há ainda no CLI | Hoje só no app VoiceStudio; exposição em andamento | não se aplica |
 
@@ -113,7 +113,6 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 - Servidor: `simplicio-video-mcp` (stdio). Testado: responde `initialize` e lista 29 tools `video.*` pelo protocolo stdio.
 - Lista das tools: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Ficam de fora por segurança:**
-  - `login` e `logout`: só no terminal;
   - `swap run`: gasta créditos;
   - `install --uninstall` e `--prune-project-copies`: removem software;
   - `montage` com subcomandos além de `clone`, `doctor`, `hyperframes-doctor`, `preflight` e `help`;
@@ -131,7 +130,6 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 | `fetch: confirme que você pode usar este vídeo com --autorizo` | Autorização não dada | Passar `--autorizo` só depois de confirmar o direito de uso. Sem a flag, nada é baixado (testado) |
 | `template: X has no 'composicao'` | Template de esqueleto | Escolher um template pronto (`simplicio-video list templates`) |
 | campo pendente no `validate` | Contrato gerado e não preenchido | Preencher os campos só com fatos da coleta |
-| `não logado` no `doctor` | Login compartilhado não feito | Não é exigido para o render. Só importa para o Runtime |
 | Aviso de Python 3.14 no `doctor` | Extras do CrewAI | Usar Python abaixo de 3.14 se for usar esses extras. Não verificado |
 | `testada: 0.50.1` no `busca status` | TinyFish em outra versão | O motor segue funcionando; a versão testada é 0.50.1 |
 

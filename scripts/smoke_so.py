@@ -3,15 +3,14 @@
 
 Para rodar de verdade em Windows e macOS (Python 3.10 ou superior; só a biblioteca padrão no topo do script). O script
 roda o CLI com HOME, USERPROFILE, PATH e as pastas de dados dentro de uma pasta temporária: nunca toca no ~ real e nunca
-dispara um login de verdade, porque o PATH do filho não tem `simplicio`. Sem rede (SIMPLICIO_OFFLINE=1). HOME e USERPROFILE
-apontam para pastas DIFERENTES de propósito: o Runtime lê o login de HOME e só depois de USERPROFILE (em todo sistema), e com
+roda o Runtime de verdade, porque o PATH do filho não tem `simplicio`. Sem rede (SIMPLICIO_OFFLINE=1). HOME e USERPROFILE
+apontam para pastas DIFERENTES de propósito: o Runtime acha ~/.simplicio de HOME e só depois de USERPROFILE (em todo sistema), e com
 as duas iguais um erro de ordem passaria sem ninguém ver.
 
 Comandos (exit esperado entre parênteses): --version (0), doctor --json (0 ou 1), install --check num alvo temporário (10: a skill está
 pendente), install --dry-run --json (0), install --verify --json (1: um alvo nunca instalado não passa), install de verdade no alvo
 temporário (0), install --verify (0: os arquivos conferem com o recibo e com o pacote), install --check --json (0: em dia),
-install --uninstall (0: o alvo volta a ficar vazio), update --dry-run (1 sem rede num pacote, 2 num checkout, que recusa),
-auth status --json (1, login_missing), login --json (1, UNVERIFIED), logout (2, REFUSED), logout --yes --json (0, NO_LOGIN). O alvo
+install --uninstall (0: o alvo volta a ficar vazio), update --dry-run (1 sem rede num pacote, 2 num checkout, que recusa). O alvo
 do install é uma pasta da própria pasta temporária (`alvo`): nunca `--global`, nunca o ~ real. Cada JSON é validado contra o schema
 empacotado (src/simplicio_video/data/schemas/cli/). Sai com 0 se tudo bateu e com 1 se algo falhou.
 
@@ -73,10 +72,6 @@ PASSOS = [
     Passo(["install", "--check", "--json", "--target", "{alvo}"], {0}, schema="install-plan", status="dry_run"),
     Passo(["install", "--uninstall", "--target", "{alvo}"], {0}),
     Passo(["update", "--dry-run"], {1, 2}),
-    Passo(["auth", "status", "--json"], {1}, schema="auth-status", reason="login_missing"),
-    Passo(["login", "--json"], {1}, schema="login", status="UNVERIFIED"),
-    Passo(["logout"], {2}),
-    Passo(["logout", "--yes", "--json"], {0}, schema="logout", status="NO_LOGIN"),
 ]
 
 

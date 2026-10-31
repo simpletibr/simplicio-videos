@@ -1,4 +1,4 @@
-"""Linux, macOS and Windows: no hidden POSIX assumption in the install, update, doctor and login code.
+"""Linux, macOS and Windows: no hidden POSIX assumption in the install, update and doctor code.
 
 This suite runs on Linux in the gate and simulates the three systems (`simula_so`: sys.platform and platform.system; os.name
 stays real, because pathlib breaks with a fake `nt`). The path logic is checked with PureWindowsPath and PurePosixPath, the
@@ -145,8 +145,7 @@ def test_find_tool_olha_o_path_e_depois_os_diretorios_extras(tmp_path, simula_so
 
 
 @pytest.mark.parametrize("so", SISTEMAS)
-@pytest.mark.parametrize("argv", [["auth", "status"], ["login"], ["logout"], ["logout", "--yes"], ["doctor", "login"],
-                                  ["install", "--dry-run"]])
+@pytest.mark.parametrize("argv", [["doctor"], ["doctor", "--json"], ["install", "--dry-run"]])
 def test_a_saida_dos_comandos_cabe_no_cp1252(caixa, capsys, simula_so, monkeypatch, so, argv):
     simula_so(so)
     monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(caixa.tmp))
@@ -162,8 +161,7 @@ def test_a_saida_dos_comandos_cabe_no_cp1252(caixa, capsys, simula_so, monkeypat
 def test_os_comandos_nao_tem_traceback_em_nenhum_sistema(caixa, capsys, simula_so, monkeypatch, so):
     simula_so(so)
     monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(caixa.tmp))
-    for argv in (["auth", "status", "--json"], ["login", "--json"], ["logout", "--json"], ["doctor", "login", "--json"],
-                 ["install", "--check", "--json"]):
+    for argv in (["doctor", "--json"], ["install", "--check", "--json"]):
         exige_registrado(argv[0], capsys, main)
         if argv[0] == "install":
             argv = [*argv, "--target", str(caixa.tmp / "alvo")]
@@ -197,15 +195,15 @@ def test_o_runtime_e_achado_com_o_pathext_do_ambiente_passado(tmp_path, simula_s
     pasta = tmp_path / "bin"
     foo = _exe(pasta, "simplicio.foo")
     env = {"HOME": str(tmp_path / "home"), "PATH": str(pasta), "PATHEXT": ".FOO"}
-    assert _caixa.auth.runtime_binary(env) == foo
-    assert _caixa.auth.runtime_binary({**env, "PATHEXT": ".EXE"}) is None
+    assert _caixa.doctor_cmd.runtime_binary(env) == foo
+    assert _caixa.doctor_cmd.runtime_binary({**env, "PATHEXT": ".EXE"}) is None
 
 
 # --- Windows: every text read and every text subprocess names its encoding ------------------------------------------------------
 
 
-FONTES_DE_OPERACAO = ["auth.py", "hostos.py", "distribution.py", "paths.py", "installer.py", "skill_sync.py", "commands/install.py",
-                      "commands/update.py", "commands/doctor.py", "commands/login.py", "commands/setup.py"]
+FONTES_DE_OPERACAO = ["hostos.py", "distribution.py", "paths.py", "installer.py", "skill_sync.py", "lockfile.py", "commands/install.py",
+                      "commands/update.py", "commands/doctor.py", "commands/setup.py"]
 CHAMADAS_DE_SUBPROCESSO = {"run", "call", "check_output", "check_call", "Popen"}
 
 

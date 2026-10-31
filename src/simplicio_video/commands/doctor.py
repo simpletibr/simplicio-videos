@@ -1,9 +1,8 @@
-"""`simplicio-video doctor [all|login] [--json] [--online]`: the environment overview, in the loop's `simplicio.doctor/v1`.
+"""`simplicio-video doctor [all] [--json] [--online]`: the environment overview, in the loop's `simplicio.doctor/v1`.
 
-Ported from simplicio-loop simplicio_loop/doctor_overview.py (2034e2d). Twelve checks, each `ok`, `warn` or `fail` with the
+Ported from simplicio-loop simplicio_loop/doctor_overview.py (2034e2d). Eleven checks, each `ok`, `warn` or `fail` with the
 command that fixes it, in this order:
 
-  login          the shared login file (never fails for a missing or expired login: it is a warning)
   update         offline by default (the cached answer of the last `update --check`); --online asks GitHub or git
   distribution   source (a checkout) or pip (an installed package)
   runtime        the Simplicio Runtime (optional, always ok)
@@ -18,7 +17,6 @@ Exit code 1 only when a check is `fail`. Nothing here installs, changes or print
 Exemplos:
   simplicio-video doctor
   simplicio-video doctor --json
-  simplicio-video doctor login
   docker compose run --rm simplicio doctor
 """
 from __future__ import annotations
@@ -37,13 +35,15 @@ from typing import Any, Callable, Optional
 
 import yaml
 
-from .. import __version__, auth, distribution, hostos, paths
+from .. import __version__, distribution, hostos, paths
 from . import update
 from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA
 
 SCHEMA = "simplicio.doctor/v1"
-SECTIONS = ("login", "update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
+SECTIONS = ("update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
             "GEMINI_API_KEY", "setup")
+RUNTIME_DIR = ".simplicio"  # the Runtime's own copy, when its installer put it in ~/.simplicio/bin
+_RUNTIME_VERSION = re.compile(r"simplicio\s+v?(\d+\.\d+\.\d+)")
 _RANK = {"ok": 0, "warn": 1, "fail": 2}
 GB = 1024**3
 MIN_DISCO_GB = 5
@@ -75,23 +75,7 @@ def python_version() -> tuple:
     return tuple(sys.version_info[:3])
 
 
-# --- login, update, distribution, runtime ------------------------------------------------------------------------------
-
-
-def _login(environ: Optional[dict], now: float) -> dict:
-    doc = auth.describe(environ, now)
-    runtime = doc["runtime"]
-    rt = f"Runtime {runtime['version'] or 'de versão desconhecida'}" if runtime["found"] else "Runtime não instalado"
-    if not doc["logged_in"]:
-        status = "warn" if doc["reason_code"] in {"login_missing", "login_expired"} else "fail"
-        detail = f": {doc['detail']}" if doc.get("detail") else ""
-        return _row("login", status, f"não logado ({doc['reason_code']}); arquivo {doc['path']}; {rt}{detail}", doc["fix"], doc)
-    ent = doc.get("entitlement") or {}
-    tier = f"direitos {ent.get('tier')} ({ent.get('status')}, em cache)" if ent else "direitos ainda não estão em cache"
-    expiry = "expirou" if doc["access_expired"] else f"expira {hostos.utc_stamp(doc['access_expires_at'])}"
-    summary = (f"logado como {doc['email'] or 'uma conta desconhecida'}; token de acesso {expiry}; {tier}; {rt}; "
-               f"arquivo {doc['path']}")
-    return _row("login", "ok", summary, None, doc)
+# --- update, distribution, runtime ------------------------------------------------------------------------------
 
 
 def _update(online: bool, installed: str, fetch: Callable[[], str], state_dir: Path, kind: str, git: Callable) -> dict:
@@ -130,15 +114,34 @@ def _distribution(kind: str, installed: str) -> dict:
     return _row("distribution", "ok", what, None, {"kind": kind, "version": installed})
 
 
+def runtime_binary(environ: Optional[dict] = None) -> Optional[Path]:
+    """The Runtime: `simplicio` on PATH (PATHEXT on Windows, never the current directory), else its copy in ~/.simplicio/bin."""
+    environ = os.environ if environ is None else environ
+    found = hostos.which("simplicio", environ.get("PATH", ""), environ)
+    if found:
+        return found
+    managed = hostos.home_dir(environ) / RUNTIME_DIR / "bin" / hostos.exe_name("simplicio")
+    return managed if hostos.is_file(managed) and os.access(managed, os.X_OK) else None
+
+
+def runtime_version(binary: Path, timeout: float = 10) -> Optional[str]:
+    """`simplicio --version` -> '3.10.0', or None when it does not answer. Its output is read as UTF-8 with `replace`."""
+    try:
+        done = subprocess.run([str(binary), "--version"], capture_output=True, encoding="utf-8", errors="replace",
+                              timeout=timeout, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    found = _RUNTIME_VERSION.search(done.stdout) if done.returncode == 0 else None
+    return found.group(1) if found else None
+
+
 def _runtime(environ: Optional[dict]) -> dict:
-    binary = auth.runtime_binary(environ)
+    binary = runtime_binary(environ)
     if binary is None:
-        return _row("runtime", "ok", "Simplicio Runtime não instalado (opcional: só o `simplicio-video login` precisa dele)",
-                    None, {"found": False})
-    version = auth.runtime_version(binary)
-    return _row("runtime", "ok", f"Simplicio Runtime {version or '(versão desconhecida)'} em {binary}; "
-                "compartilha o arquivo de login com o simplicio-video", None,
-                {"found": True, "path": str(binary), "version": version, "shared_login": True})
+        return _row("runtime", "ok", "Simplicio Runtime não instalado (opcional)", None, {"found": False})
+    version = runtime_version(binary)
+    return _row("runtime", "ok", f"Simplicio Runtime {version or '(versão desconhecida)'} em {binary}", None,
+                {"found": True, "path": str(binary), "version": version})
 
 
 # --- python, node, ffmpeg, disk, ports, credentials ----------------------------------------------------------------------
@@ -305,11 +308,10 @@ def _checa_setup() -> dict:
 # --- the overview -------------------------------------------------------------------------------------------------------
 
 
-def collect(*, online: bool = False, environ: Optional[dict] = None, now: Optional[float] = None,
+def collect(*, online: bool = False, environ: Optional[dict] = None,
             fetch: Optional[Callable[[], str]] = None, only: Optional[str] = None, installed: Optional[str] = None,
             kind: Optional[str] = None, state_dir: Optional[Path] = None, usage: Optional[Callable[[Any], Any]] = None,
             git: Optional[Callable] = None) -> dict:
-    stamp = time.time() if now is None else now
     env = dict(os.environ) if environ is None else environ
     installed = installed or __version__
     state_dir = state_dir or update.default_state_dir()
@@ -328,7 +330,6 @@ def collect(*, online: bool = False, environ: Optional[dict] = None, now: Option
         return cache["ffmpeg"]
 
     makers: dict[str, Callable[[], dict]] = {
-        "login": lambda: _login(env, stamp),
         "update": lambda: _update(online, installed, fetch, state_dir, kind, git),
         "distribution": lambda: _distribution(kind, installed),
         "runtime": lambda: _runtime(env),

@@ -103,20 +103,20 @@ def test_como_testar_em_windows_e_macos_diz_a_verdade_sobre_o_que_foi_rodado():
         "the doc must not claim a system that was not run"
 
 
-def test_packaging_documenta_login_update_doctor_e_o_que_cada_comando_toca():
+def test_packaging_documenta_update_doctor_e_o_que_cada_comando_toca():
     texto = _texto(PACKAGING_MD)
-    for trecho in ("simplicio-video login", "simplicio-video logout", "simplicio-video auth status", "--dry-run", "--online",
-                   "simplicio.doctor/v1", "update-check.json", "~/.simplicio/login.json", "login.lock", "SIMPLICIO_AUTH_FILE",
-                   "PyPI", "exit", "10"):
+    for trecho in ("--dry-run", "--online", "simplicio.doctor/v1", "update-check.json", "install.lock", "PyPI", "exit", "10"):
         assert trecho in texto, f"packaging.md não cita {trecho!r}"
     assert "Windows" in texto and "macOS" in texto and "UNVERIFIED" in texto
+    for removido in ("simplicio-video login", "simplicio-video logout", "simplicio-video auth status", "login.lock"):
+        assert removido not in texto, f"packaging.md ainda cita {removido!r}, que saiu do CLI"
 
 
-def test_how_to_install_cobre_pip_checkout_e_o_login():
+def test_how_to_install_cobre_pip_e_checkout_sem_login():
     texto = _texto(INSTALL_MD)
-    for trecho in ("pip install --upgrade simplicio-video", "simplicio-video login", "instalado por pip",
-                   "simplicio-video doctor --online"):
+    for trecho in ("pip install --upgrade simplicio-video", "instalado por pip", "simplicio-video doctor --online"):
         assert trecho in texto, f"install.md não cita {trecho!r}"
+    assert "simplicio-video login" not in texto and "simplicio-video auth status" not in texto
 
 
 def test_o_changelog_registra_as_mudancas_que_quebram_e_o_que_nao_foi_verificado():
@@ -128,24 +128,27 @@ def test_o_changelog_registra_as_mudancas_que_quebram_e_o_que_nao_foi_verificado
         assert trecho in plano, f"CHANGELOG (Unreleased) não cita {trecho!r}"
 
 
-def test_o_agents_md_lista_os_comandos_novos_no_quickstart():
+def test_o_agents_md_nao_lista_login_logout_nem_auth_no_quickstart():
     texto = (ROOT / "AGENTS.md").read_text(encoding="utf8")
     for trecho in ("simplicio-video login", "simplicio-video logout", "simplicio-video auth status"):
-        assert trecho in texto, f"AGENTS.md sem {trecho!r}"
+        assert trecho not in texto, f"AGENTS.md ainda cita {trecho!r}"
 
 
-def test_a_referencia_gerada_descreve_as_variaveis_novas_e_lista_os_schemas():
+def test_a_referencia_gerada_descreve_as_variaveis_e_lista_os_schemas():
     config = (ROOT / "docs" / "reference" / "config.md").read_text(encoding="utf8")
-    for nome in ("SIMPLICIO_AUTH_FILE", "GH_TOKEN", "GITHUB_TOKEN", "PIP_BREAK_SYSTEM_PACKAGES"):
+    for nome in ("GH_TOKEN", "GITHUB_TOKEN", "PIP_BREAK_SYSTEM_PACKAGES"):
         linha = next((l for l in config.splitlines() if l.startswith(f"| `{nome}` |")), None)
         assert linha, f"{nome} não está em docs/reference/config.md"
         assert "sem descrição" not in linha, f"{nome} sem descrição em gen_reference.DESCRIPTIONS"
+    assert "SIMPLICIO_AUTH_FILE" not in config, "o simplicio-video não lê mais SIMPLICIO_AUTH_FILE"
     schemas = (ROOT / "docs" / "reference" / "schemas.md").read_text(encoding="utf8")
-    for nome in ("doctor", "login", "logout", "auth-status", "update-check", "install-plan", "install-ownership"):
+    for nome in ("doctor", "update-check", "install-plan", "install-ownership"):
         assert f"schemas/cli/{nome}.schema.json" in schemas, f"{nome} fora de docs/reference/schemas.md"
+    for nome in ("login", "logout", "auth-status"):
+        assert f"schemas/cli/{nome}.schema.json" not in schemas, f"{nome} saiu dos schemas"
     cli = (ROOT / "docs" / "reference" / "cli.md").read_text(encoding="utf8")
     for nome in ("login", "logout", "auth"):
-        assert f"## simplicio-video {nome}" in cli
+        assert f"## simplicio-video {nome}" not in cli, f"{nome} saiu da CLI"
 
 
 # --- the corrections of the review of PR #116 ----------------------------------------------------------------------------------
@@ -163,8 +166,7 @@ def test_a_pasta_pessoal_vem_de_home_e_so_depois_de_userprofile_nos_docs():
 
 def test_packaging_documenta_o_que_a_revisao_do_116_mudou():
     texto = _texto(PACKAGING_MD)
-    for trecho in ("SIMPLICIO_OFFLINE", "git fetch", "not_a_login_file", "mais nova que a última release", "LC_ALL",
-                   "XDG_RUNTIME_DIR", "1 MiB", "biblioteca padrão", "login_permissions", "login_invalid"):
+    for trecho in ("SIMPLICIO_OFFLINE", "git fetch", "mais nova que a última release", "biblioteca padrão"):
         assert trecho in texto, f"packaging.md não cita {trecho!r}"
     assert "recusando um downgrade" not in texto and "downgrade sem `--force` |" not in texto, \
         "an installed version newer than the latest release is up to date (exit 0), not a refusal"
@@ -182,8 +184,7 @@ def test_o_changelog_registra_as_correcoes_da_revisao_do_116():
 
 def test_packaging_documenta_as_correcoes_da_segunda_revisao_do_116():
     texto = _texto(PACKAGING_MD)
-    for trecho in ("login_symlink", "StoredAuth", "`access_token` (texto) e `access_expires_at` (número)", "--no-optional-locks",
-                   "2.15", "dubious ownership", "O_NONBLOCK", "PEP 440", "só mostra o plano e sai com `0`"):
+    for trecho in ("--no-optional-locks", "2.15", "dubious ownership", "PEP 440", "só mostra o plano e sai com `0`"):
         assert trecho in texto, f"packaging.md não cita {trecho!r}"
     assert "um link simbólico é removido sem tocar no alvo" not in texto, "a link is now refused, not removed"
 

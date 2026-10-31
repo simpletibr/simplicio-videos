@@ -437,7 +437,7 @@ def test_o_pip_roda_sem_shell(monkeypatch):
     (args, kw), = chamadas
     assert isinstance(args[0], list) and not kw.get("shell")
     from _comum import ROOT
-    for nome in ("update", "install", "login", "doctor", "setup"):
+    for nome in ("update", "install", "doctor", "setup"):
         fonte = (ROOT / "src" / "simplicio_video" / "commands" / f"{nome}.py").read_text(encoding="utf-8")
         assert "shell=True" not in fonte and "os.system" not in fonte, nome
 

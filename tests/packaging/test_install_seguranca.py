@@ -573,11 +573,11 @@ def test_dry_run_e_check_nao_criam_a_trava_nem_a_pasta(repo, bundle):
 
 @posix_real
 def test_o_install_espera_pouco_pela_trava_e_depois_diz_quem_a_segura(repo, bundle, monkeypatch):
-    from simplicio_video import auth
+    from simplicio_video import lockfile
 
     monkeypatch.setattr(installer, "LOCK_WAIT_S", 0.2)
     instala(repo, bundle)
-    with auth.file_lock(repo / ".simplicio-video" / "install.json", wait_s=1, strict=False):
+    with lockfile.file_lock(repo / ".simplicio-video" / "install.json", wait_s=1):
         with pytest.raises(installer.InstallError, match="install.lock"):
             instala(repo, bundle, host="codex")
     assert instala(repo, bundle, host="codex")["written"] >= 0, "free again: it installs"

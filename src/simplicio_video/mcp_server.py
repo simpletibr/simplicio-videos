@@ -2,7 +2,7 @@
 
 Tools: one per CLI command (see TOOLS). Each tool runs the same code as the terminal and returns JSON ({ok, ..., log}).
 The commands that cannot run over MCP refuse with the terminal command to run instead: spending money (swap run, jobs
-swap-run), signing in or out (login, logout), installing or removing software (update that installs, install --uninstall,
+swap-run), installing or removing software (update that installs, install --uninstall,
 --prune-project-copies), downloading or exporting from the Openverse library, and servers that never end (montage
 serve/open, opencut dev, toonflow serve, moneyprinter serve).
 Long steps (render on kaggle/colab-cli) block until done; video.jobs runs a local voice task in the background instead. O upload no Drive não é tool deste servidor.
@@ -469,8 +469,8 @@ def video_status(contrato: str | None = None) -> dict:
 
 
 def video_doctor(args: list[str] | str = "") -> dict:
-    """Diagnosis: login, update, runtime, Python, Node 22, ffmpeg with libass, disk, ports and workspace. args may be `all` or
-    `login`, and `--online` adds the network checks. Read-only."""
+    """Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports and workspace. args may be `all`, and
+    `--online` adds the network checks. Read-only."""
     return _cli(["doctor", "--json", *_argv(args)])
 
 
@@ -505,15 +505,6 @@ def video_update(args: list[str] | str = "") -> dict:
     return _cli(["update", *argv], codigos_ok=(0, 10))
 
 
-def video_auth(args: list[str] | str = "status") -> dict:
-    """The shared Simplicio login, read-only: `status` says who is signed in and for how long, and never prints a token. Signing
-    in and out are terminal-only: they open a browser and change the login file shared with the Runtime."""
-    argv = _argv(args) or ["status"]
-    if argv[0] != "status":
-        return _so_terminal("login | logout", "entrar ou sair do login compartilhado")
-    return _cli(["auth", *argv, *([] if "--json" in argv else ["--json"])])
-
-
 TOOLS = [
     ("video.init", video_init, "Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts). Writes <checkout>/clients/<cliente>/<campanha>/contract.yaml; in a pip-installed package (no checkout) `out`, the absolute path of the contract file, is required and nothing is written without it."),
     ("video.validate", video_validate, "Validate a contract: JSON Schema, assets, scene durations, every line fits (need_lock before render)."),
@@ -540,11 +531,10 @@ TOOLS = [
     ("video.tools", video_tools, "The pinned external tracks: command, repository, pinned version, license and whether each is installed. Read-only."),
     ("video.qc", video_qc, "Quality control of an MP4 with ffmpeg, no model: `congelado MP4 [--min-s 0.5]` lists the intervals where the picture is frozen on one frame (start, end, duration). Read-only; pass an absolute path."),
     ("video.status", video_status, "Installed tools, pinned versions and, with a contract, the render state. Read-only."),
-    ("video.doctor", video_doctor, "Diagnosis: login, update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace (all|login, --online for network checks). Read-only."),
+    ("video.doctor", video_doctor, "Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace (all, --online for network checks). Read-only."),
     ("video.setup", video_setup, "First run: creates the workspace (theme, language, L1 autonomy, zero budgets). Pass --yes to accept the defaults; without a terminal it refuses instead of asking. Writes no credential."),
     ("video.install", video_install, "Copies the six skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies are terminal-only."),
     ("video.update", video_update, "Checks for a newer version (--check or --dry-run). Installing it is terminal-only: it changes the installed package."),
-    ("video.auth", video_auth, "The shared Simplicio login, read-only: status (who is signed in, never a token). Signing in and out are terminal-only."),
 ]
 
 

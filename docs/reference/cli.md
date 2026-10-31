@@ -84,11 +84,7 @@ comandos (na ordem do fluxo):
     list          lista templates, padrões de motion, providers de voz ou ângulos de anúncio
     install       copia as skills do simplicio-video para o host do agente (o projeto, ou o home com --global)
     update        atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar
-    doctor        diagnóstico: login, update, runtime, Python, Node 22, ffmpeg+libass, disco, portas,
-                  workspace
-    login         entra com o login do Simplicio, o mesmo do Runtime (delega a `simplicio login google`)
-    logout        apaga o arquivo de login compartilhado (desloga o Runtime também)
-    auth          inspeciona o login compartilhado com o Runtime (auth status)
+    doctor        diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace
     setup         primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
 
 exemplos:
@@ -111,26 +107,6 @@ ambiente:
   SIMPLICIO_FFMPEG_URL/_SHA256  o mesmo ffmpeg (.tar.xz) baixado e conferido pelos backends remotos
   SV_WORKERS / SV_BROWSER_GPU  workers de captura (auto = núcleos-2) / raster de GPU no Chrome (1 = sem determinismo)
 custo por vídeo (medido e oficial): docs/custos.md · credenciais: docs/decisoes/ADR-0003-fluxo-100-script.md
-```
-
-## simplicio-video auth
-
-```text
-usage: simplicio-video auth [-h] AÇÃO ...
-
-Ações: status. Mostra quem está logado (conta mascarada), a validade do token, os direitos em cache e a versão do
-Runtime, lendo ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE). Nunca imprime um token.
-
-options:
-  -h, --help  show this help message and exit
-
-ações:
-  AÇÃO
-    status    quem está logado, validade e direitos em cache; nunca imprime token
-
-exemplos:
-  simplicio-video auth status
-  simplicio-video auth status --json
 ```
 
 ## simplicio-video busca
@@ -218,16 +194,16 @@ exemplos:
 ## simplicio-video doctor
 
 ```text
-usage: simplicio-video doctor [-h] [--json] [--online] [all|login]
+usage: simplicio-video doctor [-h] [--json] [--online] [all]
 
 Checa o ambiente e diz a correção exata de cada falha, no contrato simplicio.doctor/v1 do simplicio-loop:
-login, update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY e setup.
-Credenciais só mostram presença, nunca o valor, e nenhum token é impresso. warn não reprova: login ausente,
-workspace ausente e GEMINI_API_KEY ausente são avisos. Exit code 1 só quando alguma checagem é fail.
+update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY e setup.
+Credenciais só mostram presença, nunca o valor, e nenhum token é impresso. warn não reprova: workspace ausente e
+GEMINI_API_KEY ausente são avisos. Exit code 1 só quando alguma checagem é fail.
 Sem --online não usa rede: o update vem do cache do último `update --check`.
 
 positional arguments:
-  all|login   all (padrão): todas as checagens; login: só a linha do login
+  all         all (padrão): todas as checagens
 
 options:
   -h, --help  show this help message and exit
@@ -237,7 +213,6 @@ options:
 exemplos:
   simplicio-video doctor
   simplicio-video doctor --json
-  simplicio-video doctor login
   simplicio-video doctor --online
   docker compose run --rm simplicio doctor
 ```
@@ -436,53 +411,6 @@ exemplos:
   simplicio-video list motion --json
   simplicio-video list voices
   simplicio-video list angles --grupo prova --json
-```
-
-## simplicio-video login
-
-```text
-usage: simplicio-video login [-h] [--json] [--no-browser]
-
-Espelho do `login` do simplicio-loop: roda `simplicio login google` do Simplicio Runtime (com o terminal ligado) e
-confere o arquivo compartilhado ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE). Sem o Runtime o login próprio é
-UNVERIFIED (sem endpoint documentado): mostra como instalar o Runtime e sai com 1.
-O login não libera nem cobra nada no motor, não guarda credencial e não recebe token por argumento: o filho roda com
-ambiente mínimo (sem GH_TOKEN, chaves de API nem SIMPLICIO_LOGIN_TOKEN). A conta sai mascarada e nenhum token é impresso.
-Saída: 0 verificado, 1 não verificado, 2 recusado (--no-browser impossível no Windows: no_browser_unsupported).
-
-options:
-  -h, --help    show this help message and exit
-  --json        imprime um documento simplicio.login/v1 (a saída do Runtime vai para o stderr)
-  --no-browser  pede ao Runtime que não abra o navegador e mostra o endereço e o código (Linux e macOS)
-
-exemplos:
-  simplicio-video login
-  simplicio-video login --json
-  simplicio-video login --no-browser
-```
-
-## simplicio-video logout
-
-```text
-usage: simplicio-video logout [-h] [--yes] [--json]
-
-Apaga ~/.simplicio/login.json (ou SIMPLICIO_AUTH_FILE) sob a trava login.lock. Esse arquivo é do Simplicio Runtime
-também: sair aqui desloga o Runtime, por isso sem --yes nada é apagado (REFUSED, exit 2). Só apaga um arquivo
-comum, pequeno e com a forma de login do Runtime: JSON com access_token (texto) e access_expires_at (número); só
-refresh_token, como nas credenciais do gcloud, não basta. Qualquer outro (uma chave ssh que SIMPLICIO_AUTH_FILE
-aponte, uma pasta) é recusado, exit 2, not_a_login_file, sem apagar nada. Um link simbólico (um ponto de reparse
-de link no Windows) também é recusado, exit 2, login_symlink, antes de qualquer trava, sem tocar no link nem no alvo.
-O token de renovação não é revogado no servidor. Sem arquivo de login: NO_LOGIN, exit 0, nada é criado.
-
-options:
-  -h, --help  show this help message and exit
-  --yes       confirma: sem isto nada é apagado
-  --json      imprime um documento simplicio.logout/v1
-
-exemplos:
-  simplicio-video logout
-  simplicio-video logout --yes
-  simplicio-video logout --yes --json
 ```
 
 ## simplicio-video matchcut

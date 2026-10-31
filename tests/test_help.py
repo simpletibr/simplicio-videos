@@ -3,7 +3,7 @@ import pytest
 from conftest import run_cli
 
 SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "shorts", "opencut", "toonflow", "swap", "moneyprinter", "matchcut", "jobs", "social", "openverse", "busca", "mcp", "list",
-        "install", "update", "doctor", "setup", "login", "logout", "auth"]
+        "install", "update", "doctor", "setup"]
 
 
 def test_main_help_lists_the_whole_flow():
