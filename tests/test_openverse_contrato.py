@@ -402,7 +402,8 @@ def test_contratos_dos_clientes_do_repositorio_nao_ganham_erro_do_openverse(env,
     real = ov.verify_asset
     monkeypatch.setattr(ov, "verify_asset", lambda arquivo, bloco=None, idx=None: (olhados.append(Path(arquivo).name), real(arquivo, bloco, idx=idx))[1])
     contratos = sorted(ROOT.glob("clients/*/*/contract.yaml"))
-    assert contratos
+    if not contratos:
+        pytest.skip("contrato real de cliente fora do git (clients/ não é rastreado)")
     esperados = 0
     for i, p in enumerate(contratos):
         d = yaml.safe_load(p.read_text(encoding="utf8"))

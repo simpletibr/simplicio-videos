@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from conftest import LOTHUS, have_render_tools
+from conftest import FIXTURE, have_render_tools
 from simplicio_video import contract as ct
 from simplicio_video import perfis, render, voice
 from simplicio_video.contract import schema_errors
@@ -86,20 +86,20 @@ def test_perfil_de_render_do_hyperframes():
 
 # ---------------------------------------------------------------- (2) enum do schema
 
-def _lothus_com(valor):
-    d = yaml.safe_load(LOTHUS.read_text(encoding="utf8"))
+def _contrato_com(valor):
+    d = yaml.safe_load((FIXTURE / "contract.yaml").read_text(encoding="utf8"))
     d["saida"]["qualidade"] = valor
     return d
 
 
 @pytest.mark.parametrize("valor", ["master", "lite", "thumb"])
 def test_schema_aceita_cada_perfil(valor):
-    assert schema_errors(_lothus_com(valor)) == []
+    assert schema_errors(_contrato_com(valor)) == []
 
 
 @pytest.mark.parametrize("valor", ["delivery", "looks", "draft", "ultra", "MASTER", ""])
 def test_schema_rejeita_qualquer_outro_valor(valor):
-    errs = schema_errors(_lothus_com(valor))
+    errs = schema_errors(_contrato_com(valor))
     assert errs and any("qualidade" in e for e in errs), errs
 
 

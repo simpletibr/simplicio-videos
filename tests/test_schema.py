@@ -5,7 +5,7 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
-from conftest import FIXTURE, LOTHUS, ROOT, WJR
+from conftest import FIXTURE, LOTHUS, ROOT, WJR, needs_client
 from simplicio_video.contract import schema_errors
 
 DATA = ROOT / "src" / "simplicio_video" / "data"  # esquemas, templates e motion: dentro do pacote (#74)
@@ -16,7 +16,8 @@ def test_schema_is_valid_draft_2020_12():
     Draft202012Validator.check_schema(SCHEMA)
 
 
-@pytest.mark.parametrize("path", [WJR, LOTHUS, FIXTURE / "contract.yaml"], ids=["wjr", "lothus", "mini"])
+@pytest.mark.parametrize("path", [pytest.param(WJR, marks=needs_client(WJR)), pytest.param(LOTHUS, marks=needs_client(LOTHUS)),
+                                  FIXTURE / "contract.yaml"], ids=["wjr", "lothus", "mini"])
 def test_real_contracts_match_schema(path):
     assert schema_errors(yaml.safe_load(path.read_text())) == []
 
@@ -32,7 +33,7 @@ def test_real_contracts_match_schema(path):
     (lambda d: d.update(extra=1), "extra"),
 ])
 def test_schema_rejects_bad_contracts(mutate, needle):
-    d = copy.deepcopy(yaml.safe_load(LOTHUS.read_text()))
+    d = copy.deepcopy(yaml.safe_load((FIXTURE / "contract.yaml").read_text()))
     mutate(d)
     errs = schema_errors(d)
     assert errs and any(needle in e for e in errs), errs

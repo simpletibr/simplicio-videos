@@ -17,7 +17,7 @@ import yaml
 import math
 
 from audio_medida import grava_wav, le_wav, potencia_banda_db, tons
-from conftest import LOTHUS
+from conftest import FIXTURE
 from simplicio_video import compiler, trilha
 from simplicio_video import contract as ct
 from simplicio_video.contract import schema_errors
@@ -89,7 +89,7 @@ def test_schema_declara_ducking_com_os_padroes():
     schema = json.loads((Path(__file__).resolve().parents[1] / "src/simplicio_video/data/schema/contract.schema.json").read_text())
     dk = schema["properties"]["voz"]["properties"]["ducking"]["properties"]
     assert dk["graves_db"]["default"] == -2.5 and dk["agudos_db"]["default"] == -8.0
-    d = yaml.safe_load(LOTHUS.read_text(encoding="utf8"))
+    d = yaml.safe_load((FIXTURE / "contract.yaml").read_text(encoding="utf8"))
     d["voz"]["ducking"] = {"graves_db": -3.0}
     assert schema_errors(d) == []
     d["voz"]["ducking"] = {"graves_db": -3.0, "medios_db": -1.0}  # banda desconhecida: recusada
