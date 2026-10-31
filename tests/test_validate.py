@@ -2,7 +2,7 @@ import json
 
 import yaml
 
-from conftest import LOTHUS, WJR, contract_with_coleta_placeholders
+from conftest import LOTHUS, WJR, contract_with_coleta_placeholders, needs_client
 from simplicio_video import contract as ct
 
 
@@ -12,12 +12,14 @@ def _edit(path, fn):
     path.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False))
 
 
+@needs_client(WJR, LOTHUS)
 def test_real_contracts_are_valid_with_lock(tmp_path):
     for i, p in enumerate((WJR, LOTHUS)):
         rep = ct.validate(ct.load(contract_with_coleta_placeholders(p, tmp_path / str(i))), need_lock=True)
         assert rep.ok, rep.errors
 
 
+@needs_client(WJR)
 def test_scene_timeline_and_absolute_times():
     c = ct.load(WJR)
     assert c.cuts() == [0, 1.5, 4, 6.75, 8.5, 10.25, 12.5, 14.5, 16.5, 20]

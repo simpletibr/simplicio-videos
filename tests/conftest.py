@@ -12,6 +12,12 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "mini"
 WJR = ROOT / "clients" / "wjr-informatica-games" / "video-01" / "contract.yaml"
 LOTHUS = ROOT / "clients" / "lothus-odontologia" / "video-01-dia-das-criancas" / "contract.yaml"
+CLIENT_DATA_REASON = "contrato real de cliente fora do git (clients/ não é rastreado)"
+
+
+def needs_client(*paths: Path):
+    """skipif marker for a test that only makes sense with the real client contract(s): clients/ is not tracked by git."""
+    return pytest.mark.skipif(not all(p.exists() for p in paths), reason=CLIENT_DATA_REASON)
 
 
 def contract_with_coleta_placeholders(contract: Path, dest: Path) -> Path:

@@ -10,7 +10,7 @@ import json
 import pytest
 import yaml
 
-from conftest import LOTHUS, have_render_tools, run_cli
+from conftest import LOTHUS, have_render_tools, needs_client, run_cli
 from simplicio_video import contract as ct
 from simplicio_video import publish as pub
 from simplicio_video import render, voice
@@ -34,6 +34,7 @@ def _mp4(mini):
 
 # (a) contract without drive validates
 
+@needs_client(LOTHUS)
 def test_schema_accepts_real_contract_without_drive():
     d = yaml.safe_load(LOTHUS.read_text())
     d.pop("drive", None)
