@@ -121,6 +121,16 @@ Not on main yet. This section gets the commands when the audio cleanup PR is mer
   - Source: `src/simplicio_video/mcp_server.py`.
 - **Clients:** the Claude Code and Codex configuration was not verified. `claude` is installed on this Mac, but I did not run `claude mcp add` so as not to change its configuration. Codex is not installed.
 
+### Agent hosts
+
+<!-- BEGIN GENERATED: host -->
+Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
+
+- [Gate local, TDD e pouso de PRs](docs/host/gate.md): Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
+- [Licenças das dependências](docs/host/licenses.md): Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e o que ainda falta (web/).
+- [Pacote de operação (install, update, doctor, setup)](docs/host/packaging.md): O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites até as
+<!-- END GENERATED -->
+
 ## Troubleshooting
 
 | Symptom | Likely cause | What to do |
