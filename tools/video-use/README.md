@@ -7,7 +7,7 @@
 | Pedido | Caminho |
 |---|---|
 | Vídeo novo a partir do intake/template, motion, tipografia, cenas sintéticas | **HyperFrames direto** (etapas 3–4–7). O LLM/template compõe e o render já corta no quadro; video-use não acrescenta nada |
-| "Corta para 15 s / 6 s", versão curta de um vídeo pronto | **video-use** sobre o MP4 renderizado (ex.: [video-02](../../clients/wjr-informatica-games/video-02-videouse/README.md)) — ou, se a cena inteira puder sair, um spec novo no HyperFrames |
+| "Corta para 15 s / 6 s", versão curta de um vídeo pronto | **video-use** sobre o MP4 renderizado (ex.: video-02, `clients/wjr-informatica-games/video-02-videouse/README.md` (fora do git: clients/ não é rastreado)) — ou, se a cena inteira puder sair, um spec novo no HyperFrames |
 | Reordenar blocos de um vídeo pronto, aparar início/fim | **video-use** |
 | Footage do cliente (depoimento, bancada, loja, clipes Grok Imagine): tirar "éé", retakes, silêncio | **video-use** (é para isso que ele existe) → clipes vão para os slots `clips` do spec ou viram o vídeo final |
 | Legendas (queimadas ou SRT lateral) sobre fala real | **video-use** (`--build-subtitles`), por último na cadeia |

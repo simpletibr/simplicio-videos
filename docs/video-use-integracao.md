@@ -2,7 +2,7 @@
 
 **O que é:** [browser-use/video-use](https://github.com/browser-use/video-use) (MIT, avaliado no commit `b877063`, 23/09/2026) é uma *skill* para Claude Code/Codex/qualquer agente com shell que edita **footage bruto** por conversa: o próprio agente anfitrião lê a transcrição, propõe a estratégia, escreve um EDL (`edl.json`) e os helpers em Python/ffmpeg executam. Não embute LLM; não precisa de chave de modelo.
 
-Uso e setup: [`tools/video-use/`](../tools/video-use/README.md) (ferramenta **opcional**, op `edit` do plugin). Prova feita aqui: [`clients/wjr-informatica-games/video-02-videouse/`](../clients/wjr-informatica-games/video-02-videouse/README.md) — cutdown de 11,5 s do video-01 (transcrição local → EDL → overlay HyperFrames → render → autoavaliação), 30/09/2026.
+Uso e setup: [`tools/video-use/`](../tools/video-use/README.md) (ferramenta **opcional**, op `edit` do plugin). Prova feita aqui: `clients/wjr-informatica-games/video-02-videouse/` (fora do git: clients/ não é rastreado) — cutdown de 11,5 s do video-01 (transcrição local → EDL → overlay HyperFrames → render → autoavaliação), 30/09/2026.
 
 ## Peças do video-use
 

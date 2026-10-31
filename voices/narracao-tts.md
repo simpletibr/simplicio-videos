@@ -37,7 +37,7 @@ npm run voice:force   # regera tudo
 - Marca d'água: o áudio do Chatterbox leva a marca imperceptível **Perth** (identifica áudio sintético; não é audível).
 - Alternativa local mais leve: `"provider": "kokoro"` (Kokoro-82M, `pf_dora`/`pm_alex`/`pm_santa`, `speed` 1.0) — menos natural, mais rápido.
 
-Comparativo medido (UTMOS/WER) e licenças de tudo que foi avaliado: [`video-01/assets/audio/LICENSES.md`](../clients/wjr-informatica-games/video-01/assets/audio/LICENSES.md).
+Comparativo medido (UTMOS/WER) e licenças de tudo que foi avaliado: `clients/wjr-informatica-games/video-01/assets/audio/LICENSES.md` (fora do git: clients/ não é rastreado).
 
 ## Narração gerada fora (provider `file`, ex.: Gemini TTS no Google AI Studio)
 

@@ -6,7 +6,7 @@ Passo a passo para uma pessoa (sem programar) gerar as frases da narração com 
 
 - Conta Google logada (usamos a conta com Google AI Pro, `wesleybob4@gmail.com`; qualquer conta com acesso ao AI Studio funciona).
 - O roteiro com as frases e o **tempo máximo de cada uma**: `clients/wjr-informatica-games/video-01/assets/audio/vo/external/README.md` (a mesma lista está em `spec.json → voice.lines`).
-- Licença/termos: ver [`video-01/assets/audio/LICENSES.md`](../clients/wjr-informatica-games/video-01/assets/audio/LICENSES.md). Resumo: o Google não reivindica o áudio gerado, mas no AI Studio gratuito o texto e o áudio podem ser usados pelo Google para melhorar produtos → não cole dados pessoais/sensíveis.
+- Licença/termos: ver `clients/wjr-informatica-games/video-01/assets/audio/LICENSES.md` (fora do git: clients/ não é rastreado). Resumo: o Google não reivindica o áudio gerado, mas no AI Studio gratuito o texto e o áudio podem ser usados pelo Google para melhorar produtos → não cole dados pessoais/sensíveis.
 
 ## Passo a passo (AI Studio)
 
