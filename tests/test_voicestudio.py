@@ -14,6 +14,7 @@ import pytest
 from simplicio_video import voicestudio as vs
 
 WAV = b"RIFF-fake-wav-bytes"
+MP4 = b"\x00\x00\x00\x18ftypmp42-fake-dubbed-video"
 
 
 def _text(payload) -> dict:
@@ -32,6 +33,8 @@ class Fake:
         self.well_known = {"version": "0.5.7", "tts": True}
         self.well_known_status = 200
         self.sse = False
+        self.dub_calls = []
+        self.dub_response = (200, {"Content-Type": "video/mp4"}, MP4)
 
     def __call__(self, method, url, body, headers, timeout):
         # Only the MCP lane is JSON-RPC: the REST lane carries multipart bytes.
@@ -42,6 +45,9 @@ class Fake:
             if self.well_known_status != 200:
                 return self.well_known_status, {}, b"not found"
             return 200, {"Content-Type": "application/json"}, json.dumps(self.well_known).encode()
+        if vs.DUB_DOWNLOAD_PATH in url:
+            self.dub_calls.append({"method": method, "url": url, "headers": dict(headers), "timeout": timeout})
+            return self.dub_response
         if url.endswith(vs.TRANSCRIPTIONS_PATH):
             self.rest_body = body
             return 200, {"Content-Type": "application/json"}, json.dumps(self.rest_response).encode()
@@ -298,3 +304,90 @@ def test_default_transport_reports_a_closed_app_without_hanging(monkeypatch):
     monkeypatch.setattr("urllib.request.urlopen", refused)
     with pytest.raises(vs.VoiceStudioError, match="Abra o VoiceStudio"):
         vs.default_transport("GET", "http://127.0.0.1:3900/x", None, {}, 5)
+
+
+# ---- dub-export: a dubbing job that already exists in the app, with the background kept ------------------------------
+
+def _query(url: str) -> dict:
+    from urllib.parse import parse_qs, urlsplit
+    return {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
+
+
+def test_dub_export_writes_the_mp4_and_asks_for_the_preserved_background(fake, tmp_path):
+    out = tmp_path / "sub" / "dublado.mp4"
+    r = vs.VoiceStudio().dub_export("a1b2c3d4", "pl", out)
+    assert out.read_bytes() == MP4 and not (tmp_path / "sub" / "dublado.mp4.part").exists()
+    assert r == {"out": str(out), "bytes": len(MP4), "job": "a1b2c3d4", "lang": "pl", "bed_level": 1.0, "preserve_bg": True, "warning": None}
+    call = fake.dub_calls[0]
+    assert call["method"] == "GET" and call["url"].startswith("http://127.0.0.1:3900/dub/download/a1b2c3d4?")
+    assert _query(call["url"]) == {"preserve_bg": "true", "bed_level": "1.0", "default_track": "pl", "include_tracks": "pl"}
+    assert call["timeout"] >= 600  # the app remuxes the video before it answers
+    assert fake.tools == []  # nothing is generated: no MCP tool is called
+
+
+def test_dub_export_passes_the_bed_level_and_the_api_key(fake, tmp_path, monkeypatch):
+    monkeypatch.setenv("VOICESTUDIO_API_KEY", "chave-falsa")
+    vs.VoiceStudio().dub_export("job_1", "pt", tmp_path / "o.mp4", bed_level=0.6)
+    call = fake.dub_calls[0]
+    assert _query(call["url"])["bed_level"] == "0.6" and call["headers"]["Authorization"] == "Bearer chave-falsa"
+
+
+@pytest.mark.parametrize("level", [-0.1, 4.01, float("nan"), "alto"])
+def test_dub_export_rejects_a_bed_level_the_app_would_refuse(fake, tmp_path, level):
+    with pytest.raises(vs.VoiceStudioError, match="bed-level"):
+        vs.VoiceStudio().dub_export("job1", "pl", tmp_path / "o.mp4", bed_level=level)
+    assert fake.dub_calls == [] and not (tmp_path / "o.mp4").exists()
+
+
+@pytest.mark.parametrize("job,lang", [("../etc", "pl"), ("a/b", "pl"), ("", "pl"), ("job1", ""), ("job1", "pl&x=1")])
+def test_dub_export_validates_job_and_language_before_any_call(fake, tmp_path, job, lang):
+    with pytest.raises(vs.VoiceStudioError, match="inválido"):
+        vs.VoiceStudio().dub_export(job, lang, tmp_path / "o.mp4")
+    assert fake.dub_calls == []
+
+
+@pytest.mark.parametrize("status,detail,expect", [
+    (404, {"detail": "Job not found"}, "não tem o job"),
+    (400, {"detail": "No dubbed tracks generated yet"}, "faixa dublada pronta"),
+    (409, {"detail": {"code": "dub_background_unavailable", "message": "Original audio and background separation are required"}},
+     "preservar o fundo"),
+    (403, {"detail": "forbidden"}, "VOICESTUDIO_API_KEY"),
+])
+def test_dub_export_turns_an_app_error_into_a_clear_message(fake, tmp_path, status, detail, expect):
+    fake.dub_response = (status, {"Content-Type": "application/json"}, json.dumps(detail).encode())
+    with pytest.raises(vs.VoiceStudioError, match=expect):
+        vs.VoiceStudio().dub_export("job1", "pl", tmp_path / "o.mp4")
+    assert not (tmp_path / "o.mp4").exists()
+
+
+def test_dub_export_refuses_a_json_or_empty_answer_as_a_video(fake, tmp_path):
+    fake.dub_response = (200, {"Content-Type": "application/json"}, b'{"saved": true}')
+    with pytest.raises(vs.VoiceStudioError, match="não devolveu um vídeo"):
+        vs.VoiceStudio().dub_export("job1", "pl", tmp_path / "o.mp4")
+    fake.dub_response = (200, {"Content-Type": "video/mp4"}, b"")
+    with pytest.raises(vs.VoiceStudioError, match="não devolveu um vídeo"):
+        vs.VoiceStudio().dub_export("job1", "pl", tmp_path / "o.mp4")
+    assert not (tmp_path / "o.mp4").exists()
+
+
+def test_dub_export_reports_the_apps_fallback_warning(fake, tmp_path):
+    fake.dub_response = (200, {"Content-Type": "video/mp4", "X-Dub-Export-Warning": "video-retime-fallback"}, MP4)
+    assert vs.VoiceStudio().dub_export("job1", "pl", tmp_path / "o.mp4")["warning"] == "video-retime-fallback"
+
+
+def test_cli_dub_export_json_writes_the_video(fake, tmp_path, capsys):
+    out = tmp_path / "d.mp4"
+    rc, stdout, _ = _run(["dub-export", "--job", "j9", "--lang", "pl", "--bed-level", "1.5", "-o", str(out), "--json"], capsys)
+    assert rc == 0 and out.read_bytes() == MP4
+    assert json.loads(stdout)["bed_level"] == 1.5 and _query(fake.dub_calls[0]["url"])["bed_level"] == "1.5"
+
+
+def test_cli_dub_export_app_error_is_exit_1_with_the_message(fake, tmp_path, capsys):
+    fake.dub_response = (404, {"Content-Type": "application/json"}, b'{"detail": "Job not found"}')
+    rc, _, err = _run(["dub-export", "--job", "nao-existe", "--lang", "pl", "-o", str(tmp_path / "d.mp4")], capsys)
+    assert rc == 1 and err.startswith("voicestudio: ") and "nao-existe" in err and not (tmp_path / "d.mp4").exists()
+
+
+def test_cli_dub_export_needs_job_lang_and_output(fake, capsys):
+    rc, _, err = _run(["dub-export", "--job", "j9"], capsys)
+    assert rc == 2 and "--lang" in err and fake.dub_calls == []
