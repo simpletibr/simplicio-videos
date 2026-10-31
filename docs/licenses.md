@@ -21,4 +21,4 @@ Scan das distribuições instaladas (`importlib.metadata`). Allowlist: MIT, Apac
 | rpds-py | 2026.9.1 | MIT | permitida | jsonschema, referencing |
 | ruff | 0.17.3 | MIT | permitida | simplicio-video[test] |
 | shellcheck_py | 0.11.0.1 | MIT | exceção | simplicio-video[test] |
-| simplicio-video | 0.5.0 | AGPL-3.0-or-later | produto | produto (este repo) |
+| simplicio-video | 0.6.0 | AGPL-3.0-or-later | produto | produto (este repo) |
