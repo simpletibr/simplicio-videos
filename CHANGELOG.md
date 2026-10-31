@@ -4,22 +4,48 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
-- `login`, `logout` e `auth` saem do simplicio-video (CLI, tool MCP `video.auth`, `doctor login` e os schemas de login): o login compartilhado continua sendo do Simplicio Runtime, e o arquivo `~/.simplicio/login.json` não é apagado pelo simplicio-video.
-- MCP com todos os comandos da CLI: o servidor passa de 19 para 28 ferramentas `video.*`. Entram `video.shorts`, `video.media`, `video.tools`, `video.status`, `video.doctor`, `video.setup`, `video.install`, `video.update` e `video.auth`, e as ações `jobs clean` e `openverse credits|verify`. Ficam só no terminal, de propósito: `login` e `logout` (abrem navegador e mudam o login compartilhado), `swap run` (gasta), `update` que instala pacote, `install --uninstall`, e servidores que não terminam (`montage open|serve`, `opencut dev`, `toonflow serve`, `moneyprinter serve|setup`). Ferramentas que gravam exigem `-o`/`--out` absoluto, e `install` exige `--global` ou `--target` absoluto. `plugin.json` (`mcp.tools`) passa a listar as 28 e tira `video.publish` e `video.realoficial`, que não existem.
+## 0.6.0 — 2026-10-31
 
-- README em três níveis, seguindo o padrão dos repos Simplicio: `README.md` (inglês, canônico, com o mapa de capacidades e a referência de comandos), `README.pt-BR.md` (português, mesmas seções) e `READMEs/README.<idioma>.md` (resumos nos outros idiomas, com a barra de idiomas no topo).
-- Skills novas (`media`, `voicestudio`, `shorts`, `edit`) passam a ir no pacote e são instaladas por `simplicio-video install`: antes ficavam só em `skills/` e não chegavam ao wheel nem aos hosts. Os testes de pacote agora esperam as seis skills.
-- `install`: a contagem de hosts de agente é 11 (a ajuda e o README diziam 12).
+Reúne o que entrou na `main` depois da 0.5.0 (2026-10-17): PRs #119 a #136, todas mescladas. Esta versão sai como tag e GitHub Release. O upload no PyPI não faz parte desta versão.
 
-- `media`: operações de áudio e vídeo sobre qualquer MP4, só ffmpeg e determinísticas: `probe`, `audio`, `sheet` (folha de quadros para ver texto na tela), `subs` (SRT ou ASS a partir de cues), `burn` (queima legenda), `mask` (apaga texto numa caixa, com janela de tempo), `replace-audio` e `voice-track` (monta a trilha de voz por cue, acelerando só até o limite). Skill em `skills/simplicio-video-media`.
+### Mudança quebrante
+- **`login`, `logout` e `auth` saem do simplicio-video**: comandos da CLI, tool MCP `video.auth`, check de login do `doctor` e os schemas de login (#134). Quem chamava esses comandos em script deixa de funcionar. O login compartilhado continua sendo do Simplicio Runtime; o simplicio-video não lê, grava nem apaga `~/.simplicio/login.json`.
 
-- `media fetch`: baixa uma página pública de vídeo com o yt-dlp, fixado em `tools.py` como wheel de PyPI com sha256 conferido (`--require-hashes`), num venv próprio do cache de ferramentas. Exige `--autorizo`, nunca sobrescreve o MP4, recusa URL com credencial e grava `<nome>.fetch.json` (origem sem query, sha256, versão do yt-dlp, hora; título e autor só em `untrusted_*`). Tipo de trilha novo na registry: `pip`.
+### Novidades
+- **Módulo `h3-swap-service`** (#119): troca de personagem em GPU alugada. Fica fora do pacote e não é importado pelo motor.
+- **Template `pov-showcase`** (#120): template, padrões de movimento e 5 vídeos de showcase.
+- **Cortes verticais 9:16** (`shorts`, #121): cortes determinísticos de vídeo longo, só com ffmpeg.
+- **Voz local pelo VoiceStudio** (`voicestudio`, #122): TTS, clonagem e transcrição pelo app local em `:3900`, só por HTTP.
+- **Operações de mídia** (`media`, #124): `probe`, `audio`, `sheet`, `subs`, `burn`, `mask`, `replace-audio`, `voice-track`; `media fetch` com yt-dlp fixado e `--autorizo`.
+- **Dublagem com fundo preservado** (`voicestudio dub-export`, #133): exporta um job de dublagem que já existe no app VoiceStudio, com o fundo original (música e efeitos) por baixo da fala. Não gera nada: transcrição, tradução e voz continuam no app.
+- **MCP com todos os comandos da CLI** (#125 e #132): 29 tools `video.*` nesta versão (a `video.auth` saiu com a #134).
+- **Provedor de voz `audio8`** (#128): clonagem zero-shot pelo CLI `audio8-tts` instalado no próprio venv (`AUDIO8_TTS_BIN`). Padrão: `Edge0/Audio8-TTS-Realistic-0.6b` (Apache-2.0). O checkpoint 0.1B tem licença própria e não é o padrão.
+- **match-cut** (`matchcut`, #127): `clone`, `where`, `status`. O uso do skill exige login e créditos na Renoise; o motor nunca chama a Renoise.
+- **Etapa 1 do BRASA** (#132): perfis de saída `master`, `lite` e `thumb` (`saida.qualidade`); trilha por cortes (`trilha.music`); ducking em duas bandas sob a voz (`voz.ducking`); QC de quadros congelados (`simplicio-video qc congelado`).
 
-- Skills por comando de áudio e vídeo: `simplicio-video-voicestudio`, `simplicio-video-shorts` e `simplicio-video-edit`, com exemplos. `AGENTS.md` ganhou o mapa de comandos e a receita de vídeo em outro idioma.
+### Mudanças
+- **`clients/` sai do git** (#136): a pasta deixa de ser rastreada e passa a ser ignorada pelo `.gitignore`. Os dados de cliente continuam nos commits anteriores do repositório público; limpar o histórico é uma decisão separada, não feita nesta versão.
+- **Trava do `install`** (#134): passou para `lockfile.py`, com a mesma espera e o mesmo texto de erro para o usuário.
 
-- `shorts`: trilha nova (pedido direto do dono, sem issue). `simplicio-video shorts inspect | plan | cut | run` corta um vídeo longo em N clipes 1080x1920 a partir da transcrição do `edit transcribe`. A decisão fica num `plan.json` versionado (janelas, nota, motivo) e o render é só ffmpeg, com `manifest.json` e sha256 por arquivo; `--subs` queima a legenda do trecho, `--fit blur|crop` escolhe o enquadramento e `--dry-run` mostra os comandos sem gravar nada.
+### Correções
+- **#123:** follow-ups da revisão de Openverse, busca, toonflow e social (parte de #113).
+- **#126:** fluxo de voz com VoxCPM2 e folha de áudio.
+- **#129:** gate do `main` (`make check`) corrigido.
+- **#130:** busca com cache rotacionado e checagem de DNS antes de buscar; verbo `video.publish` removido do `plugin.json`.
+- **#131:** README em EN e PT reorganizado (mapa de capacidades, instalação, primeiro uso).
+- **#135:** restaura no README as seções exigidas pelos testes (Openverse, TinyFish e o bloco gerado `host`), que a #131 tinha removido; regenera `docs/reference/config.md`.
 
-- `modules/h3-swap-service/`: módulo opcional de troca de personagem em GPU alugada (Vast/Salad, fila na Cloudflare). Fora do pacote e do motor; sem adaptador em `swap_providers/` ainda. Pedido direto do dono, sem issue.
+### Limitações conhecidas (UNVERIFIED)
+- **Gate do `main`:** o `make check` foi rodado em ambiente limpo na VPS depois dos merges; o resultado está no corpo da release. No Mac o gate não é referência: o ffmpeg local não tem libass.
+- **Teste sensível a carga:** `test_amplificador_de_tags_com_um_milhao_de_colchetes` tem limite de 3 s e falhou uma vez com a VPS em carga 14; passou na repetição sem mudança.
+- **Windows e macOS reais:** não rodados nesta versão.
+- **Dublagem com fundo (`dub-export`):** testada com transporte falso (12 testes); não foi exercitada contra o app VoiceStudio real, porque a VPS não tem GPU.
+- **Clonagem real:** a clonagem com `audio8` (referência autorizada) e com VoxCPM2 não foi testada na VPS. O `audio8` foi testado só com geração em CPU, sem referência.
+- **Trilhas externas:** diretórios presentes em `/var/lib/openbot/simplicio-tools` para matchcut, moneyprinter, opencut, openmontage, toonflow, video-use e voicestudio. Hypit (`clone`) não aparece nessa pasta. Não há verificação pelo `tools` do engine nesta versão.
+- **BRASA etapa 1:** cobre só o código e os testes do gate. O vídeo final e os assets pagos não foram gerados.
+- **Fora desta versão:** `enhance` (resemble-enhance; código só na VPS, sem PR) e `video.yt-dlp` no MCP (branch sem rebase).
+- **PyPI:** não publicado nesta versão.
+- **Histórico público:** o repositório ainda contém os dados que saíram de `clients/`. Reescrita de histórico não foi feita.
 
 ## 0.5.0 — 2026-10-17
 
