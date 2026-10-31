@@ -25,6 +25,7 @@ description: Use for local voice work with the simplicio-video CLI and the Voice
 | `clone` | cria perfil a partir de referência | `simplicio-video voicestudio clone ref.wav --name "Vera" --language pt --ref-text "..."` |
 | `describe` | mostra como uma descrição vira atributos (não salva) | `simplicio-video voicestudio describe "mulher, voz calma, sotaque paulista"` |
 | `design` | cria perfil a partir de descrição | `simplicio-video voicestudio design "mulher adulta, voz calma" --name "Narradora" --language pt` |
+| `dub-export` | exporta um job de dublagem que já existe no app, com o fundo (música e efeitos) preservado; não gera nada | `simplicio-video voicestudio dub-export --job ID --lang pl --bed-level 1.0 -o dublado.mp4` |
 | `mcp` | bloco de config MCP para um cliente | `simplicio-video voicestudio mcp` |
 
 `--json` imprime o resultado para outro programa. `--format wav|ogg|opus` em `tts`.
@@ -51,6 +52,17 @@ simplicio-video media replace-audio clean.mp4 voice.wav -o dubbed.mp4
 ```
 
 Antes de gerar tudo, teste um cue só. Se o idioma não aparecer em `languages`, o motor não fala aquele idioma: não force.
+
+## Dublagem com fundo preservado (job do app)
+
+Quando o vídeo tem música e efeitos, o fluxo acima (voz por cue + `replace-audio`) troca a trilha inteira e perde o fundo. O app VoiceStudio separa o fundo na dublagem; `dub-export` pega o job **já pronto** no app e exporta o MP4 com a dublagem por cima do fundo original:
+
+```bash
+simplicio-video voicestudio dub-export --job ID --lang pl -o dublado.mp4              # fundo no nível original
+simplicio-video voicestudio dub-export --job ID --lang pl --bed-level 0.7 -o dublado.mp4   # fundo mais baixo (0 a 4)
+```
+
+A geração (transcrição, tradução, voz) continua no app e pede modelos pesados e GPU. Se o app responder que o fundo não está disponível, refaça a dublagem no app com a separação de fundo ligada; não tente contornar.
 
 ## Regras
 

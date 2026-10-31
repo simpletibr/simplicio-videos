@@ -310,6 +310,7 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video voicestudio tts \"olá\" --out fala.wav --profile <id> --language pt-BR\n"
                "  simplicio-video voicestudio transcribe audio.m4a --rest\n"
                "  simplicio-video voicestudio clone referencia.wav --name \"Minha voz\"\n"
+               "  simplicio-video voicestudio dub-export --job ID --lang pl -o dublado.mp4\n"
                "  simplicio-video voicestudio mcp")
     p.add_argument("args", nargs=argparse.REMAINDER,
                    help="status | voices | languages | personalities | tts | transcribe | clone | describe | design | mcp")
