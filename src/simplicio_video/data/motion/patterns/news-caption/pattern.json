@@ -1,0 +1,30 @@
+{
+  "$schema": "../../pattern.schema.json",
+  "id": "news-caption",
+  "title": "Legenda de notícia: bloco curto, palavra a palavra",
+  "description": "Legenda para narração longa (notícia, comentário, explicador): mostra a fala em blocos de poucas palavras na parte de baixo do quadro e acende cada palavra no instante em que ela é falada. Recebe o TEXTO e os TEMPOS separados (o par palavra@tempo é montado dentro do bloco), então o contrato manda o texto no parâmetro e os tempos pelo placeholder de palavras do timing.lock.json. Fundo em degradê para o texto ficar legível sobre qualquer cena.",
+  "status": "proposto",
+  "duration_s": 6.0,
+  "format": { "width": 1080, "height": 1920, "fps": 30 },
+  "params": [
+    { "id": "text", "type": "string", "label": "Fala (texto exato do contrato)", "default": "Exemplo de legenda palavra a palavra para notícia" },
+    { "id": "times", "type": "string", "label": "Inícios das palavras em s, relativo à cena (|)", "default": "0.2|0.55|0.9|1.25|1.6|1.95|2.3" },
+    { "id": "chunk", "type": "number", "label": "Palavras por bloco", "default": 5 },
+    { "id": "size", "type": "number", "label": "Tamanho da fonte (px)", "default": 58 },
+    { "id": "y", "type": "number", "label": "Topo da legenda (px)", "default": 1436 },
+    { "id": "accent", "type": "color", "label": "Cor da palavra falada", "default": "#22d3ee" },
+    { "id": "ink", "type": "color", "label": "Cor da palavra ainda não falada", "default": "rgba(255,255,255,0.62)" },
+    { "id": "scrim", "type": "number", "label": "Degradê de fundo atrás da legenda (1 = sim, 0 = não)", "default": 1 }
+  ],
+  "files": { "block": "block.html" },
+  "category": "legenda",
+  "tags": ["legenda", "notícia", "narração longa", "palavra a palavra", "acessibilidade"],
+  "use_when": "Vídeo de notícia/comentário/explicador com narração longa: a legenda acompanha a fala em blocos curtos, sem precisar digitar palavra@tempo no contrato.",
+  "source": {
+    "kind": "interno",
+    "ref": "Adaptado de motion/patterns/caption-word-highlight (mesma linguagem visual) para receber texto + tempos separados; autorado para o template news-tech (24/10/2026)",
+    "url": null
+  },
+  "preview_at": 1.4,
+  "sync": "times = {{words:<fala>}} do timing.lock.json (inícios das palavras, relativos ao início da cena); a ordem casa com text"
+}

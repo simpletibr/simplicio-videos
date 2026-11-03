@@ -10,6 +10,7 @@ Um template transforma um intake aprovado em spec **sem LLM**: define a sequênc
 | [`institucional-odontologia`](institucional-odontologia/) | Odontologia institucional, fora de data | **pronto** | 16 s | ritmo do piloto v02, sem confete |
 | [`institucional-estetica`](institucional-estetica/) | Estética e beleza, institucional elegante | **pronto** | 16 s | ritmo do piloto v02, `line-accent` |
 | [`institucional-advocacia`](institucional-advocacia/) | Advocacia, institucional sóbrio e informativo (OAB Provimento 205/2021) | **pronto** | 16 s | 96 BPM, sem percussão, exige `oab` |
+| [`news-tech`](news-tech/) | Notícia de tecnologia (hardware, GPU, repositório, benchmark) | skeleton | 90 s | — (zero footage: só motion + gráfico desenhado) |
 | [`alimentacao`](alimentacao/) | Restaurante, delivery, confeitaria, café | skeleton | 15 s | — |
 | [`beleza-estetica`](beleza-estetica/) | Salão, barbearia, estética | skeleton | 15 s | — |
 | [`saude-clinica`](saude-clinica/) | Odonto, fisio, psicologia, clínica, pet | skeleton | 20 s | — |

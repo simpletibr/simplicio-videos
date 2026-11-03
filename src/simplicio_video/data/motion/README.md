@@ -58,7 +58,7 @@ node motion/scripts/catalog.mjs --check   # falha se o catálogo estiver desatua
 ## Catálogo
 
 <!-- catalog:start (gerado por motion/scripts/catalog.mjs — não edite à mão) -->
-55 padrões: 33 pronto, 1 lib, 2 inline, 19 proposto.
+56 padrões: 33 pronto, 1 lib, 2 inline, 20 proposto.
 
 | Preview | Padrão | Status | Categoria | Parâmetros | Quando usar | Fonte |
 |---|---|---|---|---|---|---|
@@ -108,6 +108,7 @@ node motion/scripts/catalog.mjs --check   # falha se o catálogo estiver desatua
 |  | **[ugc-replicate-structure](patterns/ugc-replicate-structure/)**<br>Replicar estrutura de vídeo viral (UGC) | proposto | estrutura | — | Quando o cliente manda um vídeo de referência. | [x-bookmark](https://x.com/shengkunye/status/2100672978749096186) |
 |  | **[recipe-ingredients-explainer](patterns/recipe-ingredients-explainer/)**<br>Receita/ingredientes entrando no recipiente | proposto | explicador | — | Alimentação/bebidas: mostrar como o produto é feito (só ingredientes confirmados). | [awesome-opus5-5-videos](https://x.com/Ror_Fly/status/2102853258582880547) |
 |  | **[spending-simulation-9x16](patterns/spending-simulation-9x16/)**<br>Simulação de uso no dia a dia (9:16) | proposto | explicador | — | Varejo/serviços financeiros: produto em situações do dia a dia. | [awesome-opus5-5-videos](https://x.com/felipemoller/status/2103846311149936736) |
+|  | **[news-caption](patterns/news-caption/)**<br>Legenda de notícia: bloco curto, palavra a palavra | proposto | legenda | `text` `times` `chunk` `size` `y` `accent` `ink` `scrim` | Vídeo de notícia/comentário/explicador com narração longa: a legenda acompanha a fala em blocos curtos, sem precisar digitar palavra@tempo no contrato. | Adaptado de motion/patterns/caption-word-highlight |
 |  | **[carousel-emphasis](patterns/carousel-emphasis/)**<br>Carrossel com destaque | proposto | lista | — | Enumerar marcas, modelos, especialidades ou produtos sincronizado com a narração. | [motion-video-kit](https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/references/motion-grammar.md) |
 |  | **[logo-shrink-lockup](patterns/logo-shrink-lockup/)**<br>Logo encolhe e trava com o nome (lockup) | proposto | marca | — | Assinatura final de marca. | [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/outro/logo-shrink-wordmark-lockup.md) |
 |  | **[beat-cut-accelerate](patterns/beat-cut-accelerate/)**<br>Cortes secos no beat, acelerando | proposto | ritmo | — | Montagem de fotos/clipes reais antes do CTA. | [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft/blob/main/references/shots/rhythm/beat-cut-moves.md) |
