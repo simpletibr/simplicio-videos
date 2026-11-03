@@ -658,3 +658,15 @@ issues:
       - "CHANGELOG.md#Unreleased"
       - "src/simplicio_video/cli.py#install"
       - "src/simplicio_video/mcp_server.py#video_install"
+  # ------------------------------------------------------------------ template news-tech e padrão news-caption (#140)
+  140:
+    track: templates
+    status: ready
+    owns:
+      - "src/simplicio_video/data/templates/news-tech/**"
+      - "src/simplicio_video/data/motion/patterns/news-caption/**"
+      - "src/simplicio_video/data/motion/catalog.json"
+      - "src/simplicio_video/data/motion/README.md"
+      - "src/simplicio_video/data/templates/README.md"
+      - "CHANGELOG.md#Unreleased"
+      - "tests/test_news_tech_registro.py"
