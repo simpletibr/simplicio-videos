@@ -35,7 +35,7 @@ Fluxo completo:
   swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
-  moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
+  moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; só baixa o commit fixado, o uso exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
   tools        lista as trilhas externas fixadas (versão, comando, se estão no cache de tools e o que produzem)
@@ -290,7 +290,7 @@ def build_parser() -> argparse.ArgumentParser:
                     "O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080) e só abre para a rede com --lan. "
                     "As chaves de API nunca são impressas. "
                     "Fica fora do render determinístico.",
-        epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api\n  simplicio-video moneyprinter status")
+        epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api --api-port 8090\n  simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/ --json\n  simplicio-video moneyprinter status")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | where | status")
 
     p = sub.add_parser("matchcut", formatter_class=Fmt, help="match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta",

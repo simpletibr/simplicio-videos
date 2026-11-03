@@ -18,15 +18,22 @@ Nothing here ever prints or logs a value from config.toml: only the key names an
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import ipaddress
+import json
 import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
+import uuid
 from pathlib import Path
+from urllib.parse import unquote
 
 from . import tools
 from .toonflow import _offline, _on_term, _stop_group  # same process-group handling as the toonflow track
@@ -37,14 +44,24 @@ API_PORT = 8080
 LOOPBACK = "127.0.0.1"
 LAN_FLAG = "--lan"
 MIN_PYTHON = (3, 11)  # .python-version is 3.11 and pyproject.toml says >=3.11 at the pinned commit
-SUBCOMMANDS = "clone|setup|serve|where|status"
+SUBCOMMANDS = "clone|setup|serve|generate|where|status"
+PORT_MIN, PORT_MAX = 1024, 65535  # --api-port: portas sem privilégio de root
+DEFAULT_VOICE = "pt-BR-FranciscaNeural-Female"  # voz Edge: não exige chave
+ASPECTS = ("9:16", "16:9", "1:1")
+TASK_STATE_COMPLETE, TASK_STATE_FAILED = 1, -1  # app/models/const.py no commit fixado
+POLL_SECONDS = 2.0
+TASK_TIMEOUT_SECONDS = 1800
+READY_TIMEOUT_SECONDS = 120
 
 USAGE = (
     f"MoneyPrinterTurbo ({MONEYPRINTER_REPO}, MIT)\n"
     "  simplicio-video moneyprinter clone [dir]   # clona no commit fixado (MONEYPRINTER_DIR ou ~/.simplicio-video/tools)\n"
     "  simplicio-video moneyprinter setup         # venv isolado, pip install -r requirements.txt, config.toml a partir do exemplo\n"
-    f"  simplicio-video moneyprinter serve [--webui] [--api] [{LAN_FLAG}] [--host H]\n"
+    f"  simplicio-video moneyprinter serve [--webui] [--api] [--api-port N] [{LAN_FLAG}] [--host H]\n"
     f"                                             # WebUI em http://localhost:{WEBUI_PORT} (padrão) e/ou API em http://localhost:{API_PORT}/docs\n"
+    "  simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 [--material ...] --out DIR\n"
+    "                                             # [--voice V] [--aspect 9:16|16:9|1:1] [--subject S] [--api-port N] [--json]\n"
+    "                                             # sobe a API em loopback, envia o material, gera o vídeo, baixa o MP4 e grava o manifesto\n"
     "  simplicio-video moneyprinter where         # imprime o checkout\n"
     "  simplicio-video moneyprinter status        # config.toml existe? quais chaves estão preenchidas (sim; o valor nunca aparece)\n"
     "Exige Python 3.11 ou mais novo (setup procura python3.11 a python3.13) e usa ffmpeg (o upstream tenta baixar um sozinho).\n"
@@ -340,9 +357,10 @@ def _is_loopback(host: str) -> bool:
         return False
 
 
-def _parse_serve(args: list[str]) -> tuple[bool, bool, bool, str | None]:
+def _parse_serve(args: list[str]) -> tuple[bool, bool, bool, str | None, int]:
     webui = api = lan = False
     host = None
+    api_port = API_PORT
     it = iter(args)
     for a in it:
         if a == "--webui":
@@ -351,19 +369,21 @@ def _parse_serve(args: list[str]) -> tuple[bool, bool, bool, str | None]:
             api = True
         elif a == LAN_FLAG:
             lan = True
+        elif a == "--api-port":
+            api_port = _port(next(it, None))
         elif a == "--host":
             host = next(it, None)
             if not host:
                 raise MoneyPrinterError("--host pede um endereço.")
         else:
-            raise MoneyPrinterError(f"serve aceita só --webui, --api, {LAN_FLAG} e --host (as portas são fixas: "
-                                    f"{WEBUI_PORT} e {API_PORT}); recebi: {a}")
+            raise MoneyPrinterError(f"serve aceita só --webui, --api, --api-port, {LAN_FLAG} e --host (a WebUI usa a "
+                                    f"porta {WEBUI_PORT}; a API, {API_PORT} ou a de --api-port); recebi: {a}")
     if not webui and not api:
         webui = True
-    return webui, api, lan, host
+    return webui, api, lan, host, api_port
 
 
-def _commands(d: Path, host: str, webui: bool, api: bool) -> list[list[str]]:
+def _commands(d: Path, host: str, webui: bool, api: bool, api_port: int = API_PORT) -> list[list[str]]:
     py = str(venv_python())
     shown = "localhost" if host in ("0.0.0.0", "::") else host
     cmds = []
@@ -373,11 +393,11 @@ def _commands(d: Path, host: str, webui: bool, api: bool) -> list[list[str]]:
                      "--server.headless=true", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal",
                      "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False", "--server.enableCORS=True"])
     if api:  # what main.py runs, but with the host as an argument instead of config listen_host
-        cmds.append([py, "-m", "uvicorn", "app.asgi:app", "--host", host, "--port", str(API_PORT), "--log-level", "warning"])
+        cmds.append([py, "-m", "uvicorn", "app.asgi:app", "--host", host, "--port", str(api_port), "--log-level", "warning"])
     return cmds
 
 
-def _check_api_key(d: Path) -> None:
+def _check_api_key(d: Path, port: int = API_PORT) -> None:
     """Read at the pinned commit (app/asgi.py, app/controllers/base.py): the API has no login while app.api_key is empty,
     and CORS is closed unless CORS_ALLOWED_ORIGINS says otherwise. So the browser cannot read it from another site by
     default, but any other program on this computer can use it (and with --lan, anyone on the network), spending the
@@ -391,12 +411,12 @@ def _check_api_key(d: Path) -> None:
             "com as suas chaves de LLM e voz. Preencha app.api_key no config.toml ou tire o `*` de CORS_ALLOWED_ORIGINS."
         )
     print("aviso: a API sobe sem chave (app.api_key vazio no config.toml): qualquer programa que alcance a porta "
-          f"{API_PORT} cria vídeos com as suas chaves de LLM e voz. Preencha app.api_key e envie o cabeçalho x-api-key.",
+          f"{port} cria vídeos com as suas chaves de LLM e voz. Preencha app.api_key e envie o cabeçalho x-api-key.",
           file=sys.stderr)
 
 
 def _serve(d: Path, args: list[str]) -> int:
-    webui, api, lan, host = _parse_serve(args)
+    webui, api, lan, host, api_port = _parse_serve(args)
     host = host or ("0.0.0.0" if lan else LOOPBACK)
     if not _is_loopback(host) and not lan:
         raise MoneyPrinterError(
@@ -407,8 +427,8 @@ def _serve(d: Path, args: list[str]) -> int:
     if not venv_python().exists():
         raise MoneyPrinterError("ambiente não preparado: rode `simplicio-video moneyprinter setup`.")
     if api:
-        _check_api_key(d)
-    cmds = _commands(d, host, webui, api)
+        _check_api_key(d, api_port)
+    cmds = _commands(d, host, webui, api, api_port)
     existing = os.environ.get("PYTHONPATH")
     env = {**os.environ, "PYTHONPATH": str(d) + (os.pathsep + existing if existing else "")}
     shown = "localhost" if host in ("0.0.0.0", "::") else host
@@ -416,7 +436,7 @@ def _serve(d: Path, args: list[str]) -> int:
     if webui:
         where.append(f"WebUI http://{shown}:{WEBUI_PORT}")
     if api:
-        where.append(f"API http://{shown}:{API_PORT}/docs")
+        where.append(f"API http://{shown}:{api_port}/docs")
     if _is_loopback(host):
         print(f"MoneyPrinterTurbo: {' e '.join(where)} (só neste computador). Ctrl+C para parar.")
     else:
@@ -475,6 +495,242 @@ def _stop_all(procs: list, original: dict) -> None:
             signal.signal(n, handler)
 
 
+# ---- generate: a API sobe por trás, o MP4 volta com hash e manifesto (#144) ---------------------------------------
+
+GENERATE_FLAGS = ("--script", "--material", "--out", "--voice", "--aspect", "--subject", "--api-port")
+
+
+def _request(method: str, url: str, body: bytes | None = None, headers: dict | None = None,
+             timeout: float = 30) -> tuple[int, dict | None]:
+    """HTTP com a biblioteca padrão, só para a API em loopback. Devolve (status, JSON ou None); status 0 = sem conexão."""
+    req = urllib.request.Request(url, data=body, method=method, headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status, raw = resp.status, resp.read()
+    except urllib.error.HTTPError as e:
+        status, raw = e.code, e.read()
+    except (urllib.error.URLError, OSError):
+        return 0, None
+    try:
+        return status, (json.loads(raw) if raw else None)
+    except ValueError:
+        return status, None
+
+
+def _port(value: str | None) -> int:
+    if value is None or not re.fullmatch(r"\d+", value) or not PORT_MIN <= int(value) <= PORT_MAX:
+        raise MoneyPrinterError(f"--api-port pede um número de porta entre {PORT_MIN} e {PORT_MAX}.")
+    return int(value)
+
+
+def _free_port() -> int:
+    """Uma porta de loopback livre agora; a API sobe nela logo em seguida."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((LOOPBACK, 0))
+        return s.getsockname()[1]
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def build_video_request(script: str, voice: str, aspect: str, materials: list[str], subject: str) -> dict:
+    """Corpo do POST /api/v1/videos: roteiro pronto e material local, sem chave de LLM nem de fonte de vídeo."""
+    return {
+        "video_subject": subject,
+        "video_script": script,
+        "video_source": "local",
+        "video_materials": [{"provider": "local", "url": name} for name in materials],
+        "video_aspect": aspect,
+        "voice_name": voice,
+        "subtitle_enabled": False,
+    }
+
+
+def wait_for_task(base: str, task_id: str, get, sleep=time.sleep, max_polls: int = 900,
+                  poll: float = POLL_SECONDS) -> dict:
+    """Consulta a tarefa até completar (state 1) ou falhar (state -1). `get(url)` devolve (status, JSON)."""
+    task: dict = {}
+    for _ in range(max_polls):
+        status, data = get(f"{base}/api/v1/tasks/{task_id}")
+        task = (data or {}).get("data") or {}
+        if status == 200 and task.get("state") == TASK_STATE_COMPLETE:
+            return task
+        if status == 200 and task.get("state") == TASK_STATE_FAILED:
+            raise MoneyPrinterError(
+                f"a tarefa {task_id} falhou em {task.get('failed_stage') or 'etapa desconhecida'}: "
+                f"{task.get('error') or 'sem detalhe'}")
+        sleep(poll)
+    raise MoneyPrinterError(f"tempo esgotado esperando a tarefa {task_id} (último estado: {task.get('state')}).")
+
+
+def _upload_material(base: str, path: Path) -> str:
+    """Envia um material ao diretório de vídeos locais da API; devolve o nome que a API guardou."""
+    boundary = uuid.uuid4().hex
+    head = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\n'
+            "Content-Type: application/octet-stream\r\n\r\n").encode()
+    body = head + path.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
+    status, data = _request("POST", f"{base}/api/v1/video_materials", body,
+                            {"Content-Type": f"multipart/form-data; boundary={boundary}"}, timeout=600)
+    if status != 200 or "file" not in ((data or {}).get("data") or {}):
+        raise MoneyPrinterError(f"o envio do material {path.name} falhou (HTTP {status}).")
+    return data["data"]["file"]
+
+
+def _task_file(data_root: Path, uri: str) -> Path:
+    """A API devolve a saída como /tasks/<relativo>; o arquivo fica em storage/tasks, e nada fora dali é lido."""
+    prefix = "/tasks/"
+    tasks = (data_root / "storage" / "tasks").resolve()
+    path = (tasks / unquote(uri[len(prefix):])).resolve() if uri.startswith(prefix) else tasks.parent
+    if tasks not in path.parents:
+        raise MoneyPrinterError(f"a API devolveu uma saída fora da pasta de tarefas: {uri}")
+    return path
+
+
+def write_result(out: Path, task_id: str, video: Path, request: dict, materials: list[Path],
+                 elapsed: float) -> dict:
+    """Copia o MP4 para a pasta de saída e grava o manifesto: sha256 do vídeo e de cada material, pino e tempo."""
+    out.mkdir(parents=True, exist_ok=True)
+    stem = f"moneyprinter-{task_id}"
+    target = out / f"{stem}.mp4"
+    shutil.copyfile(video, target)
+    meta = {
+        "schema": "simplicio.moneyprinter-result/v1",
+        "task_id": task_id,
+        "video": target.name,
+        "bytes": target.stat().st_size,
+        "sha256": _sha256(target),
+        "pinned_commit": tools.pinned_ref(tools.get("moneyprinter")),
+        "voice": request.get("voice_name"),
+        "aspect": request.get("video_aspect"),
+        "materials": [{"name": p.name, "sha256": _sha256(p)} for p in materials],
+        "elapsed_seconds": round(elapsed, 1),
+    }
+    (out / f"{stem}.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return meta
+
+
+def _parse_generate(args: list[str]) -> dict:
+    opts: dict = {"script": None, "materials": [], "out": None, "voice": DEFAULT_VOICE, "aspect": "9:16",
+                  "subject": None, "api_port": None, "json": False}
+    it = iter(args)
+    for a in it:
+        if a == "--json":
+            opts["json"] = True
+        elif a in GENERATE_FLAGS:
+            value = next(it, None)
+            if value is None:
+                raise MoneyPrinterError(f"{a} pede um valor.")
+            if a == "--material":
+                opts["materials"].append(value)
+            elif a == "--api-port":
+                opts["api_port"] = _port(value)
+            else:
+                opts[a[2:]] = value
+        else:
+            raise MoneyPrinterError("generate aceita --script, --material (repetível), --out, --voice, --aspect, "
+                                    f"--subject, --api-port e --json; recebi: {a}")
+    if not opts["script"] or not opts["materials"] or not opts["out"]:
+        raise MoneyPrinterError("generate precisa de --script, --material e --out.")
+    if opts["aspect"] not in ASPECTS:
+        raise MoneyPrinterError(f"--aspect pede um de: {', '.join(ASPECTS)}.")
+    return opts
+
+
+def _wait_ready(base: str, proc: subprocess.Popen) -> None:
+    """Espera a API responder como MoneyPrinterTurbo (não qualquer coisa que esteja nessa porta)."""
+    deadline = time.monotonic() + READY_TIMEOUT_SECONDS
+    while True:
+        if proc.poll() is not None:
+            raise MoneyPrinterError(f"a API saiu com código {proc.returncode} antes de responder "
+                                    "(porta ocupada? veja o log acima).")
+        status, data = _request("GET", f"{base}/openapi.json", timeout=5)
+        if status == 200 and ((data or {}).get("info") or {}).get("title") == "MoneyPrinterTurbo":
+            return
+        if time.monotonic() > deadline:
+            raise MoneyPrinterError(f"a API não respondeu como MoneyPrinterTurbo em {READY_TIMEOUT_SECONDS} s.")
+        time.sleep(0.5)
+
+
+def _generate(d: Path, args: list[str]) -> int:
+    opts = _parse_generate(args)
+    script = Path(opts["script"]).expanduser()
+    if not script.is_file():
+        raise MoneyPrinterError(f"roteiro não encontrado: {script}")
+    text = script.read_text(encoding="utf-8").strip()
+    if not text:
+        raise MoneyPrinterError("o roteiro está vazio.")
+    materials = [Path(m).expanduser() for m in opts["materials"]]
+    for m in materials:
+        if not m.is_file():
+            raise MoneyPrinterError(f"material não encontrado: {m}")
+    if not venv_python().exists():
+        raise MoneyPrinterError("ambiente não preparado: rode `simplicio-video moneyprinter setup`.")
+    port = opts["api_port"] or _free_port()
+    base = f"http://{LOOPBACK}:{port}"
+    out_dir = Path(opts["out"]).expanduser()
+    data_root = data_dir()
+    started = time.monotonic()
+    procs: list[subprocess.Popen] = []
+    catch = [n for n in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None)) if n is not None]
+    original = {n: signal.getsignal(n) for n in (signal.SIGINT, *catch)}
+    for n in catch:
+        signal.signal(n, _on_term)
+    meta: dict = {}
+    try:
+        existing = os.environ.get("PYTHONPATH")
+        env = {**os.environ, "PYTHONPATH": str(d) + (os.pathsep + existing if existing else "")}
+        procs.append(subprocess.Popen([str(venv_python()), "-m", "uvicorn", "app.asgi:app", "--host", LOOPBACK,
+                                       "--port", str(port), "--log-level", "warning"],
+                                      cwd=d, env=env, start_new_session=True))
+        proc = procs[0]
+        _wait_ready(base, proc)
+        uploaded = [_upload_material(base, m) for m in materials]
+        body = build_video_request(text, opts["voice"], opts["aspect"], uploaded, opts["subject"] or text[:40])
+        status, data = _request("POST", f"{base}/api/v1/videos", json.dumps(body).encode("utf-8"),
+                                {"Content-Type": "application/json"}, timeout=60)
+        task_id = ((data or {}).get("data") or {}).get("task_id")
+        if status != 200 or not task_id:
+            raise MoneyPrinterError(f"a API recusou o pedido (HTTP {status}): "
+                                    f"{(data or {}).get('message', 'sem detalhe')}")
+
+        def get(url: str) -> tuple[int, dict | None]:
+            if proc.poll() is not None:
+                raise MoneyPrinterError(f"a API saiu com código {proc.returncode} antes de terminar a tarefa {task_id}.")
+            return _request("GET", url)
+
+        task = wait_for_task(base, task_id, get=get, max_polls=int(TASK_TIMEOUT_SECONDS / POLL_SECONDS))
+        videos = task.get("videos") or []
+        if not videos:
+            raise MoneyPrinterError(f"a tarefa {task_id} terminou sem vídeo.")
+        src = _task_file(data_root, videos[0])
+        if not src.is_file():
+            raise MoneyPrinterError(f"o MP4 da tarefa {task_id} não está em {src}.")
+        meta = write_result(out_dir, task_id, src, body, materials, time.monotonic() - started)
+    except MoneyPrinterError as e:
+        print(f"moneyprinter: {e}", file=sys.stderr)
+        return 1
+    except OSError as e:
+        print(f"moneyprinter: não consegui iniciar a API: {e}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("moneyprinter: interrompido; a API foi parada.", file=sys.stderr)
+        return 130
+    finally:
+        _stop_all(procs, original)
+    if opts["json"]:
+        print(json.dumps(meta, ensure_ascii=False, indent=2))
+    else:
+        print(f"MP4: {out_dir / meta['video']}\nsha256: {meta['sha256']}\n"
+              f"manifesto: {out_dir / ('moneyprinter-' + meta['task_id'] + '.json')}")
+    return 0
+
+
+
 def run_moneyprinter(args: list[str]) -> int:
     first = args[0] if args else "help"
     if first in ("-h", "--help", "help"):
@@ -502,4 +758,6 @@ def run_moneyprinter(args: list[str]) -> int:
         return 0
     if first == "setup":
         return _setup(d, args[1:])
+    if first == "generate":
+        return _generate(d, args[1:])
     return _serve(d, args[1:])

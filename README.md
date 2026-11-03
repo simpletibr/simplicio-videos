@@ -158,6 +158,20 @@ Each version is pinned in [`src/simplicio_video/tools.py`](src/simplicio_video/t
 | TinyFish CLI | `busca` | npm `0.50.1` | Not declared in the package |
 | VoiceStudio | `voicestudio` | commit `beeaae08` | AGPL-3.0. Used only over local HTTP |
 | video-use | `edit` | commit `b877063` | MIT |
+
+### MoneyPrinterTurbo (`moneyprinter`)
+
+```bash
+simplicio-video moneyprinter clone      # clones at the commit pinned in src/simplicio_video/tools.py
+simplicio-video moneyprinter setup      # venv in ~/.simplicio-video/moneyprinter-data; config.toml copied from the example (no key filled)
+simplicio-video moneyprinter serve      # WebUI on http://localhost:8501; --api for the API; --api-port N moves the API (default 8080)
+simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/   # API behind the scenes; returns the MP4 + manifest
+simplicio-video moneyprinter status     # config.toml exists? which keys are filled (yes only, never the value)
+```
+
+`generate` picks a free loopback port (or `--api-port`), uploads each `--material`, asks for a video from a ready script with a local source (no LLM key and no stock key), waits for the task, copies the MP4 to `--out` and writes `moneyprinter-<task>.json` (schema `simplicio.moneyprinter-result/v1`) with the sha256 of the video and of each material. It stops the API before it returns.
+
+It uses your own API keys for LLM, TTS and stock services, typed in its WebUI or `config.toml`; this command never prints them. The API listens on `127.0.0.1` only; `--lan` opens every interface. Whatever it produces enters a contract as a file with a hash.
 | yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 checked | Unlicense |
 
 **Known gaps:**

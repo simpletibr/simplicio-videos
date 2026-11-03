@@ -209,7 +209,7 @@ def test_commands_without_a_checkout_point_to_clone(args):
 
 
 def test_unknown_subcommand_is_an_error(checkout):
-    with pytest.raises(moneyprinter.MoneyPrinterError, match="clone\\|setup\\|serve\\|where\\|status"):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="clone\\|setup\\|serve\\|generate\\|where\\|status"):
         moneyprinter.run_moneyprinter(["nope"])
 
 
@@ -886,8 +886,8 @@ def test_generate_with_a_missing_material_fails_before_starting_the_api(checkout
 
 def _generate_fakes(monkeypatch, state_reply, sent):
     def fake_request(method, url, body=None, headers=None, timeout=30):
-        if url.endswith("/docs"):
-            return 200, None
+        if url.endswith("/openapi.json"):
+            return 200, {"info": {"title": "MoneyPrinterTurbo"}}
         if url.endswith("/api/v1/video_materials"):
             return 200, {"status": 200, "data": {"file": "stored-clip.mp4"}}
         if url.endswith("/api/v1/videos"):
