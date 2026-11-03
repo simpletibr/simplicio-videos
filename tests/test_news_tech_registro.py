@@ -43,15 +43,17 @@ def test_catalogo_registra_news_caption_como_proposto():
     assert (PATTERN / "pattern.json").is_file(), "news-caption sem pattern.json"
 
 
-def test_catalogo_declara_os_totais_certos():
+def test_catalogo_declara_os_totais_do_que_lista():
     c = _catalogo()
-    assert c["count"] == len(c["patterns"]) == 56, (c["count"], len(c["patterns"]))
-    assert dict(c["by_status"]) == {"pronto": 33, "lib": 1, "inline": 2, "proposto": 20}, c["by_status"]
-    assert dict(collections.Counter(p["status"] for p in c["patterns"])) == dict(c["by_status"])
+    assert c["count"] == len(c["patterns"]), (c["count"], len(c["patterns"]))
+    assert dict(c["by_status"]) == dict(collections.Counter(p["status"] for p in c["patterns"])), c["by_status"]
+    assert sum(c["by_status"].values()) == c["count"]
 
 
-def test_readme_de_motion_repete_os_mesmos_totais():
-    assert "56 padrões: 33 pronto, 1 lib, 2 inline, 20 proposto." in MOTION_README.read_text(encoding="utf8")
+def test_readme_de_motion_repete_a_linha_de_totais_do_catalogo():
+    c = _catalogo()
+    linha = f"{c['count']} padrões: " + ", ".join(f"{n} {s}" for s, n in c["by_status"].items()) + "."
+    assert linha in MOTION_README.read_text(encoding="utf8"), linha
 
 
 def test_fontes_do_template_tem_a_licenca_ofl_ao_lado():

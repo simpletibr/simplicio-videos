@@ -1,6 +1,6 @@
 # Template: notícia de tecnologia (`news-tech`)
 
-**Status: skeleton** — composição já renderizada uma vez em 24/10/2026 (notícia RTX 4090, 90 s: `clients/wesley-noticias-tech/video-01-rtx-4090-331-tflops/`), mas o template só vira `pronto` quando o vídeo de referência for aprovado pelo Wesley.
+**Status: skeleton** — ainda não foi renderizada. O template só vira `pronto` quando o vídeo de referência for aprovado pelo dono do projeto e os textos fixos da composição forem parametrizados (ver Limites conhecidos).
 
 Nichos que caem aqui: notícia de tecnologia, hardware, GPU, placa de vídeo, benchmark, repositório/open source, software, IA.
 
@@ -66,10 +66,11 @@ simplicio-video validate clients/<slug>/<video>/contract.yaml --need-lock
 simplicio-video render   clients/<slug>/<video>/contract.yaml
 ```
 
-Blocos que a composição exige (todos do contrato): `bg` (fundo de vídeo inteiro), `x1`..`x5` (transição no corte de cada cena, exceto a primeira) e `cap-s1`..`cap-s6` (legenda de cada cena: `params.text` = fala, `params.times` = `'{{words:voN}}'`). Os textos de cena ficam no HTML do template; um novo vídeo do mesmo setor troca os textos, os números, as falas e os parâmetros dos blocos no contrato.
+Blocos que a composição exige (todos do contrato): `bg` (fundo de vídeo inteiro), `x1`..`x5` (transição no corte de cada cena, exceto a primeira) e `cap-s1`..`cap-s6` (legenda de cada cena: `params.text` = fala, `params.times` = `'{{words:voN}}'`). Os textos de cena ficam fixos no HTML do template: a composição ainda traz os textos do vídeo de referência (o nome da placa, 165 e 331 TFLOPS, estrelas, forks, datas, fabricante e arquitetura). Hoje um novo vídeo exige editar esses textos na composição; parametrizá-los é condição para o template virar `pronto`.
 
 ## Limites conhecidos
 
+- **Textos fixos**: a composição ainda traz os textos do vídeo de referência (RTX 4090, 165 e 331 TFLOPS, estrelas, forks, datas, Nvidia e a arquitetura citada), e os campos de texto das cenas no `template.json` estão vazios (`campos: []`). Parametrizar esses textos é condição para o template virar `pronto`.
 - `status: skeleton`: a composição compila (`compile_project` completo com lock sintético: `index.html` sem placeholder pendente, JS válido, blocos e fontes copiados), mas **ainda não foi renderizada** — o primeiro render confirma o layout (principalmente as barras de s3 e as molduras de s4/s5, que ocupam mais altura).
 - O die de GPU é geometria decorativa, não representa o die real de nenhum chip.
 - Sem `placas_video`, sem b-roll: é notícia falada com gráfico, não reportagem com imagem.

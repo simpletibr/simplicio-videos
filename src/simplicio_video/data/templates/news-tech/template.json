@@ -30,7 +30,6 @@
       "dur_s": 6.0,
       "padroes": [
         "bg-grid-glow-particles",
-        "fx-transition",
         "news-caption"
       ],
       "campos": [],
