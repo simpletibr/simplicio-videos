@@ -1494,7 +1494,7 @@ def test_an_upload_reply_without_a_file_name_is_an_error(checkout, venv, server,
         raise AssertionError(url)
     monkeypatch.setattr(moneyprinter, "_request", fake)
     rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678"))
-    assert rc == 1 and "falhou" in capsys.readouterr().err
+    assert rc == 1 and "resposta sem nome de arquivo" in capsys.readouterr().err
 
 
 def test_a_task_whose_videos_are_not_a_list_is_an_error(checkout, venv, server, monkeypatch, tmp_path, capsys):

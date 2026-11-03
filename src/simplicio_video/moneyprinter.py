@@ -631,9 +631,11 @@ def _upload_material(base: str, path: Path, auth: dict) -> tuple[str, str]:
     body = head + data + f"\r\n--{boundary}--\r\n".encode()
     status, reply = _request("POST", f"{base}/api/v1/video_materials", body,
                              {"Content-Type": f"multipart/form-data; boundary={boundary}", **auth}, timeout=600)
-    data = (reply or {}).get("data")
-    if status != 200 or not isinstance(data, dict) or not isinstance(data.get("file"), str):
+    if status != 200:
         raise MoneyPrinterError(f"o envio do material {path.name} falhou (HTTP {status}).")
+    data = (reply or {}).get("data")
+    if not isinstance(data, dict) or not isinstance(data.get("file"), str):
+        raise MoneyPrinterError(f"o envio do material {path.name} devolveu resposta sem nome de arquivo.")
     return data["file"], digest
 
 
@@ -853,6 +855,8 @@ def _generate(d: Path, args: list[str]) -> int:
         videos = task.get("videos")
         if not isinstance(videos, list) or not videos:
             raise MoneyPrinterError(f"a tarefa {task_id} terminou sem vídeo.")
+        if not isinstance(videos[0], str):
+            raise MoneyPrinterError(f"a tarefa {task_id} devolveu uma saída inválida.")
         src = _task_file(d, videos[0])
         if not src.is_file():
             raise MoneyPrinterError(f"o MP4 da tarefa {task_id} não está em {src}.")
