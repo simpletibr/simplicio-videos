@@ -1287,6 +1287,7 @@ def test_api_key_of_an_invalid_config_is_an_error_only_when_a_key_is_there(tmp_p
 
 def test_an_http_error_whose_body_cannot_be_read_still_returns_its_status(monkeypatch):
     import http.client
+    import urllib.error
 
     class Body:
         def read(self, *a):

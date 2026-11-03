@@ -54,7 +54,6 @@ TASK_STATE_COMPLETE, TASK_STATE_FAILED = 1, -1  # app/models/const.py no commit 
 POLL_SECONDS = 2.0
 TASK_TIMEOUT_SECONDS = 1800
 READY_TIMEOUT_SECONDS = 120
-_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # loopback: nunca pelo proxy do ambiente
 
 USAGE = (
     f"MoneyPrinterTurbo ({MONEYPRINTER_REPO}, MIT)\n"
@@ -508,21 +507,41 @@ def _stop_all(procs: list, original: dict) -> None:
 GENERATE_FLAGS = ("--script", "--material", "--out", "--voice", "--aspect", "--subject", "--api-port")
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Loopback não segue redirect: um Location para outro host levaria o x-api-key junto."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())  # nunca pelo proxy do ambiente
+
+
+def _json_or_none(raw: bytes) -> dict | None:
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def _request(method: str, url: str, body: bytes | None = None, headers: dict | None = None,
              timeout: float = 30) -> tuple[int, dict | None]:
     """HTTP com a biblioteca padrão, só para a API em loopback. Devolve (status, JSON ou None); status 0 = sem conexão."""
     req = urllib.request.Request(url, data=body, method=method, headers=headers or {})
     try:
         with _OPENER.open(req, timeout=timeout) as resp:
-            status, raw = resp.status, resp.read()
+            return resp.status, _json_or_none(resp.read())
     except urllib.error.HTTPError as e:
-        status, raw = e.code, e.read()
+        try:
+            raw = e.read()
+        except (http.client.HTTPException, OSError):  # o status é o que importa; o corpo pode vir quebrado
+            raw = b""
+        return e.code, _json_or_none(raw)
     except (urllib.error.URLError, OSError, http.client.HTTPException):
         return 0, None
-    try:
-        return status, (json.loads(raw) if raw else None)
-    except ValueError:
-        return status, None
 
 
 def _port(value: str | None) -> int:
@@ -538,7 +557,7 @@ def _listen_socket(port: int) -> socket.socket:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind((LOOPBACK, port))
         sock.listen(128)
-    except OSError:
+    except BaseException:
         sock.close()
         raise
     return sock
@@ -580,6 +599,8 @@ def wait_for_task(base: str, task_id: str, get, sleep=time.sleep, max_polls: int
                 f"{task.get('error') or 'sem detalhe'}")
         if status == 404:
             raise MoneyPrinterError(f"a tarefa {task_id} não encontrada na API.")
+        if status not in (0, 200):  # 0 = sem conexão agora (a API pode estar ocupada): tenta de novo
+            raise MoneyPrinterError(f"a API respondeu HTTP {status} ao consultar a tarefa {task_id}.")
         sleep(poll)
     raise MoneyPrinterError(f"tempo esgotado esperando a tarefa {task_id} (último estado: {task.get('state')}).")
 
@@ -664,13 +685,13 @@ def _parse_generate(args: list[str]) -> dict:
     return opts
 
 
-def _wait_ready(base: str, proc: subprocess.Popen) -> None:
+def _wait_ready(base: str, proc: subprocess.Popen, auth: dict) -> None:
     """Espera a API responder como MoneyPrinterTurbo (não qualquer coisa que esteja nessa porta)."""
     deadline = time.monotonic() + READY_TIMEOUT_SECONDS
     while True:
         if proc.poll() is not None:
             raise MoneyPrinterError(f"a API saiu com código {proc.returncode} antes de responder; veja a saída acima.")
-        status, data = _request("GET", f"{base}/openapi.json", timeout=5)
+        status, data = _request("GET", f"{base}/openapi.json", headers=auth, timeout=5)
         if status == 200 and ((data or {}).get("info") or {}).get("title") == "MoneyPrinterTurbo":
             return
         if time.monotonic() > deadline:
@@ -696,9 +717,22 @@ def _api_key(d: Path) -> str | None:
     try:
         import tomllib
         value = (tomllib.loads(path.read_text(encoding="utf-8", errors="replace")).get("app") or {}).get("api_key")
-    except Exception:  # config inválido ou sem tomllib: segue sem cabeçalho; a API recusa com 401 e o erro aparece
+    except Exception:  # sem tomllib (Python 3.10) ou TOML inválido
+        if config_report(path)["keys"].get("app.api_key"):  # há chave: a API a exige, então não pode seguir sem ela
+            raise MoneyPrinterError("app.api_key está preenchido, mas o config.toml não pôde ser lido (TOML inválido, "
+                                    "ou Python sem tomllib, que exige 3.11+).") from None
         return None
-    return (value.strip() or None) if isinstance(value, str) else None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    key = value.strip()
+    if not key.isprintable():
+        raise MoneyPrinterError("app.api_key tem caractere de controle (quebra de linha, por exemplo); corrija o config.toml.")
+    try:
+        key.encode("latin-1")
+    except UnicodeEncodeError:
+        raise MoneyPrinterError("app.api_key tem caractere fora de latin-1, que o cabeçalho HTTP não aceita; "
+                                "corrija o config.toml.") from None
+    return key
 
 
 def _generate(d: Path, args: list[str]) -> int:
@@ -735,7 +769,8 @@ def _generate(d: Path, args: list[str]) -> int:
             listener = _listen_socket(opts["api_port"] or 0)
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
-                raise MoneyPrinterError(f"a porta {opts['api_port']} já está em uso; escolha outra com --api-port.") from None
+                where = f"a porta {opts['api_port']}" if opts["api_port"] else "a porta que o sistema ofereceu"
+                raise MoneyPrinterError(f"{where} já está em uso; escolha outra com --api-port.") from None
             raise
         port = listener.getsockname()[1]
         base = f"http://{LOOPBACK}:{port}"
@@ -753,7 +788,7 @@ def _generate(d: Path, args: list[str]) -> int:
         listener.close()  # o filho tem a sua cópia do socket
         listener = None
         proc = procs[0]
-        _wait_ready(base, proc)
+        _wait_ready(base, proc, auth)
         uploaded = [_upload_material(base, m, auth) for m in materials]
         records = [{"name": m.name, "sha256": digest} for m, (_, digest) in zip(materials, uploaded)]
         body = build_video_request(text, opts["voice"], opts["aspect"], [name for name, _ in uploaded],
