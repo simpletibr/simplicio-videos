@@ -18,7 +18,9 @@ Nothing here ever prints or logs a value from config.toml: only the key names an
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
+import http.client
 import ipaddress
 import json
 import os
@@ -515,7 +517,7 @@ def _request(method: str, url: str, body: bytes | None = None, headers: dict | N
             status, raw = resp.status, resp.read()
     except urllib.error.HTTPError as e:
         status, raw = e.code, e.read()
-    except (urllib.error.URLError, OSError):
+    except (urllib.error.URLError, OSError, http.client.HTTPException):
         return 0, None
     try:
         return status, (json.loads(raw) if raw else None)
@@ -524,16 +526,22 @@ def _request(method: str, url: str, body: bytes | None = None, headers: dict | N
 
 
 def _port(value: str | None) -> int:
-    if value is None or not re.fullmatch(r"\d{1,5}", value) or not PORT_MIN <= int(value) <= PORT_MAX:
+    if value is None or not re.fullmatch(r"[0-9]{1,5}", value) or not PORT_MIN <= int(value) <= PORT_MAX:
         raise MoneyPrinterError(f"--api-port pede um número de porta entre {PORT_MIN} e {PORT_MAX}.")
     return int(value)
 
 
-def _free_port() -> int:
-    """Uma porta de loopback livre agora; a API sobe nela logo em seguida."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((LOOPBACK, 0))
-        return s.getsockname()[1]
+def _listen_socket(port: int) -> socket.socket:
+    """Socket de loopback já em escuta, que vai para a API (uvicorn --fd). Porta 0: uma livre agora, sem corrida."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((LOOPBACK, port))
+        sock.listen(128)
+    except OSError:
+        sock.close()
+        raise
+    return sock
 
 
 def _sha256(path: Path) -> str:
@@ -576,7 +584,7 @@ def wait_for_task(base: str, task_id: str, get, sleep=time.sleep, max_polls: int
     raise MoneyPrinterError(f"tempo esgotado esperando a tarefa {task_id} (último estado: {task.get('state')}).")
 
 
-def _upload_material(base: str, path: Path) -> tuple[str, str]:
+def _upload_material(base: str, path: Path, auth: dict) -> tuple[str, str]:
     """Envia um material ao diretório de vídeos locais da API. Devolve (nome guardado, sha256 dos bytes enviados)."""
     data = path.read_bytes()
     digest = hashlib.sha256(data).hexdigest()  # o hash é dos bytes que foram enviados, não do arquivo depois
@@ -585,7 +593,7 @@ def _upload_material(base: str, path: Path) -> tuple[str, str]:
             "Content-Type: application/octet-stream\r\n\r\n").encode()
     body = head + data + f"\r\n--{boundary}--\r\n".encode()
     status, reply = _request("POST", f"{base}/api/v1/video_materials", body,
-                             {"Content-Type": f"multipart/form-data; boundary={boundary}"}, timeout=600)
+                             {"Content-Type": f"multipart/form-data; boundary={boundary}", **auth}, timeout=600)
     if status != 200 or "file" not in ((reply or {}).get("data") or {}):
         raise MoneyPrinterError(f"o envio do material {path.name} falhou (HTTP {status}).")
     return reply["data"]["file"], digest
@@ -672,16 +680,25 @@ def _wait_ready(base: str, proc: subprocess.Popen) -> None:
 
 def _checkout_head(d: Path) -> str | None:
     """O commit que realmente está no checkout (o manifesto registra esse, não só o pino)."""
+    if not (d / ".git").exists():  # sem .git aqui, o git acharia o repositório pai: não é o checkout
+        return None
     try:
         return tools._git("rev-parse", "HEAD", cwd=d)
     except tools.ToolError:
         return None
 
 
-def _answers(base: str) -> bool:
-    """Alguma coisa já responde nessa porta? Nesse caso não sobe outra API nela."""
-    status, _ = _request("GET", f"{base}/openapi.json", timeout=2)
-    return status != 0
+def _api_key(d: Path) -> str | None:
+    """app.api_key do config.toml, lido só para o cabeçalho x-api-key das chamadas de loopback. Nunca impresso nem gravado."""
+    path = d / "config.toml"
+    if not path.is_file():
+        return None
+    try:
+        import tomllib
+        value = (tomllib.loads(path.read_text(encoding="utf-8", errors="replace")).get("app") or {}).get("api_key")
+    except Exception:  # config inválido ou sem tomllib: segue sem cabeçalho; a API recusa com 401 e o erro aparece
+        return None
+    return (value.strip() or None) if isinstance(value, str) else None
 
 
 def _generate(d: Path, args: list[str]) -> int:
@@ -698,8 +715,6 @@ def _generate(d: Path, args: list[str]) -> int:
             raise MoneyPrinterError(f"material não encontrado: {m}")
     if not venv_python().exists():
         raise MoneyPrinterError("ambiente não preparado: rode `simplicio-video moneyprinter setup`.")
-    port = opts["api_port"] or _free_port()
-    base = f"http://{LOOPBACK}:{port}"
     out_dir = Path(opts["out"]).expanduser()
     started = time.monotonic()
     procs: list[subprocess.Popen] = []
@@ -708,32 +723,45 @@ def _generate(d: Path, args: list[str]) -> int:
     for n in catch:
         signal.signal(n, _on_term)
     meta: dict = {}
+    listener: socket.socket | None = None
     try:
-        # tudo que pode falhar antes de gastar (pasta, chave, porta) acontece antes de subir a API
+        # tudo que pode falhar antes de gastar (pasta, porta, chave) acontece antes de subir a API
         try:
             out_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             raise MoneyPrinterError(f"a pasta de saída não pode ser criada: {out_dir} ({e})") from None
+        # a porta é reservada aqui e o socket vai para a API: nenhuma outra instância atende nela, nem por um instante
+        try:
+            listener = _listen_socket(opts["api_port"] or 0)
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                raise MoneyPrinterError(f"a porta {opts['api_port']} já está em uso; escolha outra com --api-port.") from None
+            raise
+        port = listener.getsockname()[1]
+        base = f"http://{LOOPBACK}:{port}"
+        key = _api_key(d)
+        auth = {"x-api-key": key} if key else {}
         _check_api_key(d, port)
         _warn_if_not_pinned(d)
-        if _answers(base):
-            raise MoneyPrinterError(f"a porta {port} já responde; escolha outra com --api-port.")
         existing = os.environ.get("PYTHONPATH")
         env = {**os.environ, "PYTHONPATH": str(d) + (os.pathsep + existing if existing else "")}
+        fd = listener.fileno()
         # o log do servidor vai para o stderr (fd 2): o stdout fica só com o resultado, que pode ser JSON
-        procs.append(subprocess.Popen([str(venv_python()), "-m", "uvicorn", "app.asgi:app", "--host", LOOPBACK,
-                                       "--port", str(port), "--log-level", "warning"],
-                                      cwd=d, env=env, start_new_session=True, stdout=2))
+        procs.append(subprocess.Popen([str(venv_python()), "-m", "uvicorn", "app.asgi:app", "--fd", str(fd),
+                                       "--log-level", "warning"],
+                                      cwd=d, env=env, start_new_session=True, stdout=2, pass_fds=(fd,)))
+        listener.close()  # o filho tem a sua cópia do socket
+        listener = None
         proc = procs[0]
         _wait_ready(base, proc)
-        uploaded = [_upload_material(base, m) for m in materials]
+        uploaded = [_upload_material(base, m, auth) for m in materials]
         records = [{"name": m.name, "sha256": digest} for m, (_, digest) in zip(materials, uploaded)]
         body = build_video_request(text, opts["voice"], opts["aspect"], [name for name, _ in uploaded],
                                    opts["subject"] or text[:40])
         if proc.poll() is not None:
             raise MoneyPrinterError(f"a API saiu com código {proc.returncode} antes de receber o pedido.")
         status, data = _request("POST", f"{base}/api/v1/videos", json.dumps(body).encode("utf-8"),
-                                {"Content-Type": "application/json"}, timeout=60)
+                                {"Content-Type": "application/json", **auth}, timeout=60)
         task_id = ((data or {}).get("data") or {}).get("task_id")
         if status != 200 or not task_id:
             raise MoneyPrinterError(f"a API recusou o pedido (HTTP {status}): "
@@ -742,7 +770,7 @@ def _generate(d: Path, args: list[str]) -> int:
         def get(url: str) -> tuple[int, dict | None]:
             if proc.poll() is not None:
                 raise MoneyPrinterError(f"a API saiu com código {proc.returncode} antes de terminar a tarefa {task_id}.")
-            return _request("GET", url)
+            return _request("GET", url, headers=auth)
 
         task = wait_for_task(base, task_id, get=get, max_polls=int(TASK_TIMEOUT_SECONDS / POLL_SECONDS))
         videos = task.get("videos") or []
@@ -763,6 +791,8 @@ def _generate(d: Path, args: list[str]) -> int:
         print("moneyprinter: interrompido; a API foi parada.", file=sys.stderr)
         return 130
     finally:
+        if listener is not None:
+            listener.close()
         _stop_all(procs, original)
     if opts["json"]:
         print(json.dumps(meta, ensure_ascii=False, indent=2))

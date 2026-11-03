@@ -1224,7 +1224,7 @@ def test_generate_sends_the_api_key_from_config_to_loopback_only_and_never_print
     rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678", "--json"))
     captured = capsys.readouterr()
     assert rc == 0
-    assert sent["headers"] == {"x-api-key": FAKE_KEY}  # the API requires it once app.api_key is filled
+    assert sent["headers"]["x-api-key"] == FAKE_KEY  # the API requires it once app.api_key is filled
     assert FAKE_KEY not in captured.out + captured.err
     assert FAKE_KEY not in (tmp_path / "o" / "moneyprinter-t1.json").read_text()
 
