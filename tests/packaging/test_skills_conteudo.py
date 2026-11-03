@@ -306,3 +306,17 @@ def test_o_update_do_pip_na_skill_diz_que_o_install_global_mexe_nas_11_pastas_de
     assert re.search(r"update[^.]{0,200}install --global[^.]{0,200}11 pastas", texto), "the update paragraph must name the 11 folders"
     assert re.search(r"install --global[^.]{0,200}11 pastas[^.]{0,200}cria as que faltam", texto) or "cria as que faltam" in texto
     assert not re.search(r"install --global`? \(o home\): copia a skill para `\.claude/skills`", texto), "it writes in 11 folders, not one"
+
+
+CTA_ITEM = "CTA no final"
+
+
+def test_todo_video_tem_cta_no_final_nas_quatro_skills():
+    # regra do Wesley (via XViral): todo vídeo tem um CTA no final pedindo uma ação; sem CTA, o vídeo não sai
+    for nome in ("deep-news", "deep-service", "deep-product", "simplicio-video"):
+        texto = _texto(nome)
+        checklist = _secao(texto, "## Checklist")
+        assert CTA_ITEM in checklist, f"{nome}: o checklist precisa do item de CTA"
+        assert "sem CTA, o vídeo não sai" in checklist, nome
+        for acao in ("comente", "clique", "siga", "salve"):
+            assert acao in checklist, (nome, acao)
