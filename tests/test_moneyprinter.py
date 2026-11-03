@@ -1528,3 +1528,29 @@ def test_a_good_reply_resets_the_count_of_transient_errors():
     got = moneyprinter.wait_for_task("http://127.0.0.1:1", "t1", get=lambda url: next(replies),
                                      sleep=lambda s: None, max_polls=50)
     assert got["videos"] == ["/tasks/t1/f.mp4"]
+
+
+def test_a_task_whose_video_entry_is_not_text_is_a_clean_error(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(final_state={"task_id": "t1", "state": 1,
+                                                                             "videos": [None]}))
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678"))
+    err = capsys.readouterr().err
+    assert rc == 1 and "saída inválida" in err and "Traceback" not in err
+
+
+def test_an_upload_reply_with_a_non_text_file_name_says_what_is_wrong(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    calls = {"openapi": 0}
+
+    def fake(method, url, body=None, headers=None, timeout=30):
+        if url.endswith("/openapi.json"):
+            calls["openapi"] += 1
+            return (200, {"info": {"title": "MoneyPrinterTurbo"}}) if calls["openapi"] > 1 else (0, None)
+        if url.endswith("/api/v1/video_materials"):
+            return 200, {"status": 200, "data": {"file": False}}
+        raise AssertionError(url)
+    monkeypatch.setattr(moneyprinter, "_request", fake)
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678"))
+    err = capsys.readouterr().err
+    assert rc == 1 and "resposta sem nome de arquivo" in err and "HTTP 200" not in err
