@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import os
 import re
@@ -47,12 +48,29 @@ speech_key = ""
 """
 
 
+class _FakeListener:
+    """Stands in for the socket generate reserves: sockets are blocked in unit tests."""
+
+    def __init__(self, port):
+        self.port = port
+
+    def fileno(self):
+        return 99
+
+    def getsockname(self):
+        return ("127.0.0.1", self.port)
+
+    def close(self):
+        pass
+
+
 @pytest.fixture(autouse=True)
-def _checkout_is_not_a_repository(monkeypatch):
-    """The generate path asks git for the checkout's HEAD; unit tests never run git (conftest), so answer 'not a repo'."""
+def _no_git_and_no_real_sockets(monkeypatch):
+    """generate asks git for the checkout's HEAD and reserves a loopback port: unit tests do neither for real."""
     def not_a_checkout(*a, cwd=None):
         raise tools.ToolError("not a repository")
     monkeypatch.setattr(tools, "_git", not_a_checkout)
+    monkeypatch.setattr(moneyprinter, "_listen_socket", lambda port: _FakeListener(port or 45678), raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -920,7 +938,8 @@ def test_generate_runs_the_api_behind_the_scenes_and_brings_the_mp4_back(
     assert sent["body"]["video_materials"] == [{"provider": "local", "url": "stored-clip.mp4"}]
     assert sent["body"]["video_script"] == "Olá, este é um teste de voz."
     cmd = server.started[0].cmd
-    assert cmd[cmd.index("--port") + 1] == "45678" and cmd[cmd.index("--host") + 1] == "127.0.0.1"
+    assert cmd[cmd.index("--fd") + 1] == "99" and server.started[0].kwargs["pass_fds"] == (99,)
+    assert "--port" not in cmd and "--host" not in cmd  # the socket is the address: no second bind
     assert server.signals  # the API group is stopped at the end, never left running
 
 
@@ -973,6 +992,7 @@ def _api_request(final_state=None, posted=None, material_status=200, on_task=Non
         if url.endswith("/api/v1/videos"):
             if sent is not None:
                 sent["body"] = json.loads(body)
+                sent["headers"] = headers
             return 200, {"status": 200, "data": {"task_id": "t1"}}
         if url.endswith("/api/v1/tasks/t1"):
             if on_task:
@@ -982,15 +1002,19 @@ def _api_request(final_state=None, posted=None, material_status=200, on_task=Non
     return fake
 
 
-def test_generate_refuses_a_port_that_already_answers(checkout, venv, server, monkeypatch, tmp_path, capsys):
+def test_generate_refuses_a_port_someone_else_holds(checkout, venv, server, monkeypatch, tmp_path, capsys):
     script, clip = _generate_inputs(tmp_path)
     posted = []
-    monkeypatch.setattr(moneyprinter, "_request", _api_request(posted=posted, port_busy=True))
+
+    def busy(port):
+        raise OSError(errno.EADDRINUSE, "Address already in use")
+    monkeypatch.setattr(moneyprinter, "_listen_socket", busy)
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(posted=posted))
     rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
     assert rc == 1
-    assert server.started == []  # never start a second API on a port that already answers
-    assert posted == [("GET", "http://127.0.0.1:45678/openapi.json", None)]
-    assert "já responde" in capsys.readouterr().err
+    assert server.started == []  # no API started, nothing requested from that port
+    assert posted == []
+    assert "já está em uso" in capsys.readouterr().err
 
 
 def test_generate_reports_a_child_that_dies_while_waiting(checkout, venv, server, monkeypatch, tmp_path, capsys):
@@ -1008,8 +1032,8 @@ def test_loopback_requests_ignore_the_proxy_environment(monkeypatch):
     import urllib.request
     monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:3128")
     monkeypatch.setenv("http_proxy", "http://proxy.invalid:3128")
-    # no handler of the opener may take the proxy from the environment (a handler with proxies would)
-    assert all(not h.proxies for h in moneyprinter._OPENER.handlers if isinstance(h, urllib.request.ProxyHandler))
+    # the default opener has a ProxyHandler that reads HTTP_PROXY; ours must not have any
+    assert not any(isinstance(h, urllib.request.ProxyHandler) for h in moneyprinter._OPENER.handlers)
 
 
 @pytest.mark.parametrize("uri", [
@@ -1170,3 +1194,43 @@ def test_the_api_log_goes_to_stderr_so_the_json_stdout_stays_clean(checkout, ven
     assert rc == 0
     assert json.loads(captured.out)["task_id"] == "t1"  # stdout is only the JSON object
     assert server.started[0].kwargs.get("stdout") == 2  # the server's own output goes to stderr (fd 2)
+
+
+def test_a_non_http_service_on_the_port_is_a_clean_error_not_a_traceback(monkeypatch):
+    import http.client
+
+    class Broken:
+        def open(self, req, timeout=None):
+            raise http.client.BadStatusLine("RESP")
+    monkeypatch.setattr(moneyprinter, "_OPENER", Broken())
+    assert moneyprinter._request("GET", "http://127.0.0.1:1/openapi.json") == (0, None)
+
+
+@pytest.mark.parametrize("value", ["\uff18\uff10\uff18\uff10", "08080 ", "+8080"])
+def test_api_port_accepts_only_ascii_digits(value):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="entre 1024 e 65535"):
+        moneyprinter._port(value)
+
+
+def test_generate_sends_the_api_key_from_config_to_loopback_only_and_never_prints_it(
+        checkout, venv, server, monkeypatch, tmp_path, capsys):
+    (checkout / "config.toml").write_text(f'[app]\napi_key = "{FAKE_KEY}"\n')
+    script, clip = _generate_inputs(tmp_path)
+    final = checkout / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final.parent.mkdir(parents=True)
+    final.write_bytes(b"video")
+    sent = {}
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(sent=sent))
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678", "--json"))
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert sent["headers"] == {"x-api-key": FAKE_KEY}  # the API requires it once app.api_key is filled
+    assert FAKE_KEY not in captured.out + captured.err
+    assert FAKE_KEY not in (tmp_path / "o" / "moneyprinter-t1.json").read_text()
+
+
+def test_checkout_head_is_not_read_from_a_parent_repository(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: calls.append(a) or "deadbeef")
+    assert moneyprinter._checkout_head(tmp_path) is None  # no .git here: never ask git (it would find the parent's)
+    assert calls == []
