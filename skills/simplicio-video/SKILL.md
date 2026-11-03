@@ -21,6 +21,7 @@ Você (LLM) **raciocina e escreve o contrato**; o CLI **executa**. Nunca edite H
 6. **Tempos:** leia cada fala em voz alta a ~2,5 palavras/s; `max_s` = duração natural + folga (0,2–0,5 s). `inicio_s + max_s` ≤ duração da cena (+ J-cut ≤ 0,15 s). A soma das cenas = `formato.duracao_s`. SFX com tempo relativo à cena, nas batidas (120 BPM = 0,5 s).
 7. **Marca:** logo só com arquivo real (`marca.logo`); sem arquivo → `logo: null` e lockup de texto. Não mostre telefone/endereço/preço/avaliações não confirmados.
 8. **Entrega:** fora do motor (issue #75). O contrato não tem bloco `drive`; quem entrega (Drive, link, Real Oficial) informa o destino. Convenção no Drive: a pasta `clientes`, a do cliente (`drive_nome`), o ano e a campanha; o arquivo se chama `"<CLIENTE> - <descricao> - vNN.mp4"`.
+9. **CTA:** todo vídeo termina com um CTA: um pedido de ação (comente, clique no botão abaixo, clique no link da bio, siga ou salve), a chamada final da empresa do cliente ou o slogan dela. A última cena é o CTA; sem ele, o vídeo não sai.
 
 ## Comandos exatos
 ```bash
@@ -44,6 +45,7 @@ Schema do contrato: vai no pacote (`simplicio_video/data/schema/contract.schema.
 > Nota: o motor só faz contrato, voz, render, Openverse, busca e o plano de redes; o upload para o Drive não é do motor (#75).
 
 ## Checklist de validação
+- [ ] Todo vídeo termina com um CTA, que pode ser um pedido de ação (comente, clique no botão abaixo, clique no link da bio, siga ou salve), a chamada final da empresa do cliente ou o slogan dela; sem CTA, o vídeo não sai.
 - [ ] `validate` sem erro (nenhum `TODO`, sem bloco `drive`, assets existem).
 - [ ] `voice` sem fala acima de `max_s` (se estourar: encurte o texto ou aumente cena/`max_s`; **nunca** acelere).
 - [ ] `render` ok; `render.manifest.json → loudness.integrated_lufs` ≈ −14 e pico ≤ −1,5.

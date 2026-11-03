@@ -96,7 +96,7 @@ Grave a análise completa em analise.md, ao lado do contrato: o número calibrad
 | Dissecação | 4 cenas de 8 a 10 s | o trecho na tela em palavras cinéticas, o mecanismo na fala, a citação (autor, ano) |
 | Rede | 6 a 8 s | como o algoritmo e a distribuição multiplicaram |
 | Síntese | 8 a 10 s | a tese de uma frase e os motores |
-| Fecho | 4 a 6 s | a lição que dá para usar com honestidade, ou uma pergunta, e “fontes na legenda” |
+| Fecho | 4 a 6 s | a lição que dá para usar com honestidade, ou uma pergunta, o CTA (um pedido de ação: comente, clique no botão abaixo, clique no link da bio, siga ou salve; ou a chamada final ou o slogan da empresa do cliente) e “fontes na legenda” |
 
 Para a dissecação, escolha os quatro trechos de maior efeito: o mais sentido, o álibi, o gatilho de data ou urgência e o contraintuitivo. O contrato aceita até 180 s (`formato.duracao_s`). Versão mais longa só quando o usuário pedir: até 180 s em 16:9, se houver template 16:9 pronto; acima disso, entregue analise.md e roteiro.md (um capítulo por seção da análise) e ofereça cortes verticais.
 
@@ -111,6 +111,7 @@ Para a dissecação, escolha os quatro trechos de maior efeito: o mais sentido, 
 O motor termina no MP4. Cortes verticais: skill `simplicio-video-shorts`. Postar: skill `simplicio-video-social`, com o sim explícito do usuário em cada postagem. Na conversa, entregue a tese em uma frase, o caminho de analise.md e roteiro.md e o estado do render.
 
 ## Checklist
+- [ ] Todo vídeo termina com um CTA, que pode ser um pedido de ação (comente, clique no botão abaixo, clique no link da bio, siga ou salve), a chamada final da empresa do cliente ou o slogan dela; sem CTA, o vídeo não sai.
 - [ ] O objeto está transcrito na íntegra; cada fato tem fonte e data, com a página lida.
 - [ ] Cada estudo citado existe (autor, ano) e diz o que o vídeo diz.
 - [ ] Números vêm de medição ou de fonte, nunca de estimativa sem rótulo.
