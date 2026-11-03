@@ -591,10 +591,11 @@ def _upload_material(base: str, path: Path) -> tuple[str, str]:
     return reply["data"]["file"], digest
 
 
-def _task_file(data_root: Path, uri: str) -> Path:
-    """A API devolve a saída como /tasks/<relativo>; o arquivo fica em storage/tasks, e nada fora dali é lido."""
+def _task_file(checkout: Path, uri: str) -> Path:
+    """A API devolve a saída como /tasks/<relativo>; o upstream grava em <checkout>/storage/tasks (storage/ é ligado
+    à pasta de dados pelo setup), e nada fora dali é lido."""
     prefix = "/tasks/"
-    tasks = (data_root / "storage" / "tasks").resolve()
+    tasks = (checkout / "storage" / "tasks").resolve()
     try:
         path = (tasks / unquote(uri[len(prefix):])).resolve() if uri.startswith(prefix) else tasks.parent
     except (ValueError, OSError):  # ex.: byte nulo no caminho
@@ -660,8 +661,7 @@ def _wait_ready(base: str, proc: subprocess.Popen) -> None:
     deadline = time.monotonic() + READY_TIMEOUT_SECONDS
     while True:
         if proc.poll() is not None:
-            raise MoneyPrinterError(f"a API saiu com código {proc.returncode} antes de responder "
-                                    "(porta ocupada? veja o log acima).")
+            raise MoneyPrinterError(f"a API saiu com código {proc.returncode} antes de responder; veja a saída acima.")
         status, data = _request("GET", f"{base}/openapi.json", timeout=5)
         if status == 200 and ((data or {}).get("info") or {}).get("title") == "MoneyPrinterTurbo":
             return
@@ -701,7 +701,6 @@ def _generate(d: Path, args: list[str]) -> int:
     port = opts["api_port"] or _free_port()
     base = f"http://{LOOPBACK}:{port}"
     out_dir = Path(opts["out"]).expanduser()
-    data_root = data_dir()
     started = time.monotonic()
     procs: list[subprocess.Popen] = []
     catch = [n for n in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None)) if n is not None]
@@ -721,9 +720,10 @@ def _generate(d: Path, args: list[str]) -> int:
             raise MoneyPrinterError(f"a porta {port} já responde; escolha outra com --api-port.")
         existing = os.environ.get("PYTHONPATH")
         env = {**os.environ, "PYTHONPATH": str(d) + (os.pathsep + existing if existing else "")}
+        # o log do servidor vai para o stderr (fd 2): o stdout fica só com o resultado, que pode ser JSON
         procs.append(subprocess.Popen([str(venv_python()), "-m", "uvicorn", "app.asgi:app", "--host", LOOPBACK,
                                        "--port", str(port), "--log-level", "warning"],
-                                      cwd=d, env=env, start_new_session=True))
+                                      cwd=d, env=env, start_new_session=True, stdout=2))
         proc = procs[0]
         _wait_ready(base, proc)
         uploaded = [_upload_material(base, m) for m in materials]
@@ -748,7 +748,7 @@ def _generate(d: Path, args: list[str]) -> int:
         videos = task.get("videos") or []
         if not videos:
             raise MoneyPrinterError(f"a tarefa {task_id} terminou sem vídeo.")
-        src = _task_file(data_root, videos[0])
+        src = _task_file(d, videos[0])
         if not src.is_file():
             raise MoneyPrinterError(f"o MP4 da tarefa {task_id} não está em {src}.")
         meta = write_result(out_dir, task_id, src, body, records, time.monotonic() - started,
