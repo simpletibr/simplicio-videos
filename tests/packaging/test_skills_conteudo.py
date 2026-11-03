@@ -308,7 +308,13 @@ def test_o_update_do_pip_na_skill_diz_que_o_install_global_mexe_nas_11_pastas_de
     assert not re.search(r"install --global`? \(o home\): copia a skill para `\.claude/skills`", texto), "it writes in 11 folders, not one"
 
 
-CTA_ITEM = "CTA no final"
+CTA_ITEM = "termina com um CTA"
+
+
+def _secao(texto: str, titulo: str) -> str:
+    inicio = texto.index(titulo)
+    fim = texto.find("\n## ", inicio + len(titulo))
+    return texto[inicio:] if fim == -1 else texto[inicio:fim]
 
 
 def test_todo_video_tem_cta_no_final_nas_quatro_skills():
@@ -318,5 +324,8 @@ def test_todo_video_tem_cta_no_final_nas_quatro_skills():
         checklist = _secao(texto, "## Checklist")
         assert CTA_ITEM in checklist, f"{nome}: o checklist precisa do item de CTA"
         assert "sem CTA, o vídeo não sai" in checklist, nome
+        # três tipos de CTA: pedido de ação, chamada final da empresa do cliente, ou o slogan dela
+        assert "pedido de ação" in checklist, nome
+        assert "chamada final" in checklist and "slogan" in checklist, nome
         for acao in ("comente", "clique", "siga", "salve"):
             assert acao in checklist, (nome, acao)

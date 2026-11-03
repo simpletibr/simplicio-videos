@@ -74,6 +74,7 @@ Sem prova confirmada, troque o bloco por uma dica útil e avise o usuário. Ofer
 O motor termina no MP4. Entregue o caminho do MP4, de analise.md e de roteiro.md, e a tese em uma frase. Cortes: skill `simplicio-video-shorts`. Postar: skill `simplicio-video-social`, com o sim do usuário em cada postagem.
 
 ## Checklist
+- [ ] Todo vídeo termina com um CTA, que pode ser um pedido de ação (comente, clique no botão abaixo, clique no link da bio, siga ou salve), a chamada final da empresa do cliente ou o slogan dela; sem CTA, o vídeo não sai.
 - [ ] Cada frase da copy é rastreável até a coleta.
 - [ ] Nenhum mecanismo da coluna “Nunca”.
 - [ ] Regras do setor conferidas; publicidade identificada.
