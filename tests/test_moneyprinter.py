@@ -113,8 +113,9 @@ def server(monkeypatch):
                             hup_handler=None, exit_codes=None, slept=0, stop_handlers=[], wait_interrupts=0)
 
     class Proc:
-        def __init__(self, cmd, cwd=None, env=None, start_new_session=False):
+        def __init__(self, cmd, cwd=None, env=None, start_new_session=False, **kwargs):
             self.cmd, self.cwd, self.env, self.start_new_session = cmd, cwd, env, start_new_session
+            self.kwargs = kwargs
             self.pid = 4242 + len(state.started)
             self.index = len(state.started)
             self.returncode = None
@@ -904,7 +905,7 @@ def test_generate_runs_the_api_behind_the_scenes_and_brings_the_mp4_back(
     clip = tmp_path / "clip.mp4"
     clip.write_bytes(b"material")
     out = tmp_path / "out"
-    final = moneyprinter.data_dir() / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final = checkout / "storage" / "tasks" / "t1" / "final-1.mp4"
     final.parent.mkdir(parents=True)
     final.write_bytes(b"video bytes")
     sent = {}
@@ -998,7 +999,8 @@ def test_generate_reports_a_child_that_dies_while_waiting(checkout, venv, server
     monkeypatch.setattr(moneyprinter, "_request", lambda method, url, body=None, headers=None, timeout=30: (0, None))
     rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
     assert rc == 1
-    assert "saiu com código 3" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "saiu com código 3" in err and "veja a saída acima" in err
     assert server.signals  # the group is always stopped (no leftover process)
 
 
@@ -1067,7 +1069,7 @@ def test_generate_applies_the_same_api_key_guard_as_serve(checkout, venv, server
 def test_generate_never_prints_or_records_a_key_from_the_config(checkout, venv, server, monkeypatch, tmp_path, capsys):
     (checkout / "config.toml").write_text(CONFIG_WITH_KEYS)
     script, clip = _generate_inputs(tmp_path)
-    final = moneyprinter.data_dir() / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final = checkout / "storage" / "tasks" / "t1" / "final-1.mp4"
     final.parent.mkdir(parents=True)
     final.write_bytes(b"video")
     monkeypatch.setattr(moneyprinter, "_request", _api_request())
@@ -1083,7 +1085,7 @@ def test_generate_never_prints_or_records_a_key_from_the_config(checkout, venv, 
 def test_material_hash_is_the_one_of_the_bytes_that_were_sent(checkout, venv, server, monkeypatch, tmp_path, capsys):
     import hashlib
     script, clip = _generate_inputs(tmp_path)
-    final = moneyprinter.data_dir() / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final = checkout / "storage" / "tasks" / "t1" / "final-1.mp4"
     final.parent.mkdir(parents=True)
     final.write_bytes(b"video")
     uploads = []
@@ -1139,3 +1141,32 @@ def test_wait_for_task_stops_at_an_unknown_task():
         moneyprinter.wait_for_task("http://127.0.0.1:1", "t9", get=lambda url: (404, {"message": "task not found"}),
                                    sleep=sleeps.append, max_polls=900)
     assert sleeps == []
+
+
+def test_generate_reads_the_mp4_where_the_checkout_writes_it(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    # MONEYPRINTER_DATA_DIR now points elsewhere: the upstream still writes into checkout/storage (linked by setup)
+    monkeypatch.setenv("MONEYPRINTER_DATA_DIR", str(tmp_path / "outra-pasta"))
+    py = moneyprinter.venv_python()
+    py.parent.mkdir(parents=True)
+    py.write_text("")
+    script, clip = _generate_inputs(tmp_path)
+    final = checkout / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final.parent.mkdir(parents=True)
+    final.write_bytes(b"video")
+    monkeypatch.setattr(moneyprinter, "_request", _api_request())
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678", "--json"))
+    assert rc == 0
+    assert (tmp_path / "o" / "moneyprinter-t1.mp4").read_bytes() == b"video"
+
+
+def test_the_api_log_goes_to_stderr_so_the_json_stdout_stays_clean(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    final = checkout / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final.parent.mkdir(parents=True)
+    final.write_bytes(b"video")
+    monkeypatch.setattr(moneyprinter, "_request", _api_request())
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678", "--json"))
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert json.loads(captured.out)["task_id"] == "t1"  # stdout is only the JSON object
+    assert server.started[0].kwargs.get("stdout") == 2  # the server's own output goes to stderr (fd 2)
