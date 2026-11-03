@@ -637,3 +637,22 @@ issues:
       - "tests/test_busca.py"
       - "tests/test_publish.py"
       - "plugin.json"   # na lista `generated`, mas a remoção do verbo video.publish é edição manual: não há gerador no repo
+  # ------------------------------------------------------------------ skills deep (#141)
+  141:
+    track: skills
+    status: ready
+    owns:
+      - "src/simplicio_video/data/skills/deep-news/**"
+      - "src/simplicio_video/data/skills/deep-service/**"
+      - "src/simplicio_video/data/skills/deep-product/**"
+      - "skills/deep-news/**"
+      - "skills/deep-service/**"
+      - "skills/deep-product/**"
+      - "src/simplicio_video/skill_sync.py"
+      - "tests/packaging/test_skill_sync.py"
+      - "tests/packaging/test_skills_empacotadas.py"
+      - "tests/test_dados_pacote.py"
+      - "tests/packaging/test_skills_conteudo.py"
+      - ".gitignore"
+      - "AGENTS.md#Mapa"
+      - "CHANGELOG.md#Unreleased"

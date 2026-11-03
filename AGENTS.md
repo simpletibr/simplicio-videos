@@ -101,6 +101,9 @@ python -m pytest                                   # schema, validate, --help, d
 
 | `skills/simplicio-video/` | `SKILL.md`: como um LLM escolhe template/motion/voz/tempos e escreve o contrato | [SKILL.md](skills/simplicio-video/SKILL.md) |
 | `skills/simplicio-video-social/` | `SKILL.md`: como o agente posta em redes sociais com as ferramentas MCP do provedor (Real Oficial padrão, Zernio), com o sim explícito do usuário por postagem | [SKILL.md](skills/simplicio-video-social/SKILL.md) |
+| `skills/deep-news/` | `SKILL.md`: vídeo deep de post, notícia ou boato: apura com fonte e data por que viralizou, disseca trecho a trecho (psicologia, linguística, emoção, algoritmo e rede) e vira roteiro curto 9:16 | [SKILL.md](skills/deep-news/SKILL.md) |
+| `skills/deep-service/` | `SKILL.md`: vídeo deep para oferecer serviço: o método deep na versão honesta (diagnóstico do público, mecanismo, prova da coleta) e roteiro 9:16 de 30 a 60 s | [SKILL.md](skills/deep-service/SKILL.md) |
+| `skills/deep-product/` | `SKILL.md`: vídeo deep para oferecer produto digital ou físico: demonstração real, mecanismo na versão honesta, condições só da coleta e roteiro 9:16 de 20 a 45 s | [SKILL.md](skills/deep-product/SKILL.md) |
 | `modules/h3-swap-service/` | Módulo opcional e isolado: troca de personagem em vídeo (MiniMax H3 + LoRA) em GPU alugada (Vast/Salad) com fila na Cloudflare. NÃO é importado pelo motor nem entra no wheel/sdist; `api/` (créditos/cobrança) é deploy próprio, fora do pacote (ver o conflito com o boundary no README do módulo). Tudo UNVERIFIED até o benchmark numa GPU real | [README](modules/h3-swap-service/README.md) |
 | `colab/` | `render.ipynb` (render do bundle na GPU, tempos por etapa) + README | [colab/README.md](colab/README.md) |
 | `tests/` | pytest: schema, validate, voice, compile (WJR byte a byte), `--help`, determinismo de hash (render de 1 s), fixture `fixtures/mini/` | — |
