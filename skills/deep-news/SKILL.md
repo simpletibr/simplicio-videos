@@ -47,10 +47,10 @@ Para cada trecho: **técnica → mecanismo (com estudo) → efeito no leitor**. 
 |---|---|---|
 | Prioridade da ameaça | sirene, “urgente”, alerta no topo | Baumeister et al., 2001 |
 | Informação exclusiva | “deep web”, “fonte interna”, “vazou” | Knishinsky, 1982 (citado por Cialdini); Brock, 1968 |
-| Dúvida como álibi | “fonte não confirmada”, “não leve ao pé da letra” | Altay, Hacquin & Mercier, 2022; Pennycook et al., 2021 |
+| Dúvida como álibi | “fonte não confirmada”, “não leve ao pé da letra” | compartilhar falso custa reputação, e a ressalva baixa esse custo (Altay, Hacquin & Mercier, 2022); pensar na veracidade reduz o compartilhamento, e a ressalva tira o foco dela (Pennycook et al., 2021) |
 | Pressuposição | “o evento que vai ocorrer”, “o chamado X” | Loftus & Palmer, 1974 |
 | Moldura de documento e voz dividida | citação ou print afirma com certeza, o narrador duvida | contagem dentro e fora da citação |
-| Âncora em trauma coletivo | “COVID 2.0”, “lockdown” | Tversky & Kahneman, 1973 |
+| Trauma coletivo como referência | “COVID 2.0”, “lockdown” | heurística da disponibilidade (Tversky & Kahneman, 1973) |
 | Metáfora conceitual | roteiro conhecido aplicado a outro domínio | Lakoff & Johnson, 1980 |
 | Imagem concreta e autorreferente | “sua conta com saldo 0” | Rogers, Kuiper & Kirker, 1977; Kahneman & Tversky, 1979 |
 | Risco temido | catastrófico, involuntário, irreversível | Slovic, 1987 |
@@ -98,7 +98,7 @@ Grave a análise completa em analise.md, ao lado do contrato: o número calibrad
 | Síntese | 8 a 10 s | a tese de uma frase e os motores |
 | Fecho | 4 a 6 s | a lição que dá para usar com honestidade, ou uma pergunta, e “fontes na legenda” |
 
-Para a dissecação, escolha os quatro trechos de maior efeito: o mais sentido, o álibi, o gatilho de data ou urgência e o contraintuitivo. Deep longo (16:9, 6 a 12 min, um capítulo por seção da análise) só quando o usuário pedir, e só vai para render se houver template 16:9 pronto; sem ele, entregue analise.md e roteiro.md e ofereça cortes verticais.
+Para a dissecação, escolha os quatro trechos de maior efeito: o mais sentido, o álibi, o gatilho de data ou urgência e o contraintuitivo. O contrato aceita até 180 s (`formato.duracao_s`). Versão mais longa só quando o usuário pedir: até 180 s em 16:9, se houver template 16:9 pronto; acima disso, entregue analise.md e roteiro.md (um capítulo por seção da análise) e ofereça cortes verticais.
 
 ### 8. Contrato, voz e render (skill `simplicio-video`)
 - **Template:** `simplicio-video list templates` e use um pronto cujas cenas comportem os blocos, com texto grande e espaço para citação. Se nenhum servir, pare e proponha criar um template deep (trabalho separado) em vez de forçar um template de nicho.
@@ -120,6 +120,8 @@ O motor termina no MP4. Cortes verticais: skill `simplicio-video-shorts`. Postar
 - [ ] Nada postado sem o sim explícito do usuário.
 
 ## Exemplo resumido
+Ilustra o método. Os fatos abaixo foram apurados com fonte e data em novembro de 2026; não os use num vídeo sem apurar de novo.
+
 **Objeto:** post em português (nov/2026) atribuído a uma “fonte da deep web”, prevendo ciberataque, contas zeradas e internet desligada por 3 meses a partir de 17/11; cerca de 4 milhões de impressões no X.
 - **Apuração:** um perfil em inglês já falava do “rumor” cerca de 4 h antes (horários pelos IDs); o texto tem marcas de tradução do japonês; a tradução automática do X levou o post a outras línguas; canais russos de Telegram e sites de games amplificaram. Datas reais na mesma semana: o teste nacional de alerta de emergência dos EUA (17/11) e o lançamento do GTA 6 (19/11). Núcleos de verdade: ataques ao Pix em 2025, IA que acha milhares de falhas e reguladores chamando bancos em 2026, apagões digitais globais.
 - **Trechos mais fortes:** “contas mostrando 0” (autorreferência e aversão à perda), “não leve ao pé da letra” (álibi que desliga a checagem), a data (alivia a incerteza e marca a volta ao post) e “o mundo vai agir com base nisso” (profecia autorrealizável).

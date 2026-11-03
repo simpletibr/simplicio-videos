@@ -15,8 +15,8 @@ O método deep explica por que algo faz as pessoas sentirem, curtirem e comparti
 - **Copy só da coleta do cliente** (`cliente.coleta` do contrato): preço, desconto, estoque, frete, prazo, garantia, avaliação e resultado só com confirmação registrada. Sem coleta, faça o intake com o usuário primeiro (skill `simplicio-video`).
 - **O produto na tela é o real:** imagem ou filmagem do cliente, ou gravação da tela do produto digital. Mockup, render ou imagem gerada leva o rótulo “ilustração” e nunca mostra função, acabamento ou resultado que o produto não tem.
 - **O lado escuro do método é proibido:** “últimas unidades” falso, contagem regressiva que reinicia, preço “de” inventado, depoimento inventado, resultado editado vendido como real, medo sem base.
-- **A oferta anunciada obriga** (CDC, art. 30) e publicidade enganosa ou abusiva é proibida (CDC, art. 37). O arrependimento de 7 dias na compra fora da loja física (CDC, art. 49) é direito do consumidor, não bônus: não o apresente como diferencial. Publicidade se identifica como tal (CONAR). Isto não é parecer jurídico.
-- **Setor regulado** (cosmético, alimento, suplemento, saúde, finanças) segue as regras do órgão (por exemplo ANVISA, CVM). Promessa de efeito (emagrece, cura, rende) só com base registrada; na dúvida, corte.
+- **A oferta anunciada obriga** (CDC, art. 30) e publicidade enganosa ou abusiva é proibida (CDC, art. 37). O arrependimento de 7 dias na compra fora da loja física (CDC, art. 49) é direito do consumidor, não bônus: não o apresente como diferencial. Publicidade se identifica como tal (CDC, art. 36; CONAR). Isto não é parecer jurídico.
+- **Setor regulado** (cosmético, alimento, suplemento, saúde, finanças) segue as regras do órgão (por exemplo ANVISA, CVM). Promessa de efeito (emagrece, cura, rende) só nos termos que o órgão permite e a coleta confirma; na dúvida, corte.
 - **O motor não posta:** postagem só pela skill `simplicio-video-social`, com o sim explícito do usuário em cada uma.
 
 ## Fluxo

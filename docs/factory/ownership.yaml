@@ -656,3 +656,5 @@ issues:
       - ".gitignore"
       - "AGENTS.md#Mapa"
       - "CHANGELOG.md#Unreleased"
+      - "src/simplicio_video/cli.py#install"
+      - "src/simplicio_video/mcp_server.py#video_install"

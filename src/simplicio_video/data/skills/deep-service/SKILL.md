@@ -14,8 +14,8 @@ O método deep explica por que algo faz as pessoas sentirem, curtirem e comparti
 ## Regras de ouro
 - **Copy só da coleta do cliente** (`cliente.coleta` do contrato): nada de preço, prazo, garantia, avaliação, número, resultado ou promessa sem confirmação registrada. Sem coleta, faça o intake com o usuário primeiro (skill `simplicio-video`).
 - **O lado escuro do método é proibido:** fonte inventada, urgência ou escassez falsa, medo sem base, depoimento ou “antes e depois” inventado, número sem fonte, prova social que não existe.
-- **A oferta anunciada obriga** (CDC, art. 30) e publicidade enganosa ou abusiva é proibida (CDC, art. 37). Publicidade se identifica como tal (CONAR): o vídeo não finge ser notícia nem depoimento espontâneo. Isto não é parecer jurídico.
-- **Setor regulado** (saúde, odontologia, estética, jurídico, finanças) segue as regras do conselho ou órgão (por exemplo CFM, CFO, OAB, CVM) e os cuidados do template do setor. Na dúvida, corte a frase.
+- **A oferta anunciada obriga** (CDC, art. 30) e publicidade enganosa ou abusiva é proibida (CDC, art. 37). O arrependimento de 7 dias na contratação fora do estabelecimento (CDC, art. 49) é direito do consumidor, não bônus: não o apresente como diferencial. Publicidade se identifica como tal (CDC, art. 36; CONAR): o vídeo não finge ser notícia nem depoimento espontâneo. Isto não é parecer jurídico.
+- **Setor regulado** (saúde, odontologia, estética, jurídico, finanças) segue as regras do conselho ou órgão (por exemplo CFM, CFO, OAB, CVM) e os cuidados do template do setor. Nesses setores o padrão é sem depoimento, sem antes e depois e sem promessa de resultado; só entra o que a norma permite e a coleta confirma. Na dúvida, corte a frase.
 - **O motor não posta:** postagem só pela skill `simplicio-video-social`, com o sim explícito do usuário em cada uma.
 
 ## Fluxo
@@ -37,11 +37,11 @@ Leia a coleta: o que o serviço resolve, para quem, como funciona (os passos), o
 | Imagem concreta e autorreferente (Rogers, Kuiper & Kirker, 1977) | a cena da dor do cliente | caricatura que humilha o cliente |
 | Aversão à perda (Kahneman & Tversky, 1979) | o custo real de esperar | ameaça de desgraça |
 | Ameaça com saída (Witte, 1992) | o problema e um próximo passo claro e fácil | medo sem saída |
-| Lacuna de curiosidade (Loewenstein, 1994) | “o erro que faz o conserto durar o dobro”, com a resposta no próprio vídeo | promessa que o vídeo não cumpre |
+| Lacuna de curiosidade (Loewenstein, 1994) | “o erro comum que faz o problema voltar”, com a resposta no próprio vídeo | promessa que o vídeo não cumpre |
 | Precisão numérica (Jerez-Fernandez, Angulo & Oppenheimer, 2014) | número da coleta, com fonte | número arredondado “para parecer” |
 | Risco percebido (Zeithaml, 1981) | o processo mostrado passo a passo; garantia só se confirmada | garantia inventada |
 | Autoridade (Cialdini, 1984) | credencial e experiência confirmadas | título que não existe |
-| Prova social (Cialdini, 1984) | avaliação ou caso com fonte e permissão | depoimento inventado ou comprado |
+| Prova social (Cialdini, 1984) | avaliação ou caso com fonte e permissão (em setor regulado, só se a norma permitir) | depoimento inventado ou comprado |
 | Reciprocidade (Cialdini, 1984) | uma dica útil de verdade no próprio vídeo | “brinde” que é isca |
 | Data | prazo ou data real (agenda, estação, evento) | contagem regressiva falsa |
 | Voz dividida | fato firme na tela e o limite dito com franqueza (“não serve para todo caso”) | letra miúda escondida |
@@ -59,7 +59,7 @@ De 75 a 150 palavras de narração (≈ 2,5 palavras/s), uma ideia por cena. Gra
 | Gancho | 0 a 3 s | a cena da dor ou a pergunta que o cliente faz |
 | Virada | 3 a 10 s | o insight: por que acontece, ou o erro comum |
 | Como funciona | 10 a 25 s | o processo em 2 ou 3 passos, mostrando o que tira o risco |
-| Prova | 25 a 40 s | caso, credencial ou avaliação com fonte (só o que a coleta confirma) |
+| Prova | 25 a 40 s | credencial, caso ou avaliação com fonte (só o que a coleta confirma e a norma do setor permite) |
 | Próximo passo | últimos 5 a 8 s | um único pedido claro (agendar, chamar no WhatsApp) e o contato confirmado |
 
 Sem prova confirmada, troque o bloco por uma dica útil e avise o usuário. Ofereça 2 ou 3 ganchos para o usuário escolher.
