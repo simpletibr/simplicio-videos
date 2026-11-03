@@ -306,3 +306,19 @@ def test_o_update_do_pip_na_skill_diz_que_o_install_global_mexe_nas_11_pastas_de
     assert re.search(r"update[^.]{0,200}install --global[^.]{0,200}11 pastas", texto), "the update paragraph must name the 11 folders"
     assert re.search(r"install --global[^.]{0,200}11 pastas[^.]{0,200}cria as que faltam", texto) or "cria as que faltam" in texto
     assert not re.search(r"install --global`? \(o home\): copia a skill para `\.claude/skills`", texto), "it writes in 11 folders, not one"
+
+
+def _secao(texto: str, titulo: str) -> str:
+    inicio = texto.index(titulo)
+    fim = texto.find("\n## ", inicio + len(titulo))
+    return texto[inicio:] if fim == -1 else texto[inicio:fim]
+
+
+def test_deep_news_so_trata_de_noticia_real_com_fonte_e_data():
+    # pedido do Wesley (via XViral): o tema é notícia real e verificável; nada de alarme nem história inventada
+    regra = _secao(_texto("deep-news"), "## Regra de ouro")
+    assert "notícia real e verificável" in regra
+    assert "fonte e data" in regra
+    assert "alarme" in regra and "história inventada" in regra
+    assert "Checklist" in _texto("deep-news")
+    assert "notícia real e verificável" in _secao(_texto("deep-news"), "## Checklist")

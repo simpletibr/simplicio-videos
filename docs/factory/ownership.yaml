@@ -658,6 +658,16 @@ issues:
       - "CHANGELOG.md#Unreleased"
       - "src/simplicio_video/cli.py#install"
       - "src/simplicio_video/mcp_server.py#video_install"
+  # ------------------------------------------------------------------ deep-news: notícia real e verificável (#146)
+  146:
+    track: skills
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_video/data/skills/deep-news/**"
+      - "skills/deep-news/**"
+      - "tests/packaging/test_skills_conteudo.py"
+
   # ------------------------------------------------------------------ template news-tech e padrão news-caption (#140)
   140:
     track: templates
