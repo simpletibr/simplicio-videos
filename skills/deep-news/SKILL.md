@@ -13,6 +13,7 @@ Um vídeo deep pega algo que capturou atenção (post, texto, vídeo, campanha, 
 - Para oferecer um serviço ou um produto, use as skills `deep-service` e `deep-product`, que aplicam este método a ofertas comerciais.
 
 ## Regra de ouro: explicar, não amplificar
+- **Tema é notícia real e verificável, com fonte e data.** Cada fato do vídeo tem origem e data, e o objeto analisado existe e é citado na íntegra. Não crie alarme, previsão de data ("o mundo acaba em…") nem história inventada, nem para ilustrar um mecanismo. Se não há fonte verificável, o vídeo diz isso na tela ou não sai.
 - Boato e desinformação aparecem **rotulados** (FALSO, BOATO), com o desmentido na mesma cena. O vídeo nunca deixa a dúvida no ar.
 - Instrução perigosa do objeto (estocar armas, sacar tudo do banco, largar tratamento) é citada como parte do texto analisado, nunca lida como conselho.
 - Pessoa comum não é exposta: borre nome, foto e perfil no print e não os diga na fala. Figura pública pode aparecer; o próprio usuário, se for o autor, só com o sim dele.
@@ -111,6 +112,7 @@ Para a dissecação, escolha os quatro trechos de maior efeito: o mais sentido, 
 O motor termina no MP4. Cortes verticais: skill `simplicio-video-shorts`. Postar: skill `simplicio-video-social`, com o sim explícito do usuário em cada postagem. Na conversa, entregue a tese em uma frase, o caminho de analise.md e roteiro.md e o estado do render.
 
 ## Checklist
+- [ ] O tema é notícia real e verificável: nenhum alarme, previsão ou história sem origem; cada fato tem fonte e data.
 - [ ] O objeto está transcrito na íntegra; cada fato tem fonte e data, com a página lida.
 - [ ] Cada estudo citado existe (autor, ano) e diz o que o vídeo diz.
 - [ ] Números vêm de medição ou de fonte, nunca de estimativa sem rótulo.
