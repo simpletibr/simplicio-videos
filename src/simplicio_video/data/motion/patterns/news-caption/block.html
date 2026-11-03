@@ -1,0 +1,87 @@
+<!doctype html>
+<!--
+  simplicio-videos · motion/patterns/news-caption/block.html — Legenda de notícia, bloco curto, palavra a palavra
+  Recebe o texto da fala e a lista de inícios das palavras separada: monta o par palavra@tempo dentro do bloco
+  (o contrato manda text + times, sem ninguém digitar tempos à mão).
+  HyperFrames block (sub-composition), 1080x1920. Params = data-composition-variables (see pattern.json).
+  Mount: copy to <project>/compositions/news-caption.html and add
+    <div id="..." class="clip" data-composition-id="news-caption" data-composition-src="compositions/news-caption.html"
+         data-start="T" data-duration="D" data-track-index="N" data-variable-values='{...}'></div>
+  Contract: the runtime clones only the <template>; the paused timeline registers under the literal "news-caption" key.
+  Deterministic: no Math.random, Date.now, fetch or infinite repeats.
+  Adaptado de motion/patterns/caption-word-highlight (mesma linguagem: bloco curto, palavra acende com pop).
+-->
+<html lang="pt-BR" data-composition-id="news-caption" data-composition-duration="6.0" data-composition-variables='[{"id": "text", "type": "string", "label": "Fala (texto exato do contrato)", "default": "Exemplo de legenda palavra a palavra para notícia"}, {"id": "times", "type": "string", "label": "Inícios das palavras em s, relativo à cena (|)", "default": "0.2|0.55|0.9|1.25|1.6|1.95|2.3"}, {"id": "chunk", "type": "number", "label": "Palavras por bloco", "default": 5}, {"id": "size", "type": "number", "label": "Tamanho da fonte (px)", "default": 58}, {"id": "y", "type": "number", "label": "Topo da legenda (px)", "default": 1436}, {"id": "accent", "type": "color", "label": "Cor da palavra falada", "default": "#22d3ee"}, {"id": "ink", "type": "color", "label": "Cor da palavra ainda não falada", "default": "rgba(255,255,255,0.62)"}, {"id": "scrim", "type": "number", "label": "Degradê de fundo atrás da legenda (1 = sim, 0 = não)", "default": 1}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Legenda de notícia: bloco curto, palavra a palavra</title>
+  </head>
+  <body>
+    <template>
+      <div id="news-caption-root" data-composition-id="news-caption" data-duration="6.0" data-width="1080" data-height="1920" data-fps="30">
+        <style>
+          @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+          [data-composition-id="news-caption"] { position: absolute; inset: 0; overflow: hidden; color: #fff;
+            font-family: "Inter", system-ui, sans-serif; background: transparent; }
+          [data-composition-id="news-caption"] * { margin: 0; padding: 0; box-sizing: border-box; }
+          [data-composition-id="news-caption"] .scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 520px;
+            background: linear-gradient(180deg, rgba(5,7,13,0) 0%, rgba(5,7,13,.72) 42%, rgba(5,7,13,.92) 100%); }
+          [data-composition-id="news-caption"] .cap { position: absolute; left: 76px; right: 76px; }
+          [data-composition-id="news-caption"] .ck { position: absolute; left: 0; right: 0; top: 0; opacity: 0; text-align: center;
+            font-weight: 800; letter-spacing: -.01em; line-height: 1.22; text-transform: uppercase; }
+          [data-composition-id="news-caption"] .w { display: inline-block; margin: 0 .16em; }
+        </style>
+        <div class="scrim"></div>
+        <div class="cap"></div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (() => {
+            const DEF = {"text": "Exemplo de legenda palavra a palavra para notícia", "times": "0.2|0.55|0.9|1.25|1.6|1.95|2.3", "chunk": 5, "size": 58, "y": 1436, "accent": "#22d3ee", "ink": "rgba(255,255,255,0.62)", "scrim": 1};
+            const HV = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+            const V = Object.assign({}, DEF, HV);
+            const root = document.getElementById("news-caption-root");
+            const $ = (s) => root.querySelector(s);
+            const dur = Number(root.getAttribute("data-duration")) || 6.0;
+            root.querySelector(".cap").style.top = (+V.y) + "px";
+            root.querySelector(".scrim").style.display = (+V.scrim ? "block" : "none");
+            const list = (s) => String(s || "").split("|").map((x) => x.trim()).filter(Boolean).map(Number);
+            const ws = String(V.text || "").trim().split(/\s+/).filter(Boolean);
+            const ts = list(V.times);
+            const step = (dur - 0.3) / Math.max(1, ws.length);
+            const tOf = (i) => (i < ts.length && isFinite(ts[i]) ? ts[i] : 0.1 + i * step);
+            const tl = gsap.timeline({ paused: true });
+            const chunk = Math.max(1, +V.chunk || 5);
+            const cap = $(".cap");
+            for (let i = 0; i < ws.length; i += chunk) {
+              const end = Math.min(i + chunk, ws.length);
+              const ck = document.createElement("div");
+              ck.className = "ck";
+              ck.style.fontSize = (+V.size) + "px";
+              const tIn = Math.max(0, tOf(i) - 0.06);
+              const tOut = end < ws.length ? Math.max(0, tOf(end) - 0.04) : Math.max(tIn + 0.6, tOf(end - 1) + 2.4);
+              for (let j = i; j < end; j++) {
+                const w = document.createElement("span");
+                w.className = "w";
+                w.textContent = ws[j];
+                w.style.color = V.ink;
+                ck.appendChild(w);
+                const t0 = tOf(j);
+                const t1 = j + 1 < end ? tOf(j + 1) : tOut;
+                tl.set(w, { color: "#ffffff" }, t0);
+                tl.set(w, { color: V.accent }, t0 + 0.06);
+                tl.fromTo(w, { scale: 1 }, { scale: 1.06, duration: 0.1, yoyo: true, repeat: 1, immediateRender: false }, t0);
+                tl.set(w, { color: V.ink }, Math.max(t0 + 0.1, t1 - 0.02));
+              }
+              cap.appendChild(ck);
+              tl.set(ck, { autoAlpha: 1 }, tIn);
+              tl.set(ck, { autoAlpha: 0 }, tOut);
+            }
+            tl.set({}, {}, dur);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["news-caption"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

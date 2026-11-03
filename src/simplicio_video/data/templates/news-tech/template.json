@@ -1,0 +1,152 @@
+{
+  "$schema": "../template.schema.json",
+  "id": "news-tech",
+  "setor": "Notícia de tecnologia — vídeo vertical de notícia/comentário (rumor, lançamento, repositório, benchmark)",
+  "status": "skeleton",
+  "nichos": [
+    "notícia de tecnologia",
+    "noticias tech",
+    "hardware",
+    "gpu",
+    "placa de vídeo",
+    "benchmark",
+    "repositório",
+    "open source",
+    "software",
+    "inteligência artificial"
+  ],
+  "referencia": null,
+  "formato": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "duracao_s": 90.0,
+  "cenas": [
+    {
+      "id": "s1",
+      "papel": "gancho",
+      "dur_s": 6.0,
+      "padroes": [
+        "bg-grid-glow-particles",
+        "news-caption"
+      ],
+      "campos": [],
+      "fala": "{número de antes} -> {número prometido} {unidade}: o que o post promete e há quanto tempo o projeto existe"
+    },
+    {
+      "id": "s2",
+      "papel": "promessa",
+      "dur_s": 11.6,
+      "padroes": [
+        "fx-transition",
+        "news-caption"
+      ],
+      "campos": [],
+      "fala": "quem publicou, qual é a tese e o que ela afirma sobre o hardware"
+    },
+    {
+      "id": "s3",
+      "papel": "prova",
+      "dur_s": 20.9,
+      "padroes": [
+        "fx-transition",
+        "news-caption"
+      ],
+      "campos": [],
+      "fala": "os números que o post atribui ao projeto, por modelo de placa"
+    },
+    {
+      "id": "s4",
+      "papel": "processo",
+      "dur_s": 20.3,
+      "padroes": [
+        "fx-transition",
+        "news-caption"
+      ],
+      "campos": [],
+      "fala": "como o método é descrito e o preço que ele cobra do usuário"
+    },
+    {
+      "id": "s5",
+      "papel": "problemas",
+      "dur_s": 24.0,
+      "padroes": [
+        "fx-transition",
+        "news-caption"
+      ],
+      "campos": [],
+      "fala": "o que dá para checar agora (repositório, números, cobertura) e a ressalva em uma frase"
+    },
+    {
+      "id": "s6",
+      "papel": "cta",
+      "dur_s": 7.2,
+      "padroes": [
+        "fx-transition",
+        "news-caption"
+      ],
+      "campos": [],
+      "fala": "pergunta ao público + pedido de comentário + data da consulta"
+    }
+  ],
+  "voz": {
+    "tipo": "locutor brasileiro de notícia de tecnologia, ritmo contido, pausas curtas",
+    "gemini_voz": "Charon",
+    "gemini_voz_alternativa": "Orus",
+    "estilo": "Locutor brasileiro de notícia de tecnologia, ritmo contido, pausas curtas, tom firme e sóbrio, sem sensacionalismo, sem entusiasmo publicitário, português do Brasil."
+  },
+  "musica": {
+    "bpm": 84,
+    "mood": "eletrônica tensa e contida (pad menor, baixo redondo, sino esparso), percussão mínima",
+    "secoes": "intro -> groove -> outro"
+  },
+  "paleta_padrao": {
+    "ink": "#05070d",
+    "surface": "#0d1320",
+    "line": "#1f2a3a",
+    "text": "#f5f7fa",
+    "accent": "#22d3ee",
+    "warn": "#f43f5e"
+  },
+  "tom": "Notícia sóbria e verificável: o que é afirmação de terceiro aparece como atribuição ('o post diz', 'a tese do post'), nunca como fato nosso",
+  "transicoes": [
+    "fx-transition flash|glitch discreto, 8 frames (flash_max 0,45) — sem whip, sem shapes coloridas"
+  ],
+  "cuidados": [
+    "Nenhuma captura de tela real: quadros de README, menu UEFI e perfil são MOLDURAS DESENHADAS (rotuladas 'ilustração' na tela). Sem logo ou print de terceiro.",
+    "Número, estrela, fork, data e cobertura só do repositório/post com data da consulta; o vídeo diz de quem é o número ('o post atribui', 'o repositório declara').",
+    "Nunca repetir a promessa do post como se fosse ganho garantido: manter 'prometendo', 'a tese', 'estaria'; a ressalva (módulo de kernel, Secure Boot, idade do projeto) entra antes do CTA.",
+    "Sem footage de terceiro: só motion e gráfico desenhado (barras, cartelas, molduras, motivo de die em geometria). placas_video[] fica vazio até existir footage próprio.",
+    "Sem preço, prazo, avaliação ou recomendação de instalação; o vídeo não instrui ninguém a desligar Secure Boot.",
+    "Marca de terceiro (NVIDIA, RTX, GeForce, Tensor Core, Ada, UEFI, X) só nominativa, no contexto da notícia."
+  ],
+  "composicao": {
+    "dir": "composition",
+    "entrada": "index.template.html",
+    "cenas": [
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s5",
+      "s6"
+    ],
+    "blocos": [
+      "bg",
+      "x1",
+      "x2",
+      "x3",
+      "x4",
+      "x5",
+      "cap-s1",
+      "cap-s2",
+      "cap-s3",
+      "cap-s4",
+      "cap-s5",
+      "cap-s6"
+    ],
+    "_doc": "Notícia tech de 90 s (6 cenas). Toda a parte gráfica (barras 165 vs 331, cartelas 1,83x/1,95x, moldura de README, moldura de UEFI, die de GPU em geometria) é HTML/CSS/GSAP inline na composição — zero footage e zero captura de tela. A legenda palavra a palavra vem do padrão de biblioteca news-caption (adaptado de caption-word-highlight), montado uma vez por cena em cap-s1..cap-s6: o contrato manda o texto em params.text e os tempos em params.times com o placeholder de palavras, então o par palavra@tempo é montado dentro do bloco."
+  }
+}

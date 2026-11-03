@@ -1,0 +1,453 @@
+<!doctype html>
+<!--
+  news-tech: notícia de tecnologia vertical (1080x1920), 6 cenas, ~90 s.
+  Só motion + gráfico desenhado: barras, cartelas, moldura de README, moldura de UEFI e motivo de die de GPU em
+  geometria/linhas. ZERO footage e ZERO captura de tela — os quadros que imitam README/menu/perfil são desenho e
+  aparecem rotulados "ilustração".
+  Tempos: cenas em t-<cena> / dur-<cena>; batida em beat; fala palavra a palavra em words-<fala> (placeholders de uma
+  chave entre chaves duplas, resolvidos pelo compilador a partir do timing.lock.json — sem o lock o build falha de propósito).
+  Paleta e textos de cena no CSS/HTML do template.
+  Determinístico: nenhum Math.random/Date.now/fetch/repeat infinito (semente fixa em mulberry32).
+  A legenda é inline e adaptada de motion/patterns/caption-word-highlight (palavra acende no tempo da fala).
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width={{width}}, height={{height}}" />
+    <title>news-tech</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Anton"; src: url("assets/fonts/Anton-Regular.ttf") format("truetype"); font-display: block; }
+      @font-face { font-family: "Inter"; src: url("assets/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+      :root {
+        --ink: #05070d; --surface: #0d1320; --line: #1f2a3a; --text: #f5f7fa;
+        --muted: #8b98a9; --accent: #22d3ee; --warn: #f43f5e;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: {{width}}px; height: {{height}}px; overflow: hidden; background: var(--ink); color: var(--text);
+        font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+      .clip { position: absolute; inset: 0; }
+      .stage { position: absolute; inset: 0; overflow: hidden; }
+      .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 5;
+        background: radial-gradient(120% 80% at 50% 30%, rgba(5,7,13,0) 38%, rgba(5,7,13,.7) 100%); }
+      #bar { position: absolute; top: 0; left: 0; height: 6px; width: 0; background: linear-gradient(90deg, var(--accent), #7c3aed); z-index: 40; }
+      .hdr { position: absolute; left: 84px; right: 84px; top: 74px; display: flex; align-items: center; gap: 18px;
+        font: 700 26px/1 "Inter"; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); z-index: 40; }
+      .hdr .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 18px var(--warn); }
+      .hdr .hdr-r { margin-left: auto; color: #5b6879; font-weight: 600; letter-spacing: .16em; }
+      .scene { position: absolute; inset: 0; z-index: 10; }
+      .kicker { position: absolute; left: 84px; top: 286px; display: flex; align-items: center; gap: 24px; }
+      .kicker b { font: 800 28px/1 "Inter"; letter-spacing: .26em; text-transform: uppercase; color: var(--accent); }
+      .kicker i { display: block; width: 120px; height: 2px; background: linear-gradient(90deg, var(--accent), rgba(34,211,238,0)); }
+      .kicker small { font: 600 24px/1 "Inter"; letter-spacing: .2em; color: #5b6879; text-transform: uppercase; }
+
+      /* ---- die motif (geometria, sem imagem) ---- */
+      .die { display: grid; gap: 6px; padding: 26px; border: 2px solid var(--line); border-radius: 26px;
+        background: linear-gradient(160deg, rgba(13,19,32,.9), rgba(5,7,13,.92)); position: relative; overflow: hidden;
+        box-shadow: 0 0 0 1px rgba(34,211,238,.08), 0 40px 90px rgba(0,0,0,.55); }
+      .die i { display: block; border-radius: 4px; background: rgba(34,211,238,.10); }
+      .die i.hot { background: var(--accent); box-shadow: 0 0 12px rgba(34,211,238,.55); }
+      .die .scan { position: absolute; left: 0; right: 0; height: 56px; top: -56px;
+        background: linear-gradient(180deg, rgba(34,211,238,0), rgba(34,211,238,.22), rgba(34,211,238,0)); }
+      .die-tag { position: absolute; right: 18px; bottom: 14px; font: 700 18px/1 "Inter"; letter-spacing: .18em; color: #46586d; }
+
+      /* ---- s1 ---- */
+      #die1 { position: absolute; left: 330px; top: 400px; width: 420px; height: 420px; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); }
+      .s1-model { position: absolute; left: 84px; right: 84px; top: 856px; text-align: center; font: 400 120px/1 "Anton";
+        letter-spacing: .04em; color: var(--text); }
+      .s1-model span { color: var(--muted); }
+      .numrow { position: absolute; left: 84px; right: 84px; top: 1010px; display: flex; align-items: flex-end; justify-content: center; gap: 34px; }
+      .num { text-align: center; }
+      .num .v { display: block; font: 400 190px/.86 "Anton"; letter-spacing: -.02em; }
+      .num .u { display: block; margin-top: 10px; font: 700 24px/1 "Inter"; letter-spacing: .22em; color: var(--muted); text-transform: uppercase; }
+      .num.from .v { color: #43536a; }
+      .num.to .v { color: var(--accent); text-shadow: 0 0 44px rgba(34,211,238,.35); }
+      .num-arrow { font: 400 110px/1 "Anton"; color: #2f4157; padding-bottom: 46px; }
+      .stamp { position: absolute; left: 50%; top: 1252px; transform: translateX(-50%) rotate(-5deg);
+        border: 2px solid var(--warn); color: var(--warn); padding: 14px 26px; border-radius: 10px;
+        font: 800 26px/1 "Inter"; letter-spacing: .24em; text-transform: uppercase; background: rgba(244,63,94,.08); }
+
+      /* ---- s2 ---- */
+      .post { position: absolute; left: 84px; right: 84px; top: 380px; border: 2px solid var(--line); border-radius: 28px;
+        background: linear-gradient(170deg, rgba(13,19,32,.96), rgba(8,11,19,.96)); padding: 34px 36px 28px; }
+      .post-head { display: flex; align-items: center; gap: 20px; }
+      .ava { width: 76px; height: 76px; border-radius: 50%; background: conic-gradient(from 210deg, #22d3ee, #7c3aed, #f43f5e, #22d3ee); }
+      .who { display: flex; flex-direction: column; gap: 8px; }
+      .who b { font: 800 34px/1 "Inter"; letter-spacing: -.01em; }
+      .who span { font: 600 22px/1 "Inter"; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+      .xmark { margin-left: auto; width: 54px; height: 54px; border: 2px solid #2b3a4e; border-radius: 12px; color: #6b7c92;
+        font: 800 30px/50px "Inter"; text-align: center; }
+      .post-body { margin-top: 28px; display: flex; flex-direction: column; gap: 18px; }
+      .post-body p { font: 500 40px/1.28 "Inter"; color: #dbe3ee; }
+      .post-body p em { font-style: normal; color: var(--warn); }
+      .post-foot { margin-top: 26px; display: flex; gap: 14px; font: 600 22px/1 "Inter"; letter-spacing: .14em;
+        color: #5b6879; text-transform: uppercase; }
+      .split { position: absolute; left: 84px; right: 84px; top: 1030px; display: flex; gap: 18px; }
+      .half { flex: 1; border: 2px solid var(--line); border-radius: 18px; padding: 20px 22px; background: rgba(13,19,32,.7); }
+      .half span { font: 700 22px/1 "Inter"; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
+      .half .bar2 { margin-top: 14px; height: 22px; border-radius: 6px; background: rgba(34,211,238,.14); }
+      .half.lit .bar2 i { display: block; height: 100%; width: 100%; border-radius: 6px; background: var(--accent); transform-origin: left center; }
+      .half.dim .bar2 i { display: block; height: 100%; width: 50%; border-radius: 6px; background: #43536a; transform-origin: left center; }
+      .s2-note { position: absolute; left: 84px; right: 84px; top: 1200px; text-align: center; font: 600 26px/1.3 "Inter"; color: var(--muted); }
+      .s2-note b { color: var(--text); }
+
+      /* ---- s3 ---- */
+      .bars { position: absolute; left: 84px; right: 84px; top: 400px; height: 520px; display: flex; align-items: flex-end;
+        justify-content: center; gap: 90px; padding-bottom: 8px; border-bottom: 2px solid var(--line); }
+      .bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 16px; }
+      .bar { width: 190px; border-radius: 12px 12px 4px 4px; position: relative; transform-origin: bottom center; }
+      .b165 { height: 280px; background: linear-gradient(180deg, #3c4b60, #22303f); }
+      .b331 { height: 562px; background: linear-gradient(180deg, #67e8f9, #22d3ee 70%, #0e7490); box-shadow: 0 0 60px rgba(34,211,238,.28); }
+      .bn { position: absolute; top: -78px; left: 0; right: 0; text-align: center; font: 400 92px/1 "Anton"; }
+      .b165 .bn { color: #7d8fa3; }
+      .b331 .bn { color: var(--accent); }
+      .bl { font: 700 22px/1 "Inter"; letter-spacing: .2em; color: var(--muted); text-transform: uppercase; }
+      .axis { position: absolute; left: 84px; right: 84px; top: 950px; text-align: center;
+        font: 700 22px/1 "Inter"; letter-spacing: .22em; color: #5b6879; text-transform: uppercase; }
+      .cards { position: absolute; left: 84px; right: 84px; top: 1010px; display: flex; flex-direction: column; gap: 22px; }
+      .card { display: flex; align-items: center; gap: 20px; border: 2px solid var(--line); border-left: 6px solid var(--accent);
+        border-radius: 14px; padding: 16px 22px; background: linear-gradient(90deg, rgba(13,19,32,.95), rgba(13,19,32,.55)); }
+      .card b { font: 400 66px/.9 "Anton"; color: var(--text); min-width: 190px; }
+      .card span { font: 700 24px/1.2 "Inter"; letter-spacing: .08em; color: #c9d4e2; text-transform: uppercase; }
+      .card em { font: 600 22px/1.2 "Inter"; font-style: normal; color: var(--muted); margin-left: auto; text-align: right; }
+
+      /* ---- s4 ---- */
+      .flow { position: absolute; left: 84px; right: 84px; top: 400px; display: flex; align-items: center; gap: 10px; }
+      .node { flex: 1; border: 2px solid var(--line); border-radius: 16px; padding: 22px 12px; text-align: center;
+        font: 800 26px/1.15 "Inter"; letter-spacing: .1em; text-transform: uppercase; color: #c9d4e2; background: rgba(13,19,32,.85); }
+      .node span { display: block; margin-top: 8px; font: 600 20px/1 "Inter"; letter-spacing: .08em; color: var(--muted); text-transform: none; }
+      .node.mod { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 40px rgba(34,211,238,.18); }
+      .flowline { width: 26px; height: 2px; background: #2b3a4e; }
+      .chiprow { position: absolute; left: 84px; right: 84px; top: 580px; display: flex; gap: 16px; justify-content: center; }
+      .chiprow span { border: 2px solid #2b3a4e; border-radius: 999px; padding: 12px 24px; font: 700 22px/1 "Inter";
+        letter-spacing: .12em; color: #9fb0c4; text-transform: uppercase; background: rgba(13,19,32,.7); }
+      .uefi { position: absolute; left: 84px; right: 84px; top: 680px; border: 2px solid var(--line); border-radius: 14px; overflow: hidden;
+        background: #060a11; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+      .uefi-bar { display: flex; align-items: center; gap: 14px; padding: 14px 20px; background: #0b1220; border-bottom: 2px solid var(--line);
+        font-size: 22px; letter-spacing: .16em; color: #7d8fa3; text-transform: uppercase; }
+      .uefi-bar em { margin-left: auto; font-style: normal; font-size: 18px; color: #46586d; letter-spacing: .14em; }
+      .uefi-row { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid rgba(31,42,58,.7);
+        font-size: 28px; color: #b9c6d6; }
+      .uefi-row:last-child { border-bottom: 0; }
+      .uefi-row b { font-weight: 700; letter-spacing: .08em; color: #8b98a9; }
+      .sw { position: relative; width: 260px; height: 46px; }
+      .sw b { position: absolute; right: 0; top: 0; }
+      .uefi-row b.sb { color: var(--warn); border: 2px solid rgba(244,63,94,.45); border-radius: 8px; padding: 6px 14px; font-size: 24px; line-height: 1.2; }
+      .uefi-row b.sb.off { background: rgba(244,63,94,.18); border-color: var(--warn); }
+      .coldboot { position: absolute; left: 84px; right: 84px; top: 1110px; display: flex; align-items: center; justify-content: center; gap: 22px;
+        font: 800 28px/1 "Inter"; letter-spacing: .18em; color: var(--text); text-transform: uppercase; }
+      .pw { width: 54px; height: 54px; border: 4px solid var(--accent); border-top-color: transparent; border-radius: 50%; display: inline-block; position: relative; }
+      .pw::before { content: ""; position: absolute; left: 50%; top: -13px; width: 4px; height: 24px; margin-left: -2px; background: var(--accent); border-radius: 2px; }
+
+      /* ---- s5 ---- */
+      .win { position: absolute; left: 84px; right: 84px; top: 380px; border: 2px solid var(--line); border-radius: 16px; overflow: hidden;
+        background: #060a11; }
+      .win-bar { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: #0b1220; border-bottom: 2px solid var(--line); }
+      .win-bar i { width: 16px; height: 16px; border-radius: 50%; background: #2b3a4e; display: block; }
+      .win-bar i:first-child { background: #f43f5e; opacity: .8; }
+      .win-bar span { margin-left: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 21px; color: #7d8fa3; letter-spacing: .06em; }
+      .win-bar em { margin-left: auto; font-style: normal; font-size: 18px; letter-spacing: .14em; color: #46586d; text-transform: uppercase; }
+      .win-body { padding: 10px 0; }
+      .row { display: flex; align-items: center; justify-content: space-between; padding: 18px 26px; border-bottom: 1px solid rgba(31,42,58,.55); }
+      .row:last-child { border-bottom: 0; }
+      .row span { font: 600 26px/1 "Inter"; color: #7d8fa3; letter-spacing: .06em; }
+      .row b { font: 800 32px/1 "Inter"; color: var(--text); letter-spacing: .02em; }
+      .row b.exp { color: #fbbf24; border: 2px solid rgba(251,191,36,.4); border-radius: 8px; padding: 6px 14px; font-size: 24px; text-transform: uppercase; letter-spacing: .12em; }
+      .ressalva { position: absolute; left: 84px; right: 84px; top: 1150px; border-left: 6px solid var(--warn); border-radius: 12px;
+        background: rgba(244,63,94,.07); padding: 20px 24px; display: flex; flex-direction: column; gap: 10px; }
+      .ressalva b { font: 800 24px/1 "Inter"; letter-spacing: .24em; color: var(--warn); text-transform: uppercase; }
+      .ressalva span { font: 600 27px/1.25 "Inter"; color: #dbe3ee; }
+
+      /* ---- s6 ---- */
+      .kick2 { position: absolute; left: 84px; right: 84px; top: 300px; text-align: center;
+        font: 800 26px/1 "Inter"; letter-spacing: .3em; color: var(--accent); text-transform: uppercase; }
+      .q { position: absolute; left: 84px; right: 84px; top: 430px; text-align: center; font: 400 118px/1.02 "Anton"; letter-spacing: .01em; }
+      .q b { color: var(--accent); }
+      .cta { position: absolute; left: 50%; top: 1090px; transform: translateX(-50%); display: flex; align-items: center; gap: 18px;
+        border: 2px solid var(--accent); border-radius: 999px; padding: 22px 40px; background: rgba(34,211,238,.08);
+        font: 800 30px/1 "Inter"; letter-spacing: .14em; color: var(--accent); text-transform: uppercase; white-space: nowrap; }
+      .cta .dn { font-size: 34px; }
+      .fine { position: absolute; left: 84px; right: 84px; top: 1270px; text-align: center;
+        font: 600 22px/1.4 "Inter"; letter-spacing: .08em; color: #5b6879; text-transform: uppercase; }
+
+      /* ---- camadas: fundo < cena < legenda < transição < topo ---- */
+      #bg { z-index: 0; }
+      #x1, #x2, #x3, #x4, #x5 { z-index: 30; }
+      #cap-s1, #cap-s2, #cap-s3, #cap-s4, #cap-s5, #cap-s6 { z-index: 20; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{duracao}}" data-width="{{width}}" data-height="{{height}}">
+      <div id="bg" class="clip" data-composition-id="bg-grid-glow-particles" data-composition-src="compositions/bg-grid-glow-particles.html" data-start="0" data-duration="{{duracao}}" data-track-index="0" data-variable-values='{{vars:bg}}'></div>
+
+      <div class="stage">
+        <div id="bar"></div>
+        <div class="hdr"><span class="dot"></span>NOTÍCIA TECH<span class="hdr-r">GPU · TENSOR CORE</span></div>
+
+        <!-- S1: gancho -->
+        <section class="scene" id="sc-s1">
+          <div class="kicker"><b>Rumor</b><i></i><small>RTX 40 · o post</small></div>
+          <div class="die" id="die1"></div>
+          <div class="s1-model">RTX <span>4090</span></div>
+          <div class="numrow">
+            <div class="num from"><span class="v">165</span><span class="u">TFLOPS</span></div>
+            <div class="num-arrow">&#8594;</div>
+            <div class="num to"><span class="v">331</span><span class="u">FP16</span></div>
+          </div>
+          <div class="stamp">1 dia de vida</div>
+        </section>
+
+        <!-- S2: a tese do post -->
+        <section class="scene" id="sc-s2">
+          <div class="kicker"><b>O post</b><i></i><small>X · post</small></div>
+          <div class="post" id="postcard">
+            <div class="post-head">
+              <div class="ava"></div>
+              <div class="who"><b>@perfil</b><span>post no X · ilustração</span></div>
+              <div class="xmark">X</div>
+            </div>
+            <div class="post-body">
+              <p>O Tensor Core das GeForce RTX 40, arquitetura Ada, estaria operando pela <em>metade</em> do que o chip suporta.</p>
+              <p>Um projeto independente liberaria o restante.</p>
+            </div>
+            <div class="post-foot"><span>a tese do post</span><span>·</span><span>não confirmada</span></div>
+          </div>
+          <div class="split">
+            <div class="half lit"><span>o que a tese diz que o chip suporta</span><div class="bar2"><i></i></div></div>
+            <div class="half dim"><span>o que estaria liberado hoje</span><div class="bar2"><i></i></div></div>
+          </div>
+          <div class="s2-note">travar o Tensor Core na metade: <b>a alegação</b> que o projeto promete desfazer</div>
+        </section>
+
+        <!-- S3: os números do post -->
+        <section class="scene" id="sc-s3">
+          <div class="kicker"><b>Os números</b><i></i><small>atribuídos ao projeto</small></div>
+          <div class="bars">
+            <div class="bar-col"><div class="bar b165"><span class="bn">165</span></div><span class="bl">FP16 hoje</span></div>
+            <div class="bar-col"><div class="bar b331"><span class="bn">331</span></div><span class="bl">FP16 / BF16 com o projeto</span></div>
+          </div>
+          <div class="axis">RTX 4090 · TFLOPS</div>
+          <div class="cards">
+            <div class="card"><b>1,83x</b><span>4080 SUPER · FP16</span><em>FP8 dobrado</em></div>
+            <div class="card"><b>1,95x</b><span>4070 Ti SUPER · FP8</span><em>FP16 e BF16 dobrados</em></div>
+          </div>
+        </section>
+
+        <!-- S4: o método -->
+        <section class="scene" id="sc-s4">
+          <div class="kicker"><b>O método</b><i></i><small>como o post descreve</small></div>
+          <div class="flow">
+            <div class="node mod" id="f1">Módulo<span>registradores</span></div>
+            <div class="flowline"></div>
+            <div class="node">Driver<span>da NVIDIA</span></div>
+            <div class="flowline"></div>
+            <div class="node">GPU<span>Tensor Core</span></div>
+          </div>
+          <div class="chiprow"><span>sem trocar BIOS</span><span>sem trocar driver</span></div>
+          <div class="uefi">
+            <div class="uefi-bar">UEFI SETUP<em>ilustração</em></div>
+            <div class="uefi-row"><span>Secure Boot</span><span class="sw"><b class="sb" id="sb-on">ENABLED</b><b class="sb off" id="sb-off">DISABLED</b></span></div>
+            <div class="uefi-row"><span>Boot mode</span><b>UEFI</b></div>
+            <div class="uefi-row"><span>TPM</span><b>ON</b></div>
+          </div>
+          <div class="coldboot"><span class="pw"></span>Cold boot: desligar e ligar</div>
+        </section>
+
+        <!-- S5: o que dá para checar -->
+        <section class="scene" id="sc-s5">
+          <div class="kicker"><b>O que dá para checar</b><i></i><small>repositório público</small></div>
+          <div class="win" id="win5">
+            <div class="win-bar"><i></i><i></i><i></i><span>repositório · README.md</span><em>ilustração</em></div>
+            <div class="win-body">
+              <div class="row"><span>criado em</span><b>23/10/2026</b></div>
+              <div class="row"><span>estrelas</span><b>383</b></div>
+              <div class="row"><span>forks</span><b>47</b></div>
+              <div class="row"><span>linguagem</span><b>C</b></div>
+              <div class="row"><span>classificação do autor</span><b class="exp">experimental</b></div>
+              <div class="row"><span>cobertura declarada</span><b>4090 · 4070 Ti SUPER</b></div>
+            </div>
+          </div>
+          <div class="ressalva" id="res5">
+            <b>a ressalva, em uma frase</b>
+            <span>É um módulo de kernel, pede Secure Boot desligado e o projeto tem um dia de existência.</span>
+          </div>
+        </section>
+
+        <!-- S6: CTA -->
+        <section class="scene" id="sc-s6">
+          <div class="kick2">a pergunta</div>
+          <div class="q">Você colocaria<br />a sua <b>placa</b><br />nisso?</div>
+          <div class="cta">comenta a sua GPU<span class="dn">&#8595;</span></div>
+          <div class="fine">post e repositório consultados em 24/10/2026</div>
+        </section>
+
+      </div>
+
+      <!-- legenda palavra a palavra: um bloco news-caption por cena; texto e tempos (placeholder de palavras) vêm do contrato -->
+      <div id="cap-s1" class="clip" data-composition-id="news-caption" data-composition-src="compositions/news-caption.html" data-start="{{t:s1}}" data-duration="{{dur:s1}}" data-track-index="6" data-variable-values='{{vars:cap-s1}}'></div>
+      <div id="cap-s2" class="clip" data-composition-id="news-caption" data-composition-src="compositions/news-caption.html" data-start="{{t:s2}}" data-duration="{{dur:s2}}" data-track-index="6" data-variable-values='{{vars:cap-s2}}'></div>
+      <div id="cap-s3" class="clip" data-composition-id="news-caption" data-composition-src="compositions/news-caption.html" data-start="{{t:s3}}" data-duration="{{dur:s3}}" data-track-index="6" data-variable-values='{{vars:cap-s3}}'></div>
+      <div id="cap-s4" class="clip" data-composition-id="news-caption" data-composition-src="compositions/news-caption.html" data-start="{{t:s4}}" data-duration="{{dur:s4}}" data-track-index="6" data-variable-values='{{vars:cap-s4}}'></div>
+      <div id="cap-s5" class="clip" data-composition-id="news-caption" data-composition-src="compositions/news-caption.html" data-start="{{t:s5}}" data-duration="{{dur:s5}}" data-track-index="6" data-variable-values='{{vars:cap-s5}}'></div>
+      <div id="cap-s6" class="clip" data-composition-id="news-caption" data-composition-src="compositions/news-caption.html" data-start="{{t:s6}}" data-duration="{{dur:s6}}" data-track-index="6" data-variable-values='{{vars:cap-s6}}'></div>
+
+      <!-- transições discretas, centradas no corte -->
+      <div id="x1" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="{{t:s2-0.2}}" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x1}}'></div>
+      <div id="x2" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="{{t:s3-0.2}}" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x2}}'></div>
+      <div id="x3" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="{{t:s4-0.2}}" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x3}}'></div>
+      <div id="x4" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="{{t:s5-0.2}}" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x4}}'></div>
+      <div id="x5" class="clip" data-composition-id="fx-transition" data-composition-src="compositions/fx-transition.html" data-start="{{t:s6-0.2}}" data-duration="0.5" data-track-index="8" data-variable-values='{{vars:x5}}'></div>
+
+      <audio id="soundtrack" src="assets/audio/build/mix.wav" data-start="0" data-duration="{{duracao}}" data-track-index="10" data-volume="1"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const D = {{duracao}};
+      const S = {
+        s1: [{{t:s1}}, {{end:s1}}], s2: [{{t:s2}}, {{end:s2}}], s3: [{{t:s3}}, {{end:s3}}],
+        s4: [{{t:s4}}, {{end:s4}}], s5: [{{t:s5}}, {{end:s5}}], s6: [{{t:s6}}, {{end:s6}}],
+      };
+      const tl = gsap.timeline({ paused: true });
+      const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+      // ---------- die de GPU em geometria (sem imagem) ----------
+      function buildDie(el, hotCells, seed) {
+        const r = rng(seed);
+        for (let i = 0; i < 64; i++) {
+          const c = document.createElement("i");
+          const hot = hotCells.indexOf(i) >= 0 || r() > 0.93;
+          if (hot) c.className = "hot";
+          el.appendChild(c);
+        }
+        const scan = document.createElement("div");
+        scan.className = "scan";
+        el.appendChild(scan);
+        const tag = document.createElement("div");
+        tag.className = "die-tag";
+        tag.textContent = "TENSOR CORE";
+        el.appendChild(tag);
+        return scan;
+      }
+      const scan1 = buildDie(document.getElementById("die1"), [9, 10, 17, 18, 19, 26, 27], 20261024);
+
+      // ---------- estados iniciais ----------
+      gsap.set(".scene", { autoAlpha: 0 });
+      gsap.set(".cap .ck", { autoAlpha: 0 });
+      // pré-estado de tudo que entra em cena (sem fromTo "immediateRender:false" piscando antes da hora)
+      gsap.set([
+        "#die1", "#sc-s1 .kicker", "#sc-s1 .s1-model", "#sc-s1 .num.from .v", "#sc-s1 .num-arrow",
+        "#sc-s1 .num.to .v", "#sc-s1 .stamp", "#postcard", "#sc-s2 .post-body p", "#sc-s2 .post-foot",
+        "#sc-s2 .split .half", "#sc-s2 .s2-note", "#sc-s3 .kicker", "#sc-s3 .bn", "#sc-s3 .bl",
+        "#sc-s3 .axis", "#sc-s3 .card", "#sc-s4 .kicker", "#sc-s4 .node", "#sc-s4 .chiprow span",
+        "#sc-s4 .uefi", "#sc-s4 .uefi-row", "#sc-s4 .coldboot", "#sc-s5 .kicker", "#win5",
+        "#sc-s5 .row", "#res5", "#sc-s6 .kick2", "#sc-s6 .q", "#sc-s6 .cta", "#sc-s6 .fine",
+      ], { opacity: 0 });
+      gsap.set("#sc-s3 .b165, #sc-s3 .b331", { scaleY: 0, transformOrigin: "50% 100%" });
+      gsap.set("#sc-s2 .half .bar2 i", { scaleX: 0, transformOrigin: "0% 50%" });
+      gsap.set("#sb-off", { autoAlpha: 0 });
+      const fadeIn = (el, t, d) => tl.to(el, { autoAlpha: 1, duration: d || 0.42, ease: "power2.out" }, t);
+
+      // ---------- corte seco + punch-in: 1 soco no corte e um a cada 2,4 s ----------
+      gsap.set('.scene', { transformOrigin: '50% 50%' });
+      [['#sc-s1', S.s1], ['#sc-s2', S.s2], ['#sc-s3', S.s3], ['#sc-s4', S.s4], ['#sc-s5', S.s5], ['#sc-s6', S.s6]].forEach(([sel, rng]) => {
+        const a = rng[0], b = rng[1];
+        tl.fromTo(sel, { scale: 1.065 }, { scale: 1, duration: 0.2, ease: 'power3.out', immediateRender: false }, a);
+        for (let t = a + 2.4; t < b - 0.5; t += 2.4) {
+          tl.fromTo(sel, { scale: 1 }, { scale: 1.035, duration: 0.1, yoyo: true, repeat: 1, ease: 'power2.inOut', immediateRender: false }, t);
+        }
+      });
+
+      // ---------- S1 (gancho) ----------
+      {
+        const a = S.s1[0];
+        tl.set("#sc-s1", { autoAlpha: 1 }, a);
+        tl.fromTo("#die1", { scale: 0.86, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.7, ease: "power3.out", immediateRender: false }, a + 0.15);
+        tl.fromTo(scan1, { y: -60 }, { y: 420, duration: 1.5, ease: "none", repeat: 3, immediateRender: false }, a + 0.6);
+        fadeIn("#sc-s1 .kicker", a + 0.12);
+        fadeIn("#sc-s1 .s1-model", a + 0.85, 0.5);
+        tl.fromTo("#sc-s1 .num.from .v", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out", immediateRender: false }, a + 1.5);
+        tl.fromTo("#sc-s1 .num-arrow", { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out", immediateRender: false }, a + 2.1);
+        tl.fromTo("#sc-s1 .num.to .v", { y: 60, opacity: 0, scale: 1.65 }, { y: 0, opacity: 1, scale: 1, duration: 0.38, ease: "back.out(2.4)", immediateRender: false }, a + 2.55);
+        tl.fromTo("#sc-s1 .num.to", { scale: 1 }, { scale: 1.06, duration: 0.18, yoyo: true, repeat: 1, immediateRender: false }, a + 3.3);
+        tl.fromTo("#sc-s1 .stamp", { scale: 1.5, opacity: 0, rotate: -14 }, { scale: 1, opacity: 1, rotate: -5, duration: 0.34, ease: "power4.out", immediateRender: false }, a + 4.3);
+        tl.set("#sc-s1", { autoAlpha: 0 }, S.s1[1]);
+      }
+
+      // ---------- S2 (a tese do post) ----------
+      {
+        const a = S.s2[0];
+        tl.set("#sc-s2", { autoAlpha: 1 }, a);
+        tl.fromTo("#postcard", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power3.out", immediateRender: false }, a + 0.2);
+        tl.fromTo("#sc-s2 .post-body p", { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, stagger: 0.5, ease: "power2.out", immediateRender: false }, a + 0.9);
+        tl.fromTo("#sc-s2 .post-foot", { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, a + 2.6);
+        tl.fromTo("#sc-s2 .split .half", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, stagger: 0.18, ease: "power2.out", immediateRender: false }, a + 3.6);
+        tl.fromTo("#sc-s2 .half .bar2 i", { scaleX: 0 }, { scaleX: 1, duration: 0.7, stagger: 0.18, ease: "power2.inOut", immediateRender: false }, a + 4.1);
+        tl.fromTo("#sc-s2 .s2-note", { opacity: 0 }, { opacity: 1, duration: 0.45, immediateRender: false }, a + 6.0);
+        tl.set("#sc-s2", { autoAlpha: 0 }, S.s2[1]);
+      }
+
+      // ---------- S3 (os números) ----------
+      {
+        const a = S.s3[0];
+        tl.set("#sc-s3", { autoAlpha: 1 }, a);
+        fadeIn("#sc-s3 .kicker", a + 0.1);
+        tl.fromTo("#sc-s3 .b165", { scaleY: 0 }, { scaleY: 1, duration: 0.3, ease: "power4.out", immediateRender: false }, a + 0.35);
+        tl.fromTo("#sc-s3 .b331", { scaleY: 0 }, { scaleY: 1, duration: 0.38, ease: "power4.out", immediateRender: false }, a + 0.95);
+        tl.fromTo("#sc-s3 .bn", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.75, immediateRender: false }, a + 0.9);
+        tl.fromTo("#sc-s3 .bl", { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.75, immediateRender: false }, a + 1.1);
+        fadeIn("#sc-s3 .axis", a + 2.2);
+        tl.fromTo("#sc-s3 .card", { x: 70, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, stagger: 0.35, ease: "power3.out", immediateRender: false }, a + 4.6);
+        tl.set("#sc-s3", { autoAlpha: 0 }, S.s3[1]);
+      }
+
+      // ---------- S4 (o método) ----------
+      {
+        const a = S.s4[0];
+        tl.set("#sc-s4", { autoAlpha: 1 }, a);
+        fadeIn("#sc-s4 .kicker", a + 0.1);
+        tl.fromTo("#sc-s4 .node", { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.22, ease: "power2.out", immediateRender: false }, a + 0.4);
+        tl.fromTo("#sc-s4 .chiprow span", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.2, immediateRender: false }, a + 1.5);
+        tl.fromTo("#sc-s4 .uefi", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out", immediateRender: false }, a + 2.6);
+        tl.fromTo("#sc-s4 .uefi-row", { opacity: 0 }, { opacity: 1, duration: 0.3, stagger: 0.26, immediateRender: false }, a + 3.0);
+        tl.to("#sb-on", { autoAlpha: 0, duration: 0.14 }, a + 6.4);
+        tl.to("#sb-off", { autoAlpha: 1, duration: 0.14 }, a + 6.4);
+        tl.fromTo("#sb-off", { scale: 1 }, { scale: 1.14, duration: 0.16, yoyo: true, repeat: 1, immediateRender: false }, a + 6.5);
+        tl.fromTo("#sc-s4 .coldboot", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45, ease: "power2.out", immediateRender: false }, a + 7.8);
+        tl.to("#sc-s4 .pw", { rotate: 360, duration: 3.2, ease: "none", repeat: 1, immediateRender: false }, a + 8.2);
+        tl.set("#sc-s4", { autoAlpha: 0 }, S.s4[1]);
+      }
+
+      // ---------- S5 (o que dá para checar) ----------
+      {
+        const a = S.s5[0];
+        tl.set("#sc-s5", { autoAlpha: 1 }, a);
+        fadeIn("#sc-s5 .kicker", a + 0.1);
+        tl.fromTo("#win5", { y: 34, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power3.out", immediateRender: false }, a + 0.4);
+        tl.fromTo("#sc-s5 .row", { x: -18, opacity: 0 }, { x: 0, opacity: 1, duration: 0.32, stagger: 0.55, immediateRender: false }, a + 1.0);
+        tl.fromTo("#res5", { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out", immediateRender: false }, a + 8.4);
+        tl.set("#sc-s5", { autoAlpha: 0 }, S.s5[1]);
+      }
+
+      // ---------- S6 (CTA) ----------
+      {
+        const a = S.s6[0];
+        tl.set("#sc-s6", { autoAlpha: 1 }, a);
+        fadeIn("#sc-s6 .kick2", a + 0.1);
+        tl.fromTo("#sc-s6 .q", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power3.out", immediateRender: false }, a + 0.35);
+        tl.fromTo("#sc-s6 .cta", { scale: 0.9, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.42, ease: "back.out(1.7)", immediateRender: false }, a + 1.6);
+        tl.fromTo("#sc-s6 .fine", { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, a + 2.4);
+        tl.to("#sc-s6 .cta", { y: 8, duration: 0.5, yoyo: true, repeat: 3, ease: "sine.inOut" }, a + 2.6);
+        tl.set("#sc-s6", { autoAlpha: 0 }, S.s6[1]);
+      }
+
+      // ---------- legenda: blocos news-caption montados por cena (texto + tempos vêm do contrato) ----------
+
+      // ---------- barra de progresso ----------
+      tl.fromTo("#bar", { width: 0 }, { width: 1080, duration: D, ease: "none", immediateRender: false }, 0);
+      tl.set({}, {}, D);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

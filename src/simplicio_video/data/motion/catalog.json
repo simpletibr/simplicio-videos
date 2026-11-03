@@ -1,11 +1,11 @@
 {
   "schema": "simplicio.motion-catalog/v1",
-  "count": 55,
+  "count": 56,
   "by_status": {
     "pronto": 33,
     "lib": 1,
     "inline": 2,
-    "proposto": 19
+    "proposto": 20
   },
   "patterns": [
     {
@@ -1086,6 +1086,33 @@
       "block": null,
       "preview": null,
       "source": "https://x.com/felipemoller/status/2103846311149936736"
+    },
+    {
+      "id": "news-caption",
+      "title": "Legenda de notícia: bloco curto, palavra a palavra",
+      "status": "proposto",
+      "category": "legenda",
+      "tags": [
+        "legenda",
+        "notícia",
+        "narração longa",
+        "palavra a palavra",
+        "acessibilidade"
+      ],
+      "duration_s": 6,
+      "params": [
+        "text",
+        "times",
+        "chunk",
+        "size",
+        "y",
+        "accent",
+        "ink",
+        "scrim"
+      ],
+      "block": null,
+      "preview": null,
+      "source": "Adaptado de motion/patterns/caption-word-highlight (mesma linguagem visual) para receber texto + tempos separados; autorado para o template news-tech (24/10/2026)"
     },
     {
       "id": "carousel-emphasis",
