@@ -585,6 +585,17 @@ issues:
       - "docs/research/agentes/**"
       - "docs/README.md#agentes"
 
+  # ------------------------------------------------------------------ MoneyPrinterTurbo: porta da API e generate (#144)
+  144:
+    track: moneyprinter
+    milestone: M1
+    status: ready
+    owns:
+      - "src/simplicio_video/moneyprinter.py"
+      - "tests/test_moneyprinter.py"
+      - "src/simplicio_video/cli.py#moneyprinter"   # só o subcomando moneyprinter (cli.py é de outras issues)
+      - "README.md#MoneyPrinterTurbo"   # só a seção MoneyPrinterTurbo
+
   # ------------------------------------------------------------------ backlog (elaborate before starting)
   17: {track: plan, milestone: M3, status: backlog}
   20: {track: library, milestone: M3, status: backlog}

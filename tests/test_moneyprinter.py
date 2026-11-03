@@ -782,3 +782,160 @@ def test_status_lists_moneyprinter_with_its_pin():
 def test_moneyprinter_source_has_no_machine_specific_path():
     src = Path(moneyprinter.__file__).read_text()
     assert not re.search(r"""["'](/projetos|/home/|/Users/|[A-Za-z]:\\)""", src)
+
+
+# ---- #144: porta da API configurável e o comando generate (roda por trás e traz o MP4) ---------------------------
+
+def test_serve_api_port_is_configurable_and_defaults_to_8080(checkout, venv, server, capsys):
+    assert moneyprinter.run_moneyprinter(["serve", "--api", "--api-port", "9090"]) == 0
+    cmd = server.started[0].cmd
+    assert cmd[cmd.index("--port") + 1] == "9090"
+    assert "http://127.0.0.1:9090/docs" in capsys.readouterr().out
+    server.started.clear()
+    assert moneyprinter.run_moneyprinter(["serve", "--api"]) == 0
+    cmd = server.started[0].cmd
+    assert cmd[cmd.index("--port") + 1] == "8080"
+
+
+@pytest.mark.parametrize("value", ["abc", "0", "1023", "70000", "80.5"])
+def test_serve_api_port_must_be_an_unprivileged_port_number(checkout, venv, server, value):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="entre 1024 e 65535"):
+        moneyprinter.run_moneyprinter(["serve", "--api", "--api-port", value])
+    assert server.started == []
+
+
+def test_help_lists_generate_and_the_api_port():
+    assert "generate" in moneyprinter.USAGE and "--api-port" in moneyprinter.USAGE
+
+
+def test_generate_request_is_local_only_and_carries_no_key():
+    body = moneyprinter.build_video_request(
+        script="Olá, este é um teste.", voice="pt-BR-FranciscaNeural-Female", aspect="9:16",
+        materials=["clip.mp4"], subject="teste")
+    assert body["video_source"] == "local"
+    assert body["video_materials"] == [{"provider": "local", "url": "clip.mp4"}]
+    assert body["video_script"] == "Olá, este é um teste."
+    assert body["voice_name"] == "pt-BR-FranciscaNeural-Female"
+    assert body["video_aspect"] == "9:16"
+    assert body["subtitle_enabled"] is False
+    assert not any("key" in name.lower() for name in body)
+
+
+def test_write_result_copies_the_video_and_records_its_hash(tmp_path):
+    import hashlib
+    src = tmp_path / "src" / "final-1.mp4"
+    src.parent.mkdir()
+    src.write_bytes(b"video bytes")
+    out = tmp_path / "out"
+    meta = moneyprinter.write_result(out, task_id="t1", video=src, request={"voice": "x"}, materials=[], elapsed=1.5)
+    assert (out / "moneyprinter-t1.mp4").read_bytes() == b"video bytes"
+    assert meta["sha256"] == hashlib.sha256(b"video bytes").hexdigest()
+    assert meta["bytes"] == len(b"video bytes")
+    manifest = json.loads((out / "moneyprinter-t1.json").read_text())
+    assert manifest["schema"] == "simplicio.moneyprinter-result/v1"
+    assert manifest["sha256"] == meta["sha256"]
+    assert manifest["pinned_commit"] == "4b7b9657647bdb149715354269eec7e4dbad4a7a"
+
+
+def test_wait_for_task_returns_when_complete_and_fails_loudly_on_failure():
+    replies = iter([
+        (200, {"data": {"task_id": "t1", "state": 0, "progress": 10}}),
+        (200, {"data": {"task_id": "t1", "state": 1, "progress": 100, "videos": ["/tasks/t1/final-1.mp4"]}}),
+    ])
+    got = moneyprinter.wait_for_task("http://127.0.0.1:1", "t1", get=lambda url: next(replies),
+                                     sleep=lambda s: None, max_polls=5)
+    assert got["videos"] == ["/tasks/t1/final-1.mp4"]
+    failing = lambda url: (200, {"data": {"task_id": "t1", "state": -1, "error": "boom", "failed_stage": "audio"}})
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="boom"):
+        moneyprinter.wait_for_task("http://127.0.0.1:1", "t1", get=failing, sleep=lambda s: None, max_polls=5)
+    waiting = lambda url: (200, {"data": {"task_id": "t1", "state": 0, "progress": 1}})
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="tempo"):
+        moneyprinter.wait_for_task("http://127.0.0.1:1", "t1", get=waiting, sleep=lambda s: None, max_polls=3)
+
+
+@pytest.mark.parametrize("args", [
+    ["generate", "--out", "x"],
+    ["generate", "--script", "s.txt", "--out", "x"],
+    ["generate", "--script", "s.txt", "--material", "c.mp4"],
+])
+def test_generate_needs_script_material_and_out(checkout, venv, server, args):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--script, --material e --out"):
+        moneyprinter.run_moneyprinter(args)
+    assert server.started == []
+
+
+def test_generate_without_a_venv_points_to_setup(checkout, server, tmp_path):
+    script = tmp_path / "r.txt"
+    script.write_text("x")
+    clip = tmp_path / "c.mp4"
+    clip.write_bytes(b"x")
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="ambiente não preparado"):
+        moneyprinter.run_moneyprinter(["generate", "--script", str(script), "--material", str(clip),
+                                       "--out", str(tmp_path / "o")])
+    assert server.started == []
+
+
+def test_generate_with_a_missing_material_fails_before_starting_the_api(checkout, venv, server, tmp_path):
+    script = tmp_path / "r.txt"
+    script.write_text("x")
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="material não encontrado"):
+        moneyprinter.run_moneyprinter(["generate", "--script", str(script), "--material", str(tmp_path / "nope.mp4"),
+                                       "--out", str(tmp_path / "o")])
+    assert server.started == []
+
+
+def _generate_fakes(monkeypatch, state_reply, sent):
+    def fake_request(method, url, body=None, headers=None, timeout=30):
+        if url.endswith("/docs"):
+            return 200, None
+        if url.endswith("/api/v1/video_materials"):
+            return 200, {"status": 200, "data": {"file": "stored-clip.mp4"}}
+        if url.endswith("/api/v1/videos"):
+            sent["body"] = json.loads(body)
+            return 200, {"status": 200, "data": {"task_id": "t1"}}
+        if url.endswith("/api/v1/tasks/t1"):
+            return 200, {"status": 200, "data": state_reply}
+        raise AssertionError(f"unexpected request: {method} {url}")
+    monkeypatch.setattr(moneyprinter, "_request", fake_request)
+
+
+def test_generate_runs_the_api_behind_the_scenes_and_brings_the_mp4_back(
+        checkout, venv, server, monkeypatch, tmp_path, capsys):
+    import hashlib
+    script = tmp_path / "roteiro.txt"
+    script.write_text("Olá, este é um teste de voz.")
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"material")
+    out = tmp_path / "out"
+    final = moneyprinter.data_dir() / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final.parent.mkdir(parents=True)
+    final.write_bytes(b"video bytes")
+    sent = {}
+    _generate_fakes(monkeypatch, {"task_id": "t1", "state": 1, "progress": 100, "videos": ["/tasks/t1/final-1.mp4"]}, sent)
+    rc = moneyprinter.run_moneyprinter(["generate", "--script", str(script), "--material", str(clip),
+                                        "--out", str(out), "--api-port", "45678", "--json"])
+    assert rc == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["task_id"] == "t1"
+    assert result["sha256"] == hashlib.sha256(b"video bytes").hexdigest()
+    assert (out / "moneyprinter-t1.mp4").read_bytes() == b"video bytes"
+    assert sent["body"]["video_materials"] == [{"provider": "local", "url": "stored-clip.mp4"}]
+    assert sent["body"]["video_script"] == "Olá, este é um teste de voz."
+    cmd = server.started[0].cmd
+    assert cmd[cmd.index("--port") + 1] == "45678" and cmd[cmd.index("--host") + 1] == "127.0.0.1"
+    assert server.signals  # the API group is stopped at the end, never left running
+
+
+def test_generate_stops_the_api_when_the_task_fails(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script = tmp_path / "roteiro.txt"
+    script.write_text("x")
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"material")
+    _generate_fakes(monkeypatch, {"task_id": "t1", "state": -1, "error": "no valid local video materials were found",
+                                  "failed_stage": "materials"}, {})
+    rc = moneyprinter.run_moneyprinter(["generate", "--script", str(script), "--material", str(clip),
+                                        "--out", str(tmp_path / "o"), "--api-port", "45678"])
+    assert rc == 1
+    assert "no valid local video materials were found" in capsys.readouterr().err
+    assert server.signals
+    assert not (tmp_path / "o" / "moneyprinter-t1.mp4").exists()
