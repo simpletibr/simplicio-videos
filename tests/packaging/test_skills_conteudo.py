@@ -23,7 +23,7 @@ from simplicio_video.cli import build_parser
 
 PACOTE = ROOT / "src" / "simplicio_video" / "data" / "skills"
 ESPELHO = ROOT / "skills"
-NOMES = ("simplicio-video", "simplicio-video-social")
+NOMES = ("simplicio-video", "simplicio-video-social", "deep-news", "deep-service", "deep-product")
 DELEGADOS = {"social": social._parser, "openverse": openverse._parser, "busca": busca._parser}  # `args: REMAINDER` in cli.py
 
 

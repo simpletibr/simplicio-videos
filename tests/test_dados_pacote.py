@@ -148,7 +148,8 @@ def test_wheel_contem_schema_templates_e_motion(wheel):
 
 
 SKILLS_DO_WHEEL = ("simplicio-video", "simplicio-video-social", "simplicio-video-media", "simplicio-video-shorts",
-                   "simplicio-video-voicestudio", "simplicio-video-edit")
+                   "simplicio-video-voicestudio", "simplicio-video-edit",
+                   "deep-news", "deep-service", "deep-product")
 
 
 @pytest.mark.slow
