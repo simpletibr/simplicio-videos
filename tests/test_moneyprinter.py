@@ -939,3 +939,200 @@ def test_generate_stops_the_api_when_the_task_fails(checkout, venv, server, monk
     assert "no valid local video materials were found" in capsys.readouterr().err
     assert server.signals
     assert not (tmp_path / "o" / "moneyprinter-t1.mp4").exists()
+
+
+# ---- revisão independente do PR #145: bloqueantes e pontos a corrigir ----------------------------------------------
+
+def _generate_inputs(tmp_path):
+    script = tmp_path / "roteiro.txt"
+    script.write_text("Olá, este é um teste.")
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"material bytes")
+    return script, clip
+
+
+def _generate_argv(script, clip, out, port="45678", *extra):
+    return ["generate", "--script", str(script), "--material", str(clip), "--out", str(out), "--api-port", port, *extra]
+
+
+def _api_request(final_state=None, posted=None, material_status=200, on_task=None):
+    """Fake da API: /openapi.json de MoneyPrinterTurbo, upload, POST e tarefa concluída (ou o estado dado)."""
+    state = final_state or {"task_id": "t1", "state": 1, "progress": 100, "videos": ["/tasks/t1/final-1.mp4"]}
+
+    def fake(method, url, body=None, headers=None, timeout=30):
+        if posted is not None:
+            posted.append((method, url, body))
+        if url.endswith("/openapi.json"):
+            return 200, {"info": {"title": "MoneyPrinterTurbo"}}
+        if url.endswith("/api/v1/video_materials"):
+            if on_task:
+                on_task("upload", body)
+            return material_status, ({"status": 200, "data": {"file": "stored-clip.mp4"}} if material_status == 200 else None)
+        if url.endswith("/api/v1/videos"):
+            return 200, {"status": 200, "data": {"task_id": "t1"}}
+        if url.endswith("/api/v1/tasks/t1"):
+            if on_task:
+                on_task("task", None)
+            return 200, {"status": 200, "data": state}
+        raise AssertionError(f"unexpected request: {method} {url}")
+    return fake
+
+
+def test_generate_refuses_a_port_that_already_answers(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    posted = []
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(posted=posted))
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
+    assert rc == 1
+    assert server.started == []  # never start a second API on a port that already answers
+    assert posted == [("GET", "http://127.0.0.1:45678/openapi.json", None)]
+    assert "já responde" in capsys.readouterr().err
+
+
+def test_generate_reports_a_child_that_dies_while_waiting(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    server.exit_codes = {0: 3}  # the API process exits with 3 once the loop has slept
+    monkeypatch.setattr(moneyprinter, "_request", lambda method, url, body=None, headers=None, timeout=30: (0, None))
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
+    assert rc == 1
+    assert "saiu com código 3" in capsys.readouterr().err
+    assert server.signals  # the group is always stopped (no leftover process)
+
+
+def test_loopback_requests_ignore_the_proxy_environment(monkeypatch):
+    import urllib.request
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:3128")
+    monkeypatch.setenv("http_proxy", "http://proxy.invalid:3128")
+    proxies = [h.proxies for h in moneyprinter._OPENER.handlers if isinstance(h, urllib.request.ProxyHandler)]
+    assert proxies == [{}]
+
+
+@pytest.mark.parametrize("uri", [
+    "/tasks/../secret.txt", "/tasks/%2e%2e/secret.txt", "/tasks/%2E%2E%2Fsecret.txt", "/etc/passwd",
+    "/tasks//etc/passwd", "http://example.com/tasks/t1/final-1.mp4", "/tasks/", "/TASKS/t1/final-1.mp4",
+    "/tasks/t1/\x00final.mp4",
+])
+def test_task_file_refuses_anything_outside_storage_tasks(tmp_path, uri):
+    with pytest.raises(moneyprinter.MoneyPrinterError):
+        moneyprinter._task_file(tmp_path, uri)
+
+
+def test_task_file_accepts_the_output_of_a_task(tmp_path):
+    assert moneyprinter._task_file(tmp_path, "/tasks/t1/final-1.mp4") == \
+        (tmp_path / "storage" / "tasks" / "t1" / "final-1.mp4").resolve()
+
+
+def test_task_file_refuses_a_symlink_that_leaves_the_task_folder(tmp_path):
+    tasks = tmp_path / "storage" / "tasks"
+    tasks.mkdir(parents=True)
+    (tmp_path / "secret.txt").write_text("x")
+    (tasks / "t1").symlink_to(tmp_path)
+    with pytest.raises(moneyprinter.MoneyPrinterError):
+        moneyprinter._task_file(tmp_path, "/tasks/t1/secret.txt")
+
+
+def test_generate_checks_the_output_folder_before_paying_for_the_task(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    blocker = tmp_path / "um-arquivo"
+    blocker.write_text("x")
+    posted = []
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(posted=posted))
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, blocker))
+    assert rc == 1
+    assert server.started == [] and posted == []
+    assert "pasta de saída" in capsys.readouterr().err
+
+
+def test_generate_stops_the_api_when_an_upload_fails(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(material_status=500))
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
+    assert rc == 1
+    assert "falhou (HTTP 500)" in capsys.readouterr().err
+    assert server.signals
+
+
+def test_generate_applies_the_same_api_key_guard_as_serve(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "*")
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
+    assert rc == 1
+    assert "CORS_ALLOWED_ORIGINS" in capsys.readouterr().err
+    assert server.started == []
+
+
+def test_generate_never_prints_or_records_a_key_from_the_config(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    (checkout / "config.toml").write_text(CONFIG_WITH_KEYS)
+    script, clip = _generate_inputs(tmp_path)
+    final = moneyprinter.data_dir() / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final.parent.mkdir(parents=True)
+    final.write_bytes(b"video")
+    monkeypatch.setattr(moneyprinter, "_request", _api_request())
+    out = tmp_path / "o"
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, out, "45678", "--json"))
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert FAKE_KEY not in captured.out + captured.err and FAKE_KEY_2 not in captured.out + captured.err
+    recorded = (out / "moneyprinter-t1.json").read_text()
+    assert FAKE_KEY not in recorded and FAKE_KEY_2 not in recorded
+
+
+def test_material_hash_is_the_one_of_the_bytes_that_were_sent(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    import hashlib
+    script, clip = _generate_inputs(tmp_path)
+    final = moneyprinter.data_dir() / "storage" / "tasks" / "t1" / "final-1.mp4"
+    final.parent.mkdir(parents=True)
+    final.write_bytes(b"video")
+    uploads = []
+
+    def on_task(stage, body):
+        if stage == "upload":
+            uploads.append(body)
+        else:  # the file changes after the upload and before the manifest is written
+            clip.write_bytes(b"changed after upload")
+
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(on_task=on_task))
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678", "--json"))
+    assert rc == 0
+    meta = json.loads(capsys.readouterr().out)
+    assert b"material bytes" in uploads[0]
+    assert meta["materials"][0]["sha256"] == hashlib.sha256(b"material bytes").hexdigest()
+
+
+def test_manifest_records_the_checkout_head_that_actually_ran(tmp_path):
+    src = tmp_path / "f.mp4"
+    src.write_bytes(b"x")
+    moneyprinter.write_result(tmp_path / "o", task_id="t1", video=src, request={}, materials=[], elapsed=0,
+                              checkout_head="abc123")
+    assert json.loads((tmp_path / "o" / "moneyprinter-t1.json").read_text())["checkout_head"] == "abc123"
+
+
+def test_manifest_records_the_voice_the_request_used(tmp_path):
+    src = tmp_path / "f.mp4"
+    src.write_bytes(b"x")
+    meta = moneyprinter.write_result(tmp_path / "o", task_id="t1", video=src, request={"voice_name": "voz-x"},
+                                     materials=[], elapsed=0)
+    assert meta["voice"] == "voz-x"
+
+
+@pytest.mark.parametrize("args", [
+    ["serve", "--api-port", "9090"],  # the port means nothing without the API: refuse instead of ignoring it
+    ["serve", "--webui", "--api", "--api-port", "8501"],  # collides with the WebUI port
+])
+def test_serve_api_port_is_refused_when_it_cannot_apply(checkout, venv, server, args):
+    with pytest.raises(moneyprinter.MoneyPrinterError):
+        moneyprinter.run_moneyprinter(args)
+    assert server.started == []
+
+
+def test_api_port_with_thousands_of_digits_is_a_clean_error():
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="entre 1024 e 65535"):
+        moneyprinter._port("9" * 5000)
+
+
+def test_wait_for_task_stops_at_an_unknown_task():
+    sleeps = []
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="não encontrada"):
+        moneyprinter.wait_for_task("http://127.0.0.1:1", "t9", get=lambda url: (404, {"message": "task not found"}),
+                                   sleep=sleeps.append, max_polls=900)
+    assert sleeps == []
