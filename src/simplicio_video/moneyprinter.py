@@ -631,9 +631,10 @@ def _upload_material(base: str, path: Path, auth: dict) -> tuple[str, str]:
     body = head + data + f"\r\n--{boundary}--\r\n".encode()
     status, reply = _request("POST", f"{base}/api/v1/video_materials", body,
                              {"Content-Type": f"multipart/form-data; boundary={boundary}", **auth}, timeout=600)
-    if status != 200 or "file" not in ((reply or {}).get("data") or {}):
+    data = (reply or {}).get("data")
+    if status != 200 or not isinstance(data, dict) or not isinstance(data.get("file"), str):
         raise MoneyPrinterError(f"o envio do material {path.name} falhou (HTTP {status}).")
-    return reply["data"]["file"], digest
+    return data["file"], digest
 
 
 def _task_file(checkout: Path, uri: str) -> Path:
@@ -746,13 +747,17 @@ def _api_key(d: Path) -> str | None:
     import tomllib
     try:
         data = tomllib.loads(text)
-    except ValueError:  # TOML inválido: se a chave é mencionada, não dá para saber se a API a exige
+    except (ValueError, RecursionError):  # TOML inválido ou aninhado demais: se a chave é mencionada, não dá para saber se a API a exige
         if "api_key" in text:
             raise MoneyPrinterError("config.toml não é TOML válido; não consigo ler app.api_key, que a API exige "
                                     "quando está preenchido. Corrija o arquivo.") from None
         return None
     app = data.get("app")
-    value = app.get("api_key") if isinstance(app, dict) else None
+    if app is None:
+        return None
+    if not isinstance(app, dict):
+        raise MoneyPrinterError("[app] no config.toml precisa ser uma tabela, não uma lista ou um valor.")
+    value = app.get("api_key")
     if value is None:
         return None
     if not isinstance(value, str):
@@ -845,8 +850,8 @@ def _generate(d: Path, args: list[str]) -> int:
             return _request("GET", url, headers=auth)
 
         task = wait_for_task(base, task_id, get=get, max_polls=int(TASK_TIMEOUT_SECONDS / POLL_SECONDS))
-        videos = task.get("videos") or []
-        if not videos:
+        videos = task.get("videos")
+        if not isinstance(videos, list) or not videos:
             raise MoneyPrinterError(f"a tarefa {task_id} terminou sem vídeo.")
         src = _task_file(d, videos[0])
         if not src.is_file():
