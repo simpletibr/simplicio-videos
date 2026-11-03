@@ -584,23 +584,39 @@ def build_video_request(script: str, voice: str, aspect: str, materials: list[st
     }
 
 
+MAX_TRANSIENT_ERRORS = 5  # erros seguidos que a espera tolera (sem conexão, 429, 5xx) antes de desistir
+
+
 def wait_for_task(base: str, task_id: str, get, sleep=time.sleep, max_polls: int = 900,
                   poll: float = POLL_SECONDS) -> dict:
-    """Consulta a tarefa até completar (state 1) ou falhar (state -1). `get(url)` devolve (status, JSON)."""
+    """Consulta a tarefa até completar (state 1) ou falhar (state -1). `get(url)` devolve (status, JSON).
+    Erro transitório (sem conexão, 429, 5xx) tenta de novo até MAX_TRANSIENT_ERRORS seguidos. Qualquer outro
+    status que não seja 200 (404 incluído) para na hora, e 200 sem dados também."""
     task: dict = {}
+    transient = 0
     for _ in range(max_polls):
         status, data = get(f"{base}/api/v1/tasks/{task_id}")
-        task = (data or {}).get("data") or {}
-        if status == 200 and task.get("state") == TASK_STATE_COMPLETE:
+        if status == 404:
+            raise MoneyPrinterError(f"a tarefa {task_id} não encontrada na API.")
+        if status == 0 or status == 429 or status >= 500:
+            transient += 1
+            if transient > MAX_TRANSIENT_ERRORS:
+                raise MoneyPrinterError(f"a API falhou em {transient} tentativas seguidas ao consultar a tarefa "
+                                        f"{task_id} (último: {'sem conexão' if status == 0 else f'HTTP {status}'}).")
+            sleep(poll)
+            continue
+        if status != 200:
+            raise MoneyPrinterError(f"a API respondeu HTTP {status} ao consultar a tarefa {task_id}.")
+        task = (data or {}).get("data")
+        if not isinstance(task, dict):
+            raise MoneyPrinterError(f"a API respondeu sem dados ao consultar a tarefa {task_id}.")
+        transient = 0
+        if task.get("state") == TASK_STATE_COMPLETE:
             return task
-        if status == 200 and task.get("state") == TASK_STATE_FAILED:
+        if task.get("state") == TASK_STATE_FAILED:
             raise MoneyPrinterError(
                 f"a tarefa {task_id} falhou em {task.get('failed_stage') or 'etapa desconhecida'}: "
                 f"{task.get('error') or 'sem detalhe'}")
-        if status == 404:
-            raise MoneyPrinterError(f"a tarefa {task_id} não encontrada na API.")
-        if status not in (0, 200):  # 0 = sem conexão agora (a API pode estar ocupada): tenta de novo
-            raise MoneyPrinterError(f"a API respondeu HTTP {status} ao consultar a tarefa {task_id}.")
         sleep(poll)
     raise MoneyPrinterError(f"tempo esgotado esperando a tarefa {task_id} (último estado: {task.get('state')}).")
 
@@ -709,22 +725,41 @@ def _checkout_head(d: Path) -> str | None:
         return None
 
 
+def _can_read_toml() -> bool:
+    """tomllib (3.11+) é o único leitor de TOML que o generate usa para a chave: sem ele, não há como saber se a API exige uma."""
+    try:
+        import tomllib  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def _api_key(d: Path) -> str | None:
     """app.api_key do config.toml, lido só para o cabeçalho x-api-key das chamadas de loopback. Nunca impresso nem gravado."""
     path = d / "config.toml"
     if not path.is_file():
         return None
     try:
-        import tomllib
-        value = (tomllib.loads(path.read_text(encoding="utf-8", errors="replace")).get("app") or {}).get("api_key")
-    except Exception:  # sem tomllib (Python 3.10) ou TOML inválido
-        if config_report(path)["keys"].get("app.api_key"):  # há chave: a API a exige, então não pode seguir sem ela
-            raise MoneyPrinterError("app.api_key está preenchido, mas o config.toml não pôde ser lido (TOML inválido, "
-                                    "ou Python sem tomllib, que exige 3.11+).") from None
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        raise MoneyPrinterError(f"não consegui ler {path}: {e.strerror or e}.") from None
+    import tomllib
+    try:
+        data = tomllib.loads(text)
+    except ValueError:  # TOML inválido: se a chave é mencionada, não dá para saber se a API a exige
+        if "api_key" in text:
+            raise MoneyPrinterError("config.toml não é TOML válido; não consigo ler app.api_key, que a API exige "
+                                    "quando está preenchido. Corrija o arquivo.") from None
         return None
-    if not isinstance(value, str) or not value.strip():
+    app = data.get("app")
+    value = app.get("api_key") if isinstance(app, dict) else None
+    if value is None:
         return None
+    if not isinstance(value, str):
+        raise MoneyPrinterError("app.api_key precisa ser texto no config.toml.")
     key = value.strip()
+    if not key:
+        return None
     if not key.isprintable():
         raise MoneyPrinterError("app.api_key tem caractere de controle (quebra de linha, por exemplo); corrija o config.toml.")
     try:
@@ -737,6 +772,8 @@ def _api_key(d: Path) -> str | None:
 
 def _generate(d: Path, args: list[str]) -> int:
     opts = _parse_generate(args)
+    if not _can_read_toml():
+        raise MoneyPrinterError("generate precisa de Python 3.11 ou mais novo, para ler app.api_key do config.toml.")
     script = Path(opts["script"]).expanduser()
     if not script.is_file():
         raise MoneyPrinterError(f"roteiro não encontrado: {script}")

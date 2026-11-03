@@ -1413,10 +1413,24 @@ def test_a_redirect_from_loopback_is_not_followed_on_the_wire(monkeypatch):
     seen = []
     handler = next(h for h in moneyprinter._OPENER.handlers if type(h) is urllib.request.HTTPHandler)
 
+    import email.message
+
+    class Found(io.BytesIO):  # the status line and headers of a 302 to another host, as the transport would hand them over
+        code = 302
+        msg = "Found"
+
+        def __init__(self, url):
+            super().__init__(b"")
+            self.url = url
+            self.headers = email.message.Message()
+            self.headers["Location"] = "http://evil.example/"
+
+        def info(self):
+            return self.headers
+
     def transport(req):  # the wire: a 302 to another host, and nothing else
         seen.append((req.full_url, req.get_header("X-api-key")))
-        return urllib.response.addinfourl(io.BytesIO(b""), {"Location": "http://evil.example/"},
-                                          req.full_url, 302)
+        return Found(req.full_url)
     monkeypatch.setattr(handler, "http_open", transport)
     status, body = moneyprinter._request("GET", "http://127.0.0.1:1/api/v1/tasks/t1", headers={"x-api-key": "k"})
     assert (status, body) == (302, None)
