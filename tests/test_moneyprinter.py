@@ -1460,3 +1460,71 @@ def test_wait_for_task_refuses_a_200_without_task_data():
     with pytest.raises(moneyprinter.MoneyPrinterError, match="sem dados"):
         moneyprinter.wait_for_task("http://127.0.0.1:1", "t1", get=lambda url: (200, None),
                                    sleep=lambda s: None, max_polls=50)
+
+
+def test_a_deeply_nested_config_is_not_a_recursion_traceback(tmp_path):
+    (tmp_path / "config.toml").write_text("x = " + "[" * 3000 + "]" * 3000 + "\n")
+    assert moneyprinter._api_key(tmp_path) is None
+
+
+def test_an_app_table_that_is_not_a_table_with_a_key_is_an_error(tmp_path):
+    (tmp_path / "config.toml").write_text('[[app]]\napi_key = "SEGREDO-Y"\n')
+    with pytest.raises(moneyprinter.MoneyPrinterError) as e:
+        moneyprinter._api_key(tmp_path)
+    assert "tabela" in str(e.value) and "SEGREDO" not in str(e.value)
+
+
+def test_a_non_text_key_does_not_echo_its_value(tmp_path):
+    (tmp_path / "config.toml").write_text("[app]\napi_key = 12345678\n")
+    with pytest.raises(moneyprinter.MoneyPrinterError) as e:
+        moneyprinter._api_key(tmp_path)
+    assert "12345678" not in str(e.value)
+
+
+def test_an_upload_reply_without_a_file_name_is_an_error(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    calls = {"openapi": 0}
+
+    def fake(method, url, body=None, headers=None, timeout=30):
+        if url.endswith("/openapi.json"):
+            calls["openapi"] += 1
+            return (200, {"info": {"title": "MoneyPrinterTurbo"}}) if calls["openapi"] > 1 else (0, None)
+        if url.endswith("/api/v1/video_materials"):
+            return 200, {"status": 200, "data": "file-x"}  # a string where the data object should be
+        raise AssertionError(url)
+    monkeypatch.setattr(moneyprinter, "_request", fake)
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678"))
+    assert rc == 1 and "falhou" in capsys.readouterr().err
+
+
+def test_a_task_whose_videos_are_not_a_list_is_an_error(checkout, venv, server, monkeypatch, tmp_path, capsys):
+    script, clip = _generate_inputs(tmp_path)
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(final_state={"task_id": "t1", "state": 1,
+                                                                             "videos": {"a": 1}}))
+    rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678"))
+    assert rc == 1 and "sem vídeo" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("status", [0, 429, 500, 502, 503, 599])
+def test_transient_statuses_are_retried_up_to_the_limit(status):
+    sleeps = []
+    replies = iter([(status, None)] * 5 + [(200, {"data": {"task_id": "t1", "state": 1, "videos": ["/tasks/t1/f.mp4"]}})])
+    got = moneyprinter.wait_for_task("http://127.0.0.1:1", "t1", get=lambda url: next(replies),
+                                     sleep=sleeps.append, max_polls=50)
+    assert got["videos"] == ["/tasks/t1/f.mp4"] and len(sleeps) == 5
+
+
+def test_six_transient_errors_in_a_row_stop_even_if_a_later_reply_is_fine():
+    replies = iter([(503, None)] * 6 + [(200, {"data": {"task_id": "t1", "state": 1, "videos": ["/tasks/t1/f.mp4"]}})])
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="tentativas"):
+        moneyprinter.wait_for_task("http://127.0.0.1:1", "t1", get=lambda url: next(replies),
+                                   sleep=lambda s: None, max_polls=50)
+
+
+def test_a_good_reply_resets_the_count_of_transient_errors():
+    working = {"data": {"task_id": "t1", "state": 0, "progress": 10}}
+    done = {"data": {"task_id": "t1", "state": 1, "videos": ["/tasks/t1/f.mp4"]}}
+    replies = iter([(503, None)] * 4 + [(200, working)] + [(503, None)] * 5 + [(200, done)])
+    got = moneyprinter.wait_for_task("http://127.0.0.1:1", "t1", get=lambda url: next(replies),
+                                     sleep=lambda s: None, max_polls=50)
+    assert got["videos"] == ["/tasks/t1/f.mp4"]
