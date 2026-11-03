@@ -481,7 +481,7 @@ def video_setup(args: list[str] | str = "") -> dict:
 
 
 def video_install(args: list[str] | str = "") -> dict:
-    """Copies the six skills into the agent hosts (`--global` for the home folder). `--check`, `--dry-run` and `--verify` only read.
+    """Copies the packaged skills into the agent hosts (`--global` for the home folder). `--check`, `--dry-run` and `--verify` only read.
     Removing them (`--uninstall`, `--prune-project-copies`) is terminal-only."""
     argv = _argv(args)
     if {"--uninstall", "--prune-project-copies"} & set(argv):
@@ -533,7 +533,7 @@ TOOLS = [
     ("video.status", video_status, "Installed tools, pinned versions and, with a contract, the render state. Read-only."),
     ("video.doctor", video_doctor, "Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace (all, --online for network checks). Read-only."),
     ("video.setup", video_setup, "First run: creates the workspace (theme, language, L1 autonomy, zero budgets). Pass --yes to accept the defaults; without a terminal it refuses instead of asking. Writes no credential."),
-    ("video.install", video_install, "Copies the six skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies are terminal-only."),
+    ("video.install", video_install, "Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies are terminal-only."),
     ("video.update", video_update, "Checks for a newer version (--check or --dry-run). Installing it is terminal-only: it changes the installed package."),
 ]
 

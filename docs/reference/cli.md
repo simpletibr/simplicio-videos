@@ -291,7 +291,7 @@ exemplos:
 usage: simplicio-video install [-h] [--target DIR] [--global] [--host HOST] [--dry-run] [--check] [--json]
                                [--verify] [--uninstall] [--prune-project-copies]
 
-Copia as skills empacotadas (simplicio-video, simplicio-video-social, -media, -shorts, -voicestudio e -edit) para o host do agente e grava o recibo de posse
+Copia as skills empacotadas (a família simplicio-video e as skills deep-news, deep-service e deep-product) para o host do agente e grava o recibo de posse
 .simplicio-video/install-ownership.json, como o `install` do simplicio-loop. Por padrão instala no projeto (--target, padrão: a
 pasta atual) em .claude/skills/ e, para o host que precisa, no arquivo de entrada dele (AGENTS.md, GEMINI.md, CONVENTIONS.md,
 .github/copilot-instructions.md ou .kiro/steering/simplicio-video.md). Um arquivo de entrada que já existe não recebe

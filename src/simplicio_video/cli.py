@@ -382,7 +382,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="só com angles: lista só os ângulos desse grupo")
 
     p = sub.add_parser("install", formatter_class=Fmt, help="copia as skills do simplicio-video para o host do agente (o projeto, ou o home com --global)",
-        description="Copia as skills empacotadas (simplicio-video, simplicio-video-social, -media, -shorts, -voicestudio e -edit) para o host do agente e grava o recibo de posse\n"
+        description="Copia as skills empacotadas (a família simplicio-video e as skills deep-news, deep-service e deep-product) para o host do agente e grava o recibo de posse\n"
                     ".simplicio-video/install-ownership.json, como o `install` do simplicio-loop. Por padrão instala no projeto (--target, padrão: a\n"
                     "pasta atual) em .claude/skills/ e, para o host que precisa, no arquivo de entrada dele (AGENTS.md, GEMINI.md, CONVENTIONS.md,\n"
                     ".github/copilot-instructions.md ou .kiro/steering/simplicio-video.md). Um arquivo de entrada que já existe não recebe\n"
