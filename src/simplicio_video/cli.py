@@ -287,7 +287,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("moneyprinter", formatter_class=Fmt, help="MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio",
         description="Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo, MIT) no commit fixado em tools.py. "
                     "Exige Python 3.11 ou mais novo; o setup cria um venv isolado e copia o config.toml sem chave nenhuma. "
-                    "O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080) e só abre para a rede com --lan. "
+                    "O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080 ou --api-port) e só abre para a rede com --lan. O generate sobe a API por trás e traz o MP4 com hash. "
                     "As chaves de API nunca são impressas. "
                     "Fica fora do render determinístico.",
         epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api --api-port 8090\n  simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/ --json\n  simplicio-video moneyprinter status")

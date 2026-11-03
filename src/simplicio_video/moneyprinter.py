@@ -52,6 +52,7 @@ TASK_STATE_COMPLETE, TASK_STATE_FAILED = 1, -1  # app/models/const.py no commit 
 POLL_SECONDS = 2.0
 TASK_TIMEOUT_SECONDS = 1800
 READY_TIMEOUT_SECONDS = 120
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # loopback: nunca pelo proxy do ambiente
 
 USAGE = (
     f"MoneyPrinterTurbo ({MONEYPRINTER_REPO}, MIT)\n"
@@ -358,7 +359,7 @@ def _is_loopback(host: str) -> bool:
 
 
 def _parse_serve(args: list[str]) -> tuple[bool, bool, bool, str | None, int]:
-    webui = api = lan = False
+    webui = api = lan = port_given = False
     host = None
     api_port = API_PORT
     it = iter(args)
@@ -371,6 +372,7 @@ def _parse_serve(args: list[str]) -> tuple[bool, bool, bool, str | None, int]:
             lan = True
         elif a == "--api-port":
             api_port = _port(next(it, None))
+            port_given = True
         elif a == "--host":
             host = next(it, None)
             if not host:
@@ -380,6 +382,10 @@ def _parse_serve(args: list[str]) -> tuple[bool, bool, bool, str | None, int]:
                                     f"porta {WEBUI_PORT}; a API, {API_PORT} ou a de --api-port); recebi: {a}")
     if not webui and not api:
         webui = True
+    if port_given and not api:
+        raise MoneyPrinterError("--api-port só vale com --api.")
+    if webui and api and api_port == WEBUI_PORT:
+        raise MoneyPrinterError(f"--api-port não pode ser {WEBUI_PORT}: essa é a porta da WebUI.")
     return webui, api, lan, host, api_port
 
 
@@ -505,7 +511,7 @@ def _request(method: str, url: str, body: bytes | None = None, headers: dict | N
     """HTTP com a biblioteca padrão, só para a API em loopback. Devolve (status, JSON ou None); status 0 = sem conexão."""
     req = urllib.request.Request(url, data=body, method=method, headers=headers or {})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with _OPENER.open(req, timeout=timeout) as resp:
             status, raw = resp.status, resp.read()
     except urllib.error.HTTPError as e:
         status, raw = e.code, e.read()
@@ -518,7 +524,7 @@ def _request(method: str, url: str, body: bytes | None = None, headers: dict | N
 
 
 def _port(value: str | None) -> int:
-    if value is None or not re.fullmatch(r"\d+", value) or not PORT_MIN <= int(value) <= PORT_MAX:
+    if value is None or not re.fullmatch(r"\d{1,5}", value) or not PORT_MIN <= int(value) <= PORT_MAX:
         raise MoneyPrinterError(f"--api-port pede um número de porta entre {PORT_MIN} e {PORT_MAX}.")
     return int(value)
 
@@ -564,35 +570,42 @@ def wait_for_task(base: str, task_id: str, get, sleep=time.sleep, max_polls: int
             raise MoneyPrinterError(
                 f"a tarefa {task_id} falhou em {task.get('failed_stage') or 'etapa desconhecida'}: "
                 f"{task.get('error') or 'sem detalhe'}")
+        if status == 404:
+            raise MoneyPrinterError(f"a tarefa {task_id} não encontrada na API.")
         sleep(poll)
     raise MoneyPrinterError(f"tempo esgotado esperando a tarefa {task_id} (último estado: {task.get('state')}).")
 
 
-def _upload_material(base: str, path: Path) -> str:
-    """Envia um material ao diretório de vídeos locais da API; devolve o nome que a API guardou."""
+def _upload_material(base: str, path: Path) -> tuple[str, str]:
+    """Envia um material ao diretório de vídeos locais da API. Devolve (nome guardado, sha256 dos bytes enviados)."""
+    data = path.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()  # o hash é dos bytes que foram enviados, não do arquivo depois
     boundary = uuid.uuid4().hex
     head = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\n'
             "Content-Type: application/octet-stream\r\n\r\n").encode()
-    body = head + path.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
-    status, data = _request("POST", f"{base}/api/v1/video_materials", body,
-                            {"Content-Type": f"multipart/form-data; boundary={boundary}"}, timeout=600)
-    if status != 200 or "file" not in ((data or {}).get("data") or {}):
+    body = head + data + f"\r\n--{boundary}--\r\n".encode()
+    status, reply = _request("POST", f"{base}/api/v1/video_materials", body,
+                             {"Content-Type": f"multipart/form-data; boundary={boundary}"}, timeout=600)
+    if status != 200 or "file" not in ((reply or {}).get("data") or {}):
         raise MoneyPrinterError(f"o envio do material {path.name} falhou (HTTP {status}).")
-    return data["data"]["file"]
+    return reply["data"]["file"], digest
 
 
 def _task_file(data_root: Path, uri: str) -> Path:
     """A API devolve a saída como /tasks/<relativo>; o arquivo fica em storage/tasks, e nada fora dali é lido."""
     prefix = "/tasks/"
     tasks = (data_root / "storage" / "tasks").resolve()
-    path = (tasks / unquote(uri[len(prefix):])).resolve() if uri.startswith(prefix) else tasks.parent
+    try:
+        path = (tasks / unquote(uri[len(prefix):])).resolve() if uri.startswith(prefix) else tasks.parent
+    except (ValueError, OSError):  # ex.: byte nulo no caminho
+        path = tasks.parent
     if tasks not in path.parents:
         raise MoneyPrinterError(f"a API devolveu uma saída fora da pasta de tarefas: {uri}")
     return path
 
 
-def write_result(out: Path, task_id: str, video: Path, request: dict, materials: list[Path],
-                 elapsed: float) -> dict:
+def write_result(out: Path, task_id: str, video: Path, request: dict, materials: list[dict],
+                 elapsed: float, checkout_head: str | None = None) -> dict:
     """Copia o MP4 para a pasta de saída e grava o manifesto: sha256 do vídeo e de cada material, pino e tempo."""
     out.mkdir(parents=True, exist_ok=True)
     stem = f"moneyprinter-{task_id}"
@@ -607,7 +620,8 @@ def write_result(out: Path, task_id: str, video: Path, request: dict, materials:
         "pinned_commit": tools.pinned_ref(tools.get("moneyprinter")),
         "voice": request.get("voice_name"),
         "aspect": request.get("video_aspect"),
-        "materials": [{"name": p.name, "sha256": _sha256(p)} for p in materials],
+        "checkout_head": checkout_head,
+        "materials": materials,
         "elapsed_seconds": round(elapsed, 1),
     }
     (out / f"{stem}.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -656,6 +670,20 @@ def _wait_ready(base: str, proc: subprocess.Popen) -> None:
         time.sleep(0.5)
 
 
+def _checkout_head(d: Path) -> str | None:
+    """O commit que realmente está no checkout (o manifesto registra esse, não só o pino)."""
+    try:
+        return tools._git("rev-parse", "HEAD", cwd=d)
+    except tools.ToolError:
+        return None
+
+
+def _answers(base: str) -> bool:
+    """Alguma coisa já responde nessa porta? Nesse caso não sobe outra API nela."""
+    status, _ = _request("GET", f"{base}/openapi.json", timeout=2)
+    return status != 0
+
+
 def _generate(d: Path, args: list[str]) -> int:
     opts = _parse_generate(args)
     script = Path(opts["script"]).expanduser()
@@ -682,6 +710,15 @@ def _generate(d: Path, args: list[str]) -> int:
         signal.signal(n, _on_term)
     meta: dict = {}
     try:
+        # tudo que pode falhar antes de gastar (pasta, chave, porta) acontece antes de subir a API
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise MoneyPrinterError(f"a pasta de saída não pode ser criada: {out_dir} ({e})") from None
+        _check_api_key(d, port)
+        _warn_if_not_pinned(d)
+        if _answers(base):
+            raise MoneyPrinterError(f"a porta {port} já responde; escolha outra com --api-port.")
         existing = os.environ.get("PYTHONPATH")
         env = {**os.environ, "PYTHONPATH": str(d) + (os.pathsep + existing if existing else "")}
         procs.append(subprocess.Popen([str(venv_python()), "-m", "uvicorn", "app.asgi:app", "--host", LOOPBACK,
@@ -690,7 +727,11 @@ def _generate(d: Path, args: list[str]) -> int:
         proc = procs[0]
         _wait_ready(base, proc)
         uploaded = [_upload_material(base, m) for m in materials]
-        body = build_video_request(text, opts["voice"], opts["aspect"], uploaded, opts["subject"] or text[:40])
+        records = [{"name": m.name, "sha256": digest} for m, (_, digest) in zip(materials, uploaded)]
+        body = build_video_request(text, opts["voice"], opts["aspect"], [name for name, _ in uploaded],
+                                   opts["subject"] or text[:40])
+        if proc.poll() is not None:
+            raise MoneyPrinterError(f"a API saiu com código {proc.returncode} antes de receber o pedido.")
         status, data = _request("POST", f"{base}/api/v1/videos", json.dumps(body).encode("utf-8"),
                                 {"Content-Type": "application/json"}, timeout=60)
         task_id = ((data or {}).get("data") or {}).get("task_id")
@@ -710,7 +751,8 @@ def _generate(d: Path, args: list[str]) -> int:
         src = _task_file(data_root, videos[0])
         if not src.is_file():
             raise MoneyPrinterError(f"o MP4 da tarefa {task_id} não está em {src}.")
-        meta = write_result(out_dir, task_id, src, body, materials, time.monotonic() - started)
+        meta = write_result(out_dir, task_id, src, body, records, time.monotonic() - started,
+                            checkout_head=_checkout_head(d))
     except MoneyPrinterError as e:
         print(f"moneyprinter: {e}", file=sys.stderr)
         return 1
@@ -728,8 +770,6 @@ def _generate(d: Path, args: list[str]) -> int:
         print(f"MP4: {out_dir / meta['video']}\nsha256: {meta['sha256']}\n"
               f"manifesto: {out_dir / ('moneyprinter-' + meta['task_id'] + '.json')}")
     return 0
-
-
 
 def run_moneyprinter(args: list[str]) -> int:
     first = args[0] if args else "help"

@@ -48,6 +48,14 @@ speech_key = ""
 
 
 @pytest.fixture(autouse=True)
+def _checkout_is_not_a_repository(monkeypatch):
+    """The generate path asks git for the checkout's HEAD; unit tests never run git (conftest), so answer 'not a repo'."""
+    def not_a_checkout(*a, cwd=None):
+        raise tools.ToolError("not a repository")
+    monkeypatch.setattr(tools, "_git", not_a_checkout)
+
+
+@pytest.fixture(autouse=True)
 def _isolated(monkeypatch, tmp_path):
     # Isolate the home and the tools dir: a real checkout under ~/.simplicio-video must never be found by a test.
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -885,18 +893,7 @@ def test_generate_with_a_missing_material_fails_before_starting_the_api(checkout
 
 
 def _generate_fakes(monkeypatch, state_reply, sent):
-    def fake_request(method, url, body=None, headers=None, timeout=30):
-        if url.endswith("/openapi.json"):
-            return 200, {"info": {"title": "MoneyPrinterTurbo"}}
-        if url.endswith("/api/v1/video_materials"):
-            return 200, {"status": 200, "data": {"file": "stored-clip.mp4"}}
-        if url.endswith("/api/v1/videos"):
-            sent["body"] = json.loads(body)
-            return 200, {"status": 200, "data": {"task_id": "t1"}}
-        if url.endswith("/api/v1/tasks/t1"):
-            return 200, {"status": 200, "data": state_reply}
-        raise AssertionError(f"unexpected request: {method} {url}")
-    monkeypatch.setattr(moneyprinter, "_request", fake_request)
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(final_state=state_reply, sent=sent))
 
 
 def test_generate_runs_the_api_behind_the_scenes_and_brings_the_mp4_back(
@@ -955,20 +952,26 @@ def _generate_argv(script, clip, out, port="45678", *extra):
     return ["generate", "--script", str(script), "--material", str(clip), "--out", str(out), "--api-port", port, *extra]
 
 
-def _api_request(final_state=None, posted=None, material_status=200, on_task=None):
+def _api_request(final_state=None, posted=None, material_status=200, on_task=None, port_busy=False, sent=None):
     """Fake da API: /openapi.json de MoneyPrinterTurbo, upload, POST e tarefa concluída (ou o estado dado)."""
     state = final_state or {"task_id": "t1", "state": 1, "progress": 100, "videos": ["/tasks/t1/final-1.mp4"]}
+    calls = {"openapi": 0}
 
     def fake(method, url, body=None, headers=None, timeout=30):
         if posted is not None:
             posted.append((method, url, body))
         if url.endswith("/openapi.json"):
-            return 200, {"info": {"title": "MoneyPrinterTurbo"}}
+            calls["openapi"] += 1
+            if port_busy or calls["openapi"] > 1:  # free until our own API starts answering
+                return 200, {"info": {"title": "MoneyPrinterTurbo"}}
+            return 0, None
         if url.endswith("/api/v1/video_materials"):
             if on_task:
                 on_task("upload", body)
             return material_status, ({"status": 200, "data": {"file": "stored-clip.mp4"}} if material_status == 200 else None)
         if url.endswith("/api/v1/videos"):
+            if sent is not None:
+                sent["body"] = json.loads(body)
             return 200, {"status": 200, "data": {"task_id": "t1"}}
         if url.endswith("/api/v1/tasks/t1"):
             if on_task:
@@ -981,7 +984,7 @@ def _api_request(final_state=None, posted=None, material_status=200, on_task=Non
 def test_generate_refuses_a_port_that_already_answers(checkout, venv, server, monkeypatch, tmp_path, capsys):
     script, clip = _generate_inputs(tmp_path)
     posted = []
-    monkeypatch.setattr(moneyprinter, "_request", _api_request(posted=posted))
+    monkeypatch.setattr(moneyprinter, "_request", _api_request(posted=posted, port_busy=True))
     rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
     assert rc == 1
     assert server.started == []  # never start a second API on a port that already answers
@@ -1003,8 +1006,8 @@ def test_loopback_requests_ignore_the_proxy_environment(monkeypatch):
     import urllib.request
     monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:3128")
     monkeypatch.setenv("http_proxy", "http://proxy.invalid:3128")
-    proxies = [h.proxies for h in moneyprinter._OPENER.handlers if isinstance(h, urllib.request.ProxyHandler)]
-    assert proxies == [{}]
+    # no handler of the opener may take the proxy from the environment (a handler with proxies would)
+    assert all(not h.proxies for h in moneyprinter._OPENER.handlers if isinstance(h, urllib.request.ProxyHandler))
 
 
 @pytest.mark.parametrize("uri", [
