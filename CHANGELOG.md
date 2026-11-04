@@ -5,6 +5,7 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 ## Unreleased
 
 ### Novidades
+- **Trilha `rea-video`** (`simplicio-video rea-video`): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake. Instala o commit fixado `36e02dd` de [JuneYaooo/rea-video](https://github.com/JuneYaooo/rea-video) (MIT, declarada no `pyproject.toml`) num venv próprio e repassa os comandos dele. Sem `--vlm`, nada sai da máquina além dos downloads de modelo; com `--vlm`, os quadros vão ao provedor de modelo de visão configurado. O OCR precisa de um Python onde o `rapidocr-onnxruntime` instale (`REA_VIDEO_PYTHON`).
 - **Skills `deep-news`, `deep-service` e `deep-product`** (#141, “vídeo deep”): `deep-news` apura com fonte e data por que um post ou notícia viralizou e disseca por mecanismo (com estudos); `deep-service` e `deep-product` aplicam o mesmo método à venda de serviço e de produto (digital ou físico), só na versão honesta e com copy da coleta. As três terminam num roteiro curto 9:16 que a skill `simplicio-video` transforma em contrato e MP4. Chegam aos hosts pelo `simplicio-video install`.
 - **Template `news-tech`** (#140): skeleton e **padrão de movimento `news-caption`** (proposto): notícia de tecnologia em 90 s sem footage, com legenda palavra a palavra em blocos curtos.
 

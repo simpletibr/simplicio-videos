@@ -3,7 +3,7 @@ import pytest
 from conftest import run_cli
 
 SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "shorts", "opencut", "toonflow", "swap", "moneyprinter", "matchcut", "jobs", "social", "openverse", "busca", "mcp", "list",
-        "install", "update", "doctor", "setup"]
+        "install", "update", "doctor", "setup", "rea-video"]
 
 
 def test_main_help_lists_the_whole_flow():
@@ -32,6 +32,7 @@ def test_main_help_lists_the_whole_flow():
     ("swap", ["providers", "estimate", "run", "status", "--autorizo", "--yes", "--max-usd", "UNVERIFIED"]),
     ("moneyprinter", ["MoneyPrinterTurbo", "clone", "setup", "serve", "where", "--lan", "0.0.0.0", "8501", "8080"]),
     ("matchcut", ["match-cut", "clone", "where", "status", "Renoise", "créditos"]),
+    ("rea-video", ["rea-video", "clone", "setup", "where", "status", "decompose", "--vlm", "ffmpeg", "REA_VLM_API_KEY", "terceiro"]),
     ("jobs", ["submit", "status", "list", "cancel", "result", "swap-run", "voice", "--yes"]),
     ("social", ["providers", "plan", "check", "recipe", "realoficial", "zernio", "consentimento", "UNVERIFIED"]),
     ("openverse", ["search", "get", "library", "review", "export", "credits", "--licencas", "cc0,pdm,by", "--pedido", "--folha", "parecer jurídico", "OPENVERSE_CLIENT_ID"]),
@@ -45,7 +46,7 @@ def test_subcommand_help_is_complete(sub, must):
     for m in must:
         assert m in r.stdout, f"{sub} --help missing {m!r}"
     assert "exemplos:" in r.stdout and "simplicio-video " + sub in r.stdout
-    if sub in ("clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "matchcut", "jobs", "social", "openverse", "busca"):
+    if sub in ("clone", "montage", "edit", "opencut", "toonflow", "swap", "moneyprinter", "matchcut", "rea-video", "jobs", "social", "openverse", "busca"):
         return
     if sub != "list":
         assert "schema/contract.schema.json" in r.stdout

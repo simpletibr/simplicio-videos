@@ -411,6 +411,30 @@ def video_matchcut(args: str = "") -> dict:
     return out
 
 
+def video_rea_video(args: str = "") -> dict:
+    """rea-video over MCP: `where`, `status` and `clone` into the default folder only. `setup` and the analysis (decompose and
+    the other upstream commands) run in the terminal: a run takes minutes, reads files of the person and may spend calls of a
+    vision model. Nothing here sends a frame anywhere."""
+    from . import rea_video
+    argv = args.split() if isinstance(args, str) else list(args)
+    if argv[:1] not in (["where"], ["clone"], ["status"]):
+        return {"ok": False, "error": "rea-video pelo MCP aceita `where`, `status` e `clone` (na pasta padrão); `setup` e a "
+                                      "análise rodam no terminal: simplicio-video rea-video decompose ..."}
+    if argv[:1] == ["clone"] and len(argv) > 1:
+        return {"ok": False, "error": "rea-video clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
+    if argv[:1] != ["clone"] and len(argv) > 1:
+        return {"ok": False, "error": f"rea-video {argv[0]} não recebe argumentos"}
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            rc = rea_video.run_rea_video(argv)
+        out = {"ok": rc == 0, "result": rc}
+    except Exception as e:  # noqa: BLE001 - report, don't kill the server
+        out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    out["log"] = buf.getvalue().strip()[-8000:]
+    return out
+
+
 def video_voicestudio(args: str = "") -> dict:
     """VoiceStudio over MCP: status, listas, TTS, transcrição e perfis, pela API/MCP local do app em :3900.
     `mcp` devolve o bloco de configuração; nada aqui instala ou inicia o app."""
@@ -526,6 +550,7 @@ TOOLS = [
     ("video.toonflow", video_toonflow, "Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app)."),
     ("video.moneyprinter", video_moneyprinter, "MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder, where and status (read-only); setup and serve run in the terminal (https://github.com/harry0703/MoneyPrinterTurbo)."),
     ("video.matchcut", video_matchcut, "match-cut agent skill for product films (MIT): clone the pinned commit into the default folder, where (path of SKILL.md) and status. It never runs the skill or calls Renoise; using the skill needs the person's own Renoise sign-in and paid credits (https://github.com/Sac-Y/match-cut)."),
+    ("video.rea-video", video_rea_video, "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake. Over MCP: clone the pinned commit into the default folder, where and status; setup and the analysis (decompose and the other commands) run in the terminal, because a run takes minutes and may spend vision-model calls (https://github.com/JuneYaooo/rea-video)."),
     ("video.shorts", video_shorts, "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; only new files are written."),
     ("video.media", video_media, "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Writes new files with -o."),
     ("video.tools", video_tools, "The pinned external tracks: command, repository, pinned version, license and whether each is installed. Read-only."),
