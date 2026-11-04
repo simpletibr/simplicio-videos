@@ -698,6 +698,7 @@ issues:
       - "scripts/gen_reference.py#DESCRIPTIONS"
       - "tests/packaging/test_tools_update.py"
       - "tests/packaging/test_cli_doctor.py#SECOES"
+      - "tests/packaging/test_entradas_hostis.py#doctor"  # só as duas asserções de contagem de checks do doctor (12)
       - "docs/recursos.md"
       - "README.md#External tracks and licenses"
       - "README.pt-BR.md#Trilhas externas e licenças"
