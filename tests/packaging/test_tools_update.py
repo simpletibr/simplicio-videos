@@ -196,6 +196,15 @@ def test_lock_ida_e_volta_sem_deixar_arquivo_temporario(tmp_path):
     assert sorted(p.name for p in path.parent.iterdir()) == [tools_lock.LOCK_FILE]
 
 
+def test_lock_aceita_o_nome_com_sublinhado_do_registro(tmp_path):
+    """rea_video is a registry name with an underscore: the lock must keep it, or the update of that track would never be saved."""
+    path = tmp_path / tools_lock.LOCK_FILE
+    doc = _doc(rea_video={"kind": "git", "source": "https://github.com/JuneYaooo/rea-video", "mode": "follow", "status": "ok",
+                          "ref": SHA_NEW, "branch": "main", "resolved_at": NOW})
+    tools_lock.write_lock(doc, path)
+    assert tools_lock.read_lock(path)["tools"]["rea_video"]["ref"] == SHA_NEW
+
+
 def test_lock_ausente_vale_vazio(tmp_path):
     assert tools_lock.read_lock(tmp_path / "nao-existe.json") == tools_lock.empty()
 

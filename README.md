@@ -24,8 +24,9 @@ Who it is for: people who make ads and short videos with voice, subtitles, and c
 | Social planning | `social` | Ready | Never posts. Publishing belongs to another layer |
 | Openverse library | `openverse` | Ready | Review per request. The license comes from the source |
 | Web research | `busca` | Ready | Needs TinyFish and a key. Daily call cap |
-| External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `edit` | Installed on demand, pinned version | Licenses differ; see the tracks table |
-| MCP server | `simplicio-video-mcp` | 29 `video.*` tools | No `swap run` spending, no software removal |
+| External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `edit`, `rea-video` | Installed on demand, pinned version | Licenses differ; see the tracks table |
+| Reverse-engineer a reference video | `rea-video` | Ready on the pinned commit; installs on demand. A synthetic clip was tested end to end, real footage was not | Local by default. With `--vlm`, frames go to a vision model you configure |
+| MCP server | `simplicio-video-mcp` | 30 `video.*` tools | No `swap run` spending, no software removal |
 | Audio cleanup | not available yet | In a PR, not on main yet | not applicable |
 | Dubbing with preserved background | not available in the CLI yet | Today only in the VoiceStudio app; exposure in progress | not applicable |
 
@@ -110,7 +111,7 @@ Not on main yet. This section gets the commands when the audio cleanup PR is mer
 
 ## MCP
 
-- Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 29 `video.*` tools over the stdio protocol.
+- Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 30 `video.*` tools over the stdio protocol, `video.rea-video` among them.
 - Tool list: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Excluded on purpose, for safety:**
   - `swap run`: spends credits;
@@ -142,6 +143,7 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 | `still has a placeholder` in `validate` | Contract generated but not filled in | Fill the placeholders only with collected facts |
 | Python 3.14 warning in `doctor` | CrewAI extras | Use a Python below 3.14 if you need those extras. Not verified |
 | `testada: 0.50.1` in `busca status` | TinyFish at another version | The engine keeps working; the tested version is 0.50.1 |
+| `aviso: o extra ocr não instalou` in `rea-video setup` | `rapidocr-onnxruntime` has no release for this Python (3.13 here; 3.11 works) | Delete the venv folder in `~/.simplicio-video/rea-video-data`, then run `REA_VIDEO_PYTHON=python3.11 simplicio-video rea-video setup`. Without OCR the analysis still runs |
 
 ## External tracks and licenses
 
@@ -161,6 +163,7 @@ Each version is pinned in [`src/simplicio_video/tools.py`](src/simplicio_video/t
 | VoiceStudio | `voicestudio` | commit `beeaae08` | default branch | AGPL-3.0. Used only over local HTTP |
 | video-use | `edit` | commit `b877063` | default branch | MIT |
 | yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 checked | latest PyPI release, sha256 checked | Unlicense |
+| rea-video | `rea-video` | commit `36e02dd` | default branch | MIT, declared in `pyproject.toml`; the pinned commit has no LICENSE file |
 
 ### MoneyPrinterTurbo (`moneyprinter`)
 
@@ -180,6 +183,30 @@ It uses your own API keys for LLM, TTS and stock services, typed in its WebUI or
 - Audio cleanup: in a PR, not on main yet.
 - Voice and background separation: no command.
 - Dubbing with preserved background: only in the VoiceStudio app today.
+
+### rea-video (`rea-video`)
+
+```bash
+simplicio-video rea-video clone                                     # clones the pinned commit into the tools cache
+simplicio-video rea-video setup                                     # a venv of its own with the checkout (pip; needs network)
+simplicio-video rea-video decompose ref.mp4 -o out/ref --no-stems   # any upstream command, run from your folder
+simplicio-video rea-video status                                    # checkout, venv, OCR, ffmpeg; VLM keys as set or not set, never their values
+```
+
+Every word that is not one of this track's own commands goes unchanged to the `rea-video` of its venv, upstream flags included (`--env-file`). The upstream's own help (`simplicio-video rea-video decompose --help`) is in Chinese.
+
+`decompose` writes `breakdown.json`, `report.html`, `report.md`, `storyboard.jpg` and a shot folder to the `-o` folder. Each shot gets a verdict: live action, AI video, 3D, code render or mixed.
+
+- **Network.** Without `--vlm`, the only network use is the model downloads: a voice-separation model of about 67 MB from GitHub (`--no-stems` skips it) and a small face detector (without it, the upstream falls back to Haar). Models go to `REA_VIDEO_MODELS`, which defaults to the track's data folder.
+- **The vision model is a third party.** With `--vlm`, up to 60 shots go to the provider you configure (`REA_VLM_BASE_URL` and `REA_VLM_API_KEY`, or the `VIDEO_ANALYSIS_*` and `GEMINI3_*` names). Each shot is a clip of up to 12 seconds at 480p, and the whole video goes at 480p with audio. Without a key, the upstream warns and runs without the model.
+- **A `.env` in the folder you run from is read.** The upstream loads it on its own, with its endpoints and keys. Run analyses from a folder without another project's `.env`; `status` warns when one is there.
+- **OCR needs a compatible Python.** Subtitles and on-screen text use `rapidocr-onnxruntime`, which has no release for every Python. Python 3.13 did not install it here; Python 3.11.18 did. For OCR, delete the venv folder in the data folder and run `REA_VIDEO_PYTHON=python3.11 simplicio-video rea-video setup`. An existing venv is kept, so the folder has to go first. Without OCR, `setup` installs the core and warns.
+- **Code from the capsule folder.** `remake-run` and `capsule-draft` import and run code from the capsule-cinema folder you point them to. Point them only at a folder you trust.
+- **State.** Memory and preferences go to `home/` in the data folder (`~/.simplicio-video/rea-video-data`), not to `~/.rea-video`.
+- **Requirements.** ffmpeg on the PATH and Python 3.10 or newer. `clone` and `setup` need network and refuse `SIMPLICIO_OFFLINE=1`. `setup` installs dependencies from pip without hashes, because the upstream has no lock file.
+- **MCP.** `video.rea-video` accepts `where`, `status` and `clone` (into the default folder). `setup` and the analysis run in the terminal: a run takes minutes and may spend vision-model calls.
+
+Tested here on Linux: clone at the pinned commit; `setup` on Python 3.13 (core only) and on 3.11 (core and OCR); the passthrough of `decompose`, `probe`, `summary` and `memory`; a default run with the 67 MB download; `--vlm` without a key, which warns and runs; the MCP tool listed over stdio. Not verified: real footage, a real vision-model call, the accuracy figures in the upstream README, `remake-run` and `capsule-draft`, Japanese OCR, Windows and macOS.
 
 ## References
 
