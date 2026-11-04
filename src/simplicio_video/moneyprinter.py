@@ -295,7 +295,7 @@ def _link_storage(d: Path, data: Path) -> None:
 
 def _warn_if_not_pinned(d: Path) -> None:
     """pip installs the requirements.txt of whatever commit is checked out: say so when it is not the pinned one."""
-    ref = tools.pinned_ref(tools.get("moneyprinter"))
+    ref = tools.effective_ref(tools.get("moneyprinter"))  # the commit in use: the lock's when `update` followed MoneyPrinter, else the pin
     try:
         head = tools._git("rev-parse", "HEAD", cwd=d)
     except tools.ToolError:

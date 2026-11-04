@@ -84,7 +84,7 @@ def run_matchcut(args: list[str]) -> int:
         print(d / "SKILL.md")
         return 0
     print(f"match-cut ({t.license}) {t.source}")
-    print(f"commit fixado: {tools.pinned_ref(t)}")
+    print(f"commit em uso: {tools.effective_ref(t)}")
     if d is None:
         print("instalado: não (rode `simplicio-video matchcut clone`)")
         return 0
@@ -94,5 +94,5 @@ def run_matchcut(args: list[str]) -> int:
         head = "desconhecido"
     print("instalado: sim")
     print(f"SKILL.md: {d / 'SKILL.md'}")
-    print(f"commit do checkout: {head}{'' if head == tools.pinned_ref(t) else ' (diferente do fixado)'}")
+    print(f"commit do checkout: {head}{'' if head == tools.effective_ref(t) else ' (diferente do em uso)'}")
     return 0

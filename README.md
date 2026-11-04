@@ -147,18 +147,20 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
 Each version is pinned in [`src/simplicio_video/tools.py`](src/simplicio_video/tools.py). `simplicio-video tools` lists them all. The engine never vendors or imports these tracks, and the deterministic render does not depend on any of them.
 
-| Track | Command | Pinned version | License |
-|---|---|---|---|
-| OpenMontage | `montage` | commit `9327439` | AGPL-3.0 |
-| OpenCut | `opencut` | commit `cf5e79e` | MIT |
-| Hypit | `clone` | npm `0.2.17` | Hypit license (modified Apache-2.0); no commercial redistribution |
-| Toonflow | `toonflow` | commit `d2e94ac` | MIT |
-| MoneyPrinterTurbo | `moneyprinter` | commit `4b7b965` | MIT |
-| match-cut | `matchcut` | commit `b51c98f` | MIT. Use requires a Renoise login and credits |
-| TinyFish CLI | `busca` | npm `0.50.1` | Not declared in the package |
-| VoiceStudio | `voicestudio` | commit `beeaae08` | AGPL-3.0. Used only over local HTTP |
-| video-use | `edit` | commit `b877063` | MIT |
-| yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 checked | Unlicense |
+`simplicio-video update` (on every release it installs) moves each track to what upstream says is latest; the pin is the starting point and what `--pin` keeps. What it resolved is recorded in `tools.lock.json` (in `$SIMPLICIO_VIDEO_DATA`), and `tools` and `doctor` show it. A track whose update fails keeps the checkout it has and is reported; the package update still goes through. An override `SIMPLICIO_<NAME>_REF` always wins and is never refreshed.
+
+| Track | Command | Pinned version | `update` follows | License |
+|---|---|---|---|---|
+| OpenMontage | `montage` | commit `9327439` | default branch | AGPL-3.0 |
+| OpenCut | `opencut` | commit `cf5e79e` | default branch | MIT |
+| Hypit | `clone` | npm `0.2.17` | latest npm version | Hypit license (modified Apache-2.0); no commercial redistribution |
+| Toonflow | `toonflow` | commit `d2e94ac` | default branch | MIT |
+| MoneyPrinterTurbo | `moneyprinter` | commit `4b7b965` | default branch | MIT |
+| match-cut | `matchcut` | commit `b51c98f` | default branch | MIT. Use requires a Renoise login and credits |
+| TinyFish CLI | `busca` | npm `0.50.1` | latest npm version | Not declared in the package |
+| VoiceStudio | `voicestudio` | commit `beeaae08` | default branch | AGPL-3.0. Used only over local HTTP |
+| video-use | `edit` | commit `b877063` | default branch | MIT |
+| yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 checked | latest PyPI release, sha256 checked | Unlicense |
 
 ### MoneyPrinterTurbo (`moneyprinter`)
 

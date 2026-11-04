@@ -5,6 +5,7 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 ## Unreleased
 
 ### Novidades
+- **`update` segue as trilhas externas** (#150): cada release instalada leva git (default branch), npm (última versão) e yt-dlp (última do PyPI, com sha256 conferido) ao upstream; o resultado vai para `tools.lock.json`, mostrado por `tools` e `doctor` (nova seção `tools`). `--check` lista as trilhas atrás do upstream, `--dry-run` mostra o plano, `--pin` mantém os pins; falha de uma trilha não bloqueia o pacote e o override `SIMPLICIO_<NOME>_REF` sempre vence. **Mudança de contrato:** `doctor` passa a ter 12 checks (`tools`) e não 11.
 - **Skills `deep-news`, `deep-service` e `deep-product`** (#141, “vídeo deep”): `deep-news` apura com fonte e data por que um post ou notícia viralizou e disseca por mecanismo (com estudos); `deep-service` e `deep-product` aplicam o mesmo método à venda de serviço e de produto (digital ou físico), só na versão honesta e com copy da coleta. As três terminam num roteiro curto 9:16 que a skill `simplicio-video` transforma em contrato e MP4. Chegam aos hosts pelo `simplicio-video install`.
 - **Template `news-tech`** (#140): skeleton e **padrão de movimento `news-caption`** (proposto): notícia de tecnologia em 90 s sem footage, com legenda palavra a palavra em blocos curtos.
 

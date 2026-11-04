@@ -50,6 +50,7 @@ DESCRIPTIONS = {
     "MONEYPRINTER_DATA_DIR": "Pasta de dados da trilha MoneyPrinterTurbo: venv isolado e storage com os vídeos gerados (padrão: `~/.simplicio-video/moneyprinter-data`, fora do checkout).",
     "MONEYPRINTER_DIR": "Checkout do MoneyPrinterTurbo (alternativa a `SIMPLICIO_TOOLS_DIR/moneyprinter`).",
     "MATCHCUT_DIR": "Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`).",
+    "VIDEO_USE_DIR": "Checkout do video-use (trilha `edit`), mantido por tools/video-use/setup.sh; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`).",
     "OPENCUT_DIR": "Pasta do OpenCut, lida pelo próprio editor (trilha `opencut`).",
     "OPENVERSE_CLIENT_ID": "Credencial OAuth2 opcional da API do Openverse (par com `OPENVERSE_CLIENT_SECRET`; sobe o limite de requisições e o tamanho da página). Só no ambiente; nunca em argumento, índice, cache ou saída.",
     "OPENVERSE_CLIENT_SECRET": "Segredo OAuth2 opcional da API do Openverse (par com `OPENVERSE_CLIENT_ID`). Só no ambiente; nunca em argumento, índice, cache ou saída.",

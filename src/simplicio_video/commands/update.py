@@ -42,10 +42,11 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 
-from .. import __version__, distribution, hostos, paths
+from .. import __version__, distribution, hostos, paths, tools_lock, tools_update
 
 REPO = "simpletibr/simplicio-videos"
 PYPI_NAME = "simplicio-video"
@@ -441,6 +442,16 @@ def check_latest(kind: str, installed: str, *, fetch: Callable[[], str] = fetch_
 # --- the command ------------------------------------------------------------------------------------------------------
 
 
+@dataclass
+class TracksRun:
+    """How the external tracks take part in a pip update (issue #150): `mode` is "follow" (the upstream of each track) or "pin"
+    (the registry pins, `--pin`); `io` is the side effects (tools_update.Io); `lock_file` defaults to the data folder's lock."""
+
+    mode: str
+    io: Any
+    lock_file: Optional[Path] = None
+
+
 def run_update(
     check: bool = False,
     force: bool = False,
@@ -454,6 +465,7 @@ def run_update(
     record: Optional[Callable[[dict], None]] = None,
     externally_managed: Optional[bool] = None,
     checkout: Optional[Path] = None,
+    tracks: Optional[TracksRun] = None,
 ) -> int:
     installed = installed or __version__
     record = record or (lambda info: None)
@@ -464,10 +476,38 @@ def run_update(
     if kind == distribution.SOURCE:
         return _update_source(check=check, installed=installed, git=git, record=record, checkout=checkout or paths.home())
     return _update_pip(check=check, force=force, dry_run=dry_run, installed=installed, fetch=fetch, runner=runner,
-                       record=record, externally_managed=externally_managed)
+                       record=record, externally_managed=externally_managed, tracks=tracks)
 
 
-def _update_pip(*, check, force, dry_run, installed, fetch, runner, record, externally_managed) -> int:
+def _track_report(tracks: TracksRun, *, dry: bool) -> None:
+    """The external tracks, read from the network and printed; nothing is written (`--check`, and the plan of `--dry-run`)."""
+    what = "o plano" if dry else "o que está atrás"
+    print(f"trilhas externas, {what} (nada é gravado):")
+    for line in tools_update.report(tracks.mode, tracks.io, dry=dry):
+        print(line)
+
+
+def _apply_tracks(tracks: TracksRun) -> int:
+    """Moves each track (or pins it with --pin), writes the lock and prints the outcome. A failing track never fails the update:
+    the package is already installed, and the failure is printed and recorded in the lock. Returns how many tracks failed."""
+    who = "--pin: voltam aos pins" if tracks.mode == "pin" else "seguem o upstream (default branch, última versão)"
+    print(f"trilhas externas ({who}):")
+    try:
+        doc = tools_lock.read_lock(tracks.lock_file)
+    except tools_lock.LockInvalid as exc:
+        print(f"  o lock anterior está inválido ({exc}); ele é regravado")
+        doc = tools_lock.empty()
+    lines, failed = tools_update.apply_all(doc, tracks.mode, tracks.io, tracks.lock_file)
+    for line in lines:
+        print(line)
+    if failed:
+        print(f"update: {failed} trilha(s) falharam; o pacote foi atualizado mesmo assim. Veja acima, e rode "
+              "`simplicio-video update` de novo quando o acesso voltar.")
+    return failed
+
+
+def _update_pip(*, check, force, dry_run, installed, fetch, runner, record, externally_managed,
+                tracks: Optional[TracksRun] = None) -> int:
     try:
         tag = fetch()
         latest = parse_version(tag)
@@ -486,9 +526,13 @@ def _update_pip(*, check, force, dry_run, installed, fetch, runner, record, exte
                   "(--force instala a release mesmo assim)")
         else:
             print(f"simplicio-video {installed} em dia (última release {label})")
+        if check and tracks is not None:
+            _track_report(tracks, dry=False)
         return 0
     print(f"simplicio-video {installed} -> {label}")
     if check:
+        if tracks is not None:
+            _track_report(tracks, dry=False)
         return EXIT_UPDATE_AVAILABLE if available else 0
     managed, details = (bool(externally_managed), None) if externally_managed is not None else is_pep668_environment()
     if managed:
@@ -513,9 +557,13 @@ def _update_pip(*, check, force, dry_run, installed, fetch, runner, record, exte
               "`simplicio-video install --global` à mão para reinstalar as skills.")
         return rc
     if dry_run:
+        if tracks is not None:
+            _track_report(tracks, dry=True)
         print("update: simulação, nada foi alterado.")
         return 0
     record({**info, "installed": label, "update_available": False})
+    if tracks is not None:
+        _apply_tracks(tracks)
     print(f"update: atualizado {installed} -> {label}. Rode: simplicio-video doctor")
     return 0
 
@@ -557,5 +605,6 @@ def _update_source(*, check, installed, git, record, checkout) -> int:
 
 def run(a) -> int:
     """The `update` command: the names below are looked up at call time, so the tests can replace them."""
+    tracks = TracksRun(mode="pin" if getattr(a, "pin", False) else "follow", io=tools_update.live_io())
     return run_update(check=a.check, force=a.force, dry_run=a.dry_run, fetch=fetch_latest_tag, runner=_run, git=_git,
-                      record=write_check)
+                      record=write_check, tracks=tracks)
