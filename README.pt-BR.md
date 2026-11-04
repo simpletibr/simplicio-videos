@@ -24,8 +24,9 @@ Para quem é: quem produz anúncios e vídeos curtos com voz, legenda e cortes, 
 | Planejamento de redes | `social` | Pronto | Não posta. A publicação fica em outra camada |
 | Biblioteca Openverse | `openverse` | Pronto | Revisão por pedido. A licença é da fonte |
 | Pesquisa na web | `busca` | Pronto | Exige TinyFish e chave. Teto diário de chamadas |
-| Trilhas externas | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `edit` | Instalação sob demanda, versão fixada | A licença varia; veja a tabela de trilhas |
-| Servidor MCP | `simplicio-video-mcp` | 29 tools `video.*` | Sem gasto em `swap run` nem remoção de software |
+| Trilhas externas | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `edit`, `rea-video` | Instalação sob demanda, versão fixada | A licença varia; veja a tabela de trilhas |
+| Engenharia reversa de vídeo de referência | `rea-video` | Pronto no commit fixado; instala sob demanda. Clipe sintético testado de ponta a ponta; vídeo real, não | Local por padrão. Com `--vlm`, os quadros vão a um modelo de visão que você configura |
+| Servidor MCP | `simplicio-video-mcp` | 30 tools `video.*` | Sem gasto em `swap run` nem remoção de software |
 | Limpeza de áudio | não há ainda | Em PR, não está no main | não se aplica |
 | Dublagem com fundo preservado | não há ainda no CLI | Hoje só no app VoiceStudio; exposição em andamento | não se aplica |
 
@@ -165,7 +166,7 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 
 ## MCP
 
-- Servidor: `simplicio-video-mcp` (stdio). Testado: responde `initialize` e lista 29 tools `video.*` pelo protocolo stdio.
+- Servidor: `simplicio-video-mcp` (stdio). Testado: responde `initialize` e lista 30 tools `video.*` pelo protocolo stdio, entre elas `video.rea-video`.
 - Lista das tools: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Ficam de fora por segurança:**
   - `swap run`: gasta créditos;
@@ -187,6 +188,7 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 | campo pendente no `validate` | Contrato gerado e não preenchido | Preencher os campos só com fatos da coleta |
 | Aviso de Python 3.14 no `doctor` | Extras do CrewAI | Usar Python abaixo de 3.14 se for usar esses extras. Não verificado |
 | `testada: 0.50.1` no `busca status` | TinyFish em outra versão | O motor segue funcionando; a versão testada é 0.50.1 |
+| `aviso: o extra ocr não instalou` no `rea-video setup` | `rapidocr-onnxruntime` não tem versão para este Python (3.13 aqui; 3.11 funciona) | Apague a pasta venv em `~/.simplicio-video/rea-video-data` e rode `REA_VIDEO_PYTHON=python3.11 simplicio-video rea-video setup`. Sem OCR, a análise segue |
 
 ## Trilhas externas e licenças
 
@@ -204,11 +206,36 @@ Cada versão está fixada em [`src/simplicio_video/tools.py`](src/simplicio_vide
 | VoiceStudio | `voicestudio` | commit `beeaae08` | AGPL-3.0. Usado só por HTTP local |
 | video-use | `edit` | commit `b877063` | MIT |
 | yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 conferido | Unlicense |
+| rea-video | `rea-video` | commit `36e02dd` | MIT, declarada no `pyproject.toml`; o commit fixado não traz arquivo LICENSE |
 
 **Lacunas conhecidas:**
 - Limpeza de áudio: em PR, ainda não está no main.
 - Separação de voz e fundo: não há comando.
 - Dublagem com fundo preservado: só no app VoiceStudio hoje.
+
+### rea-video (`rea-video`)
+
+```bash
+simplicio-video rea-video clone                                     # baixa o commit fixado para o cache de ferramentas
+simplicio-video rea-video setup                                     # venv próprio com o checkout (pip; precisa de rede)
+simplicio-video rea-video decompose ref.mp4 -o out/ref --no-stems   # qualquer comando do upstream, na pasta em que você está
+simplicio-video rea-video status                                    # checkout, venv, OCR, ffmpeg; chaves VLM só como definida ou não
+```
+
+Toda palavra que não é um comando próprio desta trilha vai sem mudança para o `rea-video` do venv, inclusive as flags do upstream (`--env-file`). A ajuda do próprio upstream (`simplicio-video rea-video decompose --help`) está em chinês.
+
+O `decompose` grava `breakdown.json`, `report.html`, `report.md`, `storyboard.jpg` e uma pasta de planos na pasta do `-o`. Cada plano recebe um veredito: real, vídeo de IA, 3D, render de código ou misto.
+
+- **Rede.** Sem `--vlm`, a única rede é o download de modelos: um modelo de separação de voz de cerca de 67 MB do GitHub (`--no-stems` pula) e um detector de rosto pequeno (sem ele, o upstream cai para Haar). Os modelos vão para `REA_VIDEO_MODELS`, que por padrão fica na pasta de dados da trilha.
+- **O modelo de visão é um terceiro.** Com `--vlm`, até 60 planos vão ao provedor que você configurar (`REA_VLM_BASE_URL` e `REA_VLM_API_KEY`, ou os nomes `VIDEO_ANALYSIS_*` e `GEMINI3_*`). Cada plano vai num clipe de até 12 segundos em 480p, e o vídeo inteiro vai em 480p com áudio. Sem chave, o upstream avisa e segue sem o modelo.
+- **Um `.env` da pasta em que você roda é lido.** O upstream carrega sozinho, com os endereços e as chaves dele. Rode as análises numa pasta sem `.env` de outro projeto; o `status` avisa quando há um.
+- **O OCR precisa de um Python compatível.** Legendas e textos na tela usam o `rapidocr-onnxruntime`, que não tem versão para todo Python. Aqui o Python 3.13 não instalou; o Python 3.11.18 instalou. Para ter OCR, apague a pasta venv da pasta de dados e rode `REA_VIDEO_PYTHON=python3.11 simplicio-video rea-video setup`. Um venv existente é mantido, por isso a pasta precisa sair antes. Sem OCR, o `setup` instala o núcleo e avisa.
+- **Código da pasta do capsule-cinema.** `remake-run` e `capsule-draft` importam e executam código da pasta do capsule-cinema que você indicar. Indique só uma pasta de confiança.
+- **Estado.** Memória e preferências vão para `home/` na pasta de dados (`~/.simplicio-video/rea-video-data`), não para `~/.rea-video`.
+- **Requisitos.** ffmpeg no PATH e Python 3.10 ou mais novo. `clone` e `setup` precisam de rede e recusam `SIMPLICIO_OFFLINE=1`. O `setup` instala as dependências pelo pip sem hash, porque o upstream não tem arquivo de lock.
+- **MCP.** `video.rea-video` aceita `where`, `status` e `clone` (na pasta padrão). `setup` e a análise rodam no terminal: uma análise leva minutos e pode gastar chamadas do modelo de visão.
+
+Testado aqui, em Linux: clone no commit fixado; `setup` no Python 3.13 (só o núcleo) e no 3.11 (núcleo e OCR); o repasse de `decompose`, `probe`, `summary` e `memory`; uma análise padrão com o download de 67 MB; `--vlm` sem chave, que avisa e segue; a tool MCP listada pelo stdio. Não verificado: vídeo real, chamada real a um modelo de visão, os números de acurácia do README do upstream, `remake-run` e `capsule-draft`, OCR em japonês, Windows e macOS.
 
 ## Referências
 
