@@ -884,6 +884,7 @@ options:
 exemplos:
   simplicio-video tools
   simplicio-video tools --json
+  o lock (tools.lock.json, em $SIMPLICIO_VIDEO_DATA) mostra o que `simplicio-video update` resolveu para cada trilha
 ```
 
 ## simplicio-video toonflow
@@ -908,7 +909,7 @@ exemplos:
 ## simplicio-video update
 
 ```text
-usage: simplicio-video update [-h] [--check] [--dry-run] [--force]
+usage: simplicio-video update [-h] [--check] [--dry-run] [--force] [--pin]
 
 Segue o `update` do simplicio-loop. Num pacote instalado por pip: python -m pip install --upgrade "simplicio-video==<última
 release>" (PyPI; a última release vem do GitHub Releases) e, depois, `simplicio-video install --global`, que instala ou atualiza
@@ -927,6 +928,7 @@ sai com 0 no pacote (num checkout mostra a recusa). SIMPLICIO_OFFLINE=1 bloqueia
 (--check sai com 2). Todo git do `--check` leva --no-optional-locks (para não regravar o .git/index); o git anterior à 2.15,
 que não conhece a opção, é chamado de novo uma vez sem ela. Versão instalada de desenvolvimento ou pré-release (0.5.0rc1) é
 anterior à release final (PEP 440).
+Trilhas externas (issue #150): ao instalar uma release, cada trilha segue o upstream: git → default branch (main ou master), npm → última versão, yt-dlp → última do PyPI com sha256 conferido. O resultado vai para tools.lock.json (em $SIMPLICIO_VIDEO_DATA). --pin mantém os pins do tools.py. Uma trilha que falha não impede o pacote: a versão anterior fica no lugar. Override SIMPLICIO_<NAME>_REF sempre vence. --check mostra quais estão atrás; --dry-run, o plano.
 
 options:
   -h, --help  show this help message and exit
@@ -934,11 +936,13 @@ options:
   --dry-run   só mostra o plano e sai com 0 (no pacote; num checkout mostra a recusa); não altera nada nem
               grava o estado
   --force     reinstala a release do pip mesmo em dia e permite downgrade
+  --pin       mantém as trilhas externas nos pins do tools.py (não segue a main/master nem a última versão)
 
 exemplos:
   simplicio-video update --check
   simplicio-video update --dry-run
   simplicio-video update
+  simplicio-video update --pin
   simplicio-video update --force
 ```
 

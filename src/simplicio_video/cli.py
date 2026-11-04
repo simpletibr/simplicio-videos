@@ -372,7 +372,8 @@ def build_parser() -> argparse.ArgumentParser:
                     "fixada, comando, se está instalada no cache de tools (SIMPLICIO_TOOLS_DIR, padrão "
                     "~/.simplicio-video/tools) e o que produz. Funciona offline e não instala nada: o render "
                     "determinístico nunca depende dessas trilhas.",
-        epilog="exemplos:\n  simplicio-video tools\n  simplicio-video tools --json")
+        epilog="exemplos:\n  simplicio-video tools\n  simplicio-video tools --json\n"
+               "  o lock (tools.lock.json, em $SIMPLICIO_VIDEO_DATA) mostra o que `simplicio-video update` resolveu para cada trilha")
     p.add_argument("--json", action="store_true", help="imprime a lista em JSON")
 
     p = sub.add_parser("status", formatter_class=Fmt, help="ferramentas instaladas, versões fixadas e estado do render",
@@ -458,13 +459,18 @@ def build_parser() -> argparse.ArgumentParser:
                     "sai com 0 no pacote (num checkout mostra a recusa). SIMPLICIO_OFFLINE=1 bloqueia toda a rede, também o git fetch do checkout\n"
                     "(--check sai com 2). Todo git do `--check` leva --no-optional-locks (para não regravar o .git/index); o git anterior à 2.15,\n"
                     "que não conhece a opção, é chamado de novo uma vez sem ela. Versão instalada de desenvolvimento ou pré-release (0.5.0rc1) é\n"
-                    "anterior à release final (PEP 440).",
+                    "anterior à release final (PEP 440).\n"
+                    "Trilhas externas (issue #150): ao instalar uma release, cada trilha segue o upstream: git → default branch (main ou master), "
+                    "npm → última versão, yt-dlp → última do PyPI com sha256 conferido. O resultado vai para tools.lock.json (em "
+                    "$SIMPLICIO_VIDEO_DATA). --pin mantém os pins do tools.py. Uma trilha que falha não impede o pacote: a versão "
+                    "anterior fica no lugar. Override SIMPLICIO_<NAME>_REF sempre vence. --check mostra quais estão atrás; --dry-run, o plano.",
         epilog="exemplos:\n  simplicio-video update --check\n  simplicio-video update --dry-run\n  simplicio-video update\n"
-               "  simplicio-video update --force")
+               "  simplicio-video update --pin\n  simplicio-video update --force")
     p.add_argument("--check", action="store_true", help="não altera nada; sai com 0 (em dia), 10 (há atualização) ou 2 (erro)")
     p.add_argument("--dry-run", action="store_true",
                    help="só mostra o plano e sai com 0 (no pacote; num checkout mostra a recusa); não altera nada nem grava o estado")
     p.add_argument("--force", action="store_true", help="reinstala a release do pip mesmo em dia e permite downgrade")
+    p.add_argument("--pin", action="store_true", help="mantém as trilhas externas nos pins do tools.py (não segue a main/master nem a última versão)")
 
     p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace",
         description="Checa o ambiente e diz a correção exata de cada falha, no contrato simplicio.doctor/v1 do simplicio-loop:\n"

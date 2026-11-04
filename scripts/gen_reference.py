@@ -50,6 +50,7 @@ DESCRIPTIONS = {
     "MONEYPRINTER_DATA_DIR": "Pasta de dados da trilha MoneyPrinterTurbo: venv isolado e storage com os vídeos gerados (padrão: `~/.simplicio-video/moneyprinter-data`, fora do checkout).",
     "MONEYPRINTER_DIR": "Checkout do MoneyPrinterTurbo (alternativa a `SIMPLICIO_TOOLS_DIR/moneyprinter`).",
     "MATCHCUT_DIR": "Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`).",
+    "VIDEO_USE_DIR": "Checkout do video-use (trilha `edit`), mantido por tools/video-use/setup.sh; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`).",
     "REA_VIDEO_DATA_DIR": "Pasta de dados da trilha rea-video: o venv próprio e o estado do upstream (padrão: `~/.simplicio-video/rea-video-data`, fora do checkout).",
     "REA_VIDEO_DIR": "Checkout do rea-video (alternativa a `SIMPLICIO_TOOLS_DIR/rea_video`).",
     "REA_VIDEO_HOME": "Memória e preferências do rea-video. A trilha aponta para a pasta de dados dela (`.../rea-video-data/home`) só se a variável não estiver definida.",

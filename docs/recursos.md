@@ -87,3 +87,14 @@ Textos conferidos via API pública do fxtwitter em 30/09/2026.
 - **video-use**: `simplicio-video edit setup|transcribe|pack|render|verify` over any MP4 from HyperFrames, OpenMontage or OpenCut.
 - **Real Oficial**: `simplicio-video realoficial config|check`. Remote MCP `https://api.realoficial.com.br/mcp` via `npx mcp-remote` (OAuth; 49 tools: social scheduling, AI media, cuts; see [realoficial.md](realoficial.md)).
 - **Voices**: VoxCPM2, OpenVoice V2 and VoiceStudio as `voz.provider` values; see [voices/README.md](../voices/README.md).
+
+### Trilhas externas: o que o `update` faz (issue #150)
+- **Ao instalar uma release**, `simplicio-video update` leva cada trilha ao upstream: git → default branch (main ou master, lido com `git ls-remote --symref`); npm (Hypit, TinyFish) → última versão; yt-dlp → última release do PyPI, com o sha256 do wheel universal conferido pelo pip (`--require-hashes`).
+- **Lock** em `tools.lock.json` (em `$SIMPLICIO_VIDEO_DATA`, padrão `~/.simplicio-video`): para cada trilha, o modo (`follow`, `pin` ou `override`), a ref em uso (sha do commit, versão npm ou do PyPI), o sha256 de um wheel e o resultado da última tentativa. `tools` e `doctor` (seção `tools`, offline) mostram o lock.
+- **Falha não bloqueia**: uma trilha que não atualiza fica com o checkout que já tem; o erro vai para o lock e para a saída, e as outras trilhas e a atualização do pacote seguem. Se o commit novo não tiver o marcador da trilha (mudança de layout), o commit anterior é posto de volta.
+- **`--check`** diz quais trilhas estão atrás do upstream e não grava nada; os códigos de saída do `update` não mudam por causa delas. **`--dry-run`** mostra o plano e não grava nem muda checkout.
+- **`--pin`** mantém os pins do `tools.py` (sem consultar o upstream, volta o checkout ao pin e registra `pin` no lock).
+- **Override** `SIMPLICIO_<NOME>_REF` sempre vence: a trilha não é consultada nem atualizada.
+- **Decisão a confirmar**: seguir a main/master muda o código que roda a cada release de uma trilha. O lock torna cada mudança registrada e revisável; `--pin` é o caminho para voltar ao comportamento anterior.
+- **Consequência conhecida**: o `busca` compara a versão do TinyFish com a versão testada (o pin); quando o update segue a última versão, `versao_confere` pode ficar falso até o pin ser atualizado no código.
+

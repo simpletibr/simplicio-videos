@@ -35,13 +35,13 @@ from typing import Any, Callable, Optional
 
 import yaml
 
-from .. import __version__, distribution, hostos, paths
+from .. import __version__, distribution, hostos, paths, tools_lock
 from . import update
 from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA
 
 SCHEMA = "simplicio.doctor/v1"
 SECTIONS = ("update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
-            "GEMINI_API_KEY", "setup")
+            "GEMINI_API_KEY", "setup", "tools")
 RUNTIME_DIR = ".simplicio"  # the Runtime's own copy, when its installer put it in ~/.simplicio/bin
 _RUNTIME_VERSION = re.compile(r"simplicio\s+v?(\d+\.\d+\.\d+)")
 _RANK = {"ok": 0, "warn": 1, "fail": 2}
@@ -76,6 +76,29 @@ def python_version() -> tuple:
 
 
 # --- update, distribution, runtime ------------------------------------------------------------------------------
+
+
+def _tools_lock(state_dir: Path) -> dict:
+    """The lock of the external tracks (issue #150): what `update` resolved and whether the last attempts failed. Offline."""
+    try:
+        doc = tools_lock.read_lock(state_dir / tools_lock.LOCK_FILE)
+    except tools_lock.LockInvalid as exc:
+        return _row("tools", "warn", f"o lock das trilhas ({tools_lock.LOCK_FILE}) está inválido ({exc}); rode "
+                    "`simplicio-video update` para regravá-lo", "simplicio-video update")
+    entries = doc["tools"]
+    if not entries:
+        return _row("tools", "ok", "sem lock das trilhas: estão nos pins do tools.py (rode `simplicio-video update` para segui-las)")
+    following = sorted(name for name, entry in entries.items() if entry.get("mode") == "follow")
+    pinned = sorted(name for name, entry in entries.items() if entry.get("mode") == "pin")
+    failed = sorted(name for name, entry in entries.items() if entry.get("status") == "failed")
+    stamp = hostos.utc_stamp(doc["updated_at"]) if doc["updated_at"] else "nunca"
+    summary = (f"{len(entries)} trilha(s) no lock: seguindo {len(following)}, nos pins {len(pinned)}; "
+               f"última gravação {stamp}")
+    detail = {"updated_at": doc["updated_at"], "tracks": entries}
+    if failed:
+        return _row("tools", "warn", f"{summary}; a última tentativa falhou em: {', '.join(failed)} (a versão anterior ficou)",
+                    "simplicio-video update", detail)
+    return _row("tools", "ok", summary, None, detail)
 
 
 def _update(online: bool, installed: str, fetch: Callable[[], str], state_dir: Path, kind: str, git: Callable) -> dict:
@@ -342,6 +365,7 @@ def collect(*, online: bool = False, environ: Optional[dict] = None,
         "ports": _checa_portas,
         "GEMINI_API_KEY": lambda: _checa_credencial(env),
         "setup": _checa_setup,
+        "tools": lambda: _tools_lock(state_dir),
     }
     checks = [makers[name]() for name in wanted]
     worst = max((check["status"] for check in checks), key=_RANK.__getitem__, default="ok")

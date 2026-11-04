@@ -14,6 +14,8 @@ so the final render stays reproducible.
 Install location: $SIMPLICIO_TOOLS_DIR (default ~/.simplicio-video/tools/<name>).
 Pins: $SIMPLICIO_<NAME>_REF overrides the commit (git tools) or version (npm tools). A pip tool has no override:
 its wheel is pinned by version and sha256 here, and pip refuses anything else (--require-hashes).
+Lock: `simplicio-video update` follows the upstream of each track (git default branch, npm and PyPI latest) and records what it
+resolved in tools.lock.json (tools_lock.py). effective() reads that lock; pinned_ref() stays the registry pin (or the override).
 """
 from __future__ import annotations
 
@@ -23,6 +25,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from . import hostos, tools_lock
 
 
 class ToolError(Exception):
@@ -143,6 +147,42 @@ def pinned_ref(t: Tool) -> str:
     return os.environ.get(f"SIMPLICIO_{t.name.upper()}_REF") or t.ref
 
 
+def lock_entry(name: str) -> dict:
+    """The lock entry of a track, or {} when there is none (a lock that is not usable is reported by `doctor`, not here)."""
+    try:
+        return tools_lock.read_lock()["tools"].get(name, {})
+    except tools_lock.LockInvalid:
+        return {}
+
+
+def effective(t: Tool) -> tuple[str, str]:
+    """(ref, source) of what the track really uses: the override SIMPLICIO_<NAME>_REF, else the ref `update` resolved for a
+    followed track (the lock keeps the ref in place even after a failed update), else the registry pin."""
+    override = os.environ.get(f"SIMPLICIO_{t.name.upper()}_REF")
+    if override:
+        return override, "override"
+    entry = lock_entry(t.name)
+    if entry.get("mode") == "follow" and entry.get("ref"):
+        return entry["ref"], "lock"
+    return t.ref, "pin"
+
+
+def effective_ref(t: Tool) -> str:
+    return effective(t)[0]
+
+
+def effective_pip(t: Tool) -> tuple[str, str, str]:
+    """(version, sha256, source) of a pip track. A followed version carries its own sha256 in the lock; otherwise the registry
+    pair stands (an override is refused by _install_pip unless it is the pinned version)."""
+    ref, source = effective(t)
+    if source == "lock":
+        digest = lock_entry(t.name).get("sha256")
+        if not digest:
+            raise ToolError(f"{t.name}: o lock não tem o sha256 da versão {ref}; rode `simplicio-video update` de novo")
+        return ref, digest, source
+    return ref, t.sha256, source
+
+
 def tools_dir() -> Path:
     return Path(os.environ.get("SIMPLICIO_TOOLS_DIR") or Path.home() / ".simplicio-video" / "tools").expanduser()
 
@@ -187,35 +227,55 @@ def pip_binary(name: str) -> Path | None:
     return exe if exe.is_file() else None
 
 
-def _install_pip(t: Tool) -> str:
-    """A pip tool: a venv of its own under the tools cache, and the pinned wheel installed with its sha256 checked."""
-    ref = pinned_ref(t)
-    if ref != t.ref:
-        raise ToolError(f"{t.name}: o override de versão ({ref}) não tem hash neste registro; a versão e o sha256 andam juntos em tools.py")
+def _run_subprocess(argv, cwd=None) -> "subprocess.CompletedProcess":
+    """The default runner: a missing program is a failed command (rc 127), never an OSError out of here."""
+    try:
+        return subprocess.run([str(a) for a in argv], cwd=str(cwd) if cwd else None, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return subprocess.CompletedProcess(list(argv), 127, "", str(exc))
+
+
+def _motivo(done) -> str:
+    return (done.stderr or done.stdout or "").strip()[-300:]
+
+
+def install_pip_version(t: Tool, version: str, sha256: str, run=None) -> str:
+    """A pip tool at `version`: a venv of its own under the tools cache, and the wheel installed with its sha256 checked
+    (--require-hashes: pip refuses anything else). `run(argv, cwd)` runs the commands; the update passes its own (tests: fakes)."""
+    run = run or _run_subprocess
     d = checkout_dir(t)
     d.mkdir(parents=True, exist_ok=True)
     venv = d / "venv"
     if not _venv_python(venv).is_file():
-        r = subprocess.run([sys.executable, "-m", "venv", str(venv)], capture_output=True, text=True)
+        r = run([sys.executable, "-m", "venv", str(venv)], None)
         if r.returncode:
-            raise ToolError(f"venv de {t.name}: {r.stderr.strip()[-300:]}")
+            raise ToolError(f"venv de {t.name}: {_motivo(r)}")
     requisitos = d / "requirements.txt"
-    requisitos.write_text(f"{t.name}=={ref} --hash=sha256:{t.sha256}\n", encoding="utf8")
-    r = subprocess.run([str(_venv_python(venv)), "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
-                        "--require-hashes", "-r", str(requisitos)], capture_output=True, text=True)
+    requisitos.write_text(f"{t.name}=={version} --hash=sha256:{sha256}\n", encoding="utf8")
+    r = run([str(_venv_python(venv)), "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
+             "--require-hashes", "-r", str(requisitos)], None)
     if r.returncode:
-        raise ToolError(f"pip install {t.name}=={ref}: {r.stderr.strip()[-300:]}")
+        raise ToolError(f"pip install {t.name}=={version}: {_motivo(r)}")
     exe = pip_binary(t.name)
     if exe is None:
         raise ToolError(f"{t.name}: o pip terminou, mas o executável não apareceu em {venv}")
     return str(exe)
 
 
+def _install_pip(t: Tool) -> str:
+    """A pip tool at the version in use (the lock's, when followed; the registry's otherwise), with its sha256 checked."""
+    version, digest, source = effective_pip(t)
+    if source == "override" and version != t.ref:
+        raise ToolError(f"{t.name}: o override de versão ({version}) não tem hash neste registro; a versão e o sha256 andam juntos em tools.py")
+    return install_pip_version(t, version, digest)
+
+
 def install(name: str) -> str:
     """Install a tool at its pinned version. Git tools are cloned and checked out at the pinned commit; npm tools are
     fetched into the npx cache; pip tools get a venv with the pinned wheel. Returns where it lives."""
     t = get(name)
-    ref = pinned_ref(t)
+    ref = effective_ref(t)
     if t.kind == "pip":
         return _install_pip(t)
     if t.kind == "npm":
@@ -244,7 +304,7 @@ def npm_command(name: str) -> list[str]:
     npx = shutil.which("npx")
     if not npx:
         raise ToolError(f"nem `{t.name}` nem `npx` foram encontrados no PATH. Instale o Node (>= 18).")
-    return [npx, "--yes", f"{t.source}@{pinned_ref(t)}"]
+    return [npx, "--yes", f"{t.source}@{effective_ref(t)}"]
 
 def command(t: Tool) -> str:
     """The CLI command that fronts a track (COMMANDS, defaulting to the tool name)."""
@@ -262,10 +322,16 @@ def is_installed(t: Tool) -> bool:
 
 
 def listing() -> list[dict]:
-    """Every pinned external track, read from TOOLS (never a second table). Offline: only the filesystem is checked."""
-    return [{"name": t.name, "command": command(t), "repo": t.source, "version": pinned_ref(t),
-             "installed": is_installed(t), "license": t.license, "produces": t.role}
-            for t in TOOLS.values()]
+    """Every pinned external track, read from TOOLS (never a second table). Offline: only the filesystem and the lock are read.
+    `version` is the registry pin; `effective_version` is what is in use (the lock's ref when followed, the override if set)."""
+    rows = []
+    for t in TOOLS.values():
+        ref, source = effective(t)
+        entry = lock_entry(t.name)
+        rows.append({"name": t.name, "command": command(t), "repo": t.source, "version": pinned_ref(t),
+                     "installed": is_installed(t), "license": t.license, "produces": t.role,
+                     "effective_version": ref, "effective_source": source, "lock": dict(entry) or None})
+    return rows
 
 
 def text_listing(rows: list[dict]) -> str:
@@ -276,7 +342,15 @@ def text_listing(rows: list[dict]) -> str:
         lines.append(f"    comando: {r['command']}  ({r['license']})")
         lines.append(f"    repo: {r['repo']}")
         lines.append(f"    produz: {r['produces']}")
+        if r.get("effective_source") != "pin":
+            lines.append(f"    em uso: {r['effective_version']} ({r['effective_source']})")
+        lock = r.get("lock")
+        if lock:
+            quando = hostos.utc_stamp(lock["resolved_at"]) if lock.get("resolved_at") else "-"
+            falha = (f", última tentativa falhou em {hostos.utc_stamp(lock['failed_at'])}"
+                     if lock.get("status") == "failed" and lock.get("failed_at") else "")
+            lines.append(f"    lock: {lock.get('mode')} {lock.get('ref', '-')} ({lock.get('status')}, {quando}{falha})")
     lines.append("instalada = checkout no cache de tools ($SIMPLICIO_TOOLS_DIR, padrão ~/.simplicio-video/tools); para trilhas npm, "
-                 "o binário no PATH; para trilhas pip, o executável no venv da trilha.")
+                 "o binário no PATH; para trilhas pip, o executável no venv da trilha. O lock (tools.lock.json, em "
+                 "$SIMPLICIO_VIDEO_DATA) é o que `update` resolveu para cada trilha.")
     return "\n".join(lines)
-

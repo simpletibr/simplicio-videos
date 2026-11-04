@@ -85,7 +85,7 @@ def test_o_doctor_inteiro_com_pasta_ilegivel_no_path(saude, capsys, monkeypatch)
     monkeypatch.setenv("PATH", os.pathsep.join([str(negada), str(saude.caixa.bin)]))
     rc, out, err = verifica(["doctor", "--json"], "doctor", capsys)
     doc = json.loads(out)
-    assert rc == 0 and len(doc["checks"]) == 11
+    assert rc == 0 and len(doc["checks"]) == 12  # a seção `tools` do doctor (#150)
     assert [c["status"] for c in doc["checks"] if c["name"] in ("node", "ffmpeg", "ffmpeg-libass")] == ["ok", "ok", "ok"]
 
 
@@ -125,7 +125,7 @@ def test_o_doctor_inteiro_sem_home_e_sem_workspace_configurado(saude, capsys, mo
     monkeypatch.delenv("SIMPLICIO_WORKSPACE")
     _sem_home(monkeypatch)
     rc, out, err = verifica(["doctor", "--json"], "doctor", capsys)
-    assert len(json.loads(out)["checks"]) == 11
+    assert len(json.loads(out)["checks"]) == 12  # a seção `tools` do doctor (#150)
 
 
 def test_workspace_com_til_de_usuario_que_nao_existe(saude, capsys, monkeypatch):

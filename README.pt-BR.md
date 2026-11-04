@@ -194,19 +194,21 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 
 Cada versão está fixada em [`src/simplicio_video/tools.py`](src/simplicio_video/tools.py). `simplicio-video tools` lista todas. O motor nunca vendoriza nem importa essas trilhas, e o render determinístico não depende de nenhuma delas.
 
-| Trilha | Comando | Versão fixada | Licença |
-|---|---|---|---|
-| OpenMontage | `montage` | commit `9327439` | AGPL-3.0 |
-| OpenCut | `opencut` | commit `cf5e79e` | MIT |
-| Hypit | `clone` | npm `0.2.17` | Licença Hypit (Apache-2.0 modificada); sem redistribuição comercial |
-| Toonflow | `toonflow` | commit `d2e94ac` | MIT |
-| MoneyPrinterTurbo | `moneyprinter` | commit `4b7b965` | MIT |
-| match-cut | `matchcut` | commit `b51c98f` | MIT. Uso exige login e créditos na Renoise |
-| TinyFish CLI | `busca` | npm `0.50.1` | Não declarada no pacote |
-| VoiceStudio | `voicestudio` | commit `beeaae08` | AGPL-3.0. Usado só por HTTP local |
-| video-use | `edit` | commit `b877063` | MIT |
-| yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 conferido | Unlicense |
-| rea-video | `rea-video` | commit `36e02dd` | MIT, declarada no `pyproject.toml`; o commit fixado não traz arquivo LICENSE |
+`simplicio-video update` (em toda release que instala) leva cada trilha ao que o upstream diz ser o mais novo; o pin é o ponto de partida, e é o que `--pin` mantém. O que foi resolvido fica registrado em `tools.lock.json` (em `$SIMPLICIO_VIDEO_DATA`), e `tools` e `doctor` mostram isso. Uma trilha cuja atualização falha fica com o checkout que já tem e é reportada; a atualização do pacote segue. Um override `SIMPLICIO_<NOME>_REF` sempre vence e nunca é atualizado.
+
+| Trilha | Comando | Versão fixada | `update` segue | Licença |
+|---|---|---|---|---|
+| OpenMontage | `montage` | commit `9327439` | default branch | AGPL-3.0 |
+| OpenCut | `opencut` | commit `cf5e79e` | default branch | MIT |
+| Hypit | `clone` | npm `0.2.17` | última versão npm | Licença Hypit (Apache-2.0 modificada); sem redistribuição comercial |
+| Toonflow | `toonflow` | commit `d2e94ac` | default branch | MIT |
+| MoneyPrinterTurbo | `moneyprinter` | commit `4b7b965` | default branch | MIT |
+| match-cut | `matchcut` | commit `b51c98f` | default branch | MIT. Uso exige login e créditos na Renoise |
+| TinyFish CLI | `busca` | npm `0.50.1` | última versão npm | Não declarada no pacote |
+| VoiceStudio | `voicestudio` | commit `beeaae08` | default branch | AGPL-3.0. Usado só por HTTP local |
+| video-use | `edit` | commit `b877063` | default branch | MIT |
+| yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 conferido | última release do PyPI, sha256 conferido | Unlicense |
+| rea-video | `rea-video` | commit `36e02dd` | default branch | MIT, declarada no `pyproject.toml`; o commit fixado não traz arquivo LICENSE |
 
 **Lacunas conhecidas:**
 - Limpeza de áudio: em PR, ainda não está no main.

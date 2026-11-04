@@ -173,7 +173,7 @@ def fetch(url: str, dest: Path, autorizo: bool, max_mb: int = DEFAULT_MAX_MB, ti
         "sha256": sha,
         "bytes": tamanho,
         "duracao_s": info.get("duration"),
-        "ferramenta": {"name": "yt-dlp", "version": tools.pinned_ref(tools.get("yt-dlp"))},
+        "ferramenta": {"name": "yt-dlp", "version": tools.effective_ref(tools.get("yt-dlp"))},
         "baixado_em": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "autorizado": True,
         "aviso": AVISO,
