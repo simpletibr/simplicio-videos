@@ -1,6 +1,6 @@
 """Pinned versions and install location for the external tracks: `montage` (OpenMontage), `opencut` (OpenCut),
 `clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `matchcut` (match-cut), `busca` (TinyFish CLI) and
-`voicestudio` (VoiceStudio) and `media fetch` (yt-dlp). `simplicio-video tools` lists the whole registry (text or --json).
+`voicestudio` (VoiceStudio), `rea-video` (rea-video) and `media fetch` (yt-dlp). `simplicio-video tools` lists the whole registry (text or --json).
 
 The engine drives: OpenMontage, OpenCut, Hypit, Toonflow, MoneyPrinterTurbo, VoiceStudio and yt-dlp, each pinned to a known
 version.
@@ -104,6 +104,15 @@ TOOLS: dict[str, Tool] = {
                         "confirms the right to use the file, and the engine does not verify it. Platforms such as Instagram "
                         "restrict downloads in their own terms; that responsibility is the user's",
                    sha256="a05c5b5d8562f7e8a62f5334348b406af4930d56d3a65f8021d14af0e22339ae"),
+    "rea_video": Tool("rea_video", "git", "https://github.com/JuneYaooo/rea-video",
+                      "36e02ddf1ffc287bd760d816c132027598f2e4c0",
+                      "MIT, declarada no pyproject.toml; o commit fixado não traz arquivo LICENSE",
+                      "reverse-engineers a video shot by shot (live action, AI, 3D, code render, mixed) and plans a remake; "
+                      "runs as a separate program in a venv of its own, never imported", marker="rea_video/cli.py",
+                      note="the pin is the default branch of the upstream repository as read on 2026-11-04. Without --vlm nothing "
+                           "leaves the machine; with --vlm the frames go to the vision model provider the user configures (a third "
+                           "party). The first analysis downloads about 67 MB of voice model. `setup` installs with pip without "
+                           "hashes: the upstream has no lock file"),
 }
 
 
@@ -118,6 +127,7 @@ COMMANDS: dict[str, str] = {
     "matchcut": "matchcut",
     "tinyfish": "busca",
     "voicestudio": "voicestudio",
+    "rea_video": "rea-video",
     "yt-dlp": "media fetch",
 }
 
