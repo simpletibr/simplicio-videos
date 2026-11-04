@@ -1,5 +1,5 @@
 """Pinned versions and install location for the external tracks: `montage` (OpenMontage), `opencut` (OpenCut),
-`clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `matchcut` (match-cut), `busca` (TinyFish CLI) and
+`clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `matchcut` (match-cut), `instagram` (instagram-agent-skill), `busca` (TinyFish CLI) and
 `voicestudio` (VoiceStudio), `rea-video` (rea-video) and `media fetch` (yt-dlp). `simplicio-video tools` lists the whole registry (text or --json).
 
 The engine drives: OpenMontage, OpenCut, Hypit, Toonflow, MoneyPrinterTurbo, VoiceStudio and yt-dlp, each pinned to a known
@@ -79,6 +79,15 @@ TOOLS: dict[str, Tool] = {
                      marker="SKILL.md",
                      note="the skill is used from Claude Code or Codex and needs a Renoise sign-in (the user's own "
                           "account) and paid Renoise credits; the engine never calls Renoise and never asks for a secret"),
+    "instagram": Tool("instagram", "git", "https://github.com/Jakeschincariol/instagram-agent-skill",
+                      "d03c56bb598be770c60b201f94237e5d1a4268a6", "MIT",
+                      "thirteen agent skills (SKILL.md prompts) and six local standard-library scripts for Instagram Reels, captions and "
+                      "drafts; the engine downloads the pinned commit, lists the skills and runs only those six scripts, after checking "
+                      "the sha256 of each one", marker="skills/ig-reel/hookscore.py",
+                      note="the heuristics (regexes, word lexicon, 26 hook formulas) are in English and were measured by the author on 74 "
+                           "YouTube Shorts hooks (AUC 0.83 to catch bad hooks, 0.56 to pick winners): in Portuguese they score badly or "
+                           "are ignored. The skills are prompts for an agent, not code. Nothing here posts or publishes: the engine never "
+                           "posts, the skills write and the user posts"),
     "voicestudio": Tool("voicestudio", "git", "https://github.com/debpalash/VoiceStudio",
                          "beeaae08204f0de5f49d4a087ef2b0ea8fecfcb9", "AGPL-3.0",
                          "local voice studio: cloned/designed voice profiles, TTS and transcription over a loopback "
@@ -129,6 +138,7 @@ COMMANDS: dict[str, str] = {
     "toonflow": "toonflow",
     "moneyprinter": "moneyprinter",
     "matchcut": "matchcut",
+    "instagram": "instagram",
     "tinyfish": "busca",
     "voicestudio": "voicestudio",
     "rea_video": "rea-video",

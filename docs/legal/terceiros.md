@@ -34,6 +34,7 @@ Estas ferramentas não são redistribuídas pelo repositório. O CLI as invoca c
 | OpenCut | Programa externo. Só chamado pelo comando `opencut`; não é empacotado. |
 | Hypit | **Não empacotado.** A licença (Apache-2.0 modificada) proíbe redistribuição comercial e serviço multi-inquilino sem permissão por escrito. Só o comando `clone` roda a instalação do próprio usuário (`npx`). |
 | VoiceStudio | Programa externo, AGPL. Não empacotado. |
+| instagram-agent-skill (Jake Schincariol) | MIT, **não empacotado**: 13 skills de agente e seis scripts Python do upstream, no commit fixado `d03c56b`. Só o comando `instagram clone` baixa o checkout, para o cache do usuário; o motor roda os seis scripts depois de conferir o sha256 e não redistribui nenhum arquivo deles. A licença e o aviso de copyright ficam no `LICENSE` do checkout. A tabela de [licenças](../licenses.md) não os lista: não são dependência Python do pacote. |
 | Postiz | Programa externo, AGPL. Não empacotado. |
 
 A checagem de importação em `scripts/licenses.py --imports` reprova código Python que importe OpenMontage, VoiceStudio ou Postiz.
