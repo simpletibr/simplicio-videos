@@ -32,7 +32,7 @@ simula_so = _caixa.simula_so
 
 GB = 1024**3
 SECOES = ["update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
-          "GEMINI_API_KEY", "setup"]
+          "GEMINI_API_KEY", "setup", "tools"]  # `tools`: the lock of the external tracks (issue #150)
 
 
 def _tira(saude, nome):
@@ -414,7 +414,7 @@ def test_cache_do_update_invalido_e_aviso_com_a_dica_e_nunca_excecao(saude, nome
 def test_o_doctor_inteiro_sobrevive_ao_cache_invalido_em_texto_e_em_json(saude, capsys, nome):
     _escreve_cache(saude, CACHES_INVALIDOS[nome])
     rc, rel, out, err = _json(capsys)
-    assert rc == 0 and len(rel["checks"]) == 11, "the eleven checks must not be lost to one corrupt cache"
+    assert rc == 0 and len(rel["checks"]) == 12, "the twelve checks must not be lost to one corrupt cache"
     assert _linha(rel, "update")["status"] == "warn" and erros_de_schema("doctor", rel) == []
     rc, out, err = executa(["doctor"], capsys, main)
     assert rc == 0 and "Traceback" not in out + err and "\x1b" not in out + err and "warn  update" in out
