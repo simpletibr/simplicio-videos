@@ -2039,12 +2039,12 @@ def test_run_allows_a_falsy_or_absent_auto_upload(checkout, spawn, tmp_path, tex
     assert _run(tmp_path, *_free(tmp_path)) == 0
 
 
-def test_generate_and_serve_apply_the_publishing_gate_too(checkout, venv, server, monkeypatch, tmp_path):
+def test_generate_and_serve_apply_the_publishing_gate_too(checkout, venv, server, monkeypatch, tmp_path, capsys):
     (checkout / "config.toml").write_text('[app]\nupload_post_auto_upload = "true"\n')
     script, clip = _generate_inputs(tmp_path)
     monkeypatch.setattr(moneyprinter, "_request", _api_request())
-    with pytest.raises(moneyprinter.MoneyPrinterError, match="publica"):
-        moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
+    assert moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o")) == 1  # generate reports and returns 1
+    assert "publica" in capsys.readouterr().err
     for args in (["serve", "--api"], ["serve", "--webui"], ["serve"]):
         with pytest.raises(moneyprinter.MoneyPrinterError, match="publica"):
             moneyprinter.run_moneyprinter(args)

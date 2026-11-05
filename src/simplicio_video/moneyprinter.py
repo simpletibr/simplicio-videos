@@ -78,7 +78,7 @@ USAGE = (
     "roteiro por LLM (sem --video-script), fonte de material paga (wavespeed, volcengine_seedance, ofox, metaso_minimax, muapi, openai_image) "
     "com a --confirm-...-charge dela, voz fora do Edge, música de IA (sonilo, elevenlabs). Caminhos relativos valem a partir de onde você roda. "
     "Recusa rodar se o config.toml liga a publicação (upload_post_auto_upload): este motor não publica.\n"
-    "Pelo MCP (video.moneyprinter): generate e run só viram uma tarefa em segundo plano (video.jobs) com roteiro seu, material local, voz Edge e --out absoluto.\n"
+    "Pelo MCP (video.moneyprinter): generate e run só viram uma tarefa em segundo plano (video.jobs) com roteiro seu, material local, voz Edge e --out absoluto (o material pode ser qualquer arquivo absoluto legível pelo usuário do servidor).\n"
     "Exige Python 3.11 ou mais novo (setup procura python3.11 a python3.13) e usa ffmpeg (o upstream tenta baixar um sozinho).\n"
     f"O serve escuta só em {LOOPBACK}, forçado por argumento: o upstream escuta em 0.0.0.0 por padrão na API (config listen_host).\n"
     f"Para escutar em todas as interfaces use {LAN_FLAG}; a WebUI não tem login e a API só pede chave se app.api_key estiver preenchida.\n"
@@ -466,6 +466,7 @@ def _serve(d: Path, args: list[str]) -> int:
         )
     if not venv_python().exists():
         raise MoneyPrinterError("ambiente não preparado: rode `simplicio-video moneyprinter setup`.")
+    _check_not_publishing(_load_config(d))  # the WebUI and the API both run tasks that cross-post
     if api:
         _check_api_key(d, api_port)
     cmds = _commands(d, host, webui, api, api_port)
@@ -853,6 +854,7 @@ def _generate(d: Path, args: list[str]) -> int:
         base = f"http://{LOOPBACK}:{port}"
         key = _api_key(d)
         auth = {"x-api-key": key} if key else {}
+        _check_not_publishing(_load_config(d))  # POST /api/v1/videos runs task.start, which cross-posts when the config says so
         _check_api_key(d, port)
         _warn_if_not_pinned(d)
         existing = os.environ.get("PYTHONPATH")
@@ -932,6 +934,8 @@ PAID_SOURCES = {"wavespeed": "--confirm-wavespeed-charge", "volcengine_seedance"
 AI_MUSIC = ("sonilo", "elevenlabs")
 FREE_VOICE = re.compile(r"^[a-z]{2,3}-[A-Za-z]{2,4}-[A-Za-z0-9]+Neural(-Male|-Female)?$")  # vozes Edge: sem chave
 NO_VOICE = "no-voice"
+UPSTREAM_DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural-Female"  # cli.py DEFAULT_VOICE_NAME (Edge)
+BATCH_MAX_BYTES, BATCH_MAX_TASKS = 1024 * 1024, 100  # cli.py _BATCH_FILE_MAX_BYTES / _BATCH_TASK_MAX_COUNT
 RUN_FLAGS: dict[str, str] = {
     # script and content
     "--video-subject": _VAL, "--video-script": _VAL, "--video-terms": _VAL, "--video-language": _VAL,
@@ -1036,18 +1040,21 @@ def _task_reasons(task: dict, stop_at: str) -> list[str]:
         reasons.append("roteiro gerado por LLM (sem --video-script)")
     if source in PAID_SOURCES:
         reasons.append(f"fonte de material paga ({source})")
-    elif source != "local" and not task.get("terms") and stop_at != "script":
+    elif source != "local" and not _terms_given(task.get("terms")) and stop_at != "script":
         reasons.append(f"termos de busca gerados por LLM (fonte {source} sem --video-terms)")
-    voice = task.get("voice")
-    if voice and not _voice_is_free(str(voice)):
-        reasons.append(f"voz fora do Edge ({str(voice).split(':', 1)[0]}): TTS por chave")
-    if task.get("bgm") in AI_MUSIC or task.get("music_prompt"):
+    voice = str(task.get("voice") or "")
+    if not _voice_is_free(voice):
+        reasons.append("voz não informada ou fora do Edge" + (f" ({voice.split(':', 1)[0]})" if voice else "")
+                       + ": o upstream usaria a do config.toml, ou TTS por chave")
+    if str(task.get("bgm") or "").strip().lower() in AI_MUSIC or task.get("music_prompt"):
         reasons.append("música de fundo por IA (sonilo/elevenlabs)")
     return reasons
 
 
 def _batch_entries(path: str) -> list[dict]:
     try:
+        if Path(path).stat().st_size > BATCH_MAX_BYTES:
+            raise MoneyPrinterError(f"o manifesto {path} passa de 1 MiB (limite do upstream).")
         text = Path(path).read_text(encoding="utf-8")
     except OSError as e:
         raise MoneyPrinterError(f"não consegui ler o manifesto {path}: {e.strerror or e}") from None
@@ -1062,6 +1069,8 @@ def _batch_entries(path: str) -> list[dict]:
                     entries.append(json.loads(line))
                 except ValueError:
                     raise MoneyPrinterError(f"o manifesto {path} não é JSON nem JSONL válido.") from None
+    if len(entries) > BATCH_MAX_TASKS:
+        raise MoneyPrinterError(f"o manifesto {path} tem {len(entries)} tarefas; o limite do upstream é {BATCH_MAX_TASKS}.")
     return [e for e in entries if isinstance(e, dict)]
 
 
@@ -1084,7 +1093,7 @@ class RunPlan:
         return out
 
 
-def plan_run(tokens: list[str], yes: bool = False, mcp: bool = False) -> RunPlan:
+def plan_run(tokens: list[str], yes: bool = False, mcp: bool = False, cfg: dict | None = None) -> RunPlan:
     """Parse and classify the flags after `--`. Raises MoneyPrinterError for anything the run may not do: a flag outside
     the list, a spend without --yes, or (mcp) anything that is not a supplied script on local material with a free voice."""
     flags = parse_upstream(tokens, mcp)
@@ -1097,7 +1106,8 @@ def plan_run(tokens: list[str], yes: bool = False, mcp: bool = False) -> RunPlan
     if source not in RUN_SOURCES:
         raise MoneyPrinterError(f"--video-source pede um de: {', '.join(RUN_SOURCES)}.")
     base = {"script": flags.get("--video-script", ""), "source": source, "terms": flags.get("--video-terms"),
-            "voice": flags.get("--voice-name"), "bgm": flags.get("--bgm-type"),
+            "voice": flags.get("--voice-name") if mcp else _effective_voice(flags.get("--voice-name"), cfg or {}),
+            "bgm": flags.get("--bgm-type"),
             "music_prompt": flags.get("--sonilo-bgm-prompt") or flags.get("--video-music-prompt")}
     tasks = [base]
     batch = flags.get("--batch-file")
@@ -1142,41 +1152,102 @@ def _check_mcp(flags: dict, stop_at: str) -> None:
     for m in materials:
         if not Path(m).is_file():
             raise MoneyPrinterError(f"material não encontrado: {m}")
-    if "--voice-name" not in flags:
+    if not str(flags.get("--voice-name") or "").strip():
         raise MoneyPrinterError(f"falta --voice-name (uma voz Edge, como {DEFAULT_VOICE}, ou no-voice): o MCP não herda a "
                                 "voz do config.toml, que poderia ser de um serviço pago.")
     bgm = flags.get("--bgm-type")
-    if bgm is not None and str(bgm).lower() not in MCP_BGM:
+    if bgm is not None and str(bgm).strip().lower() not in MCP_BGM:
         raise _terminal_only(f"--bgm-type {bgm}")
     bgm_file = str(flags.get("--bgm-file", ""))
     if "/" in bgm_file or "\\" in bgm_file or bgm_file.startswith("."):
         raise MoneyPrinterError("--bgm-file pelo MCP é só o nome de um arquivo de storage/bgm ou resource/songs.")
 
 
-def _publishing_enabled(d: Path) -> str | None:
-    """The config.toml key that would make the upstream cross-post a finished video, when it is on."""
+def _load_config(d: Path) -> dict:
+    """config.toml parsed the way the upstream reads it (tomllib). No file = {}. A file that cannot be read or parsed is a
+    refusal: without it there is no telling whether the upstream would cross-post or which voice it would use."""
+    path = d / "config.toml"
+    if not path.is_file():
+        return {}
     try:
-        text = (d / "config.toml").read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    for line in text.splitlines():
-        m = _ASSIGN.match(_strip_comment(line))
-        if m and m.group(1) in PUBLISH_KEYS and m.group(2).strip().lower() == "true":
-            return m.group(1)
-    return None
+        import tomllib
+    except ImportError:
+        raise MoneyPrinterError("ler o config.toml (para ter certeza de que a publicação está desligada) exige Python 3.11 ou mais novo.") from None
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError) as e:
+        raise MoneyPrinterError(f"não consegui ler o config.toml ({type(e).__name__}); sem ele não dá para garantir que a "
+                                "publicação automática está desligada. Corrija o arquivo.") from None
+    return data
+
+
+def _check_not_publishing(cfg: dict) -> None:
+    """The upstream cross-posts a finished video when config.app.upload_post_auto_upload is truthy in Python terms (task.py,
+    upload_post.py): "false" and 1 count. Anything truthy there is refused: this engine does not publish."""
+    app = cfg.get("app")
+    if app is None:
+        return
+    if not isinstance(app, dict):
+        raise MoneyPrinterError("[app] no config.toml precisa ser uma tabela; sem isso não dá para garantir que a publicação está desligada.")
+    for key in PUBLISH_KEYS:
+        if app.get(key):
+            raise MoneyPrinterError(f"o config.toml liga a publicação automática ({key} = {app.get(key)!r}, verdadeiro para o "
+                                    "upstream): este motor não publica. Deixe em false (booleano) para gerar vídeos.")
+
+
+def _effective_voice(flag: object, cfg: dict) -> str:
+    """The voice the upstream uses (cli.py _resolve_voice_name): the flag when filled, else no-voice when [ui].voice_mode is
+    none or upload, else [ui].voice_name, else its built-in default."""
+    if flag:
+        return str(flag)
+    ui = cfg.get("ui") if isinstance(cfg.get("ui"), dict) else {}
+    mode = ui.get("voice_mode")
+    if isinstance(mode, str) and mode.strip() in ("none", "upload"):
+        return NO_VOICE
+    name = ui.get("voice_name")
+    return name if isinstance(name, str) and name.strip() else UPSTREAM_DEFAULT_VOICE
+
+
+def _terms_given(value: object) -> bool:
+    """Whether the upstream ends with any search term: it splits on , and ， and drops the empty ones."""
+    if isinstance(value, str):
+        return any(t.strip() for t in re.split(r"[,，]", value))
+    if isinstance(value, (list, tuple)):
+        return any(str(t).strip() for t in value)
+    return False
+
+
+def _stop_upstream(proc: subprocess.Popen) -> None:
+    """SIGINT to the upstream group, SIGKILL when it outlives half the jobs grace (the runner SIGKILLs this process at the
+    full grace, so the upstream must be gone before that), then a sweep of the group. Further stop signals are ignored here."""
+    from . import jobs
+    for n in (signal.SIGINT, *(x for x in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None)) if x)):
+        signal.signal(n, signal.SIG_IGN)
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGINT)
+    try:
+        proc.wait(timeout=max(0.5, jobs.grace() / 2))
+    except subprocess.TimeoutExpired:
+        pass
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGKILL)  # also the sweep of helpers the upstream left behind
+    proc.wait()
 
 
 def _spawn_cli(argv: list[str], cwd: Path, env: dict) -> tuple[int, str]:
     """Run the upstream cli.py to the end and return (exit code, the JSON lines it printed). The upstream logs to STDOUT
     (its loguru sink is sys.stdout, despite the --help text) and prints the result there too, so stdout and stderr are
     read as one stream: every line that is not a JSON document is relayed at once to our stderr (the user sees the stages
-    as they happen, and fd 1 stays free for our own JSON), and the JSON lines come back. It runs in its own process group
-    so a stop reaches all of it."""
-    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
-                            start_new_session=True)
-    documents = []
+    as they happen, and fd 1 stays free for our own JSON), and the JSON lines come back. It runs in its own process group;
+    a stop signal here takes that whole group down (see _stop_upstream)."""
+    saved = {n: signal.getsignal(n) for n in (signal.SIGINT, getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None))
+             if n is not None}
+    proc = None
     try:
+        proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                                start_new_session=True)
+        documents = []
         for line in proc.stdout:
             if line.lstrip().startswith("{"):
                 documents.append(line)
@@ -1185,8 +1256,12 @@ def _spawn_cli(argv: list[str], cwd: Path, env: dict) -> tuple[int, str]:
                 sys.stderr.flush()
         proc.wait()
     except BaseException:  # Ctrl+C / SIGTERM: the upstream group goes down with us
-        _stop_group(proc)
+        if proc is not None:
+            _stop_upstream(proc)
         raise
+    finally:
+        for n, handler in saved.items():
+            signal.signal(n, handler)
     return proc.returncode, "".join(documents)
 
 
@@ -1274,13 +1349,11 @@ def _split_run_args(args: list[str]) -> tuple[dict, list[str]]:
 
 def _run(d: Path, args: list[str]) -> int:
     opts, upstream = _split_run_args(args)
-    plan = plan_run(upstream, yes=opts["yes"])
+    cfg = _load_config(d)
+    _check_not_publishing(cfg)
+    plan = plan_run(upstream, yes=opts["yes"], cfg=cfg)
     if not venv_python().exists():
         raise MoneyPrinterError("ambiente não preparado: rode `simplicio-video moneyprinter setup`.")
-    key = _publishing_enabled(d)
-    if key:
-        raise MoneyPrinterError(f"o config.toml liga a publicação automática ({key} = true): este motor não publica. "
-                                "Desligue (= false) para gerar vídeos.")
     out_dir = Path(_absolute(opts["out"], False))
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
