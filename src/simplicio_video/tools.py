@@ -332,7 +332,8 @@ def node_version() -> tuple[int, ...] | None:
     if not exe:
         return None
     try:
-        r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=15, env={"PATH": os.environ.get("PATH", "")})
+        r = subprocess.run([exe, "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15,
+                           env={"PATH": os.environ.get("PATH", "")})
     except (OSError, subprocess.SubprocessError):
         return None
     m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", (r.stdout or "").strip())
