@@ -17,11 +17,12 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import os
+import signal
 import subprocess
 import sys
 import tempfile
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 ENV_FLAG = "SIMPLICIO_MCP"
@@ -137,3 +138,103 @@ def check_child(argv: Sequence[Any], **kw: Any) -> None:
         rc, _, err = _run_captured(argv, kw)
     if rc != 0:
         raise ChildError(rc, list(argv), stderr=err)
+
+
+# ---- a child that cannot be orphaned by a stop signal ----
+
+def stop_exception(signum: int) -> BaseException:
+    """What a stop signal turns into: Ctrl+C is KeyboardInterrupt, SIGTERM/SIGHUP end the engine with the shell's 128+n."""
+    return KeyboardInterrupt() if signum == signal.SIGINT else SystemExit(128 + signum)
+
+
+def stop_as_interrupt(signum: int) -> BaseException:
+    """For engines whose servers stop on Ctrl+C: every stop signal is a KeyboardInterrupt (what their own handler does)."""
+    return KeyboardInterrupt()
+
+
+def kill_group(proc: subprocess.Popen, group: bool = True) -> None:
+    """SIGKILL the child's whole process group (`group`: it was started with start_new_session) or just the child, then reap it."""
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        if group and hasattr(os, "killpg"):
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:  # no group of its own (or Windows): only the child itself
+            proc.kill()
+    with contextlib.suppress(Exception):
+        proc.wait(5)
+
+
+class _Guard:
+    """Signal state of one guarded start: signals that land before the Popen has returned are only noted (raising there would
+    leave the child with no owner), and from then on they end the engine. Ignored signals stay ignored; Ctrl+C is taken over
+    only while Python's default handler is in place; off the main thread no handler can be set, and nothing is changed."""
+
+    def __init__(self, stop: Callable[[int], BaseException]) -> None:
+        self.stop, self.proc, self.pending, self.stopping, self.previous = stop, None, [], False, {}
+
+    def handle(self, signum, frame) -> None:
+        if self.proc is None or self.stopping:  # no child yet (or already stopping it): note it, act when the child exists
+            self.pending.append(signum)
+            return
+        raise self.stop(signum)
+
+    def install(self) -> None:
+        for name in ("SIGTERM", "SIGHUP", "SIGINT"):
+            sig = getattr(signal, name, None)
+            if sig is None:
+                continue
+            current = signal.getsignal(sig)
+            if current == signal.SIG_IGN or (sig == signal.SIGINT and current is not signal.default_int_handler):
+                continue
+            try:
+                self.previous[sig] = signal.signal(sig, self.handle)
+            except (ValueError, OSError):  # not the main thread
+                continue
+
+    def restore(self) -> None:
+        for sig, old in self.previous.items():
+            with contextlib.suppress(ValueError, OSError):
+                if signal.getsignal(sig) == self.handle:  # a stop routine that set SIG_IGN keeps it: it restores in its own time
+                    signal.signal(sig, old if old is not None else signal.SIG_DFL)
+
+
+@contextlib.contextmanager
+def guarded_child(argv: Sequence[Any], *, stop: Callable[[int], BaseException] | None = None,
+                  kill: Callable[[subprocess.Popen], None] | None = None, **kw: Any) -> Iterator[subprocess.Popen]:
+    """`subprocess.Popen(argv, **kw)` whose child dies with the engine. SIGTERM, SIGHUP and Ctrl+C are caught from before the
+    fork until the block ends: one that lands while Popen is starting the child is held until the child exists, then the child
+    is killed (`kill`, default: its whole group when `start_new_session` was given, else itself) and the stop is raised
+    (`stop(signum)`: KeyboardInterrupt for Ctrl+C, SystemExit(128+n) otherwise); one that lands later raises it from
+    wherever the engine is waiting, and the child is killed on the way out of the block, like any other exception. The
+    previous handlers come back when the block ends, also when Popen raises (FileNotFoundError and the like: no child, the
+    error passes through unchanged unless a stop signal came in, which wins). A normal exit leaves the child to the caller.
+    Wrap the block in an ExitStack to tell a spawn error from an error of the body."""
+    guard = _Guard(stop or stop_exception)
+    killer = kill or (lambda p: kill_group(p, bool(kw.get("start_new_session"))))
+    guard.install()
+    try:
+        try:
+            guard.proc = subprocess.Popen(argv, **kw)
+        except BaseException:
+            if guard.pending:
+                raise guard.stop(guard.pending[0]) from None
+            raise
+        if guard.pending:  # it came in during the fork: the child exists now, so it is ended like any other
+            raise guard.stop(guard.pending[0])
+        yield guard.proc
+    except BaseException:
+        guard.stopping = True  # a second signal must not cut the kill short
+        if guard.proc is not None:
+            killer(guard.proc)
+        raise
+    finally:
+        guard.restore()
+
+
+def start_child(argv: Sequence[Any], *, track: list | None = None, **kw: Any) -> subprocess.Popen:
+    """guarded_child for a child whose owner is a list the caller cleans up (servers stopped in a `finally`): `track` gets the
+    child before any stop signal can be acted on, so the caller's own cleanup stops it. The child is not killed on a stop
+    that comes after this returns; that is the caller's cleanup."""
+    with guarded_child(argv, **kw) as proc:
+        if track is not None:
+            track.append(proc)
+    return proc
