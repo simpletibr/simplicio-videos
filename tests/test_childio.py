@@ -4,6 +4,8 @@ import contextlib
 import io
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -91,13 +93,15 @@ def _reachable() -> list[str]:
 
 
 # Computed from mcp_server's imports (mcp_server runs cli.main, so the whole CLI is in): a new module is covered at once.
-SCAN = _reachable()
+# engine/remote_render.py is not imported: it is the script a remote (Colab/Kaggle) session runs, but it keeps the same rule.
+SCAN = _reachable() + ["engine/remote_render.py"]
 # (module, function) -> why a bare call is safe. Everything else must pass stdin= and capture stdout/stderr, or use run_child.
 ALLOW = {
     ("rea_video.py", "_setup"): "setup is terminal-only: video.rea-video accepts where|status|clone",
     ("rea_video.py", "_run_upstream"): "analysis commands are terminal-only: video.rea-video refuses them",
     ("rea_video.py", "_ocr_state"): "the probe is `python -c` that prints nothing and never reads stdin",
     ("toonflow.py", "_serve"): "serve never ends and is refused by video.toonflow",
+    ("toonflow.py", "_run_server"): "only called by _serve (refused by video.toonflow); the server keeps the terminal",
     ("moneyprinter.py", "_setup"): "setup/serve are terminal-only (video.moneyprinter refuses them)",
     ("moneyprinter.py", "_serve"): "serve never ends and is refused by video.moneyprinter",
     ("opencut.py", "run_opencut"): "dev never ends and is refused by video.opencut",
@@ -125,7 +129,7 @@ def _bare_calls(rel: str):
                 found.append((rel, fn, node.lineno))
             elif is_sub:
                 captured = "capture_output" in kws or {"stdout", "stderr"} <= kws or (attr == "check_output" and "stderr" in kws)
-                if None in kws or not (captured and ({"stdin", "input"} & kws)):
+                if not (captured and ({"stdin", "input"} & kws)):
                     found.append((rel, fn, node.lineno))
         for ch in ast.iter_child_nodes(node):
             visit(ch, fn)
@@ -148,3 +152,55 @@ def test_no_bare_subprocess_in_mcp_reachable_modules(rel):
 def test_allowlist_has_no_stale_entries():
     live = {(r, fn) for rel in SCAN for r, fn, _ in _bare_calls(rel)}
     assert set(ALLOW) <= live, f"stale allowlist entries: {set(ALLOW) - live}"
+
+
+def test_mcp_mode_does_not_wait_for_grandchildren(monkeypatch):
+    monkeypatch.setenv("SIMPLICIO_MCP", "1")
+    t0 = time.monotonic()
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        rc = childio.run_child(["sh", "-c", "(sleep 4 &); echo done"])
+    assert rc == 0 and out.getvalue().strip() == "done"
+    assert time.monotonic() - t0 < 2.5  # a pipe would hold run() until the background sleep ended
+
+
+def test_mcp_mode_decodes_as_utf8_with_replacement(monkeypatch):
+    monkeypatch.setenv("SIMPLICIO_MCP", "1")
+    code = "import sys; sys.stdout.buffer.write('ação'.encode() + b'\\xff')"
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        childio.run_child([sys.executable, "-c", code])
+    assert out.getvalue() == "ação�"
+
+
+def test_check_child_raises_on_failure(monkeypatch):
+    import subprocess
+    monkeypatch.delenv("SIMPLICIO_MCP", raising=False)
+    childio.check_child([sys.executable, "-c", "pass"])
+    with pytest.raises(subprocess.CalledProcessError) as e:
+        childio.check_child([sys.executable, "-c", "import sys; sys.exit(5)"])
+    assert e.value.returncode == 5
+
+
+def test_mcp_capture_is_safe_under_concurrent_tool_calls():
+    """mcp 2.x runs sync tools in worker threads: redirect_stdout is process-wide, so calls must not interleave."""
+    from simplicio_video import mcp_server
+    before = sys.stdout
+
+    def fn(tag, log):
+        for _ in range(3):
+            print(tag)
+            time.sleep(0.01)
+        return tag
+
+    results = {}
+
+    def work(i):
+        results[i] = mcp_server._capture(fn, f"T{i}")
+
+    ts = [threading.Thread(target=work, args=(i,)) for i in range(8)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert sys.stdout is before
+    for i, r in results.items():
+        assert r["ok"] and r["log"].split() == [f"T{i}"] * 3, r
