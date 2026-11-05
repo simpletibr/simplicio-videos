@@ -576,6 +576,7 @@ class _Leitor:
 
 
 def test_toonflow_pass_so_com_o_serve_vivo_quando_responde(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(e2e, "_dono_da_porta", lambda proc, porta: True)  # o dono é testado à parte (B3)
     monkeypatch.setattr(e2e, "JANELA_VIVO_S", 0)
     monkeypatch.setattr(e2e, "_porta_ocupada", lambda porta: False)
     monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: 200)
@@ -815,6 +816,7 @@ def test_toonflow_que_morre_dentro_da_janela_da_fail(tmp_path, capsys, monkeypat
 
 def test_toonflow_que_sobrevive_a_janela_da_pass(tmp_path, capsys, monkeypatch):
     _toonflow_com_processo_real(monkeypatch, "import time; time.sleep(60)", janela=0.5)
+    monkeypatch.setattr(e2e, "_dono_da_porta", lambda proc, porta: True)  # o dono é testado à parte (B3)
     _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
                       sondas=SondasFalsas(toonflow=True), gravador=Gravador())
     assert _item(json.loads(out), "toonflow")["estado"] == "PASS"
@@ -884,9 +886,10 @@ def test_b1_segredo_na_fronteira_do_corte_de_1mib_nao_deixa_sufixo_no_log_nem_no
     seg = SEG_CORTE
     assert len(seg) == 35
     # a saída bruta tem TETO+1000+k caracteres: o corte de 1 MiB cai k caracteres dentro do segredo
-    codigo = ("import os,sys; sys.stdout.write('.' * 1000 + os.environ['ECO_SEG'] + '.' * (%d)); sys.stdout.flush()"
+    # o nome da variável é minúsculo: o argv vai para o log e um "C" maiúsculo de "ECO" seria falso sufixo
+    codigo = ("import os,sys; sys.stdout.write('.' * 1000 + os.environ['eco'] + '.' * (%d)); sys.stdout.flush()"
               % (e2e.TETO_CAUDA - len(seg) + k))
-    env = dict(os.environ, ECO_SEG=seg)
+    env = dict(os.environ, eco=seg)
     (tmp_path / "run").mkdir()
     ctx = e2e.Ctx(tmp_path / "run", None, lambda argv, **kw: e2e._rodar(argv, segredos=[seg], **kw), env, None,
                   [seg], 1.0)
@@ -896,14 +899,14 @@ def test_b1_segredo_na_fronteira_do_corte_de_1mib_nao_deixa_sufixo_no_log_nem_no
     for j in range(1, len(seg)):
         assert seg[j:] not in log, (j, "log")
         assert seg[j:] not in p.saida, (j, "passo")
-    assert "***" in p.saida
+    assert seg not in p.saida and seg not in log
 
 
 def test_b1_rodar_redige_a_cauda_antes_de_cortar(tmp_path):
     seg = SEG_CORTE
-    codigo = ("import os,sys; sys.stdout.write('.' * 1000 + os.environ['ECO_SEG'] + '.' * %d); sys.stdout.flush()"
+    codigo = ("import os,sys; sys.stdout.write('.' * 1000 + os.environ['eco'] + '.' * %d); sys.stdout.flush()"
               % (e2e.TETO_CAUDA - len(seg) + 10))
-    saida = e2e._rodar([sys.executable, "-c", codigo], env=dict(os.environ, ECO_SEG=seg), cwd=Path(e2e.REPO), timeout=120,
+    saida = e2e._rodar([sys.executable, "-c", codigo], env=dict(os.environ, eco=seg), cwd=Path(e2e.REPO), timeout=120,
                        segredos=[seg])
     assert all(seg[j:] not in saida.out for j in range(1, len(seg)))
 

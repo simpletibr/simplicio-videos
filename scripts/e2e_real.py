@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import codecs
 import importlib.util
 import json
 import math
@@ -92,6 +93,7 @@ class Saida:
     out: str = ""
     err: str = ""
     expirou: bool = False
+    bruta: str = ""  # saída sem redação (só _rodar preenche; ver Passo.bruta)
 
 
 @dataclass
@@ -299,20 +301,67 @@ TETO_CAUDA = 1024 * 1024        # 1 MiB de saída guardada para o relatório (a 
 TAM_BLOCO = 64 * 1024           # leitura em blocos fixos de 64 KiB
 
 
+def _ler_texto_toml(texto: str, i: int):
+    """Lê uma string TOML que começa em texto[i]: básica ("...", com escapes) ou literal ('...'). Devolve (valor, fim);
+    valor é None se a string não fecha na linha (aí o fim é onde a leitura parou)."""
+    aspa = texto[i]
+    j = i + 1
+    while j < len(texto):
+        c = texto[j]
+        if aspa == '"' and c == "\\":
+            j += 2
+            continue
+        if c == aspa:
+            bruto = texto[i + 1:j]
+            if aspa == '"':
+                try:
+                    bruto = json.loads(f'"{bruto}"')  # escapes básicos de TOML (\" \\ \uXXXX) são os do JSON
+                except ValueError:
+                    pass
+            return bruto, j + 1
+        if c == "\n":
+            return None, j
+        j += 1
+    return None, j
+
+
+def _valores_de_valor_toml(texto: str, i: int) -> list:
+    """Os textos de um valor que começa em texto[i]: uma string; ou uma lista, também em várias linhas, de strings.
+    Número e tabela inline não dão texto aqui: as chaves de dentro de uma tabela inline são achadas pela varredura."""
+    while i < len(texto) and texto[i] in " \t":
+        i += 1
+    if i >= len(texto):
+        return []
+    if texto[i] in "\"'":
+        valor, _ = _ler_texto_toml(texto, i)
+        return [valor] if isinstance(valor, str) else []
+    if texto[i] == "[":
+        achados, j = [], i + 1
+        while j < len(texto) and texto[j] != "]":
+            if texto[j] in "\"'":
+                valor, j = _ler_texto_toml(texto, j)
+                if isinstance(valor, str):
+                    achados.append(valor)
+            else:
+                j += 1
+        return achados
+    return []
+
+
 def _valores_por_regex(texto: str) -> set:
-    """Caminho sem tomllib (Python 3.10): `campo = "valor"` e `campo = ["a", "b"]` numa linha só."""
-    campo = r"([\w.-]*(?:key|token|secret|password|senha)[\w.-]*)"
+    """Caminho sem tomllib (Python 3.10): cada `chave = valor` com chave que tem key, token, secret, password ou senha.
+    Cobre chave e valor entre aspas simples ou duplas, escapes, listas em várias linhas, tabela inline e [[x]]."""
     achados: set = set()
-    for _, valor in re.findall(rf'^\s*{campo}\s*=\s*"([^"]*)"', texto, re.IGNORECASE | re.MULTILINE):
-        achados.add(valor)
-    for _, lista in re.findall(rf"^\s*{campo}\s*=\s*\[([^\]]*)\]", texto, re.IGNORECASE | re.MULTILINE):
-        achados.update(a or b for a, b in re.findall(r'"([^"]*)"|\'([^\']*)\'', lista))
-    return {v for v in achados if v}
+    for m in re.finditer(r"""(?P<chave>["']?[\w.\-]+["']?)[ \t]*=[ \t]*""", texto):
+        if CAMPO_SEGREDO.search(m.group("chave").strip("\"'")):
+            achados.update(v for v in _valores_de_valor_toml(texto, m.end()) if v)
+    return achados
 
 
 def _valores_do_config(caminho) -> set:
     """Valores de campos de segredo do config.toml do MoneyPrinter (lidos, nunca impressos): strings e listas de
-    strings cujo nome tem key, token, secret, password ou senha. Sem tomllib usa a leitura por linha."""
+    strings cujo nome tem key, token, secret, password ou senha, em qualquer tabela, tabela inline e [[x]]. Um campo
+    de segredo herda o segredo para tudo que está dentro dele. Sem tomllib usa a leitura por regex."""
     if caminho is None or not Path(caminho).is_file():
         return set()
     texto = Path(caminho).read_text(encoding="utf-8", errors="replace")
@@ -322,15 +371,19 @@ def _valores_do_config(caminho) -> set:
         return _valores_por_regex(texto)
     achados: set = set()
 
-    def caminhar(no):
+    def caminhar(no, herdado=False):
         for chave, valor in no.items():
+            segredo = herdado or bool(CAMPO_SEGREDO.search(str(chave)))
             if isinstance(valor, dict):
-                caminhar(valor)
-            elif CAMPO_SEGREDO.search(str(chave)):
-                if isinstance(valor, str):
-                    achados.add(valor)
-                elif isinstance(valor, list):
-                    achados.update(item for item in valor if isinstance(item, str))
+                caminhar(valor, segredo)
+            elif isinstance(valor, list):
+                for item in valor:
+                    if isinstance(item, dict):
+                        caminhar(item, segredo)
+                    elif segredo and isinstance(item, str):
+                        achados.add(item)
+            elif segredo and isinstance(valor, str):
+                achados.add(valor)
 
     try:
         caminhar(tomllib.loads(texto))
@@ -350,6 +403,17 @@ def _segredos(sondas, amb: Ambiente) -> list:
     return sorted((v for v in valores if v), key=len, reverse=True)
 
 
+def _formas(segredos) -> list:
+    """Cada segredo na forma crua e nas formas em que o JSON (com e sem ASCII) e o repr o imprimem: aspas, barra, quebra
+    de linha e acento viram \\", \\\\, \\n e \\uXXXX. Sem vazios nem repetição; o mais longo primeiro."""
+    formas: set = set()
+    for s in segredos:
+        if s:
+            formas.update((s, json.dumps(s)[1:-1], json.dumps(s, ensure_ascii=False)[1:-1], repr(s)[1:-1]))
+    formas.discard("")
+    return sorted(formas, key=len, reverse=True)
+
+
 def _regex_segredos(segredos: list):
     """Um padrão com todos os segredos, o mais longo primeiro: a busca acha a ocorrência mais à esquerda."""
     validos = sorted({s for s in segredos if s}, key=len, reverse=True)
@@ -358,7 +422,7 @@ def _regex_segredos(segredos: list):
 
 def redigir(texto: str, segredos: list) -> str:
     """Referência para texto inteiro: a mesma regra que o Redator aplica em pedaços."""
-    rx = _regex_segredos(segredos)
+    rx = _regex_segredos(_formas(segredos))
     return rx.sub("***", texto) if rx else texto
 
 
@@ -367,10 +431,15 @@ class Redator:
 
     Ocorrências completas viram *** (busca da esquerda para a direita, a mais longa primeiro). Fica retido só o maior
     sufixo, de até maior-1 caracteres, que ainda pode ser começo de um segredo: é prefixo próprio de algum segredo e não
-    cai no meio de uma ocorrência completa. Não há recuo em cascata: uma passada por bloco basta."""
+    cai no meio de uma ocorrência completa. Não há recuo em cascata: uma passada por bloco basta. Cada segredo entra nas
+    formas crua, JSON (com e sem ASCII) e repr (ver _formas).
+
+    Custo (medido com scripts de revisão, Python 3.12, 2 MiB de 'A' no pior caso dos prefixos): segredo de 40 caracteres
+    0,00 s; de 3 000 caracteres 0,04 s; de 10 000 caracteres 0,16 s. Um bloco custa O(bloco + maior²) no pior caso, com
+    maior = o segredo mais longo."""
 
     def __init__(self, segredos: list):
-        self.segredos = [s for s in segredos if s]
+        self.segredos = _formas(segredos)
         self.maior = max((len(s) for s in self.segredos), default=0)
         self.rx = _regex_segredos(self.segredos)
         self.resto = ""
@@ -424,10 +493,16 @@ def _redigir_doc(obj, segredos: list):
 
 # ------------------------------------------------------------------------------- execução (processos)
 class _Cauda:
-    """Lê um fluxo binário em blocos fixos e guarda só os últimos TETO_CAUDA bytes (o total é contado)."""
+    """Lê um fluxo binário em blocos fixos. Redige EM FLUXO e só depois guarda a cauda: a redigida (até TETO_CAUDA
+    caracteres, para o relatório e o log) e a bruta (até TETO_CAUDA bytes, só para ler números e JSON). Assim um segredo
+    que cruza o corte de 1 MiB já saiu inteiro como *** e não deixa sufixo no relatório."""
 
-    def __init__(self, fluxo):
-        self.fluxo, self.total, self.buf = fluxo, 0, bytearray()
+    def __init__(self, fluxo, segredos=()):
+        self.fluxo, self.total = fluxo, 0
+        self.bruta = bytearray()
+        self.redator = Redator(list(segredos))
+        self.decodificador = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self.buf = ""
         self.thread = threading.Thread(target=self._ler, daemon=True)
         self.thread.start()
 
@@ -438,23 +513,33 @@ class _Cauda:
                 if not bloco:
                     break
                 self.total += len(bloco)
-                self.buf += bloco
-                if len(self.buf) > TETO_CAUDA:
-                    del self.buf[:len(self.buf) - TETO_CAUDA]
+                self.bruta += bloco
+                if len(self.bruta) > TETO_CAUDA:
+                    del self.bruta[:len(self.bruta) - TETO_CAUDA]
+                self.buf += self.redator.alimentar(self.decodificador.decode(bloco))
+                if len(self.buf) > 2 * TETO_CAUDA:
+                    self.buf = self.buf[-TETO_CAUDA:]
         except (OSError, ValueError):
             pass
+        finally:
+            self.buf = (self.buf + self.redator.alimentar(self.decodificador.decode(b"", final=True))
+                        + self.redator.finalizar())[-TETO_CAUDA:]
 
     def texto(self) -> str:
         self.thread.join(timeout=60)
-        texto = bytes(self.buf).decode("utf-8", errors="replace")
+        texto = self.buf
         if self.total > TETO_CAUDA:
-            texto = f"[saída cortada: {self.total} bytes; guardada a cauda de {TETO_CAUDA} bytes]\n" + texto
+            texto = f"[saída cortada: {self.total} bytes; guardada a cauda de {TETO_CAUDA} caracteres redigidos]\n" + texto
         return texto
 
+    def bruta_texto(self) -> str:
+        return bytes(self.bruta).decode("utf-8", errors="replace")
 
-def _rodar(argv: list, *, env: dict, cwd: Path, timeout: float) -> Saida:
-    """Roda um processo com tempo limite, sem shell. A saída é lida em blocos e só a cauda vai para o relatório.
-    Num tempo esgotado mata o grupo inteiro (npx e docker têm filhos)."""
+
+def _rodar(argv: list, *, env: dict, cwd: Path, timeout: float, segredos=()) -> Saida:
+    """Roda um processo com tempo limite, sem shell. A saída é lida em blocos, redigida em fluxo e só a cauda vai para o
+    relatório (`out`/`err` já redigidos; `bruta` só para ler números e JSON). Num tempo esgotado mata o grupo inteiro
+    (npx e docker têm filhos)."""
     kwargs = {"start_new_session": True} if os.name == "posix" else {
         "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
     try:
@@ -462,7 +547,7 @@ def _rodar(argv: list, *, env: dict, cwd: Path, timeout: float) -> Saida:
                                 stderr=subprocess.PIPE, **kwargs)
     except OSError as exc:
         return Saida(127, "", f"não consegui iniciar {argv[0]}: {exc}")
-    out_c, err_c = _Cauda(proc.stdout), _Cauda(proc.stderr)
+    out_c, err_c = _Cauda(proc.stdout, segredos), _Cauda(proc.stderr, segredos)
     expirou = False
     try:
         rc = proc.wait(timeout=timeout)
@@ -476,7 +561,7 @@ def _rodar(argv: list, *, env: dict, cwd: Path, timeout: float) -> Saida:
     out, err = out_c.texto(), err_c.texto()
     if expirou:
         err += f"\n[tempo esgotado em {timeout:.0f} s]"
-    return Saida(124 if expirou else rc, out, err, expirou=expirou)
+    return Saida(124 if expirou else rc, out, err, expirou=expirou, bruta=out_c.bruta_texto())
 
 
 def _matar_grupo(proc) -> None:
@@ -538,7 +623,7 @@ class Ctx:
         log.write_text(redigir(corpo, self.segredos), encoding="utf-8")
         p = Passo(nome=nome, argv=[redigir(str(a), self.segredos) for a in argv], rc=saida.rc, segundos=round(seg, 3),
                   log=str(log), saida=redigir(saida.out, self.segredos), erro=redigir(saida.err, self.segredos),
-                  bruta=saida.out)
+                  bruta=saida.bruta or saida.out)
         self.passos.append(p)
         return p
 
@@ -785,24 +870,51 @@ def _parar_processo(proc, espera_s: float = 120) -> None:
             pass
 
 
+def _proximo_bloco(fluxo):
+    """Devolve o que já chegou do fluxo (sem esperar um bloco cheio): o log do serve acompanha a saída em tempo real."""
+    ler = getattr(fluxo, "read1", None) or fluxo.read
+    return ler(TAM_BLOCO)
+
+
 def _drenar(fluxo, log: Path, segredos: list) -> None:
-    """Lê a saída do filho em blocos fixos, redige em fluxo (o serve pode ecoar uma chave, até partida entre blocos) e
-    grava no log só a cauda redigida, de até TETO_CAUDA caracteres."""
+    """Lê a saída do filho, redige em fluxo (o serve pode ecoar uma chave, até partida entre blocos) e grava no log a cada
+    bloco, para acompanhar o serviço rodando. No fim o log fica com o cabeçalho e a cauda de TETO_CAUDA caracteres."""
     redator = Redator(segredos)
-    partes, total = "", 0
-    for bloco in iter(lambda: fluxo.read(TAM_BLOCO), ""):
-        total += len(bloco)
-        partes += redator.alimentar(bloco)
-        if len(partes) > 2 * TETO_CAUDA:
-            partes = partes[-TETO_CAUDA:]
-    partes += redator.finalizar()
-    cabecalho = ""
-    if len(partes) > TETO_CAUDA or total > TETO_CAUDA:
-        partes = partes[-TETO_CAUDA:]
-        cabecalho = f"[saída cortada: {total} caracteres lidos; guardada a cauda de {TETO_CAUDA} caracteres]\n"
-    with open(log, "a", encoding="utf-8") as fh:
-        fh.write(cabecalho + partes)
+    decodificador = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    cauda, total, escritos = "", 0, 0
+    fh = open(log, "a", encoding="utf-8")
+    try:
+        while True:
+            bloco = _proximo_bloco(fluxo)
+            if not bloco:
+                break
+            texto = decodificador.decode(bloco) if isinstance(bloco, bytes) else bloco
+            total += len(texto)
+            emitido = redator.alimentar(texto)
+            cauda += emitido
+            if len(cauda) > 2 * TETO_CAUDA:
+                cauda = cauda[-TETO_CAUDA:]
+            fh.write(emitido)
+            fh.flush()
+            escritos += len(emitido)
+            if escritos > 2 * TETO_CAUDA:  # o arquivo não cresce sem limite: reescreve só a cauda
+                fh.close()
+                fh = open(log, "w", encoding="utf-8")
+                fh.write(_cabecalho_cauda(total) + cauda)
+                escritos = len(cauda)
+        cauda += redator.alimentar(decodificador.decode(b"", final=True))  # o que ficou no decodificador também é redigido
+        cauda = (cauda + redator.finalizar())[-TETO_CAUDA:]
+    finally:
+        fh.close()
+    with open(log, "w", encoding="utf-8") as fh:
+        fh.write(_cabecalho_cauda(total) + cauda)
     fluxo.close()
+
+
+def _cabecalho_cauda(total: int) -> str:
+    if total <= TETO_CAUDA:
+        return ""
+    return f"[saída cortada: {total} caracteres lidos; guardada a cauda de {TETO_CAUDA} caracteres]\n"
 
 
 def _iniciar_servidor(argv: list, *, env: dict, log: Path, segredos: list):
@@ -810,7 +922,7 @@ def _iniciar_servidor(argv: list, *, env: dict, log: Path, segredos: list):
     kwargs = {"start_new_session": True} if os.name == "posix" else {
         "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
     proc = subprocess.Popen(argv, cwd=str(REPO), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", **kwargs)
+                            stderr=subprocess.STDOUT, **kwargs)  # binário: a leitura por bloco disponível não espera o bloco cheio
     leitor = threading.Thread(target=_drenar, args=(proc.stdout, Path(log), list(segredos)), daemon=True)
     leitor.start()
     return proc, leitor
@@ -837,6 +949,123 @@ def _janela_viva(proc, segundos: float) -> bool:
         time.sleep(min(0.2, restante))
 
 
+def _sucesso_http(codigo: Optional[int]) -> bool:
+    return codigo is not None and 200 <= codigo < 400
+
+
+def _inodes_escutando(porta: int) -> Optional[set]:
+    """Inodes dos sockets em LISTEN na porta (IPv4 e IPv6), de /proc/net/tcp*. None fora do Linux (sem /proc)."""
+    if not Path("/proc/net/tcp").is_file():
+        return None
+    inodes: set = set()
+    for tabela in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            linhas = Path(tabela).read_text(encoding="ascii", errors="replace").splitlines()[1:]
+        except OSError:
+            continue
+        for linha in linhas:
+            campos = linha.split()
+            if len(campos) > 9 and campos[3] == "0A" and int(campos[1].rsplit(":", 1)[1], 16) == porta:
+                inodes.add(campos[9])
+    return inodes
+
+
+def _pids_da_arvore(raiz: int) -> set:
+    """O processo e todos os descendentes (de /proc/<pid>/stat)."""
+    filhos: dict = {}
+    for nome in os.listdir("/proc"):
+        if not nome.isdigit():
+            continue
+        try:
+            with open(f"/proc/{nome}/stat", encoding="ascii", errors="replace") as fh:
+                ppid = int(fh.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            continue
+        filhos.setdefault(ppid, []).append(int(nome))
+    arvore, pilha = {raiz}, [raiz]
+    while pilha:
+        for filho in filhos.get(pilha.pop(), []):
+            if filho not in arvore:
+                arvore.add(filho)
+                pilha.append(filho)
+    return arvore
+
+
+def _inodes_dos_processos(pids) -> set:
+    inodes: set = set()
+    for pid in pids:
+        pasta = f"/proc/{pid}/fd"
+        try:
+            descritores = os.listdir(pasta)
+        except OSError:
+            continue
+        for descritor in descritores:
+            try:
+                alvo = os.readlink(f"{pasta}/{descritor}")
+            except OSError:
+                continue
+            if alvo.startswith("socket:[") and alvo.endswith("]"):
+                inodes.add(alvo[8:-1])
+    return inodes
+
+
+def _itens_do_compose(texto: str) -> list:
+    """`docker compose ps --format json` pode sair como lista ou como uma linha JSON por contêiner."""
+    texto = (texto or "").strip()
+    if not texto:
+        return []
+    try:
+        doc = json.loads(texto)
+        return doc if isinstance(doc, list) else [doc]
+    except ValueError:
+        itens = []
+        for linha in texto.splitlines():
+            try:
+                itens.append(json.loads(linha))
+            except ValueError:
+                pass
+        return itens
+
+
+def _docker_publica(porta: int) -> Optional[bool]:
+    """O compose do Toonflow tem um serviço rodando que publica `porta`? True ou False; None se o docker não responde.
+    É a prova de dono quando quem ouve a porta é o docker-proxy (fora da árvore do serve) ou quando não há /proc."""
+    try:
+        from simplicio_video import toonflow
+        pasta = toonflow.find_toonflow_dir()
+        compose = toonflow._compose_cmd()
+    except Exception:  # noqa: BLE001 (sem o pacote ou sem docker, a prova não existe)
+        return None
+    if pasta is None or compose is None:
+        return None
+    env = {k: v for k, v in os.environ.items() if not k.startswith("COMPOSE_")}
+    try:
+        p = subprocess.run([*compose, "-f", str(Path(pasta) / "compose.yaml"), "ps", "--format", "json"], cwd=str(pasta),
+                           env=env, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           stdin=subprocess.DEVNULL, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    for item in _itens_do_compose(p.stdout):
+        if not isinstance(item, dict) or str(item.get("State", "")).lower() != "running":
+            continue
+        for publicacao in item.get("Publishers") or []:
+            if isinstance(publicacao, dict) and str(publicacao.get("PublishedPort", "")) == str(porta):
+                return True
+    return False
+
+
+def _dono_da_porta(proc, porta: int) -> Optional[bool]:
+    """O processo lançado é o dono da porta? True: quem ouve é ele ou um descendente dele. Se quem ouve está fora da
+    árvore (docker-proxy), vale o compose: um serviço rodando que publica a porta. False: o compose não publica a porta
+    e quem ouve não é o serve. None: não deu para confirmar (sem /proc e sem docker): aí o check não dá PASS."""
+    escutas = _inodes_escutando(porta)
+    if escutas and escutas & _inodes_dos_processos(_pids_da_arvore(proc.pid)):
+        return True
+    return _docker_publica(porta)
+
+
 def _chk_toonflow(ctx: Ctx) -> Veredito:
     url = f"http://127.0.0.1:{PORTA_TOONFLOW}"
     if _porta_ocupada(PORTA_TOONFLOW):  # outro processo na porta faria o HTTP responder sem o serve: não sobe
@@ -846,19 +1075,32 @@ def _chk_toonflow(ctx: Ctx) -> Veredito:
     ctx.passo("toonflow status", _py("toonflow", "status", "--json"), 120)
     log = ctx.pasta("toonflow") / "serve.log"
     proc, leitor = _iniciar_servidor(_py("toonflow", "serve", "--docker"), env=ctx.env, log=log, segredos=ctx.segredos)
-    vivo_ao_responder = False
+    codigo, vivo, saiu_com, dono = None, False, None, None
     try:
         codigo = esperar_http(url, 1200, vivo=lambda: proc.poll() is None)
-        # o PASS é do processo lançado: ele tem de continuar vivo por JANELA_VIVO_S depois da primeira resposta
-        vivo_ao_responder = codigo is not None and _janela_viva(proc, JANELA_VIVO_S)
+        if codigo is not None:
+            # o PASS é do processo lançado: ele tem de continuar vivo por JANELA_VIVO_S depois da primeira resposta,
+            # e tem de ser o dono da porta (outro processo pode ter respondido)
+            vivo = _janela_viva(proc, JANELA_VIVO_S)
+            saiu_com = proc.poll()
+            if vivo and _sucesso_http(codigo):
+                dono = _dono_da_porta(proc, PORTA_TOONFLOW)
     finally:
         _parar_processo(proc)
         leitor.join(timeout=30)
     if codigo is None:
         return Veredito(FAIL, f"o Toonflow não respondeu em {url}; o serve falhou ou o Docker não subiu (log: {log})")
-    if not vivo_ao_responder:
-        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas o serve lançado já tinha saído: outro processo respondeu (log: {log})")
-    return Veredito(PASS, f"HTTP {codigo} em {url}; serviço vivo e parado com SIGINT (log: {log})")
+    if not _sucesso_http(codigo):
+        return Veredito(FAIL, f"HTTP {codigo} em {url}: o Toonflow respondeu com erro (log: {log})")
+    if not vivo:
+        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas o serve lançado morreu depois dessa resposta (rc {saiu_com}; log: {log})")
+    if dono is None:
+        return Veredito(SKIP, f"HTTP {codigo} em {url}, mas não deu para confirmar que o serve lançado é o dono da porta "
+                              f"(sem /proc e sem docker compose): UNVERIFIED (log: {log})")
+    if dono is False:
+        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas a porta não é do serve lançado: outro processo responde e o "
+                              f"compose não publica a porta (log: {log})")
+    return Veredito(PASS, f"HTTP {codigo} em {url}; serviço vivo, dono da porta confirmado, e parado com SIGINT (log: {log})")
 
 
 def _chk_media_fetch(ctx: Ctx) -> Veredito:
@@ -1218,25 +1460,23 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     ap = _parser()
     a = ap.parse_args(argv)
     _validar_puros(ap, a)  # antes de qualquer leitura da máquina
-    sondas = sondas or SondasReais()
-    runner = runner or _rodar
-    amb = detectar(sondas, sondar=a.sim_gastar)  # versões e a porta 3900 só com --sim-gastar
-    segredos = _segredos(sondas, amb) if a.sim_gastar else []
-    teto = a.max_usd if a.max_usd is not None else TETO_PADRAO_USD
-    itens = planejar(amb, a)
-
     tmp: Optional[Path] = None
     criada = False
-    if a.sim_gastar:
-        if a.pasta:
-            tmp = Path(a.pasta).resolve()  # a validação pura já recusou pasta usada e caminho que passa por arquivo
-            try:
-                tmp.mkdir(parents=True, exist_ok=True)
-            except OSError as exc:
-                ap.error(f"--pasta {a.pasta} não pode ser criada: {exc.strerror or exc}")
-        else:
-            tmp = Path(tempfile.mkdtemp(prefix="simplicio-e2e-real-")).resolve()
-            criada = True
+    if a.sim_gastar and a.pasta:
+        tmp = Path(a.pasta).resolve()  # a validação pura já recusou pasta usada e caminho que passa por arquivo
+        try:
+            tmp.mkdir(parents=True, exist_ok=True)  # antes de qualquer sonda: pasta que não pode ser criada é rc 2 e nada roda
+        except OSError as exc:
+            ap.error(f"--pasta {a.pasta} não pode ser criada: {exc.strerror or exc}")
+    sondas = sondas or SondasReais()
+    amb = detectar(sondas, sondar=a.sim_gastar)  # versões e a porta 3900 só com --sim-gastar
+    segredos = _segredos(sondas, amb) if a.sim_gastar else []
+    if a.sim_gastar and not a.pasta:
+        tmp = Path(tempfile.mkdtemp(prefix="simplicio-e2e-real-")).resolve()
+        criada = True
+    runner = runner or (lambda argv, **kw: _rodar(argv, segredos=segredos, **kw))  # os segredos chegam à captura
+    teto = a.max_usd if a.max_usd is not None else TETO_PADRAO_USD
+    itens = planejar(amb, a)
     modo = "executado" if a.sim_gastar else "plano (nada roda; acrescente --sim-gastar para executar)"
     cabecalho = _cabecalho(amb, modo, str(tmp) if tmp else (str(Path(a.pasta).resolve()) if a.pasta else "<criada ao rodar>"))
     fluxo = sys.stderr if a.json else sys.stdout
