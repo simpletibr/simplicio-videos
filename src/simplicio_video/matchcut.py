@@ -50,11 +50,6 @@ from pathlib import Path
 from . import childio, tools
 from .toonflow import _offline
 
-try:
-    import resource  # POSIX only: no core dump for the child
-except ImportError:  # pragma: no cover (Windows)
-    resource = None
-
 MATCHCUT_REPO = tools.get("matchcut").source
 
 # Wall-clock limit per script, in seconds (a render of a whole montage is long on purpose; the others are short).
@@ -105,6 +100,14 @@ USAGE = (
     "montage.json é lido antes e os destinos dele (music.out, mix.out, deliver.dir) passam pela mesma regra. A saída aparece no\n"
     "terminal com ESC e controles como marcas visíveis; --bruto (do motor) deixa crua. A saída só aparece quando o script termina.\n"
     "Pelo MCP (`video.matchcut`) só `where`, `status` e `run` com caminhos absolutos; `setup` e `clone` são só do terminal.\n"
+    "O montage.json é validado antes de qualquer script lê-lo (o upstream é fixado e não muda): picks só com inteiros, id de plano e\n"
+    "name com letras, números, _ . - (até 64), números como números; os arquivos que o script vai gravar (planos e qc do render,\n"
+    "mix.wav e stems, music.out, entregas e stems do assemble) são previstos do config e seguem a regra da saída: não caem em\n"
+    "lugar proibido e, se algum já existe, o motor recusa (só o terminal, com --forcar, sobrescreve; o MCP nunca). A pasta dos\n"
+    "planos do assemble segue a mesma regra (o concat.txt, lista temporária dele, é regravado sempre).\n"
+    "Limite de memória do script (espaço de endereço, POSIX): 8 GiB; MATCHCUT_MEM_GIB muda (0 desliga). Depois que o script sai, o\n"
+    "motor mata o grupo de processos dele. O setup roda o pip com ambiente mínimo (sem chaves; proxy e certificados passam) e as\n"
+    "versões instaladas vêm do pip sem hash: o upstream não tem lock.\n"
     "Os argumentos do script vão depois de `--`; um montage.json aponta os arquivos do filme (veja o SKILL.md).\n"
     "exemplos (um por script):\n"
     "  simplicio-video matchcut setup\n"
@@ -419,6 +422,16 @@ def venv_python() -> Path:
     return data_dir() / "venv" / sub / ("python" + ext)
 
 
+# What pip and the venv commands receive: no API keys. Proxy and certificate names stay, so pip still works behind a proxy.
+ENV_PIP = (*ENV_NAMES, "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
+           "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "PIP_CERT", "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL",
+           "PIP_TRUSTED_HOST", "PIP_PROXY")
+
+
+def _env_pip() -> dict:
+    return {k: os.environ[k] for k in ENV_PIP if k in os.environ}
+
+
 def _call(argv: list[str], **kw) -> int:
     return childio.run_child(argv, **kw)
 
@@ -448,7 +461,7 @@ def _setup(args: list[str]) -> int:
         else:
             base = os.environ.get("MATCHCUT_PYTHON", "").strip() or sys.executable
             print(f"[1/{total}] criando o venv em {venv} (fora do checkout)")
-            rc = _call([base, "-m", "venv", str(venv)])
+            rc = _call([base, "-m", "venv", str(venv)], env=_env_pip())
             if rc != 0:
                 print(f"matchcut: não consegui criar o venv (código {rc}); a saída acima diz por quê.", file=sys.stderr)
                 return rc
@@ -456,12 +469,12 @@ def _setup(args: list[str]) -> int:
         with tempfile.TemporaryDirectory(prefix="simplicio-matchcut-req-") as privada:
             req = Path(privada) / "requirements.txt"
             req.write_bytes(requisitos)
-            rc = _call([str(py), "-m", "pip", "install", "-r", str(req)])
+            rc = _call([str(py), "-m", "pip", "install", "-r", str(req)], env=_env_pip())
         if rc != 0:
             print(f"matchcut: o pip falhou (código {rc}); a saída acima diz por quê.", file=sys.stderr)
             return rc
         print(f"[3/{total}] conferindo os imports do venv")
-        rc = _call([str(py), "-I", "-c", IMPORTS_DO_VENV])
+        rc = _call([str(py), "-I", "-c", IMPORTS_DO_VENV], env=_env_pip())
         if rc != 0:
             print(f"matchcut: o venv não importa as dependências (código {rc}); a saída acima diz por quê.", file=sys.stderr)
             return rc
@@ -573,9 +586,105 @@ def _confere_pasta_de_saida(caminho: str) -> str:
     return caminho
 
 
-def _confere_config(caminho: str) -> str:
-    """A montage.json: it must be a regular file with valid JSON, and the places it writes to (music.out, mix.out, deliver.dir)
-    get the same check as an output argument."""
+# ---------------------------------------------------------------------------------------------------------- montage.json
+# The upstream scripts are pinned and cannot be changed, so the engine checks montage.json BEFORE a script reads it. What upstream
+# does with the values: `picks` go into an ffmpeg -vf string (render.py read_frames); `id` and `name` become path components and
+# lines of an ffmpeg concat list (render.py, assemble.py); `deliver.dir`, `music.out`, `mix.out` and the render folder are where it
+# writes; `crf` is an ffmpeg argument. So numbers must be plain numbers, ids and names must match a strict charset, and every file
+# a run will write is predicted from the config and judged like an output argument.
+
+MAX_SHOTS = 2000
+MAX_PICKS = 100_000
+MAX_FRAME = 10_000_000
+_PICKS_CHAVES = {"list", "range", "linspace", "from", "speed", "offset"}
+
+
+def _eh_int(v, lo, hi) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi
+
+
+def _eh_num(v, lo, hi) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and lo <= v <= hi
+
+
+def _picks_validos(p, sid: str) -> None:
+    """picks end up inside `select='between(n\\,LO\\,HI)'`: only integers may reach ffmpeg."""
+    def erro(qual):
+        return MatchcutError(f"montage.json: picks do plano {_ascii(sid)} fora do formato ({qual}); só números inteiros")
+    if isinstance(p, list):
+        if len(p) > MAX_PICKS or not all(_eh_int(v, 0, MAX_FRAME) for v in p):
+            raise erro("lista de inteiros")
+        return
+    if not isinstance(p, dict) or not set(p) <= _PICKS_CHAVES:
+        raise erro("lista ou objeto com list, range, linspace, from, speed, offset")
+    if "list" in p:
+        v = p["list"]
+        if not isinstance(v, list) or len(v) > MAX_PICKS or not all(_eh_int(x, 0, MAX_FRAME) for x in v):
+            raise erro("list")
+    if "range" in p:
+        v = p["range"]
+        if not isinstance(v, list) or not 1 <= len(v) <= 3 or not all(_eh_int(x, 0 if i < 2 else -MAX_FRAME, MAX_FRAME) for i, x in enumerate(v)) \
+                or (len(v) == 3 and v[2] == 0) or len(range(*v)) > MAX_PICKS:
+            raise erro("range")
+    if "linspace" in p:
+        v = p["linspace"]
+        if not isinstance(v, list) or len(v) != 2 or not all(_eh_num(x, 0, MAX_FRAME) for x in v):
+            raise erro("linspace")
+    if "from" in p and not _eh_num(p["from"], 0, MAX_FRAME):
+        raise erro("from")
+    if "speed" in p and not _eh_num(p["speed"], -1000, 1000):
+        raise erro("speed")
+    if "offset" in p and not _eh_int(p["offset"], -MAX_FRAME, MAX_FRAME):
+        raise erro("offset")
+
+
+def _estrutura(cfg: dict) -> None:
+    """Types and charsets of what the pinned scripts use. Absent keys are left to the script (it fails by itself)."""
+    nome = cfg.get("name", "montage")
+    if not isinstance(nome, str) or not _ID.fullmatch(nome):
+        raise MatchcutError(f"montage.json: name inválido ({_ascii(nome)}); use letras, números, _ . - (até 64, sem começar por . ou -)")
+    t = cfg.get("timeline", {})
+    if not isinstance(t, dict):
+        raise MatchcutError("montage.json: timeline precisa ser um objeto")
+    for chave, ok in (("fps", _eh_num(t.get("fps", 24), 0.001, 1000)), ("frames", _eh_int(t.get("frames", 1), 1, MAX_FRAME)),
+                      ("bpm", _eh_num(t.get("bpm", 120), 1, 1000)), ("beats_per_bar", _eh_int(t.get("beats_per_bar", 4), 1, 64))):
+        if not ok:
+            raise MatchcutError(f"montage.json: timeline.{chave} precisa ser um número dentro de limites razoáveis")
+    tam = t.get("size", [1920, 1080])
+    if not isinstance(tam, list) or len(tam) != 2 or not all(_eh_int(v, 1, 32768) for v in tam):
+        raise MatchcutError("montage.json: timeline.size precisa ser [largura, altura] em inteiros")
+    shots = cfg.get("shots", [])
+    if not isinstance(shots, list):
+        raise MatchcutError("montage.json: shots precisa ser uma lista")
+    if len(shots) > MAX_SHOTS:
+        raise MatchcutError(f"montage.json: planos demais ({len(shots)}; o máximo é {MAX_SHOTS})")
+    for sh in shots:
+        if not isinstance(sh, dict):
+            raise MatchcutError("montage.json: cada plano de shots precisa ser um objeto")
+        if not isinstance(sh.get("id"), str) or not _ID.fullmatch(sh["id"]):
+            raise MatchcutError(f"montage.json: id de plano inválido ({_ascii(sh.get('id'))}); use letras, números, _ . - (até 64)")
+        for chave in ("start", "end"):
+            if chave in sh and not _eh_int(sh[chave], 0, MAX_FRAME):
+                raise MatchcutError(f"montage.json: plano {_ascii(sh['id'])}: {chave} precisa ser um inteiro")
+        if "picks" in sh:
+            _picks_validos(sh["picks"], sh["id"])
+    fontes = cfg.get("sources", {})
+    if not isinstance(fontes, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in fontes.items()):
+        raise MatchcutError("montage.json: sources precisa ser um objeto de textos")
+    for bloco, chave in (("music", "out"), ("mix", "out"), ("deliver", "dir")):
+        sub = cfg.get(bloco, {})
+        if not isinstance(sub, dict):
+            raise MatchcutError(f"montage.json: {bloco} precisa ser um objeto")
+        v = sub.get(chave)
+        if v is not None and (not isinstance(v, str) or not v or "\x00" in v):
+            raise MatchcutError(f"montage.json: {bloco}.{chave} precisa ser um caminho (texto)")
+    crf = cfg.get("deliver", {}).get("crf")
+    if crf is not None and not _eh_int(crf, 0, 51):
+        raise MatchcutError("montage.json: deliver.crf precisa ser um inteiro de 0 a 51")
+
+
+def _carrega_montagem(caminho: str) -> tuple[dict, str]:
+    """A montage.json: a regular file, valid JSON, valid structure. Returns (config, the folder it sits in)."""
     _confere_entrada(caminho, "config")
     try:
         with open(caminho, "rb") as fh:
@@ -586,25 +695,110 @@ def _confere_config(caminho: str) -> str:
         raise MatchcutError("o config passa do limite de 1 MiB")
     try:
         cfg = json.loads(dados.decode("utf-8"))
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):
         raise MatchcutError(f"o config não é JSON válido: {_ascii(caminho)}") from None
     if not isinstance(cfg, dict):
         raise MatchcutError(f"o config precisa ser um objeto JSON: {_ascii(caminho)}")
-    base = os.path.dirname(caminho)
-    fontes = cfg.get("sources") if isinstance(cfg.get("sources"), dict) else {}
-    for bloco, chave in (("music", "out"), ("mix", "out"), ("deliver", "dir")):
-        sub = cfg.get(bloco)
-        valor = sub.get(chave) if isinstance(sub, dict) else None
-        if not isinstance(valor, str) or not valor or "\x00" in valor:
-            continue
-        if valor.startswith("@"):
-            valor = fontes.get(valor[1:]) if isinstance(fontes.get(valor[1:]), str) else valor
-        destino = valor if os.path.isabs(valor) else os.path.normpath(os.path.join(base, valor))
-        real = _real(destino)
+    _estrutura(cfg)
+    return cfg, os.path.dirname(os.path.abspath(caminho))
+
+
+def _caminho_da_montagem(cfg: dict, base: str, rel: str) -> str:
+    """common.path of upstream: '@alias' looks up cfg['sources']; a relative path starts at the config's folder."""
+    if rel.startswith("@"):
+        alvo = cfg.get("sources", {}).get(rel[1:])
+        if not isinstance(alvo, str):
+            raise MatchcutError(f"montage.json: o apelido {_ascii(rel)} não existe em sources")
+        rel = alvo
+    return rel if os.path.isabs(rel) else os.path.normpath(os.path.join(base, rel))
+
+
+def _montagem_exige(cfg: dict, bloco: str, chave: str) -> str:
+    v = cfg.get(bloco, {}).get(chave)
+    if not isinstance(v, str):
+        raise MatchcutError(f"montage.json: falta {bloco}.{chave}")
+    return v
+
+
+def _saidas(s: Script, argv: list[str]) -> list[str]:
+    """Every file one run of the script may write, from the (already validated) argv and the montage.json. [] when the call
+    does not read a montage. Raises on an invalid montage."""
+    n = s.nome
+    if n == "music" and argv[:1] == ["cut"]:
+        cfg, base = _carrega_montagem(argv[1])
+        return [_caminho_da_montagem(cfg, base, _montagem_exige(cfg, "music", "out"))]
+    if n == "qc" and argv[:1] == ["cuts"]:
+        _carrega_montagem(argv[1])
+        return []
+    if n == "mix":
+        cfg, base = _carrega_montagem(argv[0])
+        out = argv[1] if len(argv) > 1 else _caminho_da_montagem(cfg, base, _montagem_exige(cfg, "mix", "out"))
+        return [os.path.join(out, "mix.wav"), os.path.join(out, "mix-report.json"),
+                *(os.path.join(out, "stems", f"{k}.wav") for k in ("music", "vo", "sfx"))]
+    if n == "render":
+        cfg, base = _carrega_montagem(argv[0])
+        todos = [sh["id"] for sh in cfg.get("shots", []) if isinstance(sh, dict)]
+        ids = [a for a in argv[2:] if a != "--draft"] or todos
+        for sid in ids:
+            if sid not in todos:
+                raise MatchcutError(f"plano desconhecido no montage.json: {_ascii(sid)}")
+        saida = argv[1]
+        arquivos = []
+        for sid in ids:
+            arquivos.append(os.path.join(saida, "shots", f"{sid}.mov"))
+            arquivos += [os.path.join(saida, "qc", f"{sid}-{k}.{ext}") for k in ("first", "mid", "last") for ext in ("jpg", "json")]
+        return arquivos
+    if n == "assemble":
+        cfg, base = _carrega_montagem(argv[0])
+        rdir = os.path.abspath(argv[1])
+        nome = cfg.get("name", "montage")
+        if "--draft" in argv[2:]:
+            return [os.path.join(rdir, f"{nome}-animatic.mp4")]
+        odir = _caminho_da_montagem(cfg, base, cfg.get("deliver", {}).get("dir", "output"))
+        arquivos = [os.path.join(odir, f"{nome}-master-prores422hq.mov"), os.path.join(odir, f"{nome}-1080p.mp4")]
+        audio = argv[argv.index("--audio") + 1] if "--audio" in argv[2:] else None
+        if audio is None and isinstance(cfg.get("mix", {}).get("out"), str):
+            audio = os.path.join(_caminho_da_montagem(cfg, base, cfg["mix"]["out"]), "mix.wav")
+        sdir = os.path.join(os.path.dirname(audio), "stems") if audio else None
+        if sdir and os.path.isdir(sdir):
+            with contextlib.suppress(OSError):
+                arquivos += [os.path.join(odir, "stems", f) for f in sorted(os.listdir(sdir))]
+            arquivos.append(os.path.join(odir, "stems", "mix.wav"))
+        return arquivos
+    return []
+
+
+def _confere_destino(caminho: str, canal: str, forcar: bool, quem: str) -> None:
+    """The same rules as an output argument, for a file the montage makes a script write (parent folders may not exist yet)."""
+    real = _real(caminho)
+    if real is None:
+        raise MatchcutError(f"{quem}: caminho inválido ({_ascii(caminho)})")
+    motivo = _lugar_proibido(real)
+    if motivo:
+        raise MatchcutError(f"{quem} grava em {_ascii(caminho, 100)}: o motor não grava {motivo}")
+    if real.is_dir():
+        raise MatchcutError(f"{quem}: {_ascii(caminho, 100)} é uma pasta onde o script grava um arquivo")
+    if real.exists() or os.path.lexists(caminho):
+        if canal == "mcp":
+            raise MatchcutError(f"{quem}: {_ascii(caminho, 100)} já existe e o motor não sobrescreve pelo MCP; escolha outra pasta ou nome")
+        if not forcar:
+            raise MatchcutError(f"{quem}: {_ascii(caminho, 100)} já existe e o motor não sobrescreve; "
+                                "use --forcar (flag do motor, antes do `--`) se é isso mesmo que você quer")
+
+
+def _confere_montagem(s: Script, argv: list[str], canal: str, forcar: bool) -> None:
+    saidas = _saidas(s, argv)
+    if s.nome == "assemble":
+        rdir = os.path.abspath(argv[1])
+        real = _real(rdir)
         motivo = _lugar_proibido(real) if real is not None else "em caminho inválido"
         if motivo:
-            raise MatchcutError(f"o config grava em {bloco}.{chave} = {_ascii(valor)}: o motor não grava {motivo}")
-    return caminho
+            raise MatchcutError(f"a pasta dos planos {_ascii(rdir, 100)}: o motor não grava {motivo} (o assemble grava a lista de concat nela)")
+        if re.search(r"['\r\n]", rdir) or (os.sep == "/" and "\\" in rdir):
+            raise MatchcutError("a pasta dos planos tem aspas simples, barra invertida ou quebra de linha no nome: o assemble a escreve "
+                                "numa lista de concat do ffmpeg e o motor não deixa isso passar")
+    for destino in saidas:
+        _confere_destino(destino, canal, forcar, f"{s.nome}")
 
 
 # ---------------------------------------------------------------------------------------------------------- arguments
@@ -648,7 +842,7 @@ def _valor(tipo: str, valor: str, canal: str, forcar: bool, nome: str) -> str:
     if base == "in":
         return _confere_entrada(caminho, nome)
     if base == "config":
-        return _confere_config(caminho)
+        return _confere_entrada(caminho, nome)  # the content is judged after the whole call is parsed (_confere_montagem)
     if base == "dir":
         return _confere_pasta(caminho)
     if base == "out":
@@ -724,6 +918,7 @@ def _plano(s: Script, args, canal: str, forcar: bool) -> list[str]:
         saida.append(o)
         if v is not None:
             saida.append(v)
+    _confere_montagem(s, saida, canal, forcar)
     return saida
 
 
@@ -736,21 +931,45 @@ def _ambiente(privada: Path) -> dict:
     return env
 
 
-def _sem_core():
-    if resource is not None:
-        with contextlib.suppress(ValueError, OSError):
-            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+DEFAULT_MEM_GIB = 8  # address-space limit of a script, in GiB (MATCHCUT_MEM_GIB; 0 = no limit)
+
+# Runs in the child before the script: rlimits, then exec of the script with the same isolated flags. A wrapper instead of a
+# fork hook (which is unsafe under threads); POSIX only, elsewhere the limits are skipped and the script runs as it is.
+_WRAPPER = (
+    "import os, sys\n"
+    "try:\n"
+    "    import resource\n"
+    "except ImportError:\n"
+    "    resource = None\n"
+    "if resource is not None:\n"
+    "    for quem, valor in ((resource.RLIMIT_CORE, 0), (resource.RLIMIT_AS, int(sys.argv[1]))):\n"
+    "        if quem == resource.RLIMIT_AS and valor <= 0:\n"
+    "            continue\n"
+    "        try:\n"
+    "            resource.setrlimit(quem, (valor, valor))\n"
+    "        except (ValueError, OSError):\n"
+    "            pass\n"
+    "os.execv(sys.executable, [sys.executable, '-I', '-B', '-X', 'utf8'] + sys.argv[2:])\n"
+)
+
+
+def _limite_de_memoria() -> int:
+    bruto = os.environ.get("MATCHCUT_MEM_GIB", "").strip()
+    if not bruto:
+        return DEFAULT_MEM_GIB * 1024 ** 3
+    if not re.fullmatch(r"\d{1,4}", bruto) or int(bruto) > 4096:
+        raise MatchcutError(f"MATCHCUT_MEM_GIB={_ascii(bruto)}: use um inteiro de 0 a 4096 (GiB; 0 desliga o limite)")
+    return int(bruto) * 1024 ** 3
 
 
 def _executa(argv: list, cwd: str, env: dict, nome: str) -> tuple[int, bytes, bytes]:
     """Run by argument list: no shell, closed environment, stdin=/dev/null, output to temporary files so the size can be watched
-    while it runs. Past the time limit or the output cap the whole process group is killed and the call fails."""
-    extra = {"preexec_fn": _sem_core} if resource is not None and os.name == "posix" else {}
+    while it runs. Past the time limit or the output cap the whole process group is killed and the call fails; after a normal
+    exit the group is killed too, so nothing the script left running survives it."""
     limite_s = TIMEOUT_S.get(nome, 600)
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
-            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd, env=env,
-                                    start_new_session=True, **extra)
+            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd, env=env, start_new_session=True)
         except (OSError, subprocess.SubprocessError) as e:
             raise MatchcutError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
         fim = time.monotonic() + limite_s
@@ -771,8 +990,7 @@ def _executa(argv: list, cwd: str, env: dict, nome: str) -> tuple[int, bytes, by
         except BaseException:  # Ctrl+C, SIGTERM, SIGHUP: the child lives in its own session and would outlive the engine
             _matar(proc)
             raise
-        if motivo:
-            _matar(proc)
+        _matar(proc)  # also after a normal exit: grandchildren the script started die with its group
         if motivo == "tempo":
             raise MatchcutError(f"o script passou do tempo máximo de {limite_s:g} s e foi encerrado")
         out.seek(0)
@@ -789,13 +1007,15 @@ def run_script(nome, args, *, canal: str = "terminal", forcar: bool = False) -> 
     or 'mcp' (every path absolute, never overwrites). Returns {script, codigo_saida, resultado, stdout, stderr, avisos}."""
     s = _script(nome)
     argv = _plano(s, args if args is not None else [], canal, forcar)
+    memoria = _limite_de_memoria()
     with _sinais_encerram_o_motor(), tempfile.TemporaryDirectory(prefix="simplicio-matchcut-") as privada:
         privada = Path(privada)
         script, avisos = _prepara(s, privada)
         py = venv_python()
         if not Path(py).is_file():
             raise MatchcutError("o venv do match-cut não existe: rode `simplicio-video matchcut setup` (precisa de rede).")
-        rc, out, err = _executa([str(py), "-I", "-B", "-X", "utf8", str(script), *argv], str(privada), _ambiente(privada), s.nome)
+        comando = [str(py), "-I", "-B", "-X", "utf8", "-c", _WRAPPER, str(memoria), str(script), *argv]
+        rc, out, err = _executa(comando, str(privada), _ambiente(privada), s.nome)
     return {"script": s.nome, "codigo_saida": rc, "resultado": rc == 0, "stdout": out.decode("utf-8", errors="replace"),
             "stderr": err.decode("utf-8", errors="replace"), "avisos": avisos}
 

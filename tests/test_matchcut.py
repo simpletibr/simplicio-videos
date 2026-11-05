@@ -363,7 +363,7 @@ def test_each_script_accepts_its_documented_forms(mc):
         ("qc", ["cuts", cfg, rd, o("cuts.jpg")]),
         ("qc", ["match", f("r.jpg"), "10,10,50,50", f("t.jpg"), f("v.mp4") + ":12"]),
         ("qc", ["look", f("c.mp4"), o("lk.jpg"), "0,5,9", "10,10,200,200"]),
-        ("render", [cfg, o("out"), "--draft", "s01", "s02"]),
+        ("render", [cfg, o("out"), "--draft", "s1"]),
         ("undot", [f("i.mp4"), o("u.mp4"), "100,100,900,500"]),
         ("undot", [f("i.mp4"), o("u2.mp4"), "--fixed", "960,540,8,12"]),
     ]
@@ -752,7 +752,7 @@ BAD_PICKS = [
     [1, "2"], [1, 2.5], [True, 2], [None], [[1]], [-1],
     {"list": ["a"]}, {"list": "12"}, {"range": ["0", 5]}, {"range": [0, 10 ** 9]}, {"range": [0, 5, 1, 1]}, {"range": 5},
     {"linspace": [0, "5"]}, {"linspace": [0]}, {"from": "0"}, {"from": 0, "speed": "1"}, {"from": 0, "offset": 1.5},
-    {"from": 0, "offset": True}, {"from": float("nan")}, "0:5", 7, {"list": list(range(200_000))},
+    {"from": 0, "offset": True}, {"from": float("nan")}, "0:5", 7, {"list": [0] * 120_000},
 ]
 GOOD_PICKS = [[0, 1, 2], {"list": [0, 1]}, {"range": [0, 24]}, {"range": [0, 24, 2]}, {"linspace": [0, 10]}, {"from": 0, "speed": 1.0},
               {"from": 3, "speed": 0.5, "offset": 2}, {}]
