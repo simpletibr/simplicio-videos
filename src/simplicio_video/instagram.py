@@ -674,10 +674,17 @@ def run_tool(ferramenta, args, *, texto=None, canal: str = "terminal", forcar: b
             "stdout": out.decode("utf-8", errors="replace"), "stderr": err.decode("utf-8", errors="replace"), "avisos": avisos}
 
 
+def _seletor_de_variacao(c: str) -> bool:
+    """Variation selectors (U+FE00-FE0F, U+E0100-E01EF) are category Mn but can carry hidden data after a visible character."""
+    n = ord(c)
+    return 0xFE00 <= n <= 0xFE0F or 0xE0100 <= n <= 0xE01EF
+
+
 def _limpa_mcp(texto: str) -> str:
     """Script text for an agent: no control, bidirectional, zero-width or tag characters (they can hide instructions)."""
     texto = texto.replace("\r\n", "\n")
-    return "".join(c for c in texto if c in "\n\t" or unicodedata.category(c) not in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"))
+    return "".join(c for c in texto if c in "\n\t" or (not _seletor_de_variacao(c)
+                                                      and unicodedata.category(c) not in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp")))
 
 
 def visivel(texto: str) -> str:
@@ -693,7 +700,7 @@ def visivel(texto: str) -> str:
             saida.append(chr(0x2400 + n))
         elif n == 0x7F:
             saida.append(chr(0x2421))
-        elif unicodedata.category(c) in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"):
+        elif _seletor_de_variacao(c) or unicodedata.category(c) in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"):
             saida.append(f"<U+{n:04X}>")
         else:
             saida.append(c)
@@ -720,7 +727,7 @@ def _limpa(texto: str, limite: int) -> str:
         categoria = unicodedata.category(c)
         if c in "\t\n\r\v\f\x85\u2028\u2029":
             saida.append(" ")
-        elif categoria not in ("Cc", "Cf", "Cs", "Co", "Cn"):
+        elif categoria not in ("Cc", "Cf", "Cs", "Co", "Cn") and not _seletor_de_variacao(c):
             saida.append(c)
     linha = re.sub(r"\s+", " ", "".join(saida)).strip()
     return linha if len(linha) <= limite else linha[:limite - 1].rstrip() + "…"  # the ellipsis counts: never more than `limite`
