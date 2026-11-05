@@ -8,6 +8,9 @@ command that fixes it, in this order:
   runtime        the Simplicio Runtime (optional, always ok)
   python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY (presence only, never the value)
   setup          the workspace: a warning when `simplicio-video setup` never ran, a failure when it is there and invalid
+  tools          the lock of the external tracks (offline)
+  trilhas        one row for the twelve external tracks (installed, pin, setup, dependencies, the fix of each gap); the full
+                 table, with its own schema, is `simplicio-video doctor trilhas` (doctor_trilhas.py)
 
 Output: `simplicio-video doctor: <status>`, then one line per check (`  ok    name   summary` and `        fix: ...`);
 with --json, {"schema": "simplicio.doctor/v1", "status", "version", "checks": [{name, status, summary, fix, detail}]}.
@@ -35,13 +38,13 @@ from typing import Any, Callable, Optional
 
 import yaml
 
-from .. import __version__, distribution, hostos, paths, tools_lock
+from .. import __version__, distribution, doctor_trilhas, hostos, paths, tools_lock
 from . import update
 from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA
 
 SCHEMA = "simplicio.doctor/v1"
 SECTIONS = ("update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
-            "GEMINI_API_KEY", "setup", "tools")
+            "GEMINI_API_KEY", "setup", "tools", "trilhas")
 RUNTIME_DIR = ".simplicio"  # the Runtime's own copy, when its installer put it in ~/.simplicio/bin
 _RUNTIME_VERSION = re.compile(r"simplicio\s+v?(\d+\.\d+\.\d+)")
 _RANK = {"ok": 0, "warn": 1, "fail": 2}
@@ -366,6 +369,7 @@ def collect(*, online: bool = False, environ: Optional[dict] = None,
         "GEMINI_API_KEY": lambda: _checa_credencial(env),
         "setup": _checa_setup,
         "tools": lambda: _tools_lock(state_dir),
+        "trilhas": lambda: doctor_trilhas.linha_do_doctor(doctor_trilhas.collect(online=online)),
     }
     checks = [makers[name]() for name in wanted]
     worst = max((check["status"] for check in checks), key=_RANK.__getitem__, default="ok")
@@ -382,7 +386,10 @@ def _texto(doc: dict) -> str:
 
 
 def run(a) -> int:
-    only = None if a.what == "all" else a.what
-    doc = collect(online=a.online, only=only)
+    if a.what == "trilhas":  # the full table of the twelve tracks, with its own schema
+        doc = doctor_trilhas.collect(online=a.online)
+        hostos.say(json.dumps(doc, sort_keys=True) if a.json else doctor_trilhas.texto(doc))  # ensure_ascii: valid on any console
+        return 1 if doc["status"] == "fail" else 0
+    doc = collect(online=a.online)
     hostos.say(json.dumps(doc, sort_keys=True) if a.json else _texto(doc))  # ensure_ascii: valid on any console
     return 1 if doc["status"] == "fail" else 0

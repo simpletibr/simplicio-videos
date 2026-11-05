@@ -25,9 +25,9 @@ from pathlib import Path
 import pytest
 
 import _caixa
-from _caixa import FFMPEG_COM_LIBASS, _Lazy, write_fake_tool, write_git_launcher
+from _caixa import _Lazy, write_fake_tool
 from _comum import executa, instantanea
-from simplicio_video import instagram, matchcut, mcp_server, tools, tools_lock, tools_update
+from simplicio_video import matchcut, mcp_server, tools, tools_lock, tools_update
 from simplicio_video.cli import main
 
 # the new module is looked up on use, so a missing module fails each TEST (red for the right reason)
@@ -95,25 +95,31 @@ def _grava(caminho: Path, arquivos: dict) -> None:
         alvo.write_text(texto, encoding="utf-8")
 
 
-def _git(caminho: Path, *args: str) -> str:
-    return subprocess.run([shutil.which("git"), *args], cwd=caminho, check=True, capture_output=True, text=True).stdout.strip()
+def _falso_git(*args, cwd=None):
+    """tools._git without git (the suite is hermetic): `rev-parse HEAD` answers the commit written in <checkout>/.fake-head,
+    and a folder without one is not a repository."""
+    if args[:2] == ("rev-parse", "HEAD") and cwd is not None and (Path(cwd) / ".fake-head").is_file():
+        return (Path(cwd) / ".fake-head").read_text(encoding="utf-8").strip()
+    raise tools.ToolError(f"git {' '.join(args[:2])}: não é um repositório (falso)")
 
 
 def _repo(caminho: Path, arquivos: dict) -> str:
-    """A real git repository with one commit of `arquivos`: its commit is the pin the test gives the track."""
+    """A checkout made of `arquivos`: its commit is the pin the test gives the track (an invented one, unique per folder)."""
     caminho.mkdir(parents=True, exist_ok=True)
     _grava(caminho, arquivos)
-    _git(caminho, "init", "-q")
-    _git(caminho, "add", "-A")
-    _git(caminho, "commit", "-q", "-m", "falso")
-    return _git(caminho, "rev-parse", "HEAD")
+    (caminho / ".git").mkdir(exist_ok=True)
+    sha = hashlib.sha1(f"{caminho}\n{sorted(arquivos.items())}".encode("utf-8")).hexdigest()
+    (caminho / ".fake-head").write_text(sha + "\n", encoding="utf-8")
+    return sha
 
 
 def _commit(caminho: Path, rel: str, texto: str) -> str:
+    """A new commit in the checkout: the file is written and HEAD moves to a new invented commit."""
     _grava(caminho, {rel: texto})
-    _git(caminho, "add", "-A")
-    _git(caminho, "commit", "-q", "-m", f"muda {rel}")
-    return _git(caminho, "rev-parse", "HEAD")
+    antigo = (caminho / ".fake-head").read_text(encoding="utf-8")
+    sha = hashlib.sha1(f"{antigo}{rel}\n{texto}".encode("utf-8")).hexdigest()
+    (caminho / ".fake-head").write_text(sha + "\n", encoding="utf-8")
+    return sha
 
 
 def _fixa(monkeypatch, nome: str, ref: str) -> None:
@@ -149,16 +155,13 @@ def _sha(conteudo: dict) -> dict:
 @pytest.fixture
 def ambiente(saude, monkeypatch):
     """The sealed PATH of the `saude` machine (node 22.11, ffmpeg with libass, the workspace) plus what the tracks look for:
-    real git (through the launcher), bun, npx and npm. The checkouts go to <tmp>/tools (SIMPLICIO_TOOLS_DIR) and video-use
-    to <tmp>/video-use (VIDEO_USE_DIR). Nothing is installed yet: that is the state of a machine that has no track."""
+    git (a program on the PATH whose commands are answered by _falso_git), bun, npx and npm. The checkouts go to <tmp>/tools
+    (SIMPLICIO_TOOLS_DIR) and video-use to <tmp>/video-use (VIDEO_USE_DIR). Nothing is installed yet: a machine with no track."""
     e = saude.caixa
     monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(e.tmp / "tools"))
     monkeypatch.setenv("VIDEO_USE_DIR", str(e.tmp / "video-use"))
-    for nome in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
-        monkeypatch.setenv(nome, "teste")
-    for nome in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
-        monkeypatch.setenv(nome, "teste@invalido.example")
-    write_git_launcher(e.bin)
+    monkeypatch.setattr(tools, "_git", _falso_git)
+    write_fake_tool(e.bin, "git", "")
     write_fake_tool(e.bin, "bun", "1.2.0\n")
     write_fake_tool(e.bin, "npx", "")
     write_fake_tool(e.bin, "npm", "")
@@ -197,10 +200,7 @@ def monta_saudavel(saude, monkeypatch) -> Path:
     monkeypatch.setattr(matchcut, "PINNED_SHA256", _sha(conteudo))
     _venv(e.data / "matchcut-data" / "venv")
 
-    d = tools_dir / "instagram"
-    conteudo = {rel: f"falso {rel}\n" for rel in instagram.PINNED_SHA256}
-    _fixa(monkeypatch, "instagram", _repo(d, conteudo))
-    monkeypatch.setattr(instagram, "PINNED_SHA256", _sha(conteudo))
+    _fixa(monkeypatch, "instagram", _repo(tools_dir / "instagram", {"skills/ig-reel/hookscore.py": "# falso\n"}))
 
     _fixa(monkeypatch, "rea_video", _repo(tools_dir / "rea_video", {"rea_video/cli.py": "# falso\n"}))
     _venv(e.data / "rea-video-data" / "venv", "rea-video")
@@ -372,7 +372,7 @@ def test_lock_que_segue_o_upstream_passa_a_ser_o_pin_em_uso(ambiente, monkeypatc
 
 def test_override_do_pin_aparece_como_fonte_e_vale(ambiente, monkeypatch):
     monta_saudavel(ambiente, monkeypatch)
-    head = _git(ambiente.caixa.tmp / "tools" / "opencut", "rev-parse", "HEAD")
+    head = (ambiente.caixa.tmp / "tools" / "opencut" / ".fake-head").read_text(encoding="utf-8").strip()
     monkeypatch.setenv("SIMPLICIO_OPENCUT_REF", head)
     track = _trilha(dt.collect(), "opencut")
     assert track["pin_source"] == "override" and track["pin_match"] is True
@@ -440,24 +440,33 @@ def test_venv_do_rea_video_sem_o_comando_e_falha_e_manda_o_setup(ambiente, monke
     assert c["status"] == "fail" and c["fix"] == "simplicio-video rea-video setup"
 
 
-@pytest.mark.parametrize("nome,rel", [("instagram", "skills/ig-reel/hookscore.py"), ("matchcut", "scripts/mix.py")])
-def test_arquivo_fixado_alterado_no_commit_do_pin_e_falha(ambiente, monkeypatch, nome, rel):
+def test_arquivo_fixado_alterado_no_commit_do_pin_e_falha(ambiente, monkeypatch):
+    """matchcut's pinned scripts are checked by sha256 at the commit in use; instagram is not (its module is not imported here)."""
     monta_saudavel(ambiente, monkeypatch)
-    alvo = ambiente.caixa.tmp / "tools" / nome / rel
+    rel = "scripts/mix.py"
+    alvo = ambiente.caixa.tmp / "tools" / "matchcut" / rel
     alvo.write_text("alterado por alguém\n", encoding="utf-8")
-    c = _c(_trilha(dt.collect(), nome), "integridade")
-    assert c["status"] == "fail" and rel in c["summary"] and c["fix"] == FIX_DE_INSTALAR[nome]
+    c = _c(_trilha(dt.collect(), "matchcut"), "integridade")
+    # the fix restores the file from the pinned commit: a second clone at the same commit would not undo the local edit
+    assert c["status"] == "fail" and rel in c["summary"]
+    assert c["fix"] == f"git -C {ambiente.caixa.tmp / 'tools' / 'matchcut'} checkout -- {rel}"
 
 
 def test_arquivo_alterado_fora_do_commit_do_pin_nao_e_falha_de_integridade(ambiente, monkeypatch):
     """Another commit (a lock or an override) has other bytes: the pin row says it, the integrity row does not judge them."""
     monta_saudavel(ambiente, monkeypatch)
-    d = ambiente.caixa.tmp / "tools" / "instagram"
+    d = ambiente.caixa.tmp / "tools" / "matchcut"
     _commit(d, "outro.txt", "x\n")
-    (d / "skills/ig-reel/hookscore.py").write_text("outro commit\n", encoding="utf-8")
-    track = _trilha(dt.collect(), "instagram")
+    (d / "scripts/mix.py").write_text("outro commit\n", encoding="utf-8")
+    track = _trilha(dt.collect(), "matchcut")
     assert not [c for c in track["checks"] if c["name"] == "integridade" and c["status"] == "fail"]
     assert _c(track, "pin")["status"] == "warn"
+
+
+def test_instagram_nao_tem_linha_de_integridade_aqui(ambiente, monkeypatch):
+    """The sha256 of instagram's scripts is `simplicio-video instagram status`: this module does not import instagram."""
+    monta_saudavel(ambiente, monkeypatch)
+    assert not [c for c in _trilha(dt.collect(), "instagram")["checks"] if c["name"] == "integridade"]
 
 
 # --- setup gaps: warn with the command that does it ----------------------------------------------------------------
@@ -600,12 +609,27 @@ def test_online_compara_cada_trilha_com_o_upstream(ambiente, monkeypatch):
     opencut = _trilha(doc, "opencut")
     assert opencut["upstream"]["latest"] == "f" * 40
     up = _c(opencut, "upstream")
-    assert up["status"] == "warn" and up["fix"] == "simplicio-video update"
+    # `update` refuses in a checkout: the way to the upstream commit is the override of this install's pin
+    assert up["status"] == "warn" and up["fix"] == f"SIMPLICIO_OPENCUT_REF={'f' * 40} simplicio-video opencut clone"
     assert _c(_trilha(doc, "openmontage"), "upstream")["status"] == "ok"
     assert _trilha(doc, "tinyfish")["upstream"]["latest"] == "0.50.1"
     assert _c(_trilha(doc, "tinyfish"), "upstream")["status"] == "ok"
     assert _c(_trilha(doc, "hypit"), "upstream")["status"] == "ok"
     assert _c(_trilha(doc, "yt-dlp"), "upstream")["status"] == "ok"
+
+
+def test_upstream_mais_novo_no_npm_mostra_o_override_do_pin_e_no_pip_nao_mostra_comando(ambiente, monkeypatch):
+    """An npm track moves through the override of its pin; a pip track's pin and sha256 live in tools.py, so there is no command."""
+    monta_saudavel(ambiente, monkeypatch)
+    rede = _rede_em_dia()
+    rede.npm["@hypit/hypit"] = "0.3.1"
+    rede.pypi = {"info": {"version": "2026.11.01"},
+                 "urls": [{"packagetype": "bdist_wheel", "filename": "yt_dlp-2026.11.01-py3-none-any.whl",
+                           "digests": {"sha256": "b" * 64}}]}
+    doc = dt.collect(online=True, io=rede.io())
+    assert _c(_trilha(doc, "hypit"), "upstream")["fix"] == "SIMPLICIO_HYPIT_REF=0.3.1 npm install -g @hypit/hypit@0.3.1"
+    up = _c(_trilha(doc, "yt-dlp"), "upstream")
+    assert up["status"] == "warn" and up["fix"] is None and "2026.11.01" in up["summary"]
 
 
 def test_video_use_e_pin_only_e_nao_pergunta_ao_upstream(ambiente, monkeypatch):
@@ -691,7 +715,7 @@ def test_doctor_trilhas_sem_online_nao_escreve_nada(ambiente, capsys):
     assert instantanea(e.home) == antes
 
 
-def test_doctor_all_tem_uma_linha_trilhas_com_o_resumo(saude, capsys):
+def test_doctor_all_tem_uma_linha_trilhas_com_o_resumo(ambiente, capsys):
     rc, rel, out, err = _json(capsys)
     linhas = [c for c in rel["checks"] if c["name"] == "trilhas"]
     assert len(linhas) == 1, [c["name"] for c in rel["checks"]]
@@ -702,15 +726,15 @@ def test_doctor_all_tem_uma_linha_trilhas_com_o_resumo(saude, capsys):
     assert rc == 0 and "Traceback" not in out + err
 
 
-def test_doctor_all_com_trilha_quebrada_sai_com_1(saude, capsys):
-    _grava(saude.caixa.tmp / "tools" / "opencut", {"README.md": "x\n"})
+def test_doctor_all_com_trilha_quebrada_sai_com_1(ambiente, capsys):
+    _grava(ambiente.caixa.tmp / "tools" / "opencut", {"README.md": "x\n"})
     rc, rel, out, err = _json(capsys)
     row = [c for c in rel["checks"] if c["name"] == "trilhas"][0]
     assert row["status"] == "fail" and rc == 1 and rel["status"] == "fail"
 
 
-def test_doctor_all_com_as_trilhas_em_dia_e_ok(saude, monkeypatch, capsys):
-    monta_saudavel(saude, monkeypatch)
+def test_doctor_all_com_as_trilhas_em_dia_e_ok(ambiente, monkeypatch, capsys):
+    monta_saudavel(ambiente, monkeypatch)
     rc, rel, out, err = _json(capsys)
     row = [c for c in rel["checks"] if c["name"] == "trilhas"][0]
     assert row["status"] == "ok" and row["fix"] is None and "12 de 12" in row["summary"]

@@ -90,7 +90,8 @@ comandos (na ordem do fluxo):
     list          lista templates, padrões de motion, providers de voz ou ângulos de anúncio
     install       copia as skills do simplicio-video para o host do agente (o projeto, ou o home com --global)
     update        atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar
-    doctor        diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace
+    doctor        diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace e
+                  trilhas
     setup         primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
 
 exemplos:
@@ -201,25 +202,29 @@ exemplos:
 ## simplicio-video doctor
 
 ```text
-usage: simplicio-video doctor [-h] [--json] [--online] [all]
+usage: simplicio-video doctor [-h] [--json] [--online] [all|trilhas]
 
 Checa o ambiente e diz a correção exata de cada falha, no contrato simplicio.doctor/v1 do simplicio-loop:
 update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY e setup.
 Credenciais só mostram presença, nunca o valor, e nenhum token é impresso. warn não reprova: workspace ausente e
 GEMINI_API_KEY ausente são avisos. Exit code 1 só quando alguma checagem é fail.
 Sem --online não usa rede: o update vem do cache do último `update --check`.
+trilhas: uma linha com as doze trilhas externas; `doctor trilhas` mostra a tabela (instalada, pin, setup,
+dependências e o comando de cada lacuna). Uma trilha não instalada avisa; só instalação quebrada falha.
 
 positional arguments:
-  all         all (padrão): todas as checagens
+  all|trilhas  all (padrão): todas as checagens, com a linha trilhas; trilhas: a tabela das doze trilhas
+               externas
 
 options:
-  -h, --help  show this help message and exit
-  --json      imprime {schema, status, version, checks[{name, status, summary, fix, detail}]} em JSON
-  --online    consulta a última versão (GitHub ou git) e regrava o cache do update
+  -h, --help   show this help message and exit
+  --json       imprime {schema, status, version, checks[{name, status, summary, fix, detail}]} em JSON
+  --online     consulta a última versão (GitHub ou git) e regrava o cache do update
 
 exemplos:
   simplicio-video doctor
   simplicio-video doctor --json
+  simplicio-video doctor trilhas --json
   simplicio-video doctor --online
   docker compose run --rm simplicio doctor
 ```

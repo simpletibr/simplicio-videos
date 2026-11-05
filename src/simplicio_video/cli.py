@@ -504,16 +504,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="reinstala a release do pip mesmo em dia e permite downgrade")
     p.add_argument("--pin", action="store_true", help="mantém as trilhas externas nos pins do tools.py (não segue a main/master nem a última versão)")
 
-    p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace",
+    p = sub.add_parser("doctor", formatter_class=Fmt, help="diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace e trilhas",
         description="Checa o ambiente e diz a correção exata de cada falha, no contrato simplicio.doctor/v1 do simplicio-loop:\n"
                     "update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY e setup.\n"
                     "Credenciais só mostram presença, nunca o valor, e nenhum token é impresso. warn não reprova: workspace ausente e\n"
                     "GEMINI_API_KEY ausente são avisos. Exit code 1 só quando alguma checagem é fail.\n"
-                    "Sem --online não usa rede: o update vem do cache do último `update --check`.",
+                    "Sem --online não usa rede: o update vem do cache do último `update --check`.\n"
+                    "trilhas: uma linha com as doze trilhas externas; `doctor trilhas` mostra a tabela (instalada, pin, setup,\n"
+                    "dependências e o comando de cada lacuna). Uma trilha não instalada avisa; só instalação quebrada falha.",
         epilog="exemplos:\n  simplicio-video doctor\n  simplicio-video doctor --json\n"
+               "  simplicio-video doctor trilhas --json\n"
                "  simplicio-video doctor --online\n  docker compose run --rm simplicio doctor")
-    p.add_argument("what", nargs="?", choices=["all"], default="all", metavar="all",
-                   help="all (padrão): todas as checagens")
+    p.add_argument("what", nargs="?", choices=["all", "trilhas"], default="all", metavar="all|trilhas",
+                   help="all (padrão): todas as checagens, com a linha trilhas; trilhas: a tabela das doze trilhas externas")
     p.add_argument("--json", action="store_true", help="imprime {schema, status, version, checks[{name, status, summary, fix, detail}]} em JSON")
     p.add_argument("--online", action="store_true", help="consulta a última versão (GitHub ou git) e regrava o cache do update")
 

@@ -31,7 +31,7 @@
 | `video.tools` | The pinned external tracks: command, repository, pinned version, license and whether each is installed. Read-only. |
 | `video.qc` | Quality control of an MP4 with ffmpeg, no model: `congelado MP4 [--min-s 0.5]` lists the intervals where the picture is frozen on one frame (start, end, duration). Read-only; pass an absolute path. |
 | `video.status` | Installed tools, pinned versions and, with a contract, the render state. Read-only. |
-| `video.doctor` | Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace (all, --online for network checks). Read-only. |
+| `video.doctor` | Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace and the external tracks (`trilhas`: installed, pin, setup, system dependencies and the exact fix of each gap; `all` adds it as one row). --online adds the network checks (also the upstream of each track). Read-only. |
 | `video.setup` | First run: creates the workspace (theme, language, L1 autonomy, zero budgets). Pass --yes to accept the defaults; without a terminal it refuses instead of asking. Writes no credential. |
 | `video.install` | Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies are terminal-only. |
 | `video.update` | Checks for a newer version (--check or --dry-run). Installing it is terminal-only: it changes the installed package. |
