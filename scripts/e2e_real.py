@@ -38,6 +38,7 @@ Exemplos:
 from __future__ import annotations
 
 import argparse
+import bisect
 import importlib.util
 import json
 import math
@@ -79,6 +80,7 @@ BUSCA_PADRAO = "o que é a licença Creative Commons CC0"
 NODE_MIN = (22, 15)             # tools.NODE_MIN (@hypit/hypit exige node >= 22.15)
 PORTA_VOICESTUDIO = 3900
 PORTA_TOONFLOW = 3000
+JANELA_VIVO_S = 3.0             # o serve lançado tem de continuar vivo este tempo depois da primeira resposta HTTP
 CHAVES_CONHECIDAS = ("GEMINI_API_KEY", "FAL_KEY", "WAVESPEED_API_KEY", "KIE_API_KEY", "DASHSCOPE_API_KEY", "TINYFISH_API_KEY")
 PASS, FAIL, SKIP, PLANO = "PASS", "FAIL", "SKIP", "PLANO"
 
@@ -101,6 +103,7 @@ class Passo:
     log: str
     saida: str = ""
     erro: str = ""
+    bruta: str = ""  # saída sem redação, só para ler números e JSON (nunca vai para log, tabela nem relatório)
 
     @property
     def ok(self) -> bool:
@@ -291,103 +294,189 @@ def detectar(sondas, *, sondar: bool) -> Ambiente:
 
 
 CAMPO_SEGREDO = re.compile(r"key|token|secret|password|senha", re.IGNORECASE)
+VAR_SEGREDO = re.compile(r"KEY|TOKEN|SECRET|PASSWORD", re.IGNORECASE)  # nome de variável de ambiente que guarda segredo
+TETO_CAUDA = 1024 * 1024        # 1 MiB de saída guardada para o relatório (a redação continua em fluxo)
+TAM_BLOCO = 64 * 1024           # leitura em blocos fixos de 64 KiB
+
+
+def _valores_por_regex(texto: str) -> set:
+    """Caminho sem tomllib (Python 3.10): `campo = "valor"` e `campo = ["a", "b"]` numa linha só."""
+    campo = r"([\w.-]*(?:key|token|secret|password|senha)[\w.-]*)"
+    achados: set = set()
+    for _, valor in re.findall(rf'^\s*{campo}\s*=\s*"([^"]*)"', texto, re.IGNORECASE | re.MULTILINE):
+        achados.add(valor)
+    for _, lista in re.findall(rf"^\s*{campo}\s*=\s*\[([^\]]*)\]", texto, re.IGNORECASE | re.MULTILINE):
+        achados.update(a or b for a, b in re.findall(r'"([^"]*)"|\'([^\']*)\'', lista))
+    return {v for v in achados if v}
 
 
 def _valores_do_config(caminho) -> set:
-    """Valores de campos de segredo do config.toml do MoneyPrinter (lidos, nunca impressos). Sem tomllib (Python 3.10),
-    cai numa leitura por linha, suficiente para `campo = "valor"`."""
+    """Valores de campos de segredo do config.toml do MoneyPrinter (lidos, nunca impressos): strings e listas de
+    strings cujo nome tem key, token, secret, password ou senha. Sem tomllib usa a leitura por linha."""
     if caminho is None or not Path(caminho).is_file():
         return set()
     texto = Path(caminho).read_text(encoding="utf-8", errors="replace")
     try:
         import tomllib
     except ImportError:
-        return {v for _, v in re.findall(r'^\s*([\w.-]*(?:key|token|secret|password|senha)[\w.-]*)\s*=\s*"([^"]*)"',
-                                         texto, re.IGNORECASE | re.MULTILINE)}
+        return _valores_por_regex(texto)
     achados: set = set()
 
     def caminhar(no):
         for chave, valor in no.items():
             if isinstance(valor, dict):
                 caminhar(valor)
-            elif isinstance(valor, str) and CAMPO_SEGREDO.search(str(chave)):
-                achados.add(valor)
+            elif CAMPO_SEGREDO.search(str(chave)):
+                if isinstance(valor, str):
+                    achados.add(valor)
+                elif isinstance(valor, list):
+                    achados.update(item for item in valor if isinstance(item, str))
 
     try:
         caminhar(tomllib.loads(texto))
     except ValueError:
         pass  # config.toml inválido: o MoneyPrinter é que reclama; aqui só não há o que redigir
-    return achados
+    return {v for v in achados if v}
 
 
 def _segredos(sondas, amb: Ambiente) -> list:
-    """Tudo que deve sair redigido: as variáveis de chave do ambiente e os campos de segredo do config.toml do
-    MoneyPrinter. Não cobre o que o Toonflow guarda na própria interface (ver docs/how-to/e2e-real.md)."""
+    """Tudo que deve sair redigido: toda variável de ambiente cujo nome tem KEY, TOKEN, SECRET ou PASSWORD (qualquer
+    valor), as chaves conhecidas dos adaptadores e os campos de segredo do config.toml do MoneyPrinter. Não cobre o que
+    o Toonflow guarda na própria interface (ver docs/how-to/e2e-real.md)."""
     env = sondas.env()
     nomes = set(CHAVES_CONHECIDAS) | {var for var, _ in amb.adaptadores.values() if var}
+    nomes |= {n for n in env if VAR_SEGREDO.search(n)}
     valores = {env[n] for n in nomes if env.get(n)} | _valores_do_config(sondas.config_moneyprinter())
     return sorted((v for v in valores if v), key=len, reverse=True)
 
 
+def _regex_segredos(segredos: list):
+    """Um padrão com todos os segredos, o mais longo primeiro: a busca acha a ocorrência mais à esquerda."""
+    validos = sorted({s for s in segredos if s}, key=len, reverse=True)
+    return re.compile("|".join(re.escape(s) for s in validos)) if validos else None
+
+
 def redigir(texto: str, segredos: list) -> str:
-    for s in segredos:
-        texto = texto.replace(s, "***")
-    return texto
+    """Referência para texto inteiro: a mesma regra que o Redator aplica em pedaços."""
+    rx = _regex_segredos(segredos)
+    return rx.sub("***", texto) if rx else texto
 
 
 class Redator:
-    """Redige segredos num fluxo de texto que chega em pedaços. Um segredo pode vir partido entre pedaços ou ter quebra
-    de linha: o trecho final que ainda pode ser o começo de um segredo fica retido, e só sai depois de decidido."""
+    """Redige um fluxo de texto que chega em pedaços, em tempo linear e com retenção limitada.
+
+    Ocorrências completas viram *** (busca da esquerda para a direita, a mais longa primeiro). Fica retido só o maior
+    sufixo, de até maior-1 caracteres, que ainda pode ser começo de um segredo: é prefixo próprio de algum segredo e não
+    cai no meio de uma ocorrência completa. Não há recuo em cascata: uma passada por bloco basta."""
 
     def __init__(self, segredos: list):
         self.segredos = [s for s in segredos if s]
+        self.maior = max((len(s) for s in self.segredos), default=0)
+        self.rx = _regex_segredos(self.segredos)
         self.resto = ""
 
     def alimentar(self, texto: str) -> str:
-        dados = self.resto + texto
-        if not self.segredos:
-            self.resto = ""
-            return dados
-        maior = max(len(s) for s in self.segredos)
-        corte = max(0, len(dados) - (maior - 1))  # tudo que vier depois pode ainda ser começo de um segredo
-        mudou = True
-        while mudou:  # um segredo completo que atravessa o corte não pode ser partido: o corte recua até o começo dele
-            mudou = False
-            for s in self.segredos:
-                for i in range(max(0, corte - len(s) + 1), corte):
-                    if dados.startswith(s, i) and i + len(s) > corte:
-                        corte, mudou = i, True
-                        break
-                if mudou:
-                    break
+        if not self.rx:
+            return texto
+        partes = []
+        for i in range(0, len(texto), TAM_BLOCO):
+            partes.append(self._bloco(texto[i:i + TAM_BLOCO]))
+        return "".join(partes)
+
+    def _e_prefixo_de_segredo(self, trecho: str) -> bool:
+        return any(len(trecho) < len(s) and s.startswith(trecho) for s in self.segredos)
+
+    def _bloco(self, bloco: str) -> str:
+        dados = self.resto + bloco
+        n = len(dados)
+        spans = [(m.start(), m.end()) for m in self.rx.finditer(dados)]
+        inicios = [s for s, _ in spans]
+        corte = n
+        for k in range(min(self.maior - 1, n), 0, -1):
+            p = n - k
+            if not self._e_prefixo_de_segredo(dados[p:]):
+                continue
+            j = bisect.bisect_right(inicios, p) - 1
+            if j >= 0 and spans[j][0] < p < spans[j][1]:  # p cai no meio de uma ocorrência completa: não se corta ali
+                continue
+            corte = p
+            break
         self.resto = dados[corte:]
-        return redigir(dados[:corte], self.segredos)
+        return self.rx.sub("***", dados[:corte])
 
     def finalizar(self) -> str:
-        saida, self.resto = redigir(self.resto, self.segredos), ""
+        if not self.rx:
+            return ""
+        saida, self.resto = self.rx.sub("***", self.resto), ""
         return saida
 
 
+def _redigir_doc(obj, segredos: list):
+    """O documento JSON é redigido campo a campo (só nos textos): trocar um número por *** quebraria o JSON."""
+    if isinstance(obj, str):
+        return redigir(obj, segredos)
+    if isinstance(obj, list):
+        return [_redigir_doc(x, segredos) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _redigir_doc(v, segredos) for k, v in obj.items()}
+    return obj
+
+
 # ------------------------------------------------------------------------------- execução (processos)
+class _Cauda:
+    """Lê um fluxo binário em blocos fixos e guarda só os últimos TETO_CAUDA bytes (o total é contado)."""
+
+    def __init__(self, fluxo):
+        self.fluxo, self.total, self.buf = fluxo, 0, bytearray()
+        self.thread = threading.Thread(target=self._ler, daemon=True)
+        self.thread.start()
+
+    def _ler(self):
+        try:
+            while True:
+                bloco = self.fluxo.read(TAM_BLOCO)
+                if not bloco:
+                    break
+                self.total += len(bloco)
+                self.buf += bloco
+                if len(self.buf) > TETO_CAUDA:
+                    del self.buf[:len(self.buf) - TETO_CAUDA]
+        except (OSError, ValueError):
+            pass
+
+    def texto(self) -> str:
+        self.thread.join(timeout=60)
+        texto = bytes(self.buf).decode("utf-8", errors="replace")
+        if self.total > TETO_CAUDA:
+            texto = f"[saída cortada: {self.total} bytes; guardada a cauda de {TETO_CAUDA} bytes]\n" + texto
+        return texto
+
+
 def _rodar(argv: list, *, env: dict, cwd: Path, timeout: float) -> Saida:
-    """Roda um processo com tempo limite, sem shell. Num tempo esgotado mata o grupo inteiro (npx e docker têm filhos)."""
+    """Roda um processo com tempo limite, sem shell. A saída é lida em blocos e só a cauda vai para o relatório.
+    Num tempo esgotado mata o grupo inteiro (npx e docker têm filhos)."""
     kwargs = {"start_new_session": True} if os.name == "posix" else {
         "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
     try:
         proc = subprocess.Popen(argv, cwd=str(cwd), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", **kwargs)
+                                stderr=subprocess.PIPE, **kwargs)
     except OSError as exc:
         return Saida(127, "", f"não consegui iniciar {argv[0]}: {exc}")
+    out_c, err_c = _Cauda(proc.stdout), _Cauda(proc.stderr)
+    expirou = False
     try:
-        out, err = proc.communicate(timeout=timeout)
-        return Saida(proc.returncode, out or "", err or "")
+        rc = proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
+        expirou = True
         _matar_grupo(proc)
-        out, err = proc.communicate()
-        return Saida(124, out or "", (err or "") + f"\n[tempo esgotado em {timeout:.0f} s]", expirou=True)
+        rc = proc.wait()
     except KeyboardInterrupt:
         _matar_grupo(proc)  # o processo tem sessão própria: sem isto, o Ctrl+C deixaria o filho rodando
         raise
+    out, err = out_c.texto(), err_c.texto()
+    if expirou:
+        err += f"\n[tempo esgotado em {timeout:.0f} s]"
+    return Saida(124 if expirou else rc, out, err, expirou=expirou)
 
 
 def _matar_grupo(proc) -> None:
@@ -448,7 +537,8 @@ class Ctx:
         corpo = "$ " + " ".join(map(str, argv)) + f"\n[rc {saida.rc}, {seg:.1f} s]\n--- stdout ---\n{saida.out}\n--- stderr ---\n{saida.err}\n"
         log.write_text(redigir(corpo, self.segredos), encoding="utf-8")
         p = Passo(nome=nome, argv=[redigir(str(a), self.segredos) for a in argv], rc=saida.rc, segundos=round(seg, 3),
-                  log=str(log), saida=redigir(saida.out, self.segredos), erro=redigir(saida.err, self.segredos))
+                  log=str(log), saida=redigir(saida.out, self.segredos), erro=redigir(saida.err, self.segredos),
+                  bruta=saida.out)
         self.passos.append(p)
         return p
 
@@ -522,7 +612,7 @@ def _estimar(ctx: Ctx, video: Path, ref: Path) -> float:
     prov = ctx.args.swap_provider
     p = ctx.passo("swap estimate", _py("swap", "estimate", "--provider", prov, "--video", str(video), "--ref", str(ref), "--json"), 300)
     _exige(p, "swap estimate")
-    doc = _json_de(p.saida) or {}
+    doc = _json_de(p.bruta) or {}
     usd = (doc.get("estimate") or {}).get("usd")
     if not isinstance(usd, (int, float)) or not math.isfinite(usd):
         raise Parar(Veredito(FAIL, f"swap estimate sem estimativa numérica (log: {p.log})"))
@@ -581,7 +671,7 @@ def _chk_swap_run(ctx: Ctx) -> Veredito:
     if a.aceito_unverified:
         argv.append("--aceito-unverified")
     r = ctx.passo("swap run", argv, 3600)
-    doc = _json_de(r.saida) or {}
+    doc = _json_de(r.bruta) or {}
     if not r.ok or doc.get("state") != "done" or not out.is_file():
         return Veredito(FAIL, f"swap run: rc {r.rc}, estado {doc.get('state')!r} (log: {r.log})")
     return Veredito(PASS, f"MP4 {_kb(out)} em {out}; medido {doc.get('measured_usd')} USD (previsto {_usd(usd, 4)})")
@@ -589,7 +679,7 @@ def _chk_swap_run(ctx: Ctx) -> Veredito:
 
 def _chk_busca(ctx: Ctx) -> Veredito:
     p = ctx.passo("busca consulta", _py("busca", "consulta", ctx.args.busca_texto, "--atualizar", "--json"), 300)
-    doc = _json_de(p.saida)
+    doc = _json_de(p.bruta)
     if not p.ok or not doc or "registro_id" not in doc:
         return Veredito(FAIL, f"busca consulta: rc {p.rc}, sem registro de procedência (log: {p.log})")
     return Veredito(PASS, f"{len(doc.get('resultados') or [])} resultado(s); registro {doc['registro_id']}")
@@ -622,7 +712,7 @@ def _chk_hypit_build(ctx: Ctx) -> Veredito:
 
 
 def _veredito_mp(p: Passo, out: Path) -> Veredito:
-    doc = _json_de(p.saida)
+    doc = _json_de(p.bruta)
     if not p.ok or not doc:
         return Veredito(FAIL, f"moneyprinter run: rc {p.rc} (log: {p.log})")
     if doc.get("failed") or not doc.get("total"):
@@ -696,13 +786,22 @@ def _parar_processo(proc, espera_s: float = 120) -> None:
 
 
 def _drenar(fluxo, log: Path, segredos: list) -> None:
-    """Lê a saída do filho e grava no log já redigida (o serve pode ecoar uma chave, até partida entre linhas)."""
+    """Lê a saída do filho em blocos fixos, redige em fluxo (o serve pode ecoar uma chave, até partida entre blocos) e
+    grava no log só a cauda redigida, de até TETO_CAUDA caracteres."""
     redator = Redator(segredos)
+    partes, total = "", 0
+    for bloco in iter(lambda: fluxo.read(TAM_BLOCO), ""):
+        total += len(bloco)
+        partes += redator.alimentar(bloco)
+        if len(partes) > 2 * TETO_CAUDA:
+            partes = partes[-TETO_CAUDA:]
+    partes += redator.finalizar()
+    cabecalho = ""
+    if len(partes) > TETO_CAUDA or total > TETO_CAUDA:
+        partes = partes[-TETO_CAUDA:]
+        cabecalho = f"[saída cortada: {total} caracteres lidos; guardada a cauda de {TETO_CAUDA} caracteres]\n"
     with open(log, "a", encoding="utf-8") as fh:
-        for linha in fluxo:
-            fh.write(redator.alimentar(linha))
-            fh.flush()
-        fh.write(redator.finalizar())
+        fh.write(cabecalho + partes)
     fluxo.close()
 
 
@@ -726,6 +825,18 @@ def _porta_ocupada(porta: int) -> bool:
         return False
 
 
+def _janela_viva(proc, segundos: float) -> bool:
+    """O processo continua vivo durante `segundos`? Com 0 basta estar vivo agora."""
+    limite = time.monotonic() + segundos
+    while True:
+        if proc.poll() is not None:
+            return False
+        restante = limite - time.monotonic()
+        if restante <= 0:
+            return True
+        time.sleep(min(0.2, restante))
+
+
 def _chk_toonflow(ctx: Ctx) -> Veredito:
     url = f"http://127.0.0.1:{PORTA_TOONFLOW}"
     if _porta_ocupada(PORTA_TOONFLOW):  # outro processo na porta faria o HTTP responder sem o serve: não sobe
@@ -738,7 +849,8 @@ def _chk_toonflow(ctx: Ctx) -> Veredito:
     vivo_ao_responder = False
     try:
         codigo = esperar_http(url, 1200, vivo=lambda: proc.poll() is None)
-        vivo_ao_responder = codigo is not None and proc.poll() is None  # o PASS é do processo lançado, não de outro
+        # o PASS é do processo lançado: ele tem de continuar vivo por JANELA_VIVO_S depois da primeira resposta
+        vivo_ao_responder = codigo is not None and _janela_viva(proc, JANELA_VIVO_S)
     finally:
         _parar_processo(proc)
         leitor.join(timeout=30)
@@ -1002,12 +1114,18 @@ def _validar_puros(ap: argparse.ArgumentParser, a) -> None:
             ap.error(f"{nome}: arquivo não encontrado: {caminho}")
     if a.url and not re.match(r"^https?://", a.url):
         ap.error("--url precisa ser http:// ou https://")
+    adaptadores, fontes = _nomes_conhecidos()  # importação do pacote: nada é lido da máquina
+    if adaptadores is not None and a.swap_provider not in adaptadores:
+        ap.error(f"--swap-provider desconhecido: {a.swap_provider} (use: {', '.join(sorted(adaptadores))})")
+    if fontes is not None and a.moneyprinter_fonte and a.moneyprinter_fonte not in fontes:
+        ap.error(f"--moneyprinter-fonte desconhecido: {a.moneyprinter_fonte} (fontes pagas: {', '.join(sorted(fontes))})")
     if a.pasta:
         pasta = Path(a.pasta)
-        if pasta.exists() and not pasta.is_dir():
-            ap.error(f"--pasta {a.pasta} é um arquivo: informe uma pasta nova ou vazia")
         if pasta.is_dir() and any(pasta.iterdir()):
             ap.error(f"--pasta {a.pasta} já existe e não está vazia: nada é apagado nem sobrescrito")
+        existente = next((p for p in [pasta, *pasta.parents] if p.exists()), None)
+        if existente is not None and not existente.is_dir():
+            ap.error(f"--pasta {a.pasta}: o caminho passa por um arquivo; informe uma pasta nova ou vazia")
     if a.apenas:
         pedidos = [x.strip() for x in a.apenas.split(",") if x.strip()]
         desconhecidos = [x for x in pedidos if x not in IDS]
@@ -1016,12 +1134,15 @@ def _validar_puros(ap: argparse.ArgumentParser, a) -> None:
         a.apenas = pedidos
 
 
-def _validar_ambiente(ap: argparse.ArgumentParser, a, amb: Ambiente) -> None:
-    """Argumentos que dependem do que a máquina tem (o pacote, a lista de adaptadores e de fontes pagas)."""
-    if amb.adaptadores and a.swap_provider not in amb.adaptadores:  # sem o pacote a lista vem vazia: o plano já diz por quê
-        ap.error(f"--swap-provider desconhecido: {a.swap_provider} (use: {', '.join(sorted(amb.adaptadores))})")
-    if amb.fontes_pagas and a.moneyprinter_fonte and a.moneyprinter_fonte not in amb.fontes_pagas:
-        ap.error(f"--moneyprinter-fonte desconhecido: {a.moneyprinter_fonte} (fontes pagas: {', '.join(sorted(amb.fontes_pagas))})")
+def _nomes_conhecidos():
+    """Adaptadores e fontes pagas que o pacote conhece (só importação). Sem o pacote devolve (None, None): a checagem
+    fica para o plano, que diz que o pacote não importa."""
+    try:
+        from simplicio_video import swap_providers
+        from simplicio_video.moneyprinter import PAID_SOURCES
+        return set(swap_providers.names()), set(PAID_SOURCES)
+    except Exception:  # noqa: BLE001
+        return None, None
 
 
 def _cel(texto: str) -> str:
@@ -1100,7 +1221,6 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     sondas = sondas or SondasReais()
     runner = runner or _rodar
     amb = detectar(sondas, sondar=a.sim_gastar)  # versões e a porta 3900 só com --sim-gastar
-    _validar_ambiente(ap, a, amb)
     segredos = _segredos(sondas, amb) if a.sim_gastar else []
     teto = a.max_usd if a.max_usd is not None else TETO_PADRAO_USD
     itens = planejar(amb, a)
@@ -1109,8 +1229,11 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     criada = False
     if a.sim_gastar:
         if a.pasta:
-            tmp = Path(a.pasta).resolve()  # a validação pura já recusou pasta usada e arquivo
-            tmp.mkdir(parents=True, exist_ok=True)
+            tmp = Path(a.pasta).resolve()  # a validação pura já recusou pasta usada e caminho que passa por arquivo
+            try:
+                tmp.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                ap.error(f"--pasta {a.pasta} não pode ser criada: {exc.strerror or exc}")
         else:
             tmp = Path(tempfile.mkdtemp(prefix="simplicio-e2e-real-")).resolve()
             criada = True
@@ -1145,7 +1268,7 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     print("Os custos são estimativas. O motor só impõe teto no swap (--max-usd); o build do Hypit e a fonte paga do "
           "MoneyPrinter não têm teto no motor.", file=fluxo)
     if a.json:
-        print(redigir(json.dumps(doc, ensure_ascii=False, indent=2), segredos))
+        print(json.dumps(_redigir_doc(doc, segredos), ensure_ascii=False, indent=2))
     if criada and a.limpar and tmp:
         shutil.rmtree(tmp, ignore_errors=True)
     elif tmp:

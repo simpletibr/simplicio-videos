@@ -829,6 +829,15 @@ def test_pasta_dentro_de_arquivo_da_rc_2_sem_traceback(tmp_path, flags):
     assert exc.value.code == 2
 
 
+def test_valor_curto_de_segredo_nao_quebra_o_json_do_swap_estimate(tmp_path, capsys):
+    """Regressão: um segredo de um caractere (valor '1') trocava o dígito 1 do JSON antes da leitura e o check falhava.
+    A leitura de números e de JSON usa a saída sem redação; o log e o relatório continuam redigidos."""
+    sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA, "ALGUMA_TOKEN": "1"})
+    grav = Gravador({"swap estimate": _estimativa(0.5)})  # o JSON traz "chunks": 1
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "swap-estimate"], sondas=sondas, gravador=grav)
+    assert _item(json.loads(out), "swap-estimate")["estado"] == "PASS"
+
+
 def test_swap_provider_e_fonte_paga_invalidos_da_rc_2_antes_de_detectar(monkeypatch):
     def detectar_proibido(*args, **kwargs):
         raise AssertionError("detectar chamado antes da validação dos argumentos")
