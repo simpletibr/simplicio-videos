@@ -14,8 +14,10 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -382,7 +384,7 @@ def _child(op: str, payload: dict) -> dict:
     """Run one registry operation of the upstream in a separate process; return its parsed JSON answer."""
     om_dir = _require_checkout()
     py = upstream_python()
-    env = _child_env(_registry_keys())  # minimal: what the child runs with, and the provider keys the terminal has
+    env = _child_env(_registry_keys(), neutral=_neutral_keys(om_dir) if under_mcp() else ())  # minimal; under MCP no .env keys
     skip = _offline() or under_mcp()  # no network probes offline or under the MCP server; the terminal keeps the live ones
     if skip:
         env["npm_config_offline"] = "true"
@@ -645,18 +647,33 @@ RUN_TIMEOUT_DEFAULT = 1800.0  # seconds; SIMPLICIO_MONTAGE_TIMEOUT or --timeout 
 # only, it opens no URL, runs no code or template from the input, downloads no model and captures nothing. `outputs` names
 # the input keys that are written files or folders: they get the output checks even when their names do not look like outputs.
 MCP_ALLOWLIST: dict[str, dict] = {
-    "video_trimmer": {"outputs": ("output_path",), "why": "ffmpeg apenas (cut, speed, concat); a saída é um arquivo novo"},
-    "audio_probe": {"outputs": (), "why": "ffprobe apenas; só lê o arquivo de entrada, sem saída"},
-    "frame_sampler": {"outputs": ("output_dir",), "why": "ffmpeg e ffprobe apenas; grava os quadros numa pasta nova"},
-    "scene_detect": {"outputs": ("output_path",), "why": "ffmpeg e ffprobe apenas; grava a lista de cenas em JSON"},
-    "silence_cutter": {"outputs": ("output_path",), "why": "ffmpeg e ffprobe apenas; corta ou marca o silêncio"},
+    # operations: the only ones that run over MCP. concat writes and deletes the side folder .concat_tmp next to the output,
+    # so it stays on the terminal. Side folders checked: cut and speed create none.
+    "video_trimmer": {"outputs": ("output_path",), "operations": ("cut", "speed"),
+                      "why": "ffmpeg apenas (cut e speed; concat fica no terminal: usa a pasta lateral .concat_tmp, que apaga "
+                             "arquivos). Pastas laterais conferidas: cut e speed não criam nenhuma; a saída é um arquivo novo"},
+    # Side folders checked: none, it reads the input and prints.
+    "audio_probe": {"outputs": (), "why": "ffprobe apenas; só lê o arquivo de entrada e não cria nada ao lado (pasta lateral conferida: "
+                                          "nenhuma)"},
+    # Side folders checked: writes the frames into the output folder only, and only lists it (no delete, no rename).
+    "frame_sampler": {"outputs": ("output_dir",), "why": "ffmpeg e ffprobe apenas; grava os quadros na pasta de saída e só a lista "
+                                                         "(pasta lateral conferida: nenhuma)"},
+    # Side folders checked: writes the scene list to the output file, no temporary folder (pastas laterais conferidas).
+    "scene_detect": {"outputs": ("output_path",), "why": "ffmpeg e ffprobe apenas; grava a lista de cenas num arquivo novo, sem "
+                                                         "pasta lateral (conferido)"},
 }
 
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,79}$")
 _PATH_KEY = re.compile(r"(^|_)(path|paths|file|files|dir|dirs|folder|folders|src|source|dst|dest|destination|input|output|out|"
                        r"video|videos|audio|image|images|clip|clips)$", re.I)
 _OUT_KEY = re.compile(r"(^|_)(output|out|dest|destination|dst)(s|_path|_paths|_dir|_file|_folder)?$", re.I)
-_SCHEME = re.compile(r"(?:^|[\s'\"(=,])[A-Za-z][A-Za-z0-9+.\-]*:")  # file:, data:, https: anywhere in a value
+# A URI scheme (file:, data:, pipe:, https:...) at the start of a value. Colons inside an absolute path are not schemes.
+_SCHEME = re.compile(r"\s*[A-Za-z][A-Za-z0-9+.\-]*:")
+# ffmpeg protocol prefixes that take commas instead of a colon (subfile,,start,0,...:/x), at the start of a value.
+_FF_PROTO = re.compile(r"\s*(subfile|concat|pipe|fd|tcp|udp|http|https|rtmp|file|data|crypto|async|cache|hls)(?=[,:|])", re.I)
+# What a child's variable is set to when the checkout's .env would set it (upstream keeps a key already present, even empty).
+# FFREPORT=\"\" would still make ffmpeg write a report file: a log to /dev/null writes nothing.
+_NEUTRAL = {"FFREPORT": "file=/dev/null"}
 _RUN_DIR = "run"  # under data_dir(): the working folder of the strict runs, never the caller's cwd
 _RESULT_DIR = ".resultados"  # under jobs_dir(): one result file per MCP job (the job id is made after the spec)
 _ENV_KEEP = ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TEMP", "TMP", "USER", "SYSTEMROOT", "PATHEXT",
@@ -716,10 +733,36 @@ def _run_timeout(explicit: float | None = None) -> float:
     return v if v > 0 and math.isfinite(v) else RUN_TIMEOUT_DEFAULT
 
 
-def _child_env(keys=()) -> dict:
-    """The environment of a child: what it needs to run, and the named provider keys (nothing else)."""
+def _dotenv_keys(om_dir: Path) -> list[str]:
+    """The names the checkout's .env sets, read the way the upstream base_tool reads it (only the names are used here)."""
+    try:
+        text = (Path(om_dir) / ".env").read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    keys = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key = line.partition("=")[0].strip()
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            keys.append(key)
+    return keys
+
+
+def _neutral_keys(om_dir: Path) -> list[str]:
+    """Under MCP the checkout's .env keys are set in the child first, so the upstream does not load them (FFREPORT always)."""
+    return sorted(set(_dotenv_keys(om_dir)) | {"FFREPORT"})
+
+
+def _child_env(keys=(), neutral=()) -> dict:
+    """The environment of a child: what it needs to run, the named provider keys, and the neutral values for the names in
+    `neutral` that the child does not already have (nothing else)."""
     env = {k: os.environ[k] for k in _ENV_KEEP if k in os.environ}
     env.update({k: os.environ[k] for k in keys if k in os.environ})
+    for k in neutral:
+        if k not in env:
+            env[k] = _NEUTRAL.get(k, "")
     return env
 
 
@@ -736,6 +779,11 @@ def _spawn_error(e: OSError, py) -> MontageError:
         return MontageError("o input é grande demais para o sistema operacional (E2BIG): use caminhos em vez de conteúdo, "
                             "ou um input menor")
     return MontageError(f"não consegui rodar o Python do venv ({py}): {e}")
+
+
+def _read_text(f) -> str:
+    f.seek(0)
+    return f.read().decode("utf-8", "replace")
 
 
 def _kill_group(proc) -> None:
@@ -788,14 +836,52 @@ def _path_values(value, key: str = ""):
             yield key, value
 
 
-def _forbidden_roots() -> list[Path]:
-    """Where an MCP output may not land: the run folder of the strict runs, and the checkout of OpenMontage."""
-    checkout = find_openmontage_dir() or default_openmontage_dir()
-    return [Path(os.path.realpath(data_dir() / _RUN_DIR)), Path(os.path.realpath(checkout))]
+_SISTEMA_POSIX = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys",
+                  "/run", "/opt", "/srv", "/snap", "/System", "/Library", "/Applications", "/private/etc", "/var/lib",
+                  "/var/log", "/var/spool", "/var/run", "/var/db")  # /var as a whole is refused too, except /var/tmp
+_SISTEMA_WINDOWS = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
+_INICIO_AUTOMATICO = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
+                      ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
 
 
-def _output_refusal(key: str, text: str, forbidden: list[Path]) -> str | None:
-    """An output the tool writes: a new name, reached only through real folders, not in the run folder or the checkout."""
+def _dentro(caminho: Path, pasta) -> bool:
+    """True when `caminho` is `pasta` or lies under it; both are real paths (links resolved), compared part by part."""
+    b = Path(os.path.realpath(pasta)).parts
+    return Path(caminho).parts[:len(b)] == b
+
+
+def _lugar_proibido(real: Path) -> str:
+    """Why an MCP output may not be written at `real` (links already resolved), or ''. It mirrors instagram._lugar_proibido and
+    adds the engine's own places: its data (jobs, tools, the venv), its code, the checkout, any venv and any site-packages."""
+    from . import jobs
+    if _dentro(real, Path(__file__).resolve().parent):
+        return "dentro do código do motor"
+    if _dentro(real, find_openmontage_dir() or default_openmontage_dir()):
+        return "dentro do checkout do OpenMontage"
+    if any(_dentro(real, pasta) for pasta in (jobs.data_root(), data_dir(), tools.tools_dir())):
+        return "dentro da pasta de dados do motor (jobs, tools, openmontage-data)"
+    if "site-packages" in real.parts:
+        return "dentro de site-packages (pacotes de um venv)"
+    if any((a / "pyvenv.cfg").is_file() for a in real.parents):
+        return "dentro de um venv (pyvenv.cfg)"
+    raizes = [Path(r) for r in _SISTEMA_POSIX] + [Path(v) for v in (os.environ.get(n) for n in _SISTEMA_WINDOWS) if v]
+    if any(_dentro(real, r) for r in raizes) or (_dentro(real, "/var") and not _dentro(real, "/var/tmp")):
+        return "em pasta do sistema"
+    home = Path(os.path.realpath(os.path.expanduser("~")))
+    if any(_dentro(real, home.joinpath(*partes)) for partes in _INICIO_AUTOMATICO):
+        return "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)"
+    if _dentro(real, home):
+        partes = real.parts[len(home.parts):]
+        if partes and partes[0].startswith("."):
+            return "em pasta oculta do home (.ssh, .config, .claude...)"
+    if ".git" in real.parts:
+        return "dentro de uma pasta .git"
+    return ""
+
+
+def _output_refusal(key: str, text: str) -> str | None:
+    """An output the tool writes: a new name, reached only through real folders (no link on the way), in a place the engine
+    may write. The side folders of the allowlisted tools were checked (see MCP_ALLOWLIST)."""
     p = Path(text)
     for a in [p.parent, *p.parent.parents]:  # every folder on the way, the first one included
         if os.path.islink(a):
@@ -804,31 +890,49 @@ def _output_refusal(key: str, text: str, forbidden: list[Path]) -> str | None:
         return f"a saída {key} não é um caminho limpo ({text}): sem .. nem link no caminho"
     if os.path.lexists(p):
         return f"a saída {key} já existe ou é um link ({text}); a saída tem que ser um arquivo novo"
-    real_parent = Path(os.path.realpath(p.parent))
-    for root in forbidden:
-        if real_parent == root or root in real_parent.parents:
-            return f"a saída {key} cai em {root}, a pasta de trabalho do motor ou o checkout do OpenMontage"
+    motivo = _lugar_proibido(Path(os.path.realpath(p.parent)) / p.name)
+    if motivo:
+        return f"a saída {key} cai {motivo} ({text}); pelo MCP o motor não grava aí"
+    return None
+
+
+def _input_refusal(key: str, text: str) -> str | None:
+    """An input file: a regular file (or a name that does not exist yet, which the tool reports itself). A device, a pipe,
+    a socket or a folder would block or read something else."""
+    try:
+        mode = os.stat(text).st_mode
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return f"a entrada {key} não pode ser lida ({text})"
+    if not stat.S_ISREG(mode):
+        return (f"a entrada {key} não é um arquivo comum ({text}): dispositivo, pipe, soquete ou pasta não entram pelo MCP")
     return None
 
 
 def _strict_input_refusal(inputs: dict, schema: dict | None, declared: tuple) -> str | None:
-    """Over MCP: no URL and no scheme anywhere; every path absolute; every output new and reached through real folders;
-    an output the tool takes (in its schema or declared on the allowlist) must be given."""
+    """Over MCP: no URL, no URI scheme and no protocol prefix anywhere (a colon inside an absolute path is fine); every path
+    absolute; every input a regular file; every output new and reached through real folders, in a place the engine may
+    write; an output the tool takes (in its schema or declared on the allowlist) must be given."""
     for key, text in _all_strings(inputs):
-        if "://" in text or _SCHEME.search(text):
-            return (f"o MCP não busca endereços nem usa esquemas como file: ou data: ({key}: {text[:60]!r}); "
+        if "://" in text or _SCHEME.match(text) or _FF_PROTO.match(text):
+            return (f"o MCP não busca endereços nem usa esquemas e prefixos de protocolo ({key}: {text[:60]!r}); "
                     "dê um caminho absoluto de arquivo")
-    forbidden = _forbidden_roots()
     for key, text in _all_strings(inputs):
         if key in declared or _OUT_KEY.search(key):
             if not os.path.isabs(text):
                 return f"os caminhos precisam ser absolutos ({key}: {text!r})"
-            msg = _output_refusal(key, text, forbidden)
+            msg = _output_refusal(key, text)
             if msg:
                 return msg
     for key, text in _path_values(inputs):
         if not os.path.isabs(text):
             return f"os caminhos precisam ser absolutos ({key}: {text!r})"
+        if key in declared or _OUT_KEY.search(key):
+            continue
+        msg = _input_refusal(key, text)
+        if msg:
+            return msg
     for prop in set((schema or {}).get("properties") or {}) | set(declared):
         if (_OUT_KEY.search(prop) or prop in declared) and not inputs.get(prop):
             return f"a tool tem uma saída ({prop}) e, sem ela, escolhe o destino; dê um caminho absoluto e novo em {prop}"
@@ -904,6 +1008,10 @@ def run_tool_plan(name, inputs, *, strict: bool, yes: bool) -> dict:
         if name not in MCP_ALLOWLIST:
             return _refuse(plan, f"{name} não está na lista de tools revisadas para o MCP (MCP_ALLOWLIST, lida à mão no checkout)")
         declared = tuple(MCP_ALLOWLIST[name].get("outputs") or ())
+        ops = MCP_ALLOWLIST[name].get("operations")
+        if ops is not None and inputs.get("operation") not in ops:
+            return _refuse(plan, f"{name}: a operação {inputs.get('operation')!r} não entra pelo MCP (só {', '.join(ops)}; as outras "
+                                 "usam pastas laterais, como o concat, que usa .concat_tmp)")
         msg = _strict_input_refusal(inputs, info.get("input_schema"), declared)
         if msg:
             return _refuse(plan, msg)
@@ -947,30 +1055,34 @@ def run_tool_execute(plan: dict, inputs: dict, cwd: Path, *, timeout: float | No
     t0 = time.monotonic()
     om_dir = _require_checkout()
     py = upstream_python()
-    env = _child_env(plan.get("env_keys") or [])
+    env = _child_env(plan.get("env_keys") or [], neutral=_neutral_keys(om_dir) if plan["strict"] else ())
     if plan["strict"]:
         env["npm_config_offline"] = "true"
     stream = not under_mcp()  # in a terminal the upstream's progress is shown; under the MCP server it goes to stderr, captured
     limit = _run_timeout(timeout)
     cmd = [py, "-I", "-c", _RUN_CHILD, str(om_dir), plan["tool"], input_json(inputs)]
-    try:
-        proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=None if stream else subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
-                                start_new_session=True)
-    except OSError as e:
-        raise _spawn_error(e, py) from None
-    try:
-        out, err = proc.communicate(timeout=limit)
-    except subprocess.TimeoutExpired:
-        _kill_group(proc)
-        proc.communicate()
-        raise MontageError(f"{plan['tool']} passou de {limit:g} s e foi encerrado por tempo limite "
-                           "(mude com --timeout ou SIMPLICIO_MONTAGE_TIMEOUT)") from None
-    except BaseException:  # Ctrl-C and the like: the upstream does not outlive the command
-        _kill_group(proc)
-        proc.communicate()
-        raise
-    if not stream and err:
+    # The output goes to files, not pipes: a grandchild that left the process group can keep a pipe open for ever, and waiting
+    # on the pipe would outlive the time limit. Only the child itself is waited for; its files are read once it has ended.
+    with tempfile.TemporaryFile() as out_f, (tempfile.TemporaryFile() if not stream else contextlib.nullcontext()) as err_f:
+        try:
+            proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=out_f,
+                                    stderr=None if stream else err_f, start_new_session=True)
+        except OSError as e:
+            raise _spawn_error(e, py) from None
+        try:
+            proc.wait(timeout=limit)
+        except subprocess.TimeoutExpired:
+            _kill_group(proc)
+            proc.wait()
+            raise MontageError(f"{plan['tool']} passou de {limit:g} s e foi encerrado por tempo limite "
+                               "(mude com --timeout ou SIMPLICIO_MONTAGE_TIMEOUT)") from None
+        except BaseException:  # Ctrl-C and the like: the upstream does not outlive the command
+            _kill_group(proc)
+            proc.wait()
+            raise
+        out = _read_text(out_f)
+        err = "" if stream else _read_text(err_f)
+    if err:
         sys.stderr.write(err)
     try:
         data = json.loads(out)

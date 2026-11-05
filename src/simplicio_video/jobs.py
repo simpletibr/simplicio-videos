@@ -507,7 +507,7 @@ def _prepare_montage_tool(params: dict, confirm_yes: bool, origin: str) -> tuple
         raise JobError(str(e)) from None
     if plan["refusal"]:
         raise JobError(plan["refusal"])
-    p = {"name": name, "input": inputs, "strict": strict, "rid": uuid.uuid4().hex}
+    p = {"name": name, "input": inputs, "strict": strict, "origin": origin, "rid": uuid.uuid4().hex}
     extra = {"estimate_usd": plan["cost"], "confirmed": {"yes": True, "at": now_iso()} if plan["needs_yes"] else None}
     return p, plan["spends"], extra
 
@@ -524,12 +524,14 @@ _MONTAGE_RESULT_DIR = ".resultados"
 
 
 def _argv_montage_tool(p: dict) -> list[str]:
+    """The run's argv. The strict gate comes from the ORIGIN the job was submitted with, never from the spec's flag: a job
+    that came from MCP (or whose origin is missing, which counts as MCP) always re-runs the MCP gate in its own process."""
     from . import montage
     a = ["montage", "run-tool", p["name"], "--input", montage.input_json(p["input"]), "--yes", "--json"]
     rp = _montage_result_path(p.get("rid"))
     if rp is not None:
         a += ["--resultado-em", str(rp)]  # the run writes its whole result here; the output line stays small
-    return a + (["--sob-mcp"] if p.get("strict") else [])
+    return a + (["--sob-mcp"] if p.get("origin", "mcp") != "terminal" else [])
 
 
 def _result_montage_tool(p: dict, last_json: dict | None) -> dict | None:
