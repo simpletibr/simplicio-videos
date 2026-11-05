@@ -1,7 +1,7 @@
 """Estado do motor para o looping (issue #73): `--version --json`, `status` e `status --json [CONTRATO]`.
 
-Ferramentas: as três do `tools.py` (OpenMontage, OpenCut, Hypit) com a versão fixada de lá; ffmpeg e node
-só são detectados (sem versão fixada). Detecção por shutil.which (existe no PATH) e leitura da versão
+Ferramentas: todas as trilhas do `tools.py` (TOOLS) com a versão fixada de lá; ffmpeg e node
+só são detectados (sem versão fixada). Detecção por shutil.which (existe no PATH; trilha pip: o executável do venv da trilha) e leitura da versão
 (`--version` / `-version`, ou o commit do checkout para ferramentas git; o `tinyfish`, de terceiros, roda com o ambiente
 fechado do `busca`: nenhuma chave do shell chega a ele). Nada de rede e nada de sockets:
 a versão só é lida de um executável que já está no PATH, e uma ferramenta ausente vira installed false.
@@ -20,7 +20,7 @@ from . import HYPERFRAMES, __version__, tools
 
 SEM_VERSAO = "sem versão fixada"
 MANIFEST = "render.manifest.json"
-ENGINE_TOOLS = ("openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "voicestudio", "tinyfish", "ffmpeg", "node")
+ENGINE_TOOLS = (*tools.TOOLS, "ffmpeg", "node")  # every track of tools.py, so a new one shows up here too
 PLAIN_TOOLS = ("ffmpeg", "node")  # só detectadas: o motor não fixa versão delas
 
 
@@ -71,7 +71,11 @@ def _ferramenta_do_motor(name: str) -> dict:
             except tools.ToolError:
                 version = None
         return _linha(name, d is not None, version, pinned, fonte)
-    exe = shutil.which(t.name)  # npm: o binário no PATH (ou o npx do motor, que não é checado aqui)
+    if t.kind == "pip":  # o executável fica no venv da trilha (tools.pip_binary), nunca no PATH
+        exe = tools.pip_binary(name)
+        exe = str(exe) if exe else None
+    else:
+        exe = shutil.which(t.name)  # npm: o binário no PATH (ou o npx do motor, que não é checado aqui)
     if exe and name == "tinyfish":
         from . import busca  # binário de terceiros: só o ambiente fechado do `busca` (nenhuma chave do shell) e sem telemetria
         version = busca._versao_cli(exe)
