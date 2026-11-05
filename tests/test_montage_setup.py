@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-from simplicio_video import mcp_server, montage, tools
+from simplicio_video import cli, mcp_server, montage, tools
 
 REQS = "pyyaml>=6.0\nnonexistent-dist-xyz>=1  # never installed\n"
 
@@ -255,3 +255,68 @@ def test_mcp_description_lists_the_registry_commands():
     d = mcp_server.DESC_video_montage
     for word in ("pipelines", "tools", "envelope", "estimate", "status", "setup"):
         assert word in d
+
+
+# ---- help: the engine's own help, never the passthrough (`montage help` ran `python -m help`) ----------------------
+
+def _proibido(*args, **kwargs):
+    raise AssertionError("o help não deve clonar nem instalar nada")
+
+
+HELP_FORMS = [
+    (["help"], "simplicio-video montage setup"),
+    (["-h"], "simplicio-video montage setup"),
+    (["help", "open"], "simplicio-video montage setup"),  # no help of its own here: the usage
+    (["help", "setup"], "usage: simplicio-video montage setup"),
+    (["help", "tools", "info"], "usage: simplicio-video montage tools info"),
+    (["help", "run-tool"], "usage: simplicio-video montage run-tool"),
+]
+
+
+def test_cli_montage_help_with_checkout_and_venv_prints_usage(om, venv, capsys):
+    assert cli.main(["montage", "help"]) == 0
+    c = capsys.readouterr()
+    assert "No module named" not in c.err and "simplicio-video montage setup" in c.out
+
+
+@pytest.mark.parametrize("argv,marca", HELP_FORMS)
+def test_help_never_reaches_the_upstream(om, venv, monkeypatch, capsys, argv, marca):
+    ran = []
+    monkeypatch.setattr(montage, "run_child", lambda cmd, **kw: ran.append(cmd) or 0)
+    monkeypatch.setattr(montage, "_run_open", lambda cmd, **kw: ran.append(cmd) or 0, raising=False)
+    code, out, err = run(capsys, *argv)
+    assert (code, ran) == (0, []), argv
+    assert marca in out and "Traceback" not in err
+
+
+@pytest.mark.parametrize("sub", ["setup", "status", "tools", "run-tool"])
+def test_help_sub_prints_the_subcommands_own_help(om, capsys, sub):
+    assert montage.main(["help", sub]) == 0
+    da_ajuda = capsys.readouterr().out
+    with pytest.raises(SystemExit) as e:
+        montage.main([sub, "--help"])
+    assert e.value.code == 0
+    assert da_ajuda and capsys.readouterr().out == da_ajuda
+
+
+def test_help_without_checkout_prints_usage_and_clones_nothing(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("OPENMONTAGE_DIR", str(tmp_path / "sem-checkout"))
+    monkeypatch.setattr(montage, "clone_openmontage", _proibido)
+    monkeypatch.setattr(montage, "ensure_openmontage_dir", _proibido)
+    code, out, err = run(capsys, "help")
+    assert code == 0 and "simplicio-video montage setup" in out and "montage clone" in out and "Traceback" not in err
+
+
+def test_usage_names_every_registry_command():
+    for cmd in montage.REGISTRY_COMMANDS:
+        assert cmd in montage.USAGE, cmd
+
+
+def test_mcp_help_is_read_only_and_prints_the_usage(om, venv, monkeypatch):
+    ran = []
+    monkeypatch.setattr(montage, "run_child", lambda cmd, **kw: ran.append(cmd) or 0)
+    monkeypatch.setattr(montage, "clone_openmontage", _proibido)
+    r = mcp_server.video_montage("help")
+    assert r["ok"] is True and ran == [] and "simplicio-video montage setup" in r["log"]
+    r = mcp_server.video_montage("help setup")
+    assert r["ok"] is True and ran == [] and "usage: simplicio-video montage setup" in r["log"]

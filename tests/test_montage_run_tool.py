@@ -19,6 +19,7 @@ import errno
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 import time
@@ -284,6 +285,25 @@ def test_cli_dispatch_and_help_with_examples(om, capsys):
     assert e.value.code == 0
     out = capsys.readouterr().out
     assert "exemplos" in out and "--input" in out and "--yes" in out and "--json" in out and "run-tool" in out
+
+
+def test_run_tool_help_names_exactly_the_mcp_allowlist(monkeypatch):
+    monkeypatch.setattr(montage, "MCP_ALLOWLIST", dict(REAL_ALLOWLIST))  # the reviewed list, not this module's fake tools
+    texto = montage._run_tool_parser().description
+    trecho = re.search(r"tool revisada \((.*?)\), local", texto, re.S)
+    assert trecho, "a ajuda do run-tool precisa dizer quais tools o MCP roda"
+    sem_operacoes = re.sub(r"\([^)]*\)", "", trecho.group(1))  # video_trimmer (cut, speed) -> video_trimmer
+    nomes = [n.strip() for n in sem_operacoes.split(",")]
+    assert nomes == ["video_trimmer", "audio_probe", "frame_sampler", "scene_detect"]
+    assert nomes == list(REAL_ALLOWLIST)
+    for name, info in REAL_ALLOWLIST.items():
+        if info.get("operations"):
+            assert f"{name} ({', '.join(info['operations'])})" in trecho.group(1), name
+
+
+def test_run_tool_help_follows_the_allowlist(monkeypatch):
+    monkeypatch.setitem(montage.MCP_ALLOWLIST, "tool_nova", {"outputs": (), "why": "teste"})
+    assert "tool_nova" in montage._run_tool_parser().description
 
 
 def test_cli_dispatch_runs_the_tool(om, src, tmp_path, capsys):
