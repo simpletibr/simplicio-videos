@@ -53,6 +53,11 @@ def test_check_runs_the_local_gate_and_check_full_adds_the_slow_tests():
     full = make("-n", "check-full").stdout
     assert "scripts/check.sh" in full  # check-full = check + the rest
     assert "pytest" in full and "not render" not in full.split("scripts/check.sh", 1)[1]
+    # O `slow` tem de estar na expressão de marcas do pytest do check-full (não no texto do printf, que também o cita).
+    linha_pytest = [ln for ln in full.split("scripts/check.sh", 1)[1].splitlines() if "pytest" in ln]
+    assert linha_pytest, full
+    marcas = re.search(r'-m\s+"([^"]*)"', linha_pytest[-1])
+    assert marcas and "slow" in marcas.group(1).split(), linha_pytest[-1]
 
 
 def test_check_web_succeeds_without_a_web_workspace_and_says_why():

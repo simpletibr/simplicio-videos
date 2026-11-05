@@ -1347,15 +1347,30 @@ def test_export_recusa_sobrescrever_arquivo_com_bytes_diferentes(env, aprovado):
     assert not (dest / "CREDITS-openverse.md").exists()
 
 
-@pytest.mark.slow
-def test_export_recusa_cc_by_sem_autor_ou_sem_licenca(env, aprovado):
-    idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
+def _aprovar_no_indice(env, item_id, **campos):
+    """Muda campos do registro e grava a aprovação para PEDIDO direto no index.json, sem folha e sem ffmpeg (o que
+    `_mudar_e_reaprovar` faz com a folha). O veredito vale para (id, sha256, proveniência): mudar a proveniência pede nova aprovação."""
+    def fn(doc):
+        rec = doc["itens"][item_id]
+        rec.update(campos)
+        doc["revisoes"].append({"id": item_id, "sha256": rec["sha256"], "proveniencia_sha256": ov._proveniencia(rec), "pedido": PEDIDO,
+                                "pedido_normalizado": ov._clean_pedido(PEDIDO)[1], "veredito": "aprovado", "motivo": "conferido",
+                                "por": "revisor", "canal": "terminal", "em": "2026-10-16T12:00:00Z"})
+    _forjar(env, fn)
+
+
+def test_export_recusa_cc_by_sem_autor_ou_sem_licenca(env):
+    item = baixar(env)
+    _aprovar_no_indice(env, item["id"])
+    aprovado_no_indice = (env.lib / "index.json").read_text(encoding="utf8")
+    res = ov.export(item["id"], PEDIDO, para=env.tmp / "ok")  # a linha de base exporta: a recusa abaixo é do campo mudado
+    assert Path(res["creditos"]).is_file()
     dest = env.tmp / "saida"
     for campo, valor in (("autor", None), ("autor", "  "), ("licenca", None), ("licenca", "gpl"), ("licenca_url", None)):
-        (env.lib / "index.json").write_text(json.dumps(idx), encoding="utf8")  # volta ao estado aprovado e muda um campo por vez
-        _mudar_e_reaprovar(env, aprovado["id"], **{campo: valor})
+        (env.lib / "index.json").write_text(aprovado_no_indice, encoding="utf8")  # volta ao estado aprovado e muda um campo por vez
+        _aprovar_no_indice(env, item["id"], **{campo: valor})
         with pytest.raises(ov.OpenverseError, match="atribuição|licença|autor"):
-            ov.export(aprovado["id"], PEDIDO, para=dest)
+            ov.export(item["id"], PEDIDO, para=dest)
     assert not dest.exists() or not list(dest.iterdir())
 
 
