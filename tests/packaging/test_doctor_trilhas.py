@@ -53,14 +53,14 @@ def _clone_voicestudio() -> str:
 FIX_DE_INSTALAR = {
     "openmontage": "simplicio-video montage clone",
     "opencut": "simplicio-video opencut clone",
-    "hypit": "npm install -g @hypit/hypit@0.2.17",
+    "hypit": f"npm install -g @hypit/hypit@{tools.get('hypit').ref}",  # the registry pin, whatever main moves it to
     "toonflow": "simplicio-video toonflow clone",
     "moneyprinter": "simplicio-video moneyprinter clone",
     "matchcut": "simplicio-video matchcut clone",
     "instagram": "simplicio-video instagram clone",
     "rea_video": "simplicio-video rea-video clone",
     "video-use": "simplicio-video edit setup",
-    "tinyfish": "npm install -g @tiny-fish/cli@0.50.1",
+    "tinyfish": f"npm install -g @tiny-fish/cli@{tools.get('tinyfish').ref}",
     "yt-dlp": YTDLP_FETCH,
 }
 
@@ -185,7 +185,7 @@ def monta_saudavel(saude, monkeypatch) -> Path:
     e = saude.caixa
     tools_dir = e.tmp / "tools"
     write_fake_tool(e.bin, "node", "v24.1.0\n")
-    write_fake_tool(e.bin, "tinyfish", "tinyfish 0.50.1\n")
+    write_fake_tool(e.bin, "tinyfish", f"tinyfish {tools.get('tinyfish').ref}\n")
 
     _fixa(monkeypatch, "openmontage", _repo(tools_dir / "openmontage", {"backlot/__init__.py": "# falso\n"}))
     _venv(e.data / "openmontage-data" / "venv")
@@ -429,7 +429,7 @@ def test_checkout_com_git_corrompido_e_falha(ambiente):
 def test_binario_npm_que_nao_roda_e_instalacao_quebrada(ambiente):
     write_fake_tool(ambiente.caixa.bin, "tinyfish", "", rc=1)
     c = _c(_trilha(dt.collect(), "tinyfish"), "instalada")
-    assert c["status"] == "fail" and c["fix"] == "npm install -g @tiny-fish/cli@0.50.1"
+    assert c["status"] == "fail" and c["fix"] == f"npm install -g @tiny-fish/cli@{tools.get('tinyfish').ref}"
 
 
 def test_venv_do_yt_dlp_sem_o_programa_e_falha(ambiente):
@@ -597,7 +597,7 @@ def _rede_em_dia() -> Rede:
             heads[t.source] = tools.effective_ref(t)
     heads[tools.get("opencut").source] = "f" * 40  # upstream moved on: opencut is behind
     return Rede(heads=heads,
-                npm={"@tiny-fish/cli": "0.50.1", "@hypit/hypit": "0.2.17"},
+                npm={"@tiny-fish/cli": tools.get("tinyfish").ref, "@hypit/hypit": tools.get("hypit").ref},
                 pypi={"info": {"version": "2026.10.26"},
                       "urls": [{"packagetype": "bdist_wheel", "filename": "yt_dlp-2026.10.26-py3-none-any.whl",
                                 "digests": {"sha256": "a" * 64}}]})
@@ -626,7 +626,7 @@ def test_online_compara_cada_trilha_com_o_upstream(ambiente, monkeypatch):
     # `update` refuses in a checkout: the way to the upstream commit is the override of this install's pin
     assert up["status"] == "warn" and up["fix"] == f"SIMPLICIO_OPENCUT_REF={'f' * 40} simplicio-video opencut clone"
     assert _c(_trilha(doc, "openmontage"), "upstream")["status"] == "ok"
-    assert _trilha(doc, "tinyfish")["upstream"]["latest"] == "0.50.1"
+    assert _trilha(doc, "tinyfish")["upstream"]["latest"] == tools.get("tinyfish").ref
     assert _c(_trilha(doc, "tinyfish"), "upstream")["status"] == "ok"
     assert _c(_trilha(doc, "hypit"), "upstream")["status"] == "ok"
     assert _c(_trilha(doc, "yt-dlp"), "upstream")["status"] == "ok"
@@ -636,12 +636,12 @@ def test_upstream_mais_novo_no_npm_mostra_o_override_do_pin_e_no_pip_nao_mostra_
     """An npm track moves through the override of its pin; a pip track's pin and sha256 live in tools.py, so there is no command."""
     monta_saudavel(ambiente, monkeypatch)
     rede = _rede_em_dia()
-    rede.npm["@hypit/hypit"] = "0.3.1"
+    rede.npm["@hypit/hypit"] = "0.4.0"  # newer than the registry pin, whatever it is
     rede.pypi = {"info": {"version": "2026.11.01"},
                  "urls": [{"packagetype": "bdist_wheel", "filename": "yt_dlp-2026.11.01-py3-none-any.whl",
                            "digests": {"sha256": "b" * 64}}]}
     doc = dt.collect(online=True, io=rede.io())
-    assert _c(_trilha(doc, "hypit"), "upstream")["fix"] == "SIMPLICIO_HYPIT_REF=0.3.1 npm install -g @hypit/hypit@0.3.1"
+    assert _c(_trilha(doc, "hypit"), "upstream")["fix"] == "SIMPLICIO_HYPIT_REF=0.4.0 npm install -g @hypit/hypit@0.4.0"
     up = _c(_trilha(doc, "yt-dlp"), "upstream")
     assert up["status"] == "warn" and up["fix"] is None and "2026.11.01" in up["summary"]
 

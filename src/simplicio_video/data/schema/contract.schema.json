@@ -134,10 +134,11 @@
         "music": {
           "type": "object", "required": ["gain_db", "fade_in_s", "fade_out_s"],
           "if": { "not": { "required": ["arquivo"] } }, "then": { "required": ["progression"] },
-          "dependentRequired": { "cortes": ["arquivo"], "crossfade_ms": ["cortes"] },
-          "description": "trilha: sem arquivo, a síntese do build.mjs (style, progression, sections, melody...); com arquivo, a trilha de arquivo (arquivo + cortes arranjados com crossfade; voz.ducking aplica o ducking em duas bandas)",
+          "dependentRequired": { "cortes": ["arquivo"], "crossfade_ms": ["cortes"], "openverse": ["arquivo"] },
+          "description": "trilha: sem arquivo, a síntese do build.mjs (style, progression, sections, melody...); com arquivo, a trilha de arquivo (arquivo + cortes arranjados com crossfade; voz.ducking aplica o ducking em duas bandas); com openverse, um áudio da biblioteca do Openverse, com o mesmo portão dos assets",
           "properties": {
-            "arquivo": { "type": "string", "minLength": 1, "description": "trilha de arquivo, relative to the contract (WAV/MP3/FLAC...): substitui a síntese" },
+            "arquivo": { "type": "string", "minLength": 1, "description": "trilha de arquivo, relative to the contract (WAV/MP3/FLAC...): substitui a síntese. Um áudio do Openverse fica em assets/openverse/ e declara o bloco openverse" },
+            "openverse": { "$ref": "#/$defs/asset/properties/openverse", "description": "procedência de um áudio da biblioteca do Openverse como trilha de fundo (o motor arranja, dá volume e faz o ducking dele, então a licença precisa permitir modificação: by-nd e by-nc-nd são recusados). Mesmas regras do asset: revisão aprovada para o pedido, crédito ao lado do MP4" },
             "crossfade_ms": { "type": "number", "minimum": 0, "maximum": 500, "default": 8, "description": "crossfade entre os trechos de cortes (ms); 0 = emenda seca" },
             "cortes": {
               "type": "array", "minItems": 1,
@@ -177,7 +178,7 @@
         "destino": { "type": "string", "pattern": "^assets/", "description": "path inside the composition" },
         "openverse": {
           "type": "object", "additionalProperties": false, "required": ["id", "pedido"],
-          "description": "optional provenance of an image or audio asset that comes from the Openverse library (simplicio-video openverse). The file must be the one `openverse library export <id> --pedido ... --contrato <contrato>` copied to assets/openverse/, next to its CREDITS-openverse.md. validate and render refuse it offline unless the id is in the library, the file has the library's sha256, the verdict for the exact pair (id, sha256, pedido, provenance) is approved, a restricted license was accepted at the export (--aceito-restricao) and the credit line is in CREDITS-openverse.md. A file inside assets/openverse/ without this block is refused. The render records the provenance in render.manifest.json and writes the credits next to the output MP4. The audio engine does not mix an audio asset by itself: only a template or block that references the file plays it.",
+          "description": "optional provenance of an image or audio asset that comes from the Openverse library (simplicio-video openverse). The file must be the one `openverse library export <id> --pedido ... --contrato <contrato>` copied to assets/openverse/, next to its CREDITS-openverse.md. validate and render refuse it offline unless the id is in the library, the file has the library's sha256, the verdict for the exact pair (id, sha256, pedido, provenance) is approved, a restricted license was accepted at the export (--aceito-restricao) and the credit line is in CREDITS-openverse.md. A file inside assets/openverse/ without this block is refused. The render records the provenance in render.manifest.json and writes the credits next to the output MP4. The same block declares the music bed (trilha.music.openverse, #113). An audio asset in assets[] plays only when a template or block references the file: to mix a library track under the voice, declare it as trilha.music.",
           "properties": {
             "id": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", "description": "Openverse id (UUID) of the asset in the local library" },
             "pedido": { "type": "string", "minLength": 1, "maxLength": 500, "description": "what the scene needs from this asset; compared normalized (no accents, lower case, no punctuation) with the request the asset was approved for" }

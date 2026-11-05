@@ -105,6 +105,7 @@ def test_valida_cortes_confere_em_s_e_recusa_erros():
         trilha.valida_cortes([])
 
 
+@pytest.mark.slow
 def test_compile_monta_a_trilha_de_arquivo_e_aponta_o_spec(mini):
     _ffmpeg_ou_pula()
     (mini.parent / "trilha").mkdir()

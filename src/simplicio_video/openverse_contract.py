@@ -1,7 +1,8 @@
 """Openverse assets in a contract: the offline gate behind `validate`, `render` and `openverse library verify`.
 
-A contract asset (`assets[]` or `marca.logo`, image or audio) may declare `openverse: {id, pedido}`. The rules, all offline (no
-network, no LLM, nothing written to the library):
+A contract asset (`assets[]` or `marca.logo`, image or audio) may declare `openverse: {id, pedido}`, and so may the music bed
+(`trilha.music`, audio #113): the same gate, plus a track must be audio and under a license that allows modification (the engine
+arranges and ducks it). The rules, all offline (no network, no LLM, nothing written to the library):
 
 - the asset with the block must sit in an `assets/openverse/` folder (where `library export --contrato` puts it), next to the
   `CREDITS-openverse.md` the export wrote;
@@ -10,6 +11,9 @@ network, no LLM, nothing written to the library):
 - a file inside `assets/openverse/` without the block is refused (nobody skips the gate by copying a file by hand), and so is any
   other asset with the bytes of a library asset; `placas_video[].file` goes through the same check and never carries the block, so a
   library file cannot reach the video as a plate;
+- a music bed (`trilha.music`) without the block is refused while `index.json` exists and does not read: nothing can say whether its
+  source is a library file, and the arranged WAV in the composition does not keep the bytes to check. A library with no `index.json`
+  has no provenance to check and is not blocked.
 - `validate` opens the library only if an asset file exists. The render also compares the COMPILED composition with the library
   (`check_workdir`, after the compile, over the sha256 of every file the render will read): a file with the bytes of a library asset
   must be the `destino` of an approved, declared asset, and every declared `destino` must hold exactly the approved bytes. That
@@ -29,9 +33,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import openverse as ov
+from . import trilha
 
 CREDITS_SUFFIX = ".CREDITS-openverse.md"
 BLOCK_HINT = 'openverse: {id: <uuid do ativo>, pedido: "<o que a cena precisa>"}'
+TRILHA_HINT = 'trilha.music.openverse: {id: <uuid do ativo>, pedido: "<o que a trilha precisa>"}'
+TRILHA_DIR = "assets/audio/trilha/"  # where the compiler writes the music bed (its approved copy and the arranged WAV)
 
 
 @dataclass
@@ -42,9 +49,10 @@ class Verification:
 
 
 def declared_assets(c) -> list[dict]:
-    """The files the contract copies into the composition, in contract order: `assets[]` and `marca.logo` (they may carry the block)
-    and `placas_video[].file` (marked `placa`; a plate never carries the block, so the block is never read from it). The contract may
-    not be schema-valid yet."""
+    """The files the contract copies into the composition, in contract order: `assets[]` and `marca.logo` (they may carry the block),
+    `placas_video[].file` (marked `placa`; a plate never carries the block, so the block is never read from it) and the music bed
+    `trilha.music.arquivo` (marked `trilha`; its `destino` is the approved copy the compiler puts in the composition, only with the
+    block). The contract may not be schema-valid yet."""
     d = c.data
     out = [a for a in d.get("assets") or [] if isinstance(a, dict) and isinstance(a.get("arquivo"), str)]
     logo = (d.get("marca") or {}).get("logo")
@@ -53,7 +61,27 @@ def declared_assets(c) -> list[dict]:
     for slot in d.get("placas_video") or []:
         if isinstance(slot, dict) and isinstance(slot.get("file"), str):
             out.append({"arquivo": slot["file"], "destino": slot["file"], "placa": str(slot.get("id"))})
+    music = (d.get("trilha") or {}).get("music")
+    if isinstance(music, dict) and isinstance(music.get("arquivo"), str):
+        out.append({"arquivo": music["arquivo"], "destino": trilha.origem_destino(music), "openverse": music.get("openverse"), "trilha": True})
     return out
+
+
+def _trilha_erros(prov: dict) -> list[str]:
+    """What only a music bed needs (trilha.music.openverse): audio, and a license that lets the engine arrange and duck the track
+    (the bed is a derivative made on disk in the build; by-nd and by-nc-nd do not allow it, AGENTS.md)."""
+    if prov["tipo"] != "audio":
+        return [f"trilha.music: o ativo é {ov.TIPO_PT.get(prov['tipo'], prov['tipo'])}, e a trilha de fundo precisa de um áudio da biblioteca"]
+    licenca = ov._licenses()[prov["licenca"]]  # verify_asset already refused a license outside the table
+    rotulo = ov.license_label(prov["licenca"], prov["licenca_versao"])
+    aceitas = ", ".join(r["nome"] for r in ov._licenses().values() if r["permite_modificacao"] and r["uso_comercial"])
+    if not licenca["permite_modificacao"]:
+        return [f"trilha.music: a licença {rotulo} não permite modificação, e o motor arranja e dá ducking na trilha; use um áudio com licença "
+                f"que permite modificar e tem uso comercial ({aceitas}; as que têm restrição pedem o aceite no export)"]
+    if not licenca["uso_comercial"]:  # AGENTS.md: só com uso comercial claro; o aceite do export não libera uma trilha de vídeo de cliente
+        return [f"trilha.music: a licença {rotulo} não é de uso comercial, e a trilha vai a um vídeo comercial: o aceite do export não libera "
+                f"isso; use um áudio de uso comercial ({aceitas})"]
+    return []
 
 
 def _folded(part: str) -> str:
@@ -74,12 +102,27 @@ def in_openverse_dir(path: Path, base: Path) -> bool:
 
 
 def _result(a: dict, bloco) -> dict:
-    return {"arquivo": a["arquivo"], "destino": a.get("destino"), "declarado": bloco is not None, "ok": False, "erros": [], "proveniencia": None}
+    return {"arquivo": a["arquivo"], "destino": a.get("destino"), "declarado": bloco is not None, "trilha": bool(a.get("trilha")),
+            "ok": False, "erros": [], "proveniencia": None}
 
 
 def _placa_msg(a: dict, motivo: str) -> str:
     return (f"placas_video[{a['placa']}].file: {motivo}; uma placa de vídeo não aceita o bloco nem passa pelo portão: declare em assets[] com o "
             f"bloco openverse ({BLOCK_HINT}) e use o ativo pela composição, não como placa")
+
+
+def _link_nota(c, a: dict) -> str:
+    """The declared path is a symbolic link: the folder test looks where the link points, so the plain message would name the wrong cause."""
+    return (" (o caminho é um link simbólico: o arquivo de verdade está em outro lugar; use a cópia que o export grava, não um link)"
+            if (c.dir / a["arquivo"]).is_symlink() else "")
+
+
+def _trilha_sem_bloco(falha: str) -> list[str]:
+    """A music bed without the block while the index of provenance EXISTS and does not read (`falha`): nothing says whether its file is a
+    library asset, and the arranged WAV in the composition would not show it, so it is refused. A library with no index.json has no
+    provenance to check and is not blocked (verify does not get here: there is no `falha`)."""
+    return [f"trilha.music: sem o bloco openverse, e o índice de procedência da biblioteca não lê ({falha}): não dá para conferir se o áudio "
+            f"veio da biblioteca; repare o índice de procedência da biblioteca, ou declare {TRILHA_HINT} com o ativo aprovado"]
 
 
 def verify(c) -> Verification:
@@ -105,16 +148,21 @@ def verify(c) -> Verification:
                 res["erros"].append(_placa_msg(a, "o arquivo está em assets/openverse/ e a placa não declara a procedência"))
             else:
                 res["erros"].append(f"o arquivo está em assets/openverse/ mas o asset não declara o bloco openverse (id e pedido): declare {BLOCK_HINT}; "
-                                    "sem a procedência e a revisão aprovada para o pedido, o ativo não entra no vídeo")
+                                    "sem a procedência e a revisão aprovada para o pedido, o ativo não entra no vídeo" + _link_nota(c, a))
         elif bloco is not None and not no_dir:
             res["erros"].append("o asset declara o bloco openverse mas o arquivo não está em assets/openverse/: use o arquivo que o "
-                                "`simplicio-video openverse library export <id> --pedido ... --contrato <contrato>` copiou, ao lado do CREDITS-openverse.md")
+                                "`simplicio-video openverse library export <id> --pedido ... --contrato <contrato>` copiou, ao lado do CREDITS-openverse.md"
+                                + _link_nota(c, a))
         elif falha is not None:
             if bloco is not None:
                 res["erros"].append(falha)
+            elif a.get("trilha"):  # a music bed without the block cannot be checked against the library: it is refused, not warned
+                res["erros"] += _trilha_sem_bloco(falha)
         else:
             r = ov.verify_asset(p, bloco, idx=idx)
             res.update(ok=r["ok"], erros=[_placa_msg(a, e) for e in r["erros"]] if placa else r["erros"], proveniencia=r["proveniencia"])
+            if a.get("trilha") and bloco is not None and r["ok"]:  # a trilha de fundo da biblioteca: áudio e licença que permite o arranjo
+                res["erros"] = res["erros"] + _trilha_erros(r["proveniencia"])
         res["ok"] = res["ok"] and not res["erros"]
         if bloco is not None or no_dir or res["erros"]:
             ver.ativos.append(res)
@@ -151,9 +199,11 @@ def check_workdir(c, files: dict, ver: Verification | None = None) -> list[str]:
     for rel, sha in sorted(files.items()):
         if sha in por_sha and (rel, sha) not in approved:
             ativo = por_sha[sha] or "(índice ilegível, id desconhecido)"
+            conserto = (f"declare o áudio na trilha de fundo ({TRILHA_HINT})" if rel.startswith(TRILHA_DIR)
+                        else f"declare o ativo em assets[] com o bloco openverse ({BLOCK_HINT})")
             errors.append(f"{rel} tem os mesmos bytes do ativo {ativo} da biblioteca do Openverse, mas não é o destino de nenhum asset com o bloco "
-                          f"openverse aprovado: o arquivo veio de uma pasta de template, de uma placa ou de uma cópia à mão; declare o ativo em assets[] "
-                          f"com o bloco openverse ({BLOCK_HINT}) ou tire o arquivo da composição")
+                          f"openverse aprovado: o arquivo veio de uma pasta de template, de uma placa ou de uma cópia à mão; {conserto} "
+                          "ou tire o arquivo da composição")
     return errors
 
 
@@ -180,7 +230,8 @@ def deliver(c, dst: Path, files: dict) -> dict | None:
     ativos = [a for a in ver.ativos if a["declarado"]]
     if not ativos:
         return None
-    texto = ov.credits_markdown([(a["proveniencia"]["id"], a["proveniencia"]["sha256"]) for a in ativos])
+    modificados = {(a["proveniencia"]["id"], a["proveniencia"]["sha256"]) for a in ativos if a.get("trilha")}  # the music bed is arranged
+    texto = ov.credits_markdown([(a["proveniencia"]["id"], a["proveniencia"]["sha256"]) for a in ativos], modificados=modificados)
     path = credits_path(Path(dst))
     ov._atomic_write(path, texto)  # mkstemp + os.replace: a link planted at this name is replaced, not followed
     os.chmod(path, 0o644)  # mkstemp makes it 0600; the credits are a normal file next to the MP4

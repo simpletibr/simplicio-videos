@@ -325,6 +325,7 @@ def test_exit_code_is_a_failure_and_stderr_comes_back(mc):
     assert res["codigo_saida"] == 3 and res["resultado"] is False and "falhou" in res["stderr"]
 
 
+@pytest.mark.slow
 def test_a_script_that_runs_too_long_is_killed(mc, monkeypatch):
     mc.rewrite("scripts/music.py", "import time\ntime.sleep(60)\n")
     monkeypatch.setattr(matchcut, "TIMEOUT_S", {**matchcut.TIMEOUT_S, "music": 1})

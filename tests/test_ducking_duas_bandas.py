@@ -44,10 +44,13 @@ def _delta(entrada, saida, t0, banda):
     return potencia_banda_db(saida, SR, t0, *banda, n=N_FFT) - potencia_banda_db(entrada, SR, t0, *banda, n=N_FFT)
 
 
-@pytest.fixture
-def cenario(tmp_path):
-    """Trilha de tons por banda (12 s, estéreo) e voz de tom em 4-8 s; roda trilha.aplica_ducking."""
+@pytest.fixture(scope="module")
+def cenario(tmp_path_factory):
+    """Trilha de tons por banda (12 s, estéreo) e voz de tom em 4-8 s; roda trilha.aplica_ducking.
+
+    Um cenário por módulo: os testes só leem a saída (cada um confere um trecho), então o ducking não roda três vezes."""
     _ffmpeg_ou_pula()
+    tmp_path = tmp_path_factory.mktemp("ducking")
     n = 12 * SR
     trilha_wav = tmp_path / "trilha.wav"
     faixa = tons(n, SR, COMPONENTES_TRILHA)
@@ -106,6 +109,7 @@ def _rms_db(x, sr, t0, t1):
     return 10 * math.log10(sum(v * v for v in seg) / len(seg))
 
 
+@pytest.mark.slow
 def test_prepara_aplica_o_ducking_so_na_janela_da_fala(mini, tmp_path):
     """Compilador: a janela vem do timing.lock.json. Dentro da fala o tom de 100 Hz cai 2.5 dB; fora, a saída é igual à da trilha sem ducking."""
     _ffmpeg_ou_pula()

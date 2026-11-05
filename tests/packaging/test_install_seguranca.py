@@ -606,6 +606,7 @@ def test_tres_installs_ao_mesmo_tempo_deixam_todas_as_entradas_no_recibo(tmp_pat
 
 
 @posix_real
+@pytest.mark.slow
 def test_tres_processos_instalam_ao_mesmo_tempo_sem_orfaos(tmp_path):
     import subprocess
     import sys

@@ -115,6 +115,7 @@ def test_padrao_e_quatro():
     assert voice.DEFAULT_CONCURRENCY == 4
 
 
+@pytest.mark.slow
 def test_lock_identico_serial_e_paralelo(mini, tmp_path, api):
     a, b = copia(mini, tmp_path, "a"), copia(mini, tmp_path, "b")
     run(a, concurrency=1)
@@ -130,18 +131,21 @@ def test_lock_identico_serial_e_paralelo(mini, tmp_path, api):
     assert [lock["lines"][f"vo{i}"]["tts"]["usage"]["total_output_tokens"] for i in range(1, N + 1)] == list(range(1, N + 1))
 
 
+@pytest.mark.slow
 def test_padrao_usa_quatro_em_voo(mini, api):
     c = make_contract(mini)
     run(c)
     assert api.max_in_flight == 4
 
 
+@pytest.mark.slow
 def test_concurrency_limita(mini, api):
     c = make_contract(mini)
     run(c, concurrency=2)
     assert api.max_in_flight == 2
 
 
+@pytest.mark.slow
 def test_cache_nao_chama_o_provedor(mini, api):
     c = make_contract(mini)
     first = run(c, concurrency=4)
@@ -152,6 +156,7 @@ def test_cache_nao_chama_o_provedor(mini, api):
     assert {k: v["sha256"] for k, v in again["lines"].items()} == {k: v["sha256"] for k, v in first["lines"].items()}
 
 
+@pytest.mark.slow
 def test_ids_em_only_so_refazem_esses(mini, api):
     """Comportamento que já existia no serial: `only` sem force refaz só esses ids (force sozinho refaz tudo)."""
     c = make_contract(mini)
@@ -161,6 +166,7 @@ def test_ids_em_only_so_refazem_esses(mini, api):
     assert sorted(api.calls) == ["fala numero 2", "fala numero 5"]
 
 
+@pytest.mark.slow
 def test_force_sem_ids_refaz_tudo(mini, api):
     c = make_contract(mini)
     run(c, concurrency=4)
@@ -169,6 +175,7 @@ def test_force_sem_ids_refaz_tudo(mini, api):
     assert len(api.calls) == N
 
 
+@pytest.mark.slow
 def test_cache_parcial_so_gera_o_que_falta(mini, api):
     c = make_contract(mini)
     run(c, concurrency=1)
@@ -179,6 +186,7 @@ def test_cache_parcial_so_gera_o_que_falta(mini, api):
     assert api.calls == ["fala numero 3"]
 
 
+@pytest.mark.slow
 def test_falha_de_uma_fala_aponta_a_fala_e_nao_grava_lock(mini, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyFAKE-KEY-for-tests-0000000000")
     g = Gemini(delay=0.02, reverse=False, fail_on=3)
@@ -223,6 +231,7 @@ def test_provedor_local_nao_cria_threads(mini, monkeypatch):
     assert lock["lines"]["vo1"]["fits"]
 
 
+@pytest.mark.slow
 def test_cli_aceita_concurrency(mini, api, capsys):
     from simplicio_video import cli
     c = make_contract(mini, n=2, max_s=0.4)
@@ -236,6 +245,7 @@ def test_cli_concurrency_invalida(mini):
         cli.main(["voice", str(mini), "--concurrency", "0"])
 
 
+@pytest.mark.slow
 def test_dentro_de_um_loop_ja_rodando(mini, api):
     import asyncio
     c = make_contract(mini)
@@ -248,6 +258,7 @@ def test_dentro_de_um_loop_ja_rodando(mini, api):
 
 # ---------------------------------------------------------------- I2: falha no meio não faz a próxima rodada pagar tudo de novo
 
+@pytest.mark.slow
 def test_i2_depois_de_uma_falha_a_proxima_rodada_so_paga_o_que_falta(mini, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyFAKE-KEY-for-tests-0000000000")
     g1 = Gemini(delay=0.02, reverse=False, fail_on=N)
@@ -264,6 +275,7 @@ def test_i2_depois_de_uma_falha_a_proxima_rodada_so_paga_o_que_falta(mini, monke
     assert f"fala numero {N}" in g2.calls
 
 
+@pytest.mark.slow
 def test_i2_resultado_do_serial_e_do_paralelo_apos_falha_e_o_mesmo(mini, tmp_path, monkeypatch):
     """No serial a nova rodada faz 1 chamada (as 5 primeiras já estavam no cache); o paralelo não pode fazer mais."""
     monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyFAKE-KEY-for-tests-0000000000")
@@ -281,6 +293,7 @@ def test_i2_resultado_do_serial_e_do_paralelo_apos_falha_e_o_mesmo(mini, tmp_pat
     assert total[4] <= total[1] == 1
 
 
+@pytest.mark.slow
 def test_m3_erro_reportado_e_o_da_fala_de_menor_indice(mini, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyFAKE-KEY-for-tests-0000000000")
     g = Gemini(delay=0.03, reverse=True, fail_on={2, 5})  # a fala 5 falha primeiro, a 2 depois

@@ -53,6 +53,11 @@ def test_check_runs_the_local_gate_and_check_full_adds_the_slow_tests():
     full = make("-n", "check-full").stdout
     assert "scripts/check.sh" in full  # check-full = check + the rest
     assert "pytest" in full and "not render" not in full.split("scripts/check.sh", 1)[1]
+    # O `slow` tem de estar na expressão de marcas do pytest do check-full (não no texto do printf, que também o cita).
+    linha_pytest = [ln for ln in full.split("scripts/check.sh", 1)[1].splitlines() if "pytest" in ln]
+    assert linha_pytest, full
+    marcas = re.search(r'-m\s+"([^"]*)"', linha_pytest[-1])
+    assert marcas and "slow" in marcas.group(1).split(), linha_pytest[-1]
 
 
 def test_check_web_succeeds_without_a_web_workspace_and_says_why():
@@ -61,8 +66,15 @@ def test_check_web_succeeds_without_a_web_workspace_and_says_why():
     assert "#34" in r.stdout
 
 
-def test_regen_with_nothing_to_regenerate_succeeds():
-    r = make("regen")
+@pytest.mark.slow
+def test_regen_with_nothing_to_regenerate_succeeds(tmp_path):
+    # `make regen` rewrites docs/reference, the blocks of README and AGENTS, and docs/licenses.md inside the tree it runs in. It runs
+    # in a copy so the test never writes the checkout (the docs tests read those files, possibly at the same time).
+    copia = tmp_path / "repo"
+    shutil.copytree(ROOT, copia, ignore=shutil.ignore_patterns(".git", ".venv", "tests", "clients", "prospects", "node_modules",
+                                                               "__pycache__", "*.egg-info", "build", "dist"))
+    env = clean_env(PYTHONPATH=str(copia / "src"))
+    r = make("regen", f"PYTHON={sys.executable}", cwd=copia, env=env)
     assert r.returncode == 0, r.stderr
 
 

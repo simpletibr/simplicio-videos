@@ -204,6 +204,7 @@ def _tamanhos_video(mp4):
     return [int(x) for x in out.split()]
 
 
+@pytest.mark.slow
 def test_master_sh_aplica_o_perfil_master_no_mp4_final(tmp_path):
     _node_e_ffmpeg_ou_pula()
     mp4 = _rodar_master(_workdir_com_raw(tmp_path, perfis.args_saida("master")), "perfil.args")
@@ -218,6 +219,7 @@ def test_master_sh_aplica_o_perfil_master_no_mp4_final(tmp_path):
     assert dados.index(b"moov") < dados.index(b"mdat"), "+faststart: moov antes de mdat"
 
 
+@pytest.mark.slow
 def test_master_sh_aplica_o_perfil_lite_no_mp4_final(tmp_path):
     _node_e_ffmpeg_ou_pula()
     wd = _workdir_com_raw(tmp_path, perfis.args_saida("lite"))
@@ -229,6 +231,7 @@ def test_master_sh_aplica_o_perfil_lite_no_mp4_final(tmp_path):
     assert 0.9 * 192 <= _kbps_audio(mp4) <= 1.1 * 192
 
 
+@pytest.mark.slow
 def test_master_sh_sem_perfil_mantem_o_caminho_anterior(tmp_path):
     """Sem o terceiro argumento o master.sh faz o que fazia antes: vídeo copiado e AAC 192k (bundles antigos)."""
     _node_e_ffmpeg_ou_pula()

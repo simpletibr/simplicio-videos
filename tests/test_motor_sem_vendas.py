@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import os
 import re
 import subprocess
 import sys
@@ -78,8 +79,18 @@ def test_help_principal_nao_lista_subcomandos_de_venda():
 
 
 @pytest.mark.parametrize("sub", MOTOR)
-def test_help_do_subcomando_motor_nao_cita_venda(sub):
-    r = run_cli(sub, "--help")
+def test_help_do_subcomando_motor_nao_cita_venda(sub, tmp_path):
+    env = offline_env()
+    if sub == "clone":
+        # `clone --help` runs Hypit's help through `npx --yes @hypit/hypit@<pin>` when no `hypit` is on PATH, and npx goes to the
+        # registry on a cold cache (the socket guard does not reach the child). A `hypit` on PATH wins over npx, so the wrapper is
+        # what this test checks, offline and without the download.
+        fake = tmp_path / "bin" / "hypit"
+        fake.parent.mkdir()
+        fake.write_text(f"#!{sys.executable}\nprint('Uso: hypit [opções]  (ajuda do fingido)')\n", encoding="utf-8")
+        fake.chmod(0o755)
+        env["PATH"] = str(fake.parent) + os.pathsep + env.get("PATH", "")
+    r = subprocess.run([sys.executable, "-m", "simplicio_video", sub, "--help"], capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stderr
     for nome in VENDAS:
         assert f"simplicio-video {nome}" not in r.stdout, f"{sub} --help cita {nome!r}"

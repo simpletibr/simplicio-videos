@@ -101,6 +101,9 @@ MAX_TITLE_CHARS, MAX_AUTHOR_CHARS, MAX_ATTRIBUTION_CHARS, MAX_URL_CHARS = 300, 3
 URL_RE = re.compile(r"https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z][A-Za-z0-9-]{1,62}(?::\d{1,5})?"
                     r"(?:[/?#][^\s<>()\[\]{}`\"'\\|^*]*)?")
 LICENSE_URL_RE = re.compile(r"https://creativecommons\.org/(?:licenses/[a-z]+(?:-[a-z]+)*|publicdomain/(?:zero|mark))/\d{1,2}(?:\.\d{1,2})?/(?:deed(?:\.[A-Za-z_-]{2,8})?)?")
+LICENSE_SLUG_RE = re.compile(r"https://creativecommons\.org/(?:licenses/([a-z]+(?:-[a-z]+)*)|publicdomain/(zero|mark))/")
+_PD_SLUG = {"zero": "cc0", "mark": "pdm"}  # the public-domain links name the tool, not the license id
+TRILHA_NOTA = "áudio modificado/adaptado pelo simplicio-video (cortes, crossfade, filtro, ducking)"  # the credit of a music bed (#113, CC BY 4.0 §3)
 EXPORT_NAME_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*\.(?:jpg|png|gif|webp|wav|ogg|flac|mp3|m4a)")  # <slug>-<sha8>.<ext>, as export_name builds it
 _SECRET_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_])(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
                              r"eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AQ\.[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._-]{16,})")
@@ -160,6 +163,12 @@ def parse_licenses(text) -> tuple[list[str], list[str]]:
     ordered = [lic for lic in LICENSE_ORDER if lic in pieces]
     table = _licenses()
     return ordered, [f"{lic}: {table[lic]['aviso']}" for lic in ordered if table[lic].get("aviso")]
+
+
+def _license_slug(url) -> str | None:
+    """The license id a creativecommons.org link names: `by-sa` for /licenses/by-sa/<v>/, `cc0` and `pdm` for the public-domain links."""
+    m = LICENSE_SLUG_RE.match(url or "")
+    return None if m is None else (m.group(1) or _PD_SLUG[m.group(2)])
 
 
 def license_label(lic: str | None, versao: str | None) -> str:
@@ -1081,7 +1090,7 @@ def _credit_marker(rec: dict) -> str:
     return f"id `{rec['id']}`, sha256 `{rec['sha256']}`, licença {_md(license_label(rec.get('licenca'), rec.get('licenca_versao')))}"
 
 
-def _credit_line(rec: dict, nome: str) -> str:
+def _credit_line(rec: dict, nome: str, modificado: bool = False) -> str:
     if not EXPORT_NAME_RE.fullmatch(str(nome)):
         raise OpenverseError(f"nome de arquivo fora do padrão <titulo>-<sha8>.<ext> no crédito: {str(nome)[:60]!r}")
     autor = _md(rec.get("autor"), MAX_AUTHOR_CHARS)
@@ -1090,8 +1099,14 @@ def _credit_line(rec: dict, nome: str) -> str:
     label = _md(license_label(rec.get("licenca"), rec.get("licenca_versao")))
     licenca_url = _license_url(rec.get("licenca_url"))
     lic = f"[{label}]({licenca_url})" if licenca_url else label
+    extra = ""
+    if modificado:  # a music bed is arranged by the engine: CC BY 4.0 §3(a)(1)(B) asks to say so; a restrictive license repeats its notice
+        aviso = _licenses().get(rec.get("licenca") or "", {}).get("aviso")
+        extra = f" Trilha de fundo: {TRILHA_NOTA}."
+        if aviso:
+            extra += f" Aviso da licença: {_md(aviso, MAX_TEXT_CHARS)}"
     return (f'- `{nome}`: "{_md(rec.get("titulo")) or "(sem título)"}" por {autor_txt}, licença {lic}. '
-            f'Origem: {_safe_url(rec.get("origem_url")) or "não informada"}. {_credit_marker(rec)}.')
+            f'Origem: {_safe_url(rec.get("origem_url")) or "não informada"}.{extra} {_credit_marker(rec)}.')
 
 
 CREDITS_HEADER = (
@@ -1122,6 +1137,10 @@ def _check_export_rights(rec: dict, aceito_restricao: bool) -> None:
     if not _license_url(rec.get("licenca_url")):
         raise OpenverseError("recusado: a URL da licença do registro está ausente ou não é uma página de licença do creativecommons.org "
                              "(https://creativecommons.org/licenses/<tipo>/<versão>/): ela é necessária para o crédito")
+    slug = _license_slug(rec.get("licenca_url"))
+    if slug != lic:  # the id and the link are both checked: a `by` record with the link of by-nd is not a coherent record
+        raise OpenverseError(f"recusado: a licença do registro é {lic}, mas a URL da licença ({rec.get('licenca_url')}) é de {slug}: "
+                             f"o registro não é coerente; confira na origem ({rec.get('origem_url') or 'sem origem'})")
     if table[lic]["atribuicao_obrigatoria"] and not (rec.get("autor") or "").strip():
         raise OpenverseError(f"recusado: a licença {license_label(lic, rec.get('licenca_versao'))} exige atribuição e o autor não está registrado; "
                              f"confira o autor na origem ({rec.get('origem_url')})")
@@ -1202,9 +1221,10 @@ def credits(para=None) -> dict:
     return {"itens": [{k: v for k, v in i.items() if k != "linha"} for i in itens], "markdown": CREDITS_HEADER + corpo + "\n"}
 
 
-def credits_markdown(pares, idx: dict | None = None) -> str:
+def credits_markdown(pares, idx: dict | None = None, modificados=frozenset()) -> str:
     """The credits text of one video: the header and the credit line of each asset given as (id, sha256), once each, in order.
-    Built from the index record (never from the user-editable CREDITS file), so it carries the same sanitizing as the export."""
+    Built from the index record (never from the user-editable CREDITS file), so it carries the same sanitizing as the export.
+    `modificados`: the (id, sha256) pairs the engine changed (the music bed); their line says so."""
     idx = idx if idx is not None else _load_index()
     linhas: list[str] = []
     vistos: set[tuple] = set()
@@ -1214,21 +1234,17 @@ def credits_markdown(pares, idx: dict | None = None) -> str:
             raise OpenverseError(f"o ativo {id_} (sha256 {str(sha)[:12]}) não está na biblioteca com esses bytes: não há crédito a gravar")
         if (id_, sha) not in vistos:
             vistos.add((id_, sha))
-            linhas.append(_credit_line(rec, export_name(rec)))
+            linhas.append(_credit_line(rec, export_name(rec), modificado=(id_, sha) in modificados))
     return CREDITS_HEADER + "\n".join(linhas) + "\n"
 
 
 # ---------------------------------------------------------------------------------------------------------- the gate behind validate/render
 
-def _library_sizes(idx: dict) -> set[int]:
-    """Sizes of the library files the index points at: a candidate file with another size cannot have their bytes, so it is not hashed."""
-    tamanhos = set()
-    for rec in idx["itens"].values():
-        try:
-            tamanhos.add((library_dir() / rec["arquivo"]).stat().st_size)
-        except OSError:
-            continue  # a missing library file is reported by its own check, not here
-    return tamanhos
+def _pode_ser_da_biblioteca(idx: dict, arquivo: Path) -> bool:
+    """Size first, so big files are not hashed for nothing: the sizes come from the index (`tamanho_bytes`, kept from the download), not
+    from files/, so a library file that is gone from the folder still counts. A record without a size makes every candidate a candidate."""
+    tamanhos = [rec.get("tamanho_bytes") for rec in idx["itens"].values()]
+    return None in tamanhos or arquivo.stat().st_size in tamanhos
 
 
 def library_hashes(idx: dict | None) -> dict:
@@ -1263,7 +1279,7 @@ def verify_asset(arquivo, bloco=None, idx: dict | None = None) -> dict:
         return res
     if bloco is None:
         ids = []
-        if idx["itens"] and arquivo.stat().st_size in _library_sizes(idx):  # hash only what could be a library file (size first)
+        if idx["itens"] and _pode_ser_da_biblioteca(idx, arquivo):  # hash only what could be a library file (size first, from the index)
             sha = sha256_file(arquivo)
             ids = sorted(k for k, r in idx["itens"].items() if r["sha256"] == sha)
         if ids:

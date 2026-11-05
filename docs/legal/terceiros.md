@@ -41,7 +41,7 @@ Estas ferramentas não são redistribuídas pelo repositório. O CLI as invoca c
 | video-use (browser-use) | Programa externo, MIT. **Não empacotado**: `edit setup` clona o upstream no commit fixado `b877063` para o cache. Os arquivos do wrapper (`setup.sh`, `transcribe_local.py`, `edl_transcript.py`) são deste repositório. |
 | rea-video (JuneYaooo) | MIT, declarada no `pyproject.toml` do upstream; o commit fixado `36e02dd` não traz arquivo LICENSE. **Não empacotado**: `rea-video clone` baixa o commit fixado, e `rea-video setup` instala as dependências num venv próprio. |
 | yt-dlp | Unlicense. **Não empacotado** no pacote do motor: `media fetch` instala o wheel fixado por sha256 num venv próprio, no cache do usuário. |
-| TinyFish CLI (`@tiny-fish/cli`) | Não declara licença no pacote npm (sem campo `license` e sem arquivo LICENSE, lido em 2026-10-16). **Não empacotado**: o usuário instala o binário, e o motor só o chama. |
+| TinyFish CLI (`@tiny-fish/cli`) | Não declara licença no pacote npm (sem campo `license` e sem arquivo LICENSE, lido em 2026-11-05 na 0.57.0). **Não empacotado**: o usuário instala o binário, e o motor só o chama. |
 | Postiz | Programa externo, AGPL. Não empacotado. |
 
 A checagem de importação em `scripts/licenses.py --imports` reprova código Python que importe OpenMontage, VoiceStudio ou Postiz.
