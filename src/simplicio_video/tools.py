@@ -34,6 +34,10 @@ class ToolError(Exception):
     pass
 
 
+class GitTimeout(ToolError):
+    """A git that did not answer in time: it says nothing about the repository (a hang is transient)."""
+
+
 def _video_use_pin() -> str:
     """The pin of video-use: VU_REF of the packaged setup.sh, the file that `edit setup` runs (the single source of it)."""
     text = (paths.DATA_DIR / "tools" / "video-use" / "setup.sh").read_text(encoding="utf8")
@@ -204,7 +208,10 @@ def effective_pip(t: Tool) -> tuple[str, str, str]:
 
 
 def tools_dir() -> Path:
-    return Path(os.environ.get("SIMPLICIO_TOOLS_DIR") or Path.home() / ".simplicio-video" / "tools").expanduser()
+    """$SIMPLICIO_TOOLS_DIR, else ~/.simplicio-video/tools under hostos.home_absoluta() (HOME, then USERPROFILE). Without a usable
+    home it raises hostos.SemCasa: the clones never land in the folder you are in."""
+    explicito = os.environ.get("SIMPLICIO_TOOLS_DIR")
+    return Path(explicito).expanduser() if explicito else hostos.home_absoluta() / ".simplicio-video" / "tools"
 
 
 def checkout_dir(t: Tool) -> Path:
@@ -215,11 +222,19 @@ def checkout_dir(t: Tool) -> Path:
     return Path(env).expanduser() if env else tools_dir() / t.name
 
 
-def _git(*args: str, cwd: Path | None = None) -> str:
+def _git(*args: str, cwd: Path | None = None, timeout: float | None = None) -> str:
+    """One git command. With `timeout` (seconds) a git that hangs is a ToolError and its whole process tree is killed; without it
+    the command runs as long as it takes (a clone)."""
     git = shutil.which("git")
     if not git:
         raise ToolError("git não encontrado no PATH")
-    r = subprocess.run([git, *args], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    if timeout is None:
+        r = subprocess.run([git, *args], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    else:
+        try:
+            r = hostos.run_limitado([git, *args], cwd=cwd, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise GitTimeout(f"git {' '.join(args[:2])}: tempo esgotado ({timeout:g} s)") from None
     if r.returncode:
         raise ToolError(f"git {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
     return r.stdout.strip()
@@ -310,17 +325,45 @@ def _install_pip(t: Tool) -> str:
     """A pip tool at the version in use (the lock's, when followed; the registry's otherwise), with its sha256 checked."""
     version, digest, source = effective_pip(t)
     if source == "override" and version != t.ref:
-        raise ToolError(f"{t.name}: o override de versão ({version}) não tem hash neste registro; a versão e o sha256 andam juntos em tools.py")
+        raise ToolError(f"{t.name}: o override de versão (SIMPLICIO_{t.name.upper()}_REF) não tem hash neste registro; a versão e o sha256 andam juntos em tools.py")
     return install_pip_version(t, version, digest)
+
+
+_NPM_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]{1,40})?")  # the pattern of tools_update._NPM_VERSION (copied: it imports us)
+
+
+def _ref_de_instalacao(t: Tool) -> str:
+    """The commit (git) or the version (npm) that install() passes to the program. It is checked first, with the pattern the lock uses,
+    so that an override such as `--force` never reaches git or npx as an option (a checkout with it would discard local edits). The
+    message does not show the value: it may be a token typed by mistake."""
+    ref = effective_ref(t)
+    if t.kind == "git":
+        valido = tools_lock._GIT_REF.fullmatch(ref)
+    elif t.kind == "npm":
+        valido = _NPM_VERSION.fullmatch(ref)
+    else:
+        return ref  # pip: effective_pip checks the version against the registry before anything runs
+    if not valido:
+        raise ToolError(f"{t.name}: o commit ou a versão em uso não é válido (SIMPLICIO_{t.name.upper()}_REF ou o lock); "
+                        "recuso sem rodar o git nem o npm")
+    return ref
 
 
 def install(name: str) -> str:
     """Install a tool at its pinned version. Git tools are cloned and checked out at the pinned commit; npm tools are
-    fetched into the npx cache; pip tools get a venv with the pinned wheel. Returns where it lives."""
+    fetched into the npx cache; pip tools get a venv with the pinned wheel. Returns where it lives. Without a usable home
+    there is nowhere to put a checkout: a refusal (ToolError), before any folder is made."""
+    try:
+        return _install(name)
+    except hostos.SemCasa as exc:
+        raise ToolError(str(exc)) from None
+
+
+def _install(name: str) -> str:
     t = get(name)
-    ref = effective_ref(t)
     if t.kind == "pip":
         return _install_pip(t)
+    ref = _ref_de_instalacao(t)
     if t.kind == "npm":
         npx = shutil.which("npx")
         if not npx:
@@ -347,7 +390,8 @@ def npm_command(name: str) -> list[str]:
     npx = shutil.which("npx")
     if not npx:
         raise ToolError(f"nem `{t.name}` nem `npx` foram encontrados no PATH. Instale o Node (>= 22.15).")
-    return [npx, "--yes", f"{t.source}@{effective_ref(t)}"]
+    ref = _ref_de_instalacao(t)
+    return [npx, "--yes", f"{t.source}@{ref}"]
 
 def command(t: Tool) -> str:
     """The CLI command that fronts a track (COMMANDS, defaulting to the tool name)."""

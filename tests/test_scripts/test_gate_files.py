@@ -57,7 +57,8 @@ def test_check_runs_the_local_gate_and_check_full_adds_the_slow_tests():
     linha_pytest = [ln for ln in full.split("scripts/check.sh", 1)[1].splitlines() if "pytest" in ln]
     assert linha_pytest, full
     marcas = re.search(r'-m\s+"([^"]*)"', linha_pytest[-1])
-    assert marcas and "slow" in marcas.group(1).split(), linha_pytest[-1]
+    tokens = marcas.group(1).split() if marcas else []
+    assert "slow" in tokens and "not" not in tokens, linha_pytest[-1]  # `or not slow` seleciona o oposto e não pode passar
 
 
 def test_check_web_succeeds_without_a_web_workspace_and_says_why():

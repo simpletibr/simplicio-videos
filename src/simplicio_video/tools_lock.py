@@ -43,9 +43,10 @@ class LockInvalid(ValueError):
 
 
 def default_data_dir() -> Path:
-    """The same folder `update --check` uses for its cache: $SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video."""
+    """The same folder `update --check` uses for its cache: $SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video. Without a usable home it
+    raises hostos.SemCasa: a relative `~` would make a folder named `~` in the cwd."""
     explicit = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    return Path(explicit) if explicit else hostos.home_dir() / ".simplicio-video"
+    return Path(explicit) if explicit else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
 
 
 def lock_path(data_dir: Optional[Path] = None) -> Path:
@@ -136,8 +137,12 @@ def clean(data: Any) -> dict:
 
 
 def read_lock(path: Optional[Path] = None) -> dict:
-    """The lock document, or `empty()` when there is none. Raises LockInvalid when the file is there and is not usable."""
-    path = path or lock_path()
+    """The lock document, or `empty()` when there is none (also when there is no home to look in). Raises LockInvalid when the file is
+    there and is not usable."""
+    try:
+        path = path or lock_path()
+    except hostos.SemCasa:
+        return empty()
     try:
         raw = hostos.read_regular(path, MAX_BYTES)  # O_NONBLOCK and fstat: a FIFO there must not hang anything
     except (FileNotFoundError, NotADirectoryError):
@@ -157,7 +162,8 @@ def read_lock(path: Optional[Path] = None) -> dict:
 
 def write_lock(doc: dict, path: Optional[Path] = None) -> None:
     """Atomic: a temp file in the same folder, then os.replace. Only what `clean` accepts is written. Raises OSError (the caller
-    reports it: a lock that cannot be written never stops the update) and leaves no temp file behind."""
+    reports it: a lock that cannot be written never stops the update) and leaves no temp file behind. Raises hostos.SemCasa when
+    there is no home to write in (nothing is created)."""
     path = path or lock_path()
     checked = clean(doc)
     path.parent.mkdir(parents=True, exist_ok=True)

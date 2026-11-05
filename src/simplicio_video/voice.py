@@ -16,7 +16,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import aio, childio, paths, voice_clone, words as wordsmod
+from . import aio, childio, hostos, paths, voice_clone, words as wordsmod
 from .contract import Contract, r4
 
 DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,"
@@ -140,7 +140,7 @@ def _local(S: dict, text: str, dst: Path) -> None:
     code = ("import sys,soundfile as sf\nfrom kokoro_onnx import Kokoro\nfrom pathlib import Path\n"
             "d=Path(sys.argv[1]); k=Kokoro(str(d/'kokoro-v1.0.onnx'),str(d/'voices-v1.0.bin'))\n"
             "a,sr=k.create(sys.argv[2],voice=sys.argv[3],speed=float(sys.argv[4]),lang=sys.argv[5]); sf.write(sys.argv[6],a,sr)\n")
-    tts_dir = os.environ.get("KOKORO_DIR", str(Path.home() / ".local/share/simplicio-tts"))
+    tts_dir = os.environ.get("KOKORO_DIR", str(hostos.home_dir() / ".local/share/simplicio-tts"))
     py = paths.tts_python()
     if not Path(py).exists():
         raise VoiceError(f"provider=local: python with kokoro_onnx not found at {py} (set SIMPLICIO_TTS_PY)")

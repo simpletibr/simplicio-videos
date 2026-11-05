@@ -39,6 +39,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from . import hostos
 from .aio import positive_int
 from .swap import scrub
 from .swap_providers.base import KEY_PATTERN
@@ -71,7 +72,7 @@ class JobError(Exception):
 
 def data_root() -> Path:
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    return Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    return Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
 
 
 def jobs_dir() -> Path:

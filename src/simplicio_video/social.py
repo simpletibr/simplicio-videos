@@ -97,10 +97,96 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _publishable(net: str, provs: list[dict]) -> bool:
+    """A provider that publishes YouTube videos publishes Shorts too: its networks list says 'youtube' only."""
+    key = "youtube" if net == "youtube_shorts" else net
+    return any(key in p["networks"] for p in provs)
+
+
+def _sem_provedor(nets: list[str], prov: dict | None = None) -> list[str]:
+    """Networks that no provider publishes yet or, with `prov`, that this one provider does not publish."""
+    provs = [prov] if prov is not None else _providers_doc()["providers"]
+    return [n for n in nets if not _publishable(n, provs)]
+
+
+def _motivo_sem_provedor(nets: list[str], pid: str, label: str, doc: dict) -> str:
+    """Why no confirmed provider publishes these networks, per provider, with the source and its date. Always UNVERIFIED."""
+    sem = doc.get("sem_provedor", {})
+    partes = []
+    for n in nets:
+        item = sem.get(n, {})
+        por = item.get("por_provedor", {}).get(pid)
+        if por is None:
+            partes.append(f"{n}: nenhum provedor publica essa rede")
+        else:
+            partes.append(f"{n}: {por['texto']} (fonte {por['fonte']}, lida em {item['read_on']})")
+    return (f"sem provedor confirmado para {', '.join(nets)} pelo {label} (não confirmado): não dá para postar ainda. "
+            + "; ".join(partes))
+
+
+def _sem_confirmacao_ro(nets: list[str], doc: dict) -> list[str]:
+    """Planned networks that the Real Oficial's own page does not confirm. They stay in the provider's list and are not blocked."""
+    ro = next(p for p in doc["providers"] if p["id"] == "realoficial")
+    marcadas = ro.get("networks_sem_confirmacao", [])
+    return [n for n in dict.fromkeys(nets) if n in marcadas]
+
+
+def _nota_realoficial(pid: str, plan: dict, doc: dict) -> list[str]:
+    if pid != "realoficial":
+        return []
+    sem = _sem_confirmacao_ro([t["network"] for t in plan["targets"]], doc)
+    return [f"redes sem confirmação na página do RO (lista do motor), no plano: {', '.join(sem)}"] if sem else []
+
+
+def _nao_confirmados(checks: list[dict]) -> list[str]:
+    """Networks whose every row is UNVERIFIED: their limits were not confirmed on the network's own page."""
+    por_rede: dict[str, set] = {}
+    for c in checks:
+        por_rede.setdefault(c["network"], set()).add(c["confidence"])
+    return [rede for rede, conf in por_rede.items() if conf == {UNVERIFIED}]
+
+
+def _quanto(c: dict) -> str:
+    """What was measured, in the words of its field: a caption counts characters, a video has seconds, and so on."""
+    campo, real = c["field"], c["actual"]
+    if campo == "title_max_chars":
+        return "título ausente (obrigatório)" if real is None else f"o título tem {real} caracteres"
+    if campo == "caption_max_chars":
+        return f"a legenda tem {real} caracteres"
+    if campo == "hashtags_max":
+        return f"a legenda tem {real} hashtags"
+    if campo in ("duration_min_s", "duration_max_s"):
+        return f"o vídeo tem {real} s"
+    if campo == "size_max_mb":
+        return f"o arquivo tem {real} MB"
+    if campo == "aspect_ratios":
+        return f"o vídeo é {real}"
+    return f"o vídeo tem {real}"
+
+
+UNIDADE_DO_CAMPO = {"duration_min_s": "s", "duration_max_s": "s", "size_max_mb": "MB", "caption_max_chars": "caracteres",
+                    "title_max_chars": "caracteres", "hashtags_max": "hashtags"}
+
+
+def _limite_txt(limite, campo: str = "") -> str:
+    if isinstance(limite, list):
+        return " ou ".join(limite)
+    if isinstance(limite, dict):
+        return f"de {limite['min_ratio']} a {limite['max_ratio']} (proporção)"
+    return f"{limite} {UNIDADE_DO_CAMPO.get(campo, '')}".rstrip()
+
+
+def _linha(c: dict) -> str:
+    """One limit in words for the user, with the scope of the field (Spotlight, Saved Story...) when the table gives one."""
+    escopo = f" ({c['escopo']})" if c.get("escopo") else ""
+    return f"{c['network']}: {c['field']} limite {_limite_txt(c['limit'], c['field'])}{escopo}, {_quanto(c)}"
+
+
 def providers_report() -> dict:
     doc = _providers_doc()
     provs = [{k: v for k, v in p.items() if k != "recipe"} for p in doc["providers"]]
-    return {"schema": doc["schema"], "default": doc["default"], "read_on": doc["read_on"], "rules": doc["rules"], "providers": provs}
+    return {"schema": doc["schema"], "default": doc["default"], "read_on": doc["read_on"], "rules": doc["rules"],
+            "sem_provedor": doc["sem_provedor"], "providers": provs}
 
 
 # ---------------------------------------------------------------------------------------------------------- video
@@ -267,14 +353,21 @@ def evaluate(vid: dict, caption: str, title: str | None, tags: list[str], networ
                 continue
             field, limit = row["field"], row["value"]
             actual = _actual(field, vid, caption, title, tags)
-            if actual is None:  # no title given: nothing to measure
+            if actual is None and not row.get("obrigatorio"):  # no title given and the network does not require one
                 continue
-            if limit is None:
+            if actual is None:  # a required field is missing: the network would refuse the post
+                status = "violation"
+            elif limit is None:
                 status = "unchecked"
             else:
                 status = "violation" if _violates(field, limit, actual, vid) else "ok"
-            checks.append({"network": net, "field": field, "limit": limit, "actual": actual, "status": status,
-                           "confidence": row["confidence"], "source_url": row["source_url"], "read_on": row["read_on"]})
+                if status == "violation" and row.get("kind") == "expectativa":
+                    status = "aviso"  # an expectation, not a hard rule: reported, never refuses the plan
+            check = {"network": net, "field": field, "limit": limit, "actual": actual, "status": status,
+                     "confidence": row["confidence"], "source_url": row["source_url"], "read_on": row["read_on"]}
+            if row.get("escopo"):
+                check["escopo"] = row["escopo"]
+            checks.append(check)
     return checks
 
 
@@ -288,7 +381,7 @@ def _rel(path: Path, base: Path) -> str:
 def _accept_key_path() -> Path:
     """Local key (32 random bytes, 0600) of whoever ran `plan --aceito-unverified` on this machine. It is nobody's credential
     and never goes into the plan: it only signs the acceptance, so that editing the JSON cannot forge it."""
-    return Path.home() / ".config" / "simplicio-video" / "social-accept.key"
+    return paths.user_home() / ".config" / "simplicio-video" / "social-accept.key"
 
 
 def _read_accept_key(kp: Path) -> bytes | None:
@@ -351,8 +444,8 @@ def _compose(vid: dict, caption: str, title: str | None, tgts: list[dict], sched
     networks = list(dict.fromkeys(t["network"] for t in tgts))
     checks = evaluate(vid, caption, title, tags, networks, table)
     bad = [c for c in checks if c["status"] == "violation"]
-    hard = [c for c in bad if c["confidence"] == OFFICIAL]
-    soft = [c for c in bad if c["confidence"] != OFFICIAL]
+    hard = [c for c in bad if c["confidence"] == OFFICIAL or c["actual"] is None]  # a missing required field never passes
+    soft = [c for c in bad if not (c["confidence"] == OFFICIAL or c["actual"] is None)]
     body = {"schema": SCHEMA_PLAN, "video": vid, "caption": caption, "hashtags": tags, "title": title, "ai_generated": bool(ai),
             "targets": tgts, "schedule": sched, "limits": _limits_stamp(table), "checks": checks,
             "accepted_unverified": [f"{c['network']}:{c['field']}" for c in soft], "ok": True}
@@ -381,7 +474,7 @@ def make_plan(video: str, targets: list[str], *, caption: str, title: str | None
     body, hard, soft = _compose(vid, caption, title, tgts, sched, ai_generated, table)
     if hard or (soft and not accept_unverified):
         def line(c):
-            return f"{c['network']}: {c['field']} limite {c['limit']}, o vídeo tem {c['actual']}" + (" (UNVERIFIED)" if c["confidence"] != OFFICIAL else "")
+            return _linha(c) + (" (UNVERIFIED)" if c["confidence"] != OFFICIAL else "")
         msg = "plano recusado: " + "; ".join(line(c) for c in hard + soft)
         if soft and not hard:
             msg += ". Os limites marcados UNVERIFIED não foram conferidos na página da rede: confira lá e, se o vídeo serve, rode de novo com --aceito-unverified"
@@ -454,6 +547,8 @@ def _check(path: str) -> tuple[dict, dict]:
         tgts = parse_targets([f"{t['network']}={t.get('account') or ''}" for t in plan["targets"]])
         if tgts != plan["targets"]:
             problems.append("os destinos do plano não estão no formato que o plan grava")
+        for net in _sem_provedor([t["network"] for t in tgts]):
+            warnings.append(f"sem provedor confirmado para {net} (não confirmado): nenhum provedor publica essa rede ainda; a receita sai bloqueada")
     except (SocialError, TypeError, AttributeError) as e:
         problems.append(f"destinos inválidos no plano: {e}")
     sched = plan.get("schedule")
@@ -492,7 +587,7 @@ def _revalidate(plan: dict, vpath: Path, tgts: list[dict], problems: list[str], 
     table = limits_table()
     body, hard, soft = _compose(vid, plan["caption"], plan.get("title"), tgts, plan.get("schedule"), plan["ai_generated"], table)
     for c in hard:
-        problems.append(f"{c['network']}: {c['field']} limite oficial {c['limit']}, o vídeo tem {c['actual']}")
+        problems.append(_linha(c))
     soft_ids = [f"{c['network']}:{c['field']}" for c in soft]
     if soft and plan["accepted_unverified"] != soft_ids:
         problems.append("violação UNVERIFIED sem aceite: " + ", ".join(soft_ids) + " (rode `plan --aceito-unverified` de novo)")
@@ -629,6 +724,19 @@ def _assert_safe(steps: list[dict], prov: dict, label: str) -> None:
                     bad(f"{what} sem cotar ({q}) antes de mostrar e do consentimento")
 
 
+# Code floor for networks with no confirmed provider. The code does not read this list from the data: a providers.json that lists
+# one of them as a publishing network is refused, so editing the data alone cannot make the engine plan a recipe for them.
+REDES_SEM_PROVEDOR_PISO = ("reddit", "snapchat")
+
+
+def _assert_piso(doc: dict) -> None:
+    for p in doc["providers"]:
+        proibidas = [n for n in REDES_SEM_PROVEDOR_PISO if n in p["networks"]]
+        if proibidas:
+            raise SocialError(f"receita insegura ({p['id']}): {', '.join(proibidas)} sem provedor confirmado não pode estar na lista de "
+                              "redes de publicação do providers.json (piso no código)")
+
+
 def _flat(templates: list[dict]) -> list[dict]:
     """Every step template (including the `when` ones), in the shape `_assert_safe` checks."""
     out = []
@@ -642,8 +750,16 @@ def _flat(templates: list[dict]) -> list[dict]:
     return out
 
 
+def _recipe_doc(pid: str, prov: dict, plan: dict, doc: dict, *, reason: str, steps: list, blocked_until: list) -> dict:
+    return {"schema": SCHEMA_RECIPE, "provider": pid, "label": prov["label"], "plan_id": plan["plan_id"], "mcp_url": prov["mcp_url"],
+            "blocked": bool(reason), "blocked_reason": reason, "steps": steps, "blocked_until": blocked_until,
+            "publish_tools": prov["publish_tools"], "rules": doc["rules"],
+            "unverified": prov["unverified"] + _nota_realoficial(pid, plan, doc), "gaps": prov["gaps"]}
+
+
 def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = None) -> dict:
     doc = _providers_doc()
+    _assert_piso(doc)  # first: the code floor holds even before a plan is read
     pid = provider or doc["default"]
     prov = next((p for p in doc["providers"] if p["id"] == pid), None)
     if prov is None:
@@ -654,6 +770,12 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     clip_id = (clip_id or "").strip() or None
     if pid == "realoficial" and clip_id and not _RO_ID_RE.match(clip_id):
         raise SocialError("clip_id inválido: o Real Oficial usa ids de 26 letras e números")
+    sem = _sem_provedor([t["network"] for t in plan["targets"]], prov)
+    if sem:  # blocked for good: no quote, no show, no yes and no publish; only the explanation comes out
+        _assert_safe(_flat(prov["recipe"]), prov, "providers.json completo")  # the whole template is still validated first
+        reason = _motivo_sem_provedor(sem, pid, prov["label"], doc) + ". Gere um plano só com as redes que o provedor publica"
+        return _recipe_doc(pid, prov, plan, doc, reason=reason, steps=[{"n": 1, "id": "sem_provedor", "kind": "manual", "text": reason}],
+                           blocked_until=sem)
     flags = _context(plan, pid, clip_id, lambda _id: "?")  # only the `when` flags matter here: which steps this plan needs
     templates = [t for t in prov["recipe"] if not t.get("when") or flags.get(t["when"])]
     numbers = {t["id"]: i + 1 for i, t in enumerate(templates)}
@@ -701,10 +823,7 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     if reason:  # really blocked: only the manual step comes out; no quoting, showing, asking for the yes or publishing with a placeholder
         steps = [s for s in steps if s["id"] == "clip" and s["kind"] == "manual"] or [{"n": 1, "id": "clip", "kind": "manual", "text": reason}]
         blocked = blocked or ["clip_id do vídeo no Real Oficial"]
-    return {"schema": SCHEMA_RECIPE, "provider": pid, "label": prov["label"], "plan_id": plan["plan_id"], "mcp_url": prov["mcp_url"],
-            "blocked": bool(reason), "blocked_reason": reason,
-            "steps": steps, "blocked_until": blocked, "publish_tools": prov["publish_tools"], "rules": doc["rules"],
-            "unverified": prov["unverified"], "gaps": prov["gaps"]}
+    return _recipe_doc(pid, prov, plan, doc, reason=reason, steps=steps, blocked_until=blocked)
 
 
 KIND_LABEL = {"call": "chamada", "manual": "manual", "show": "mostrar", "consent": "consentimento", "local": "local"}
@@ -751,7 +870,8 @@ HELP_DESC = (
     "não guarda credencial: quem publica é o agente, com as ferramentas do próprio provedor e o sim explícito do usuário em "
     "cada postagem. Limites e ferramentas não conferidos na fonte oficial ficam marcados UNVERIFIED; uma violação de limite "
     "UNVERIFIED só passa com --aceito-unverified (assinado com chave local). `check` e `recipe` revalidam o plano contra o vídeo e a tabela. "
-    "`recipe` do Real Oficial sem --clip-id sai BLOQUEADA (saída 1): o MCP dele não recebe MP4 local."
+    "`recipe` do Real Oficial sem --clip-id sai BLOQUEADA (saída 1): o MCP dele não recebe MP4 local. Reddit e Snapchat entram no plano "
+    "(limites não confirmados), mas nenhum provedor confirmado os publica ainda: a receita sai BLOQUEADA com o motivo e a fonte."
 )
 HELP_EPILOG = (
     "exemplos:\n"
@@ -774,7 +894,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--video", required=True, help="MP4 final")
     p.add_argument("--caption", help="legenda (com as hashtags)")
     p.add_argument("--caption-file", help="arquivo com a legenda")
-    p.add_argument("--target", action="append", default=[], help="rede[=conta], repetível ou separado por vírgula: youtube (vídeo comum), youtube_shorts, tiktok=@conta")
+    p.add_argument("--target", action="append", default=[], help="rede[=conta], repetível ou separado por vírgula: youtube (vídeo comum), youtube_shorts, tiktok=@conta; reddit e snapchat planejam, mas sem provedor confirmado (não confirmado)")
     p.add_argument("--title", help="título (YouTube, Pinterest)")
     p.add_argument("--at", help="horário local AAAA-MM-DDTHH:MM (sem --at, publicar agora)")
     p.add_argument("--timezone", help="fuso IANA do --at, ex.: America/Sao_Paulo")
@@ -797,16 +917,25 @@ def _parser() -> argparse.ArgumentParser:
 def _providers_text(rep: dict) -> str:
     lines = ["Provedores de publicação (o motor não posta; o agente usa as ferramentas MCP do provedor):"]
     for p in rep["providers"]:
-        lines.append(f"\n{p['id']}  {p['label']}" + ("  [padrão]" if p["default"] else "") + f"  confiança: {p['confidence']}")
+        marca = " (ferramentas; as redes abaixo não têm confirmação na página do RO)" if p.get("networks_sem_confirmacao") else ""
+        lines.append(f"\n{p['id']}  {p['label']}" + ("  [padrão]" if p["default"] else "") + f"  confiança: {p['confidence']}{marca}")
         lines.append(f"  MCP: {p['mcp_url']}  (fonte {p['source_url']}, lido em {p['read_on']})")
         lines.append(f"  autenticação: {p['auth']}")
         lines.append(f"  redes: {', '.join(p['networks'])}")
+        if p.get("networks_sem_confirmacao"):
+            lines.append("  sem confirmação na página do RO (lista do motor): " + ", ".join(p["networks_sem_confirmacao"]))
         lines.append(f"  preço: {p['pricing']}")
         lines.append("  ferramentas:")
         for t in p["tools"]:
             lines.append(f"    {t['name']:34s} {t['effect']:8s} {t['confidence']}")
         lines.append("  limites conhecidos: " + "; ".join(p["known_limits"]))
         lines.append("  lacunas: " + " ".join(p["gaps"]))
+    if rep["sem_provedor"]:
+        lines.append("\nSem provedor confirmado (não confirmado): nenhum provedor publica estas redes ainda, com a fonte de cada um:")
+        for rede, item in rep["sem_provedor"].items():
+            lines.append(f"- {rede} (lida em {item['read_on']}):")
+            for pid, por in item["por_provedor"].items():
+                lines.append(f"    {pid}: {por['texto']} (fonte {por['fonte']})")
     lines.append("\nRegras:")
     lines.extend(f"- {r}" for r in rep["rules"])
     return "\n".join(lines)
@@ -819,12 +948,33 @@ def _plan_text(res: dict) -> str:
              f"  vídeo {v['path']}  {v['duration_s']} s, {v['width']}x{v['height']} ({v['aspect_ratio']}), {v['video_codec']}/{v['audio_codec']}, {v['size_bytes']} bytes",
              "  destinos: " + ", ".join(f"{t['network']}" + (f"={t['account']}" if t["account"] else "") for t in p["targets"]),
              "  quando: " + (f"{p['schedule']['at']} {p['schedule']['timezone']}" if p["schedule"] else "agora (só depois do consentimento)")]
+    sem = _sem_provedor([t["network"] for t in p["targets"]])
+    if sem:
+        lines.append("  sem provedor confirmado para postar: " + ", ".join(sem) + " (não confirmado): a receita sai bloqueada")
+    nc = _nao_confirmados(p["checks"])
+    if nc:
+        lines.append("  limites NÃO CONFIRMADOS (todas as linhas UNVERIFIED): " + ", ".join(nc))
+    sem_ro = _sem_confirmacao_ro([t["network"] for t in p["targets"]], _providers_doc())
+    if sem_ro:
+        lines.append("  sem confirmação na página do RO (lista do motor): " + ", ".join(sem_ro))
+    avisos = [c for c in p["checks"] if c["status"] == "aviso"]
+    if avisos:
+        lines.append("  avisos (expectativa, não regra):")
+        for c in avisos:
+            if c["field"] == "aspect_ratios":
+                lines.append(f"  aviso: o vídeo é {c['actual']}; {c['network'].capitalize()} espera {_limite_txt(c['limit'])} (aviso, não recusa)")
+            else:
+                lines.append(f"  aviso: {_linha(c)} (não recusa)")
     nao = [c for c in p["checks"] if c["status"] == "unchecked"]
     if nao:
         lines.append(f"  sem limite conferido ({len(nao)}): " + ", ".join(f"{c['network']}:{c['field']}" for c in nao))
-    if p["accepted_unverified"]:
-        lines.append("  violações UNVERIFIED aceitas: " + ", ".join(p["accepted_unverified"]))
-    lines.append("próximo passo: simplicio-video social recipe " + res["path"])
+    for c in p["checks"]:  # each accepted violation, with its scope, its measure and its limit
+        if c["status"] == "violation":
+            lines.append(f"  violação UNVERIFIED aceita: {_linha(c)} (UNVERIFIED)")
+    if sem:
+        lines.append("a receita deste plano sai bloqueada: gere um plano só com as redes que o provedor publica (simplicio-video social providers)")
+    else:
+        lines.append("próximo passo: simplicio-video social recipe " + res["path"])
     return "\n".join(lines)
 
 
@@ -858,7 +1008,9 @@ def run_social(argv: list[str]) -> int:
             if a.json:
                 print(json.dumps(rep, indent=2, ensure_ascii=False))
             else:
-                print(("ok: o plano confere com o arquivo" if rep["ok"] else "o plano NÃO confere:") + "".join(f"\n- {p}" for p in rep["problems"])
+                nc = _nao_confirmados(load_plan(a.plan)["checks"]) if rep["ok"] else []
+                cabeca = "ok: o plano confere com o arquivo" + (f", com limites NÃO CONFIRMADOS para: {', '.join(nc)}" if nc else "")
+                print((cabeca if rep["ok"] else "o plano NÃO confere:") + "".join(f"\n- {p}" for p in rep["problems"])
                       + "".join(f"\naviso: {w}" for w in rep.get("warnings", [])))
             return 0 if rep["ok"] else 1
         rec = recipe(a.plan, provider=a.provider, clip_id=a.clip_id)

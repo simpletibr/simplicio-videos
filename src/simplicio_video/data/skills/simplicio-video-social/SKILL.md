@@ -1,6 +1,6 @@
 ---
 name: simplicio-video-social
-description: Use quando o usuário pedir para postar, agendar ou publicar um vídeo final (MP4) do simplicio-video em redes sociais (YouTube vídeo comum ou Shorts, TikTok, Instagram, Facebook, X, LinkedIn, Threads, Pinterest, Bluesky). O motor não posta: ele confere o MP4 contra os limites de cada rede, grava o plano (social.plan.json) e imprime a receita de chamadas MCP; quem publica é você, com as ferramentas do próprio provedor (Real Oficial, o padrão, ou Zernio) e só depois do sim explícito do usuário para cada postagem.
+description: Use quando o usuário pedir para postar, agendar ou publicar um vídeo final (MP4) do simplicio-video em redes sociais (YouTube vídeo comum ou Shorts, TikTok, Instagram, Facebook, X, LinkedIn, Threads, Pinterest, Bluesky; Reddit e Snapchat só planejam, sem provedor confirmado (não confirmado): a receita sai bloqueada). O motor só planeja e documenta: ele confere o MP4 contra os limites de cada rede, grava o plano (social.plan.json) e imprime a receita de chamadas MCP; quem publica é você, com as ferramentas do próprio provedor (Real Oficial, o padrão, ou Zernio) e só depois do sim explícito do usuário para cada postagem.
 ---
 
 # simplicio-video-social: planejar com o motor, postar com o provedor
@@ -45,6 +45,18 @@ Limite que você precisa saber: **o Real Oficial não recebe MP4 local por MCP.*
 ### Zernio
 
 O Zernio não tem prévia nem cotação (UNVERIFIED que exista rascunho), então a receita faz: `accounts_list`, mostrar, **sim**, `media_generate_upload_link` + envio do arquivo, `posts_create` (`platforms`, `content`, `publish_at` como `now` ou ISO, `account_id`) e `posts_list`. O consentimento vem antes do envio do arquivo porque a mídia fica com URL pública temporária no armazenamento deles. Parâmetros de `media_generate_upload_link`, `posts_list` e o nome do campo da mídia são **UNVERIFIED**; se o cliente só mostrar `search_tools` e `call_tool`, ache a ferramenta com `search_tools` e chame com `call_tool`. Depois de erro ou resposta incerta, consulte `posts_list` antes de repetir `posts_create`.
+
+### Reddit e Snapchat: sem provedor
+
+O plano confere essas duas redes (`reddit`, `snapchat`), mas elas estão **sem provedor confirmado (não confirmado)**. Os limites delas são UNVERIFIED (a única fonte lida é a documentação do Zernio: https://docs.zernio.com/platforms/reddit e https://docs.zernio.com/platforms/snapchat, lida em 2026-11-05). Escopos dos limites: o Reddit exige título obrigatório de 300 caracteres, e o corpo de 40.000 caracteres vale para o corpo do post de texto. O Snapchat tem a legenda de 160 caracteres para **Spotlight** (as hashtags contam; Stories não têm teto no Zernio), o título de 45 caracteres para **Saved Story**, e vídeo de 5 a 60 s em MP4 de até 500 MB (https://docs.zernio.com/platforms/snapchat). A proporção 9:16 do Snapchat é expectativa: o plano avisa e não recusa (https://docs.zernio.com/platforms/snapchat).
+
+A receita sai **BLOQUEADA** (`blocked: true`, com o motivo em `blocked_reason`), para o Real Oficial e para o Zernio: sem cotar, sem mostrar, sem pedir o sim e sem publicar. Quando o usuário pedir Reddit ou Snapchat, diga isso e o motivo que a receita traz, com o texto, a fonte e a data de cada provedor (também em `sem_provedor` no `providers`).
+
+Zernio: o Reddit está temporariamente indisponível; desde 19/10/2026 o Reddit bloqueia as chamadas do app da Zernio para todos os clientes Zernio (https://docs.zernio.com/platforms/reddit, lida em 2026-11-05). O Snapchat não está aprovado pela Snap: toda conexão falha com 403 PLATFORM_BETA_RESTRICTED (https://docs.zernio.com/platforms/snapchat, lida em 2026-11-05).
+
+Real Oficial, sem confirmação: a página do MCP (https://realoficial.com.br/mcp, lida em 2026-11-05) não lista redes de publicação. Instagram, Facebook, X, LinkedIn, Threads, Pinterest e Bluesky ficam na lista do motor marcados como sem confirmação na página do RO (lista do motor): a receita não sai bloqueada por isso, mas a seção UNVERIFIED da receita as marca.
+
+Se o plano misturar uma dessas redes com outras, a receita inteira sai bloqueada: gere um plano só com as redes que o provedor publica. Não monte chamada de publicar para essas redes fora de uma receita liberada.
 
 ## Regras de consentimento (valem para qualquer provedor)
 

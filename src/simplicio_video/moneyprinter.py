@@ -37,7 +37,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import unquote
 
-from . import tools
+from . import hostos, tools
 from .childio import run_child
 from .toonflow import _offline, _on_term, _stop_group  # same process-group handling as the toonflow track
 
@@ -107,7 +107,7 @@ def data_dir() -> Path:
     if explicit:
         return Path(explicit).expanduser().resolve()
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return (base / "moneyprinter-data").resolve()
 
 

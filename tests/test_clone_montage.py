@@ -69,10 +69,10 @@ def test_tools_install_checks_out_the_pinned_commit(monkeypatch, tmp_path):
     assert tools.install("openmontage") == str(tmp_path / "openmontage")
     ref = tools.TOOLS["openmontage"].ref
     assert calls[0][0] == "clone" and calls[-1] == ("checkout", "--quiet", "--detach", ref)
-    monkeypatch.setenv("SIMPLICIO_OPENMONTAGE_REF", "abc123")
+    monkeypatch.setenv("SIMPLICIO_OPENMONTAGE_REF", "abc1234")
     calls.clear()
     tools.install("openmontage")
-    assert calls[-1][-1] == "abc123"
+    assert calls[-1][-1] == "abc1234"
 
 
 @pytest.fixture

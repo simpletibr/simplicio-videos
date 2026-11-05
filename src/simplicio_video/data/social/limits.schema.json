@@ -46,7 +46,9 @@
               "linkedin",
               "threads",
               "pinterest",
-              "bluesky"
+              "bluesky",
+              "reddit",
+              "snapchat"
             ]
           },
           "field": {
@@ -110,6 +112,19 @@
           },
           "note": {
             "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "limite",
+              "expectativa"
+            ]
+          },
+          "escopo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "obrigatorio": {
+            "type": "boolean"
           }
         },
         "allOf": [
