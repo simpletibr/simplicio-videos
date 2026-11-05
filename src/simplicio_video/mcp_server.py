@@ -163,9 +163,86 @@ def video_list(what: str = "templates", grupo: str | None = None) -> dict:
     return {"ok": True, "items": rows}
 
 
-DESC_video_clone = "Clone videos using Hypit AI (https://github.com/hypit-ai/hypit)."
+DESC_video_clone = ("Hypit AI (https://github.com/hypit-ai/hypit, pinned @hypit/hypit), local single-user use. Allowed: help, version, doctor, "
+                    "check, plan, pricing, status, builds, history, activity, inspect, logs, paths, vocabulary, `get <build> --output <name> --to <absolute path>` "
+                    "and local `media probe|frames|tile|tiles|boundaries|cut` (every path absolute, no `..`; no `--watch`). terminal-only (refused here): build (can spend on providers), studio, auth, "
+                    "runtime up/down, packages, capture, media fetch/prepare-fetch (use `simplicio-video media fetch --autorizo`), transcribe, measure. "
+                    "Any other command is refused.")
+_HYPIT_LIVRE = ("help", "version", "doctor", "check", "plan", "pricing", "status", "builds", "history", "activity", "inspect", "logs",
+                "paths", "vocabulary")
+_HYPIT_MEDIA = ("probe", "frames", "tile", "tiles", "boundaries", "cut")
+_HYPIT_MOTIVO = {
+    "build": "build pode gastar em provedores e fica só no terminal na v1",
+    "studio": "studio sobe uma interface que nunca termina",
+    "auth": "auth lê um segredo da entrada padrão",
+    "runtime": "runtime up/down mexe em processos do runtime",
+    "packages": "packages instala código de terceiros",
+    "capture": "capture baixa um navegador e abre páginas",
+    "transcribe": "transcribe usa provedores e fica só no terminal",
+    "measure": "measure usa provedores e fica só no terminal",
+}
+_MEDIA_VALOR = ("--start", "--end", "--at", "--every", "--around", "--occurrence", "--padding", "--frames", "--cell", "--columns", "--rows",
+                "--keep", "--color")   # options with a value that is not a path
+_MEDIA_CAMINHO = ("--to", "--ranges", "--transcript")  # options whose value is a path: absolute, no `..`
+_MEDIA_FLAG = ("--json", "--label-time", "--every-frame", "--debug", "--verbose", "--no-color")
+
+
+def _so_terminal_hypit(argv: list[str]) -> dict:
+    if argv[:2] in (["media", "fetch"], ["media", "prepare-fetch"]):
+        return _so_terminal("media fetch --autorizo", f"media {argv[1]} baixa sem o portão --autorizo")
+    if "--watch" in argv:
+        return _so_terminal(f"clone {' '.join(argv)}", "--watch não termina até o build acabar e o MCP não tem tempo limite")
+    cmd = argv[0] if argv else "(vazio)"
+    return _so_terminal(f"clone {cmd}", _HYPIT_MOTIVO.get(cmd, f"`{cmd}` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto)"))
+
+
+def _caminho_seguro(p: str) -> bool:
+    """Absolute and without `..`: Hypit resolves a relative path against the server's folder, which the client does not control."""
+    return os.path.isabs(p) and ".." not in Path(p).parts
+
+
+def _media_permitido(resto: list[str]) -> bool:
+    if "--help" in resto:
+        return True  # Hypit prints help before it reads anything else
+    i = 0
+    while i < len(resto):
+        t = resto[i]
+        if t in _MEDIA_FLAG:
+            i += 1
+        elif t in _MEDIA_VALOR:
+            i += 2
+        elif t in _MEDIA_CAMINHO:
+            if i + 1 >= len(resto) or not _caminho_seguro(resto[i + 1]):
+                return False
+            i += 2
+        elif t.startswith("--"):
+            return False  # unknown option, or the `--opt=value` form
+        else:
+            if not _caminho_seguro(t):
+                return False
+            i += 1
+    return True
+
+
+def _hypit_permitido(argv: list[str]) -> bool:
+    """A closed allowlist: the first word is the Hypit command, and nothing outside the list reaches Hypit."""
+    if not argv or "--watch" in argv:
+        return False
+    cmd = argv[0]
+    if cmd in ("--help", "-h"):
+        return True
+    if cmd == "media":
+        return argv[1:2] != [] and argv[1] in _HYPIT_MEDIA and _media_permitido(argv[2:])
+    if cmd == "get":
+        i = argv.index("--to") + 1 if "--to" in argv[:-1] else 0
+        return bool(i) and _caminho_seguro(argv[i]) and not any(a.startswith("--to=") for a in argv)
+    return cmd in _HYPIT_LIVRE
+
+
 def video_clone(args: str = "") -> dict:
-    argv = args.split() if isinstance(args, str) else list(args)
+    argv = _argv(args)
+    if not _hypit_permitido(argv):
+        return _so_terminal_hypit(argv)
     return _cli(["clone", *argv])
 
 

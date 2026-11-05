@@ -119,7 +119,7 @@
    "name": "video.busca"
   },
   {
-   "description": "Clone videos using Hypit AI (https://github.com/hypit-ai/hypit).",
+   "description": "Hypit AI (https://github.com/hypit-ai/hypit, pinned @hypit/hypit), local single-user use. Allowed: help, version, doctor, check, plan, pricing, status, builds, history, activity, inspect, logs, paths, vocabulary, `get <build> --output <name> --to <absolute path>` and local `media probe|frames|tile|tiles|boundaries|cut` (every path absolute, no `..`; no `--watch`). terminal-only (refused here): build (can spend on providers), studio, auth, runtime up/down, packages, capture, media fetch/prepare-fetch (use `simplicio-video media fetch --autorizo`), transcribe, measure. Any other command is refused.",
    "inputSchema": {
     "properties": {
      "args": {

@@ -154,8 +154,9 @@ def _help(args: list[str]) -> str:
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONIOENCODING": "utf-8",
     }
+    flag = "--engine-help" if args == ["clone"] else "--help"  # `clone --help` is Hypit's own help (npx), not the engine's
     result = subprocess.run(
-        [sys.executable, "-c", _CHILD, *args, "--help"],
+        [sys.executable, "-c", _CHILD, *args, flag],
         capture_output=True,
         text=True,
         cwd=str(ROOT),

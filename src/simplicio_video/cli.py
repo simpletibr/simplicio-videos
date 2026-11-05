@@ -244,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("clone", formatter_class=Fmt, help="trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA",
         description="Invoca o Hypit AI (https://github.com/hypit-ai/hypit) para clonar vídeos de referência e gerar fluxos de trabalho completos.",
-        epilog="exemplos:\n  simplicio-video clone --help\n  simplicio-video clone video.mp4")
+        epilog="exemplos:\n  simplicio-video clone --help             # a ajuda do Hypit (--engine-help mostra esta)\n  simplicio-video clone status --json      # npx/binário, versão fixada, Node >= 22.15\n  simplicio-video clone video.mp4")
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao CLI do Hypit AI")
 
     p = sub.add_parser("montage", formatter_class=Fmt, help="trilha Montage (OpenMontage): produção de vídeo com agentes de IA",
@@ -644,7 +644,10 @@ def main(argv: list[str] | None = None) -> int:
         ajuda_do_upstream = args_list[0] == "rea-video" and rea_video.repassa(args_list[1:])
         ajuda_do_media = args_list[0] == "media" and len(args_list) > 1 and args_list[1] in media.SUBCOMMANDS  # `media burn --help`
         ajuda_do_edit = args_list[0] == "edit" and len(args_list) > 1 and args_list[1] in edit.SUBCOMMANDS  # `edit grade --help`
-        if not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and any(h in antes_do_traco for h in ("-h", "--help")):
+        # `clone --help` is Hypit's help; the engine's own is `clone --engine-help`
+        ajuda_do_motor = args_list[0] == "clone" and "--engine-help" in antes_do_traco
+        ajuda_do_upstream = ajuda_do_upstream or (args_list[0] == "clone" and not ajuda_do_motor)
+        if ajuda_do_motor or (not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and any(h in antes_do_traco for h in ("-h", "--help"))):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
         cmd = args_list[0]

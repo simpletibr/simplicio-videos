@@ -193,7 +193,8 @@ options:
   -h, --help  show this help message and exit
 
 exemplos:
-  simplicio-video clone --help
+  simplicio-video clone --help             # a ajuda do Hypit (--engine-help mostra esta)
+  simplicio-video clone status --json      # npx/binário, versão fixada, Node >= 22.15
   simplicio-video clone video.mp4
 ```
 

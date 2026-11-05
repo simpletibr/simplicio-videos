@@ -1548,7 +1548,7 @@ def test_help_depois_de_traco_traco_e_valor_e_nao_ajuda(env, capsys, hostil):
     assert env.fake.chamadas() == []
 
 
-@pytest.mark.parametrize("cmd", ["busca", "swap", "social", "openverse", "jobs", "formats", "toonflow", "moneyprinter", "edit", "opencut", "clone", "montage"])
+@pytest.mark.parametrize("cmd", ["busca", "swap", "social", "openverse", "jobs", "formats", "toonflow", "moneyprinter", "edit", "opencut", "montage"])  # clone: --help is Hypit's (test_clone_hypit)
 @pytest.mark.parametrize("resto", [["--help"], ["x", "-h"], ["x", "--help", "--", "y"]])
 def test_help_antes_de_traco_traco_continua_igual_nos_comandos_de_verbo_fechado(cmd, resto, capsys):
     with pytest.raises(SystemExit) as e:
