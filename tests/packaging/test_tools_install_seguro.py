@@ -22,7 +22,7 @@ saude = _caixa.saude
 caixa = _caixa.caixa
 REAL_GIT = tools._git  # the hermetic fixture swaps tools._git for a refusal in every test: the integration test puts this one back
 
-SEM_CASA = ("HOME", "USERPROFILE", "SIMPLICIO_TOOLS_DIR", "SIMPLICIO_OFFLINE")
+SEM_CASA = ("HOME", "USERPROFILE", "SIMPLICIO_TOOLS_DIR", "SIMPLICIO_VIDEO_DATA", "SIMPLICIO_OFFLINE")  # the data folder is a home too
 VALORES_GIT = ["--force", "--upload-pack=touch X", "abc1234;rm -rf ~", "main"]
 VALORES_NPM = ["0.2.17;rm -rf ~", "--force", "0.2"]
 
@@ -58,7 +58,8 @@ def test_ref_de_git_invalida_nao_chega_a_nenhum_argv(monkeypatch, tmp_path, valo
 def test_versao_de_npm_invalida_nao_roda_o_npx(monkeypatch, tmp_path, valor):
     monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
     monkeypatch.setenv("SIMPLICIO_HYPIT_REF", valor)
-    monkeypatch.setattr(tools.shutil, "which", lambda nome, **kw: f"/falso/{nome}")
+    # no local hypit (a binary on PATH wins in npm_command, before any check): npx is the way the ref is used
+    monkeypatch.setattr(tools.shutil, "which", lambda nome, **kw: None if nome == "hypit" else f"/falso/{nome}")
     chamadas = []
 
     def gravador(argv, **kw):

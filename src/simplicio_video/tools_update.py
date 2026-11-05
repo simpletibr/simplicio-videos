@@ -48,7 +48,7 @@ def _fetch_json(url: str) -> Any:
     if not url.startswith("https://"):
         raise ValueError(f"recusando uma url que não é https: {url}")
     request = urllib.request.Request(url, headers={"User-Agent": "simplicio-video-update", "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=60) as response:
+    with urllib.request.urlopen(request, timeout=READ_TIMEOUT_S) as response:
         raw = response.read(MAX_JSON + 1)
     if len(raw) > MAX_JSON:
         raise ValueError("a resposta do PyPI é grande demais")

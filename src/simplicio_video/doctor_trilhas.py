@@ -23,11 +23,14 @@ Output: `texto(doc)` for the terminal; `collect()` returns {"schema": "simplicio
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import os
 import re
 import shlex
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -37,8 +40,9 @@ from .status import ENV_FERRAMENTA
 SCHEMA = "simplicio.doctor-trilhas/v1"
 _RANK = {"ok": 0, "warn": 1, "fail": 2}
 _VERSAO = re.compile(r"\d+\.\d+\.\d+")
-_CONTROLE = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")
+_CONTROLE = re.compile(r"[\x00-\x1f\x7f-\x9f  ​-‏‪-‮⁦-⁩﻿]")
 MAX_ARQUIVO_FIXADO = 1024 * 1024  # the pinned files are a few KB; a bigger one is not the pinned one
+ORCAMENTO_ONLINE_S = 25.0  # the whole --online: every upstream read together. A proxy that never answers costs this, once
 NODE_TINYFISH = (24,)  # the @tiny-fish/cli package declares Node >= 24
 NODE_HYPIT = tools.NODE_MIN  # (22, 15): @hypit/hypit "engines"
 CLONE = {
@@ -111,7 +115,17 @@ def _ambiente() -> dict:
     return {k: os.environ[k] for k in ENV_FERRAMENTA if k in os.environ}
 
 
+_MEMO: dict = {}  # per collect(): the node version is asked once, however many tracks need it
+
+
 def _node_versao() -> Optional[tuple]:
+    """The node version, asked once per collect() (see _node_versao_sonda)."""
+    if "node" not in _MEMO:
+        _MEMO["node"] = _node_versao_sonda()
+    return _MEMO["node"]
+
+
+def _node_versao_sonda() -> Optional[tuple]:
     """(major, minor, patch) of the `node` on PATH, or None. The output is read with `replace`: a console code page is not UTF-8."""
     caminho = _ache("node")
     if caminho is None:
@@ -184,14 +198,6 @@ def _clone_de(t: tools.Tool, ref: str) -> str:
     return YTDLP_INSTALA
 
 
-def _instalar_fix(clone: str) -> str:
-    """The fix of a track that is not installed. With no home and no SIMPLICIO_TOOLS_DIR the folder it would be in is not known:
-    the fix says what to define first."""
-    if not os.environ.get("SIMPLICIO_TOOLS_DIR") and str(hostos.home_dir()) == "~":
-        return f"defina HOME ou SIMPLICIO_TOOLS_DIR e rode `{clone}`"
-    return clone
-
-
 def _pasta_do_checkout(t: tools.Tool) -> Path:
     if t.name == "openmontage":  # montage has its own search order (OPENMONTAGE_DIR, then the tools folder)
         from . import montage
@@ -224,7 +230,7 @@ def _checkout(t: tools.Tool, pasta: Path, clone: str) -> tuple[str, Optional[str
         return "quebrada", None, [_row("instalada", "fail", f"{pasta} é um link que não aponta para nada",
                                        f"apague o link {_q(pasta)} e rode `{clone}`", {"path": str(pasta)})]
     if not pasta.exists():
-        return "ausente", None, [_row("instalada", "warn", "não instalada", _instalar_fix(clone), {"path": str(pasta)})]
+        return "ausente", None, [_row("instalada", "warn", "não instalada", clone, {"path": str(pasta)})]
     if not pasta.is_dir():
         return "quebrada", None, [_row("instalada", "fail", f"{pasta} é um arquivo, não uma pasta de checkout",
                                        f"apague {_q(pasta)} e rode `{clone}`")]
@@ -234,7 +240,7 @@ def _checkout(t: tools.Tool, pasta: Path, clone: str) -> tuple[str, Optional[str
         return "quebrada", None, [_row("instalada", "fail", f"não consigo ler {pasta}: {exc.strerror or exc}",
                                        f"ajuste as permissões de {pasta} e rode o doctor de novo")]
     if vazia:  # an empty folder is what a clone that never started leaves: not installed
-        return "ausente", None, [_row("instalada", "warn", "não instalada", _instalar_fix(clone), {"path": str(pasta)})]
+        return "ausente", None, [_row("instalada", "warn", "não instalada", clone, {"path": str(pasta)})]
     faltam = [nome for nome, existe in ((".git", (pasta / ".git").exists()), (t.marker, (pasta / t.marker).exists())) if not existe]
     if faltam:
         return "quebrada", None, [_row("instalada", "fail", f"{pasta} não é um checkout íntegro (falta {', '.join(faltam)}): "
@@ -532,7 +538,7 @@ def _resumo(installed: bool, detalhe: str, rows: list) -> str:
     return f"{quem}; {pendencias} pendência(s)" if pendencias else f"{quem}; em dia"
 
 
-def _avalia(t: tools.Tool, io) -> dict:
+def _avalia(t: tools.Tool, online_jobs: Optional[list]) -> dict:
     ref, fonte, problema = _ref_em_uso(t)
     rows: list = []
     installed, version, pin_match, detalhe = False, None, None, ""
@@ -568,11 +574,7 @@ def _avalia(t: tools.Tool, io) -> dict:
         rows = [_row("pin", "warn", problema, f"apague SIMPLICIO_{t.name.upper()}_REF ou defina um commit (git) ou uma versão (npm, pip)")
                 ] + [r for r in rows if r["name"] != "pin"]
     rows += _deps(t)
-    upstream = None
-    if io is not None:
-        upstream, linhas = _upstream(t, ref, fonte, io)
-        rows += linhas
-    return {
+    track = {
         "name": t.name,
         "command": f"simplicio-video {tools.COMMANDS.get(t.name, t.name)}",
         "status": _pior(r["status"] for r in rows),
@@ -583,9 +585,12 @@ def _avalia(t: tools.Tool, io) -> dict:
         "pin_source": fonte,
         "pin_registry": t.ref,
         "pin_match": pin_match,
-        "upstream": upstream,
+        "upstream": None,
         "checks": rows,
     }
+    if online_jobs is not None:  # the upstream is read after every track is checked, all the reads together (_fecha_upstreams)
+        online_jobs.append((track, t, ref, fonte, installed, detalhe))
+    return track
 
 
 def _tabela_fixada(nome: str) -> Optional[dict]:
@@ -598,10 +603,65 @@ def _tabela_fixada(nome: str) -> Optional[dict]:
     return None
 
 
-def _avalia_seguro(t: tools.Tool, io) -> dict:
+def _fecha_upstream(job: tuple, upstream: dict, linhas: list) -> None:
+    """Adds the upstream answer to a track that was checked without it, and settles its status and summary."""
+    track, _t, _ref, _fonte, installed, detalhe = job
+    track["upstream"] = upstream
+    track["checks"] = track["checks"] + linhas
+    track["status"] = _pior(r["status"] for r in track["checks"])
+    track["summary"] = _limpa(_resumo(installed, _limpa(detalhe, 80), track["checks"]))
+
+
+def _em_paralelo(trabalhos: dict, orcamento_s: float) -> dict:
+    """Runs each callable in its own daemon thread and waits at most `orcamento_s` for all of them together. Returns
+    {key: (True, value) | (False, exc)} for the ones that finished; the others are not in it. Daemon threads on purpose: a read
+    that never answers must not keep the process alive at exit (a ThreadPoolExecutor would wait for it)."""
+    resultados: dict = {}
+    trava = threading.Lock()
+
+    def roda(chave, fn):
+        try:
+            resultado = (True, fn())
+        except Exception as exc:  # noqa: BLE001 - it becomes that track's failure, in its row
+            resultado = (False, exc)
+        with trava:
+            resultados[chave] = resultado
+
+    fim = time.monotonic() + max(0.0, orcamento_s)
+    fios = []
+    for chave, fn in trabalhos.items():
+        fio = threading.Thread(target=roda, args=(chave, fn), name=f"doctor-upstream-{chave}", daemon=True)
+        fio.start()
+        fios.append(fio)
+    for fio in fios:
+        fio.join(max(0.0, fim - time.monotonic()))
+    with trava:
+        return dict(resultados)
+
+
+def _fecha_upstreams(jobs: list, io, orcamento_s: float) -> None:
+    """Reads the upstream of every track together, inside one budget. A track that did not answer in time says so."""
+    trabalhos = {i: functools.partial(_upstream, t, ref, fonte, io) for i, (_track, t, ref, fonte, _inst, _det) in enumerate(jobs)}
+    resultados = _em_paralelo(trabalhos, orcamento_s)
+    for i, job in enumerate(jobs):
+        if i not in resultados:
+            upstream = {"pin_only": False, "latest": None, "newer": None, "error": "tempo esgotado"}
+            linhas = [_row("upstream", "warn", f"tempo esgotado: o upstream não respondeu em {orcamento_s:g} s no total", None)]
+        else:
+            ok, valor = resultados[i]
+            if ok:
+                upstream, linhas = valor
+            else:
+                msg = _limpa(str(valor) or type(valor).__name__, 300)
+                upstream = {"pin_only": False, "latest": None, "newer": None, "error": msg}
+                linhas = [_row("upstream", "warn", f"não consegui consultar o upstream: {msg}", None)]
+        _fecha_upstream(job, upstream, linhas)
+
+
+def _avalia_seguro(t: tools.Tool, online_jobs: Optional[list]) -> dict:
     """_avalia, but an error of one track becomes a warning row that names it: the doctor never ends with a traceback."""
     try:
-        return _avalia(t, io)
+        return _avalia(t, online_jobs)
     except Exception as exc:  # noqa: BLE001 - reported in the row, never hidden
         motivo = _limpa(f"{type(exc).__name__}: {exc}", 300)
         fix = ("defina HOME ou SIMPLICIO_TOOLS_DIR e rode `simplicio-video doctor trilhas` de novo" if isinstance(exc, RuntimeError)
@@ -612,12 +672,17 @@ def _avalia_seguro(t: tools.Tool, io) -> dict:
                 "pin_source": "pin", "pin_registry": t.ref, "pin_match": None, "upstream": None, "checks": [linha]}
 
 
-def collect(*, online: bool = False, io: Optional[Any] = None) -> dict:
+def collect(*, online: bool = False, io: Optional[Any] = None, orcamento_s: float = ORCAMENTO_ONLINE_S) -> dict:
     """The document of `doctor trilhas`. Offline (the default) reads only the disk, the PATH and the lock. `io` is the network
-    of the upstream (tools_update.Io); with --online and none given, the real one (SIMPLICIO_OFFLINE=1 blocks it)."""
+    of the upstream (tools_update.Io); with --online and none given, the real one (SIMPLICIO_OFFLINE=1 blocks it). With --online,
+    the upstream of all the tracks is read together, inside `orcamento_s` in total (the tests shorten it)."""
     if online and io is None:
         io = tools_update.live_io()
-    tracks = [_avalia_seguro(t, io if online else None) for t in tools.TOOLS.values()]
+    _MEMO.clear()
+    jobs = [] if online else None
+    tracks = [_avalia_seguro(t, jobs) for t in tools.TOOLS.values()]
+    if online:
+        _fecha_upstreams(jobs, io, orcamento_s)
     return {"schema": SCHEMA, "status": _pior(t["status"] for t in tracks), "online": bool(online), "tracks": tracks}
 
 

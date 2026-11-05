@@ -63,6 +63,18 @@ def home_dir(environ: Optional[Mapping[str, str]] = None) -> Path:
         return Path("~")
 
 
+class SemCasa(RuntimeError):
+    """No home folder that can be used (no HOME, no passwd entry): the tools and the clones would land in the folder you are in."""
+
+
+def home_absoluta() -> Path:
+    """The home as an absolute path, or SemCasa. A relative home is never used for the tools or the clones."""
+    casa = home_dir()
+    if not casa.is_absolute():
+        raise SemCasa("não sei onde fica o seu home: defina HOME ou SIMPLICIO_TOOLS_DIR (a pasta das trilhas)")
+    return casa
+
+
 def say(text: str) -> None:
     """print(), but a console that cannot encode a character (a cp1252 Windows console, an odd folder name) shows `?`."""
     try:
