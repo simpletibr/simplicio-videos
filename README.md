@@ -146,6 +146,164 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 | `testada: 0.50.1` in `busca status` | TinyFish at another version | The engine keeps working; the tested version is 0.50.1 |
 | `aviso: o extra ocr não instalou` in `rea-video setup` | `rapidocr-onnxruntime` has no release for this Python (3.13 here; 3.11 works) | Delete the venv folder in `~/.simplicio-video/rea-video-data`, then run `REA_VIDEO_PYTHON=python3.11 simplicio-video rea-video setup`. Without OCR the analysis still runs |
 
+## Incorporated projects (external tracks)
+
+The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit, or an npm or PyPI version with a sha256 (the versions are in the licenses table below). Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`.
+
+| Project | License | Command | MCP |
+|---|---|---|---|
+| [OpenMontage](https://github.com/calesthio/OpenMontage) | AGPL-3.0 | `montage` | `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `help` |
+| [OpenCut](https://github.com/OpenCut-app/opencut-classic) (opencut-classic) | MIT | `opencut` | `clone`, `where`, `help` |
+| [Hypit AI](https://github.com/hypit-ai/hypit) | Hypit license (modified Apache-2.0) | `clone` | argument passthrough, no closed list |
+| [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | `toonflow` | `where`, `clone` |
+| [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | MIT | `moneyprinter` | `where`, `clone`, `status` |
+| [match-cut](https://github.com/Sac-Y/match-cut) | MIT | `matchcut` | `where`, `clone`, `status` |
+| [instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) | MIT | `instagram` | `skills`, `where`, `status`, `run` |
+| [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (local HTTP only) | `voicestudio` | all subcommands |
+| [video-use](https://github.com/browser-use/video-use) | MIT | `edit` | all subcommands |
+| [rea-video](https://github.com/JuneYaooo/rea-video) | MIT (declared in `pyproject.toml`) | `rea-video` | `where`, `status`, `clone` |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense | `media fetch` | `fetch`, only with `--autorizo` |
+| [TinyFish CLI](https://www.npmjs.com/package/@tiny-fish/cli) | not declared in the package | `busca` | `consulta`, `pagina`, `status`, `log` |
+
+### OpenMontage (`montage`)
+
+[calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) · AGPL-3.0
+
+Agentic video production: pipelines and tools from OpenMontage (the Backlot interface), running as a separate program. The engine does not install the upstream's dependencies; the command uses the same Python as `simplicio-video`.
+
+- **Command:** `montage clone [folder]`, `montage open` (default), `montage serve --port 8000`, `montage doctor`, `montage demo`.
+- **MCP:** `clone` (default folder), `doctor`, `hyperframes-doctor`, `preflight`, and `help`.
+- **Terminal only:** `open`, `serve`, and `demo` (they start an interface that never ends, or render with the upstream's pipelines); `clone` with a folder (the agent does not choose where the checkout is written); and any other argument, which runs Python code chosen by the caller.
+- **Example:** `simplicio-video montage doctor`
+
+### OpenCut (`opencut`)
+
+[OpenCut-app/opencut-classic](https://github.com/OpenCut-app/opencut-classic) · MIT
+
+A browser video editor for manual finishing of an MP4 the CLI already made. It uses opencut-classic, which is archived upstream, because the OpenCut rewrite has no API yet. Needs Bun.
+
+- **Command:** `opencut clone [folder]`, `opencut dev` (runs `bun install` and starts the development server, at localhost:3000 according to the command's help), `opencut where`.
+- **MCP:** `clone` (default folder), `where`, and `help`.
+- **Terminal only:** `dev`, which starts a server that never ends, and `clone` with a folder.
+- **Example:** `simplicio-video opencut dev` (stays up until Ctrl+C).
+
+### Hypit AI (`clone`)
+
+[hypit-ai/hypit](https://github.com/hypit-ai/hypit) · npm package `@hypit/hypit` · Hypit license (modified Apache-2.0): forbids commercial redistribution and multi-tenant service without written permission. The engine does not bundle it.
+
+Agentic video cloning. `simplicio-video clone` passes its arguments to Hypit through `npx`, at the pinned version (or to a `hypit` on the PATH, if there is one). Needs Node.
+
+- **Command:** `simplicio-video clone <arguments>` (passthrough).
+- **MCP:** `video.clone` passes its arguments to Hypit. There is no closed list of commands for the agent yet.
+- **Terminal only:** nothing is separated from MCP on main (see above).
+- **Example:** `simplicio-video clone --help` (the help is Hypit's own).
+
+### Toonflow (`toonflow`)
+
+[HBAI-Ltd/Toonflow-app](https://github.com/HBAI-Ltd/Toonflow-app) · MIT
+
+An AI studio for short series, comics, and videos, with the creation done in the app itself. It is a local web application (Bun).
+
+- **Command:** `toonflow clone [folder]`, `toonflow serve --lan` (installs, builds, and starts at http://localhost:3000), `toonflow where`.
+- **Warning:** Toonflow listens on every interface (0.0.0.0:3000) and has no login, so `serve` only starts with `--lan`. To keep it on your own computer, use Toonflow's own docker compose, which publishes on 127.0.0.1:3000.
+- **MCP:** `where` and `clone` (default folder).
+- **Terminal only:** `serve`, which starts a server that never ends and, with `--lan`, is reachable on the network; and `clone` with a folder.
+- **Example:** `simplicio-video toonflow clone`
+
+### MoneyPrinterTurbo (`moneyprinter`)
+
+[harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) · MIT
+
+Generates a short video from a topic: an LLM script, a synthesized voice, and clips from a stock library or from your own material. Needs Python 3.11 or newer. The third-party services it uses (LLM, voice, stock) have their own terms, which were not reviewed here.
+
+- **Command:** `moneyprinter clone [folder]`, `setup` (its own venv; copies the example `config.toml`, with no key), `serve [--webui] [--api] [--lan]` (127.0.0.1 only, unless `--lan`), `generate --script ... --material ... --out ...` (starts the API behind the scenes and returns the MP4 with a hash), `status` (says whether each key is filled in, never the value), `where`.
+- **Keys:** yours, in `config.toml` or in the WebUI. The command never prints the value.
+- **MCP:** `where`, `clone` (default folder), and `status`.
+- **Terminal only:** `setup` (installs packages and writes `config.toml`), `serve` (a server that never ends), `generate` (uses the providers you configured), and `clone` with a folder.
+- **Example:** `simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/ --json`
+
+### match-cut (`matchcut`)
+
+[Sac-Y/match-cut](https://github.com/Sac-Y/match-cut) · MIT
+
+An agent skill (Claude Code or Codex) for product films in the match-cut relay style. The engine downloads the pinned commit and shows where the `SKILL.md` is. It does not run the skill and does not call Renoise. Using the skill requires signing in to Renoise with your own account and spends paid credits.
+
+- **Command:** `matchcut clone [folder]`, `where`, `status`.
+- **MCP:** `where`, `status`, and `clone` (default folder).
+- **Terminal only:** `clone` with a folder.
+- **Example:** `simplicio-video matchcut where`
+
+### instagram-agent-skill (`instagram`)
+
+[Jakeschincariol/instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) · MIT (Jake Schincariol)
+
+Thirteen agent skills for Instagram (Reels, captions, and others) and six local scripts that use only the standard library: `hookscore`, `beats`, `caption`, `humanize`, `detect`, and `swipe`. The engine runs only these scripts, after checking the sha256 of each one. The skills are prompts, not code, and none of this posts. The heuristics are in English: for Portuguese, the scores are only a rough hint.
+
+- **Command:** `instagram clone`, `skills`, `where [--skills]`, `status`, `run <tool> -- <arguments>`.
+- **MCP:** `skills`, `where`, `status`, and `run` for `hookscore`, `beats`, `caption`, `detect`, and `humanize`, with the text in the `texto` parameter. The output comes back marked as third-party text.
+- **Terminal only:** `clone` (downloads third-party code from the network), `swipe`, and writing to a file (`--out`).
+- **Example:** `simplicio-video instagram run caption -- legenda.txt`
+
+### VoiceStudio (`voicestudio`)
+
+[debpalash/VoiceStudio](https://github.com/debpalash/VoiceStudio) · AGPL-3.0; the engine talks to the app only over local HTTP and never vendors it.
+
+A local voice app: TTS, transcription, voice cloning and design, and dubbing export. You install and open the app; the engine only talks to it at `http://127.0.0.1:3900`.
+
+- **Command:** `voicestudio status`, `voices`, `languages`, `personalities`, `tts`, `transcribe`, `clone`, `describe`, `design`, `dub-export`, and `mcp`.
+- **Consent:** cloning a real person's voice requires that person's recorded consent, as `AGENTS.md` requires. The command does not check this.
+- **`dub-export`:** exports a dubbing job that already exists in the app, with music and effects. It does not create the dub.
+- **MCP:** `video.voicestudio`, with the same subcommands.
+- **Terminal only:** nothing, on main.
+- **Example:** `simplicio-video voicestudio status`
+
+### video-use (`edit`)
+
+[browser-use/video-use](https://github.com/browser-use/video-use) · MIT
+
+EDL editing of any MP4: word-accurate cuts, subtitles, overlays, and filmstrip review. The agent writes the decision in `edl.json`, and ffmpeg executes it. Transcription is local (faster-whisper).
+
+- **Command:** `edit setup`, `transcribe`, `pack`, `render`, `verify`.
+- **MCP:** `video.edit`, with the same subcommands.
+- **Terminal only:** nothing, on main.
+- **Example:** `simplicio-video edit render edit/edl.json -o out/final.raw.mp4`
+
+### rea-video (`rea-video`)
+
+[JuneYaooo/rea-video](https://github.com/JuneYaooo/rea-video) · MIT, declared in `pyproject.toml`; the pinned commit has no LICENSE file
+
+Analyzes a reference video shot by shot (live action, AI, 3D, or code render) and plans a remake. It analyzes a file you already have: it does not download video. Needs ffmpeg and Python 3.10 or newer.
+
+- **Command:** `rea-video clone`, `setup`, `where`, `status`, and passthrough of any upstream command (`decompose`, `summary`, `review`, `apply-review`, `remake-plan`, and others).
+- **Network:** without `--vlm`, only model downloads. With `--vlm`, frames go to the vision-model provider you configure, a third party.
+- **MCP:** `where`, `status`, and `clone` (default folder).
+- **Terminal only:** `setup` (installs dependencies), the analyses (they take minutes and may spend vision-model calls), and `clone` with a folder.
+- **Example:** `simplicio-video rea-video decompose ref.mp4 -o out/ref --no-stems`
+
+### yt-dlp (`media fetch`)
+
+[yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) · Unlicense
+
+Downloads a public video to a local MP4 and writes `OUT.fetch.json` next to it, with the URL, sha256, yt-dlp version, and time. It runs in its own venv, with the wheel checked by sha256. It does not log in, does not read browser cookies, and does not download playlists.
+
+- **Command:** `media fetch <URL> -o output.mp4 --autorizo` (also `--max-mb` and `--timeout`).
+- **`--autorizo`:** required. You confirm that you may use the video; the engine does not check this, and platforms such as Instagram have their own download rules.
+- **MCP:** `video.media` runs `fetch` only with `--autorizo`, and the agent passes the flag only after you approve that URL in the chat.
+- **Terminal only:** nothing, on main. Over MCP, your approval of the URL in the chat is what holds the download back.
+- **Example:** `simplicio-video media fetch <URL> -o reference.mp4 --autorizo`
+
+### TinyFish CLI (`busca`)
+
+[@tiny-fish/cli](https://www.npmjs.com/package/@tiny-fish/cli) · license not declared in the package (read on 2026-10-16). You install it with `npm install -g @tiny-fish/cli@0.50.1` (the package asks for Node 24 or newer); the engine never installs it.
+
+Web search and reading of one page, to find references and public facts to check. Each result comes with its source and date, and there is a daily cap on calls (20 by default). It does not call an LLM and does not decide what is true. Web search does not replace the client's own collection.
+
+- **Command:** `busca consulta "<text>" [--idioma pt] [--limite N]`, `busca pagina <url>`, `busca status`, `busca log`.
+- **Privacy:** the query and the URL go to a third party (TinyFish). The engine always refuses keys and tokens, and refuses e-mail, CPF, and CNPJ unless the terminal says `--permitir-dado-pessoal`.
+- **MCP:** `consulta`, `pagina`, `status`, and `log`, with the same cap. No `--atualizar` and no `--permitir-dado-pessoal`.
+- **Terminal only:** `--atualizar` (spends one call to bypass the cache) and `--permitir-dado-pessoal`.
+- **Example:** `simplicio-video busca consulta "datas comemorativas marketing" --idioma pt --limite 5`
+
 ## External tracks and licenses
 
 Each version is pinned in [`src/simplicio_video/tools.py`](src/simplicio_video/tools.py). `simplicio-video tools` lists them all. The engine never vendors or imports these tracks, and the deterministic render does not depend on any of them.
