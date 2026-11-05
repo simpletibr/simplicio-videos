@@ -114,6 +114,23 @@ def test_scan_se_limita_ao_fecho_das_deps_base_e_do_extra_test(monkeypatch, tmp_
     assert {e.name: e.used_by for e in entries}["transitiva"] == "base-lib"
 
 
+# (a3) a tabela é estável, mas o gate de licença olha também o fecho de todo extra declarado que esteja instalado
+def test_scan_de_todos_os_extras_reprova_licenca_negada_fora_da_tabela(monkeypatch, tmp_path):
+    lic = _lic()
+    produto = FakeDist("simplicio-video", "1.0", "MIT").requires("base-lib", 'pacote-ruim>=1; extra == "mcp"',
+                                                                 'nao-instalado; extra == "remote"')
+    produto.metadata["Provides-Extra"] = "mcp"
+    produto.metadata["Provides-Extra"] = "remote"
+    ruim = FakeDist("pacote-ruim", "1.0", "AGPL-3.0-only", top_level=["pacote_ruim"])
+    _use_dists(monkeypatch, produto, FakeDist("base-lib", "1.0", "MIT"), ruim)
+    exc = _exceptions(tmp_path, [])
+
+    assert [e.name for e in lic.scan(exceptions_path=exc)] == ["base-lib", "simplicio-video"]
+    todos = lic.scan(exceptions_path=exc, todos_os_extras=True)
+    assert [e.name for e in lic.denied(todos)] == ["pacote-ruim"]
+    assert {e.name: e.used_by for e in todos}["pacote-ruim"] == "simplicio-video[mcp]"
+
+
 # (b) a mesma licença, com exceção justificada, passa
 def test_excecao_justificada_deixa_o_agpl_passar(monkeypatch, tmp_path):
     lic = _lic()
@@ -154,7 +171,7 @@ def test_scan_do_ambiente_real_sem_licenca_negada():
     """O gate em si: as distribuições do .venv passam pela allowlist ou por exceção justificada."""
     lic = _lic()
 
-    assert lic.denied(lic.scan()) == []
+    assert lic.denied(lic.scan(todos_os_extras=True)) == []
 
 
 def test_docs_licenses_md_desatualizado_ou_ausente_falha(monkeypatch, tmp_path):
