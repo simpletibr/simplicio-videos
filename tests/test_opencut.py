@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 import stat
@@ -79,7 +80,11 @@ def test_dev_creates_env_local_from_the_example_with_a_random_secret(checkout, b
 
 
 def test_dev_env_local_is_private_and_secret_differs_per_checkout(checkout, bun, calls):
-    opencut.run_opencut(["dev"])
+    old = os.umask(0)  # a permissive umask must not leak into the mode
+    try:
+        opencut.run_opencut(["dev"])
+    finally:
+        os.umask(old)
     path = checkout / "apps" / "web" / ".env.local"
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     first = _env(checkout)["BETTER_AUTH_SECRET"]
@@ -280,3 +285,97 @@ def test_mcp_status_json_is_parsed(checkout, bun, monkeypatch):
     monkeypatch.setattr(opencut, "_port_free", lambda port, host="127.0.0.1": True)
     r = mcp_server.video_opencut("status --json")
     assert r["result"]["checkout"] == str(checkout.resolve())
+
+
+# --- review fixes -------------------------------------------------------------------------------------------------
+
+def _web(d):
+    return d / "apps" / "web"
+
+
+def test_non_utf8_example_does_not_crash_nor_leave_an_empty_env_local(checkout, bun, calls):
+    (_web(checkout) / ".env.example").write_bytes(b"# caf\xe9\nNODE_ENV=development\n")
+    opencut.run_opencut(["dev"])
+    assert all(_env(checkout).get(k) for k in REQUIRED)
+
+
+def test_failed_write_leaves_nothing_behind(checkout, bun, calls, monkeypatch):
+    def boom(fd):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(os, "fsync", boom)
+    with pytest.raises(opencut.OpenCutError):
+        opencut.run_opencut(["dev"])
+    assert sorted(p.name for p in _web(checkout).iterdir()) == [".env.example"]
+    assert calls == []
+
+
+def test_interrupted_write_leaves_nothing_behind(checkout, bun, calls, monkeypatch):
+    def boom(fd):
+        raise KeyboardInterrupt
+    monkeypatch.setattr(os, "fsync", boom)
+    with pytest.raises(KeyboardInterrupt):
+        opencut.run_opencut(["dev"])
+    assert sorted(p.name for p in _web(checkout).iterdir()) == [".env.example"]
+
+
+def test_export_lines_are_replaced_in_place_and_empty_values_filled(checkout, bun, calls):
+    (_web(checkout) / ".env.example").write_text(
+        "export BETTER_AUTH_SECRET=your_better_auth_secret\nDATABASE_URL=\nFREESOUND_API_KEY=''\n")
+    opencut.run_opencut(["dev"])
+    text = (_web(checkout) / ".env.local").read_text()
+    assert "your_better_auth_secret" not in text
+    assert text.count("BETTER_AUTH_SECRET=") == 1
+    env = _env(checkout)
+    assert env["DATABASE_URL"].startswith("postgresql://") and env["FREESOUND_API_KEY"] == "placeholder"
+
+
+@pytest.mark.parametrize("kind", ["dangling", "live", "dir"])
+def test_dev_stops_when_env_local_is_not_a_regular_file(checkout, bun, calls, kind, tmp_path):
+    path = _web(checkout) / ".env.local"
+    if kind == "dangling":
+        path.symlink_to(tmp_path / "nao-existe")
+    elif kind == "live":
+        alvo = tmp_path / "alvo"
+        alvo.write_text("X=1\n")
+        path.symlink_to(alvo)
+    else:
+        path.mkdir()
+    with pytest.raises(opencut.OpenCutError, match=r"\.env\.local"):
+        opencut.run_opencut(["dev"])
+    assert calls == []
+    if kind == "dangling":
+        assert not (tmp_path / "nao-existe").exists()
+
+
+def test_status_reports_an_empty_env_local_as_absent(checkout, bun, monkeypatch, capsys):
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: "0" * 40)
+    monkeypatch.setattr(opencut, "_port_free", lambda port, host="127.0.0.1": True)
+    (_web(checkout) / ".env.local").write_text("")
+    _, out = _status(capsys, "--json")
+    assert json.loads(out)["env_local"] is False
+    _, txt = _status(capsys)
+    assert "vazio" in txt
+
+
+def test_status_uses_the_lock_aware_ref_and_reports_both(checkout, bun, monkeypatch, capsys):
+    monkeypatch.setenv("SIMPLICIO_OPENCUT_REF", "a" * 40)
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: "a" * 40)
+    monkeypatch.setattr(opencut, "_port_free", lambda port, host="127.0.0.1": True)
+    _, out = _status(capsys, "--json")
+    data = json.loads(out)
+    assert data["pin"] == "a" * 40 and data["pin_match"] is True
+    assert data["pin_default"] == tools.get("opencut").ref
+
+
+def test_cli_help_for_opencut_is_current(capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["opencut", "--help"])
+    out = capsys.readouterr().out
+    assert "opencut-classic" in out and "status" in out and "--lan" in out
+    assert "OpenCut-app/OpenCut," not in out and "OpenCut-app/OpenCut)" not in out
+
+
+def test_mcp_help_path_is_current():
+    r = mcp_server.video_opencut("--help")
+    text = json.dumps(r)
+    assert "opencut-classic" in text and "status" in text and "--lan" in text
