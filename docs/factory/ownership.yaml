@@ -4,6 +4,9 @@
 # pyproject.toml, a function of app.py, a heading of a doc); the checker allows the file and the
 # reviewer verifies the section. An issue with `status: backlog` has no owned paths yet and cannot be
 # started: elaborate it first (owned paths, acceptance criteria) and flip it to `status: ready`.
+# MCP registration sections (no shared TOOLS/KINDS block to edit): a track owns `src/simplicio_video/mcp_server.py#video_<track>`
+# (its tool function plus its `DESC_video_<track>` constant; the one-line TOOLS row is the only shared edit) and
+# `src/simplicio_video/jobs.py#<kind>` (its prepare/argv/result functions plus its `_register("<kind>", ...)` call).
 schema: simplicio.ownership/v1
 
 generated:         # never hand-edited; regenerate with `make regen`

@@ -361,6 +361,14 @@ def _no_secret(params: dict) -> None:
         raise JobError("recusado: os argumentos contêm uma chave de API. A chave só entra pela variável de ambiente do provedor.")
 
 
+KINDS: dict[str, dict] = {}
+
+
+def _register(kind: str, *, prepare, argv, result) -> None:
+    """Add a task kind to the closed list. Each kind calls this right after its own functions, so adding one touches no shared block."""
+    KINDS[kind] = {"prepare": prepare, "argv": argv, "result": result}
+
+
 def _check_keys(params: dict, allowed: set[str]) -> None:
     extra = sorted(set(params) - allowed)
     if extra:
@@ -467,6 +475,9 @@ def _result_swap(p: dict, last_json: dict | None) -> dict | None:
     return last_json
 
 
+_register("swap-run", prepare=_prepare_swap, argv=_argv_swap, result=_result_swap)
+
+
 def _result_voice(p: dict, last_json: dict | None) -> dict | None:
     lock = Path(p["contrato"]).parent / "timing.lock.json"
     try:
@@ -478,10 +489,7 @@ def _result_voice(p: dict, last_json: dict | None) -> dict | None:
             "lock_sha256": hashlib.sha256(lock.read_bytes()).hexdigest()}
 
 
-KINDS = {
-    "swap-run": {"prepare": _prepare_swap, "argv": _argv_swap, "result": _result_swap},
-    "voice": {"prepare": _prepare_voice, "argv": _argv_voice, "result": _result_voice},
-}
+_register("voice", prepare=_prepare_voice, argv=_argv_voice, result=_result_voice)
 
 
 def build_argv(kind: str, params: dict) -> list[str]:

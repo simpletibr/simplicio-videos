@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 from . import paths
+from .childio import run_child
 
 
 class EditError(Exception):
@@ -23,7 +24,7 @@ def helpers_dir() -> Path:
 
 
 def _run(cmd: list[str]) -> int:
-    return subprocess.call(cmd)
+    return run_child(cmd)
 
 
 def run_edit(args: list[str]) -> int:

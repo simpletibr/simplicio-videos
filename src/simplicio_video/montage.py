@@ -8,11 +8,11 @@ import argparse
 import contextlib
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 from . import tools
+from .childio import run_child
 
 
 class MontageError(Exception):
@@ -370,7 +370,7 @@ def run_montage(args: list[str], cwd: Path | None = None) -> int:
     existing_pp = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{om_dir}:{existing_pp}" if existing_pp else str(om_dir)
 
-    return subprocess.call(cmd, cwd=workdir, env=env)
+    return run_child(cmd, cwd=workdir, env=env)
 
 
 def main(argv: list[str] | None = None) -> int:

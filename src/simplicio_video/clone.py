@@ -4,11 +4,11 @@ Invokes Hypit AI agent capabilities to clone videos into complete workflows.
 """
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
 from . import tools
+from .childio import run_child
 
 
 class CloneError(Exception):
@@ -29,7 +29,7 @@ def find_hypit_bin() -> list[str]:
 def run_hypit(args: list[str], cwd: Path | None = None) -> int:
     """Execute hypit CLI with passed arguments."""
     cmd = find_hypit_bin() + args
-    return subprocess.call(cmd, cwd=cwd)
+    return run_child(cmd, cwd=cwd)
 
 
 def main(argv: list[str] | None = None) -> int:
