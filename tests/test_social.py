@@ -28,7 +28,8 @@ needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("
 CAPTION = "Aprenda a montar o seu primeiro anúncio em vídeo. #marketing #video #reels"
 PROBE_OK = {"duration_s": 20.0, "width": 1080, "height": 1920, "fps": 30.0, "video_codec": "h264",
             "audio_codec": "aac", "container": "mov,mp4,m4a,3gp,3g2,mj2"}
-REDES = ["youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky"]
+REDES = ["youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky",
+         "reddit", "snapchat"]
 PROVEDORES = ["realoficial", "zernio"]
 ID_RO = "01HZX3K9Q2M4N5P6R7S8T9V0WA"  # 26 caracteres, no formato dos ids do Real Oficial (valor inventado)
 CLIP_RO = "01HZX3K9Q2M4N5P6R7S8T9V0WB"
@@ -1336,3 +1337,123 @@ def test_o_detector_de_portugues_pega_comentario_e_docstring_e_deixa_o_ingles(tm
     assert [t.strip() for _, t in achados] == ["Módulo em português.", "# nunca segue symlink", "Chave local.", "# the key is written whole"]
     ruins = [t for _, t in achados if PT_ACENTOS.search(t) or PT_PALAVRAS & set(re.findall(r"[a-zà-ÿ]+", t.lower()))]
     assert [t.strip() for t in ruins] == ["Módulo em português.", "# nunca segue symlink", "Chave local."]
+
+
+# ------------------------------------------------------------------------------------------------ reddit e snapchat: planejar sim, postar não
+
+def valor(rede, campo):
+    return next(r["value"] for r in social.limits_table()["rows"] if r["network"] == rede and r["field"] == campo)
+
+
+def test_reddit_e_snapchat_tem_limites_por_linha_com_fonte_data_e_unverified():
+    tab = social.limits_table()
+    for rede in ("reddit", "snapchat"):
+        linhas = [r for r in tab["rows"] if r["network"] == rede]
+        campos = {"duration_max_s", "aspect_ratios", "size_max_mb", "caption_max_chars", "title_max_chars", "hashtags_max"}
+        assert campos <= {r["field"] for r in linhas}, rede
+        for r in linhas:
+            assert r["source_url"].startswith("https://") and r["read_on"] == "2026-11-05", r
+            assert r["confidence"] == "UNVERIFIED", r  # nenhuma página oficial da rede foi conferida: só a do provedor (terceiro)
+
+
+def test_valores_de_reddit_e_snapchat_batem_com_a_fonte_lida():
+    assert (valor("snapchat", "duration_min_s"), valor("snapchat", "duration_max_s")) == (5, 60)
+    assert valor("snapchat", "aspect_ratios") == ["9:16"] and valor("snapchat", "size_max_mb") == 500
+    assert valor("snapchat", "caption_max_chars") == 160 and valor("snapchat", "title_max_chars") == 45
+    assert valor("reddit", "caption_max_chars") == 40000 and valor("reddit", "title_max_chars") == 300
+    assert valor("reddit", "size_max_mb") == 1024 and valor("reddit", "duration_max_s") is None
+
+
+def test_reddit_e_snapchat_viram_plano_sem_erro_e_sem_limite_violado(video):
+    p = ler(plano(video, targets=["reddit", "snapchat"], force=True)["path"])
+    assert p["ok"] is True and not [c for c in p["checks"] if c["status"] == "violation"]
+    assert [t["network"] for t in p["targets"]] == ["reddit", "snapchat"]
+
+
+def test_snapchat_duracao_fora_da_faixa_e_unverified_e_pede_aceite(video, monkeypatch):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 3.0})
+    with pytest.raises(social.SocialError, match="snapchat.*duration_min_s.*UNVERIFIED.*--aceito-unverified"):
+        plano(video, targets=["snapchat"], force=True)
+    p = ler(plano(video, targets=["snapchat"], force=True, accept_unverified=True)["path"])
+    assert p["accepted_unverified"] == ["snapchat:duration_min_s"]
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 61.0})
+    with pytest.raises(social.SocialError, match="snapchat.*duration_max_s"):
+        plano(video, targets=["snapchat"], force=True)
+
+
+def test_snapchat_horizontal_e_violacao_unverified_da_expectativa_9_16(video, monkeypatch):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "width": 1920, "height": 1080})
+    with pytest.raises(social.SocialError, match="snapchat.*aspect_ratios.*UNVERIFIED"):
+        plano(video, targets=["snapchat"], force=True)
+
+
+def test_snapchat_legenda_de_160_caracteres_e_o_teto_do_reddit_e_bem_maior(video):
+    plano(video, targets=["snapchat"], caption="a" * 160, force=True)
+    with pytest.raises(social.SocialError, match="snapchat.*caption_max_chars"):
+        plano(video, targets=["snapchat"], caption="a" * 161, force=True)
+    plano(video, targets=["reddit"], caption="a" * 5000, force=True)
+
+
+def test_reddit_titulo_de_300_caracteres_e_o_teto(video):
+    plano(video, targets=["reddit"], title="t" * 300, force=True)
+    with pytest.raises(social.SocialError, match="reddit.*title_max_chars"):
+        plano(video, targets=["reddit"], title="t" * 301, force=True)
+
+
+@pytest.mark.parametrize("provedor", PROVEDORES)
+@pytest.mark.parametrize("rede", ["reddit", "snapchat"])
+def test_rede_sem_provedor_sai_bloqueada_na_receita_com_o_motivo(video, provedor, rede, capsys):
+    path = plano(video, targets=[rede], force=True)["path"]
+    rec = social.recipe(path, provider=provedor, clip_id=CLIP_RO)
+    assert rec["blocked"] is True and rec["blocked_until"] == [rede]
+    assert "sem provedor" in rec["blocked_reason"] and rede in rec["blocked_reason"]
+    assert [s["kind"] for s in rec["steps"]] == ["manual"] and _sem_cotar_nem_publicar(rec["steps"])
+    assert social.run_social(["recipe", path, "--provider", provedor, "--clip-id", CLIP_RO]) == 1
+    texto = capsys.readouterr().out
+    assert texto.startswith("BLOQUEADO") and "sem provedor" in texto
+    assert not re.search(r"\[(chamada|mostrar|consentimento)\]", texto)
+
+
+def test_plano_misto_com_rede_sem_provedor_bloqueia_a_receita_toda(video):
+    path = plano(video, targets=["youtube", "reddit"], force=True)["path"]
+    rec = social.recipe(path, clip_id=CLIP_RO)
+    assert rec["blocked"] is True and rec["blocked_until"] == ["reddit"]
+    assert _sem_cotar_nem_publicar(rec["steps"])
+
+
+def test_mcp_recipe_de_rede_sem_provedor_volta_bloqueada(video):
+    r = mcp_server.video_social("plan", video=str(video), caption=CAPTION, targets=["snapchat"])
+    rec = mcp_server.video_social("recipe", plano=r["path"], provider="zernio")
+    assert rec["ok"] is False and rec["blocked"] is True and "sem provedor" in rec["error"]
+    assert _sem_cotar_nem_publicar(rec["steps"])
+
+
+def test_check_avisa_rede_sem_provedor_sem_recusar_o_plano(video):
+    path = plano(video, targets=["reddit"])["path"]
+    rep = social.check_plan(path)
+    assert rep["ok"] is True and any("sem provedor" in w and "reddit" in w for w in rep["warnings"])
+
+
+def test_plan_em_texto_avisa_a_rede_sem_provedor(video, capsys):
+    assert social.run_social(["plan", "--video", str(video), "--caption", CAPTION, "--target", "snapchat"]) == 0
+    assert "sem provedor" in capsys.readouterr().out
+
+
+def test_providers_sem_provedor_traz_motivo_fonte_e_data_e_nenhum_provedor_os_lista_como_destino():
+    rep = social.providers_report()
+    sem = rep["sem_provedor"]
+    assert set(sem) == {"reddit", "snapchat"}
+    for rede, item in sem.items():
+        assert item["motivo"] and item["source_url"].startswith("https://"), rede
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", item["read_on"]), rede
+        assert item["confidence"] == "UNVERIFIED", rede
+    for p in rep["providers"]:
+        assert not set(sem) & set(p["networks"]), p["id"]
+
+
+def test_skill_e_docs_citam_reddit_e_snapchat_como_sem_provedor():
+    for arq in (ROOT / "skills" / "simplicio-video-social" / "SKILL.md",
+                ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video-social" / "SKILL.md",
+                ROOT / "docs" / "recursos.md"):
+        t = arq.read_text(encoding="utf8")
+        assert "Reddit" in t and "Snapchat" in t and "sem provedor" in t, arq
