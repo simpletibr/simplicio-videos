@@ -82,6 +82,19 @@ def _recipe_section(letra: str) -> str:
     return _secao_da_receita(TEXTO, letra)
 
 
+def _pin(nome: str) -> str:
+    """The version the code pins for the tool `nome` (tools.TOOLS): the single source the skill must follow."""
+    from simplicio_video import tools
+
+    return tools.TOOLS[nome].ref
+
+
+def _versao_hyperframes() -> str:
+    from simplicio_video import HYPERFRAMES
+
+    return HYPERFRAMES.rpartition("@")[2]
+
+
 # --- the decision table ----------------------------------------------------------------------------------------------------------------
 
 
@@ -221,7 +234,7 @@ def test_o_mcp_nao_diz_que_nao_instala_nada():
 def test_quem_baixa_codigo_pelo_mcp_tem_secao_com_a_versao_fixada():
     secao = " ".join(_secao("Quem baixa código pelo MCP").split())
     for trecho in ("edit setup", "rea-video clone", "montage clone", "opencut clone", "toonflow clone", "moneyprinter clone",
-                   "media fetch", "video.clone", "0.2.17", "yt-dlp", "fixad"):
+                   "media fetch", "video.clone", _pin("hypit"), "yt-dlp", "fixad"):
         assert trecho in secao, f"a seção 'Quem baixa código pelo MCP' não cita {trecho!r}"
 
 
@@ -298,7 +311,7 @@ def test_a_versao_e_o_pin_por_padrao_com_update_e_status_qualificados():
 
 def test_quem_baixa_codigo_lista_hyperframes_edit_helpers_e_pesos():
     secao = " ".join(_secao("Quem baixa código pelo MCP").split())
-    for trecho in ("hyperframes", "0.8.97", "video.render", "video.run", "setup.sh", "faster-whisper", "primeiro uso"):
+    for trecho in ("hyperframes", _versao_hyperframes(), "video.render", "video.run", "setup.sh", "faster-whisper", "primeiro uso"):
         assert trecho in secao, f"'Quem baixa código pelo MCP' does not list {trecho!r}"
     assert "fora dessa lista" not in " ".join(TEXTO.split())
 
@@ -409,3 +422,119 @@ def test_o_toonflow_com_docker_publica_so_em_127_0_0_1():
 def test_o_openverse_search_consulta_a_api_so_quando_a_consulta_nao_esta_no_cache():
     regras = " ".join(_secao("Regras").split())
     assert "openverse search" in regras and "quando a consulta não está no cache" in regras
+
+
+# --- review of PR #185: the pins the skill cites come from the code, never from a literal ------------------------------------------------
+
+SEMVER = r"\d+\.\d+\.\d+"
+# the line of the skill that talks about a tool -> the tool of tools.TOOLS whose pin it may cite (a version in such a line is a pin)
+LINHAS_COM_PIN = {"hypit": ("Hypit", "@hypit/hypit", "video.clone"), "tinyfish": ("TinyFish", "@tiny-fish/cli"),
+                  "yt-dlp": ("yt-dlp",)}
+
+
+def _pins_citados(texto: str, nome: str) -> list:
+    """Every `pin|versão X.Y.Z` the lines about the tool `nome` cite, as (version, line). Only a version written as a pin counts: the
+    Node minimum ("Node 22.15") and other numbers are not pins. A line of the table is cut at its cell about another track."""
+    marcas = LINHAS_COM_PIN[nome]
+    achados = []
+    for linha in texto.splitlines():
+        if linha.startswith("|") or not any(marca in linha for marca in marcas):
+            continue
+        for m in re.finditer(rf"(?:pin|versão) \(?({SEMVER})", linha):
+            achados.append((m.group(1), linha.strip()[:90]))
+    return achados
+
+
+def _pins_errados(texto: str, refs: dict) -> list:
+    """The pins the skill cites that differ from `refs` (tool -> version), plus the tools whose pin it does not cite at all."""
+    erros = []
+    for nome, ref in refs.items():
+        citados = _pins_citados(texto, nome)
+        if not citados:
+            erros.append(f"{nome}: the skill cites no pin")
+        erros += [f"{nome}: skill says {versao}, code pins {ref} ({linha!r})" for versao, linha in citados if versao != ref]
+    return erros
+
+
+def _refs_do_codigo() -> dict:
+    return {nome: _pin(nome) for nome in LINHAS_COM_PIN}
+
+
+def test_todo_pin_que_a_skill_cita_e_o_do_codigo():
+    """Hypit, TinyFish and yt-dlp: the version in the text is `tools.TOOLS[...].ref`. It was "0.2.17" while the code pinned 0.3.1."""
+    assert _pins_errados(TEXTO, _refs_do_codigo()) == []
+
+
+def test_a_skill_cita_o_pin_do_hypit_nos_dois_lugares_e_o_do_tinyfish():
+    assert len(_pins_citados(TEXTO, "hypit")) >= 2, "the Hypit pin is cited in `Quem baixa código pelo MCP` and in `Trilha que falta`"
+    assert len(_pins_citados(TEXTO, "tinyfish")) >= 1
+
+
+def test_o_pin_do_hyperframes_e_o_do_codigo():
+    assert f"versão {_versao_hyperframes()} do pin" in " ".join(TEXTO.split())
+
+
+def test_a_checagem_de_pin_fica_vermelha_quando_o_tools_py_muda():
+    """Mutation: if tools.py pinned another version, the skill as it stands must fail; with the skill rewritten it must pass."""
+    refs = {nome: "9.9.9" for nome in LINHAS_COM_PIN}
+    erros = _pins_errados(TEXTO, refs)
+    assert len(erros) >= 4 and all("code pins 9.9.9" in e for e in erros)
+    texto_novo = re.sub(rf"((?:pin|versão) \(?)({SEMVER})", r"\g<1>9.9.9", TEXTO)
+    assert _pins_errados(texto_novo, refs) == []
+
+
+def test_a_checagem_de_pin_nao_aceita_a_skill_sem_pin():
+    assert _pins_errados(re.sub(rf"(?:pin|versão) {SEMVER}", "pin", TEXTO), _refs_do_codigo())
+
+
+# --- review of PR #185: the media row says what the code does with an existing -o ----------------------------------------------------
+
+COPIAS = [pytest.param(ROOT / "skills" / "simplicio-video-trilhas" / "SKILL.md", id="skills"),
+          pytest.param(SKILL, id="data-skills")]
+
+
+def _linha_midia(texto: str) -> str:
+    linhas = texto.splitlines()
+    inicio = next(i for i, linha in enumerate(linhas) if linha.startswith("| Pedido"))
+    return next(linha for linha in linhas[inicio + 2:] if "núcleo de mídia" in linha)
+
+
+def _faltas_na_linha_de_midia(texto: str) -> list:
+    """What the media row must say about an existing `-o`, one by one (main's description: every subcommand writes to -o, an existing file
+    is overwritten, `fetch` never overwrites, so give it a new path; download.py refuses the MP4 and the .fetch.json)."""
+    linha = " ".join(_linha_midia(texto).split())
+    faltas = []
+    if not re.search(r"`media` sobrescreve o `-o` que já existe", linha):
+        faltas.append("media sobrescreve o -o")
+    if not re.search(r"o `fetch` nunca sobrescreve", linha):
+        faltas.append("fetch nunca sobrescreve")
+    if ".fetch.json" not in linha:
+        faltas.append(".fetch.json")
+    if re.search(r"exceto o `fetch --info", linha):
+        faltas.append("(false) only fetch --info refuses")
+    return faltas
+
+
+@pytest.mark.parametrize("caminho", COPIAS)
+def test_a_linha_de_midia_diz_o_que_o_codigo_faz_com_um_o_que_ja_existe(caminho):
+    assert _faltas_na_linha_de_midia(caminho.read_text(encoding="utf-8")) == []
+
+
+def test_as_duas_copias_da_skill_sao_identicas():
+    assert COPIAS[0].values[0].read_bytes() == COPIAS[1].values[0].read_bytes()
+
+
+def test_a_checagem_da_linha_de_midia_pega_a_excecao_do_fetch_que_falta():
+    """Mutation: take the fetch exception out of the row (as it can be taken out of the mirror) and the check must name it."""
+    sem = TEXTO.replace("o `fetch` nunca sobrescreve", "o `fetch` também sobrescreve")
+    assert "fetch nunca sobrescreve" in _faltas_na_linha_de_midia(sem)
+    sem = TEXTO.replace("`media` sobrescreve o `-o` que já existe", "`media` grava o `-o`")
+    assert "media sobrescreve o -o" in _faltas_na_linha_de_midia(sem)
+
+
+@pytest.mark.parametrize("caminho", COPIAS)
+def test_o_voicestudio_no_terminal_nao_promete_alem_do_que_o_codigo_mostra(caminho):
+    """voicestudio.py `speak` has no existence check on the terminal path (write_bytes); it was not measured against the real app."""
+    linha = " ".join(_linha_midia(caminho.read_text(encoding="utf-8")).split())
+    assert "voicestudio tts -o` sobrescreve" not in linha
+    assert "não confere se o arquivo existe" in linha and "app simulado" in linha
