@@ -336,7 +336,7 @@ def test_slow_captured_call_does_not_delay_another_tool(monkeypatch):
     r = mcp_server._cli(["status", "--json"])
     waited = time.monotonic() - t0
     t.join()
-    assert r["rc"] == 0 and waited < 1.0, waited
+    assert "rc" in r and waited < 1.0, waited  # status exits 1 when a tool is missing: only the wait matters
 
 
 def test_nested_captures_restore_the_outer_sink():

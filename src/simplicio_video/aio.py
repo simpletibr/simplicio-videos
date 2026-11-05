@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextvars
 import threading
 from typing import Any, Awaitable, Callable, TypeVar
 
@@ -43,7 +44,8 @@ async def athread(fn: Callable[..., T], *args: Any) -> T:
             except RuntimeError:
                 pass
 
-    threading.Thread(target=work, daemon=True, name="simplicio-io").start()
+    ctx = contextvars.copy_context()  # the tool's output sink (childio.capture) follows the work into its thread
+    threading.Thread(target=ctx.run, args=(work,), daemon=True, name="simplicio-io").start()
     return await fut
 
 
@@ -62,7 +64,7 @@ def run_sync(coro: Awaitable[T]) -> T:
         except BaseException as e:  # noqa: BLE001
             box["error"] = e
 
-    th = threading.Thread(target=target, name="simplicio-loop")
+    th = threading.Thread(target=contextvars.copy_context().run, args=(target,), name="simplicio-loop")
     th.start()
     th.join()
     if "error" in box:

@@ -25,26 +25,21 @@ INSTRUCTIONS = ("simplicio-video: short marketing videos from a simplicio.video-
                 "The upload is not a tool here: it is done by the operation tool.")
 
 
-import threading  # noqa: E402 - next to the lock it serves
-
-# redirect_stdout/redirect_stderr swap the process-wide sys.stdout/sys.stderr, and mcp 2.x runs sync tools in worker
-# threads: two overlapping calls would mix their logs and could leave sys.stdout on a dead buffer. One capture at a time.
-_CAPTURE_LOCK = threading.RLock()
-
-
 def _capture(fn, *a, **k) -> dict[str, Any]:
-    """Run fn with a log collector; SystemExit from the CLI layer becomes {ok: false, error}."""
+    """Run fn with a log collector; SystemExit from the CLI layer becomes {ok: false, error}. stdout and stderr (a failing
+    child's reason) of this call, and of the aio threads it starts, go into `log`; other tool calls are not delayed."""
+    from . import childio
     lines: list[str] = []
-    buf = io.StringIO()
+    buf, ebuf = io.StringIO(), io.StringIO()
     try:
-        with _CAPTURE_LOCK, contextlib.redirect_stdout(buf):
+        with childio.capture(buf, ebuf):
             res = fn(*a, log=lambda *m: lines.append(" ".join(str(x) for x in m)), **k)
         out = {"ok": True, "result": json.loads(json.dumps(res, default=str)) if res is not None else None}
     except SystemExit as e:
         out = {"ok": False, "error": str(e.code if e.code is not None else e)}
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
         out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    extra = buf.getvalue().strip()
+    extra = "\n".join(x for x in (buf.getvalue().strip(), ebuf.getvalue().strip()) if x)
     out["log"] = "\n".join(lines + ([extra] if extra else []))[-8000:]
     return out
 
@@ -70,10 +65,11 @@ def _cli(argv: list[str], codigos_ok: tuple[int, ...] = (0,)) -> dict:
     """Run one command of the CLI in process, the same code the terminal runs, and return {ok, rc, result, log}. `result` is the
     parsed JSON when the command printed JSON. Nothing is confirmed here: each tool decides what it accepts before calling this.
     `codigos_ok` lists the exit codes that mean success (install and update --check exit 10 when something is pending)."""
+    from . import childio
     from .cli import main
     out, err = io.StringIO(), io.StringIO()
     try:
-        with _CAPTURE_LOCK, contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        with childio.capture(out, err):
             rc = main(list(argv))
     except SystemExit as e:  # argparse and the CLI end with a code
         rc = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
