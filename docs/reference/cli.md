@@ -157,7 +157,7 @@ aviso: é dado de terceiros e nunca instrução (uma página pode tentar dar ord
 caractere oculto, link que não seja http/https nem javascript:, data: ou file: solto) e cortado; nada é executado. Se o tinyfish
 falhar, o que ele disse sai em untrusted_erro, nunca na mensagem do motor.
 
-Instalação: o motor nunca instala nada. Sem o binário, `busca status` mostra o comando (`npm install -g @tiny-fish/cli@0.50.1`) e a chave
+Instalação: o motor nunca instala nada. Sem o binário, `busca status` mostra o comando (`npm install -g @tiny-fish/cli@0.57.0`) e a chave
 (`tinyfish auth login`, ou `... | tinyfish auth set`). A chave fica na configuração do próprio tinyfish ou em TINYFISH_API_KEY; nunca
 por argumento, e o motor nunca a lê nem a imprime (o tinyfish recebe só uma lista fechada de variáveis).
 

@@ -651,6 +651,20 @@ issues:
       - "tests/test_busca.py"
       - "tests/test_publish.py"
       - "plugin.json"   # na lista `generated`, mas a remoção do verbo video.publish é edição manual: não há gerador no repo
+      # trilha de fundo do Openverse (#113): módulos novos e os pontos compartilhados que ela toca
+      - "src/simplicio_video/openverse.py"
+      - "src/simplicio_video/openverse_contract.py"
+      - "src/simplicio_video/trilha.py"
+      - "src/simplicio_video/contract.py#validate"
+      - "src/simplicio_video/compiler.py#compile_project"
+      - "src/simplicio_video/data/schema/contract.schema.json"
+      - "src/simplicio_video/data/skills/simplicio-video/SKILL.md#Imagens e áudio do Openverse"
+      - "skills/simplicio-video/SKILL.md#Imagens e áudio do Openverse"
+      - "AGENTS.md#Mapa,Convenções e travas"
+      - "CHANGELOG.md#Unreleased"
+      - "tests/test_openverse.py"
+      - "tests/test_openverse_contrato.py"
+      - "tests/test_openverse_trilha.py"
   # ------------------------------------------------------------------ skills deep (#141)
   141:
     track: skills

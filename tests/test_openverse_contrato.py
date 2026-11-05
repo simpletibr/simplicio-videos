@@ -325,6 +325,21 @@ def test_ativo_declarado_fora_de_assets_openverse_e_recusado(env, aprovado, mini
     assert len(erros) == 1 and "assets/openverse/" in erros[0], erros
 
 
+def test_link_simbolico_em_assets_openverse_diz_que_e_link(env, aprovado, mini):
+    """F6b: um link dentro de assets/openverse para fora da pasta é recusado dizendo que é um link, não que o arquivo 'não está lá'."""
+    nome = _exportar(mini, aprovado)
+    pasta = mini.parent / "assets" / "openverse"
+    fora = env.tmp / "fora" / nome
+    fora.parent.mkdir()
+    shutil.copy2(pasta / nome, fora)
+    (pasta / nome).unlink()
+    (pasta / nome).symlink_to(fora)
+    _edit(mini, lambda d: d.setdefault("assets", []).append({"arquivo": f"assets/openverse/{nome}", "destino": f"assets/openverse/{nome}",
+                                                             "openverse": {"id": aprovado["id"], "pedido": PEDIDO}}))
+    erros = _ov_erros(mini)
+    assert erros and any("link simbólico" in e for e in erros), erros
+
+
 def test_cada_recusa_nao_esconde_as_outras(env, midia, aprovado, mini):
     nome = _declarar(mini, aprovado)
     _arquivo(mini, nome).write_bytes(PNG_B)
@@ -839,6 +854,29 @@ def test_destino_repetido_e_erro_do_validate(env, mini, onde):
     assert not rep.ok and len(repetidos) == 1 and ("assets/x.png" if "placa" not in onde else placa_dest) in repetidos[0], rep.errors
 
 
+@pytest.mark.parametrize("onde", ["assets+assets", "arranjo"])
+def test_destino_que_so_difere_na_caixa_tambem_colide(env, mini, onde):
+    """Destinos se comparam sem caixa: macOS e Windows tratam `Arranjo.wav` e `arranjo.wav` como o mesmo arquivo."""
+    (mini.parent / "assets" / "client").mkdir(parents=True)
+    (mini.parent / "assets" / "client" / "a.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"a")
+    (mini.parent / "assets" / "client" / "b.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"b")
+    if onde == "arranjo":
+        (mini.parent / "trilha").mkdir()
+        (mini.parent / "trilha" / "fundo.wav").write_bytes(b"RIFF" + b"x" * 64)  # validate não decodifica a trilha sem cortes
+    def monta(d):
+        if onde == "arranjo":
+            d["trilha"]["music"]["arquivo"] = "trilha/fundo.wav"
+            d["assets"] = [{"arquivo": "assets/client/a.png", "destino": "assets/audio/trilha/Arranjo.wav"}]
+        else:
+            d["assets"] = [{"arquivo": "assets/client/a.png", "destino": "assets/x/Foto.png"},
+                           {"arquivo": "assets/client/b.png", "destino": "assets/x/foto.png"}]
+    _edit(mini, monta)
+    rep = ct.validate(ct.load(mini))
+    repetidos = [e for e in rep.errors if "duplicated destino" in e]
+    assert not rep.ok and len(repetidos) == 1, rep.errors
+    assert ("trilha.music" in repetidos[0] and "arranjo.wav" in repetidos[0].lower()) if onde == "arranjo" else "foto.png" in repetidos[0].lower(), repetidos
+
+
 def test_destino_repetido_entre_ativo_do_openverse_e_foto_do_cliente_nao_passa(env, aprovado, mini):
     nome = _exportar(mini, aprovado)
     (mini.parent / "assets" / "client").mkdir(parents=True)
@@ -1054,6 +1092,15 @@ def test_skill_e_agents_mandam_usar_o_arquivo_exportado_como_esta():
         assert trecho in secao, trecho
     ag = (ROOT / "AGENTS.md").read_text(encoding="utf8")
     assert "use o arquivo exportado como está" in ag and "derivado em disco" in ag
+
+
+def test_skill_diz_que_o_credito_do_video_cobre_a_trilha_e_onde_registrar_a_licenca_do_audio():
+    secao = _secao_do_openverse_no_skill()
+    trilha = secao.split("**Áudio: trilha de fundo.**", 1)[1].split("\n- **", 1)[0]
+    for trecho in ("CREDITS-openverse.md", "assets/audio/LICENSES.md", "by-nc-sa", "uso comercial"):
+        assert trecho in trilha, trecho
+    copia_fonte = (ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video" / "SKILL.md").read_bytes()
+    assert copia_fonte == (ROOT / "skills" / "simplicio-video" / "SKILL.md").read_bytes()  # as duas cópias, byte a byte
 
 
 def test_skill_diz_por_onde_o_ativo_nao_entra_e_o_limite_da_narracao():

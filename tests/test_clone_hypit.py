@@ -104,7 +104,7 @@ def test_clone_status_ready_with_npx_and_node(ambiente, capsys):
     _fake(ambiente, "node", "v22.15.0")
     rc, r = _json(["clone", "status", "--json"], capsys)
     assert rc == 0 and r["ok"] is True
-    assert r["pinned"] == "0.2.17" and r["package"] == "@hypit/hypit"
+    assert r["pinned"] == "0.3.1" and r["package"] == "@hypit/hypit"
     assert r["source"] == "npx" and r["binary"] is None and r["npx"].endswith("/npx")
     assert r["node"]["version"] == "22.15.0" and r["node"]["ok"] is True and r["node"]["minimum"] == "22.15"
 
@@ -122,7 +122,7 @@ def test_clone_status_nothing_installed(ambiente, capsys):
 
 
 def test_clone_status_prefers_the_local_binary(ambiente, capsys):
-    _fake(ambiente, "hypit", "0.2.17")
+    _fake(ambiente, "hypit", "0.3.1")
     _fake(ambiente, "node", "v22.15.0")
     rc, r = _json(["clone", "status", "--json"], capsys)
     assert rc == 0 and r["source"] == "path" and r["binary"].endswith("/hypit")
@@ -138,7 +138,7 @@ def test_clone_status_text(ambiente, capsys):
     _fake(ambiente, "node", "v22.15.0")
     assert main(["clone", "status"]) == 0
     out = capsys.readouterr().out
-    assert "0.2.17" in out and "npx" in out and "22.15" in out
+    assert "0.3.1" in out and "npx" in out and "22.15" in out
 
 
 def test_status_and_tools_see_hypit_through_npx(ambiente, capsys):
@@ -229,7 +229,7 @@ def test_clone_status_reports_effective_and_pinned(ambiente, capsys, monkeypatch
     _fake(ambiente, "node", "v22.15.0")
     monkeypatch.setenv("SIMPLICIO_HYPIT_REF", "0.2.18")
     _, r = _json(["clone", "status", "--json"], capsys)
-    assert r["pinned"] == "0.2.17" and r["effective"] == "0.2.18"
+    assert r["pinned"] == "0.3.1" and r["effective"] == "0.2.18"
 
 
 def test_npm_command_error_names_node_22_15():

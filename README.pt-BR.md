@@ -92,7 +92,7 @@ Pesquisa e leitura de páginas na internet a serviço dos vídeos, pelo CLI [`ti
 
 ```bash
 # instalação (o motor nunca instala nada; `simplicio-video busca status` mostra isto quando faltar)
-npm install -g @tiny-fish/cli@0.50.1     # versão testada; o pacote declara Node >= 24
+npm install -g @tiny-fish/cli@0.57.0     # versão testada; o pacote declara Node >= 24
 tinyfish auth login                      # ou, sem terminal interativo: echo "$CHAVE" | tinyfish auth set
 
 simplicio-video busca status                                                       # binário, versão, chave configurada (nunca o valor), chamadas de hoje e teto
@@ -111,7 +111,7 @@ simplicio-video busca log --ultimos 10                                          
 - **URL de `pagina`: credencial, redirecionamento e `busca status`.** A URL com `usuário:senha@`, ou com parâmetro de nome `...token`, `...key`, `...secret`, `...signature`, `...sig`, `...password`, `...credential` ou `code` (por sufixo: `access_token`, `X-Amz-Signature`, `private_token`) e valor de 8 caracteres ou mais, na query **ou no fragmento** (`#access_token=...`), é recusada antes de gastar e antes de contar a chamada. Se a página redirecionar (`final_url`) para uma URL que o motor recusa (IP, nome interno, `usuário:senha@`, formato inválido), o motor **não entrega nem guarda o conteúdo**: o registro leva `url_final_recusada: true` (sem URL de resultado) e o erro diz "redirecionamento para URL recusada"; a fonte nunca cai de volta na URL pedida. `busca status` roda `tinyfish --version` e `tinyfish auth status`, dois comandos locais que, pela leitura do código do pacote (2026-10-16), não usam a rede: funciona com `SIMPLICIO_OFFLINE=1` e não gasta. O `status` geral só lê a versão, com o mesmo ambiente fechado.
 - **MCP e plugin.** `video.busca` faz `consulta`, `pagina`, `status` e `log`, com o mesmo teto, a mesma recusa de segredo e dado pessoal e sem `--atualizar`, sem `--permitir-dado-pessoal` e sem como mudar o teto. No `plugin.json` são quatro verbos fechados (`video.busca.consulta|pagina|status|log`), com o texto livre depois de `--` para nunca virar opção.
 - **Fora desta versão, de propósito.** `agent`, `browser` e `monitor` do TinyFish (automação de navegador, cobrada por passo ou minuto, com login e efeitos colaterais) não existem aqui. Também ficam de fora `fetch` de várias URLs, `--highlights`, `--links`, `--location`, `--page` e o resto do CLI (`connect`, `config-claude`, `wallet`, `vault`).
-- **Licença e versão.** O pacote npm `@tiny-fish/cli` 0.50.1 não declara licença (sem campo `license` e sem arquivo LICENSE, lido em 2026-10-16): o motor só chama o binário que você instalou e nunca o embute nem o redistribui; parecer jurídico não foi feito. Os fatos lidos no `--help`, no código do pacote e nas duas chamadas de fumaça, com fonte, data e confiança (incluindo o que é UNVERIFIED), estão em `src/simplicio_video/data/busca/tinyfish.json`; detalhes em [docs/recursos.md](docs/recursos.md).
+- **Licença e versão.** O pacote npm `@tiny-fish/cli` 0.57.0 não declara licença (sem campo `license` e sem arquivo LICENSE, lido em 2026-11-05): o motor só chama o binário que você instalou e nunca o embute nem o redistribui; parecer jurídico não foi feito. Os fatos lidos no `--help`, no código do pacote e nas duas chamadas de fumaça, com fonte, data e confiança (incluindo o que é UNVERIFIED), estão em `src/simplicio_video/data/busca/tinyfish.json`; detalhes em [docs/recursos.md](docs/recursos.md).
 
 ### Openverse: biblioteca de imagens e áudio revisada
 
@@ -188,12 +188,14 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 | `template: X has no 'composicao'` | Template de esqueleto | Escolher um template pronto (`simplicio-video list templates`) |
 | campo pendente no `validate` | Contrato gerado e não preenchido | Preencher os campos só com fatos da coleta |
 | Aviso de Python 3.14 no `doctor` | Extras do CrewAI | Usar Python abaixo de 3.14 se for usar esses extras. Não verificado |
-| `testada: 0.50.1` no `busca status` | TinyFish em outra versão | O motor segue funcionando; a versão testada é 0.50.1 |
+| `testada: 0.57.0` no `busca status` | TinyFish em outra versão | O motor segue funcionando; a versão testada é 0.57.0 |
 | `aviso: o extra ocr não instalou` no `rea-video setup` | `rapidocr-onnxruntime` não tem versão para este Python (3.13 aqui; 3.11 funciona) | Apague a pasta venv em `~/.simplicio-video/rea-video-data` e rode `REA_VIDEO_PYTHON=python3.11 simplicio-video rea-video setup`. Sem OCR, a análise segue |
 
 ## Projetos incorporados (trilhas externas)
 
 O motor não importa nenhum destes projetos. Cada um roda como programa separado, instalado sob demanda numa versão fixada: um commit (git), uma versão do npm (Hypit, TinyFish) ou uma versão do PyPI com sha256 (yt-dlp); as versões estão na tabela de licenças mais abaixo. Duas exceções: o TinyFish CLI você instala, e o app do VoiceStudio você abre. O CLI `simplicio-video` chama cada um; vários comandos aceitam `--json`; e o servidor MCP expõe cada um até o ponto dito no item. Nenhum comando do motor posta ou publica. Para ver o estado no seu computador, rode `simplicio-video tools` (instalada ou não, versão fixada, licença) ou `simplicio-video status --json`, que lista as doze trilhas.
+
+Qual trilha responde a cada pedido (tabela pedido, trilha, comando, tool MCP e limites) e como encadear duas ou mais está na skill [`simplicio-video-trilhas`](skills/simplicio-video-trilhas/SKILL.md).
 
 | Projeto | Licença | Comando | MCP |
 |---|---|---|---|
@@ -238,7 +240,7 @@ Editor de vídeo no navegador para o acabamento manual de um MP4 que o CLI já g
 
 [hypit-ai/hypit](https://github.com/hypit-ai/hypit) · pacote npm `@hypit/hypit` · Licença Hypit (Apache-2.0 modificada): proíbe redistribuição comercial e serviço multi-inquilino sem permissão por escrito. O motor não o empacota.
 
-Clonagem de vídeo com agentes. `simplicio-video clone` repassa os argumentos ao Hypit: usa primeiro um `hypit` no PATH; sem ele, roda `npx --yes @hypit/hypit@0.2.17`. Precisa de Node.
+Clonagem de vídeo com agentes. `simplicio-video clone` repassa os argumentos ao Hypit: usa primeiro um `hypit` no PATH; sem ele, roda `npx --yes @hypit/hypit@0.3.1`. Precisa de Node.
 
 - **Comando:** `simplicio-video clone <comando> [argumentos]`, por exemplo `clone status`.
 - **MCP:** `video.clone` só aceita uma lista fechada: `help`, `version`, `doctor`, `check`, `plan`, `pricing`, `status`, `builds`, `history`, `activity`, `inspect`, `logs`, `paths` e `vocabulary`; `get <build> --output <nome> --to <caminho absoluto>`; e `media probe|frames|tile|tiles|boundaries|cut`, com caminhos absolutos, sem `..` e sem `--watch`. O resto é recusado.
@@ -344,7 +346,7 @@ Baixa um vídeo público para um MP4 local e grava `OUT.fetch.json` ao lado, com
 
 ### TinyFish CLI (`busca`)
 
-[@tiny-fish/cli](https://www.npmjs.com/package/@tiny-fish/cli) · licença não declarada no pacote (lido em 2026-10-16). Você instala com `npm install -g @tiny-fish/cli@0.50.1` (o pacote pede Node 24 ou mais novo); o motor nunca instala.
+[@tiny-fish/cli](https://www.npmjs.com/package/@tiny-fish/cli) · licença não declarada no pacote (lido em 2026-11-05, versão 0.57.0). Você instala com `npm install -g @tiny-fish/cli@0.57.0` (o pacote pede Node 24 ou mais novo); o motor nunca instala.
 
 Pesquisa na web e leitura de uma página, para achar referência e fatos públicos a conferir. Cada resultado sai com fonte e data, e há um teto diário de chamadas (20 por padrão). Não chama LLM e não decide o que é verdade. A busca não substitui a coleta do cliente.
 
@@ -364,12 +366,12 @@ Cada versão está fixada em [`src/simplicio_video/tools.py`](src/simplicio_vide
 |---|---|---|---|---|
 | OpenMontage | `montage` | commit `9327439` | default branch | AGPL-3.0 |
 | OpenCut | `opencut` | commit `cf5e79e` | default branch | MIT |
-| Hypit | `clone` | npm `0.2.17` | última versão npm | Licença Hypit (Apache-2.0 modificada); sem redistribuição comercial |
+| Hypit | `clone` | npm `0.3.1` | última versão npm | Licença Hypit (Apache-2.0 modificada); sem redistribuição comercial |
 | Toonflow | `toonflow` | commit `d2e94ac` | default branch | MIT |
 | MoneyPrinterTurbo | `moneyprinter` | commit `4b7b965` | default branch | MIT |
 | match-cut | `matchcut` | commit `b51c98f` | default branch | MIT. Uso exige login e créditos na Renoise |
 | instagram-agent-skill | `instagram` | commit `d03c56b` | default branch | MIT (Jake Schincariol). O script só roda depois que o sha256 bate com o fixado |
-| TinyFish CLI | `busca` | npm `0.50.1` | última versão npm | Não declarada no pacote |
+| TinyFish CLI | `busca` | npm `0.57.0` | última versão npm | Não declarada no pacote |
 | VoiceStudio | `voicestudio` | commit `beeaae08` | default branch | AGPL-3.0. Usado só por HTTP local |
 | video-use | `edit` | commit `b877063` | default branch | MIT |
 | yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 conferido | última release do PyPI, sha256 conferido | Unlicense |

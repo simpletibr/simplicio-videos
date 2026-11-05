@@ -143,12 +143,14 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 | `template: X has no 'composicao'` | Skeleton template | Pick a ready template (`simplicio-video list templates`) |
 | `still has a placeholder` in `validate` | Contract generated but not filled in | Fill the placeholders only with collected facts |
 | Python 3.14 warning in `doctor` | CrewAI extras | Use a Python below 3.14 if you need those extras. Not verified |
-| `testada: 0.50.1` in `busca status` | TinyFish at another version | The engine keeps working; the tested version is 0.50.1 |
+| `testada: 0.57.0` in `busca status` | TinyFish at another version | The engine keeps working; the tested version is 0.57.0 |
 | `aviso: o extra ocr não instalou` in `rea-video setup` | `rapidocr-onnxruntime` has no release for this Python (3.13 here; 3.11 works) | Delete the venv folder in `~/.simplicio-video/rea-video-data`, then run `REA_VIDEO_PYTHON=python3.11 simplicio-video rea-video setup`. Without OCR the analysis still runs |
 
 ## Incorporated projects (external tracks)
 
 The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), or a PyPI version with a sha256 (yt-dlp); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all twelve tracks.
+
+Which track answers each request (a table of request, track, command, MCP tool and limits) and how to chain two or more is in the skill [`simplicio-video-trilhas`](skills/simplicio-video-trilhas/SKILL.md), written in Portuguese like the other skills.
 
 | Project | License | Command | MCP |
 |---|---|---|---|
@@ -193,7 +195,7 @@ A browser video editor for manual finishing of an MP4 the CLI already made. It u
 
 [hypit-ai/hypit](https://github.com/hypit-ai/hypit) · npm package `@hypit/hypit` · Hypit license (modified Apache-2.0): forbids commercial redistribution and multi-tenant service without written permission. The engine does not bundle it.
 
-Agentic video cloning. `simplicio-video clone` passes its arguments to Hypit: it uses a `hypit` on the PATH first; without one, it runs `npx --yes @hypit/hypit@0.2.17`. Needs Node.
+Agentic video cloning. `simplicio-video clone` passes its arguments to Hypit: it uses a `hypit` on the PATH first; without one, it runs `npx --yes @hypit/hypit@0.3.1`. Needs Node.
 
 - **Command:** `simplicio-video clone <command> [arguments]`, for example `clone status`.
 - **MCP:** `video.clone` accepts only a closed list: `help`, `version`, `doctor`, `check`, `plan`, `pricing`, `status`, `builds`, `history`, `activity`, `inspect`, `logs`, `paths`, and `vocabulary`; `get <build> --output <name> --to <absolute path>`; and `media probe|frames|tile|tiles|boundaries|cut`, with absolute paths, no `..`, and no `--watch`. Anything else is refused.
@@ -299,7 +301,7 @@ Downloads a public video to a local MP4 and writes `OUT.fetch.json` next to it, 
 
 ### TinyFish CLI (`busca`)
 
-[@tiny-fish/cli](https://www.npmjs.com/package/@tiny-fish/cli) · license not declared in the package (read on 2026-10-16). You install it with `npm install -g @tiny-fish/cli@0.50.1` (the package asks for Node 24 or newer); the engine never installs it.
+[@tiny-fish/cli](https://www.npmjs.com/package/@tiny-fish/cli) · license not declared in the package (read on 2026-11-05, version 0.57.0). You install it with `npm install -g @tiny-fish/cli@0.57.0` (the package asks for Node 24 or newer); the engine never installs it.
 
 Web search and reading of one page, to find references and public facts to check. Each result comes with its source and date, and there is a daily cap on calls (20 by default). It does not call an LLM and does not decide what is true. Web search does not replace the client's own collection.
 
@@ -319,12 +321,12 @@ Each version is pinned in [`src/simplicio_video/tools.py`](src/simplicio_video/t
 |---|---|---|---|---|
 | OpenMontage | `montage` | commit `9327439` | default branch | AGPL-3.0 |
 | OpenCut | `opencut` | commit `cf5e79e` | default branch | MIT |
-| Hypit | `clone` | npm `0.2.17` | latest npm version | Hypit license (modified Apache-2.0); no commercial redistribution |
+| Hypit | `clone` | npm `0.3.1` | latest npm version | Hypit license (modified Apache-2.0); no commercial redistribution |
 | Toonflow | `toonflow` | commit `d2e94ac` | default branch | MIT |
 | MoneyPrinterTurbo | `moneyprinter` | commit `4b7b965` | default branch | MIT |
 | match-cut | `matchcut` | commit `b51c98f` | default branch | MIT. Use requires a Renoise login and credits |
 | instagram-agent-skill | `instagram` | commit `d03c56b` | default branch | MIT (Jake Schincariol). A script runs only after its sha256 matches the pinned one |
-| TinyFish CLI | `busca` | npm `0.50.1` | latest npm version | Not declared in the package |
+| TinyFish CLI | `busca` | npm `0.57.0` | latest npm version | Not declared in the package |
 | VoiceStudio | `voicestudio` | commit `beeaae08` | default branch | AGPL-3.0. Used only over local HTTP |
 | video-use | `edit` | commit `b877063` | default branch | MIT |
 | yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 checked | latest PyPI release, sha256 checked | Unlicense |

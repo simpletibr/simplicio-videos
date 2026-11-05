@@ -221,6 +221,9 @@ def _verify_lines(doc: dict, host: str) -> list:
 
 def install(target: Path, globally: bool, host: str = "claude", dry_run: bool = False, uninstall: bool = False,
             verify: bool = False, check: bool = False, as_json: bool = False, prune_project_copies: bool = False) -> int:
+    if uninstall and (check or verify):  # those two only read: they must not reach the removal (--dry-run is the preview of it)
+        return _fail("--uninstall não combina com --check nem com --verify (eles só leem, e o --uninstall remove); "
+                     "para ver o que sairia, use --uninstall --dry-run", EXIT_USAGE, as_json, host)
     if prune_project_copies and not globally:
         return _fail("--prune-project-copies só vale com --global (ele remove as cópias do projeto depois de instalar no home)",
                      EXIT_USAGE, as_json, host)

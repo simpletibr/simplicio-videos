@@ -7,6 +7,9 @@
   janelas de voz. O meio não muda. duck_music_db e duck_sfx_db continuam no build.mjs, como antes.
 
 ffmpeg faz o áudio; este módulo monta os filtros e confere os tempos. A trilha sintetizada (build.mjs) não passa por aqui.
+
+- `trilha.music.openverse` (#113): o arquivo é um áudio da biblioteca do Openverse. O compilador copia a cópia aprovada para
+  `origem_destino(music)` na composição, e `prepara` arranja e dá ducking a partir dessa cópia (os bytes que o portão conferiu).
 """
 
 from __future__ import annotations
@@ -22,6 +25,15 @@ RAMPA_DUCKING_S = 0.05  # entrada e saída do ducking: 50 ms, sem clique
 SR = 48000
 TOL_S = 0.001  # tolerância do em_s conferido e do arranjo contra o vídeo
 ARRANJO_REL = "assets/audio/trilha/arranjo.wav"
+ORIGEM_DIR = "assets/audio/trilha/origem"  # a cópia aprovada de um áudio do Openverse, na composição (trilha.music.openverse)
+
+
+def origem_destino(music: dict) -> str | None:
+    """Caminho na composição da cópia aprovada de um áudio do Openverse (trilha.music.openverse); None sem o bloco."""
+    arquivo = music.get("arquivo")
+    if music.get("openverse") is None or not isinstance(arquivo, str):
+        return None
+    return f"{ORIGEM_DIR}/{Path(arquivo).name}"
 
 
 def _ffmpeg(args: list[str]) -> None:
@@ -175,7 +187,8 @@ def janelas_de_voz(c, lock: dict | None) -> list[tuple[float, float]]:
 def prepara(c, workdir: Path, lock: dict | None) -> str:
     """Monta a trilha de arquivo do contrato dentro do workdir e devolve o caminho relativo a ele (vai para o spec.json)."""
     music = c.data["trilha"]["music"]
-    fonte = c.rel(music["arquivo"])
+    origem = origem_destino(music)
+    fonte = workdir / origem if origem else c.rel(music["arquivo"])  # do Openverse: a cópia aprovada que o compilador pôs aqui
     if not fonte.is_file():
         raise SystemExit(f"trilha.music.arquivo não encontrado: {music['arquivo']}")
     cortes = music.get("cortes")
