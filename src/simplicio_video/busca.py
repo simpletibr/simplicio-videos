@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import errno
 import hashlib
 import html
 import ipaddress
@@ -41,11 +42,11 @@ import re
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
 import time
-from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -57,7 +58,7 @@ __all__ = ["BuscaError", "consulta", "pagina", "status", "log", "status_summary"
 SCHEMA_CONSULTA = "simplicio.busca-consulta/v1"
 SCHEMA_PAGINA = "simplicio.busca-pagina/v1"
 SCHEMA_STATUS = "simplicio.busca-status/v1"
-SCHEMA_LOG = "simplicio.busca-log/v1"
+SCHEMA_LOG = "simplicio.busca-log/v2"  # v2: `total` saiu e `arquivos` entrou (v1 foi publicado na 0.6.0)
 SCHEMA_REGISTRO = "simplicio.busca-registro/v1"
 SCHEMA_CACHE = "simplicio.busca-cache/v1"
 SCHEMA_CONTADOR = "simplicio.busca-contador/v1"
@@ -93,6 +94,10 @@ MAX_SAIDA_STATUS_BYTES = 64 * 1024
 MAX_STDERR_BYTES = 64 * 1024
 STALE_DAYS = 7  # a cached answer older than this carries a warning
 CACHE_MAX_ARQUIVOS = 500  # teto de arquivos em cache/; ao gravar um a mais, saem os mais antigos por mtime
+CACHE_MAX_BYTES = 100 * 1024 * 1024  # teto de bytes de cache/ (somado aos arquivos); passou, saem os mais antigos também
+CACHE_TMP_ORFAO_S = 3600  # um .tmp de _atomic_write com mais de 1 h é sobra de gravação interrompida; mais novo pode estar em uso
+REGISTRO_MAX_BYTES = 5 * 1024 * 1024  # o busca.registro.jsonl ativo gira antes de passar disso; uma linha nunca é cortada
+REGISTRO_ARQUIVOS_ANTIGOS = 3  # guarda busca.registro.jsonl.1 a .3; o .3 antigo sai na rotação seguinte
 POLL_S = 0.02
 CANAIS = ("terminal", "mcp")
 
@@ -117,10 +122,16 @@ _NOME_SEGREDO_RE = re.compile(r"(?i)(?:^|_)(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD)(
 _PARAM_CREDENCIAL_RE = re.compile(r"(?:^|[-_.])(?:api[-_]?key|key|token|auth|authorization|secret|credentials?|password|passwd|pwd|sig|signature|"
                                   r"session|session[-_]?id|jwt|bearer|code)$")
 _CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
-# Names that resolve to a private or local address (the fetch is made by the third party, so this protects what the name reveals,
-# not your network): a short list, not a guarantee. A public name that points to a private IP still passes.
-_TLDS_INTERNOS = frozenset({"internal", "local", "lan", "localdomain", "localhost"})
-_SUFIXOS_COM_IP = (".nip.io", ".sslip.io")
+# Names that refer to this machine, the local network or a cloud metadata service BY THEIR OWN TEXT (no DNS is asked here: the fetch is
+# made by the third party, so this protects what the name reveals, not your network). A short static list, not a guarantee: a public
+# name that points to a private IP is caught only by the DNS check of `pagina` (_confere_destino), when it runs.
+_TLDS_INTERNOS = frozenset({"internal", "local", "lan", "localdomain", "localhost"})  # and any *.localhost
+# A bare name (no dot) never gets here: _url_http takes only a host with a dot (_HOST_RE), so `metadata` is refused by that.
+_NOMES_INTERNOS = frozenset({"home.arpa", "localhost.localdomain", "metadata.google.internal", "lvh.me",
+                             "localtest.me"})  # the last two always answer 127.0.0.1
+_SUFIXOS_INTERNOS = (".home.arpa",)  # RFC 8375: the reserved home-network domain
+# wildcard DNS names: an IP written in the name comes back as that address (nip.io, sslip.io, xip.io), or the name is loopback (lvh.me)
+_SUFIXOS_COM_IP = (".nip.io", ".sslip.io", ".xip.io", ".lvh.me", ".localtest.me")
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 _CPF_FMT_RE = re.compile(r"(?<!\d)\d{3}\.\d{3}\.\d{3}-\d{2}(?!\d)")
 _CNPJ_FMT_RE = re.compile(r"(?<!\d)\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}(?!\d)")
@@ -316,7 +327,10 @@ def _sha(dados: bytes | str) -> str:
 
 @contextlib.contextmanager
 def _trava():
-    """Cross-process lock for the counter and the registry (each open() has its own lock, so threads exclude each other too)."""
+    """Cross-process lock for the counter and the registry (each open() has its own lock, so threads exclude each other too).
+
+    NOT reentrant: flock is per open file, so a second `with _trava()` in the same thread waits on the first one forever. Whoever holds
+    it must not call _registrar or _reservar, nor log() (log holds it for the whole read). test_log_nao_aninha_a_trava checks that."""
     pasta().mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
         import fcntl
@@ -406,8 +420,9 @@ def _idioma(valor) -> str | None:
 
 
 def _url_http(valor) -> str | None:
-    """The URL when it is http(s), has a public-looking host name (no IP, no localhost, no internal suffix such as .local, .lan,
-    .internal, .localdomain, nip.io or sslip.io, no user:password@), no space, control or hidden character and a sane size; None otherwise."""
+    """The URL when it is http(s), has a public-looking host name (no IP in any form, no IPv6 literal in brackets, no localhost, no
+    internal suffix such as .local, .lan, .internal, .localdomain or .home.arpa, no wildcard DNS name such as nip.io, sslip.io,
+    xip.io, lvh.me or localtest.me, no user:password@), no space, control or hidden character and a sane size; None otherwise."""
     if not isinstance(valor, str) or not valor or len(valor) > MAX_URL_CHARS or not _utf8_ok(valor):
         return None
     if any(ord(c) <= 32 or ord(c) == 127 for c in valor) or _CONTROLE_RE.search(valor) or _INVISIVEIS_RE.search(valor):
@@ -415,13 +430,16 @@ def _url_http(valor) -> str | None:
     m = _URL_RE.fullmatch(valor)
     if not m:
         return None
+    if m.group(2).startswith("["):  # IPv6 literal (loopback, ULA, link-local, mapped to IPv4): never fetched
+        return None
     host, _, porta = m.group(2).partition(":")
     if porta and not (porta.isdigit() and 0 < int(porta) < 65536):
         return None
-    if not _HOST_RE.fullmatch(host):
+    if not _HOST_RE.fullmatch(host):  # also refuses every IPv4 literal: the last label of a name must start with a letter
         return None
     nome = host.lower()
-    return None if nome.rsplit(".", 1)[-1] in _TLDS_INTERNOS or nome.endswith(_SUFIXOS_COM_IP) else valor
+    recusado = (nome.rsplit(".", 1)[-1] in _TLDS_INTERNOS or nome in _NOMES_INTERNOS or nome.endswith(_SUFIXOS_INTERNOS + _SUFIXOS_COM_IP))
+    return None if recusado else valor
 
 
 def _credencial_na_url(url: str) -> bool:
@@ -445,8 +463,9 @@ def _url_do_usuario(url) -> str:
         raise BuscaError("URL com usuário:senha é recusada: ela é enviada a um terceiro e nunca deve carregar credencial")
     ok = _url_http(url)
     if ok is None:
-        raise BuscaError(f"URL inválida: use http ou https, um nome de host público (nada de IP, localhost, nem sufixo interno como .local, .lan, "
-                         f".internal, .localdomain, nip.io ou sslip.io), sem espaço, até {MAX_URL_CHARS} caracteres")
+        raise BuscaError(f"URL inválida: use http ou https, um nome de host público (nada de IP, v4 ou v6, localhost, nem sufixo interno como "
+                         f".local, .lan, .internal, .localdomain ou .home.arpa, nem nip.io, sslip.io, xip.io, lvh.me ou localtest.me), "
+                         f"sem espaço, até {MAX_URL_CHARS} caracteres")
     if _credencial_na_url(ok):
         raise BuscaError("a URL leva credencial na query ou no fragmento (chave, token, senha, assinatura ou código): ela é enviada a um "
                          "terceiro, nada foi enviado")
@@ -755,41 +774,108 @@ def _gravar_cache(chave: str, doc: dict) -> None:
 
 
 def _poda_cache(manter: Path) -> None:
-    """Keeps at most CACHE_MAX_ARQUIVOS files in cache/: the oldest by mtime go. `manter` (the file just written) never goes.
-    Only cache/ is touched: the registry and the counter are outside it."""
-    vivos = []
-    for p in (pasta() / "cache").glob("*.json"):
+    """Keeps cache/ within CACHE_MAX_ARQUIVOS files and CACHE_MAX_BYTES bytes: the oldest *.json by mtime go first, and `manter` (the file
+    just written) never goes. A .tmp of _atomic_write older than CACHE_TMP_ORFAO_S is an orphan and goes; a newer one may be a write in
+    progress, so it counts but is not removed here. Symlinks and folders are skipped and a link's target is neither counted nor touched
+    (lstat). Only cache/ is touched: the registry and the counter are outside it."""
+    cache = pasta() / "cache"
+    if not cache.is_dir():
+        return
+    agora = time.time()
+    arquivos = []  # (mtime_ns, nome, caminho, bytes) de cada arquivo do cache que ainda está lá
+    for p in cache.iterdir():
+        tmp = p.name.startswith(".") and p.name.endswith(".tmp")
+        if not (tmp or p.name.endswith(".json")):
+            continue
         try:
-            vivos.append((p.stat().st_mtime_ns, p.name, p))
-        except OSError:  # sumiu entre o glob e o stat (outro processo)
+            st = p.lstat()
+        except OSError:  # sumiu entre o listar e o lstat (outro processo)
             continue
-    vivos.sort()
-    excesso = len(vivos) - CACHE_MAX_ARQUIVOS
-    for _, _, p in vivos:
-        if excesso <= 0:
+        if not stat.S_ISREG(st.st_mode):  # link simbólico, pasta ou outra coisa: não é arquivo do cache
+            continue
+        if tmp and st.st_mtime < agora - CACHE_TMP_ORFAO_S:
+            try:
+                p.unlink()
+                continue
+            except OSError:  # não saiu: continua ocupando espaço e entra na conta
+                pass
+        arquivos.append((st.st_mtime_ns, p.name, p, st.st_size))
+    arquivos.sort()
+    excesso = len(arquivos) - CACHE_MAX_ARQUIVOS
+    bytes_total = sum(tam for *_, tam in arquivos)
+    for _, nome, p, tam in arquivos:
+        if excesso <= 0 and bytes_total <= CACHE_MAX_BYTES:
             break
-        if p == manter:
+        if p == manter or not nome.endswith(".json"):
             continue
-        with contextlib.suppress(OSError):
+        try:
             p.unlink()
+        except OSError:  # ficou no cache: não desconta do excesso nem dos bytes
+            continue
         excesso -= 1
+        bytes_total -= tam
+
+
+def _arquivos_do_registro() -> list[Path]:
+    """The active registry first, then the rotated ones from the newest (.1) to the oldest (.3)."""
+    ativo = _caminho_registro()
+    return [ativo, *(ativo.with_name(f"{ativo.name}.{n}") for n in range(1, REGISTRO_ARQUIVOS_ANTIGOS + 1))]
+
+
+def _linha_registro(rec: dict, deslocamento: int) -> tuple[bytes, str]:
+    """The provenance line of `rec` written at byte `deslocamento` of the registry; its id hashes the record and that position."""
+    rec = {**rec, "id": _sha(_canonico(rec) + str(deslocamento))[:16]}
+    return (_guard(json.dumps(rec, sort_keys=True, ensure_ascii=False)) + "\n").encode("utf8"), rec["id"]
+
+
+def _gira_registro() -> None:
+    """Under the lock: the oldest rotated file goes, each one moves up a number, and the active file becomes .1. Lines move whole."""
+    arquivos = _arquivos_do_registro()
+    arquivos[-1].unlink(missing_ok=True)
+    for i in range(len(arquivos) - 1, 0, -1):
+        if arquivos[i - 1].exists():
+            os.replace(arquivos[i - 1], arquivos[i])
+
+
+def _ultimo_byte(caminho: Path) -> bytes:
+    with caminho.open("rb") as f:
+        f.seek(-1, os.SEEK_END)
+        return f.read(1)
+
+
+def _escreve_tudo(fd: int, dados: bytes) -> None:
+    """os.write may take less than it was given (a signal, a full disk): the rest goes in the next call, or it fails."""
+    resto = memoryview(dados)
+    while resto:
+        escritos = os.write(fd, resto)
+        if escritos <= 0:
+            raise OSError(errno.EIO, "a gravação não avançou")
+        resto = resto[escritos:]
 
 
 def _registrar(rec: dict) -> str:
-    """Append one provenance line under the lock (O_APPEND, fsync). Returns its id. Without the line there is no delivery."""
+    """Append one provenance line under the lock (O_APPEND, fsync). The registry turns over between lines once it passes
+    REGISTRO_MAX_BYTES. A line left without its newline by an interrupted write is closed first, so it stays a line of its own.
+    Returns the line's id. Without the line there is no delivery."""
     try:
         with _trava():
-            fd = os.open(_caminho_registro(), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+            ativo = _caminho_registro()
+            tamanho = ativo.stat().st_size if ativo.exists() else 0
+            quebra = b"\n" if tamanho and _ultimo_byte(ativo) != b"\n" else b""
+            linha, id_ = _linha_registro(rec, tamanho + len(quebra))
+            if tamanho and tamanho + len(quebra) + len(linha) > REGISTRO_MAX_BYTES:
+                _gira_registro()
+                tamanho, quebra = 0, b""
+                linha, id_ = _linha_registro(rec, tamanho)
+            fd = os.open(ativo, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
             try:
-                deslocamento = os.fstat(fd).st_size
-                rec = {**rec, "id": _sha(_canonico(rec) + str(deslocamento))[:16]}
-                os.write(fd, (_guard(json.dumps(rec, sort_keys=True, ensure_ascii=False)) + "\n").encode("utf8"))
+                _escreve_tudo(fd, quebra + linha)
                 os.fsync(fd)
             finally:
                 os.close(fd)
     except OSError as e:
         raise BuscaError(f"não consegui gravar o registro de procedência ({e.strerror}): o resultado não foi entregue") from None
-    return rec["id"]
+    return id_
 
 
 def _registro_base(comando: str, canal: str, do_cache: bool, chave: str, doc: dict, url_final_recusada: bool = False, **campos) -> dict:
@@ -1000,8 +1086,9 @@ def _estado_chave(exe: str) -> dict:
 
 
 def _numero_cache() -> int:
+    """Entradas de cache/: só arquivo regular. Um link simbólico não conta, nem o alvo dele."""
     try:
-        return len(list((pasta() / "cache").glob("*.json")))
+        return sum(1 for p in (pasta() / "cache").glob("*.json") if p.is_file() and not p.is_symlink())
     except OSError:
         return 0
 
@@ -1071,33 +1158,56 @@ def _registro_view(rec: dict) -> dict:
     return out
 
 
+def _linhas_do_fim(caminho: Path, bloco: int = 64 * 1024):
+    """The lines of a file from the last to the first, read in blocks from the end: the tail of a file, not the whole of it."""
+    with caminho.open("rb") as f:
+        pos = f.seek(0, os.SEEK_END)
+        resto = b""
+        while pos > 0:
+            tam = min(bloco, pos)
+            pos -= tam
+            f.seek(pos)
+            partes = (f.read(tam) + resto).split(b"\n")
+            resto = partes[0]  # pode ser o começo de uma linha que continua no bloco anterior
+            yield from reversed(partes[1:])
+        yield resto
+
+
 def log(ultimos=20) -> dict:
-    """The last records of `busca.registro.jsonl`; a broken line is counted and skipped, never fatal. The file is read line by line
-    and only the last N valid records are kept, so a long registro does not sit whole in memory."""
+    """The last N records of the registry: the active file is read from its end, and the rotated ones only if N is not reached yet.
+    It stops as soon as N valid records are found. A broken line is counted and skipped, never fatal."""
     n = _inteiro(ultimos, 1, 10000, "--ultimos")
-    recentes: deque = deque(maxlen=n)
-    total = invalidas = 0
+    recentes: list[dict] = []  # from the newest to the oldest while reading
+    lidos: list[str] = []
+    invalidas = 0
     try:
-        with _caminho_registro().open(encoding="utf8", errors="replace") as f:
-            for linha in f:
-                if not linha.strip():
+        with _trava():  # a gravação gira o registro sob esta mesma trava: sem ela, o arquivo lido pode mudar de nome no meio
+            for caminho in _arquivos_do_registro():
+                if len(recentes) >= n:
+                    break
+                if not caminho.exists():
                     continue
-                try:
-                    rec = json.loads(linha)
-                except (ValueError, RecursionError):
-                    invalidas += 1
-                    continue
-                if isinstance(rec, dict) and rec.get("schema") == SCHEMA_REGISTRO and rec.get("comando") in ("consulta", "pagina"):
-                    total += 1
-                    recentes.append(rec)
-                else:
-                    invalidas += 1
-    except FileNotFoundError:
-        pass
+                lidos.append(str(caminho))
+                with contextlib.closing(_linhas_do_fim(caminho)) as linhas:
+                    for bruta in linhas:
+                        if not bruta.strip():
+                            continue
+                        try:
+                            rec = json.loads(bruta.decode("utf8", errors="replace"))
+                        except (ValueError, RecursionError):
+                            invalidas += 1
+                            continue
+                        if isinstance(rec, dict) and rec.get("schema") == SCHEMA_REGISTRO and rec.get("comando") in ("consulta", "pagina"):
+                            recentes.append(rec)
+                            if len(recentes) >= n:
+                                break
+                        else:
+                            invalidas += 1
     except OSError as e:
-        raise BuscaError(f"não consegui ler o registro: {e.strerror}") from None
+        raise BuscaError(f"não consegui usar o registro de procedência ({e.strerror})") from None
+    recentes.reverse()
     mostrados = [_registro_view(r) for r in recentes]
-    return {"schema": SCHEMA_LOG, "aviso_untrusted": UNTRUSTED_NOTICE, "arquivo": str(_caminho_registro()), "total": total,
+    return {"schema": SCHEMA_LOG, "aviso_untrusted": UNTRUSTED_NOTICE, "arquivo": str(_caminho_registro()), "arquivos": lidos,
             "mostrados": len(mostrados), "invalidas": invalidas, "registros": mostrados}
 
 
@@ -1146,8 +1256,9 @@ def _parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _emit(obj, as_json: bool, texto: str) -> None:
-    print(json.dumps(obj, ensure_ascii=False, indent=2) if as_json else texto)
+def _emit(obj, as_json: bool, texto) -> None:
+    """`texto` is a function that renders the terminal text. It runs only without --json, so a --json run never depends on the text."""
+    print(json.dumps(obj, ensure_ascii=False, indent=2) if as_json else texto())
 
 
 def _u(item: dict, *campos: str) -> str:
@@ -1209,15 +1320,17 @@ def _status_text(s: dict) -> str:
 
 
 def _log_text(r: dict) -> str:
-    if not r["total"]:
+    if not r["mostrados"]:
         return f"nenhum registro ainda em {r['arquivo']}" + (f" ({r['invalidas']} linha(s) inválida(s))" if r["invalidas"] else "")
-    lines = [f"registro de procedência: {r['arquivo']} | {r['total']} registro(s), mostrando {r['mostrados']}, {r['invalidas']} linha(s) inválida(s)",
+    lines = [f"registro de procedência: {r['arquivo']} | mostrando {r['mostrados']} registro(s), lidos de {len(r['arquivos'])} arquivo(s), "
+             f"{r['invalidas']} linha(s) inválida(s) entre as lidas",
              f"AVISO {UNTRUSTED_NOTICE}"]
-    for x in r["registros"]:
-        alvo = json.dumps(x["consulta"], ensure_ascii=False) if x["comando"] == "consulta" else _u(x, "url")
-        lines.append(f"[{x['em']}] {x['comando']} {alvo} | {'cache' if x['do_cache'] else 'chamada'} | tinyfish {x.get('cli_versao') or '?'} | "
-                     f"{x['n_resultados']} resultado(s), {x['n_mostrados']} mostrado(s) | conteudo sha256 {x['conteudo_sha256'][:12]} ({x['conteudo_bytes']} bytes) | "
-                     f"canal {x['canal']} | id {x['id']}")
+    for x in r["registros"]:  # .get: um registro incompleto (editado à mão) mostra lacunas, não derruba o texto
+        alvo = json.dumps(x.get("consulta"), ensure_ascii=False) if x.get("comando") == "consulta" else _u(x, "url")
+        sha = str(x.get("conteudo_sha256") or "")[:12]
+        lines.append(f"[{x.get('em')}] {x.get('comando')} {alvo} | {'cache' if x.get('do_cache') else 'chamada'} | "
+                     f"tinyfish {x.get('cli_versao') or '?'} | {x.get('n_resultados')} resultado(s), {x.get('n_mostrados')} mostrado(s) | "
+                     f"conteudo sha256 {sha} ({x.get('conteudo_bytes')} bytes) | canal {x.get('canal')} | id {x.get('id')}")
         lines.append(f"    {_u(x, 'urls_resultados')}")
     return "\n".join(lines)
 
@@ -1225,16 +1338,16 @@ def _log_text(r: dict) -> str:
 def _run(a) -> int:
     if a.cmd == "consulta":
         r = consulta(" ".join(a.texto), a.dominios, a.excluir, a.idioma, a.limite, a.atualizar, a.max_chamadas_dia, a.permitir_dado_pessoal)
-        _emit(r, a.json, _consulta_text(r))
+        _emit(r, a.json, lambda: _consulta_text(r))
     elif a.cmd == "pagina":
         r = pagina(a.url, a.max_bytes, a.atualizar, a.max_chamadas_dia, a.permitir_dado_pessoal)
-        _emit(r, a.json, _pagina_text(r))
+        _emit(r, a.json, lambda: _pagina_text(r))
     elif a.cmd == "status":
         s = status()
-        _emit(s, a.json, _status_text(s))
+        _emit(s, a.json, lambda: _status_text(s))
     else:
         r = log(a.ultimos)
-        _emit(r, a.json, _log_text(r))
+        _emit(r, a.json, lambda: _log_text(r))
     return 0
 
 

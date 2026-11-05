@@ -648,9 +648,13 @@ issues:
     status: ready
     owns:
       - "src/simplicio_video/busca.py"
+      - "src/simplicio_video/busca_ajuda.py"   # #113 3 e 4: o texto de ajuda da busca (registro, cache, nomes internos)
       - "tests/test_busca.py"
       - "tests/test_publish.py"
       - "plugin.json"   # na lista `generated`, mas a remoção do verbo video.publish é edição manual: não há gerador no repo
+      - "src/simplicio_video/status.py#ENV_FERRAMENTA,_primeira_linha"   # #113 2: só a sonda de versão; o resto do status é de motor-status
+      - "tests/test_status_json.py#sonda de versao (#113 2)"
+      - "CHANGELOG.md#Unreleased"   # #113 B4: a nota da quebra do busca log (mudança quebrante) e as correções da busca
       # trilha de fundo do Openverse (#113): módulos novos e os pontos compartilhados que ela toca
       - "src/simplicio_video/openverse.py"
       - "src/simplicio_video/openverse_contract.py"
@@ -661,7 +665,6 @@ issues:
       - "src/simplicio_video/data/skills/simplicio-video/SKILL.md#Imagens e áudio do Openverse"
       - "skills/simplicio-video/SKILL.md#Imagens e áudio do Openverse"
       - "AGENTS.md#Mapa,Convenções e travas"
-      - "CHANGELOG.md#Unreleased"
       - "tests/test_openverse.py"
       - "tests/test_openverse_contrato.py"
       - "tests/test_openverse_trilha.py"
