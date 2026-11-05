@@ -29,6 +29,7 @@ class Fake:
         self.session = "sess-abc"
         self.results = {}
         self.rest_body = None
+        self.rest_raw = None
         self.rest_response = {"text": "transcrição pela API REST", "language": "pt"}
         self.well_known = {"version": "0.5.7", "tts": True}
         self.well_known_status = 200
@@ -41,6 +42,9 @@ class Fake:
 
     def __call__(self, method, url, body, headers, timeout):
         # Only the MCP lane is JSON-RPC: the REST lane carries multipart bytes.
+        raw_body = body
+        if body is not None and not isinstance(body, bytes):  # a streamed multipart body: read it the way the socket would
+            body = body.read()
         payload = json.loads(body) if body and "application/json" in headers.get("Content-Type", "") else None
         self.calls.append({"method": method, "url": url, "payload": payload, "headers": dict(headers), "timeout": timeout})
         assert timeout > 0
@@ -49,13 +53,14 @@ class Fake:
                 return self.well_known_status, {}, b"not found"
             return 200, {"Content-Type": "application/json"}, json.dumps(self.well_known).encode()
         if url.endswith(getattr(vs, "DUB_UPLOAD_PATH", "/dub/upload")):  # POST /dub/upload: multipart, the app answers 202 {job_id, task_id, filename}
-            self.upload_calls.append({"method": method, "url": url, "body": body, "headers": dict(headers), "timeout": timeout})
+            self.upload_calls.append({"method": method, "url": url, "body": body, "raw_body": raw_body, "headers": dict(headers), "timeout": timeout})
             return self.upload_response
         if vs.DUB_DOWNLOAD_PATH in url:
             self.dub_calls.append({"method": method, "url": url, "headers": dict(headers), "timeout": timeout})
             return self.dub_response
         if url.endswith(vs.TRANSCRIPTIONS_PATH):
             self.rest_body = body
+            self.rest_raw = raw_body
             return 200, {"Content-Type": "application/json"}, json.dumps(self.rest_response).encode()
         assert url == "http://127.0.0.1:3900" + vs.MCP_PATH, url
         assert headers.get("X-OmniVoice-Client-Id") == vs.CLIENT_ID  # the client id identifies this agent
@@ -585,3 +590,170 @@ def test_mcp_description_names_dub_create_and_the_absolute_out():
     from simplicio_video import mcp_server
     d = mcp_server.DESC_video_voicestudio
     assert "dub create" in d and "absolut" in d.lower()
+
+
+# ---- review round: loopback only for file bytes, MCP path guards, streaming, Windows args -----------------------------
+
+REMOTE = ["http://evil.example:3900", "https://evil.example", "http://127.0.0.1.evil.example:3900", "http://localhost.evil.example",
+          "http://10.0.0.5:3900", "http://0.0.0.0:3900", "http://user@evil.example:3900", "ftp://127.0.0.1"]
+LOCAL = ["http://127.0.0.1:1234", "http://[::1]:3900", "http://localhost:3900", "http://127.1.2.3:3900"]
+
+
+def _sender(kind, client, tmp_path):
+    a = _clip(tmp_path, "a.wav")
+    return {"dub": lambda: client.dub_create(a), "transcribe": lambda: client.transcribe(a),
+            "transcribe-rest": lambda: client.transcribe(a, via="rest"), "clone": lambda: client.clone_voice(a, "Voz")}[kind]
+
+
+@pytest.mark.parametrize("kind", ["dub", "transcribe", "transcribe-rest", "clone"])
+@pytest.mark.parametrize("base", REMOTE)
+def test_calls_that_send_file_bytes_refuse_a_non_loopback_base(fake, tmp_path, kind, base):
+    with pytest.raises(vs.VoiceStudioError, match="loopback"):
+        _sender(kind, vs.VoiceStudio(base=base), tmp_path)()
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("base", LOCAL)
+def test_loopback_bases_may_receive_files(fake, tmp_path, base):
+    assert vs.VoiceStudio(base=base).dub_create(_clip(tmp_path))["job"] == "ab12cd34"
+
+
+def test_open_app_text_states_the_loopback_rule():
+    assert "loopback" in vs.OPEN_APP.lower()
+
+
+def test_the_env_url_cannot_make_dub_create_leave_the_machine(fake, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("VOICESTUDIO_URL", "http://evil.example:3900")
+    rc, _, err = _run(["dub", "create", str(_clip(tmp_path))], capsys)
+    assert rc == 1 and "loopback" in err and fake.calls == []
+
+
+def test_dub_create_streams_the_body_and_sets_content_length(fake, tmp_path):
+    vs.VoiceStudio().dub_create(_clip(tmp_path, data=b"x" * 5000))
+    call = fake.upload_calls[0]
+    assert not isinstance(call["raw_body"], (bytes, bytearray)) and hasattr(call["raw_body"], "read")
+    assert call["headers"]["Content-Length"] == str(len(call["body"])) and b"x" * 5000 in call["body"]
+
+
+def test_transcribe_rest_streams_the_body_too(fake, tmp_path):
+    vs.VoiceStudio().transcribe(_clip(tmp_path, "a.wav", b"y" * 3000), via="rest")
+    assert hasattr(fake.rest_raw, "read") and b"y" * 3000 in fake.rest_body
+
+
+# MCP guards
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    h = tmp_path / "home"
+    h.mkdir()
+    monkeypatch.setenv("HOME", str(h))
+    monkeypatch.setenv("USERPROFILE", str(h))
+    return h
+
+
+@pytest.mark.parametrize("cmd", ["dub create {p}", "transcribe {p}", "clone {p} --name Voz"])
+def test_mcp_input_paths_must_be_absolute(served, mcp_tool, tmp_path, monkeypatch, cmd):
+    monkeypatch.chdir(tmp_path)
+    ext = "mp4" if cmd.startswith("dub") else "wav"
+    _clip(tmp_path, f"a.{ext}")
+    for p in (f"a.{ext}", f"./a.{ext}", f"~/a.{ext}", f"../{tmp_path.name}/a.{ext}"):
+        r = mcp_tool(cmd.format(p=p))
+        assert r["ok"] is False and "absolut" in r["error"], p
+    assert served.calls == [] and served.upload_calls == []
+
+
+def test_mcp_input_must_be_a_regular_file_with_a_media_extension(served, mcp_tool, tmp_path):
+    (tmp_path / "d.mp4").mkdir()
+    _clip(tmp_path, "nota.txt")
+    _clip(tmp_path, "segredo")
+    for cmd in (f"dub create {tmp_path / 'd.mp4'}", f"dub create {tmp_path / 'nota.txt'}", f"transcribe {tmp_path / 'segredo'}",
+                f"clone {tmp_path / 'nota.txt'} --name V", f"transcribe {tmp_path / 'a.mp4'}", f"transcribe {tmp_path / 'nao-existe.wav'}"):
+        assert mcp_tool(cmd)["ok"] is False, cmd
+    assert served.calls == [] and served.upload_calls == []
+
+
+def test_mcp_symlink_to_a_non_media_target_is_refused_and_a_media_one_is_resolved(served, mcp_tool, tmp_path):
+    secret = _clip(tmp_path, "id_rsa", b"-----BEGIN KEY-----")
+    (tmp_path / "foto.mp4").symlink_to(secret)
+    r = mcp_tool(f"dub create {tmp_path / 'foto.mp4'}")
+    assert r["ok"] is False and served.upload_calls == []
+    real = _clip(tmp_path, "real.mp4", b"video!")
+    (tmp_path / "atalho.mp4").symlink_to(real)
+    r = mcp_tool(f"dub create {tmp_path / 'atalho.mp4'}")
+    assert r["ok"] is True and b'filename="real.mp4"' in served.upload_calls[0]["body"]  # the resolved file is what is sent
+
+
+def test_mcp_input_inside_a_hidden_home_folder_or_a_system_folder_is_refused(served, mcp_tool, home):
+    (home / ".ssh").mkdir()
+    secret = home / ".ssh" / "voz.wav"
+    secret.write_bytes(b"RIFF")
+    r = mcp_tool(f"transcribe {secret}")
+    assert r["ok"] is False and served.calls == []
+    assert mcp_tool("transcribe /etc/voz.wav")["ok"] is False
+
+
+def test_mcp_tts_needs_an_explicit_absolute_out(served, mcp_tool, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    r = mcp_tool("tts oi")
+    assert r["ok"] is False and "--out" in r["error"] and served.calls == [] and list(tmp_path.iterdir()) == []
+
+
+def test_terminal_tts_keeps_its_default_file_name(served, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    rc, _, _ = _run(["tts", "oi"], capsys)
+    assert rc == 0 and (tmp_path / "voicestudio.wav").read_bytes() == WAV
+
+
+def test_mcp_refuses_to_overwrite_an_existing_target(served, mcp_tool, tmp_path):
+    out = tmp_path / "fala.wav"
+    out.write_bytes(b"MINHA")
+    r = mcp_tool(f"tts oi --out {out}")
+    assert r["ok"] is False and "já existe" in r["error"] and out.read_bytes() == b"MINHA" and served.calls == []
+    mp4 = tmp_path / "d.mp4"
+    mp4.write_bytes(b"MINHA")
+    r = mcp_tool(f"dub-export --job j1 --lang pl -o {mp4}")
+    assert r["ok"] is False and "já existe" in r["error"] and mp4.read_bytes() == b"MINHA" and served.dub_calls == []
+
+
+def test_the_terminal_still_overwrites(served, tmp_path, capsys):
+    out = tmp_path / "fala.wav"
+    out.write_bytes(b"VELHO")
+    rc, _, _ = _run(["tts", "oi", "--out", str(out)], capsys)
+    assert rc == 0 and out.read_bytes() == WAV
+
+
+def test_mcp_does_not_create_missing_parent_folders(served, mcp_tool, tmp_path):
+    r = mcp_tool(f"tts oi --out {tmp_path / 'nova' / 'sub' / 'a.wav'}")
+    assert r["ok"] is False and not (tmp_path / "nova").exists() and served.calls == []
+
+
+def test_mcp_refuses_system_folders_hidden_home_folders_and_symlinked_targets(served, mcp_tool, tmp_path, home):
+    assert mcp_tool("tts oi --out /etc/fala.wav")["ok"] is False
+    (home / ".config").mkdir()
+    assert mcp_tool(f"tts oi --out {home / '.config' / 'fala.wav'}")["ok"] is False
+    alvo = tmp_path / "alvo.wav"
+    link = tmp_path / "link.wav"
+    link.symlink_to(alvo)
+    assert mcp_tool(f"tts oi --out {link}")["ok"] is False and not alvo.exists()
+    assert served.calls == []
+
+
+def test_split_args_keeps_windows_backslashes():
+    from simplicio_video import mcp_server
+    assert mcp_server._split_args(r"tts oi --out C:\tmp\a.wav", windows=True) == ["tts", "oi", "--out", r"C:\tmp\a.wav"]
+    assert mcp_server._split_args('tts "olá mundo" -o "C:\\a b\\x.wav"', windows=True) == ["tts", "olá mundo", "-o", "C:\\a b\\x.wav"]
+    assert mcp_server._split_args(r"tts a\ b", windows=False) == ["tts", "a b"]
+
+
+def test_mcp_none_and_a_job_value_that_looks_like_an_option_do_not_crash_or_misparse(served, mcp_tool, tmp_path):
+    r = mcp_tool(None)
+    assert isinstance(r, dict) and r["ok"] is False
+    r = mcp_tool(f"dub-export --job -oabc --lang pl -o {tmp_path / 'd.mp4'}")
+    assert r["ok"] is False and "absolut" not in r["error"] and served.dub_calls == []
+
+
+def test_mcp_description_states_the_new_rules_and_the_result_contract():
+    from simplicio_video import mcp_server
+    d = mcp_server.DESC_video_voicestudio
+    for word in ("loopback", "rc", "já existe", "absolut"):
+        assert word in d, word
