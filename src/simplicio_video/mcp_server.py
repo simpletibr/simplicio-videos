@@ -140,13 +140,21 @@ def _linha_cmd(cmds: tuple[str, ...], nota: str = "") -> str:
     return f" MCP subcommands (cmd): {', '.join(cmds)}{nota}."
 
 
-def _saida_absoluta(argv: list[str]) -> bool:
-    """Every -o / --out given must be an absolute path with no `..` (the same rule as the Hypit paths and the voicestudio --out): a
-    relative one would land in the folder the MCP server was started from, which the client does not control."""
-    for i, a in enumerate(argv[:-1]):
-        if a in ("-o", "--out") and not _caminho_seguro(argv[i + 1]):
-            return False
-    return True
+def _saida_do_cli(argv: list[str], vals: dict | None, chaves: tuple[str, ...], nome: str) -> str | None:
+    """The output rule of the tools that write with -o (media, shorts), checked on what the CLI itself reads (`vals`: the dict its own
+    parser builds from the same words). Every spelling of an output option (-o, -oX, -o=X, --out, --out=X, --output, --ou...;
+    edit._output_values reads them all) must be an absolute path with no `..`: a relative one lands in the folder the MCP server was
+    started from. Each output key the CLI reads (`chaves`) must come from one -o of the call: a -o that another option swallowed
+    (`--fit -o X`, `--out=X -o Y`) or a repeated one is refused. Returns the refusal, or None."""
+    for valor in edit._output_values(argv):
+        if not _caminho_seguro(valor):
+            return f"{nome}: -o/--out precisa ser um caminho absoluto, sem `..` (um relativo cairia na pasta onde o servidor MCP foi iniciado)"
+    lidas = chaves if vals is not None else ()  # no parse (the CLI rejects the words) there is no key to count against
+    for chave in lidas:
+        if argv.count(chave) != (1 if chave in vals else 0):
+            return (f"{nome}: {chave} não é uma opção própria com um valor: foi engolido por outra opção, falta o valor, "
+                    "ou está repetido; ponha -o com um caminho absoluto")
+    return None
 
 
 def _so_terminal(comando: str, motivo: str) -> dict:
@@ -405,7 +413,7 @@ def video_opencut(args: str = "", argv: list[str] | None = None, cmd: Literal[_C
 
 _CMD_EDIT = tuple(c for c in edit.SUBCOMMANDS if c != "transcribe-batch")
 DESC_video_edit = ("video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify|grade; grade = color: auto, --preset, --analyze). "
-                   "Every output (-o/--out/--output, abbreviations included) must be an absolute path; grade --filter takes only colour filters here. Batch transcription (transcribe-batch, ElevenLabs Scribe, "
+                   "Every output (-o/--out/--output, abbreviations included) must be an absolute path with no `..`; the EDL of render and the folder of pack must be absolute too (their intermediates go beside them); grade --filter takes only colour filters here. Batch transcription (transcribe-batch, ElevenLabs Scribe, "
                    "a paid third party) is terminal-only."
                    + _linha_cmd(_CMD_EDIT))
 @_erro_de_argumentos
@@ -421,6 +429,13 @@ def video_edit(args: str = "", argv: list[str] | None = None, cmd: Literal[_CMD_
             return {"ok": False, "error": f"edit {sub}: -o <caminho absoluto> é obrigatório no MCP"}
         if any(not _caminho_seguro(v) for v in saidas):
             return {"ok": False, "error": f"edit {sub}: -o/--out/--output precisa ser um caminho absoluto, sem `..` (um relativo cairia na pasta onde o servidor MCP foi iniciado)"}
+    # the upstream render writes its intermediates beside the EDL, and pack writes takes_packed.md into its folder: both are read
+    # from the cwd when relative, so the MCP takes them absolute (no `..`) and says so
+    if not leitura and sub == "render" and not (rest and _caminho_seguro(rest[0])):
+        return {"ok": False, "error": "edit render: o EDL precisa ser um caminho absoluto, sem `..` (o render grava os intermediários na pasta dele, "
+                                      "e o MCP não sabe de que pasta o servidor foi iniciado)"}
+    if not leitura and sub == "pack" and not (rest and _caminho_seguro(rest[0])):
+        return {"ok": False, "error": "edit pack: a pasta EDIT_DIR precisa ser um caminho absoluto, sem `..` (o pack grava takes_packed.md nela)"}
     if sub == "grade":
         for f in edit.filter_values(rest):
             if not edit.colour_filter_ok(f):
@@ -762,11 +777,11 @@ def _split_args(args, windows: bool | None = None) -> list[str]:
         raise _ArgsErro("`args` passa de 64 KiB; para uma entrada tão grande, passe a lista em `argv`")
     if not any(q in args for q in "\"'"):
         return args.split()
-    if _barra_fora_de_aspas(args):
-        raise _ArgsErro("`args` mistura barra invertida fora de aspas com aspas (o shlex comeria a barra de um caminho em silêncio); "
-                        "passe a linha em `argv`, a lista exata")
     if windows is None:
         windows = hostos.is_windows()
+    if _barra_fora_de_aspas(args, windows):
+        raise _ArgsErro("`args` mistura barra invertida fora de aspas com aspas (o shlex comeria a barra de um caminho em silêncio); "
+                        "passe a linha em `argv`, a lista exata")
     try:
         if not windows:
             return shlex.split(args)
@@ -777,18 +792,25 @@ def _split_args(args, windows: bool | None = None) -> list[str]:
         raise _ArgsErro("aspas sem fechar em `args`; para um argumento com espaço ou aspas, passe `argv`") from None
 
 
-def _barra_fora_de_aspas(args: str) -> bool:
+def _barra_fora_de_aspas(args: str, windows: bool) -> bool:
     """True if a backslash stands outside every quote. Only matters on a line that also has quotes: there the shlex reading of a
-    path (C:\\dir\\a.mp4 -> C:dira.mp4) is silent corruption, so such a line is refused instead of guessed."""
-    aspa = ""
-    for c in args:
+    path (C:\\dir\\a.mp4 -> C:dira.mp4) is silent corruption, so such a line is refused instead of guessed. On POSIX a backslash
+    inside double quotes escapes the next character (`"a\\"b"` is one word), so that character does not close the quote; on
+    Windows it is only a path separator."""
+    aspa, i = "", 0
+    while i < len(args):
+        c = args[i]
         if aspa:
+            if c == "\\" and aspa == '"' and not windows:
+                i += 2
+                continue
             if c == aspa:
                 aspa = ""
         elif c in "\"'":
             aspa = c
         elif c == "\\":
             return True
+        i += 1
     return False
 
 
@@ -826,31 +848,59 @@ def video_voicestudio(args: str = "", argv: list[str] | None = None, cmd: Litera
 
 
 _CMD_SHORTS = ("inspect", "plan", "cut", "run")
-DESC_video_shorts = "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; only new files are written." + _linha_cmd(_CMD_SHORTS)
+DESC_video_shorts = "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; -o is required over MCP (absolute, no `..`), and an existing file at -o is overwritten." + _linha_cmd(_CMD_SHORTS)
 @_erro_de_argumentos
 def video_shorts(args: list[str] | str = "", argv: list[str] | None = None, cmd: Literal[_CMD_SHORTS] | None = None) -> dict:
     """Vertical 9:16 cuts from a long video: `inspect`, `plan` (writes plan.json, which the agent can read and edit), `cut` and
-    `run`. `plan` and `run` need a word transcript (`video.edit` with transcribe makes one). Only new files are written."""
+    `run`. `plan` and `run` need a word transcript (`video.edit` with transcribe makes one). An existing file at -o is overwritten."""
     argv = _argv(args, argv, cmd, _CMD_SHORTS)
-    if not _saida_absoluta(argv):
-        return {"ok": False, "error": "shorts: use -o/--out com caminho absoluto, sem `..`; o MCP não sabe de que pasta o servidor foi iniciado"}
-    if argv[:1] in (["plan"], ["cut"], ["run"]) and not {"-o", "--out"} & set(argv):
-        return {"ok": False, "error": f"shorts {argv[0]}: informe -o/--out com caminho absoluto (onde gravar os cortes)"}
+    erro = _erro_shorts(argv)
+    if erro:
+        return {"ok": False, "error": erro}
     return _cli(["shorts", *argv])
 
 
+def _erro_shorts(argv: list[str]) -> str | None:
+    """The shorts output rule on the CLI's own parse (shorts._parse): -o must be a real option, absolute, with no `..`, and plan, cut
+    and run must have one (over MCP there is no default folder: it would be the folder the server was started from)."""
+    from . import shorts
+    sub = argv[0] if argv else ""
+    if sub not in ("inspect", "plan", "cut", "run"):
+        return None  # the CLI prints its help or names the unknown subcommand: nothing is written
+    _, _, vals = shorts._parse(argv[1:])
+    erro = _saida_do_cli(argv, vals, ("-o", "--out"), "shorts")
+    if erro:
+        return erro
+    if sub != "inspect" and not {"-o", "--out"} & vals.keys():
+        return (f"shorts {sub}: informe -o/--out com caminho absoluto (sem padrão no MCP: o plano e os cortes iriam para shorts/, "
+                "na pasta onde o servidor foi iniciado)")
+    return None
+
+
 _CMD_MEDIA = tuple(media.SUBCOMMANDS)
-DESC_video_media = "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Writes new files with -o." + _linha_cmd(_CMD_MEDIA)
+DESC_video_media = "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Every subcommand writes to -o: an existing -o file is overwritten (ffmpeg -y, probe), while fetch never overwrites, so give a new path." + _linha_cmd(_CMD_MEDIA)
 @_erro_de_argumentos
 def video_media(args: list[str] | str = "", argv: list[str] | None = None, cmd: Literal[_CMD_MEDIA] | None = None) -> dict:
     """Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (a
     public video page downloaded with the pinned yt-dlp). `fetch` needs `--autorizo` in args: pass it only after the user approved
-    that exact URL in the chat, since the engine cannot verify the right to use the file. Every subcommand writes a new file with
-    -o and never changes its input."""
+    that exact URL in the chat, since the engine cannot verify the right to use the file. Every subcommand writes to -o, and an
+    existing file there is overwritten (ffmpeg -y, probe); fetch refuses to overwrite, so the agent gives a new path."""
     argv = _argv(args, argv, cmd, _CMD_MEDIA)
-    if not _saida_absoluta(argv):
-        return {"ok": False, "error": "media: use -o com caminho absoluto, sem `..`; o MCP não sabe de que pasta o servidor foi iniciado"}
+    erro = _erro_media(argv)
+    if erro:
+        return {"ok": False, "error": erro}
     return _cli(["media", *argv])
+
+
+def _erro_media(argv: list[str]) -> str | None:
+    """The media output rule on the CLI's own parse (media._parse, the same words). A help request writes nothing and is left to the CLI."""
+    if not argv or any(h in argv[1:] for h in ("-h", "--help")):
+        return None
+    try:
+        _, vals = media._parse(argv[1:])
+    except media.MediaError:
+        vals = None  # the CLI's own parse rejects these words before anything runs (e.g. a trailing --json): only the spelling is checked
+    return _saida_do_cli(argv, vals, ("-o",), "media")
 
 
 _CMD_QC = ("congelado",)

@@ -350,6 +350,15 @@ def test_install_uninstall_com_dry_run_pelo_mcp_e_recusado_sem_rodar(cli):
     assert cli == []
 
 
+def test_args_com_aspa_escapada_dentro_de_aspas_duplas_e_recusado_com_barra_depois(cli, monkeypatch):
+    """No POSIX `\\"` dentro de aspas duplas é aspa escapada, não fim da aspa: `probe "a\\"b" C:\\x` (o shlex dava ['probe', 'a"b',
+    'C:x']) mistura aspa e barra fora de aspas, então é recusada com 'use argv'."""
+    monkeypatch.setattr(hostos, "is_windows", lambda: False)
+    r = mcp_server.video_media('probe "a\\"b" C:\\x')
+    assert r["ok"] is False and "argv" in r["error"], r
+    assert cli == []
+
+
 def test_args_so_com_aspas_e_so_com_barra_continuam_valendo(cli):
     """Os dois casos que não são ambíguos seguem como antes: só aspas (shlex) e só barra (a barra do caminho fica)."""
     mcp_server.video_media('probe "/abs/com espaço.mp4" --json')
