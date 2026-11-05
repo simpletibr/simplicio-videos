@@ -1,8 +1,9 @@
 """Testes offline do `scripts/e2e_real.py` (o roteiro de testes reais ponta a ponta).
 
-Tudo aqui roda com fakes: sondas da máquina (chaves, apps, portas), um executor que grava os argumentos e devolve
-respostas prontas, e relógio falso. Nenhum comando real roda, nenhuma porta é aberta e nenhuma chave é usada, por isso
-entra no `make check`. O roteiro de verdade é `make e2e-real E2E_ARGS="--sim-gastar"`, fora do gate.
+Quase tudo aqui roda com fakes: sondas da máquina (chaves, apps, portas), um executor que grava os argumentos e devolve
+respostas prontas, e relógio falso. O plano (sem --sim-gastar) é provado sem subprocesso e sem socket: um teste troca
+`subprocess` e `socket` por funções que falham e roda o plano com as sondas reais. Nenhuma chave é usada, por isso o
+arquivo entra no `make check`. O roteiro de verdade é `make e2e-real E2E_ARGS="--sim-gastar"`, fora do gate.
 """
 from __future__ import annotations
 
@@ -10,6 +11,9 @@ import hashlib
 import importlib.util
 import json
 import math
+import os
+import socket
+import subprocess
 import sys
 from pathlib import Path
 
@@ -157,9 +161,20 @@ def test_sem_chaves_e_apps_os_checks_reais_viram_skip_com_motivo(tmp_path, capsy
     doc = json.loads(out)
     assert _item(doc, "voice-gemini")["estado"] == "SKIP"
     assert "GEMINI_API_KEY" in _item(doc, "voice-gemini")["motivo"]
-    assert "3900" in _item(doc, "voicestudio")["motivo"]
     assert "TINYFISH_API_KEY" in _item(doc, "busca-consulta")["motivo"]
     assert "docker" in _item(doc, "toonflow")["motivo"]
+    assert grav.chamadas == []
+
+
+def test_porta_do_voicestudio_so_e_sondada_com_sim_gastar(tmp_path, capsys):
+    # no plano a porta é só anotada como pendente (sem socket); na execução, sem app, vira SKIP com o motivo
+    _, out, _ = _roda(tmp_path, capsys, ["--json", "--apenas", "voicestudio"], sondas=SondasFalsas(portas=(3900,)))
+    assert _item(json.loads(out), "voicestudio")["estado"] == "PLANO"
+    grav = Gravador()
+    _, out, grav = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "voicestudio"], sondas=SondasFalsas(portas=()),
+                         gravador=grav)
+    item = _item(json.loads(out), "voicestudio")
+    assert item["estado"] == "SKIP" and "3900" in item["motivo"]
     assert grav.chamadas == []
 
 
@@ -170,7 +185,7 @@ def test_a_chave_do_gemini_habilita_voz_e_swap_gemini_e_nada_mais(tmp_path, caps
     assert _item(doc, "voice-gemini")["estado"] == "PLANO"
     assert _item(doc, "swap-estimate")["estado"] == "PLANO"
     assert _item(doc, "busca-consulta")["estado"] == "SKIP"
-    assert _item(doc, "voicestudio")["estado"] == "SKIP"
+    assert _item(doc, "voicestudio")["estado"] == "PLANO"  # a porta só é sondada com --sim-gastar
 
 
 def test_chave_do_fal_nao_habilita_o_swap_padrao_do_gemini(tmp_path, capsys):
@@ -221,7 +236,7 @@ def test_teto_padrao_do_swap_e_um_dolar_e_max_usd_substitui(tmp_path, capsys):
     assert _item(json.loads(out), "swap-run")["teto_usd"] == 0.5
 
 
-@pytest.mark.parametrize("valor", ["-1", "nan", "inf"])
+@pytest.mark.parametrize("valor", ["-1", "0", "nan", "inf"])
 def test_teto_invalido_e_erro_de_uso(tmp_path, capsys, valor):
     with pytest.raises(SystemExit) as exc:
         e2e.main(["--pasta", str(tmp_path / "e2e"), "--max-usd", valor], sondas=SondasFalsas(), runner=Gravador())
@@ -352,6 +367,29 @@ def test_preparar_contrato_alarga_so_a_copia_e_nao_mexe_no_fixture(tmp_path):
     assert (copia.parent / "vo" / "line-01.wav").is_file()
 
 
+def test_plano_nao_roda_subprocesso_nem_abre_socket(tmp_path, capsys, monkeypatch):
+    """Prova do plano: com as sondas REAIS, nenhuma chamada a processo, shell ou socket pode acontecer."""
+    proibidas = []
+
+    def proibida(nome):
+        def falha(*args, **kwargs):
+            proibidas.append(nome)
+            raise AssertionError(f"{nome} chamado no plano")
+        return falha
+
+    for nome in ("Popen", "run", "call", "check_call", "check_output", "getoutput", "getstatusoutput"):
+        monkeypatch.setattr(subprocess, nome, proibida(f"subprocess.{nome}"))
+    monkeypatch.setattr(os, "system", proibida("os.system"))
+    monkeypatch.setattr(os, "popen", proibida("os.popen"))
+    monkeypatch.setattr(socket, "socket", proibida("socket.socket"))
+    monkeypatch.setattr(socket, "create_connection", proibida("socket.create_connection"))
+    rc = e2e.main([], sondas=e2e.SondasReais(), runner=proibida("runner"))
+    assert rc == 0
+    assert proibidas == []
+    out = capsys.readouterr().out
+    assert "PLANO" in out and "--sim-gastar" in out
+
+
 def test_versao_do_node_precisa_ser_22_15_ou_mais():
     assert e2e.node_ok((22, 15, 0)) and e2e.node_ok((23, 0, 0))
     assert not e2e.node_ok((22, 14, 9)) and not e2e.node_ok(None)
@@ -387,3 +425,80 @@ def test_esperar_http_para_quando_responde_e_quando_o_processo_morre():
     relogio2 = iter([0, 1, 2])
     assert not e2e.esperar_http("http://127.0.0.1:3000", 60, abrir=lambda u: None, dormir=lambda s: None,
                                 agora=lambda: next(relogio2), vivo=lambda: False)
+
+
+def test_log_do_servidor_passa_pela_redacao(tmp_path):
+    """O stdout do `toonflow serve` pode ecoar uma chave: o serve.log só recebe o texto redigido."""
+    log = tmp_path / "serve.log"
+    filho = [sys.executable, "-c", f"print('erro com {CHAVE_FALSA}', flush=True); print('fim', flush=True)"]
+    proc, leitor = e2e._iniciar_servidor(filho, env=dict(os.environ), log=log, segredos=[CHAVE_FALSA])
+    assert proc.wait(timeout=60) == 0
+    leitor.join(timeout=60)
+    texto = log.read_text(encoding="utf-8")
+    assert CHAVE_FALSA not in texto
+    assert "erro com ***" in texto and "fim" in texto
+
+
+def test_pasta_nao_vazia_recusa_antes_de_qualquer_chamada(tmp_path, capsys):
+    pasta = tmp_path / "usado"
+    pasta.mkdir()
+    (pasta / "antigo.txt").write_text("não pode ser apagado", encoding="utf-8")
+    grav = Gravador()
+    with pytest.raises(SystemExit) as exc:
+        e2e.main(["--sim-gastar", "--pasta", str(pasta)],
+                 sondas=SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA}), runner=grav)
+    assert exc.value.code == 2
+    assert grav.chamadas == []
+    assert (pasta / "antigo.txt").read_text(encoding="utf-8") == "não pode ser apagado"
+
+
+def test_ambiente_filho_mantem_caches_e_bytecode_dentro_da_temporaria(tmp_path):
+    env = e2e._ambiente_filho({"PATH": "/bin", "SIMPLICIO_OFFLINE": "1"}, tmp_path)
+    assert env["npm_config_cache"] == str(tmp_path / "npm-cache")
+    assert env["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert "SIMPLICIO_OFFLINE" not in env
+
+
+def test_so_um_ffmpeg_gera_a_midia_sintetica_e_o_avatar_vem_do_repositorio(tmp_path, capsys):
+    """A mídia sintética gasta uma chamada ao ffmpeg (o repo não tem vídeo de teste); a imagem é copiada do repo."""
+    grav = Gravador()
+    sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA}, mp=True)
+    _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "swap-estimate,moneyprinter-livre"], sondas=sondas,
+          gravador=grav)
+    ffmpeg = [c for c in grav.chamadas if c[0].endswith("ffmpeg")]
+    assert len(ffmpeg) == 1, ffmpeg
+    estimativa = grav.comandos("swap estimate")[0]
+    ref = estimativa[estimativa.index("--ref") + 1]
+    assert Path(ref).name == "avatar.png" and Path(ref).is_file()
+
+
+def test_toonflow_usa_o_serve_como_checagem_do_docker_e_nao_chama_docker_pelo_executor(tmp_path, capsys, monkeypatch):
+    class Morto:
+        def poll(self):
+            return 1
+
+        def wait(self, timeout=None):
+            return 1
+
+    class Leitor:
+        def join(self, timeout=None):
+            return None
+
+    lancados = []
+
+    def lancar(argv, **kwargs):
+        lancados.append(list(argv))
+        return Morto(), Leitor()
+
+    def popen_proibido(*args, **kwargs):
+        raise AssertionError("subprocess.Popen direto: o serve tem de sair por _iniciar_servidor (testável)")
+
+    monkeypatch.setattr(e2e, "_iniciar_servidor", lancar)
+    monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, "Popen", popen_proibido)
+    grav = Gravador()
+    _, out, grav = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                         sondas=SondasFalsas(toonflow=True), gravador=grav)
+    assert not any("docker" in " ".join(c) for c in grav.chamadas), grav.chamadas
+    assert any("toonflow" in " ".join(c) and "serve" in " ".join(c) for c in lancados)
+    assert _item(json.loads(out), "toonflow")["estado"] == "FAIL"
