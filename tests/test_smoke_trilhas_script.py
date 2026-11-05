@@ -462,3 +462,15 @@ def test_smoke_trilhas_nesta_maquina_sem_fail():
     assert set(tools.TOOLS) <= trilhas
     assert {"doctor --json", "status --json", "list templates", "validate", "mcp tools/list"} <= {
         c["checagem"] for c in dados["checagens"] if c["trilha"] == "core"}
+
+
+def test_trilha_quebrada_no_doctor_e_aviso_no_smoke_e_nao_falha(smoke, monkeypatch):
+    from types import SimpleNamespace
+
+    dados = {"schema": "simplicio.doctor/v1", "status": "fail", "checks": [
+        {"name": "python", "status": "ok", "summary": "Python 3.12", "fix": None, "detail": {}},
+        {"name": "trilhas", "status": "fail", "summary": "1 com instalação quebrada",
+         "fix": "simplicio-video doctor trilhas", "detail": {}}]}
+    saida = SimpleNamespace(out=json.dumps(dados), rc=1, timeout=False, texto=json.dumps(dados), segundos=0.1)
+    monkeypatch.setattr(smoke, "_rodar_cli", lambda argv: saida)
+    assert smoke._core_doctor().estado != smoke.FAIL

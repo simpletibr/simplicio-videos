@@ -420,3 +420,20 @@ def test_os_usos_do_powershell_nos_scripts_levam_o_bypass_so_do_processo():
     assert usos, "the scripts say how to run the PowerShell one"
     for nome, linha in usos:
         assert "-NoProfile -ExecutionPolicy Bypass -File" in linha, f"{nome}: {linha}"
+
+
+def test_doctor_com_so_a_trilha_opcional_quebrada_nao_para_a_instalacao(copia):
+    """An external track is optional: a broken one is a warning for the install (the row `trilhas` says the way out). Only a
+    failing core check stops it."""
+    ferramentas_ok(copia)
+    disco_suficiente(copia.tmp)
+    (copia.repo / ".venv").mkdir()
+    (copia.repo / ".venv" / "pyvenv.cfg").write_text("version_info = 3.12.4\n", encoding="utf-8")
+    (copia.repo / ".venv" / "bin").mkdir()
+    stub = copia.repo / ".venv" / "bin" / "simplicio-video"
+    stub.write_text("#!/bin/sh\nprintf '%s\\n' 'simplicio-video doctor: fail' '  fail  trilhas       1 com instalação quebrada' "
+                    "'        fix: simplicio-video doctor trilhas'\nexit 1\n", encoding="utf-8")
+    stub.chmod(0o755)
+    feito = roda(copia)
+    assert feito.returncode == 0, texto(feito)
+    assert "doctor trilhas" in texto(feito)
