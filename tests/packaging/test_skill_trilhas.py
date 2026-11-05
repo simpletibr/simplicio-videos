@@ -426,68 +426,104 @@ def test_o_openverse_search_consulta_a_api_so_quando_a_consulta_nao_esta_no_cach
 
 # --- review of PR #185: the pins the skill cites come from the code, never from a literal ------------------------------------------------
 
-SEMVER = r"\d+\.\d+\.\d+"
-# the line of the skill that talks about a tool -> the tool of tools.TOOLS whose pin it may cite (a version in such a line is a pin)
-LINHAS_COM_PIN = {"hypit": ("Hypit", "@hypit/hypit", "video.clone"), "tinyfish": ("TinyFish", "@tiny-fish/cli"),
-                  "yt-dlp": ("yt-dlp",)}
+# a version (X.Y.Z, also a calendar one) or a commit sha (7 to 40 hex chars with a digit) that is not part of an IP address or a longer number
+VERSAO = re.compile(r"(?<![\w.])(?:\d+\.\d+\.\d+|(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40})(?![\w]|\.\d)")
 
 
-def _pins_citados(texto: str, nome: str) -> list:
-    """Every `pin|versão X.Y.Z` the lines about the tool `nome` cite, as (version, line). Only a version written as a pin counts: the
-    Node minimum ("Node 22.15") and other numbers are not pins. A line is cut into clauses, so that one tool's pin is not read from another tool's clause; table rows are skipped (no pin there)."""
-    marcas = LINHAS_COM_PIN[nome]
-    achados = []
-    for linha in texto.splitlines():
-        if linha.startswith("|"):
-            continue
-        for oracao in re.split(r"[.;] ", linha):  # a line can talk about two tools ("... o HyperFrames ... Não instalam o TinyFish")
-            if not any(marca in oracao for marca in marcas):
-                continue
-            for m in re.finditer(rf"(?:pin|versão) \(?({SEMVER})", oracao):
-                achados.append((m.group(1), oracao.strip()[:90]))
-    return achados
+def _marcas_das_trilhas() -> dict:
+    """tool (tools.TOOLS, plus the HyperFrames of the render) -> the words that name it in the skill: its registry name, the name the
+    table uses and the package or repository it is installed from. Derived from the code and from TRILHAS, never typed twice."""
+    from simplicio_video import tools
 
-
-def _pins_errados(texto: str, refs: dict) -> list:
-    """The pins the skill cites that differ from `refs` (tool -> version), plus the tools whose pin it does not cite at all."""
-    erros = []
-    for nome, ref in refs.items():
-        citados = _pins_citados(texto, nome)
-        if not citados:
-            erros.append(f"{nome}: the skill cites no pin")
-        erros += [f"{nome}: skill says {versao}, code pins {ref} ({linha!r})" for versao, linha in citados if versao != ref]
-    return erros
+    marcas = {}
+    for nome_skill, (registro, _, _) in TRILHAS.items():
+        t = tools.TOOLS[registro]
+        marcas[registro] = {nome_skill, registro, t.source.rstrip("/").rpartition("/")[2]} - {"clone"}
+    marcas["hyperframes"] = {"HyperFrames", "hyperframes"}
+    return marcas
 
 
 def _refs_do_codigo() -> dict:
-    return {nome: _pin(nome) for nome in LINHAS_COM_PIN}
+    """tool -> every spelling of its pin the skill may use: the version, or the full commit and its short forms (7 to 12 chars)."""
+    refs = {nome: {_pin(nome)} for nome in _marcas_das_trilhas() if nome != "hyperframes"}
+    for nome, ref in list(refs.items()):
+        (valor,) = ref
+        if re.fullmatch(r"[0-9a-f]{40}", valor):
+            refs[nome] = {valor[:n] for n in range(7, 41)}
+    refs["hyperframes"] = {_versao_hyperframes()}
+    return refs
 
 
-def test_todo_pin_que_a_skill_cita_e_o_do_codigo():
-    """Hypit, TinyFish and yt-dlp: the version in the text is `tools.TOOLS[...].ref`. It was "0.2.17" while the code pinned 0.3.1."""
-    assert _pins_errados(TEXTO, _refs_do_codigo()) == []
+def _citacoes(texto: str) -> list:
+    """Every version or sha the skill writes, as (token, tools the same clause names, clause). A clause is a table cell or the text up to
+    the next `. ` or `; `, so that one tool's pin is not read from another tool's clause."""
+    marcas = _marcas_das_trilhas()
+    achados = []
+    for linha in texto.splitlines():
+        for oracao in re.split(r"\| |[.;] ", linha):
+            for token in VERSAO.findall(oracao):
+                nomes = {nome for nome, palavras in marcas.items() if any(re.search(rf"(?<![\w-]){re.escape(p)}(?![\w-])", oracao) for p in palavras)}
+                achados.append((token, nomes, oracao.strip()[:90]))
+    return achados
+
+
+def _versoes_erradas(texto: str, refs: dict) -> list:
+    """Every cited version that is not the pin of a track named in its own clause (a version next to no track name is also wrong: nothing
+    says whose it is), plus each tool whose pin the skill never cites although `OBRIGATORIOS` says it must."""
+    erros = []
+    citados = _citacoes(texto)
+    for token, nomes, oracao in citados:
+        if not nomes:
+            erros.append(f"{token}: no track named in its clause, so it is nobody's pin ({oracao!r})")
+        elif not any(token in refs[nome] for nome in nomes):
+            erros.append(f"{token}: not the pin of {sorted(nomes)} ({', '.join(sorted(refs[n])[-1] for n in nomes)}) ({oracao!r})")
+    for nome in OBRIGATORIOS:
+        if not any(nome in nomes and token in refs[nome] for token, nomes, _ in citados):
+            erros.append(f"{nome}: the skill cites no pin")
+    return erros
+
+
+OBRIGATORIOS = ("hypit", "tinyfish", "yt-dlp", "hyperframes")
+
+
+def test_toda_versao_que_a_skill_cita_e_o_pin_da_trilha_do_codigo():
+    """Hypit, TinyFish, yt-dlp, HyperFrames and any other pin: the version in the text is `tools.TOOLS[...].ref`, whatever the word before it
+    ("pin", "versão" or nothing). It was "0.2.17" while the code pinned 0.3.1."""
+    assert _versoes_erradas(TEXTO, _refs_do_codigo()) == []
 
 
 def test_a_skill_cita_o_pin_do_hypit_nos_dois_lugares_e_o_do_tinyfish():
-    assert len(_pins_citados(TEXTO, "hypit")) >= 2, "the Hypit pin is cited in `Quem baixa código pelo MCP` and in `Trilha que falta`"
-    assert len(_pins_citados(TEXTO, "tinyfish")) >= 1
-
-
-def test_o_pin_do_hyperframes_e_o_do_codigo():
-    assert f"versão {_versao_hyperframes()} do pin" in " ".join(TEXTO.split())
+    refs = _refs_do_codigo()
+    citados = _citacoes(TEXTO)
+    assert len([c for c in citados if "hypit" in c[1] and c[0] in refs["hypit"]]) >= 2, "`Quem baixa código pelo MCP` and `Trilha que falta`"
+    assert any("tinyfish" in c[1] and c[0] in refs["tinyfish"] for c in citados)
 
 
 def test_a_checagem_de_pin_fica_vermelha_quando_o_tools_py_muda():
-    """Mutation: if tools.py pinned another version, the skill as it stands must fail; with the skill rewritten it must pass."""
-    refs = {nome: "9.9.9" for nome in LINHAS_COM_PIN}
-    erros = _pins_errados(TEXTO, refs)
-    assert len(erros) >= 4 and all("code pins 9.9.9" in e for e in erros)
-    texto_novo = re.sub(rf"((?:pin|versão) \(?)({SEMVER})", r"\g<1>9.9.9", TEXTO)
-    assert _pins_errados(texto_novo, refs) == []
+    """Mutation: if tools.py pinned other versions, the skill as it stands must fail on every cited one."""
+    refs = {nome: {"9.9.9"} for nome in _refs_do_codigo()}
+    erros = _versoes_erradas(TEXTO, refs)
+    assert len(erros) >= 6 and all("9.9.9" in e or "cites no pin" in e for e in erros)
+
+
+def test_a_checagem_de_pin_pega_a_versao_sem_a_palavra_pin():
+    """A new pin written without `pin` or `versão` before it cannot lie either."""
+    refs = _refs_do_codigo()
+    assert _versoes_erradas(TEXTO.replace("no pin 0.3.1 por npx", "no 0.3.0 por npx"), refs), "a wrong Hypit version after any other word"
+    assert _versoes_erradas(TEXTO.replace("(versão 0.57.0 testada,", "(0.56.0 testada,"), refs)
+    assert _versoes_erradas(TEXTO.replace("OpenCut (MIT, opencut-classic)", "OpenCut 1.2.3 (MIT, opencut-classic)"), refs), "a version for a track that has a pin"
+    assert _versoes_erradas(TEXTO + "\nA versão 4.5.6 funciona.\n", refs), "a version next to no track at all"
+    sha = _pin("opencut")
+    assert _versoes_erradas(TEXTO + f"\n- **OpenCut:** o commit {sha[:7]}.\n", refs) == []
+    assert _versoes_erradas(TEXTO + f"\n- **OpenCut:** o commit {sha[:6]}0.\n", refs), "a sha that is not the pin"
 
 
 def test_a_checagem_de_pin_nao_aceita_a_skill_sem_pin():
-    assert _pins_errados(re.sub(rf"(?:pin|versão) {SEMVER}", "pin", TEXTO), _refs_do_codigo())
+    assert _versoes_erradas(VERSAO.sub("", TEXTO), _refs_do_codigo())
+
+
+def test_o_ip_e_o_node_nao_sao_pin():
+    assert VERSAO.findall("escuta em 0.0.0.0:3000 e 127.0.0.1:3900; Node 22.15 e Python 3.11") == []
 
 
 # --- review of PR #185: the media row says what the code does with an existing -o ----------------------------------------------------
@@ -541,3 +577,88 @@ def test_o_voicestudio_no_terminal_nao_promete_alem_do_que_o_codigo_mostra(camin
     linha = " ".join(_linha_midia(caminho.read_text(encoding="utf-8")).split())
     assert "voicestudio tts -o` sobrescreve" not in linha
     assert "não confere se o arquivo existe" in linha and "app simulado" in linha
+
+
+# --- second review of PR #185: what a clone needs, what Hypit 0.3.1 accepts, the doctor ------------------------------------------------
+
+
+def _texto(caminho) -> str:
+    return " ".join(caminho.read_text(encoding="utf-8").split())
+
+
+def _clone_pede_bun(texto: str) -> list:
+    """The clauses that say a `clone` needs Bun. Neither `opencut clone` nor `toonflow clone` runs Bun (tools.install: git only); `opencut dev`
+    and `toonflow serve` do."""
+    return [oracao for oracao in re.split(r"(?<=\)) |[.;] ", texto) if re.search(r"\bclone\b[^.;]*(?<!não )precisa de Bun", oracao)]
+
+
+@pytest.mark.parametrize("caminho", COPIAS)
+def test_o_clone_do_opencut_e_do_toonflow_nao_pede_bun(caminho):
+    texto = _texto(caminho)
+    assert _clone_pede_bun(texto) == []
+    secao = " ".join(_secao_do("Trilha que falta", caminho.read_text(encoding="utf-8")).split())
+    for trilha in ("OpenCut", "Toonflow"):
+        linha = next(linha for linha in secao.split("- **") if linha.startswith(trilha))
+        assert "o clone não precisa de Bun" in linha, f"{trilha}: the clone needs git only"
+        assert ("`opencut dev` precisa de Bun" if trilha == "OpenCut" else "`toonflow serve --lan` precisa de Bun") in linha, f"{trilha}: say which command needs Bun"
+
+
+def _secao_do(titulo: str, texto: str) -> str:
+    m = re.search(rf"^(#{{2,3}}) {re.escape(titulo)}.*$", texto, re.M)
+    fim = re.search(r"^#{1,3} ", texto[m.end():], re.M)
+    return texto[m.end(): m.end() + fim.start()] if fim else texto[m.end():]
+
+
+def test_a_checagem_do_bun_pega_o_clone_que_pede_bun():
+    """Mutation: the old wording (the clone needs Bun) must be caught, in either spelling."""
+    assert _clone_pede_bun("- **OpenCut:** `simplicio-video opencut clone` (precisa de Bun).")
+    assert _clone_pede_bun("- **Toonflow:** `simplicio-video toonflow clone` (precisa de Bun).")
+    assert not _clone_pede_bun("`opencut clone` (o clone não precisa de Bun; dev precisa).")
+
+
+def test_o_bun_e_so_do_dev_e_do_serve_na_tabela():
+    for nome, verbo in (("OpenCut", "dev"), ("Toonflow", "serve")):
+        linha = " ".join(next(linha for linha in _tabela() if linha[1].startswith(nome))[4].split())
+        assert "Bun" in linha and verbo in linha
+    assert "o `--lan` precisa de Bun e o `--docker`, de Docker" in next(l for l in _tabela() if l[1].startswith("Toonflow"))[4]
+
+
+@pytest.mark.parametrize("caminho", COPIAS)
+def test_a_linha_do_hypit_nao_lista_o_que_o_pin_nao_aceita(caminho):
+    """On the pinned Hypit `packages` and `measure` are "Unknown help topic" (`npx @hypit/hypit@<pin> packages --help`): not verbs to list as
+    terminal-only. The MCP refuses them; the terminal gives the upstream error."""
+    texto = caminho.read_text(encoding="utf-8")
+    linhas = texto.splitlines()
+    inicio = next(i for i, linha in enumerate(linhas) if linha.startswith("| Pedido"))
+    linha = " ".join(next(linha for linha in linhas[inicio + 2:] if "| Hypit" in linha).split())
+    limites = linha.strip("|").split("|")[-1]
+    pin = _pin("hypit")
+    assert f"`packages` e `measure` não existem no Hypit {pin}" in limites
+    assert re.search(r"`studio`, `auth`, `runtime`, `capture` e `transcribe`", limites), "the terminal-only verbs that do exist in the pin"
+    assert not re.search(r"`runtime`, `packages`|`packages`, `capture`|e `measure`,? ", limites.replace("`packages` e `measure` não existem", ""))
+    assert "upstream" in limites and "MCP" in limites
+
+
+def test_o_codigo_de_saida_1_e_do_terminal_e_o_ok_true_e_do_mcp():
+    secao = " ".join(_secao_da_receita(TEXTO, "f").split())
+    assert "Código de saída 1 conta como resultado (`ok: true`)" not in secao
+    assert "no terminal o processo sai com 1" in secao and "no MCP" in secao and "`ok: true`" in secao and "`codigo_saida`" in secao
+
+
+def test_a_skill_documenta_o_doctor_trilhas_como_ele_e():
+    """`doctor trilhas` is offline unless `--online`, has `--json` and the MCP takes it as `video.doctor` with args `trilhas`; the doctor
+    itself points at it as the fix command, so the skill has to say what it is."""
+    secao = " ".join(_secao("Ver o que falta: doctor trilhas").split())
+    for trecho in ("simplicio-video doctor trilhas", "--json", "--online", "sem rede", "video.doctor", 'args="trilhas"', "simplicio.doctor-trilhas/v1",
+                   "pendência", "não instala"):
+        assert trecho in secao, f"the doctor trilhas section does not say {trecho!r}"
+    assert "doctor trilhas" in " ".join(_secao("Antes de começar").split())
+
+
+def test_o_voicestudio_nao_diz_que_nao_ha_setup_sem_explicar_o_doctor():
+    """`doctor trilhas` says "não instalada" for VoiceStudio and suggests the git clone of the pinned source; the skill must reconcile that
+    with "open the app" (tools.py: the app has its own installer, the clone is the source checkout)."""
+    linha = " ".join(next(l for l in _secao("Trilha que falta").splitlines() if l.startswith("- **VoiceStudio:**")).split())
+    assert "Não há setup do motor" not in linha
+    assert "instalador próprio" in linha and "doctor trilhas" in linha and "não instalada" in linha and "git clone" in linha
+    assert "código-fonte" in linha and "127.0.0.1:3900" in linha
