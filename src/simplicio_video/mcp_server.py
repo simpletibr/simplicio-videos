@@ -196,9 +196,26 @@ def video_opencut(args: str = "") -> dict:
     return _cli(["opencut", *argv])
 
 
-DESC_video_edit = "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify)."
+DESC_video_edit = ("video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify|grade; grade = color: auto, --preset, --analyze). "
+                   "Every output (-o/--out/--output, abbreviations included) must be an absolute path; grade --filter takes only colour filters here. Batch transcription (transcribe-batch, ElevenLabs Scribe, "
+                   "a paid third party) is terminal-only.")
 def video_edit(args: str = "") -> dict:
-    argv = args.split() if isinstance(args, str) else list(args)
+    from . import edit
+    argv = _argv(args)
+    sub, rest = (argv[0] if argv else ""), argv[1:]
+    if sub in ("transcribe-batch", "transcribe_batch"):
+        return _so_terminal("edit transcribe-batch", "transcrever em lote usa o ElevenLabs Scribe, um terceiro pago, e só roda com você no terminal")
+    leitura = any(h in rest for h in ("-h", "--help")) or any(r.split("=", 1)[0] in edit.GRADE_READ_ONLY for r in rest if sub == "grade")
+    if sub in edit.NEEDS_OUT and not leitura:
+        saidas = edit._output_values(rest)
+        if not saidas:
+            return {"ok": False, "error": f"edit {sub}: -o <caminho absoluto> é obrigatório no MCP"}
+        if any(not v or not Path(v).is_absolute() for v in saidas):
+            return {"ok": False, "error": f"edit {sub}: -o/--out/--output precisa ser um caminho absoluto (um relativo cairia na pasta onde o servidor MCP foi iniciado)"}
+    if sub == "grade":
+        for f in edit.filter_values(rest):
+            if not edit.colour_filter_ok(f):
+                return _so_terminal("edit grade --filter", "pelo MCP o --filter só aceita filtros de cor (eq, curves, colorbalance, hue, lut, lutrgb, lutyuv, colorchannelmixer, vibrance), sem opção que leia ou grave arquivo; uma cadeia livre")
     return _cli(["edit", *argv])
 
 

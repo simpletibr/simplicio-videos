@@ -64,7 +64,7 @@ def test_video_use_setup_checks_soundfile(tmp_path):
     fake = tmp_path / "py"
     fake.write_text('#!/usr/bin/env bash\ncase "$*" in *soundfile*) exit 1;; esac\nexit 0\n')
     fake.chmod(0o755)
-    setup = ROOT / "tools" / "video-use" / "setup.sh"
+    setup = ROOT / "src" / "simplicio_video" / "data" / "tools" / "video-use" / "setup.sh"
     r = subprocess.run(["bash", str(setup), "--quiet"], capture_output=True, text=True,
                        env={**os.environ, "SIMPLICIO_TTS_PY": str(fake), "VIDEO_USE_DIR": str(tmp_path / "vu")})
     assert r.returncode != 0 and "soundfile" in r.stderr

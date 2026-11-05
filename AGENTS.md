@@ -75,7 +75,7 @@ simplicio-video clone [args]                            # Hypit AI: clonagem de 
 simplicio-video montage [clone|open|serve|demo|args]   # OpenMontage: produção de vídeo com agentes (https://github.com/calesthio/OpenMontage)
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
-simplicio-video edit setup|transcribe|pack|render|verify   # edição por EDL com video-use (tools/video-use)
+simplicio-video edit setup|transcribe|pack|render|verify   # edição por EDL com video-use (src/simplicio_video/data/tools/video-use)
 simplicio-video opencut clone|dev|where            # editor OpenCut para acabamento manual
 simplicio-video swap providers|estimate|run|status # troca o personagem de um vídeo por um avatar (agnóstico de fornecedor); run exige --autorizo, gasta só com --yes e abaixo de --max-usd
 simplicio-video jobs submit|status|list|cancel|result|clean   # tarefas em segundo plano (swap-run, voice) num processo separado, sem daemon nem porta; swap-run só pelo terminal com --yes; MCP só submete voz local
@@ -171,10 +171,10 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 - Padrão novo: `motion/patterns/<id>/pattern.json` + `block.html` → `bash motion/scripts/preview.sh <id>` (lint + preview) → `node motion/scripts/catalog.mjs` (regenera catálogo e tabela do README). Só vira `pronto` com lint limpo e preview.
 - Inspiração externa: descreva e **reimplemente** com link da fonte; nunca copie código com licença restrita.
 
-**Edição com video-use (etapa 6, OPCIONAL)** ([tools/video-use/README.md](tools/video-use/README.md) · avaliação em [docs/video-use-integracao.md](docs/video-use-integracao.md))
+**Edição com video-use (etapa 6, OPCIONAL)** ([src/simplicio_video/data/tools/video-use/README.md](src/simplicio_video/data/tools/video-use/README.md) · avaliação em [docs/video-use-integracao.md](docs/video-use-integracao.md))
 - Só quando o usuário pede ajuda de edição (cortar para X s, reordenar, aparar footage, legendas, revisar cortes) ou há footage real. Vídeo novo/motion = HyperFrames direto (o LLM/template compõe).
-- Setup: `bash tools/video-use/setup.sh` (commit fixado, fora do repo). Exemplo completo: `clients/wjr-informatica-games/video-02-videouse/` (`run.sh`, `edit/edl.json`, `edit/project.md`).
-- Transcrição sem chave: `tools/video-use/transcribe_local.py` (faster-whisper → formato Scribe, `--script spec.json` para narração nossa). Fala real → Scribe (`ELEVENLABS_API_KEY`).
+- Setup: `bash src/simplicio_video/data/tools/video-use/setup.sh` (commit fixado, fora do repo). Exemplo completo: `clients/wjr-informatica-games/video-02-videouse/` (`run.sh`, `edit/edl.json`, `edit/project.md`).
+- Transcrição sem chave: `src/simplicio_video/data/tools/video-use/transcribe_local.py` (faster-whisper → formato Scribe, `--script spec.json` para narração nossa). Fala real → Scribe (`ELEVENLABS_API_KEY`).
 - Texto que depende de contexto na fonte (contador, "passo 2"): gere variante pelo spec (`source.variables.json`), não mascare.
 - Overlays HyperFrames sempre `--format mov` (WebM perde o alfa no `render.py`); loudness pelo nosso `master.sh` (`--no-loudnorm`).
 - Estratégia de corte confirmada com o usuário antes do EDL; autoavaliação com `timeline_view` no corte antes de mostrar.

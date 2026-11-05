@@ -149,7 +149,7 @@ def pin_target(t: tools.Tool) -> dict:
 
 
 def checkout_for(t: tools.Tool) -> Path:
-    """Where a git track lives. video-use's checkout is kept by tools/video-use/setup.sh (VIDEO_USE_DIR, else ~/.cache), not the
+    """Where a git track lives. video-use's checkout is kept by data/tools/video-use/setup.sh (VIDEO_USE_DIR, else ~/.cache), not the
     tools cache: the update moves that one, and the registry marker tells it apart."""
     if t.name == "video-use":
         return Path(os.environ.get("VIDEO_USE_DIR") or Path.home() / ".cache" / "simplicio" / "video-use").expanduser()

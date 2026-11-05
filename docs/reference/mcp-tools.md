@@ -12,7 +12,7 @@
 | `video.list` | List templates, motion patterns, voice providers or ad angles (what = templates\|motion\|voices\|angles; angles accepts grupo). |
 | `video.clone` | Clone videos using Hypit AI (https://github.com/hypit-ai/hypit). |
 | `video.montage` | Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight and help. open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only. |
-| `video.edit` | video-use EDL editing over any MP4 (setup\|transcribe\|pack\|render\|verify). |
+| `video.edit` | video-use EDL editing over any MP4 (setup\|transcribe\|pack\|render\|verify\|grade; grade = color: auto, --preset, --analyze). Every output (-o/--out/--output, abbreviations included) must be an absolute path; grade --filter takes only colour filters here. Batch transcription (transcribe-batch, ElevenLabs Scribe, a paid third party) is terminal-only. |
 | `video.opencut` | OpenCut editor for manual finishing (https://github.com/OpenCut-app/OpenCut): clone (default folder) and where. dev (a server that never ends) and a folder for clone are terminal-only. |
 | `video.formats` | Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format. |
 | `video.swap` | Character swap, read-only: providers (adapters, capabilities, price, confidence) and estimate (cost before spending). Never runs a paid swap; run is terminal-only. |

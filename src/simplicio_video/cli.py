@@ -253,9 +253,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao OpenMontage")
 
     p = sub.add_parser("edit", formatter_class=Fmt, help="edição por EDL com video-use sobre qualquer MP4",
-        description="Encadeia tools/video-use (https://github.com/browser-use/video-use): setup, transcribe, pack, render, verify. A decisão de corte fica no edl.json versionado.",
-        epilog="exemplos:\n  simplicio-video edit setup\n  simplicio-video edit render edit/edl.json -o out/final.raw.mp4")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="setup | transcribe | pack | render | verify")
+        description="Encadeia o video-use (https://github.com/browser-use/video-use, arquivos no pacote): setup, transcribe, transcribe-batch (só no terminal), pack, render, verify, grade (cor: auto, --preset, --analyze). A decisão de corte fica no edl.json versionado.",
+        epilog="exemplos:\n  simplicio-video edit setup\n  simplicio-video edit render edit/edl.json -o out/final.raw.mp4\n  simplicio-video edit grade --analyze fonte.mp4")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="setup | transcribe | transcribe-batch | pack | render | verify | grade (edit <sub> --help)")
 
     p = sub.add_parser("shorts", formatter_class=Fmt, help="cortes verticais 9:16 de um vídeo longo (determinístico, só ffmpeg)",
         description="Vídeo longo -> N cortes 1080x1920 a partir da transcrição (a mesma do edit transcribe). "
@@ -643,7 +643,8 @@ def main(argv: list[str] | None = None) -> int:
         # `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this parser
         ajuda_do_upstream = args_list[0] == "rea-video" and rea_video.repassa(args_list[1:])
         ajuda_do_media = args_list[0] == "media" and len(args_list) > 1 and args_list[1] in media.SUBCOMMANDS  # `media burn --help`
-        if not ajuda_do_upstream and not ajuda_do_media and any(h in antes_do_traco for h in ("-h", "--help")):
+        ajuda_do_edit = args_list[0] == "edit" and len(args_list) > 1 and args_list[1] in edit.SUBCOMMANDS  # `edit grade --help`
+        if not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and any(h in antes_do_traco for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
         cmd = args_list[0]
