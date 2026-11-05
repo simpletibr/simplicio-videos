@@ -791,7 +791,7 @@ def test_log_lista_os_ultimos_com_urls_rotuladas(env):
         env.b.consulta(t)
     env.b.pagina("https://example.com")
     r = env.b.log(ultimos=2)
-    assert r["schema"] == "simplicio.busca-log/v1" and list(r)[:2] == ["schema", "aviso_untrusted"]
+    assert r["schema"] == "simplicio.busca-log/v2" and list(r)[:2] == ["schema", "aviso_untrusted"]
     assert r["mostrados"] == 2 and [x["comando"] for x in r["registros"]] == ["consulta", "pagina"] and len(r["arquivos"]) == 1
     ultimo = r["registros"][-1]
     assert ultimo["untrusted_url"] == "https://example.com" and "url" not in ultimo
@@ -1889,3 +1889,158 @@ def test_help_da_busca_lista_os_nomes_internos_novos():
     out = run_cli("busca", "--help").stdout
     for deve in ("xip.io", "lvh.me", "localtest.me", "home.arpa", "IPv6"):
         assert deve in out, f"busca --help sem {deve!r}"
+
+
+# ------------------------------------------------------------------------------------------------ (#113 revisão) B1 a B4 e B6
+
+@pytest.mark.parametrize("pausa_antes", ["busca.registro.jsonl", "busca.registro.jsonl.1"])
+def test_log_segura_a_trava_e_a_rotacao_espera_a_leitura(env, monkeypatch, pausa_antes):
+    """B1: log() lia sem a trava. Pausado logo antes de abrir `pausa_antes`, um rotator que respeita a trava tem de esperar a leitura
+    acabar; sem a trava, ou o ativo já tinha sumido (BuscaError "No such file") ou o .1 repetia linhas já lidas."""
+    env.patch("REGISTRO_MAX_BYTES", 2000)
+    for i in range(60):
+        env.b._registrar(_procedencia(i))
+    real = env.b._linhas_do_fim
+    pausado, liberar = threading.Event(), threading.Event()
+
+    def com_pausa(caminho, *args, **kwargs):
+        if caminho.name == pausa_antes and not pausado.is_set():
+            pausado.set()
+            liberar.wait(10)
+        return real(caminho, *args, **kwargs)
+
+    env.patch("_linhas_do_fim", com_pausa)
+    saida, erros = {}, []
+
+    def leitor():
+        try:
+            saida["r"] = env.b.log(ultimos=10)
+        except Exception as e:  # o erro da thread vira falha do teste, não aborta o pytest
+            erros.append(e)
+
+    def rotator():
+        with env.b._trava():
+            env.b._gira_registro()
+
+    t_leitor = threading.Thread(target=leitor)
+    t_leitor.start()
+    try:
+        assert pausado.wait(10), "log() não chegou ao ponto de pausa"
+        t_rotator = threading.Thread(target=rotator)
+        t_rotator.start()
+        t_rotator.join(0.5)
+        travado = t_rotator.is_alive()  # com a trava, a rotação espera o log terminar
+    finally:
+        liberar.set()
+        t_leitor.join(10)
+    t_rotator.join(10)
+    assert travado, "a rotação passou por cima do log() que estava lendo"
+    assert not erros, erros
+    assert [x["n"] for x in saida["r"]["registros"]] == list(range(50, 60))
+
+
+def test_log_json_troca_total_por_arquivos_no_schema_v2(env, capsys):
+    """B4: `total` saiu do `busca log --json` e o schema foi para v2 (consumidor do v1 precisa saber)."""
+    env.b.consulta("a")
+    assert main(["busca", "log", "--json"]) == 0
+    r = json.loads(capsys.readouterr().out)
+    assert r["schema"] == "simplicio.busca-log/v2" and "total" not in r and len(r["arquivos"]) == 1
+
+
+def test_changelog_registra_a_quebra_do_busca_log_json():
+    """B4: a nota de Unreleased diz que `total` saiu, que `arquivos` entrou e qual é o schema novo."""
+    texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
+    secao = texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    assert "busca log" in secao and "`total`" in secao and "`arquivos`" in secao and "busca-log/v2" in secao
+
+
+def test_registro_com_fragmento_sem_quebra_no_fim_isola_o_fragmento(env):
+    """B2: uma queda no meio da gravação deixa linha sem \\n; o registro seguinte não pode colar nela."""
+    env.pasta.mkdir(parents=True, exist_ok=True)
+    fragmento = '{"schema": "simplicio.busca-registro/v1", "n": 1, "pad": "xx'
+    env.registro.write_bytes(fragmento.encode("utf8"))
+    env.b._registrar(_procedencia(2))
+    linhas = env.registro.read_text(encoding="utf8").split("\n")
+    assert linhas[0] == fragmento and json.loads(linhas[1])["n"] == 2
+    r = env.b.log(ultimos=5)
+    assert [x["n"] for x in r["registros"]] == [2] and r["invalidas"] == 1
+
+
+def test_registro_grava_a_linha_inteira_mesmo_quando_o_sistema_aceita_pedacos(env, monkeypatch):
+    """B2: os.write pode gravar menos do que foi pedido; a linha tem de sair inteira (o loop escreve o resto)."""
+    escrita = os.write
+    pedidos = []
+
+    def aos_pedacos(fd, dados):
+        pedidos.append(len(dados))
+        return escrita(fd, bytes(dados[:7]))
+
+    monkeypatch.setattr(os, "write", aos_pedacos)
+    env.b._registrar(_procedencia(7))
+    assert len(pedidos) > 1
+    assert [x["n"] for x in linhas_do_registro(env)] == [7]
+
+
+def test_poda_nao_conta_como_saido_o_arquivo_que_o_unlink_nao_apagou(env, monkeypatch):
+    """B3: quando unlink falha, o arquivo continua no cache/ e não pode descontar do excesso."""
+    env.patch("CACHE_MAX_ARQUIVOS", 3)
+    _cache_com(env, 5)
+    apagar = Path.unlink
+
+    def unlink_que_falha_no_mais_antigo(self, *args, **kwargs):
+        if self.name == "0000.json":
+            raise PermissionError(13, "negado pelo teste", str(self))
+        return apagar(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", unlink_que_falha_no_mais_antigo)
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina"})
+    assert _nomes_do_cache(env) == ["0000.json", "0004.json", "nova.json"]
+
+
+def test_tmp_orfao_de_gravacao_interrompida_sai_e_o_tmp_recente_fica(env):
+    """B3: um .tmp de _atomic_write com mais de 1 h é sobra de queda e sai; um recente pode ser gravação em curso e fica."""
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    antigo = cache / ".0000.json.a1b2c3.tmp"
+    antigo.write_text("x" * 100, encoding="utf8")
+    agora = time.time()
+    os.utime(antigo, (agora - 7200, agora - 7200))
+    recente = cache / ".0001.json.d4e5f6.tmp"
+    recente.write_text("y" * 100, encoding="utf8")
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina"})
+    assert not antigo.exists() and recente.exists()
+
+
+def test_tmp_em_gravacao_conta_no_teto_de_bytes_do_cache(env):
+    """B3: o .tmp recente ocupa espaço em cache/; ele entra na conta de bytes e faz sair o json mais antigo."""
+    env.patch("CACHE_MAX_BYTES", 3000)
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    (cache / "0000.json").write_text("x" * 1000, encoding="utf8")
+    os.utime(cache / "0000.json", (1_000_000_000, 1_000_000_000))
+    (cache / ".0001.json.d4e5f6.tmp").write_text("y" * 2500, encoding="utf8")
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina"})
+    assert "0000.json" not in _nomes_do_cache(env) and "nova.json" in _nomes_do_cache(env)
+
+
+def test_link_simbolico_no_cache_nao_conta_e_nao_e_apagado(env, tmp_path):
+    """B3: poda com lstat. O alvo de um link fora de cache/ não conta no teto de bytes e não é tocado."""
+    env.patch("CACHE_MAX_BYTES", 3000)
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    alvo = tmp_path / "fora.json"
+    alvo.write_text("z" * 5000, encoding="utf8")
+    os.utime(alvo, (1_000_000_000 - 1, 1_000_000_000 - 1))
+    link = cache / "0000.json"
+    link.symlink_to(alvo)
+    (cache / "0001.json").write_text("x" * 1000, encoding="utf8")
+    os.utime(cache / "0001.json", (1_000_000_000 + 1, 1_000_000_000 + 1))
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina"})
+    assert os.path.islink(link) and os.readlink(link) == str(alvo)
+    assert alvo.read_text(encoding="utf8") == "z" * 5000
+    assert "0001.json" in _nomes_do_cache(env)
+
+
+def test_lista_de_nomes_internos_so_guarda_nome_que_a_forma_do_host_deixa_passar(env):
+    """B6: _url_http só aceita host com ponto (_HOST_RE); um nome de rótulo único nunca chega à lista."""
+    assert sorted(n for n in env.b._NOMES_INTERNOS if "." not in n) == []
