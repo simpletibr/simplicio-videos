@@ -14,6 +14,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 POSIX = os.name == "posix"
 SINAIS = [n for n in ("SIGTERM", "SIGHUP", "SIGINT") if hasattr(signal, n)]
 
@@ -88,3 +90,24 @@ def sinaliza_no_popen(monkeypatch, pidfile: Path, sinal: int, *, so_se: str | No
 
     monkeypatch.setattr(subprocess, "Popen", PopenQueSinaliza)
     return ganchos
+
+
+def estado_dos_sinais() -> dict:
+    return {n: signal.getsignal(getattr(signal, n)) for n in SINAIS}
+
+
+@pytest.fixture
+def sinais_padrao():
+    """The engine as a shell starts it: the stop signals at their defaults (pytest may run under nohup, which ignores SIGHUP, and
+    the engine keeps ignored signals ignored on purpose). Use with @pytest.mark.usefixtures("sinais_padrao")."""
+    antes = estado_dos_sinais()
+    for n in SINAIS:
+        signal.signal(getattr(signal, n), signal.default_int_handler if n == "SIGINT" else signal.SIG_DFL)
+    yield
+    for n, h in antes.items():
+        signal.signal(getattr(signal, n), h)
+
+
+def parada_esperada(nome: str):
+    """(exception class, exit code) a stop signal must turn into."""
+    return (KeyboardInterrupt, None) if nome == "SIGINT" else (SystemExit, 128 + getattr(signal, nome))

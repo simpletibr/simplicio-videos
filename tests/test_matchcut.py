@@ -94,11 +94,15 @@ import ast  # noqa: E402
 import hashlib  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
+import signal  # noqa: E402
 import subprocess  # noqa: E402
 import sys  # noqa: E402
+import tempfile  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
+
+from _orfao import SINAIS, espera, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao, vivo  # noqa: E402, F401
 
 # sha256 of the real files at the pinned commit (read from a real clone on 2026-11-05)
 REAL_SHA256 = {
@@ -1045,6 +1049,30 @@ def test_grandchildren_are_killed_after_a_normal_exit(mc):
             break
         time.sleep(0.05)
     assert not alive
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.usefixtures("sinais_padrao")
+@pytest.mark.parametrize("nome", SINAIS)
+def test_a_stop_signal_inside_popen_still_kills_the_script_and_the_private_folder_goes(mc, monkeypatch, nome):
+    """The kill was armed only after Popen returned: a stop signal that lands between the fork and the return raised out of Popen
+    with no process to kill, so the engine left (removing its private folder) while the script kept running as an orphan."""
+    pidfile = mc.files / "gap.pid"
+    mc.rewrite("scripts/music.py", f"import os, time\nopen({str(pidfile)!r}, 'w').write(str(os.getpid()))\ntime.sleep(120)\n")
+    tmpd = mc.tmp / "tmpd"
+    tmpd.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmpd))
+    sinaliza_no_popen(monkeypatch, pidfile, getattr(signal, nome), so_se="-I")
+    exc, codigo = parada_esperada(nome)
+    try:
+        with pytest.raises(exc) as saida:
+            matchcut.run_script("music", ["analyze", mkfile(mc, "t.wav")])
+        if codigo is not None:
+            assert saida.value.code == codigo
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 10), "the script outlived the engine"
+        assert not list(tmpd.glob("simplicio-matchcut-*")), "the private folder was left behind"
+    finally:
+        mata_o_que_sobrou(pidfile)
 
 
 def test_the_module_does_not_use_preexec_fn():

@@ -8,41 +8,22 @@ import sys
 import threading
 
 import pytest
-from _orfao import POSIX, SINAIS, espera, espera_pid, mata_o_que_sobrou, pid_de, sinaliza_no_popen, sleeper, vivo
+from _orfao import (POSIX, SINAIS, espera, espera_pid, estado_dos_sinais, mata_o_que_sobrou, parada_esperada, pid_de, sinais_padrao,  # noqa: F401
+                    sinaliza_no_popen, sleeper, vivo)
 
 from simplicio_video import childio
 
-pytestmark = pytest.mark.skipif(not POSIX, reason="POSIX signals")
-
-
-@pytest.fixture
-def sinais_padrao():
-    """The engine as a shell starts it: the stop signals at their defaults (pytest may run under nohup, which ignores SIGHUP)."""
-    antes = {n: signal.getsignal(getattr(signal, n)) for n in SINAIS}
-    for n in SINAIS:
-        signal.signal(getattr(signal, n), signal.default_int_handler if n == "SIGINT" else signal.SIG_DFL)
-    yield
-    for n, h in antes.items():
-        signal.signal(getattr(signal, n), h)
-
-
-def estado() -> dict:
-    return {n: signal.getsignal(getattr(signal, n)) for n in SINAIS}
-
-
-def esperado(nome: str):
-    sinal = getattr(signal, nome)
-    return KeyboardInterrupt if nome == "SIGINT" else SystemExit, (None if nome == "SIGINT" else 128 + sinal)
+pytestmark = [pytest.mark.skipif(not POSIX, reason="POSIX signals"), pytest.mark.usefixtures("sinais_padrao")]
 
 
 @pytest.mark.parametrize("nome", SINAIS)
-def test_a_signal_inside_popen_kills_the_child_and_raises_the_stop(nome, monkeypatch, tmp_path, sinais_padrao):
+def test_a_signal_inside_popen_kills_the_child_and_raises_the_stop(nome, monkeypatch, tmp_path):
     """The engine gets the signal while Popen is still starting the child: the child is killed (its whole group) and the engine
     exits the usual way (128+n; Ctrl+C is a KeyboardInterrupt). Without the guard the exception came out of Popen: no reference."""
     pidfile = tmp_path / "pid"
     ganchos = sinaliza_no_popen(monkeypatch, pidfile, getattr(signal, nome))
-    antes = estado()
-    exc, codigo = esperado(nome)
+    antes = estado_dos_sinais()
+    exc, codigo = parada_esperada(nome)
     try:
         with pytest.raises(exc) as saida:
             with childio.guarded_child(sleeper(pidfile), start_new_session=True):
@@ -52,16 +33,16 @@ def test_a_signal_inside_popen_kills_the_child_and_raises_the_stop(nome, monkeyp
         (popen,) = ganchos
         assert popen.returncode == -signal.SIGKILL  # killed and reaped by the guard
         assert espera(lambda: not vivo(espera_pid(pidfile)), 10), "the child outlived the engine"
-        assert estado() == antes  # the previous handlers are back
+        assert estado_dos_sinais() == antes  # the previous handlers are back
     finally:
         mata_o_que_sobrou(pidfile)
 
 
 @pytest.mark.parametrize("nome", SINAIS)
-def test_a_signal_while_the_engine_waits_kills_the_child_on_the_way_out(nome, tmp_path, sinais_padrao):
+def test_a_signal_while_the_engine_waits_kills_the_child_on_the_way_out(nome, tmp_path):
     pidfile = tmp_path / "pid"
-    antes = estado()
-    exc, codigo = esperado(nome)
+    antes = estado_dos_sinais()
+    exc, codigo = parada_esperada(nome)
     try:
         with pytest.raises(exc) as saida:
             with childio.guarded_child(sleeper(pidfile), start_new_session=True) as proc:
@@ -72,25 +53,25 @@ def test_a_signal_while_the_engine_waits_kills_the_child_on_the_way_out(nome, tm
             assert saida.value.code == codigo
         assert proc.returncode == -signal.SIGKILL
         assert not vivo(pid_de(pidfile))
-        assert estado() == antes
+        assert estado_dos_sinais() == antes
     finally:
         mata_o_que_sobrou(pidfile)
 
 
-def test_a_normal_exit_leaves_the_child_to_the_caller_and_gives_the_handlers_back(tmp_path, sinais_padrao):
+def test_a_normal_exit_leaves_the_child_to_the_caller_and_gives_the_handlers_back(tmp_path):
     pidfile = tmp_path / "pid"
-    antes = estado()
+    antes = estado_dos_sinais()
     try:
         with childio.guarded_child(sleeper(pidfile), start_new_session=True) as proc:
             espera_pid(pidfile)
-            assert estado() != antes  # armed while the block runs
+            assert estado_dos_sinais() != antes  # armed while the block runs
         assert proc.poll() is None and vivo(pid_de(pidfile))
-        assert estado() == antes
+        assert estado_dos_sinais() == antes
     finally:
         mata_o_que_sobrou(pidfile)
 
 
-def test_an_error_of_the_body_kills_the_child_and_passes_through(tmp_path, sinais_padrao):
+def test_an_error_of_the_body_kills_the_child_and_passes_through(tmp_path):
     pidfile = tmp_path / "pid"
     try:
         with pytest.raises(ZeroDivisionError):
@@ -102,16 +83,16 @@ def test_an_error_of_the_body_kills_the_child_and_passes_through(tmp_path, sinai
         mata_o_que_sobrou(pidfile)
 
 
-def test_popen_failing_restores_the_handlers_and_the_error_is_unchanged(sinais_padrao):
-    antes = estado()
+def test_popen_failing_restores_the_handlers_and_the_error_is_unchanged():
+    antes = estado_dos_sinais()
     with pytest.raises(FileNotFoundError):
         with childio.guarded_child(["/nao/existe/mesmo"]):
             pytest.fail("no child")
-    assert estado() == antes
+    assert estado_dos_sinais() == antes
 
 
 @pytest.mark.parametrize("nome", SINAIS)
-def test_a_stop_signal_that_lands_in_a_failing_popen_wins_over_the_spawn_error(nome, monkeypatch, sinais_padrao):
+def test_a_stop_signal_that_lands_in_a_failing_popen_wins_over_the_spawn_error(nome, monkeypatch):
     """There is no child to kill, but the engine was told to stop: it stops (the module's `except OSError` must not turn it into
     a spawn error and carry on)."""
     import os
@@ -124,12 +105,12 @@ def test_a_stop_signal_that_lands_in_a_failing_popen_wins_over_the_spawn_error(n
             raise FileNotFoundError("sem o programa")
 
     monkeypatch.setattr(subprocess, "Popen", PopenQueFalha)
-    antes = estado()
-    exc, _ = esperado(nome)
+    antes = estado_dos_sinais()
+    exc, _ = parada_esperada(nome)
     with pytest.raises(exc):
         with childio.guarded_child(["x"]):
             pytest.fail("no child")
-    assert estado() == antes
+    assert estado_dos_sinais() == antes
 
 
 def test_sighup_ignored_by_the_parent_stays_ignored(tmp_path):
@@ -148,7 +129,7 @@ def test_sighup_ignored_by_the_parent_stays_ignored(tmp_path):
         mata_o_que_sobrou(pidfile)
 
 
-def test_ctrl_c_is_taken_over_only_while_python_default_handler_is_in_place(tmp_path, sinais_padrao):
+def test_ctrl_c_is_taken_over_only_while_python_default_handler_is_in_place(tmp_path):
     """An engine with its own SIGINT handler keeps it: the guard does not replace what it does not understand."""
     def meu(signum, frame):
         pass
@@ -180,7 +161,7 @@ def test_off_the_main_thread_it_degrades_to_a_plain_popen_and_still_kills_on_err
         except BaseException as e:  # noqa: BLE001 - the test reports whatever came out
             resultado["erro"] = repr(e)
 
-    antes = estado()
+    antes = estado_dos_sinais()
     hilo = threading.Thread(target=trabalho)
     hilo.start()
     hilo.join(30)
@@ -188,12 +169,12 @@ def test_off_the_main_thread_it_degrades_to_a_plain_popen_and_still_kills_on_err
         assert "erro" not in resultado, resultado
         assert resultado["armado"] == antes["SIGTERM"]  # untouched
         assert resultado["proc"].returncode == -signal.SIGKILL
-        assert estado() == antes
+        assert estado_dos_sinais() == antes
     finally:
         mata_o_que_sobrou(pidfile)
 
 
-def test_a_custom_stop_and_a_custom_kill_are_used(monkeypatch, tmp_path, sinais_padrao):
+def test_a_custom_stop_and_a_custom_kill_are_used(monkeypatch, tmp_path):
     """toonflow/moneyprinter stop on Ctrl+C semantics (KeyboardInterrupt for every signal) and stop their server gracefully."""
     pidfile = tmp_path / "pid"
     ganchos = sinaliza_no_popen(monkeypatch, pidfile, signal.SIGTERM)
@@ -212,7 +193,7 @@ def test_a_custom_stop_and_a_custom_kill_are_used(monkeypatch, tmp_path, sinais_
         mata_o_que_sobrou(pidfile)
 
 
-def test_a_child_without_its_own_group_is_killed_alone_not_with_the_engine_group(tmp_path, sinais_padrao):
+def test_a_child_without_its_own_group_is_killed_alone_not_with_the_engine_group(tmp_path):
     """No start_new_session: killpg on it would be the engine's own group. Only the child itself is killed."""
     pidfile = tmp_path / "pid"
     try:
@@ -239,7 +220,7 @@ def test_kill_group_takes_the_grandchildren_with_it(tmp_path):
         proc.kill()
 
 
-def test_start_child_tracks_the_child_before_any_stop_can_be_acted_on(monkeypatch, tmp_path, sinais_padrao):
+def test_start_child_tracks_the_child_before_any_stop_can_be_acted_on(monkeypatch, tmp_path):
     """The server list of moneyprinter: the child is in `track` when the stop arrives, so the caller's own cleanup stops it."""
     pidfile = tmp_path / "pid"
     sinaliza_no_popen(monkeypatch, pidfile, signal.SIGTERM)
@@ -252,14 +233,14 @@ def test_start_child_tracks_the_child_before_any_stop_can_be_acted_on(monkeypatc
         mata_o_que_sobrou(pidfile)
 
 
-def test_start_child_returns_the_running_child_and_hands_the_handlers_back(tmp_path, sinais_padrao):
+def test_start_child_returns_the_running_child_and_hands_the_handlers_back(tmp_path):
     pidfile = tmp_path / "pid"
-    antes = estado()
+    antes = estado_dos_sinais()
     procs: list = []
     try:
         proc = childio.start_child(sleeper(pidfile), track=procs, start_new_session=True)
         assert procs == [proc] and proc.poll() is None
-        assert estado() == antes
+        assert estado_dos_sinais() == antes
     finally:
         mata_o_que_sobrou(pidfile)
 
