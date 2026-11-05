@@ -12,7 +12,7 @@ from simplicio_video import cli, clone, mcp_server, montage
 def test_clone_find_hypit_bin_fallback(monkeypatch):
     monkeypatch.setattr("shutil.which", lambda cmd: "/usr/bin/npx" if cmd == "npx" else None)
     bin_cmd = clone.find_hypit_bin()
-    assert bin_cmd == ["/usr/bin/npx", "--yes", "@hypit/hypit@0.2.17"]  # pinned in tools.TOOLS
+    assert bin_cmd == ["/usr/bin/npx", "--yes", "@hypit/hypit@0.3.1"]  # pinned in tools.TOOLS
 
 
 def test_clone_find_hypit_bin_local(monkeypatch):

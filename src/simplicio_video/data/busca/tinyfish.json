@@ -1,7 +1,7 @@
 {
   "schema": "simplicio.busca-tinyfish/v1",
   "pacote": "@tiny-fish/cli",
-  "versao_testada": "0.50.1",
+  "versao_testada": "0.57.0",
   "variavel_ambiente": "TINYFISH_API_KEY",
   "read_on": "2026-10-16",
   "fatos": [
@@ -11,7 +11,7 @@
       "fonte": "npm view @tiny-fish/cli (rede, só leitura)",
       "read_on": "2026-10-16",
       "confidence": "observed",
-      "nota": "Versão testada e fixada em tools.py. O pacote declara engines.node >= 24.0.0."
+      "nota": "Versão fixada em tools.py (0.57.0, sem teste: os fatos deste arquivo foram lidos na 0.50.1, ver `fonte`). O pacote declara engines.node >= 24.0.0."
     },
     {
       "campo": "licenca",

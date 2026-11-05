@@ -65,7 +65,7 @@ TOOLS: dict[str, Tool] = {
                     "cf5e79e919144200294fb9fed22a222592a0aeea", "MIT",
                     "manual finishing editor (web app on localhost)", marker="package.json",
                     note="opencut-classic is archived upstream; the OpenCut rewrite has no headless API yet"),
-    "hypit": Tool("hypit", "npm", "@hypit/hypit", "0.2.17", "Hypit license (modified Apache-2.0)",
+    "hypit": Tool("hypit", "npm", "@hypit/hypit", "0.3.1", "Hypit license (modified Apache-2.0)",
                   "agentic video cloning; user-installed, never bundled or offered as a hosted service",
                   note="its license forbids commercial redistribution and multi-tenant service without permission"),
     "toonflow": Tool("toonflow", "git", "https://github.com/HBAI-Ltd/Toonflow-app",
@@ -114,7 +114,7 @@ TOOLS: dict[str, Tool] = {
                         "the agent decides the EDL, ffmpeg executes it", marker="helpers/render.py",
                         note="pinned by the video-use setup.sh (data/tools/video-use) (23/09/2026); the checkout lives in "
                              "~/.cache/simplicio/video-use, not in the tools cache"),
-    "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.50.1", "not declared in the npm package (no license field, no LICENSE file; read 2026-10-16)",
+    "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.57.0", "not declared in the npm package (no license field, no LICENSE file; read 2026-11-05 on 0.57.0)",
                      "web search and page fetch for research (`simplicio-video busca`); installed by the user, never bundled and never installed by the engine",
                      note="the engine uses only `search query`, `fetch content get`, `auth status` and `--version`: agent, browser and monitor (browser "
                           "automation, metered by step or minute) are out of scope. The package declares Node >= 24. The query or URL goes to a third "
