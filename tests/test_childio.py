@@ -110,7 +110,6 @@ ALLOW = {
     ("rea_video.py", "_ocr_state"): "the probe is `python -c` that prints nothing and never reads stdin",
     ("toonflow.py", "_serve"): "serve never ends and is refused by video.toonflow",
     ("toonflow.py", "_run_server"): "only called by _serve (refused by video.toonflow); the server keeps the terminal",
-    ("moneyprinter.py", "_setup"): "setup/serve are terminal-only (video.moneyprinter refuses them)",
     ("moneyprinter.py", "_serve"): "serve never ends and is refused by video.moneyprinter",
     ("opencut.py", "run_opencut"): "dev never ends and is refused by video.opencut",
     ("commands/install.py", "_run_setup"): "interactive setup runs only with a TTY (_tty guard); MCP refuses it",

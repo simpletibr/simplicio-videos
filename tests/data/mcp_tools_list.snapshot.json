@@ -496,7 +496,7 @@
    "name": "video.media"
   },
   {
-   "description": "MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder, where and status (read-only); setup and serve run in the terminal (https://github.com/harry0703/MoneyPrinterTurbo).",
+   "description": "MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder, where and status (read-only). generate and run submit a background job (kind moneyprinter; follow it with video.jobs status|result) and only with a supplied script (no LLM), local material, an Edge or silent voice and an absolute output path: `generate --script /abs/roteiro.txt --material /abs/clip.mp4 --out /abs/dir [--voice V] [--aspect 9:16]` or `run --out /abs/dir -- --video-script \"...\" --video-source local --video-materials /abs/a.mp4,/abs/b.mp4 --voice-name pt-BR-FranciscaNeural-Female` (plus subtitle, background music and layout flags). The MP4 comes back copied to the output folder with its sha256. Everything else is terminal-only: LLM scripts, online and paid material sources, --confirm-*-charge, batch files, setup and serve. Nothing is ever published (https://github.com/harry0703/MoneyPrinterTurbo).",
    "inputSchema": {
     "properties": {
      "args": {
