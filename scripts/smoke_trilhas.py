@@ -93,9 +93,10 @@ class ChamadaMcp:
 
 # The read-only MCP call of each track, keyed by the registry names of tools.py (TOOLS).
 MCP_LEITURA: dict[str, ChamadaMcp] = {
-    "openmontage": ChamadaMcp("video_montage", {"args": "--help"}, precisa=False),
+    "openmontage": ChamadaMcp("video_montage", {"args": "status --json"}, precisa=True),
     "opencut": ChamadaMcp("video_opencut", {"args": "where"}, precisa=True),
-    "hypit": ChamadaMcp("video_clone", {"args": "--help"}, precisa=False),
+    # `clone --help` would pass through to Hypit (npx when it is not installed): the read-only status of the engine is asked instead
+    "hypit": ChamadaMcp("video_clone", {"args": "status --json"}, precisa=True),
     "toonflow": ChamadaMcp("video_toonflow", {"args": "where"}, precisa=True),
     "moneyprinter": ChamadaMcp("video_moneyprinter", {"args": "status"}, precisa=True),
     "matchcut": ChamadaMcp("video_matchcut", {"args": "status"}, precisa=True),
@@ -113,6 +114,20 @@ CLI_RECUSA = {"yt-dlp": "fetch"}
 # Desktop apps: their status asks the app over its local API, so it runs even with no checkout here. The app decides the answer
 # (OK when it answers, SKIP "app fechado" when it does not); a missing checkout is not a reason to skip the question.
 APP_LOCAL = {"voicestudio"}
+
+# The help the CLI prints for a track. `clone --help` is Hypit's own help (a passthrough: npx when Hypit is not installed), so the
+# engine's argparse help is asked with `--engine-help`.
+AJUDA_CLI = {"hypit": ("--engine-help",)}
+
+# Read-only subcommands the track's --help does not list, because the engine answers them itself (added to the parsed ones).
+SUBS_EXTRA = {"hypit": {"status"}, "openmontage": {"status"}}
+
+# More read-only subcommands checked for a track, beyond `where` and `status`. Not checked on purpose: matchcut `setup` and
+# `run` (install a venv, run the skill), voicestudio `dub create` (a job that spends) and montage `run-tool` (a job).
+SUBS_CHECADOS = {"instagram": ("skills",), "voicestudio": ("voices",)}
+
+# Subcommands that take --json: asked first; a track without --json answers its text, which is read instead.
+SUBS_JSON = ("status", "voices")
 
 
 # ---------------------------------------------------------------- running the CLI and the MCP functions
@@ -282,13 +297,14 @@ def _recusa_json(texto: str) -> bool:
 
 # ---------------------------------------------------------------- the checks of a track
 
-def _checar_ajuda(nome: str, top: str, saida: Saida) -> Resultado:
-    cmd = f"simplicio-video {top} --help"
+def _checar_ajuda(nome: str, top: str, saida: Saida, ajuda_argv: tuple[str, ...] = ("--help",)) -> Resultado:
+    checagem = "cli " + " ".join(ajuda_argv)
+    cmd = f"simplicio-video {top} {' '.join(ajuda_argv)}"
     if saida.rc == 0 and "usage:" in saida.out:
-        return Resultado(nome, "cli --help", OK, "ajuda do comando ok", "cli", cmd, saida.segundos)
+        return Resultado(nome, checagem, OK, "ajuda do comando ok", "cli", cmd, saida.segundos)
     if "invalid choice" in saida.err:
-        return Resultado(nome, "cli --help", SKIP, "comando ausente no CLI", "cli", cmd, saida.segundos)
-    return Resultado(nome, "cli --help", FAIL, f"rc {saida.rc}: {_resumo(saida.texto)}", "cli", cmd, saida.segundos)
+        return Resultado(nome, checagem, SKIP, "comando ausente no CLI", "cli", cmd, saida.segundos)
+    return Resultado(nome, checagem, FAIL, f"rc {saida.rc}: {_resumo(saida.texto)}", "cli", cmd, saida.segundos)
 
 
 def _checar_sub_cli(nome: str, top: str, sub: str, subs: set[str], pode_rodar: bool, comando_ausente: bool) -> Resultado:
@@ -301,9 +317,9 @@ def _checar_sub_cli(nome: str, top: str, sub: str, subs: set[str], pode_rodar: b
         return Resultado(nome, checagem, SKIP, "subcomando ausente no --help", "cli", f"simplicio-video {top} {sub}")
     if not pode_rodar:
         return Resultado(nome, checagem, SKIP, NAO_INSTALADO, "cli", f"simplicio-video {top} {sub}")
-    argv = [top, sub, "--json"] if sub == "status" else [top, sub]
+    argv = [top, sub, "--json"] if sub in SUBS_JSON else [top, sub]
     saida = _rodar_cli(argv)
-    if sub == "status" and saida.rc != 0 and _recusa_json(saida.texto):
+    if sub in SUBS_JSON and saida.rc != 0 and _recusa_json(saida.texto):
         argv = [top, sub]
         saida = _rodar_cli(argv)
     cmd = "simplicio-video " + " ".join(argv)
@@ -317,9 +333,15 @@ def _checar_sub_cli(nome: str, top: str, sub: str, subs: set[str], pode_rodar: b
         if not saida.out.strip():
             return Resultado(nome, checagem, FAIL, "saída vazia", "cli", cmd, saida.segundos)
         return Resultado(nome, checagem, OK, _curto(_primeira_linha(saida.out)), "cli", cmd, saida.segundos)
+    if sub not in SUBS_JSON:  # a text answer (e.g. `instagram skills`): its first line is the summary
+        if not saida.out.strip():
+            return Resultado(nome, checagem, FAIL, "saída vazia", "cli", cmd, saida.segundos)
+        return Resultado(nome, checagem, OK, _curto(_primeira_linha(saida.out)), "cli", cmd, saida.segundos)
     dados = _json(saida.out)
     if isinstance(dados, dict):
         detalhe = f"json, {len(dados)} campos"
+    elif isinstance(dados, list):
+        detalhe = f"json, {len(dados)} itens"
     else:
         detalhe = "texto (sem --json)"
     return Resultado(nome, checagem, OK, detalhe, "cli", cmd, saida.segundos)
@@ -359,7 +381,10 @@ def _checar_mcp(nome: str, instalada: bool) -> Resultado:
             return Resultado(nome, checagem, OK, "recusou sem URL (nada baixado)", "mcp", cmd, segundos)
         return Resultado(nome, checagem, FAIL, f"não recusou: {_curto(_resumo(texto))}", "mcp", cmd, segundos)
     if resposta.get("ok") is True:
-        detalhe = _primeira_linha(str(resposta.get("log") or "")) or str(resposta.get("schema") or "ok")
+        detalhe = _primeira_linha(str(resposta.get("log") or ""))
+        if not detalhe and isinstance(resposta.get("result"), dict):
+            detalhe = f"json, {len(resposta['result'])} campos"
+        detalhe = detalhe or str(resposta.get("schema") or "ok")
         if detalhe.startswith("usage:"):
             detalhe = "ajuda do comando ok"
         return Resultado(nome, checagem, OK, _curto(detalhe), "mcp", cmd, segundos)
@@ -373,12 +398,14 @@ def checar_trilha(nome: str) -> list[Resultado]:
     and its read-only MCP call. Nothing runs past the --help unless the track is installed."""
     top = tools.COMMANDS.get(nome, nome).split()[0]
     instalada = tools.is_installed(tools.TOOLS[nome])
-    ajuda = _rodar_cli([top, "--help"])
+    pode = instalada or nome in APP_LOCAL  # a desktop app is asked even with no checkout here (it answers or it is closed)
+    ajuda_argv = AJUDA_CLI.get(nome, ("--help",))
+    ajuda = _rodar_cli([top, *ajuda_argv])
     ausente = ajuda.rc != 0 and "invalid choice" in ajuda.err
-    subs = subcomandos(ajuda.out) if ajuda.rc == 0 else set()
-    resultados = [_checar_ajuda(nome, top, ajuda),
-                  _checar_sub_cli(nome, top, "where", subs, instalada, ausente),
-                  _checar_sub_cli(nome, top, "status", subs, instalada or nome in APP_LOCAL, ausente)]
+    subs = (subcomandos(ajuda.out) if ajuda.rc == 0 else set()) | SUBS_EXTRA.get(nome, set())
+    resultados = [_checar_ajuda(nome, top, ajuda, ajuda_argv)]
+    for sub in ("where", "status", *SUBS_CHECADOS.get(nome, ())):
+        resultados.append(_checar_sub_cli(nome, top, sub, subs, pode, ausente))
     if nome in CLI_RECUSA:
         resultados.append(_checar_recusa_cli(nome, top, CLI_RECUSA[nome], ausente))
     resultados.append(_checar_mcp(nome, instalada))
