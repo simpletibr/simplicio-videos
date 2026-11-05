@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Optional tool: browser-use/video-use (MIT), pinned. Clones outside the repo (never vendored),
 # checks the deps our flow needs and prints the helpers dir on the last line of stdout.
-# usage: bash tools/video-use/setup.sh [--quiet]
+# usage: bash src/simplicio_video/data/tools/video-use/setup.sh [--quiet]
 #   env: VIDEO_USE_DIR (default ~/.cache/simplicio/video-use)
 #        SIMPLICIO_TTS_PY (python with numpy + Pillow + soundfile [+ faster-whisper for local transcription])
 set -euo pipefail
 VU_REPO=https://github.com/browser-use/video-use
-VU_REF=b877063835e6ea6e457124da7e28a0ae26691dc3   # 2026-09-23; bump deliberately, re-run the WJR video-02 example
+VU_REF=b877063835e6ea6e457124da7e28a0ae26691dc3   # 2026-09-23; bump deliberately, re-run the video-02 cutdown example
 VU_DIR="${VIDEO_USE_DIR:-$HOME/.cache/simplicio/video-use}"
 PY="${SIMPLICIO_TTS_PY:-$HOME/.local/share/simplicio-tts/cbvenv/bin/python}"
 QUIET="${1:-}"

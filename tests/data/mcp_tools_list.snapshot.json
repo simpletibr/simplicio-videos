@@ -159,7 +159,7 @@
    "name": "video.doctor"
   },
   {
-   "description": "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify).",
+   "description": "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify|grade; grade = color: auto, --preset, --analyze). Every output (-o/--out/--output) must be an absolute path. Batch transcription (transcribe-batch, ElevenLabs Scribe, a paid third party) is terminal-only.",
    "inputSchema": {
     "properties": {
      "args": {

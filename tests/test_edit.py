@@ -79,6 +79,12 @@ def test_grade_help_has_presets_analyze_and_examples_without_setup(capsys, monke
         assert s in out, s
 
 
+def test_edit_help_grade_is_reachable_through_the_cli(capsys):
+    from conftest import run_cli
+    r = run_cli("edit", "help", "grade")
+    assert r.returncode == 0 and "--analyze" in r.stdout and "simplicio-video edit grade" in r.stdout, r.stderr
+
+
 def test_edit_help_lists_grade(capsys):
     edit.run_edit(["--help"])
     assert "grade" in capsys.readouterr().out
