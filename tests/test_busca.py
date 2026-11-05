@@ -1516,26 +1516,38 @@ def test_mais_invisiveis_saem_do_texto_e_recusam_a_consulta(env, invisivel):
 
 # ------------------------------------------------------------------------------------------------ (7) ReDoS com amplificador
 
-def test_amplificador_cresce_em_linha_reta(env):
-    """Guarda de ReDoS no gate. Com colchetes sem fechar e tags aninhadas, dobrar o texto tem de dobrar o tempo (razão ~2).
-    Uma regressão quadrática de custo comparável ao linear leva a razão a ~4 (o limite é 3). Melhor de três medidas por tamanho,
-    para o ruído do host não decidir. Regressões de custo pequeno ficam com o teto absoluto abaixo."""
-    def melhor(n):
-        hostil = "<<<<<b>b>b>b>b>" + "[" * n
-        tempos = []
-        for _ in range(3):
-            t0 = time.perf_counter()
-            env.b._texto_pagina(hostil, 20480)
-            env.b._linha(hostil, 1000)
-            tempos.append(time.perf_counter() - t0)
-        return min(tempos)
-
-    t_n, t_2n = melhor(50_000), melhor(100_000)
-    assert t_2n / t_n < 3.0, f"o tempo cresceu {t_2n / t_n:.2f}x ao dobrar o texto ({t_n:.3f} s -> {t_2n:.3f} s): ficou quadrático"
+def _melhor_de(fn, reps):
+    """Menor tempo de `reps` execuções: o ruído do host sobe os tempos, não os desce."""
+    tempos = []
+    for _ in range(reps):
+        t0 = time.perf_counter()
+        fn()
+        tempos.append(time.perf_counter() - t0)
+    return min(tempos)
 
 
-# Teto absoluto (1 milhão de colchetes, ~1,3 s): já estava no gate da main. A razão acima pega o crescimento quadrático de custo
-# comparável ao linear; esta medida pega o de custo pequeno (ele vira centenas de segundos com 1 milhão).
+def test_linha_cresce_em_linha_reta(env):
+    """Guarda de ReDoS no gate, para `_linha` isolada. Ela corta a entrada em max(limite*10, 2000) caracteres; com limite 1000
+    a janela tem 10 000, então 1 mil e 10 mil colchetes entram inteiros. Linear dá razão ~10 (medido 9 a 11); uma regressão
+    quadrática de custo visível (mutação medida: ~40) passa de 30."""
+    hostil = "<<<<<b>b>b>b>b>"
+    t_1k = _melhor_de(lambda: env.b._linha(hostil + "[" * 1_000, 1000), 5)
+    t_10k = _melhor_de(lambda: env.b._linha(hostil + "[" * 10_000, 1000), 5)
+    assert t_10k / t_1k < 30, f"_linha: o tempo cresceu {t_10k / t_1k:.1f}x de 1 mil para 10 mil colchetes ({t_1k * 1e3:.1f} ms -> {t_10k * 1e3:.1f} ms)"
+
+
+def test_texto_pagina_cresce_em_linha_reta(env):
+    """Guarda de ReDoS no gate, para `_texto_pagina` sozinha: dobrar o texto (50 mil -> 100 mil colchetes, abaixo do teto de
+    leitura de 400 mil) tem de dobrar o tempo (medido 1,6 a 2,2). Quadrático puro dá ~4 e o limite de 3 pega. Quadrático de custo
+    baixo, somado ao trabalho linear, pode dar menos de 3 e passar: a mutação medida deu 3,4, vermelha por pouco."""
+    hostil = "<<<<<b>b>b>b>b>"
+    t_n = _melhor_de(lambda: env.b._texto_pagina(hostil + "[" * 50_000, 20480), 3)
+    t_2n = _melhor_de(lambda: env.b._texto_pagina(hostil + "[" * 100_000, 20480), 3)
+    assert t_2n / t_n < 3.0, f"_texto_pagina: o tempo cresceu {t_2n / t_n:.2f}x ao dobrar o texto ({t_n:.3f} s -> {t_2n:.3f} s)"
+
+
+# Teto absoluto (1 milhão de colchetes, ~1,3 s): já estava no gate da main. As razões acima pegam o crescimento quadrático com custo
+# comparável ao linear em 10 mil; esta medida pega o de custo pequeno, que só aparece com o texto inteiro grande.
 def test_amplificador_de_tags_com_um_milhao_de_colchetes_fica_abaixo_de_3_s(env):
     hostil = "<<<<<b>b>b>b>b>" + "[" * 1_000_000
     t0 = time.monotonic()

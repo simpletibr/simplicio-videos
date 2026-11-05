@@ -839,3 +839,16 @@ def test_m7_chave_com_caractere_de_controle_e_recusada(monkeypatch):
 def test_i1_sucesso_limpa_a_pasta_de_trabalho(media):
     assert swap.run_swap(argv_run(media, "--autorizo", "--yes", "--max-usd", "5")) == 0
     assert not list((media["dir"] / "out").glob(".swap-work-*")) and not list((media["dir"] / "out").glob("*recovery*"))
+
+
+def test_trava_da_pasta_recusa_a_segunda_execucao_e_solta_ao_sair(tmp_path):
+    """Guarda do gate para a trava de pasta (o i5 de test_swap_concurrency é slow). Duas aberturas do arquivo de trava conflitam
+    dentro do mesmo processo, porque o flock é por descrição de arquivo: o teste é determinístico, sem threads nem ffmpeg."""
+    pytest.importorskip("fcntl")
+    pasta = tmp_path / "out"
+    with swap._folder_lock(pasta):
+        with pytest.raises(swap.SwapError, match="outra execução"):
+            with swap._folder_lock(pasta):
+                pass
+    with swap._folder_lock(pasta):  # ao sair a trava é solta e a pasta reabre
+        pass

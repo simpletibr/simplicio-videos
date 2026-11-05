@@ -219,7 +219,7 @@
    "name": "video.doctor"
   },
   {
-   "description": "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify|grade; grade = color: auto, --preset, --analyze). Every output (-o/--out/--output, abbreviations included) must be an absolute path; grade --filter takes only colour filters here. Batch transcription (transcribe-batch, ElevenLabs Scribe, a paid third party) is terminal-only. MCP subcommands (cmd): setup, transcribe, pack, render, verify, grade.",
+   "description": "video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify|grade; grade = color: auto, --preset, --analyze). Every output (-o/--out/--output, abbreviations included) must be an absolute path with no `..`; the EDL of render and the folder of pack must be absolute too (their intermediates go beside them); grade --filter takes only colour filters here. Batch transcription (transcribe-batch, ElevenLabs Scribe, a paid third party) is terminal-only. MCP subcommands (cmd): setup, transcribe, pack, render, verify, grade.",
    "inputSchema": {
     "properties": {
      "args": {
@@ -635,7 +635,7 @@
    "name": "video.matchcut"
   },
   {
-   "description": "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Writes new files with -o. MCP subcommands (cmd): fetch, probe, audio, sheet, subs, burn, mask, replace-audio, voice-track.",
+   "description": "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Every subcommand writes to -o: an existing -o file is overwritten (ffmpeg -y, probe), while fetch never overwrites, so give a new path. MCP subcommands (cmd): fetch, probe, audio, sheet, subs, burn, mask, replace-audio, voice-track.",
    "inputSchema": {
     "properties": {
      "args": {
@@ -1286,7 +1286,7 @@
    "name": "video.setup"
   },
   {
-   "description": "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; only new files are written. MCP subcommands (cmd): inspect, plan, cut, run.",
+   "description": "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; -o is required over MCP (absolute, no `..`), and an existing file at -o is overwritten. MCP subcommands (cmd): inspect, plan, cut, run.",
    "inputSchema": {
     "properties": {
      "args": {
