@@ -230,6 +230,55 @@ def test_docs_licenses_md_desatualizado_ou_ausente_falha(monkeypatch, tmp_path):
     assert lic.check_generated(tmp_path / "nao-existe.md", entries) != []
 
 
+# (d1) o doc não quebra por um patch de dependência sem pin: a versão é informativa; o gate reprova só licença,
+# pacote novo ou pacote sumido (bug de main: ruff 0.17.4 instalado contra 0.17.3 no doc)
+def test_doc_tolera_patch_de_dependencia_sem_pin_mas_reprova_licenca_ou_pacote_novo(monkeypatch, tmp_path):
+    lic = _lic()
+    exc = _exceptions(tmp_path, [])
+    _use_dists(monkeypatch, FakeDist("ruff", "0.17.3", "MIT"), MIT)
+    doc = tmp_path / "licenses.md"
+    doc.write_text(lic.render_table(lic.scan(exceptions_path=exc)), encoding="utf-8")
+
+    _use_dists(monkeypatch, FakeDist("ruff", "0.17.4", "MIT"), MIT)
+    assert lic.check_generated(doc, lic.scan(exceptions_path=exc)) == []
+
+    _use_dists(monkeypatch, FakeDist("ruff", "0.17.4", "GPL-3.0-only"), MIT)
+    assert lic.check_generated(doc, lic.scan(exceptions_path=exc)) != []
+
+    _use_dists(monkeypatch, FakeDist("ruff", "0.17.4", "MIT"), MIT, FakeDist("novo", "1.0", "MIT"))
+    assert lic.check_generated(doc, lic.scan(exceptions_path=exc)) != []
+
+
+# (d2) toda ferramenta do extra `test` que o doc registra (coluna "simplicio-video[test]") está fixada com `==`
+# na versão registrada: `ruff>=0.6` deixava o gate vermelho em todo ambiente novo
+def test_ferramentas_do_extra_test_registradas_no_doc_estao_fixadas_com_igualdade():
+    import re
+    import tomllib
+
+    def norm(nome):
+        return re.sub(r"[-_.]+", "-", nome).lower()
+
+    doc_rows = []
+    for linha in DOC.read_text(encoding="utf-8").splitlines():
+        if not linha.startswith("| ") or linha.startswith("| Pacote") or linha.startswith("|---"):
+            continue
+        pacote, versao, _lic_, _status, usado_por = [c.strip() for c in linha.strip("|").split("|")]
+        if "simplicio-video[test]" in [u.strip() for u in usado_por.split(",")]:
+            doc_rows.append((norm(pacote), versao))
+    assert doc_rows, "docs/licenses.md não registra nenhuma ferramenta do extra test"
+
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    reqs = pyproject["project"]["optional-dependencies"]["test"]
+    fixados = {}
+    for req in reqs:
+        m = re.fullmatch(r"\s*([A-Za-z0-9_.-]+)\s*==\s*(\S+)\s*", req)
+        if m:
+            fixados[norm(m.group(1))] = m.group(2)
+
+    faltam = [f"{nome}=={versao}" for nome, versao in doc_rows if fixados.get(nome) != versao]
+    assert faltam == [], f"extra test sem pin igual ao doc: {faltam}"
+
+
 # (e) arquivo fonte que importa pacote AGPL falha no check de import; pacote MIT passa
 def test_arquivo_fonte_que_importa_agpl_falha_no_check_de_import(monkeypatch, tmp_path):
     lic = _lic()
