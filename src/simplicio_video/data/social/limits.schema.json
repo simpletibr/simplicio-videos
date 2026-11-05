@@ -112,6 +112,19 @@
           },
           "note": {
             "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "limite",
+              "expectativa"
+            ]
+          },
+          "escopo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "obrigatorio": {
+            "type": "boolean"
           }
         },
         "allOf": [

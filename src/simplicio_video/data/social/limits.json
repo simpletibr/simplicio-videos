@@ -512,11 +512,11 @@
     {
       "network": "reddit",
       "field": "size_max_mb",
-      "value": 1024,
+      "value": 1000,
       "source_url": "https://docs.zernio.com/platforms/reddit",
       "read_on": "2026-11-05",
       "confidence": "UNVERIFIED",
-      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Vídeo MP4, 1 GB (tabela 'Quick reference'). Imagem: 20 MB."
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Vídeo MP4 de 1 GB, convertido em decimal (1000 MB): a fonte não distingue GB de GiB. Imagem: 20 MB."
     },
     {
       "network": "reddit",
@@ -525,7 +525,8 @@
       "source_url": "https://docs.zernio.com/platforms/reddit",
       "read_on": "2026-11-05",
       "confidence": "UNVERIFIED",
-      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Corpo do texto (post de texto), até 40.000 caracteres; a legenda do plano entra como corpo."
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Corpo do texto (post de texto), até 40.000 caracteres; a legenda do plano entra como corpo.",
+      "escopo": "corpo do post de texto"
     },
     {
       "network": "reddit",
@@ -534,7 +535,9 @@
       "source_url": "https://docs.zernio.com/platforms/reddit",
       "read_on": "2026-11-05",
       "confidence": "UNVERIFIED",
-      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Título obrigatório, 300 caracteres; não se edita depois de postar."
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Título obrigatório, 300 caracteres; não se edita depois de postar.",
+      "obrigatorio": true,
+      "escopo": "post: título obrigatório"
     },
     {
       "network": "reddit",
@@ -572,7 +575,8 @@
       "source_url": "https://docs.zernio.com/platforms/snapchat",
       "read_on": "2026-11-05",
       "confidence": "UNVERIFIED",
-      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. A página diz '9:16 vertical media is expected': expectativa, não regra dura. A página de ajuda da Snap sobre Spotlight (help.snapchat.com, lida em 2026-11-05) não traz especificação técnica para post orgânico."
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. A página diz '9:16 vertical media is expected': expectativa, não regra dura; por isso aparece como aviso e não recusa o plano. A página de ajuda da Snap sobre Spotlight (help.snapchat.com, lida em 2026-11-05) não traz especificação técnica para post orgânico.",
+      "kind": "expectativa"
     },
     {
       "network": "snapchat",
@@ -590,7 +594,8 @@
       "source_url": "https://docs.zernio.com/platforms/snapchat",
       "read_on": "2026-11-05",
       "confidence": "UNVERIFIED",
-      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Descrição de Spotlight, 160 caracteres, com as hashtags contadas. Sem teto de legenda para Stories no Zernio."
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Descrição de Spotlight, 160 caracteres, com as hashtags contadas. Sem teto de legenda para Stories no Zernio.",
+      "escopo": "Spotlight: descrição, com as hashtags contadas; Stories não têm teto no Zernio"
     },
     {
       "network": "snapchat",
@@ -599,7 +604,8 @@
       "source_url": "https://docs.zernio.com/platforms/snapchat",
       "read_on": "2026-11-05",
       "confidence": "UNVERIFIED",
-      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Título de Saved Story, 45 caracteres. O plano confere o título só quando ele é informado."
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede. Título de Saved Story, 45 caracteres. O plano confere o título só quando ele é informado.",
+      "escopo": "Saved Story: título"
     },
     {
       "network": "snapchat",

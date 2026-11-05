@@ -234,19 +234,11 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "motivo",
-          "source_url",
           "read_on",
-          "confidence"
+          "confidence",
+          "por_provedor"
         ],
         "properties": {
-          "motivo": {
-            "type": "string"
-          },
-          "source_url": {
-            "type": "string",
-            "pattern": "^https://"
-          },
           "read_on": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -256,6 +248,28 @@
               "official",
               "UNVERIFIED"
             ]
+          },
+          "por_provedor": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "texto",
+                "fonte"
+              ],
+              "properties": {
+                "texto": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "fonte": {
+                  "type": "string",
+                  "pattern": "^https://"
+                }
+              }
+            }
           }
         }
       }
