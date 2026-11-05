@@ -51,47 +51,46 @@ Schema do contrato: src/simplicio_video/data/schema/contract.schema.json (no che
 Skill para LLMs: skills/simplicio-video/SKILL.md
 
 options:
-  -h, --help    show this help message and exit
-  --version     mostra a versão do motor e sai (com --json: {version, engine})
-  --json        com --version: imprime {version, engine} em JSON
+  -h, --help      show this help message and exit
+  --version       mostra a versão do motor e sai (com --json: {version, engine})
+  --json          com --version: imprime {version, engine} em JSON
 
 comandos (na ordem do fluxo):
   COMANDO
-    init        gera o esqueleto de contrato para <cliente> <campanha>
-    validate    valida o contrato (schema, assets, durações, falas)
-    voice       gera/cacheia as falas e grava timing.lock.json
-    render      compila e renderiza (padrão local; kaggle/colab-cli/colab opcionais via créditos)
-    run         voice -> validate -> render num comando só (para no MP4)
-    clone       trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA
-    montage     trilha Montage (OpenMontage): produção de vídeo com agentes de IA
-    edit        edição por EDL com video-use sobre qualquer MP4
-    shorts      cortes verticais 9:16 de um vídeo longo (determinístico, só ffmpeg)
-    media       áudio e vídeo sobre qualquer MP4 (fetch, probe, audio, sheet, subs, burn, mask, replace-audio,
-                voice-track); ffmpeg, e yt-dlp no fetch
-    qc          controle de qualidade de um MP4: quadro congelado (congelado), ffmpeg freezedetect
-    opencut     editor OpenCut (open-source) para acabamento manual
-    toonflow    Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
-    moneyprinter
-                MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
-    matchcut    match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta
-    instagram   instagram-agent-skill (MIT): skills de agente e scripts locais para Reels e legenda; não posta
-    rea-video   rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake
-    voicestudio
-                VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900
-    formats     biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
-    swap        troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
-    jobs        tarefas em segundo plano (swap run, voice) num processo separado
-    social      redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP
-    openverse   biblioteca de imagens e áudio do Openverse, revisada por pedido
-    busca       pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário
-    mcp         servidor MCP (stdio) para o simplicio-runtime
-    tools       lista as trilhas externas fixadas (versão, comando, instalada)
-    status      ferramentas instaladas, versões fixadas e estado do render
-    list        lista templates, padrões de motion, providers de voz ou ângulos de anúncio
-    install     copia as skills do simplicio-video para o host do agente (o projeto, ou o home com --global)
-    update      atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar
-    doctor      diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace
-    setup       primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
+    init          gera o esqueleto de contrato para <cliente> <campanha>
+    validate      valida o contrato (schema, assets, durações, falas)
+    voice         gera/cacheia as falas e grava timing.lock.json
+    render        compila e renderiza (padrão local; kaggle/colab-cli/colab opcionais via créditos)
+    run           voice -> validate -> render num comando só (para no MP4)
+    clone         trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA
+    montage       trilha Montage (OpenMontage): produção de vídeo com agentes de IA
+    edit          edição por EDL com video-use sobre qualquer MP4
+    shorts        cortes verticais 9:16 de um vídeo longo (determinístico, só ffmpeg)
+    media         áudio e vídeo sobre qualquer MP4 (fetch, probe, audio, sheet, subs, burn, mask, replace-
+                  audio, voice-track); ffmpeg, e yt-dlp no fetch
+    qc            controle de qualidade de um MP4: quadro congelado (congelado), ffmpeg freezedetect
+    opencut       editor OpenCut (open-source) para acabamento manual
+    toonflow      Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
+    moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
+    matchcut      match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta
+    instagram     instagram-agent-skill (MIT): skills de agente e scripts locais para Reels e legenda; não
+                  posta
+    rea-video     rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake
+    voicestudio   VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900
+    formats       biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
+    swap          troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
+    jobs          tarefas em segundo plano (swap run, voice) num processo separado
+    social        redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP
+    openverse     biblioteca de imagens e áudio do Openverse, revisada por pedido
+    busca         pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário
+    mcp           servidor MCP (stdio) para o simplicio-runtime
+    tools         lista as trilhas externas fixadas (versão, comando, instalada)
+    status        ferramentas instaladas, versões fixadas e estado do render
+    list          lista templates, padrões de motion, providers de voz ou ângulos de anúncio
+    install       copia as skills do simplicio-video para o host do agente (o projeto, ou o home com --global)
+    update        atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar
+    doctor        diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace
+    setup         primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
 
 exemplos:
   simplicio-video list templates
@@ -274,20 +273,18 @@ voz sugerida e trilha padrão. Campos com TODO precisam ser preenchidos
 (validate falha enquanto houver TODO). Schema: src/simplicio_video/data/schema/contract.schema.json.
 
 positional arguments:
-  cliente                         slug do cliente (pasta em clients/, ex.: clinica-sorriso)
-  campanha                        campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)
+  cliente                  slug do cliente (pasta em clients/, ex.: clinica-sorriso)
+  campanha                 campanha em Title_Case com underscore, sem acento (ex.: Dia_Criancas)
 
 options:
-  -h, --help                      show this help message and exit
-  --template TEMPLATE, -t TEMPLATE
-                                  id do template de setor (ver `simplicio-video list templates`)
-  --nome NOME                     nome de exibição do cliente (padrão: TODO)
-  --drive-nome DRIVE_NOME         NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.:
-                                  Clinica_Sorriso)
-  --ano ANO                       ano da campanha (padrão: ano atual)
-  --out OUT, -o OUT               onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no
-                                  checkout ou, instalado por pip, na pasta atual)
-  --force                         sobrescreve um contrato existente
+  -h, --help               show this help message and exit
+  --template, -t TEMPLATE  id do template de setor (ver `simplicio-video list templates`)
+  --nome NOME              nome de exibição do cliente (padrão: TODO)
+  --drive-nome DRIVE_NOME  NOME_CLIENTE no Drive (padrão: derivado de --nome/slug, ex.: Clinica_Sorriso)
+  --ano ANO                ano da campanha (padrão: ano atual)
+  --out, -o OUT            onde gravar (padrão: clients/<cliente>/<campanha-slug>/contract.yaml, no checkout
+                           ou, instalado por pip, na pasta atual)
+  --force                  sobrescreve um contrato existente
 
 exemplos:
   simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome "<Nome do cliente>"
@@ -393,6 +390,7 @@ um loop asyncio por tarefa), sem daemon e sem abrir porta. O estado fica em JSON
 Lista fechada de tarefas:
   swap-run    swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens
               do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal
+  rea-video   rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina
   voice       voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede
               (gemini) pede --yes
 
@@ -404,7 +402,7 @@ Subcomandos:
   cancel ID         SIGINT no grupo da tarefa, SIGKILL depois da tolerância; o swap cancela limpo e grava o manifesto
   clean             remove tarefas terminadas há mais de 7 dias (--older-than-days); `submit` também limpa
 
-Pelo MCP (tool video.jobs): list, status, result, cancel e submit só de voz com provedor local. swap-run nunca.
+Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local e de rea-video (decompose sem --vlm, stems). swap-run nunca.
 A chave de API fica só no ambiente: argumentos com chave são recusados e nada vai para o estado nem para o log.
 
 positional arguments:
@@ -513,6 +511,7 @@ Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPri
 
 positional arguments:
   args        clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | generate ... | run [--yes]
+              --out DIR -- <flags do upstream> | where | status
 
 options:
   -h, --help  show this help message and exit
@@ -558,10 +557,10 @@ exemplos:
 ```text
 usage: simplicio-video opencut [-h] ...
 
-Clona e sobe o OpenCut (https://github.com/OpenCut-app/OpenCut, MIT; usa o opencut-classic até o rewrite ter API).
+Clona e sobe o OpenCut (MIT), fixado no opencut-classic (https://github.com/OpenCut-app/opencut-classic, arquivado no upstream; o rewrite ainda não tem API). dev escuta só em 127.0.0.1; --lan abre em 0.0.0.0. status mostra checkout, pin, bun, node_modules, .env.local e porta.
 
 positional arguments:
-  args        clone [dir] | dev | where
+  args        clone [dir] | dev [--lan] | status [--json] | where
 
 options:
   -h, --help  show this help message and exit
@@ -569,6 +568,8 @@ options:
 exemplos:
   simplicio-video opencut clone
   simplicio-video opencut dev
+  simplicio-video opencut dev --lan
+  simplicio-video opencut status --json
 ```
 
 ## simplicio-video openverse
@@ -641,12 +642,11 @@ usage: simplicio-video qc [-h] AÇÃO ...
 Controle de qualidade de um MP4 com ffmpeg e ffprobe, sem modelo e sem rede. `congelado` lista os trechos em que o vídeo fica num mesmo quadro por pelo menos --min-s segundos.
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
 
 ações:
   AÇÃO
-    congelado
-              intervalos de quadro congelado (ffmpeg freezedetect)
+    congelado  intervalos de quadro congelado (ffmpeg freezedetect)
 
 exemplos:
   simplicio-video qc congelado out/video.mp4
@@ -711,14 +711,14 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --backend {local,kaggle,colab-cli,colab}, -b {local,kaggle,colab-cli,colab}
+  --backend, -b {local,kaggle,colab-cli,colab}
                                   onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via
                                   créditos)
-  --out OUT, -o OUT               MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo
+  --out, -o OUT                   MP4 de saída (local) ou .zip do bundle (colab); padrão: saida.arquivo
   --accelerator ACCELERATOR       kaggle: NvidiaTeslaT4 (padrão) | NvidiaL4 | none; colab-cli: T4 (padrão) |
                                   L4 | A100 | none
   --timeout TIMEOUT               kaggle/colab-cli: limite do render remoto em s (padrão 3600)
-  --quality {draft,looks,delivery}, -q {draft,looks,delivery}
+  --quality, -q {draft,looks,delivery}
                                   qualidade HyperFrames (padrão: derivada de saida.qualidade: master/lite =
                                   delivery, thumb = draft)
   --gpu                           local: encoder de GPU do HyperFrames (--gpu); muda os bytes do vídeo
@@ -766,14 +766,14 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --provider {file,local,gemini,voxcpm,openvoice,voicestudio}, -p {file,local,gemini,voxcpm,openvoice,voicestudio}
+  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio}
                                   override voz.provider
   --force-voice                   regera todas as falas (ignora o cache)
-  --backend {local,kaggle,colab-cli,colab}, -b {local,kaggle,colab-cli,colab}
+  --backend, -b {local,kaggle,colab-cli,colab}
                                   onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via
                                   créditos)
   --accelerator ACCELERATOR       ver `render --help` (none = CPU)
-  --quality {draft,looks,delivery}, -q {draft,looks,delivery}
+  --quality, -q {draft,looks,delivery}
                                   qualidade HyperFrames
   --timeout TIMEOUT               limite do render remoto em s
   --json                          imprime o resumo em JSON no stdout (com erro, error.code); os logs vão para
@@ -1050,7 +1050,7 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --provider {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}, -p {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}
+  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}
                                   override voz.provider
   --force                         ignora o cache (com ids: só esses)
   --concurrency N                 falas geradas ao mesmo tempo, só em provedor de rede (gemini; padrão 4; 1 =

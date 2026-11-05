@@ -6,8 +6,9 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 
 | Variável | Para quê | Onde o código lê ou define |
 |---|---|---|
-| `AUDIO8_TTS_BIN` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:89` |
-| `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:414` |
+| `AUDIO8_TTS_BIN` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:88` |
+| `BACKLOT_PORT` | Porta do board (Backlot) do OpenMontage; o `montage open` e o `montage serve` a repassam ao upstream. | `src/simplicio_video/montage.py:303` |
+| `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:447` |
 | `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo. | `src/simplicio_video/voice.py:215` |
 | `GH_TOKEN` | Token do GitHub que o `update` manda só para `api.github.com` ao ler a última release (um redirect para outro host tira o cabeçalho). Só no ambiente. | `src/simplicio_video/commands/update.py:215` |
 | `GITHUB_TOKEN` | O mesmo que `GH_TOKEN`, quando ele não está definido. Só vai para `api.github.com`. | `src/simplicio_video/commands/update.py:215` |
@@ -19,23 +20,24 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `KAGGLE_USERNAME` | Usuário do Kaggle para o render remoto (sem ele, lê o `kaggle.json`). | `src/simplicio_video/remote.py:70`<br>`src/simplicio_video/remote.py:71` |
 | `KOKORO_DIR` | Pasta dos modelos do Kokoro (TTS local; padrão `~/.local/share/simplicio-tts`). | `src/simplicio_video/voice.py:143` |
 | `MATCHCUT_DIR` | Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`). | `src/simplicio_video/matchcut.py:42`<br>`src/simplicio_video/matchcut.py:43`<br>`src/simplicio_video/matchcut.py:48`<br>`src/simplicio_video/matchcut.py:50` |
-| `MONEYPRINTER_DATA_DIR` | Pasta de dados da trilha MoneyPrinterTurbo: venv isolado e storage com os vídeos gerados (padrão: `~/.simplicio-video/moneyprinter-data`, fora do checkout). | `src/simplicio_video/moneyprinter.py:93` |
-| `MONEYPRINTER_DIR` | Checkout do MoneyPrinterTurbo (alternativa a `SIMPLICIO_TOOLS_DIR/moneyprinter`). | `src/simplicio_video/moneyprinter.py:109`<br>`src/simplicio_video/moneyprinter.py:110`<br>`src/simplicio_video/moneyprinter.py:115`<br>`src/simplicio_video/moneyprinter.py:117` |
+| `MONEYPRINTER_DATA_DIR` | Pasta de dados da trilha MoneyPrinterTurbo: venv isolado e storage com os vídeos gerados (padrão: `~/.simplicio-video/moneyprinter-data`, fora do checkout). | `src/simplicio_video/moneyprinter.py:106` |
+| `MONEYPRINTER_DIR` | Checkout do MoneyPrinterTurbo (alternativa a `SIMPLICIO_TOOLS_DIR/moneyprinter`). | `src/simplicio_video/moneyprinter.py:122`<br>`src/simplicio_video/moneyprinter.py:123`<br>`src/simplicio_video/moneyprinter.py:128`<br>`src/simplicio_video/moneyprinter.py:130` |
 | `OMNIVOICE_API_KEY` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:99` |
 | `OMNIVOICE_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:91` |
 | `OMNIVOICE_URL` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:88` |
-| `OPENCUT_DIR` | Pasta do OpenCut, lida pelo próprio editor (trilha `opencut`). | `src/simplicio_video/opencut.py:29` |
-| `OPENMONTAGE_DIR` | Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage. | `src/simplicio_video/montage.py:32`<br>`src/simplicio_video/montage.py:51`<br>`src/simplicio_video/montage.py:52`<br>`src/simplicio_video/montage.py:57`<br>`src/simplicio_video/montage.py:59` |
+| `OPENCUT_DIR` | Pasta do OpenCut, lida pelo próprio editor (trilha `opencut`). | `src/simplicio_video/opencut.py:69` |
+| `OPENMONTAGE_DATA_DIR` | Pasta do venv do OpenMontage (padrão: `~/.simplicio-video/openmontage-data`); um caminho relativo vira absoluto a partir da pasta atual, com aviso. | `src/simplicio_video/montage.py:157` |
+| `OPENMONTAGE_DIR` | Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage. | `src/simplicio_video/montage.py:37`<br>`src/simplicio_video/montage.py:56`<br>`src/simplicio_video/montage.py:57`<br>`src/simplicio_video/montage.py:62`<br>`src/simplicio_video/montage.py:64` |
 | `OPENVERSE_LIBRARY_DIR` | Pasta da biblioteca do Openverse: `index.json`, `files/<sha256>`, `cache/` e `sheets/` (padrão: `~/.simplicio-video/openverse-library`). | `src/simplicio_video/openverse.py:184` |
-| `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:53` |
-| `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:52` |
-| `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `doctor` procura `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual. | `src/simplicio_video/commands/doctor.py:143`<br>`src/simplicio_video/engine/remote_render.py:178` |
+| `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:52` |
+| `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:51` |
+| `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `doctor` procura `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual. | `src/simplicio_video/commands/doctor.py:143`<br>`src/simplicio_video/engine/remote_render.py:178`<br>`src/simplicio_video/tools.py:336` |
 | `PATHEXT` | Extensões executáveis do Windows (`.EXE;.CMD`...). Lida só no Windows, ao procurar `simplicio`, `node`, `ffmpeg` e `npm` no PATH. | `src/simplicio_video/hostos.py:159` |
 | `PIP_BREAK_SYSTEM_PACKAGES` | `1` autoriza o pip a mexer no Python do sistema (PEP 668). O `update` de um pacote instalado por pip respeita: sem ele, um Python gerenciado pelo sistema é recusado com exit 2. | `src/simplicio_video/commands/update.py:77` |
-| `PYTHONPATH` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:439`<br>`src/simplicio_video/moneyprinter.py:825` |
-| `REA_VIDEO_DATA_DIR` | Pasta de dados da trilha rea-video: o venv próprio e o estado do upstream (padrão: `~/.simplicio-video/rea-video-data`, fora do checkout). | `src/simplicio_video/rea_video.py:65` |
-| `REA_VIDEO_DIR` | Checkout do rea-video (alternativa a `SIMPLICIO_TOOLS_DIR/rea_video`). | `src/simplicio_video/rea_video.py:86`<br>`src/simplicio_video/rea_video.py:87`<br>`src/simplicio_video/rea_video.py:92`<br>`src/simplicio_video/rea_video.py:94` |
-| `REA_VIDEO_PYTHON` | Interpretador que cria o venv do rea-video no `setup`, por exemplo `python3.11` para o extra de OCR. Um venv que já existe é mantido. | `src/simplicio_video/rea_video.py:157` |
+| `PYTHONPATH` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:1365`<br>`src/simplicio_video/moneyprinter.py:473`<br>`src/simplicio_video/moneyprinter.py:860` |
+| `REA_VIDEO_DATA_DIR` | Pasta de dados da trilha rea-video: o venv próprio e o estado do upstream (padrão: `~/.simplicio-video/rea-video-data`, fora do checkout). | `src/simplicio_video/rea_video.py:69` |
+| `REA_VIDEO_DIR` | Checkout do rea-video (alternativa a `SIMPLICIO_TOOLS_DIR/rea_video`). | `src/simplicio_video/rea_video.py:90`<br>`src/simplicio_video/rea_video.py:91`<br>`src/simplicio_video/rea_video.py:96`<br>`src/simplicio_video/rea_video.py:98` |
+| `REA_VIDEO_PYTHON` | Interpretador que cria o venv do rea-video no `setup`, por exemplo `python3.11` para o extra de OCR. Um venv que já existe é mantido. | `src/simplicio_video/rea_video.py:161` |
 | `SIMPLICIO_BUSCA_MAX_DIA` | Teto de chamadas ao TinyFish por dia UTC no `busca` (padrão 20; máximo 1000). `--max-chamadas-dia` vence. O MCP e o plugin só usam este valor ou o padrão. | `src/simplicio_video/busca.py:351` |
 | `SIMPLICIO_COLAB_AUTH` | Modo de autenticação do Colab CLI, repassado a `--auth`. | `src/simplicio_video/remote.py:183`<br>`src/simplicio_video/remote.py:184` |
 | `SIMPLICIO_DRIVE_REMOTE` | Nome do remote do rclone para o Drive (padrão: `gdrive`). | `src/simplicio_video/publish.py:108` |
@@ -43,15 +45,15 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SIMPLICIO_FFMPEG_SHA256` | SHA-256 esperado do ffmpeg estático de `SIMPLICIO_FFMPEG_URL`. | `src/simplicio_video/render.py:259` |
 | `SIMPLICIO_FFMPEG_URL` | URL de um ffmpeg estático fixado, baixado e verificado pelos renders remotos. | `src/simplicio_video/render.py:257`<br>`src/simplicio_video/render.py:258` |
 | `SIMPLICIO_GEMINI_BASE` | Base da API Gemini (padrão: a oficial). Para proxies e testes. | `src/simplicio_video/swap_providers/gemini.py:60`<br>`src/simplicio_video/voice.py:156` |
-| `SIMPLICIO_JOBS_GRACE_S` | Tolerância, em segundos, entre o SIGINT e o SIGKILL ao cancelar uma tarefa de `jobs` (padrão 15). | `src/simplicio_video/jobs.py:584` |
-| `SIMPLICIO_MCP` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/childio.py:18`<br>`src/simplicio_video/mcp_server.py:649` |
-| `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline (inclui a consulta da última release no `update` e no `doctor --online`). O gate (`make check`) roda com `1`. | `src/simplicio_video/busca.py:583`<br>`src/simplicio_video/commands/update.py:63`<br>`src/simplicio_video/instagram.py:128`<br>`src/simplicio_video/montage.py:24`<br>`src/simplicio_video/openverse.py:774`<br>`src/simplicio_video/swap_providers/http.py:45`<br>`src/simplicio_video/tools_update.py:40`<br>`src/simplicio_video/toonflow.py:59` |
-| `SIMPLICIO_OPENMONTAGE_DIR` | Pasta do OpenMontage (alternativa a `OPENMONTAGE_DIR`). | `src/simplicio_video/montage.py:32` |
+| `SIMPLICIO_JOBS_GRACE_S` | Tolerância, em segundos, entre o SIGINT e o SIGKILL ao cancelar uma tarefa de `jobs` (padrão 15). | `src/simplicio_video/jobs.py:664` |
+| `SIMPLICIO_MCP` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/childio.py:86`<br>`src/simplicio_video/mcp_server.py:787` |
+| `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline (inclui a consulta da última release no `update` e no `doctor --online`). O gate (`make check`) roda com `1`. | `src/simplicio_video/busca.py:583`<br>`src/simplicio_video/commands/update.py:63`<br>`src/simplicio_video/instagram.py:128`<br>`src/simplicio_video/montage.py:29`<br>`src/simplicio_video/openverse.py:774`<br>`src/simplicio_video/swap_providers/http.py:45`<br>`src/simplicio_video/tools_update.py:40`<br>`src/simplicio_video/toonflow.py:59` |
+| `SIMPLICIO_OPENMONTAGE_DIR` | Pasta do OpenMontage (alternativa a `OPENMONTAGE_DIR`). | `src/simplicio_video/montage.py:37` |
 | `SIMPLICIO_RCLONE_BIN` | Caminho do binário do rclone (padrão: o `rclone` do PATH). | `src/simplicio_video/publish.py:116` |
 | `SIMPLICIO_STT_PY` | Python com o motor de transcrição (STT). Padrão: o Python do TTS local. | `src/simplicio_video/words.py:36` |
-| `SIMPLICIO_TOOLS_DIR` | Pasta das ferramentas opcionais instaladas (padrão: `~/.simplicio-video/tools`). | `src/simplicio_video/montage.py:35`<br>`src/simplicio_video/tools.py:197` |
+| `SIMPLICIO_TOOLS_DIR` | Pasta das ferramentas opcionais instaladas (padrão: `~/.simplicio-video/tools`). | `src/simplicio_video/montage.py:40`<br>`src/simplicio_video/tools.py:198` |
 | `SIMPLICIO_TTS_PY` | Python com kokoro-onnx e soundfile (TTS local; padrão: `~/.local/share/simplicio-tts/cbvenv`). | `src/simplicio_video/paths.py:71` |
-| `SIMPLICIO_VIDEO_DATA` | Pasta de dados do simplicio-video (padrão: `~/.simplicio-video`). Lida pelas trilhas `montage`, `toonflow`, `moneyprinter` e `rea-video`, pelo `jobs` (estado das tarefas em `jobs/`), pelo `busca` (cache, contador e registro em `busca/`) e pelo `update` (`update-check.json`, que o `doctor` lê sem rede). | `src/simplicio_video/busca.py:277`<br>`src/simplicio_video/commands/update.py:312`<br>`src/simplicio_video/jobs.py:68`<br>`src/simplicio_video/moneyprinter.py:96`<br>`src/simplicio_video/montage.py:37`<br>`src/simplicio_video/openverse.py:187`<br>`src/simplicio_video/rea_video.py:68`<br>`src/simplicio_video/tools_lock.py:47`<br>`src/simplicio_video/toonflow.py:73` |
+| `SIMPLICIO_VIDEO_DATA` | Pasta de dados do simplicio-video (padrão: `~/.simplicio-video`). Lida pelas trilhas `montage`, `toonflow`, `moneyprinter` e `rea-video`, pelo `jobs` (estado das tarefas em `jobs/`), pelo `busca` (cache, contador e registro em `busca/`) e pelo `update` (`update-check.json`, que o `doctor` lê sem rede). | `src/simplicio_video/busca.py:277`<br>`src/simplicio_video/commands/update.py:312`<br>`src/simplicio_video/jobs.py:68`<br>`src/simplicio_video/moneyprinter.py:109`<br>`src/simplicio_video/montage.py:165`<br>`src/simplicio_video/montage.py:42`<br>`src/simplicio_video/openverse.py:187`<br>`src/simplicio_video/rea_video.py:72`<br>`src/simplicio_video/tools_lock.py:47`<br>`src/simplicio_video/toonflow.py:73` |
 | `SIMPLICIO_VIDEO_HOME` | Checkout do simplicio-video (dados do motor e raiz do repo). Sem ela, o pacote procura o checkout. | `src/simplicio_video/paths.py:31`<br>`src/simplicio_video/paths.py:59` |
 | `SIMPLICIO_WORKSPACE` | Pasta do workspace da fábrica (padrão: `~/.simplicio-video/workspaces/default`). | `src/simplicio_video/paths.py:48` |
 | `SV_BROWSER_GPU` | `1` liga a GPU do navegador na captura do render. | `src/simplicio_video/render.py:191`<br>`src/simplicio_video/render.py:94` |
@@ -65,9 +67,9 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `TINYFISH_API_KEY` | Chave da API do TinyFish, lida só pelo binário `tinyfish` (que também a guarda em `~/.tinyfish/config.json`). O `busca` a repassa ao binário se estiver no ambiente e nunca a lê, imprime nem grava; nunca em argumento. | `src/simplicio_video/busca.py:1057`<br>`src/simplicio_video/busca.py:174` |
 | `TOONFLOW_DATA_DIR` | Pasta de dados do servidor Toonflow (padrão: `~/.simplicio-video/toonflow-data`, fora do checkout). | `src/simplicio_video/toonflow.py:70` |
 | `TOONFLOW_DIR` | Checkout do Toonflow (alternativa a `SIMPLICIO_TOOLS_DIR/toonflow`). | `src/simplicio_video/toonflow.py:81`<br>`src/simplicio_video/toonflow.py:82`<br>`src/simplicio_video/toonflow.py:87`<br>`src/simplicio_video/toonflow.py:89` |
-| `VIDEO_USE_DIR` | Checkout do video-use (trilha `edit`), mantido por tools/video-use/setup.sh; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`). | `src/simplicio_video/tools_update.py:155` |
-| `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:73`<br>`src/simplicio_video/voice_clone.py:74`<br>`src/simplicio_video/voicestudio.py:99` |
+| `VIDEO_USE_DIR` | Checkout do video-use (trilha `edit`), mantido pelo setup.sh em data/tools/video-use; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`). | `src/simplicio_video/tools_update.py:155` |
+| `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:72`<br>`src/simplicio_video/voice_clone.py:73`<br>`src/simplicio_video/voicestudio.py:99` |
 | `VOICESTUDIO_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:91` |
-| `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voice_clone.py:66`<br>`src/simplicio_video/voicestudio.py:88` |
-| `VOXCPM_BIN` | Executável do VoxCPM (provider `openvoice`, clonagem com clipe de referência). | `src/simplicio_video/voice_clone.py:27` |
-| `VOXCPM_DEVICE` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:43`<br>`src/simplicio_video/voice_clone.py:44` |
+| `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voice_clone.py:65`<br>`src/simplicio_video/voicestudio.py:88` |
+| `VOXCPM_BIN` | Executável do VoxCPM (provider `openvoice`, clonagem com clipe de referência). | `src/simplicio_video/voice_clone.py:26` |
+| `VOXCPM_DEVICE` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:42`<br>`src/simplicio_video/voice_clone.py:43` |
