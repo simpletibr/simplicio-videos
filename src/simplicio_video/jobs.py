@@ -9,9 +9,12 @@ How it works, in a few rules:
 - The runner is detached (`start_new_session`), runs the task as a child in ANOTHER process group (like toonflow's
   `_stop_group`): cancel = SIGTERM to the runner, which sends SIGINT to the task group, waits a grace period, then
   SIGKILL, then sweeps the group. No port is opened and nothing stays running after the task ends.
-- A closed list of tasks (`KINDS`): `swap-run`, `voice` and `rea-video` (decompose without the vision model, and stems; MCP can submit it). `swap-run` spends money, so it is confirmed at submission
-  (`--yes` and `--autorizo`, after the same checks as `swap run`) and can only be submitted from the terminal. Over MCP
-  only `voice` with a LOCAL provider and `rea-video` (decompose without the vision model, stems) can be submitted; status, list, result and cancel work for every task.
+- A closed list of tasks (`KINDS`): `swap-run`, `voice`, `rea-video` (decompose without the vision model, and stems) and
+  `moneyprinter` (a free MoneyPrinterTurbo run: supplied script, local material, Edge or silent voice). `swap-run` spends
+  money, so it is confirmed at submission (`--yes` and `--autorizo`, after the same checks as `swap run`) and can only be
+  submitted from the terminal. Over MCP only `voice` with a LOCAL provider, `rea-video` (decompose without the vision model,
+  stems) and `moneyprinter` (free runs only, absolute `out`; `video.moneyprinter generate|run` sends it) can be submitted;
+  status, list, result and cancel work for every task.
 - If the runner dies without writing a final state, the next status/list marks the task `lost` and kills what it left
   (orphan recovery). Finished tasks older than a week are removed on submit and by `jobs clean`.
 - No API key is ever written: the key stays in the environment of the runner and the task. Submitting arguments that
@@ -832,11 +835,13 @@ HELP_DESC = (
     "um loop asyncio por tarefa), sem daemon e sem abrir porta. O estado fica em JSON em <dados>/jobs/<id>/job.json\n"
     "($SIMPLICIO_VIDEO_DATA, padrão ~/.simplicio-video), com escrita atômica.\n\n"
     "Lista fechada de tarefas:\n"
-    "  swap-run    swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens\n"
-    "              do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal\n"
-    "  rea-video   rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina\n"
-    "  voice       voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede\n"
-    "              (gemini) pede --yes\n\n"
+    "  swap-run      swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens\n"
+    "                do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal\n"
+    "  rea-video     rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina\n"
+    "  voice         voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede\n"
+    "                (gemini) pede --yes\n"
+    "  moneyprinter  corrida grátis do MoneyPrinterTurbo (roteiro seu, material local, voz Edge ou muda, --out absoluto). Só pelo\n"
+    "                MCP (video.moneyprinter generate|run); quem gasta roda no terminal com `moneyprinter run --yes`\n\n"
     "Subcomandos:\n"
     "  submit TIPO ...   cria a tarefa e devolve o id\n"
     "  status ID         estado, tempos, pids e erro (estado lost = o runner morreu; a tarefa que sobrou é encerrada)\n"
@@ -844,7 +849,7 @@ HELP_DESC = (
     "  result ID         o resultado de uma tarefa terminada (sai com 2 se ainda roda)\n"
     "  cancel ID         SIGINT no grupo da tarefa, SIGKILL depois da tolerância; o swap cancela limpo e grava o manifesto\n"
     "  clean             remove tarefas terminadas há mais de 7 dias (--older-than-days); `submit` também limpa\n\n"
-    "Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local e de rea-video (decompose sem --vlm, stems). swap-run nunca.\n"
+    "Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local, de rea-video (decompose sem --vlm, stems) e de moneyprinter (corrida grátis). swap-run nunca.\n"
     "A chave de API fica só no ambiente: argumentos com chave são recusados e nada vai para o estado nem para o log."
 )
 HELP_EPILOG = (

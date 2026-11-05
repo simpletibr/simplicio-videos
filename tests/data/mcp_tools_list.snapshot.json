@@ -365,7 +365,7 @@
    "name": "video.install"
   },
   {
-   "description": "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}) and rea-video (kind=rea-video, params={args: [decompose|stems, ...]}, no vision model; usually sent through video.rea-video). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes).",
+   "description": "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}), rea-video (kind=rea-video, params={args: [decompose|stems, ...]}, no vision model; usually sent through video.rea-video) and moneyprinter (kind=moneyprinter, a free run; usually sent through video.moneyprinter generate|run). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes).",
    "inputSchema": {
     "properties": {
      "acao": {

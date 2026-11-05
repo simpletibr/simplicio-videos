@@ -343,12 +343,13 @@ def video_swap(acao: str = "providers", provider: str | None = None, video: str 
         return {"ok": False, "error": str(e)}
 
 
-DESC_video_jobs = "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}) and rea-video (kind=rea-video, params={args: [decompose|stems, ...]}, no vision model; usually sent through video.rea-video). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes)."
+DESC_video_jobs = "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}), rea-video (kind=rea-video, params={args: [decompose|stems, ...]}, no vision model; usually sent through video.rea-video) and moneyprinter (kind=moneyprinter, a free run; usually sent through video.moneyprinter generate|run). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes)."
 def video_jobs(acao: str = "list", id: str | None = None, kind: str | None = None, params: dict | None = None,
                state: str | None = None) -> dict:
-    """Background tasks over MCP: `list`, `status`, `result`, `cancel` for any task, and `submit` ONLY for `voice` with a
-    local provider (no money). There is no way to confirm a spend here: `swap-run` and network voice are submitted in the
-    terminal (`simplicio-video jobs submit ... --yes`). The function has no `yes` argument on purpose."""
+    """Background tasks over MCP: `list`, `status`, `result`, `cancel` for any task, and `submit` ONLY for the kinds that
+    spend no money: `voice` with a local provider, `rea-video` (no vision model) and `moneyprinter` (a free run). There is
+    no way to confirm a spend here: `swap-run` and network voice are submitted in the terminal
+    (`simplicio-video jobs submit ... --yes`). The function has no `yes` argument on purpose."""
     from . import jobs
     try:
         if acao == "list":
