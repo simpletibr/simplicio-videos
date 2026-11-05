@@ -38,6 +38,7 @@ Exemplos:
 from __future__ import annotations
 
 import argparse
+import codecs
 import importlib.util
 import json
 import math
@@ -79,6 +80,7 @@ BUSCA_PADRAO = "o que é a licença Creative Commons CC0"
 NODE_MIN = (22, 15)             # tools.NODE_MIN (@hypit/hypit exige node >= 22.15)
 PORTA_VOICESTUDIO = 3900
 PORTA_TOONFLOW = 3000
+JANELA_VIVO_S = 3.0             # o serve lançado tem de continuar vivo este tempo depois da primeira resposta HTTP
 CHAVES_CONHECIDAS = ("GEMINI_API_KEY", "FAL_KEY", "WAVESPEED_API_KEY", "KIE_API_KEY", "DASHSCOPE_API_KEY", "TINYFISH_API_KEY")
 PASS, FAIL, SKIP, PLANO = "PASS", "FAIL", "SKIP", "PLANO"
 
@@ -90,6 +92,7 @@ class Saida:
     out: str = ""
     err: str = ""
     expirou: bool = False
+    bruta: str = ""  # saída sem redação (só _rodar preenche; ver Passo.bruta)
 
 
 @dataclass
@@ -101,6 +104,7 @@ class Passo:
     log: str
     saida: str = ""
     erro: str = ""
+    bruta: str = ""  # saída sem redação, só para ler números e JSON (nunca vai para log, tabela nem relatório)
 
     @property
     def ok(self) -> bool:
@@ -290,104 +294,417 @@ def detectar(sondas, *, sondar: bool) -> Ambiente:
     )
 
 
-CAMPO_SEGREDO = re.compile(r"key|token|secret|password|senha", re.IGNORECASE)
+ROTULO_CONFIG_MP = "config.toml do MoneyPrinter"
+MIN_VALOR_SEGREDO = 3           # valores de segredo com menos caracteres não são redigidos (ver docs/how-to/e2e-real.md)
+# Nome de variável ou de campo que guarda segredo: na dúvida, redige. Basta o nome CONTER uma destas partes (FAL_KEY1,
+# GEMINIKEY, MYKEY, OPENAIAPIKEY, SESSIONKEY, MY_TOKEN2 contam), menos as palavras de _NAO_SEGREDO.
+_PARTES_SEGREDO = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PASSPHRASE", "CREDENTIAL", "SENHA", "AUTH")
+# Falsos positivos conhecidos, tirados do nome antes da busca (lista pequena, de nomes reais de ambiente e de config):
+# teclado (KEYBOARD, KEYMAP, KEYBINDING, KEYCODE, KEYSTROKE, KEYPAD, HOTKEY), animais e afins (MONKEY, DONKEY, TURKEY,
+# TURNKEY, HOCKEY, JOCKEY, WHISKEY), KEYFRAME (animação), KEYWORD (busca), KEYSTONE e KEYCLOAK (nomes de serviços; as
+# credenciais deles têm SECRET ou PASSWORD no nome), TOKENIZ (TOKENIZERS_PARALLELISM do Hugging Face) e AUTHOR/AUTHORITY
+# (GIT_AUTHOR_NAME); AUTHORIZATION continua sendo segredo.
+_NAO_SEGREDO = re.compile(r"KEYBOARD|KEYMAP|KEYBIND|KEYCODE|KEYSTROKE|KEYPAD|HOTKEY|MONKEY|DONKEY|TURKEY|TURNKEY|HOCKEY|"
+                          r"JOCKEY|WHISKEY|KEYFRAME|KEYWORD|KEYSTONE|KEYCLOAK|TOKENIZ|AUTHOR(?!IZ)|AUTHORITY")
+
+
+def _nome_e_segredo(nome: str) -> bool:
+    """O nome contém uma parte que guarda segredo (KEY, TOKEN, SECRET, PASSWORD, senha...), fora os falsos positivos
+    conhecidos de _NAO_SEGREDO. Substring de propósito: GEMINIKEY e OPENAIAPIKEY são segredo, KEYBOARD_LAYOUT não."""
+    limpo = _NAO_SEGREDO.sub("_", str(nome).upper())
+    return any(parte in limpo for parte in _PARTES_SEGREDO)
+
+
+TETO_CAUDA = 1024 * 1024        # 1 MiB de saída guardada para o relatório (a redação continua em fluxo)
+TAM_BLOCO = 64 * 1024           # leitura em blocos fixos de 64 KiB
+LIMIAR_AMORTIZAR = 256          # sufixo retido acima disto: o texto novo espera juntar o tamanho dele (ver Redator)
+
+
+_NUMERO_TOML = re.compile(r"[-+]?\d[\w.:+-]*")  # inteiro (0x, 0o, 0b, _), decimal, científico ou data: o texto é o que sai no config
+
+
+def _ler_texto_toml(texto: str, i: int):
+    """Lê uma string TOML que começa em texto[i]: básica ("...", com escapes) ou literal ('...'). Devolve (valor, fim);
+    valor é None se a string não fecha na linha (aí o fim é onde a leitura parou)."""
+    aspa = texto[i]
+    j = i + 1
+    while j < len(texto):
+        c = texto[j]
+        if aspa == '"' and c == "\\":
+            j += 2
+            continue
+        if c == aspa:
+            bruto = texto[i + 1:j]
+            if aspa == '"':
+                try:
+                    bruto = json.loads(f'"{bruto}"')  # escapes básicos de TOML (\" \\ \uXXXX) são os do JSON
+                except ValueError:
+                    pass
+            return bruto, j + 1
+        if c == "\n":
+            return None, j
+        j += 1
+    return None, j
+
+
+def _valores_de_valor_toml(texto: str, i: int) -> list:
+    """Os textos de um valor que começa em texto[i]: uma string; ou uma lista, também em várias linhas, de strings.
+    Número e tabela inline não dão texto aqui: as chaves de dentro de uma tabela inline são achadas pela varredura."""
+    while i < len(texto) and texto[i] in " \t":
+        i += 1
+    if i >= len(texto):
+        return []
+    if texto[i] in "\"'":
+        valor, _ = _ler_texto_toml(texto, i)
+        return [valor] if isinstance(valor, str) else []
+    if _NUMERO_TOML.match(texto, i):
+        return [_NUMERO_TOML.match(texto, i).group()]
+    if texto[i] == "[":
+        achados, j = [], i + 1
+        while j < len(texto) and texto[j] != "]":
+            if texto[j] in "\"'":
+                valor, j = _ler_texto_toml(texto, j)
+                if isinstance(valor, str):
+                    achados.append(valor)
+            elif _NUMERO_TOML.match(texto, j):
+                numero = _NUMERO_TOML.match(texto, j)
+                achados.append(numero.group())
+                j = numero.end()
+            else:
+                j += 1
+        return achados
+    return []
+
+
+def _valores_por_regex(texto: str) -> set:
+    """Caminho sem tomllib (Python 3.10): cada `chave = valor` com chave de nome de segredo (ver _nome_e_segredo).
+    Cobre chave e valor entre aspas simples ou duplas, escapes, listas em várias linhas, tabela inline e [[x]]."""
+    achados: set = set()
+    for m in re.finditer(r"""(?P<chave>["']?[\w.\-]+["']?)[ \t]*=[ \t]*""", texto):
+        if _nome_e_segredo(m.group("chave").strip("\"'")):
+            achados.update(v for v in _valores_de_valor_toml(texto, m.end()) if v)
+    return achados
 
 
 def _valores_do_config(caminho) -> set:
-    """Valores de campos de segredo do config.toml do MoneyPrinter (lidos, nunca impressos). Sem tomllib (Python 3.10),
-    cai numa leitura por linha, suficiente para `campo = "valor"`."""
+    """Valores de campos de segredo do config.toml do MoneyPrinter (lidos, nunca impressos): strings, números e listas
+    deles cujo nome é de segredo (ver _nome_e_segredo), em qualquer tabela, tabela inline e [[x]]. Um campo de segredo
+    herda o segredo para tudo que está dentro dele. Vale o valor lido pelo tomllib (quando há) e o texto original do
+    valor, achado por regex (o único caminho no Python 3.10)."""
     if caminho is None or not Path(caminho).is_file():
         return set()
     texto = Path(caminho).read_text(encoding="utf-8", errors="replace")
     try:
         import tomllib
     except ImportError:
-        return {v for _, v in re.findall(r'^\s*([\w.-]*(?:key|token|secret|password|senha)[\w.-]*)\s*=\s*"([^"]*)"',
-                                         texto, re.IGNORECASE | re.MULTILINE)}
+        return _valores_por_regex(texto)
     achados: set = set()
 
-    def caminhar(no):
+    def caminhar(no, herdado=False):
         for chave, valor in no.items():
+            segredo = herdado or _nome_e_segredo(str(chave))
             if isinstance(valor, dict):
-                caminhar(valor)
-            elif isinstance(valor, str) and CAMPO_SEGREDO.search(str(chave)):
+                caminhar(valor, segredo)
+            elif isinstance(valor, list):
+                for item in valor:
+                    if isinstance(item, dict):
+                        caminhar(item, segredo)
+                    elif segredo and isinstance(item, str):
+                        achados.add(item)
+                    elif segredo and isinstance(item, (int, float)) and not isinstance(item, bool):
+                        achados.add(str(item))
+            elif segredo and isinstance(valor, str):
                 achados.add(valor)
+            elif segredo and isinstance(valor, (int, float)) and not isinstance(valor, bool):
+                achados.add(str(valor))  # token numérico: o TOML lê número, e o texto dele também tem de sair redigido
 
     try:
         caminhar(tomllib.loads(texto))
     except ValueError:
-        pass  # config.toml inválido: o MoneyPrinter é que reclama; aqui só não há o que redigir
-    return achados
+        pass  # config.toml inválido: o MoneyPrinter é que reclama; aqui a leitura por regex ainda acha o que dá
+    # o tomllib normaliza o número (1_234_567, 0xDEADBEEF, 6.02e23 e 1.50 viram 1234567, 3735928559, 6.02e+23 e 1.5): o
+    # texto ORIGINAL do valor, como está no arquivo (e como o MoneyPrinter o imprime), também tem de sair redigido
+    achados |= _valores_por_regex(texto)
+    return {v for v in achados if v}
+
+
+def _candidatos(sondas, amb: Ambiente) -> list:
+    """(rótulo, valor) de tudo que é segredo: toda variável de ambiente de nome de segredo (ver _nome_e_segredo, qualquer
+    valor), as chaves conhecidas dos adaptadores e os campos de segredo do config.toml do MoneyPrinter. O rótulo é o
+    nome da variável (ou o config.toml), nunca o valor."""
+    env = sondas.env()
+    nomes = set(CHAVES_CONHECIDAS) | {var for var, _ in amb.adaptadores.values() if var}
+    nomes |= {n for n in env if _nome_e_segredo(n)}
+    achados = [(n, env[n]) for n in sorted(nomes) if env.get(n)]
+    return achados + [(ROTULO_CONFIG_MP, v) for v in sorted(_valores_do_config(sondas.config_moneyprinter()))]
 
 
 def _segredos(sondas, amb: Ambiente) -> list:
-    """Tudo que deve sair redigido: as variáveis de chave do ambiente e os campos de segredo do config.toml do
-    MoneyPrinter. Não cobre o que o Toonflow guarda na própria interface (ver docs/how-to/e2e-real.md)."""
-    env = sondas.env()
-    nomes = set(CHAVES_CONHECIDAS) | {var for var, _ in amb.adaptadores.values() if var}
-    valores = {env[n] for n in nomes if env.get(n)} | _valores_do_config(sondas.config_moneyprinter())
-    return sorted((v for v in valores if v), key=len, reverse=True)
+    """O que deve sair redigido (valores com pelo menos MIN_VALOR_SEGREDO caracteres), o mais longo primeiro. Não cobre o
+    que o Toonflow guarda na própria interface (ver docs/how-to/e2e-real.md)."""
+    return sorted({v for _, v in _candidatos(sondas, amb) if len(v) >= MIN_VALOR_SEGREDO}, key=len, reverse=True)
+
+
+def _segredos_curtos(sondas, amb: Ambiente) -> list:
+    """Rótulos (nunca valores) dos segredos configurados com menos de MIN_VALOR_SEGREDO caracteres: não são redigidos."""
+    return sorted({rotulo for rotulo, v in _candidatos(sondas, amb) if 0 < len(v) < MIN_VALOR_SEGREDO})
+
+
+def _aviso_segredo_curto(rotulos: list) -> str:
+    lista = ", ".join(rotulos)
+    if len(rotulos) == 1:
+        return (f"aviso: {lista} tem menos de {MIN_VALOR_SEGREDO} caracteres e não será redigido (trocar um valor tão curto "
+                f"estragaria a saída inteira); o valor não é impresso")
+    return (f"aviso: {lista} têm menos de {MIN_VALOR_SEGREDO} caracteres e não serão redigidos (trocar um valor tão curto "
+            f"estragaria a saída inteira); os valores não são impressos")
+
+
+def _formas(segredos) -> list:
+    """Cada segredo na forma crua e nas formas em que o JSON (com e sem ASCII) e o repr o imprimem: aspas, barra, quebra
+    de linha e acento viram \\", \\\\, \\n e \\uXXXX. Sem vazios nem repetição; o mais longo primeiro."""
+    formas: set = set()
+    for s in segredos:
+        if s:
+            formas.update((s, json.dumps(s)[1:-1], json.dumps(s, ensure_ascii=False)[1:-1], repr(s)[1:-1],
+                           ascii(s)[1:-1], json.dumps(json.dumps(s))[1:-1]))
+    formas.discard("")
+    return sorted(formas, key=len, reverse=True)
+
+
+def _regex_segredos(segredos: list):
+    """Um padrão com todos os segredos, o mais longo primeiro: em cada posição casa a forma mais longa."""
+    validos = sorted({s for s in segredos if s}, key=len, reverse=True)
+    return re.compile("|".join(re.escape(s) for s in validos)) if validos else None
+
+
+def _inicio_parcial(dados: str, formas: list, maior: int, primeiros) -> int:
+    """Menor posição p cujo sufixo dados[p:] é prefixo PRÓPRIO de alguma forma: um começo de segredo que o fluxo ainda
+    pode completar. Devolve len(dados) se não há. Só os últimos maior-1 caracteres podem ser um tal começo; `primeiros`
+    (primeiro caractere de cada forma) descarta de graça quase todas as posições."""
+    n = len(dados)
+    if n == 0 or maior <= 1:
+        return n
+    for p in range(max(0, n - maior + 1), n):
+        if dados[p] not in primeiros:
+            continue
+        trecho = dados[p:]
+        tam = len(trecho)
+        for forma in formas:  # do mais longo para o mais curto: para quando a forma já não é maior que o trecho
+            if len(forma) <= tam:
+                break
+            if forma.startswith(trecho):
+                return p
+    return n
+
+
+def _redigir_trecho(dados: str, rx, cobre: int, limite: int, corte: int, truncado: Optional[int]):
+    """O coração da redação: troca por *** a UNIÃO dos intervalos de TODAS as ocorrências (inclusive as que se
+    sobrepõem), um *** por intervalo unido; intervalos que só se encostam continuam separados.
+
+    `cobre` = quantos caracteres do começo de `dados` já saíram como *** na chamada anterior (um intervalo que
+    atravessou o corte); só as ocorrências que começam antes de `limite` entram; sai o texto até `corte`;
+    `truncado` = onde começa o sufixo que é começo de segredo no FIM do fluxo (vira *** até o fim).
+    Devolve (texto emitido, novo `cobre`). A busca recomeça um caractere depois do início de cada ocorrência, por isso
+    acha as que começam dentro de outra (rx.sub e finditer pulam essas e deixavam sobrar pedaço do segredo)."""
+    n = len(dados)
+    if truncado is not None:
+        limite = min(limite, truncado)
+    uniao = []
+    ini, fim = (0, cobre) if cobre else (-1, -1)
+    pos, busca = 0, rx.search
+    while True:
+        m = busca(dados, pos)
+        if m is None:
+            break
+        s = m.start()
+        if s >= limite:
+            break
+        e = m.end()
+        if s < fim:
+            if e > fim:
+                fim = e
+        else:
+            if ini >= 0:
+                uniao.append((ini, fim))
+            ini, fim = s, e
+        pos = s + 1
+    if truncado is not None:
+        if truncado < fim:
+            fim = n
+        else:
+            if ini >= 0:
+                uniao.append((ini, fim))
+            ini, fim = truncado, n
+    if ini >= 0:
+        uniao.append((ini, fim))
+    partes, pos = [], 0
+    for k, (a, b) in enumerate(uniao):
+        if k == 0 and cobre:
+            pos = b  # o *** deste intervalo já foi emitido
+            continue
+        partes.append(dados[pos:a])
+        partes.append("***")
+        pos = b
+    if pos < corte:
+        partes.append(dados[pos:corte])
+        return "".join(partes), 0
+    return "".join(partes), pos - corte
 
 
 def redigir(texto: str, segredos: list) -> str:
-    for s in segredos:
-        texto = texto.replace(s, "***")
-    return texto
+    """Referência para texto inteiro: a mesma regra que o Redator aplica em pedaços (inclusive o sufixo no fim: um
+    começo de segredo que termina o texto sai como ***)."""
+    formas = _formas(segredos)
+    rx = _regex_segredos(formas)
+    if not rx:
+        return texto
+    inicio = _inicio_parcial(texto, formas, max(len(s) for s in formas), {s[0] for s in formas})
+    saida, _ = _redigir_trecho(texto, rx, 0, len(texto), len(texto), inicio if inicio < len(texto) else None)
+    return saida
 
 
 class Redator:
-    """Redige segredos num fluxo de texto que chega em pedaços. Um segredo pode vir partido entre pedaços ou ter quebra
-    de linha: o trecho final que ainda pode ser o começo de um segredo fica retido, e só sai depois de decidido."""
+    """Redige um fluxo de texto que chega em pedaços, com retenção limitada e saída igual à de `redigir` no texto inteiro,
+    qualquer que seja o corte em pedaços.
+
+    Regra: a UNIÃO dos intervalos de todas as ocorrências (inclusive as que se sobrepõem: o fim de um segredo é o começo
+    de outro, ou o segredo tem borda e se sobrepõe a si mesmo) vira *** (um por intervalo unido). Fica retido só o maior
+    sufixo, de até maior-1 caracteres, que ainda pode ser começo de um segredo (prefixo próprio de alguma forma); um
+    intervalo que atravessa o ponto de corte já sai como *** e o resto dele é descartado quando chega (`cobre`). Cada
+    segredo entra nas formas crua, JSON (com e sem ASCII) e repr (ver _formas).
+
+    Custo (medido, Python 3.12, CPU): a busca é por regex e tenta cada posição, então um bloco custa O(bloco × maior),
+    com maior = a forma mais longa, mais O(maior) para achar o sufixo retido. O pior caso é um texto cujos prefixos são
+    prefixos do segredo em todo lugar (um filho que o conheça): ver docs/how-to/e2e-real.md. Leituras pequenas seriam
+    piores (o sufixo retido seria buscado de novo a cada leitura): enquanto o sufixo retido passa de LIMIAR_AMORTIZAR
+    caracteres, o texto novo espera até somar o tamanho dele, e a retenção total fica abaixo de 2 × maior."""
 
     def __init__(self, segredos: list):
-        self.segredos = [s for s in segredos if s]
-        self.resto = ""
+        self.segredos = _formas(segredos)
+        self.maior = max((len(s) for s in self.segredos), default=0)
+        self.rx = _regex_segredos(self.segredos)
+        self.primeiros = {s[0] for s in self.segredos}
+        self.resto = ""     # sufixo retido (começo de segredo possível)
+        self.cobre = 0      # quantos caracteres do começo de `resto` já saíram como ***
+        self.pendente: list = []
+        self.n_pendente = 0
 
     def alimentar(self, texto: str) -> str:
-        dados = self.resto + texto
-        if not self.segredos:
-            self.resto = ""
-            return dados
-        maior = max(len(s) for s in self.segredos)
-        corte = max(0, len(dados) - (maior - 1))  # tudo que vier depois pode ainda ser começo de um segredo
-        mudou = True
-        while mudou:  # um segredo completo que atravessa o corte não pode ser partido: o corte recua até o começo dele
-            mudou = False
-            for s in self.segredos:
-                for i in range(max(0, corte - len(s) + 1), corte):
-                    if dados.startswith(s, i) and i + len(s) > corte:
-                        corte, mudou = i, True
-                        break
-                if mudou:
-                    break
+        if not self.rx:
+            return texto
+        if texto:
+            self.pendente.append(texto)
+            self.n_pendente += len(texto)
+        if self.n_pendente < (len(self.resto) if len(self.resto) > LIMIAR_AMORTIZAR else 0):
+            return ""  # sufixo retido grande: espera juntar texto novo do tamanho dele antes de buscar de novo
+        return self._processar()
+
+    def _processar(self) -> str:
+        texto, self.pendente, self.n_pendente = "".join(self.pendente), [], 0
+        return "".join(self._bloco(texto[i:i + TAM_BLOCO]) for i in range(0, len(texto), TAM_BLOCO))
+
+    def _bloco(self, bloco: str) -> str:
+        dados = self.resto + bloco
+        corte = _inicio_parcial(dados, self.segredos, self.maior, self.primeiros)
+        saida, self.cobre = _redigir_trecho(dados, self.rx, self.cobre, corte, corte, None)
         self.resto = dados[corte:]
-        return redigir(dados[:corte], self.segredos)
+        return saida
 
     def finalizar(self) -> str:
-        saida, self.resto = redigir(self.resto, self.segredos), ""
-        return saida
+        if not self.rx:
+            return ""
+        saida = self._processar()
+        dados, cobre, self.resto, self.cobre = self.resto, self.cobre, "", 0
+        if not dados:
+            return saida
+        inicio = _inicio_parcial(dados, self.segredos, self.maior, self.primeiros)
+        # o fluxo acabou: um começo de segredo no fim não tem mais como se completar, e sai redigido
+        resto, _ = _redigir_trecho(dados, self.rx, cobre, len(dados), len(dados), inicio if inicio < len(dados) else None)
+        return saida + resto
+
+
+def _redigir_doc(obj, segredos: list):
+    """O documento JSON é redigido campo a campo (só nos textos): trocar um número por *** quebraria o JSON."""
+    if isinstance(obj, str):
+        return redigir(obj, segredos)
+    if isinstance(obj, list):
+        return [_redigir_doc(x, segredos) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _redigir_doc(v, segredos) for k, v in obj.items()}
+    return obj
 
 
 # ------------------------------------------------------------------------------- execução (processos)
-def _rodar(argv: list, *, env: dict, cwd: Path, timeout: float) -> Saida:
-    """Roda um processo com tempo limite, sem shell. Num tempo esgotado mata o grupo inteiro (npx e docker têm filhos)."""
+class _Cauda:
+    """Lê um fluxo binário em blocos fixos. Redige EM FLUXO e só depois guarda a cauda: a redigida (até TETO_CAUDA
+    caracteres, para o relatório e o log) e a bruta (até TETO_CAUDA bytes, só para ler números e JSON). Assim um segredo
+    que cruza o corte de 1 MiB já saiu inteiro como *** e não deixa sufixo no relatório."""
+
+    def __init__(self, fluxo, segredos=()):
+        self.fluxo, self.total = fluxo, 0
+        self.bruta = bytearray()
+        self.redator = Redator(list(segredos))
+        self.decodificador = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self.buf = ""
+        self.thread = threading.Thread(target=self._ler, daemon=True)
+        self.thread.start()
+
+    def _ler(self):
+        try:
+            while True:
+                bloco = self.fluxo.read(TAM_BLOCO)
+                if not bloco:
+                    break
+                self.total += len(bloco)
+                self.bruta += bloco
+                if len(self.bruta) > TETO_CAUDA:
+                    del self.bruta[:len(self.bruta) - TETO_CAUDA]
+                self.buf += self.redator.alimentar(self.decodificador.decode(bloco))
+                if len(self.buf) > 2 * TETO_CAUDA:
+                    self.buf = self.buf[-TETO_CAUDA:]
+        except (OSError, ValueError):
+            pass
+        finally:
+            self.buf = (self.buf + self.redator.alimentar(self.decodificador.decode(b"", final=True))
+                        + self.redator.finalizar())[-TETO_CAUDA:]
+
+    def texto(self) -> str:
+        self.thread.join(timeout=60)
+        texto = self.buf
+        if self.total > TETO_CAUDA:
+            texto = f"[saída cortada: {self.total} bytes; guardada a cauda de {TETO_CAUDA} caracteres redigidos]\n" + texto
+        return texto
+
+    def bruta_texto(self) -> str:
+        return bytes(self.bruta).decode("utf-8", errors="replace")
+
+
+def _rodar(argv: list, *, env: dict, cwd: Path, timeout: float, segredos=()) -> Saida:
+    """Roda um processo com tempo limite, sem shell. A saída é lida em blocos, redigida em fluxo e só a cauda vai para o
+    relatório (`out`/`err` já redigidos; `bruta` só para ler números e JSON). Num tempo esgotado mata o grupo inteiro
+    (npx e docker têm filhos)."""
     kwargs = {"start_new_session": True} if os.name == "posix" else {
         "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
     try:
         proc = subprocess.Popen(argv, cwd=str(cwd), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", **kwargs)
+                                stderr=subprocess.PIPE, **kwargs)
     except OSError as exc:
         return Saida(127, "", f"não consegui iniciar {argv[0]}: {exc}")
+    out_c, err_c = _Cauda(proc.stdout, segredos), _Cauda(proc.stderr, segredos)
+    expirou = False
     try:
-        out, err = proc.communicate(timeout=timeout)
-        return Saida(proc.returncode, out or "", err or "")
+        rc = proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
+        expirou = True
         _matar_grupo(proc)
-        out, err = proc.communicate()
-        return Saida(124, out or "", (err or "") + f"\n[tempo esgotado em {timeout:.0f} s]", expirou=True)
+        rc = proc.wait()
     except KeyboardInterrupt:
         _matar_grupo(proc)  # o processo tem sessão própria: sem isto, o Ctrl+C deixaria o filho rodando
         raise
+    out, err = out_c.texto(), err_c.texto()
+    if expirou:
+        err += f"\n[tempo esgotado em {timeout:.0f} s]"
+    return Saida(124 if expirou else rc, out, err, expirou=expirou, bruta=out_c.bruta_texto())
 
 
 def _matar_grupo(proc) -> None:
@@ -448,7 +765,8 @@ class Ctx:
         corpo = "$ " + " ".join(map(str, argv)) + f"\n[rc {saida.rc}, {seg:.1f} s]\n--- stdout ---\n{saida.out}\n--- stderr ---\n{saida.err}\n"
         log.write_text(redigir(corpo, self.segredos), encoding="utf-8")
         p = Passo(nome=nome, argv=[redigir(str(a), self.segredos) for a in argv], rc=saida.rc, segundos=round(seg, 3),
-                  log=str(log), saida=redigir(saida.out, self.segredos), erro=redigir(saida.err, self.segredos))
+                  log=str(log), saida=redigir(saida.out, self.segredos), erro=redigir(saida.err, self.segredos),
+                  bruta=saida.bruta or saida.out)
         self.passos.append(p)
         return p
 
@@ -522,7 +840,7 @@ def _estimar(ctx: Ctx, video: Path, ref: Path) -> float:
     prov = ctx.args.swap_provider
     p = ctx.passo("swap estimate", _py("swap", "estimate", "--provider", prov, "--video", str(video), "--ref", str(ref), "--json"), 300)
     _exige(p, "swap estimate")
-    doc = _json_de(p.saida) or {}
+    doc = _json_de(p.bruta) or {}
     usd = (doc.get("estimate") or {}).get("usd")
     if not isinstance(usd, (int, float)) or not math.isfinite(usd):
         raise Parar(Veredito(FAIL, f"swap estimate sem estimativa numérica (log: {p.log})"))
@@ -581,7 +899,7 @@ def _chk_swap_run(ctx: Ctx) -> Veredito:
     if a.aceito_unverified:
         argv.append("--aceito-unverified")
     r = ctx.passo("swap run", argv, 3600)
-    doc = _json_de(r.saida) or {}
+    doc = _json_de(r.bruta) or {}
     if not r.ok or doc.get("state") != "done" or not out.is_file():
         return Veredito(FAIL, f"swap run: rc {r.rc}, estado {doc.get('state')!r} (log: {r.log})")
     return Veredito(PASS, f"MP4 {_kb(out)} em {out}; medido {doc.get('measured_usd')} USD (previsto {_usd(usd, 4)})")
@@ -589,7 +907,7 @@ def _chk_swap_run(ctx: Ctx) -> Veredito:
 
 def _chk_busca(ctx: Ctx) -> Veredito:
     p = ctx.passo("busca consulta", _py("busca", "consulta", ctx.args.busca_texto, "--atualizar", "--json"), 300)
-    doc = _json_de(p.saida)
+    doc = _json_de(p.bruta)
     if not p.ok or not doc or "registro_id" not in doc:
         return Veredito(FAIL, f"busca consulta: rc {p.rc}, sem registro de procedência (log: {p.log})")
     return Veredito(PASS, f"{len(doc.get('resultados') or [])} resultado(s); registro {doc['registro_id']}")
@@ -622,7 +940,7 @@ def _chk_hypit_build(ctx: Ctx) -> Veredito:
 
 
 def _veredito_mp(p: Passo, out: Path) -> Veredito:
-    doc = _json_de(p.saida)
+    doc = _json_de(p.bruta)
     if not p.ok or not doc:
         return Veredito(FAIL, f"moneyprinter run: rc {p.rc} (log: {p.log})")
     if doc.get("failed") or not doc.get("total"):
@@ -695,15 +1013,51 @@ def _parar_processo(proc, espera_s: float = 120) -> None:
             pass
 
 
+def _proximo_bloco(fluxo):
+    """Devolve o que já chegou do fluxo (sem esperar um bloco cheio): o log do serve acompanha a saída em tempo real."""
+    ler = getattr(fluxo, "read1", None) or fluxo.read
+    return ler(TAM_BLOCO)
+
+
 def _drenar(fluxo, log: Path, segredos: list) -> None:
-    """Lê a saída do filho e grava no log já redigida (o serve pode ecoar uma chave, até partida entre linhas)."""
+    """Lê a saída do filho, redige em fluxo (o serve pode ecoar uma chave, até partida entre blocos) e grava no log a cada
+    bloco, para acompanhar o serviço rodando. No fim o log fica com o cabeçalho e a cauda de TETO_CAUDA caracteres."""
     redator = Redator(segredos)
-    with open(log, "a", encoding="utf-8") as fh:
-        for linha in fluxo:
-            fh.write(redator.alimentar(linha))
+    decodificador = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    cauda, total, escritos = "", 0, 0
+    fh = open(log, "a", encoding="utf-8")
+    try:
+        while True:
+            bloco = _proximo_bloco(fluxo)
+            if not bloco:
+                break
+            texto = decodificador.decode(bloco) if isinstance(bloco, bytes) else bloco
+            total += len(texto)
+            emitido = redator.alimentar(texto)
+            cauda += emitido
+            if len(cauda) > 2 * TETO_CAUDA:
+                cauda = cauda[-TETO_CAUDA:]
+            fh.write(emitido)
             fh.flush()
-        fh.write(redator.finalizar())
+            escritos += len(emitido)
+            if escritos > 2 * TETO_CAUDA:  # o arquivo não cresce sem limite: reescreve só a cauda
+                fh.close()
+                fh = open(log, "w", encoding="utf-8")
+                fh.write(_cabecalho_cauda(total) + cauda)
+                escritos = len(cauda)
+        cauda += redator.alimentar(decodificador.decode(b"", final=True))  # o que ficou no decodificador também é redigido
+        cauda = (cauda + redator.finalizar())[-TETO_CAUDA:]
+    finally:
+        fh.close()
+    with open(log, "w", encoding="utf-8") as fh:
+        fh.write(_cabecalho_cauda(total) + cauda)
     fluxo.close()
+
+
+def _cabecalho_cauda(total: int) -> str:
+    if total <= TETO_CAUDA:
+        return ""
+    return f"[saída cortada: {total} caracteres lidos; guardada a cauda de {TETO_CAUDA} caracteres]\n"
 
 
 def _iniciar_servidor(argv: list, *, env: dict, log: Path, segredos: list):
@@ -711,7 +1065,7 @@ def _iniciar_servidor(argv: list, *, env: dict, log: Path, segredos: list):
     kwargs = {"start_new_session": True} if os.name == "posix" else {
         "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
     proc = subprocess.Popen(argv, cwd=str(REPO), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", **kwargs)
+                            stderr=subprocess.STDOUT, **kwargs)  # binário: a leitura por bloco disponível não espera o bloco cheio
     leitor = threading.Thread(target=_drenar, args=(proc.stdout, Path(log), list(segredos)), daemon=True)
     leitor.start()
     return proc, leitor
@@ -726,27 +1080,194 @@ def _porta_ocupada(porta: int) -> bool:
         return False
 
 
+def _janela_viva(proc, segundos: float) -> bool:
+    """O processo continua vivo durante `segundos`? Com 0 basta estar vivo agora."""
+    limite = time.monotonic() + segundos
+    while True:
+        if proc.poll() is not None:
+            return False
+        restante = limite - time.monotonic()
+        if restante <= 0:
+            return True
+        time.sleep(min(0.2, restante))
+
+
+def _sucesso_http(codigo: Optional[int]) -> bool:
+    return codigo is not None and 200 <= codigo < 400
+
+
+def _inodes_escutando(porta: int) -> Optional[set]:
+    """Inodes dos sockets em LISTEN na porta (IPv4 e IPv6), de /proc/net/tcp*. None fora do Linux (sem /proc)."""
+    if not Path("/proc/net/tcp").is_file():
+        return None
+    inodes: set = set()
+    for tabela in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            linhas = Path(tabela).read_text(encoding="ascii", errors="replace").splitlines()[1:]
+        except OSError:
+            continue
+        for linha in linhas:
+            campos = linha.split()
+            if len(campos) <= 9 or campos[3] != "0A":
+                continue
+            try:
+                porta_da_linha = int(campos[1].rsplit(":", 1)[1], 16)
+            except ValueError:
+                continue  # linha malformada do /proc: ignorada, não derruba a checagem
+            if porta_da_linha == porta:
+                inodes.add(campos[9])
+    return inodes
+
+
+def _pids_da_arvore(raiz: int) -> set:
+    """O processo e todos os descendentes (de /proc/<pid>/stat)."""
+    filhos: dict = {}
+    for nome in os.listdir("/proc"):
+        if not nome.isdigit():
+            continue
+        try:
+            with open(f"/proc/{nome}/stat", encoding="ascii", errors="replace") as fh:
+                ppid = int(fh.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            continue
+        filhos.setdefault(ppid, []).append(int(nome))
+    arvore, pilha = {raiz}, [raiz]
+    while pilha:
+        for filho in filhos.get(pilha.pop(), []):
+            if filho not in arvore:
+                arvore.add(filho)
+                pilha.append(filho)
+    return arvore
+
+
+def _inodes_dos_processos(pids) -> set:
+    inodes: set = set()
+    for pid in pids:
+        pasta = f"/proc/{pid}/fd"
+        try:
+            descritores = os.listdir(pasta)
+        except OSError:
+            continue
+        for descritor in descritores:
+            try:
+                alvo = os.readlink(f"{pasta}/{descritor}")
+            except OSError:
+                continue
+            if alvo.startswith("socket:[") and alvo.endswith("]"):
+                inodes.add(alvo[8:-1])
+    return inodes
+
+
+def _itens_do_compose(texto: str) -> list:
+    """`docker compose ps --format json` pode sair como lista ou como uma linha JSON por contêiner."""
+    texto = (texto or "").strip()
+    if not texto:
+        return []
+    try:
+        doc = json.loads(texto)
+        return doc if isinstance(doc, list) else [doc]
+    except ValueError:
+        itens = []
+        for linha in texto.splitlines():
+            try:
+                itens.append(json.loads(linha))
+            except ValueError:
+                pass
+        return itens
+
+
+def _docker_publica(porta: int) -> Optional[bool]:
+    """O compose do Toonflow tem um serviço rodando que publica `porta`? True ou False; None se o docker não responde.
+    É a prova de dono quando quem ouve a porta é o docker-proxy (fora da árvore do serve) ou quando não há /proc."""
+    try:
+        from simplicio_video import toonflow
+        pasta = toonflow.find_toonflow_dir()
+        compose = toonflow._compose_cmd()
+    except Exception:  # noqa: BLE001 (sem o pacote ou sem docker, a prova não existe)
+        return None
+    if pasta is None or compose is None:
+        return None
+    env = {k: v for k, v in os.environ.items() if not k.startswith("COMPOSE_")}
+    try:
+        p = subprocess.run([*compose, "-f", str(Path(pasta) / "compose.yaml"), "ps", "--format", "json"], cwd=str(pasta),
+                           env=env, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           stdin=subprocess.DEVNULL, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    for item in _itens_do_compose(p.stdout):
+        if not isinstance(item, dict) or str(item.get("State", "")).lower() != "running":
+            continue
+        publicacoes = item.get("Publishers")
+        if not isinstance(publicacoes, list):
+            continue  # formato fora do esperado: não publica a porta, não é erro do check
+        for publicacao in publicacoes:
+            if isinstance(publicacao, dict) and str(publicacao.get("PublishedPort", "")) == str(porta):
+                return True
+    return False
+
+
+def _diagnostico_dono(proc, porta: int) -> tuple:
+    """(dono, motivo). dono: True se o processo lançado (ou um descendente) ouve a porta, ou se o compose do Toonflow tem
+    um serviço rodando que a publica (caso do docker-proxy, fora da árvore); False se o compose não publica a porta e
+    quem ouve não é o serve; None se não deu para confirmar (sem /proc e sem docker). Nunca levanta exceção."""
+    try:
+        escutas = _inodes_escutando(porta)
+        if escutas is None:
+            motivo = "sem /proc para ver os sockets"
+        elif not escutas:
+            motivo = "nenhum socket ouve a porta em /proc"
+        elif escutas & _inodes_dos_processos(_pids_da_arvore(proc.pid)):
+            return True, "o serve lançado ou um descendente ouve a porta"
+        else:
+            motivo = "quem ouve a porta está fora da árvore do serve lançado"
+        publicada = _docker_publica(porta)
+        if publicada is True:
+            return True, "o compose do Toonflow tem um serviço rodando que publica a porta"
+        if publicada is False:
+            return False, motivo + "; o compose do Toonflow não publica a porta"
+        return None, motivo + "; o docker compose não respondeu"
+    except Exception as exc:  # noqa: BLE001 (o diagnóstico nunca derruba o check: vira UNVERIFIED)
+        return None, f"não deu para ler o dono da porta ({type(exc).__name__})"
+
+
 def _chk_toonflow(ctx: Ctx) -> Veredito:
     url = f"http://127.0.0.1:{PORTA_TOONFLOW}"
-    if _porta_ocupada(PORTA_TOONFLOW):  # outro processo na porta faria o HTTP responder sem o serve: não sobe
-        return Veredito(FAIL, f"a porta {PORTA_TOONFLOW} já está ocupada: pare o que a usa e rode de novo (o serve não subiu)")
     # informativo: o estado do checkout e do pin (não gateia). O Docker não tem subcomando de status no motor:
     # o próprio `toonflow serve --docker` é a checagem (o daemon parado aparece no log dele e vira FAIL aqui).
     ctx.passo("toonflow status", _py("toonflow", "status", "--json"), 120)
+    if _porta_ocupada(PORTA_TOONFLOW):  # conferida de novo logo antes de subir: o status pode levar até 120 s
+        return Veredito(FAIL, f"a porta {PORTA_TOONFLOW} já está ocupada: pare o que a usa e rode de novo (o serve não subiu)")
     log = ctx.pasta("toonflow") / "serve.log"
     proc, leitor = _iniciar_servidor(_py("toonflow", "serve", "--docker"), env=ctx.env, log=log, segredos=ctx.segredos)
-    vivo_ao_responder = False
+    codigo, vivo, saiu_com, dono, motivo_dono = None, False, None, None, ""
     try:
         codigo = esperar_http(url, 1200, vivo=lambda: proc.poll() is None)
-        vivo_ao_responder = codigo is not None and proc.poll() is None  # o PASS é do processo lançado, não de outro
+        if codigo is not None:
+            # o PASS é do processo lançado: ele tem de continuar vivo por JANELA_VIVO_S depois da primeira resposta,
+            # e tem de ser o dono da porta (outro processo pode ter respondido)
+            vivo = _janela_viva(proc, JANELA_VIVO_S)
+            saiu_com = proc.poll()
+            if vivo and _sucesso_http(codigo):
+                dono, motivo_dono = _diagnostico_dono(proc, PORTA_TOONFLOW)
     finally:
         _parar_processo(proc)
         leitor.join(timeout=30)
     if codigo is None:
         return Veredito(FAIL, f"o Toonflow não respondeu em {url}; o serve falhou ou o Docker não subiu (log: {log})")
-    if not vivo_ao_responder:
-        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas o serve lançado já tinha saído: outro processo respondeu (log: {log})")
-    return Veredito(PASS, f"HTTP {codigo} em {url}; serviço vivo e parado com SIGINT (log: {log})")
+    if not _sucesso_http(codigo):
+        return Veredito(FAIL, f"HTTP {codigo} em {url}: o Toonflow respondeu com erro (log: {log})")
+    if not vivo:
+        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas o serve lançado morreu depois dessa resposta (rc {saiu_com}; log: {log})")
+    if dono is None:
+        return Veredito(SKIP, f"HTTP {codigo} em {url}, mas não deu para confirmar o dono da porta ({motivo_dono}): "
+                              f"UNVERIFIED (log: {log})")
+    if dono is False:
+        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas a porta não é do serve lançado ({motivo_dono}; "
+                              f"log: {log})")
+    return Veredito(PASS, f"HTTP {codigo} em {url}; serviço vivo, dono da porta confirmado ({motivo_dono}), e parado com "
+                          f"SIGINT (log: {log})")
 
 
 def _chk_media_fetch(ctx: Ctx) -> Veredito:
@@ -1002,12 +1523,18 @@ def _validar_puros(ap: argparse.ArgumentParser, a) -> None:
             ap.error(f"{nome}: arquivo não encontrado: {caminho}")
     if a.url and not re.match(r"^https?://", a.url):
         ap.error("--url precisa ser http:// ou https://")
+    adaptadores, fontes = _nomes_conhecidos()  # importação do pacote: nada é lido da máquina
+    if adaptadores is not None and a.swap_provider not in adaptadores:
+        ap.error(f"--swap-provider desconhecido: {a.swap_provider} (use: {', '.join(sorted(adaptadores))})")
+    if fontes is not None and a.moneyprinter_fonte and a.moneyprinter_fonte not in fontes:
+        ap.error(f"--moneyprinter-fonte desconhecido: {a.moneyprinter_fonte} (fontes pagas: {', '.join(sorted(fontes))})")
     if a.pasta:
         pasta = Path(a.pasta)
-        if pasta.exists() and not pasta.is_dir():
-            ap.error(f"--pasta {a.pasta} é um arquivo: informe uma pasta nova ou vazia")
         if pasta.is_dir() and any(pasta.iterdir()):
             ap.error(f"--pasta {a.pasta} já existe e não está vazia: nada é apagado nem sobrescrito")
+        existente = next((p for p in [pasta, *pasta.parents] if p.exists()), None)
+        if existente is not None and not existente.is_dir():
+            ap.error(f"--pasta {a.pasta}: o caminho passa por um arquivo; informe uma pasta nova ou vazia")
     if a.apenas:
         pedidos = [x.strip() for x in a.apenas.split(",") if x.strip()]
         desconhecidos = [x for x in pedidos if x not in IDS]
@@ -1016,12 +1543,15 @@ def _validar_puros(ap: argparse.ArgumentParser, a) -> None:
         a.apenas = pedidos
 
 
-def _validar_ambiente(ap: argparse.ArgumentParser, a, amb: Ambiente) -> None:
-    """Argumentos que dependem do que a máquina tem (o pacote, a lista de adaptadores e de fontes pagas)."""
-    if amb.adaptadores and a.swap_provider not in amb.adaptadores:  # sem o pacote a lista vem vazia: o plano já diz por quê
-        ap.error(f"--swap-provider desconhecido: {a.swap_provider} (use: {', '.join(sorted(amb.adaptadores))})")
-    if amb.fontes_pagas and a.moneyprinter_fonte and a.moneyprinter_fonte not in amb.fontes_pagas:
-        ap.error(f"--moneyprinter-fonte desconhecido: {a.moneyprinter_fonte} (fontes pagas: {', '.join(sorted(amb.fontes_pagas))})")
+def _nomes_conhecidos():
+    """Adaptadores e fontes pagas que o pacote conhece (só importação). Sem o pacote devolve (None, None): a checagem
+    fica para o plano, que diz que o pacote não importa."""
+    try:
+        from simplicio_video import swap_providers
+        from simplicio_video.moneyprinter import PAID_SOURCES
+        return set(swap_providers.names()), set(PAID_SOURCES)
+    except Exception:  # noqa: BLE001
+        return None, None
 
 
 def _cel(texto: str) -> str:
@@ -1097,27 +1627,30 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     ap = _parser()
     a = ap.parse_args(argv)
     _validar_puros(ap, a)  # antes de qualquer leitura da máquina
-    sondas = sondas or SondasReais()
-    runner = runner or _rodar
-    amb = detectar(sondas, sondar=a.sim_gastar)  # versões e a porta 3900 só com --sim-gastar
-    _validar_ambiente(ap, a, amb)
-    segredos = _segredos(sondas, amb) if a.sim_gastar else []
-    teto = a.max_usd if a.max_usd is not None else TETO_PADRAO_USD
-    itens = planejar(amb, a)
-
     tmp: Optional[Path] = None
     criada = False
-    if a.sim_gastar:
-        if a.pasta:
-            tmp = Path(a.pasta).resolve()  # a validação pura já recusou pasta usada e arquivo
-            tmp.mkdir(parents=True, exist_ok=True)
-        else:
-            tmp = Path(tempfile.mkdtemp(prefix="simplicio-e2e-real-")).resolve()
-            criada = True
+    if a.sim_gastar and a.pasta:
+        tmp = Path(a.pasta).resolve()  # a validação pura já recusou pasta usada e caminho que passa por arquivo
+        try:
+            tmp.mkdir(parents=True, exist_ok=True)  # antes de qualquer sonda: pasta que não pode ser criada é rc 2 e nada roda
+        except OSError as exc:
+            ap.error(f"--pasta {a.pasta} não pode ser criada: {exc.strerror or exc}")
+    sondas = sondas or SondasReais()
+    amb = detectar(sondas, sondar=a.sim_gastar)  # versões e a porta 3900 só com --sim-gastar
+    segredos = _segredos(sondas, amb) if a.sim_gastar else []
+    if a.sim_gastar and not a.pasta:
+        tmp = Path(tempfile.mkdtemp(prefix="simplicio-e2e-real-")).resolve()
+        criada = True
+    runner = runner or (lambda argv, **kw: _rodar(argv, segredos=segredos, **kw))  # os segredos chegam à captura
+    teto = a.max_usd if a.max_usd is not None else TETO_PADRAO_USD
+    itens = planejar(amb, a)
     modo = "executado" if a.sim_gastar else "plano (nada roda; acrescente --sim-gastar para executar)"
     cabecalho = _cabecalho(amb, modo, str(tmp) if tmp else (str(Path(a.pasta).resolve()) if a.pasta else "<criada ao rodar>"))
     fluxo = sys.stderr if a.json else sys.stdout
     print("\n".join(cabecalho) + "\n", file=fluxo)
+    curtos = _segredos_curtos(sondas, amb) if a.sim_gastar else []
+    if curtos:
+        print(_aviso_segredo_curto(curtos) + "\n", file=fluxo)
 
     if a.sim_gastar:
         ctx = Ctx(tmp, a, runner, _ambiente_filho(sondas.env(), tmp), amb, segredos, teto)
@@ -1145,7 +1678,7 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     print("Os custos são estimativas. O motor só impõe teto no swap (--max-usd); o build do Hypit e a fonte paga do "
           "MoneyPrinter não têm teto no motor.", file=fluxo)
     if a.json:
-        print(redigir(json.dumps(doc, ensure_ascii=False, indent=2), segredos))
+        print(json.dumps(_redigir_doc(doc, segredos), ensure_ascii=False, indent=2))
     if criada and a.limpar and tmp:
         shutil.rmtree(tmp, ignore_errors=True)
     elif tmp:
