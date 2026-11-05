@@ -602,14 +602,26 @@ def _render_json(a) -> int:
     return 0
 
 
+# subcommands handled before argparse: the ones with their own --json take the global one; the others refuse it (exit 2)
+_PASSTHROUGH_JSON = ("busca", "qc", "voicestudio", "swap", "jobs", "social", "openverse", "formats", "instagram", "moneyprinter")
+_PASSTHROUGH_NO_JSON = ("clone", "montage", "opencut", "edit", "shorts", "media", "toonflow", "matchcut", "rea-video")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
+    if len(args_list) > 1 and args_list[0] == "--json" and args_list[1] in _PASSTHROUGH_JSON:
+        resto = args_list[2:]
+        fim = resto.index("--") if "--" in resto else len(resto)  # after `--` everything is a value
+        args_list = [args_list[1], *resto[:fim], "--json", *resto[fim:]]  # the global --json goes to the subcommand's own
+    elif len(args_list) > 1 and args_list[0] == "--json" and args_list[1] in _PASSTHROUGH_NO_JSON:
+        ap.error(f"--json não vale para `{args_list[1]}` (esse subcomando não tem saída JSON)")
     if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "qc", "toonflow", "moneyprinter", "matchcut", "instagram", "rea-video", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
         antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
         # `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this parser
         ajuda_do_upstream = args_list[0] == "rea-video" and rea_video.repassa(args_list[1:])
-        if not ajuda_do_upstream and any(h in antes_do_traco for h in ("-h", "--help")):
+        ajuda_do_media = args_list[0] == "media" and len(args_list) > 1 and args_list[1] in media.SUBCOMMANDS  # `media burn --help`
+        if not ajuda_do_upstream and not ajuda_do_media and any(h in antes_do_traco for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
         cmd = args_list[0]
@@ -723,6 +735,10 @@ def main(argv: list[str] | None = None) -> int:
     if not a.cmd:
         ap.print_help()
         return 0
+    if a.ver_json:  # the global --json before a subcommand that has its own --json
+        if not hasattr(a, "json"):
+            ap.error(f"--json não vale para `{a.cmd}` (esse subcomando não tem saída JSON)")
+        a.json = True
 
     if a.cmd == "install":
         from .commands import install

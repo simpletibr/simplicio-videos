@@ -32,11 +32,16 @@ def run_edit(args: list[str]) -> int:
     if first in ("-h", "--help", "help"):
         print("video-use (https://github.com/browser-use/video-use) sobre qualquer MP4/MOV\n"
               "  edit setup                                  # clona no commit fixado; imprime helpers/\n"
-              "  edit transcribe FONTE.mp4 [-o OUT] [--script spec.json]   # local (faster-whisper)\n"
+              "  edit transcribe FONTE.mp4 -o OUT.json [--script spec.json]   # local (faster-whisper)\n"
               "  edit pack EDIT_DIR                          # transcrições -> takes_packed.md\n"
               "  edit render EDL.json -o OUT.mp4 [args]      # EDL -> MP4 (sem loudnorm; use master.sh)\n"
               "  edit verify VIDEO T0 T1 -o PNG [--transcript words.json]   # filmstrip do corte")
         return 0
+    if first == "transcribe":
+        if not rest:
+            raise EditError("transcribe: informe FONTE.mp4 -o OUT.json")
+        if not any(f in rest for f in ("-o", "--output")) and not any(r.startswith("--output=") for r in rest):
+            raise EditError("transcribe: -o OUT.json é obrigatório (como em render e verify)")
     h = helpers_dir()
     if first == "setup":
         print(h)
@@ -44,8 +49,6 @@ def run_edit(args: list[str]) -> int:
     py = paths.tts_python()
     tools = paths.home() / "tools" / "video-use"
     if first == "transcribe":
-        if not rest:
-            raise EditError("transcribe: informe FONTE.mp4")
         return _run([py, str(tools / "transcribe_local.py"), *rest])
     if first == "pack":
         if len(rest) != 1:

@@ -12,15 +12,15 @@ description: Use for edit-decision-list editing of any MP4 with the simplicio-vi
 | Subcomando | Faz |
 |---|---|
 | `setup` | clona/atualiza o video-use no commit fixado (`tools/video-use/setup.sh`) |
-| `transcribe FONTE.mp4 [-o OUT] [--script spec.json]` | transcrição local com faster-whisper; grava JSON no formato Scribe |
+| `transcribe FONTE.mp4 -o OUT.json [--script spec.json]` | transcrição local com faster-whisper; grava JSON no formato Scribe |
 | `pack EDIT_DIR` | junta as transcrições em `takes_packed.md` para revisão |
 | `render EDL.json -o OUT.mp4` | aplica o EDL (cortes em limite de palavra, fades de 30 ms, legendas) |
 | `verify VIDEO T0 T1 -o PNG [--transcript words.json]` | filmstrip do trecho para conferir o corte |
 
 ## Pré-requisitos
 
-- `setup` precisa de um Python com as dependências do video-use (numpy, Pillow, faster-whisper). Aponte para ele com `SIMPLICIO_TTS_PY=/caminho/python`.
-- `transcribe` usa faster-whisper (modelo `small` por padrão, idioma `pt`). Sem o modelo em cache, ele baixa do Hugging Face.
+- `setup` precisa de um Python com as dependências do video-use (numpy, Pillow, soundfile, faster-whisper). Aponte para ele com `SIMPLICIO_TTS_PY=/caminho/python`.
+- `transcribe` exige `-o` (como `render` e `verify`); sem ele o comando para com erro. Usa faster-whisper (modelo `small` por padrão, idioma `pt`). Sem o modelo em cache, ele baixa do Hugging Face.
 - `render` com legenda precisa de ffmpeg com libass.
 
 ## Exemplo: cortar um trecho e legendar
