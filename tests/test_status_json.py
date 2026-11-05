@@ -158,11 +158,13 @@ def test_status_json_lista_todas_as_trilhas_do_tools_py(capsys, ambiente):
     assert set(names) == TOOL_NAMES == set(tools.TOOLS) | {"ffmpeg", "node"}
 
 
-@pytest.mark.parametrize("nome", ["matchcut", "instagram", "rea_video", "video-use"])
-def test_trilha_git_com_checkout_no_lugar_do_setup_aparece_instalada(nome, capsys, ambiente, monkeypatch):
+@pytest.mark.parametrize("nome, marcador", [("matchcut", "SKILL.md"), ("instagram", "skills/ig-reel/hookscore.py"),
+                                             ("rea_video", "rea_video/cli.py"), ("video-use", "helpers/render.py")])
+def test_trilha_git_com_checkout_no_lugar_do_setup_aparece_instalada(nome, marcador, capsys, ambiente, monkeypatch):
+    """The layout is written out here, not read from the registry: a wrong marker in tools.py must fail this test."""
     t = tools.get(nome)
-    (tools.checkout_dir(t) / t.marker).parent.mkdir(parents=True)
-    (tools.checkout_dir(t) / t.marker).write_text("", encoding="utf8")
+    (tools.checkout_dir(t) / marcador).parent.mkdir(parents=True, exist_ok=True)
+    (tools.checkout_dir(t) / marcador).write_text("", encoding="utf8")
     monkeypatch.setattr(tools, "_git", lambda *args, cwd=None: "0123456789ab")
     rc, out, _ = _run(["status", "--json"], capsys)
     assert rc == 0
@@ -172,12 +174,17 @@ def test_trilha_git_com_checkout_no_lugar_do_setup_aparece_instalada(nome, capsy
 
 
 def test_yt_dlp_no_venv_do_cache_aparece_instalado_com_a_versao_do_venv(capsys, ambiente):
-    """yt-dlp é uma trilha pip: o executável fica no venv do cache de tools, nunca no PATH."""
+    """yt-dlp é uma trilha pip: o executável e a versão vêm do venv do cache, nunca do PATH. A versão é a que o pip gravou
+    (o dist-info do venv, sem abrir o processo): o executável diz outra coisa para provar que ele não é aberto."""
     t = tools.get("yt-dlp")
-    exe = ambiente.parent / "tools" / "yt-dlp" / "venv" / tools.PIP_BIN_DIR / "yt-dlp"
+    venv = ambiente.parent / "tools" / "yt-dlp" / "venv"
+    exe = venv / tools.PIP_BIN_DIR / "yt-dlp"
     exe.parent.mkdir(parents=True)
-    exe.write_text("#!/bin/sh\necho 2026.10.26\n")
+    exe.write_text("#!/bin/sh\necho 9999.9.9\n")
     exe.chmod(0o755)
+    dist = venv / "lib" / "python3.12" / "site-packages" / "yt_dlp-2026.10.26.dist-info"
+    dist.mkdir(parents=True)
+    (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: yt-dlp\nVersion: 2026.10.26\n", encoding="utf8")
     rc, out, _ = _run(["status", "--json"], capsys)
     assert rc == 0
     by = _ferramentas(out)
