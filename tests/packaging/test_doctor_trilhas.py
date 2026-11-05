@@ -1255,7 +1255,7 @@ def test_online_com_ls_remote_pendurado_nao_deixa_processo_vivo_nem_passa_do_orc
     monkeypatch.setattr(tools_update, "READ_TIMEOUT_S", 1.5)
     monkeypatch.setattr(dt, "LIMITE_LOCAL_S", 0.2)
     inicio = time.monotonic()
-    doc = dt.collect(online=True, io=tools_update.Io(network=True), orcamento_s=1.0)  # the real reads (git on the sealed PATH)
+    doc = dt.collect(online=True, io=tools_update.Io(network=True, fetch_json=lambda url: {}), orcamento_s=1.0)  # real git reads on the sealed PATH; no PyPI socket
     decorrido = time.monotonic() - inicio
     assert decorrido < 2.0, decorrido
     assert len(doc["tracks"]) == len(TRILHAS)
