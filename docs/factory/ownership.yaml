@@ -651,6 +651,8 @@ issues:
       - "tests/test_busca.py"
       - "tests/test_publish.py"
       - "plugin.json"   # na lista `generated`, mas a remoção do verbo video.publish é edição manual: não há gerador no repo
+      - "src/simplicio_video/status.py#ENV_FERRAMENTA,_primeira_linha"   # #113 2: só a sonda de versão; o resto do status é de motor-status
+      - "tests/test_status_json.py#sonda de versao (#113 2)"
   # ------------------------------------------------------------------ skills deep (#141)
   141:
     track: skills
