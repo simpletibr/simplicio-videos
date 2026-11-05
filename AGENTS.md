@@ -26,7 +26,7 @@ Qualquer tarefa de áudio ou vídeo (legendar, traduzir texto da tela, dublar, t
 | Edição por EDL, transcrição local (faster-whisper) | `simplicio-video edit setup\|transcribe\|pack\|render\|verify` | [`skills/simplicio-video-edit`](skills/simplicio-video-edit/SKILL.md) |
 | Contrato YAML → MP4 (render HyperFrames) | `simplicio-video init\|validate\|voice\|render\|run` | [`skills/simplicio-video`](skills/simplicio-video/SKILL.md) |
 | Redes sociais (plano, sem postar) | `simplicio-video social` | [`skills/simplicio-video-social`](skills/simplicio-video-social/SKILL.md) |
-| Análise de vídeo de referência (real, IA, 3D ou código, com relatório e plano de remake): trilha `rea-video` | `simplicio-video rea-video clone\|setup\|where\|status` e os comandos do upstream (`decompose`, `review`, `apply-review`, `summary`, `remake-plan`) | [rea-video, skill do upstream no commit fixado](https://github.com/JuneYaooo/rea-video/blob/36e02ddf1ffc287bd760d816c132027598f2e4c0/skills/rea-video/SKILL.md) |
+| Análise de vídeo de referência (real, IA, 3D ou código, com relatório e plano de remake): trilha `rea-video` | `simplicio-video rea-video clone\|setup\|where\|status` e os comandos do upstream (`decompose`, `review`, `apply-review`, `summary`, `remake-plan`); pelo MCP só os de leitura e `decompose` como tarefa, sem `--vlm` | [rea-video, skill do upstream no commit fixado](https://github.com/JuneYaooo/rea-video/blob/36e02ddf1ffc287bd760d816c132027598f2e4c0/skills/rea-video/SKILL.md) |
 
 ### Receita: vídeo de um creator em outro idioma (legenda, texto na tela e voz)
 

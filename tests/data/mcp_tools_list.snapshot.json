@@ -714,7 +714,7 @@
    "name": "video.qc"
   },
   {
-   "description": "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake. Over MCP: clone the pinned commit into the default folder, where and status; setup and the analysis (decompose and the other commands) run in the terminal, because a run takes minutes and may spend vision-model calls (https://github.com/JuneYaooo/rea-video).",
+   "description": "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake (https://github.com/JuneYaooo/rea-video). Over MCP, with absolute paths and a closed list of flags per command: where, status, clone (default folder); summary, probe, tiles (-o required), stems, review, apply-review, remake-plan; decompose runs as a background job (job id back; follow it with video.jobs status/result), always without the vision model. review and apply-review let YOU act as the vision model, so no frame goes to a third party. --vlm, --env-file, setup, remake-run (bills), capsule-draft (runs code of a folder), prefs, correct and memory are terminal only. Children run with no stdin in a private empty folder.",
    "inputSchema": {
     "properties": {
      "args": {

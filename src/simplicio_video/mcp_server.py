@@ -460,29 +460,43 @@ def video_instagram(acao: str = "status", ferramenta: str | None = None, texto: 
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-DESC_video_rea_video = "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake. Over MCP: clone the pinned commit into the default folder, where and status; setup and the analysis (decompose and the other commands) run in the terminal, because a run takes minutes and may spend vision-model calls (https://github.com/JuneYaooo/rea-video)."
+DESC_video_rea_video = "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake (https://github.com/JuneYaooo/rea-video). Over MCP, with absolute paths and a closed list of flags per command: where, status, clone (default folder); summary, probe, tiles (-o required), stems, review, apply-review, remake-plan; decompose runs as a background job (job id back; follow it with video.jobs status/result), always without the vision model. review and apply-review let YOU act as the vision model, so no frame goes to a third party. --vlm, --env-file, setup, remake-run (bills), capsule-draft (runs code of a folder), prefs, correct and memory are terminal only. Children run with no stdin in a private empty folder."
 def video_rea_video(args: str = "") -> dict:
-    """rea-video over MCP: `where`, `status` and `clone` into the default folder only. `setup` and the analysis (decompose and
-    the other upstream commands) run in the terminal: a run takes minutes, reads files of the person and may spend calls of a
-    vision model. Nothing here sends a frame anywhere."""
-    from . import rea_video
-    argv = args.split() if isinstance(args, str) else list(args)
-    if argv[:1] not in (["where"], ["clone"], ["status"]):
-        return {"ok": False, "error": "rea-video pelo MCP aceita `where`, `status` e `clone` (na pasta padrão); `setup` e a "
-                                      "análise rodam no terminal: simplicio-video rea-video decompose ..."}
-    if argv[:1] == ["clone"] and len(argv) > 1:
-        return {"ok": False, "error": "rea-video clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
-    if argv[:1] != ["clone"] and len(argv) > 1:
-        return {"ok": False, "error": f"rea-video {argv[0]} não recebe argumentos"}
-    buf = io.StringIO()
+    """rea-video over MCP. Open: `where`, `status`, `clone` (default folder), `summary`, `probe`, `tiles`, `stems`, `review`,
+    `apply-review`, `remake-plan` (a closed list of flags each, absolute paths) and `decompose` (a background job without the
+    vision model: returns a job id for video.jobs). `--vlm`, `--env-file`, `setup`, `remake-run`, `capsule-draft`, `prefs`,
+    `correct` and `memory` are terminal only. The agent that calls does the looking (review, then apply-review)."""
+    from . import jobs, rea_video
+    import shlex
     try:
-        with contextlib.redirect_stdout(buf):
-            rc = rea_video.run_rea_video(argv)
-        out = {"ok": rc == 0, "result": rc}
+        argv = shlex.split(args) if isinstance(args, str) else [str(a) for a in args]
+    except ValueError as e:
+        return {"ok": False, "error": f"argumentos ilegíveis: {e}"}
+    if argv[:1] in (["where"], ["clone"], ["status"]):
+        if argv[:1] == ["clone"] and len(argv) > 1:
+            return {"ok": False, "error": "rea-video clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
+        if argv[:1] != ["clone"] and len(argv) > 1:
+            return {"ok": False, "error": f"rea-video {argv[0]} não recebe argumentos"}
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                rc = rea_video.run_rea_video(argv)
+            out = {"ok": rc == 0, "result": rc}
+        except Exception as e:  # noqa: BLE001 - report, don't kill the server
+            out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        out["log"] = buf.getvalue().strip()[-8000:]
+        return out
+    try:
+        if argv[:1] == ["decompose"]:
+            st = jobs.submit("rea-video", {"args": argv}, origin="mcp")
+            return {"ok": True, "job": jobs.summary(st),
+                    "next": "video.jobs status/result with this job id; the result holds breakdown.json and report.html"}
+        rc, log = rea_video.mcp_run(argv)
+        return {"ok": rc == 0, "result": rc, "log": log[-8000:]}
+    except (rea_video.ReaVideoError, jobs.JobError) as e:
+        return {"ok": False, "error": str(e)}
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
-        out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    out["log"] = buf.getvalue().strip()[-8000:]
-    return out
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 DESC_video_voicestudio = "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. Exige o app aberto; fora do render determinístico."

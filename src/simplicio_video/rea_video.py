@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
+import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from . import tools
@@ -284,3 +287,169 @@ def run_rea_video(args: list[str]) -> int:
     if repassa(args):
         return _run_upstream(args)
     return _own(args)
+
+
+# ---- MCP section: a closed list of commands and flags, run in a private folder -------------------------------------
+# Over MCP the calling agent plays the vision model (`review` writes the tasks and the frame paths, the agent looks and
+# fills the answers, `apply-review` merges them), so nothing goes to a third party. Checked in the upstream at the pin:
+# summary, probe, tiles, stems, review, apply-review and remake-plan make no network call and no paid call; the model
+# downloads (voice separation, face detector) are fetched by `stems` and `decompose` on first use. `remake-plan` only
+# writes jobs.json (it never runs the capsule-cinema folder). `--vlm` and `--env-file` are never accepted here, and the
+# upstream prefs (vlm=on) cannot turn the vision model back on: decompose always gets `--no-vlm`.
+
+MCP_TIMEOUT = 900  # s; `stems` may download a 67 MB model and run it
+TERMINAL_ONLY = ("setup", "remake-run", "capsule-draft", "prefs", "correct", "memory", "eval", "capsule", "assemble")
+VLM_ENV_PREFIXES = ("REA_VLM_", "VIDEO_ANALYSIS_", "GEMINI3_")
+_NUM = re.compile(r"^\d+$")
+_FLOAT = re.compile(r"^\d+(\.\d+)?$")
+
+# command -> (positionals [(kind, required)], flags {name: kind}, required flag destinations)
+# kinds: file/dir (absolute and existing), abs (absolute, may not exist), int, float, text, bool, ("choice", a, b, ...)
+_SPECS: dict[str, tuple[list[tuple[str, bool]], dict[str, object], tuple[str, ...]]] = {
+    "summary": ([("file", True)], {}, ()),
+    "probe": ([("file", True)], {"--tags": "bool"}, ()),
+    "tiles": ([("file", True)], {"--start": "float", "--end": "float", "--every": "float", "--cols": "int", "--cell": "int",
+                                 "--max": "int", "-o": "abs", "--out": "abs"}, ("out",)),
+    "stems": ([("file", True)], {"-o": "abs", "--out": "abs"}, ("out",)),
+    "review": ([("dir", True)], {"--force": "bool"}, ()),
+    "apply-review": ([("dir", True), ("file", False)], {"--by": "text"}, ()),
+    "remake-plan": ([("file", True)], {"--capsule-root": "abs", "--engine": "text", "--labels": "text",
+                                       "--mode": ("choice", "first_last_frame", "image_to_video", "text_to_video")}, ()),
+    "decompose": ([("file", True)], {"-o": "abs", "--out": "abs", "--no-vlm": "bool", "--no-whole": "bool", "--no-ocr": "bool",
+                                      "--ocr-lang": ("choice", "zh", "ja"), "--no-packaging": "bool", "--no-stems": "bool",
+                                      "--workers": "int", "--engine": "text", "--meta": "file"}, ("out",)),
+}
+_DEST = {"-o": "out", "--out": "out"}
+
+
+def _terminal(what: str) -> ReaVideoError:
+    return ReaVideoError(f"{what}: só pelo terminal (simplicio-video rea-video ...). Pelo MCP nada vai a um modelo de visão "
+                         "de terceiros, nada gasta e nada roda código de fora; o agente que chama faz o papel do modelo "
+                         "com review e apply-review.")
+
+
+def _check_value(kind, value: str, label: str) -> str:
+    if "\0" in value or not value:
+        raise ReaVideoError(f"{label}: valor inválido")
+    if isinstance(kind, tuple):  # ("choice", a, b, ...)
+        if value not in kind[1:]:
+            raise ReaVideoError(f"{label}: use um destes: {', '.join(kind[1:])}")
+    elif kind == "int":
+        if not _NUM.match(value) or int(value) < 1:
+            raise ReaVideoError(f"{label}: inteiro maior que zero, recebi {value!r}")
+    elif kind == "float":
+        if not _FLOAT.match(value):
+            raise ReaVideoError(f"{label}: número em segundos (sem sinal), recebi {value!r}")
+    elif kind == "text":
+        if value.startswith("-") or len(value) > 300:
+            raise ReaVideoError(f"{label}: texto simples, sem começar com '-'")
+    else:  # file | dir | abs
+        if not os.path.isabs(value):
+            raise ReaVideoError(f"{label}: caminho absoluto, recebi {value!r} (pelo MCP a pasta de trabalho é privada)")
+        if kind == "file" and not os.path.isfile(value):
+            raise ReaVideoError(f"{label}: arquivo não encontrado: {value}")
+        if kind == "dir" and not os.path.isdir(value):
+            raise ReaVideoError(f"{label}: pasta não encontrada: {value}")
+    return value
+
+
+def mcp_command(args) -> list[str]:
+    """Validate the words of an MCP call and return the canonical upstream arguments (command first), or raise
+    ReaVideoError. A closed list: the open commands, their own flags, absolute paths; everything else is terminal-only."""
+    try:
+        words = shlex.split(args) if isinstance(args, str) else [str(a) for a in args]
+    except ValueError as e:
+        raise ReaVideoError(f"argumentos ilegíveis: {e}") from None
+    if not words:
+        raise ReaVideoError("diga o comando: " + ", ".join(_SPECS) + " (setup e o resto, só pelo terminal)")
+    cmd, rest = words[0], words[1:]
+    if cmd.startswith("-"):
+        raise _terminal(f"a opção global {cmd}")
+    if cmd in TERMINAL_ONLY or cmd not in _SPECS:
+        raise _terminal(f"o comando {cmd}")
+    pos_spec, flags, required = _SPECS[cmd]
+    positionals: list[str] = []
+    out: list[str] = []
+    seen: set[str] = set()
+    i = 0
+    while i < len(rest):
+        tok = rest[i]
+        i += 1
+        if not tok.startswith("-"):
+            if len(positionals) >= len(pos_spec):
+                raise ReaVideoError(f"{cmd}: argumento a mais: {tok}")
+            positionals.append(_check_value(pos_spec[len(positionals)][0], tok, f"{cmd} {tok[:40]}"))
+            continue
+        name, eq, inline = tok.partition("=") if tok.startswith("--") else (tok, "", "")
+        if name in ("--vlm", "--env-file"):
+            raise _terminal(name)
+        kind = flags.get(name)
+        if kind is None:
+            raise _terminal(f"a opção {name} em {cmd}")
+        dest = _DEST.get(name, name)
+        if dest in seen:
+            raise ReaVideoError(f"{cmd}: {name} repetida")
+        seen.add(dest)
+        if kind == "bool":
+            if eq:
+                raise ReaVideoError(f"{cmd}: {name} não recebe valor")
+            out.append(name)
+            continue
+        if eq:
+            value = inline
+        elif i < len(rest):
+            value, i = rest[i], i + 1
+        else:
+            raise ReaVideoError(f"{cmd}: {name} precisa de um valor")
+        out += [name, _check_value(kind, value, f"{cmd} {name}")]
+    for n, (_, req) in enumerate(pos_spec):
+        if req and n >= len(positionals):
+            raise ReaVideoError(f"{cmd}: faltou o argumento {n + 1}")
+    for dest in required:
+        if dest not in seen:
+            raise ReaVideoError(f"{cmd}: -o/--out é obrigatório e absoluto (pelo MCP a pasta de trabalho é privada)")
+    argv = [cmd, *positionals, *out]
+    if cmd == "decompose" and "--no-vlm" not in argv:
+        argv.append("--no-vlm")  # the upstream prefs may say vlm=on: say no, every time
+    return argv
+
+
+def decompose_args(args) -> list[str]:
+    """The canonical `decompose` arguments for a background job (raises ReaVideoError for anything else)."""
+    argv = mcp_command(args)
+    if argv[0] != "decompose":
+        raise ReaVideoError(f"só decompose roda como tarefa; recebi {argv[0]}")
+    return argv
+
+
+def _mcp_env() -> dict[str, str]:
+    """The environment of an MCP child: the upstream state and models stay put, the vision-model settings are removed."""
+    return {k: v for k, v in _upstream_env().items() if not k.startswith(VLM_ENV_PREFIXES)}
+
+
+def _mcp_exec(argv: list[str], cwd, env: dict[str, str]) -> tuple[int, str]:
+    """Run the upstream to completion with no stdin, in `cwd`, capturing what it prints. The one place the MCP path starts it."""
+    try:
+        r = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace",
+                           cwd=cwd, env=env, timeout=MCP_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return 124, f"rea-video passou de {MCP_TIMEOUT} s e foi encerrado"
+    except OSError as e:
+        raise ReaVideoError(f"não consegui rodar {argv[0]}: {e}") from None
+    return r.returncode, "\n".join(s.strip() for s in (r.stdout, r.stderr) if s and s.strip())
+
+
+def mcp_run(args) -> tuple[int, str]:
+    """Run one open command (not decompose: that is a job) in a private empty folder; returns (exit code, output)."""
+    argv = mcp_command(args)
+    if argv[0] == "decompose":
+        raise ReaVideoError("decompose roda como tarefa em segundo plano (video.jobs); envie pelo video.rea-video")
+    exe = _rea_video_exe()
+    if exe is None:
+        raise ReaVideoError("rea-video não está instalado no venv: `simplicio-video rea-video clone` e depois `setup` "
+                            "(setup só pelo terminal).")
+    cwd = tempfile.mkdtemp(prefix="rea-video-cwd-")
+    try:
+        return _mcp_exec([str(exe), *argv], cwd, _mcp_env())
+    finally:
+        shutil.rmtree(cwd, ignore_errors=True)

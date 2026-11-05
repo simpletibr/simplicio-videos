@@ -9,7 +9,7 @@ How it works, in a few rules:
 - The runner is detached (`start_new_session`), runs the task as a child in ANOTHER process group (like toonflow's
   `_stop_group`): cancel = SIGTERM to the runner, which sends SIGINT to the task group, waits a grace period, then
   SIGKILL, then sweeps the group. No port is opened and nothing stays running after the task ends.
-- A closed list of tasks (`KINDS`): `swap-run` and `voice`. `swap-run` spends money, so it is confirmed at submission
+- A closed list of tasks (`KINDS`): `swap-run`, `voice` and `rea-video` (decompose without the vision model; MCP only). `swap-run` spends money, so it is confirmed at submission
   (`--yes` and `--autorizo`, after the same checks as `swap run`) and can only be submitted from the terminal. Over MCP
   only `voice` with a LOCAL provider can be submitted; status, list, result and cancel work for every task.
 - If the runner dies without writing a final state, the next status/list marks the task `lost` and kills what it left
@@ -490,6 +490,47 @@ def _result_voice(p: dict, last_json: dict | None) -> dict | None:
 
 
 _register("voice", prepare=_prepare_voice, argv=_argv_voice, result=_result_voice)
+
+
+def _prepare_rea_video(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    """rea-video decompose WITHOUT the vision model: it sends nothing out and spends nothing, so MCP may submit it. The
+    arguments pass the same closed list as the MCP call (--vlm and --env-file are refused whatever the origin; --no-vlm is
+    always added). The child starts in a private empty folder, so the upstream never reads a stray .env of the caller."""
+    import tempfile
+
+    from . import rea_video
+    _check_keys(params, {"args"})
+    try:
+        args = rea_video.decompose_args(params.get("args"))
+        if rea_video._rea_video_exe() is None:
+            raise rea_video.ReaVideoError("rea-video não está instalado no venv: `simplicio-video rea-video clone` e "
+                                          "depois `setup` (setup só pelo terminal)")
+    except rea_video.ReaVideoError as e:
+        raise JobError(str(e)) from None
+    return {"args": args}, False, {"cwd": tempfile.mkdtemp(prefix="rea-video-job-"), "estimate_usd": None, "confirmed": None}
+
+
+def _argv_rea_video(p: dict) -> list[str]:
+    return ["rea-video", *p["args"]]
+
+
+def _result_rea_video(p: dict, last_json: dict | None) -> dict | None:
+    import hashlib
+    args = p["args"]
+    out = Path(args[args.index("-o" if "-o" in args else "--out") + 1])
+    bd = out / "breakdown.json"
+    try:
+        raw = bd.read_bytes()
+        summ = json.loads(raw).get("summary") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    report = out / "report.html"
+    return {"out": str(out), "breakdown": str(bd), "breakdown_sha256": hashlib.sha256(raw).hexdigest(),
+            "report": str(report) if report.is_file() else None, "verdict": summ.get("verdict"), "shots": summ.get("shots"),
+            "confidence": summ.get("confidence"), "vlm": summ.get("vlm")}
+
+
+_register("rea-video", prepare=_prepare_rea_video, argv=_argv_rea_video, result=_result_rea_video)
 
 
 def build_argv(kind: str, params: dict) -> list[str]:
