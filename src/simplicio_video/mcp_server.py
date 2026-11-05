@@ -373,6 +373,11 @@ def video_toonflow(args: str = "") -> dict:
         return {"ok": False, "error": f"toonflow serve sobe um servidor local que não termina; rode `simplicio-video toonflow serve {toonflow.LAN_FLAG}` (ou `serve --docker`, só em 127.0.0.1) no terminal"}
     if argv[:1] == ["clone"] and len(argv) > 1:
         return {"ok": False, "error": "toonflow clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
+    # Allow-list: anything not named here (help, a new upstream verb, extra operands) is terminal-only.
+    shapes = (["clone"], ["where"], ["status"], ["status", "--json"], ["mcp"], ["mcp", "--json"])
+    port_shape = len(argv) in (3, 4) and argv[:2] == ["mcp", "--port"] and argv[3:] in ([], ["--json"])
+    if argv not in shapes and not port_shape:
+        return {"ok": False, "error": "toonflow pelo MCP aceita `status [--json]`, `mcp [--port N] [--json]`, `where` e `clone` (pasta padrão); o resto é pelo terminal"}
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):

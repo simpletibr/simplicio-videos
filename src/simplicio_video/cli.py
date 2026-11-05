@@ -34,7 +34,7 @@ Fluxo completo:
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
-  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
+  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan ou --docker, status e mcp (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; só baixa o commit fixado, o uso exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
@@ -281,10 +281,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("toonflow", formatter_class=Fmt, help="Toonflow (MIT): estúdio de séries e vídeos com IA, app web local",
         description="Clona e sobe o Toonflow (https://github.com/HBAI-Ltd/Toonflow-app, MIT) no commit fixado em tools.py. "
-                    "Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan. "
+                    "Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan; serve --docker usa o compose do upstream em 127.0.0.1:3000 "
+                    "(não combina com `mcp`: o arquivo de runtime fica no volume). status mostra checkout, pin, bun, build e o modo do arquivo de runtime do MCP; "
+                    "mcp imprime o bloco de config MCP stdio (nunca o token). "
                     "Fica fora do render determinístico.",
-        epilog="exemplos:\n  simplicio-video toonflow clone\n  simplicio-video toonflow serve --lan\n  simplicio-video toonflow where")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | serve --lan | where")
+        epilog="exemplos:\n  simplicio-video toonflow clone\n  simplicio-video toonflow serve --lan\n  simplicio-video toonflow serve --docker\n  simplicio-video toonflow status --json\n  simplicio-video toonflow mcp --json\n  simplicio-video toonflow where")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | serve --lan|--docker | status [--json] | mcp [--port N] [--json] | where")
 
     p = sub.add_parser("moneyprinter", formatter_class=Fmt, help="MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio",
         description="Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo, MIT) no commit fixado em tools.py. "
