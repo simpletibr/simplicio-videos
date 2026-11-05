@@ -32,12 +32,14 @@ RECUSAM = [
     ["toonflow", "status"], ["toonflow", "where"], ["moneyprinter", "status"], ["moneyprinter", "where"],
     ["opencut", "where"], ["opencut", "status"], ["instagram", "status"], ["instagram", "where"],
     ["matchcut", "status"], ["matchcut", "where"], ["rea-video", "status"], ["rea-video", "where"],
-    ["montage", "where"], ["montage", "status"],
+    ["montage", "where"], ["montage", "status"], ["montage", "clone"],
+    ["busca", "status"], ["busca", "log"], ["busca", "consulta", "uma pergunta"], ["busca", "pagina", "https://example.invalid/"],
+    ["openverse", "library", "list"],
     ["media", "fetch", "http://example.invalid/x", "-o", "x.mp4", "--autorizo"],
 ]
 SO_OLHAM = [
     ["doctor", "trilhas"], ["doctor", "trilhas", "--json"], ["update", "--check"], ["install", "--check"],
-    ["busca", "status"], ["openverse", "library", "list"], ["social", "providers"], ["clone", "status"],
+    ["social", "providers"], ["clone", "status"],
 ]
 
 
@@ -143,3 +145,17 @@ def test_o_doctor_sem_HOME_segue_e_responde(monkeypatch, tmp_path):
         assert doc["checks"][0]["name"] == secao and doc["checks"][0]["status"] in ("ok", "warn"), doc
     assert doctor.collect(only="update")["checks"][0]["summary"].startswith("nenhuma checagem")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_install_do_projeto_sem_HOME_sai_0_e_diz_o_proximo_passo(monkeypatch, tmp_path, capsys):
+    """`after_install` "never fails the install": with no home there is no workspace to look at, so the setup is "not done" and the hint
+    is shown (exit 0), as on main. Not "instalado" followed by exit 2."""
+    from simplicio_video.commands import install
+    _sem_casa(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    install.after_install(interactive=False)
+    assert "rode `simplicio-video setup`" in capsys.readouterr().out
+    rc = main(["install"])
+    saida = capsys.readouterr()
+    assert rc == 0, (rc, saida.err[-300:])
+    assert "rode `simplicio-video setup`" in saida.out

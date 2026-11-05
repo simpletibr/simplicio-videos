@@ -20,6 +20,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -1058,7 +1059,8 @@ def test_texto_de_filho_sem_caracteres_de_direcao_nem_bom(ambiente):
     # the interlinear annotations, and the tag characters (an ASCII text hidden in a line). The emoji selector FE0F stays: it is
     # part of a legitimate emoji and changes nothing in a line of text a person reads.
     for escondido in ("\u00ad", "\u2060", "\u2061", "\u2062", "\u2063", "\u2064", "\u180e", "\ufff9", "\ufffa", "\ufffb",
-                      "\U000e0000", "\U000e0041", "\U000e007f"):
+                      "\U000e0000", "\U000e0041", "\U000e007f",
+                      "\u206a", "\u206f", "\u0600", "\u0605", "\u06dd", "\u070f", "\u115f", "\u3164", "\U000e0100", "\U000e01ef"):
         assert dt._limpa(f"a{escondido}b") == "a b", hex(ord(escondido))
     assert dt._limpa("ok \u2764\ufe0f") == "ok \u2764\ufe0f"
 
@@ -1208,3 +1210,87 @@ def test_sondas_locais_e_upstream_dividem_o_mesmo_orcamento(ambiente, monkeypatc
     dt.collect(online=True, io=io, orcamento_s=1.5)
     decorrido = time.monotonic() - inicio
     assert decorrido < 2.0, decorrido
+
+
+def test_git_que_estoura_o_tempo_nao_manda_apagar_o_checkout(ambiente, monkeypatch):
+    """A git that TIMES OUT says nothing about the checkout: the row is a warning "não consegui verificar", with no advice to delete
+    the folder, and the track is not a broken install (a hang is transient)."""
+    monta_saudavel(ambiente, monkeypatch)
+
+    def pendurado(*args, **kwargs):
+        raise tools.GitTimeout("git rev-parse: tempo esgotado (5 s)")
+
+    monkeypatch.setattr(tools, "_git", pendurado)
+    track = _trilha(dt.collect(), "opencut")
+    inst = _c(track, "instalada")
+    assert inst["status"] == "warn", inst
+    assert "tempo esgotado" in inst["summary"] and "apague" not in (inst["fix"] or "") and "apague" not in inst["summary"]
+    assert track["status"] != "fail"
+
+
+def test_a_versao_do_node_e_perguntada_uma_vez_mesmo_com_as_trilhas_em_paralelo(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    chamadas = []
+
+    def sonda():
+        chamadas.append(1)
+        time.sleep(0.15)
+        return (24, 1, 0)
+
+    monkeypatch.setattr(dt, "_node_versao_sonda", sonda)
+    dt.collect()
+    assert len(chamadas) == 1, len(chamadas)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="sh")
+def test_online_com_ls_remote_pendurado_nao_deixa_processo_vivo_nem_passa_do_orcamento(ambiente, monkeypatch):
+    """The budget (here 1.0 s) is shorter than the read timeout (1.5 s): each read must still end, and kill its own process group,
+    BEFORE the budget does (daemon threads die with the process, and their git and its `sleep` stay alive)."""
+    monta_saudavel(ambiente, monkeypatch)
+    pids = ambiente.caixa.tmp / "pids.txt"
+    git = ambiente.caixa.bin / "git"
+    git.write_text(f"#!/bin/sh\n{SLEEP} 120 &\necho $! >> '{pids}'\nwait\n", encoding="utf-8")
+    git.chmod(0o755)
+    monkeypatch.setattr(tools, "_git", REAL_GIT)
+    monkeypatch.setattr(tools_update, "READ_TIMEOUT_S", 1.5)
+    monkeypatch.setattr(dt, "LIMITE_LOCAL_S", 0.2)
+    inicio = time.monotonic()
+    doc = dt.collect(online=True, orcamento_s=1.0)
+    decorrido = time.monotonic() - inicio
+    assert decorrido < 2.0, decorrido
+    assert len(doc["tracks"]) == len(TRILHAS)
+    vivos = [int(p) for p in pids.read_text().split()] if pids.exists() else []
+    assert vivos, "the fake git was never asked"
+    time.sleep(0.1)
+    ainda = [p for p in vivos if _vivo(p)]
+    for p in ainda:
+        os.kill(p, 9)
+    assert ainda == [], f"processos descendentes vivos depois do orçamento: {ainda}"
+
+
+def _vivo(pid: int) -> bool:
+    estado = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    return bool(estado) and not estado.startswith("Z")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="sh")
+def test_processo_que_sai_no_meio_de_uma_leitura_leva_o_git_junto(tmp_path):
+    """The process ends (the budget is over) while a read is still running: nothing it started stays alive (atexit kills the groups)."""
+    pids = tmp_path / "pids.txt"
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    git = bin_ / "git"
+    git.write_text(f"#!/bin/sh\n{SLEEP} 120 &\necho $! >> '{pids}'\nwait\n", encoding="utf-8")
+    git.chmod(0o755)
+    codigo = ("import threading, time\n"
+              "from simplicio_video import hostos\n"
+              "threading.Thread(target=lambda: hostos.run_limitado(['git', 'ls-remote'], timeout=60), daemon=True).start()\n"
+              "time.sleep(0.5)\n")
+    env = dict(os.environ, PATH=f"{bin_}{os.pathsep}{os.environ['PATH']}")
+    subprocess.run([sys.executable, "-c", codigo], env=env, timeout=30, check=True)
+    vivos = [int(p) for p in pids.read_text().split()]
+    time.sleep(0.3)
+    ainda = [p for p in vivos if _vivo(p)]
+    for p in ainda:
+        os.kill(p, 9)
+    assert vivos and ainda == [], ainda
