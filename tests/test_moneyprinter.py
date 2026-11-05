@@ -1987,3 +1987,20 @@ def test_setup_progress_line_comes_before_the_step_runs_and_a_failure_is_named(c
     assert moneyprinter.run_moneyprinter(["setup"]) == 1
     assert "[1/" in seen[0] and "[2/" in seen[1]
     assert re.search(r"falhou \(código 5, \d+s\)", capsys.readouterr().out)
+
+
+def test_spawn_cli_relays_the_upstream_log_lines_live_and_returns_only_the_json_document(tmp_path, capsys):
+    # the upstream cli.py logs to STDOUT (loguru sink sys.stdout) and prints its result there too: the log must reach the
+    # user (stderr) while it runs, and only the JSON line comes back as the result
+    code = ("import sys; print('2026-11-05 | INFO | start task', flush=True); "
+            "print('{\"task_id\": \"t1\", \"result\": {}}', flush=True); print('2026 | INFO | after', flush=True)")
+    rc, out = moneyprinter._spawn_cli([sys.executable, "-c", code], tmp_path, dict(os.environ))
+    assert rc == 0 and json.loads(out) == {"task_id": "t1", "result": {}}
+    err = capsys.readouterr().err
+    assert "start task" in err and "after" in err and "task_id" not in err
+
+
+def test_spawn_cli_returns_the_exit_code(tmp_path):
+    rc, out = moneyprinter._spawn_cli([sys.executable, "-c", "import sys; print('x'); sys.exit(3)"], tmp_path,
+                                      dict(os.environ))
+    assert rc == 3 and out == ""
