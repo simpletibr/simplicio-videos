@@ -138,3 +138,22 @@ def test_mcp_edit_absolute_outputs_and_read_only_forms_run(monkeypatch):
 def test_mcp_edit_description_states_the_rules():
     d = mcp_server.DESC_video_edit
     assert "grade" in d and "absolute" in d and "terminal" in d and "transcribe-batch" in d
+
+
+# --- `edit <sub> --help` reaches run_edit through the CLI (like media <sub> --help) ---
+
+@pytest.mark.parametrize("sub,needle", [("grade", "--analyze"), ("transcribe", "faster-whisper"), ("setup", "edit setup"),
+                                         ("pack", "edit pack"), ("render", "edit render"), ("verify", "edit verify"),
+                                         ("transcribe-batch", "Scribe")])
+def test_edit_sub_help_reaches_run_edit_and_never_runs_setup(sub, needle, tmp_path):
+    from conftest import run_cli
+    r = run_cli("edit", sub, "--help", cwd=tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert needle in r.stdout and "simplicio-video edit" in r.stdout, r.stdout
+    assert "usage: simplicio-video edit [-h]" not in r.stdout
+
+
+def test_cli_edit_description_lists_grade_and_the_new_path():
+    from conftest import run_cli
+    r = run_cli("edit", "--help")
+    assert "grade" in r.stdout and "transcribe-batch" in r.stdout and "tools/video-use" not in r.stdout
