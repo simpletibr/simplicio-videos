@@ -108,3 +108,37 @@ def test_plugin_json_nao_tem_o_verbo_publish_que_a_cli_nao_tem():
     data = json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))
     assert "video.publish" not in {c["verb"] for c in data["commands"]}
     assert not [c["verb"] for c in data["commands"] if c.get("argv", [None, None])[1:2] == ["publish"]]
+
+
+# ------------------------------------------------------------------------------------------------ (#113 1) verbos do plugin
+
+def _verbos_do_plugin() -> list[dict]:
+    return json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))["commands"]
+
+
+def test_todo_verbo_do_plugin_chama_um_subcomando_que_a_cli_tem():
+    """#113 (1): verbo cujo argv chama subcomando que a CLI não tem é ferramenta morta (era `publish`; `realoficial` também saiu)."""
+    import argparse
+
+    from simplicio_video import cli
+
+    sub = next(a for a in cli.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
+    mortos = [c["verb"] for c in _verbos_do_plugin() if c.get("argv") and c["argv"][0] == "simplicio-video" and c["argv"][1] not in sub.choices]
+    assert mortos == []
+
+
+def test_plugin_json_nao_tem_publicacao_em_verbo_argumento_nem_descricao():
+    """#113 (1): publicar é do `social` (só gera plano). Nenhum verbo aceita `publish` nem o descreve como publicação."""
+    for c in _verbos_do_plugin():
+        assert "publish" not in c.get("args_schema", {}).get("properties", {}), c["verb"]
+        assert "publish" not in " ".join(c.get("argv", [])), c["verb"]
+    run = next(c for c in _verbos_do_plugin() if c["verb"] == "video.run")
+    assert "publish" not in run["description"].lower(), run["description"]
+
+
+def test_plugin_json_lista_exatamente_as_tools_que_o_servidor_registra():
+    """#113 (1): `mcp.tools` do plugin.json é a lista de mcp_server.TOOLS, nem mais nem menos."""
+    from simplicio_video import mcp_server
+
+    data = json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))
+    assert set(data["mcp"]["tools"]) == {nome for nome, _, _ in mcp_server.TOOLS}

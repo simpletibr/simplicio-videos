@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import threading
 import tokenize
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,8 @@ needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("
 CAPTION = "Aprenda a montar o seu primeiro anúncio em vídeo. #marketing #video #reels"
 PROBE_OK = {"duration_s": 20.0, "width": 1080, "height": 1920, "fps": 30.0, "video_codec": "h264",
             "audio_codec": "aac", "container": "mov,mp4,m4a,3gp,3g2,mj2"}
-REDES = ["youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky"]
+REDES = ["youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky",
+         "reddit", "snapchat"]
 PROVEDORES = ["realoficial", "zernio"]
 ID_RO = "01HZX3K9Q2M4N5P6R7S8T9V0WA"  # 26 caracteres, no formato dos ids do Real Oficial (valor inventado)
 CLIP_RO = "01HZX3K9Q2M4N5P6R7S8T9V0WB"
@@ -1337,3 +1339,390 @@ def test_o_detector_de_portugues_pega_comentario_e_docstring_e_deixa_o_ingles(tm
     assert [t.strip() for _, t in achados] == ["Módulo em português.", "# nunca segue symlink", "Chave local.", "# the key is written whole"]
     ruins = [t for _, t in achados if PT_ACENTOS.search(t) or PT_PALAVRAS & set(re.findall(r"[a-zà-ÿ]+", t.lower()))]
     assert [t.strip() for t in ruins] == ["Módulo em português.", "# nunca segue symlink", "Chave local."]
+
+
+# ------------------------------------------------------------------------------------------------ reddit e snapchat: planejar sim, postar não
+
+def linha(rede, campo):
+    return next(r for r in social.limits_table()["rows"] if r["network"] == rede and r["field"] == campo)
+
+
+def valor(rede, campo):
+    return linha(rede, campo)["value"]
+
+
+def test_reddit_e_snapchat_tem_limites_por_linha_com_fonte_data_e_unverified():
+    tab = social.limits_table()
+    for rede in ("reddit", "snapchat"):
+        linhas = [r for r in tab["rows"] if r["network"] == rede]
+        campos = {"duration_max_s", "aspect_ratios", "size_max_mb", "caption_max_chars", "title_max_chars", "hashtags_max"}
+        assert campos <= {r["field"] for r in linhas}, rede
+        for r in linhas:
+            assert r["source_url"].startswith("https://docs.zernio.com/") and r["read_on"] == "2026-11-05", r
+            assert r["confidence"] == "UNVERIFIED", r  # nenhuma página oficial da rede foi conferida: só a do provedor (terceiro)
+
+
+def test_valores_de_reddit_e_snapchat_batem_com_a_fonte_lida():
+    assert (valor("snapchat", "duration_min_s"), valor("snapchat", "duration_max_s")) == (5, 60)
+    assert valor("snapchat", "aspect_ratios") == ["9:16"] and valor("snapchat", "size_max_mb") == 500
+    assert valor("snapchat", "caption_max_chars") == 160 and valor("snapchat", "title_max_chars") == 45
+    assert valor("reddit", "caption_max_chars") == 40000 and valor("reddit", "title_max_chars") == 300
+    assert valor("reddit", "size_max_mb") == 1000  # 1 GB em decimal: a fonte não distingue GB de GiB
+    assert valor("reddit", "duration_max_s") is None
+
+
+def test_escopo_obrigatoriedade_e_expectativa_ficam_na_propria_linha():
+    assert "Spotlight" in linha("snapchat", "caption_max_chars")["escopo"]
+    assert "hashtags" in linha("snapchat", "caption_max_chars")["escopo"]
+    assert "Saved Story" in linha("snapchat", "title_max_chars")["escopo"]
+    assert linha("reddit", "title_max_chars")["obrigatorio"] is True
+    assert linha("snapchat", "aspect_ratios")["kind"] == "expectativa"
+
+
+def test_reddit_e_snapchat_viram_plano_sem_erro_e_sem_limite_violado(video):
+    p = ler(plano(video, targets=["reddit", "snapchat"], title="Título de teste", force=True)["path"])
+    assert p["ok"] is True and not [c for c in p["checks"] if c["status"] == "violation"]
+    assert [t["network"] for t in p["targets"]] == ["reddit", "snapchat"]
+
+
+def test_snapchat_duracao_fora_da_faixa_e_unverified_e_pede_aceite(video, monkeypatch):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 3.0})
+    with pytest.raises(social.SocialError, match="snapchat.*duration_min_s.*UNVERIFIED.*--aceito-unverified"):
+        plano(video, targets=["snapchat"], force=True)
+    p = ler(plano(video, targets=["snapchat"], force=True, accept_unverified=True)["path"])
+    assert p["accepted_unverified"] == ["snapchat:duration_min_s"]
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 61.0})
+    with pytest.raises(social.SocialError, match="snapchat.*duration_max_s"):
+        plano(video, targets=["snapchat"], force=True)
+
+
+def test_snapchat_horizontal_e_so_aviso_porque_9_16_e_expectativa(video, monkeypatch):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "width": 1920, "height": 1080})
+    p = ler(plano(video, targets=["snapchat"], force=True)["path"])
+    aspecto = next(c for c in p["checks"] if c["field"] == "aspect_ratios")
+    assert aspecto["status"] == "aviso" and aspecto["confidence"] == "UNVERIFIED"
+    assert p["accepted_unverified"] == []
+    assert social.check_plan(str(video.parent / "social.plan.json"))["ok"] is True
+
+
+def test_snapchat_legenda_de_160_caracteres_e_o_teto_do_reddit_e_bem_maior(video):
+    plano(video, targets=["snapchat"], caption="a" * 160, force=True)
+    with pytest.raises(social.SocialError, match="snapchat.*caption_max_chars"):
+        plano(video, targets=["snapchat"], caption="a" * 161, force=True)
+    plano(video, targets=["reddit"], caption="a" * 5000, title="Título", force=True)
+
+
+def test_reddit_titulo_de_300_caracteres_e_o_teto(video):
+    plano(video, targets=["reddit"], title="t" * 300, force=True)
+    with pytest.raises(social.SocialError, match="reddit.*title_max_chars"):
+        plano(video, targets=["reddit"], title="t" * 301, force=True)
+
+
+def test_reddit_exige_titulo_e_nem_o_aceite_passa(video):
+    with pytest.raises(social.SocialError, match="reddit.*título ausente"):
+        plano(video, targets=["reddit"], force=True)
+    with pytest.raises(social.SocialError, match="título ausente"):
+        plano(video, targets=["reddit"], force=True, accept_unverified=True)
+
+
+@pytest.mark.parametrize("provedor", PROVEDORES)
+@pytest.mark.parametrize("rede", ["reddit", "snapchat"])
+def test_rede_sem_provedor_sai_bloqueada_na_receita_com_o_motivo_nao_confirmado(video, provedor, rede, capsys):
+    path = plano(video, targets=[rede], title="Título" if rede == "reddit" else None, force=True)["path"]
+    rec = social.recipe(path, provider=provedor, clip_id=CLIP_RO)
+    assert rec["blocked"] is True and rec["blocked_until"] == [rede]
+    motivo = rec["blocked_reason"]
+    assert "sem provedor confirmado" in motivo and "(não confirmado)" in motivo and rede in motivo
+    fonte = "https://realoficial.com.br/mcp" if provedor == "realoficial" else "https://docs.zernio.com/platforms/"
+    assert fonte in motivo and "lida em 2026-11-05" in motivo
+    assert [s["kind"] for s in rec["steps"]] == ["manual"] and _sem_cotar_nem_publicar(rec["steps"])
+    assert social.run_social(["recipe", path, "--provider", provedor, "--clip-id", CLIP_RO]) == 1
+    texto = capsys.readouterr().out
+    assert texto.startswith("BLOQUEADO") and "(não confirmado)" in texto
+    assert not re.search(r"\[(chamada|mostrar|consentimento)\]", texto)
+
+
+def test_plano_misto_com_rede_sem_provedor_bloqueia_a_receita_toda(video):
+    path = plano(video, targets=["youtube", "reddit"], title="Título", force=True)["path"]
+    rec = social.recipe(path, clip_id=CLIP_RO)
+    assert rec["blocked"] is True and rec["blocked_until"] == ["reddit"]
+    assert _sem_cotar_nem_publicar(rec["steps"])
+
+
+def test_mcp_recipe_de_rede_sem_provedor_volta_bloqueada(video):
+    r = mcp_server.video_social("plan", video=str(video), caption=CAPTION, targets=["snapchat"])
+    rec = mcp_server.video_social("recipe", plano=r["path"], provider="zernio")
+    assert rec["ok"] is False and rec["blocked"] is True and "sem provedor" in rec["error"]
+    assert _sem_cotar_nem_publicar(rec["steps"])
+
+
+def test_check_avisa_rede_sem_provedor_sem_recusar_o_plano(video):
+    path = plano(video, targets=["reddit"], title="Título")["path"]
+    rep = social.check_plan(path)
+    assert rep["ok"] is True
+    assert any("sem provedor confirmado" in w and "reddit" in w and "(não confirmado)" in w for w in rep["warnings"])
+
+
+def test_check_em_texto_diz_quais_limites_nao_foram_confirmados(video, capsys):
+    path = plano(video, targets=["youtube_shorts", "reddit"], title="Título")["path"]
+    assert social.run_social(["check", path]) == 0
+    linha_nc = next(l for l in capsys.readouterr().out.splitlines() if "NÃO CONFIRMADOS" in l)
+    assert "confere" in linha_nc and "reddit" in linha_nc and "youtube_shorts" not in linha_nc
+
+
+def test_plan_em_texto_mostra_nao_confirmados_e_avisos(video, monkeypatch, capsys):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "width": 1920, "height": 1080})
+    assert social.run_social(["plan", "--video", str(video), "--caption", CAPTION, "--target", "snapchat"]) == 0
+    texto = capsys.readouterr().out
+    assert "NÃO CONFIRMADOS" in texto and "snapchat" in texto
+    assert "avisos (expectativa, não regra)" in texto and "aviso: o vídeo é 16:9; Snapchat espera 9:16 (aviso, não recusa)" in texto
+    assert "sem provedor confirmado" in texto and "(não confirmado)" in texto
+
+
+def test_providers_sem_provedor_traz_texto_fonte_data_e_nao_confirmado_por_provedor():
+    rep = social.providers_report()
+    sem = rep["sem_provedor"]
+    assert set(sem) == {"reddit", "snapchat"}
+    ids = {p["id"] for p in rep["providers"]}
+    for rede, item in sem.items():
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", item["read_on"]), rede
+        assert item["confidence"] == "UNVERIFIED", rede
+        assert set(item["por_provedor"]) == ids, rede
+        for pid, por in item["por_provedor"].items():
+            assert por["texto"] and por["fonte"].startswith("https://"), (rede, pid)
+    for p in rep["providers"]:
+        assert not set(sem) & set(p["networks"]), p["id"]
+
+
+def test_redacao_sem_afirmar_ausencia_e_com_a_data_do_bloqueio_do_reddit():
+    sem = social.providers_report()["sem_provedor"]
+    ro = sem["reddit"]["por_provedor"]["realoficial"]["texto"]
+    assert "sem confirmação" in ro and "só cita TikTok e YouTube" in ro
+    zr = sem["reddit"]["por_provedor"]["zernio"]["texto"]
+    assert "temporariamente indisponível" in zr and "desde 19/10/2026" in zr
+    assert "bloqueia as chamadas do app da Zernio para todos os clientes Zernio" in zr
+    for arq in [ROOT / "docs" / "recursos.md", ROOT / "docs" / "realoficial.md", ROOT / "skills" / "simplicio-video-social" / "SKILL.md"]:
+        texto = arq.read_text(encoding="utf8")
+        assert "não aparece entre os destinos" not in texto and "não lista como destino" not in texto, arq
+        achados = _negacoes_sem_fonte(texto)
+        assert not achados, f"{arq}: " + " | ".join(achados)
+    for arq in [paths.data_dir() / "social" / "providers.json", paths.data_dir() / "social" / "limits.json"]:
+        texto = arq.read_text(encoding="utf8")
+        assert "não aparece entre os destinos" not in texto and "não lista como destino" not in texto, arq
+    achados = _negacoes_em_folhas(social._providers_doc()) + _negacoes_em_folhas(social.limits_table())
+    assert not achados, " | ".join(achados)
+
+
+def test_providers_em_texto_marca_nao_confirmado_com_fonte_e_data(capsys):
+    assert social.run_social(["providers"]) == 0
+    texto = capsys.readouterr().out
+    assert "(não confirmado)" in texto and "https://docs.zernio.com/platforms/reddit" in texto and "lida em 2026-11-05" in texto
+
+
+@pytest.mark.parametrize("provedor,rede", [("realoficial", "reddit"), ("zernio", "snapchat")])
+def test_piso_do_codigo_recusa_providers_json_que_liste_rede_sem_provedor(video, monkeypatch, provedor, rede):
+    path = plano(video)["path"]
+    doc = json.loads(json.dumps(social._providers_doc()))
+    next(p for p in doc["providers"] if p["id"] == provedor)["networks"].append(rede)
+    monkeypatch.setattr(social, "_providers_doc", lambda: doc)
+    with pytest.raises(social.SocialError, match="receita insegura"):
+        social.recipe(path, provider=provedor, clip_id=CLIP_RO)
+
+
+def test_piso_e_a_validacao_completa_rodam_antes_do_bloqueio_por_rede(video, monkeypatch):
+    path = plano(video, targets=["reddit"], title="Título")["path"]
+    _doc_adulterado(monkeypatch, "realoficial", lambda p, r, i: _tirar(r, i, "consent"))
+    with pytest.raises(social.SocialError, match="receita insegura"):
+        social.recipe(path, provider="realoficial", clip_id=CLIP_RO)
+
+
+def test_mcp_recipe_de_rede_sem_provedor_mostra_o_motivo_com_fonte(video):
+    r = mcp_server.video_social("plan", video=str(video), caption=CAPTION, targets=["reddit"], title="Título")
+    rec = mcp_server.video_social("recipe", plano=r["path"], provider="realoficial")
+    assert rec["ok"] is False and "(não confirmado)" in rec["error"] and "https://" in rec["error"]
+
+
+def test_adr_0018_tem_adendo_sobre_plano_sem_provedor():
+    t = (ROOT / "docs" / "decisoes" / "ADR-0018-social-planejar-sem-postar.md").read_text(encoding="utf8")
+    assert "Adendo" in t and "plano sem provedor" in t and "não confirmado" in t
+
+
+def test_skill_e_docs_citam_reddit_e_snapchat_como_sem_provedor():
+    for arq in (ROOT / "skills" / "simplicio-video-social" / "SKILL.md",
+                ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video-social" / "SKILL.md",
+                ROOT / "docs" / "recursos.md"):
+        t = arq.read_text(encoding="utf8")
+        assert "Reddit" in t and "Snapchat" in t and "sem provedor" in t and "não confirmado" in t, arq
+
+
+def test_linha_do_limite_cita_o_escopo_e_mede_a_legenda_e_o_titulo_em_caracteres(video):
+    with pytest.raises(social.SocialError) as e:
+        plano(video, targets=["snapchat"], caption="a" * 161, force=True)
+    msg = str(e.value)
+    assert "caption_max_chars limite 160 caracteres (Spotlight" in msg and "a legenda tem 161 caracteres" in msg
+    assert "o vídeo tem" not in msg
+    with pytest.raises(social.SocialError) as e:
+        plano(video, targets=["reddit"], title="t" * 301, force=True)
+    msg = str(e.value)
+    assert "o título tem 301 caracteres" in msg and "Spotlight" not in msg
+    assert "post: título obrigatório" in msg
+
+
+def test_linha_de_duracao_diz_o_tamanho_do_video_em_segundos(video, monkeypatch):
+    monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 61.0})
+    with pytest.raises(social.SocialError) as e:
+        plano(video, targets=["snapchat"], force=True)
+    assert "duration_max_s limite 60 s" in str(e.value) and "o vídeo tem 61.0 s" in str(e.value)
+
+
+RO_SEM_CONFIRMACAO = ["instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky"]
+
+
+def test_dados_marcam_as_redes_do_realoficial_sem_confirmacao_na_propria_pagina():
+    provs = {p["id"]: p for p in social.providers_report()["providers"]}
+    ro = provs["realoficial"]
+    assert ro["networks_sem_confirmacao"] == RO_SEM_CONFIRMACAO
+    assert set(ro["networks_sem_confirmacao"]) <= set(ro["networks"])
+    assert not {"youtube", "tiktok", "youtube_shorts"} & set(ro["networks_sem_confirmacao"])
+    assert "networks_sem_confirmacao" not in provs["zernio"]
+
+
+def test_plan_marca_na_linha_do_plano_so_as_redes_sem_confirmacao_do_realoficial(video, capsys):
+    assert social.run_social(["plan", "--video", str(video), "--caption", CAPTION, "--target", "instagram", "--target", "tiktok",
+                              "--target", "youtube_shorts"]) == 0
+    linha_ro = next(l for l in capsys.readouterr().out.splitlines() if "sem confirmação na página do RO (lista do motor)" in l)
+    assert linha_ro.strip().endswith("instagram") and "tiktok" not in linha_ro and "youtube_shorts" not in linha_ro
+
+
+def test_providers_em_texto_qualifica_o_official_do_realoficial_para_essas_redes(capsys):
+    assert social.run_social(["providers"]) == 0
+    texto = capsys.readouterr().out
+    assert "confiança: official (ferramentas; as redes abaixo não têm confirmação na página do RO)" in texto
+    assert "sem confirmação na página do RO (lista do motor): instagram, facebook, twitter, linkedin, threads, pinterest, bluesky" in texto
+
+
+def test_receita_realoficial_marca_a_secao_unverified_sem_bloquear(video, capsys):
+    path = plano(video, targets=["instagram", "tiktok"], force=True)["path"]
+    rec = social.recipe(path, provider="realoficial", clip_id=CLIP_RO)
+    assert rec["blocked"] is False
+    marca = [u for u in rec["unverified"] if "sem confirmação na página do RO (lista do motor)" in u]
+    assert marca and "instagram" in marca[0] and "tiktok" not in marca[0]
+    assert social.run_social(["recipe", path, "--clip-id", CLIP_RO]) == 0
+    secao = capsys.readouterr().out.split("UNVERIFIED (não conferido):")[1]
+    assert "sem confirmação na página do RO (lista do motor)" in secao and "instagram" in secao
+
+
+def test_receita_zernio_nao_recebe_a_marca_do_realoficial(video):
+    path = plano(video, targets=["instagram"], force=True)["path"]
+    rec = social.recipe(path, provider="zernio")
+    assert not any("sem confirmação na página do RO" in u for u in rec["unverified"])
+
+
+def test_nota_do_reddit_sobre_duracao_nao_cita_pagina_nao_lida():
+    nota = linha("reddit", "duration_max_s")["note"]
+    assert "15 min" not in nota and "30 min" not in nota and "Premium" not in nota
+
+
+def test_skill_cita_os_escopos_dos_limites_e_o_espelho_e_identico():
+    sk = (ROOT / "skills" / "simplicio-video-social" / "SKILL.md").read_text(encoding="utf8")
+    for trecho in ("Spotlight", "Saved Story", "corpo do post de texto", "160 caracteres", "45 caracteres", "obrigatório"):
+        assert trecho in sk, trecho
+    espelho = ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video-social" / "SKILL.md"
+    assert (ROOT / "skills" / "simplicio-video-social" / "SKILL.md").read_bytes() == espelho.read_bytes()
+
+
+# ------------------------------------------------------------------------------------------------ terceira revisão: guarda de redação
+
+NEGACAO_FACTUAL = re.compile(
+    r"\bn(ão|unca)\b(?!\s+confirmad)"  # não, nunca (fora "não confirmado", que é incerteza)
+    r"|\bnenhum(a|as|os)?\b|\bninguém\b|\bjamais\b"  # nenhum, nenhuma, ninguém, jamais
+    r"|\b(?:have|has|had|lists?|with|is|are|was|were|shows?|offers?|publishes?)\s+no\b"  # "have no" em inglês; "no plano" (pt) não casa
+    r"|\bno\s+(?:provider|network|platform|publisher|publishing)\b"
+    r"|\bnot\b(?!\s+confirmed\b)|\bnever\b|\bnone\b|\bnobody\b",  # "not confirmed" é incerteza, não negação
+    re.I,
+)
+FONTE_NA_LINHA = re.compile(r"https://|lida em \d{4}-\d{2}-\d{2}", re.I)
+MENCAO_REDE = re.compile(r"reddit|snapchat|\bsnap\b", re.I)
+REDES_DO_CASO = ("reddit", "snapchat")
+
+
+def _frases(texto):
+    """Frases do texto: as linhas de um parágrafo se juntam antes de dividir (quebra só em linha em branco); NFC antes de casar."""
+    texto = unicodedata.normalize("NFC", texto)
+    for paragrafo in re.split(r"\n\s*\n", texto):
+        yield from re.split(r"(?<=[.!?])\s+", " ".join(paragrafo.split()))
+
+
+def _negacoes_sem_fonte(texto):
+    """Frases que nomeiam Reddit ou Snapchat, afirmam ausência (não, nunca, nenhum, nobody, have no...) e não trazem URL ou data de leitura na própria frase."""
+    return [frase.strip()[:160] for frase in _frases(texto)
+            if MENCAO_REDE.search(frase) and NEGACAO_FACTUAL.search(frase) and not FONTE_NA_LINHA.search(frase)]
+
+
+def _negacoes_em_folhas(no, sobre_rede=False, achados=None):
+    """Toda string de um JSON, frase a frase. Strings de uma linha de Reddit ou Snapchat (ou sob essa chave) contam como sobre a rede. Sem exceção por irmão fonte."""
+    if achados is None:
+        achados = []
+    if isinstance(no, dict):
+        rede = no.get("network") in REDES_DO_CASO
+        for chave, valor in no.items():
+            _negacoes_em_folhas(valor, sobre_rede or rede or chave in REDES_DO_CASO, achados)
+    elif isinstance(no, list):
+        for valor in no:
+            _negacoes_em_folhas(valor, sobre_rede, achados)
+    elif isinstance(no, str):
+        for frase in _frases(no):
+            if (sobre_rede or MENCAO_REDE.search(frase)) and NEGACAO_FACTUAL.search(frase) and not FONTE_NA_LINHA.search(frase):
+                achados.append(frase.strip()[:120])
+    return achados
+
+
+@pytest.mark.parametrize("frase", ["Ninguém publica no Snapchat.", "Nenhuma rede publica no Reddit.",
+                                   "So Reddit and Snapchat have no confirmed provider here.",
+                                   "Reddit is not published by Real Oficial."])
+def test_guarda_pega_negacao_em_ingles_e_nenhuma_ninguem(frase):
+    assert _negacoes_sem_fonte(frase), frase
+
+
+def test_guarda_nao_toma_not_confirmed_por_negacao():
+    assert not _negacoes_sem_fonte("Reddit: not confirmed.")
+
+
+def test_guarda_normaliza_o_unicode_antes_de_casar():
+    assert _negacoes_sem_fonte("O Snapchat não está aprovado pela Snap.")
+
+
+def test_guarda_junta_as_linhas_de_um_paragrafo_antes_de_dividir_em_frases():
+    assert not _negacoes_sem_fonte("O Snapchat não está aprovado\nhttps://docs.zernio.com/platforms/snapchat.")
+
+
+def test_guarda_nao_deixa_o_irmao_fonte_absolver_a_negacao():
+    assert _negacoes_em_folhas({"reddit": {"texto": "O Reddit não é publicado pelo RO.", "fonte": "https://realoficial.com.br/mcp"}})
+
+
+def test_guarda_varre_as_notas_de_reddit_e_snapchat_sem_mencao_no_texto():
+    assert _negacoes_em_folhas({"network": "snapchat", "note": "Zernio não informa duração de vídeo de post."})
+
+
+@pytest.mark.parametrize("frase", ["O Snapchat não está aprovado pela Snap.", "Não há provedor para o Reddit.",
+                                   "Reddit: nenhum provedor publica.", "O Snapchat nunca foi aprovado.",
+                                   "Veja https://docs.zernio.com/platforms/snapchat. O Snapchat não está aprovado pela Snap."])
+def test_guarda_de_redacao_pega_negacao_sem_fonte(frase):
+    assert _negacoes_sem_fonte(frase), frase
+
+
+@pytest.mark.parametrize("frase", ["O Snapchat não está aprovado pela Snap (https://docs.zernio.com/platforms/snapchat).",
+                                   "Reddit: nenhum provedor publica (lida em 2026-11-05).",
+                                   "Reddit e Snapchat: sem provedor confirmado (não confirmado).", "O Reddit exige título obrigatório."])
+def test_guarda_de_redacao_deixa_passar_negacao_com_fonte_e_o_nao_confirmado(frase):
+    assert not _negacoes_sem_fonte(frase), frase
+
+
+def test_plan_aceito_mostra_cada_violacao_com_escopo_medida_e_limite(video, capsys):
+    assert social.run_social(["plan", "--video", str(video), "--caption", "a" * 161, "--title", "t" * 394, "--target", "snapchat",
+                              "--target", "reddit", "--aceito-unverified"]) == 0
+    texto = capsys.readouterr().out
+    assert "violação UNVERIFIED aceita: snapchat: caption_max_chars limite 160 caracteres (Spotlight" in texto
+    assert "a legenda tem 161 caracteres" in texto
+    assert "reddit: title_max_chars limite 300 caracteres (post: título obrigatório), o título tem 394 caracteres" in texto
+    assert "violações UNVERIFIED aceitas:" not in texto

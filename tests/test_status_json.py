@@ -6,11 +6,12 @@ a única coisa que existe nele é um script falso `ffmpeg` que só imprime uma l
 import hashlib
 import json
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
 
-from simplicio_video import __version__, tools
+from simplicio_video import __version__, status, tools
 from simplicio_video.cli import main
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini" / "contract.yaml"
@@ -191,3 +192,36 @@ def test_yt_dlp_no_venv_do_cache_aparece_instalado_com_a_versao_do_venv(capsys, 
     assert by["yt-dlp"]["installed"] is True
     assert by["yt-dlp"]["version"] == "2026.10.26"
     assert by["yt-dlp"]["pinned"] == tools.pinned_ref(t)
+
+
+# ------------------------------------------------------------------------------------------------ (#113 2) ambiente da sonda de versão
+
+SONDA = """#!{py}
+import json, os, sys
+with open({log!r}, "a") as f:
+    f.write(json.dumps({{"nome": os.path.basename(sys.argv[0]), "env": dict(os.environ)}}) + "\\n")
+print({linha!r})
+"""
+def test_sonda_de_versao_do_ffmpeg_e_do_node_recebe_ambiente_fechado_com_proxy(tmp_path, monkeypatch, ambiente):
+    """#113 (2): `status` geral roda ffmpeg e node com um ambiente fechado (sem as chaves do shell), mas com o proxy e os
+    certificados do usuário, como o `busca` já faz com o tinyfish."""
+    from simplicio_video import busca  # a lista da sonda sai da do busca (sem a chave do TinyFish) mais LC_CTYPE: uma deriva quebra aqui
+    permitido = set(status.ENV_FERRAMENTA)
+    assert permitido == (set(busca.ENV_REPASSADO) - {busca.ENV_CHAVE}) | {"LC_CTYPE"}
+    log = tmp_path / "sonda.jsonl"
+    for nome, linha in (("ffmpeg", "ffmpeg version 6.1.1-test"), ("node", "v22.23.4")):
+        exe = ambiente / nome
+        exe.write_text(SONDA.format(py=sys.executable, log=str(log), linha=linha), encoding="utf8")
+        exe.chmod(0o755)
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:3128")
+    monkeypatch.setenv("SSL_CERT_FILE", "/etc/ssl/certs/ca.pem")
+    monkeypatch.setenv("GEMINI_API_KEY", "gem-segredo-113")
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_segredo113113113113")
+    assert status.tool_status("ffmpeg")["installed"] is True and status.tool_status("node")["installed"] is True
+    chamadas = [json.loads(linha) for linha in log.read_text(encoding="utf8").splitlines()]
+    assert sorted(c["nome"] for c in chamadas) == ["ffmpeg", "node"]
+    for c in chamadas:
+        assert set(c["env"]) <= permitido, sorted(set(c["env"]) - permitido)
+        assert c["env"]["HTTPS_PROXY"] == "http://proxy.local:3128", c["nome"]
+        assert c["env"]["SSL_CERT_FILE"] == "/etc/ssl/certs/ca.pem", c["nome"]
+        assert "gem-segredo-113" not in c["env"].values() and "ghp_segredo113113113113" not in c["env"].values()
