@@ -42,9 +42,10 @@ _RANK = {"ok": 0, "warn": 1, "fail": 2}
 _VERSAO = re.compile(r"\d+\.\d+\.\d+")
 # controls, soft hyphen, ALM, Mongolian vowel separator, line/paragraph separators, zero-width and bidi marks, word joiner and the
 # invisible operators, isolates, the interlinear annotations, the BOM and the tag characters. The emoji selector U+FE0F is left alone.
-_CONTROLE = re.compile("[\x00-\x1f\x7f-\x9f\u00ad\u061c\u180e\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069"
-                       "\ufeff\ufff9-\ufffb\U000e0000-\U000e007f]")
+_CONTROLE = re.compile("[\x00-\x1f\x7f-\x9f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u115f\u180e\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064"
+                       "\u2066-\u206f\u3164\ufeff\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]")
 MAX_ARQUIVO_FIXADO = 1024 * 1024  # the pinned files are a few KB; a bigger one is not the pinned one
+TEMPO_ESGOTADO = "tempo esgotado"  # the reason _leitura_do_checkout gives when git did not answer
 LIMITE_LOCAL_S = 5.0  # each local program the doctor runs (git rev-parse, `<exe> --version`): a hung one is a finding, not a wait
 ORCAMENTO_ONLINE_S = 25.0  # the whole --online: every upstream read together. A proxy that never answers costs this, once
 NODE_TINYFISH = (24,)  # the @tiny-fish/cli package declares Node >= 24
@@ -122,11 +123,15 @@ def _ambiente() -> dict:
 _MEMO: dict = {}  # per collect(): the node version is asked once, however many tracks need it
 
 
+_MEMO_TRAVA = threading.Lock()  # the tracks are checked in threads: the first one asks, the others wait for its answer
+
+
 def _node_versao() -> Optional[tuple]:
     """The node version, asked once per collect() (see _node_versao_sonda)."""
-    if "node" not in _MEMO:
-        _MEMO["node"] = _node_versao_sonda()
-    return _MEMO["node"]
+    with _MEMO_TRAVA:
+        if "node" not in _MEMO:
+            _MEMO["node"] = _node_versao_sonda()
+        return _MEMO["node"]
 
 
 def _node_versao_sonda() -> Optional[tuple]:
@@ -218,16 +223,22 @@ def _leitura_do_checkout(pasta: Path) -> tuple[Optional[str], str]:
     folder's own .git is not valid, so the top of the repository must be the folder itself, and HEAD must name a commit that exists."""
     try:
         topo = tools._git("rev-parse", "--show-toplevel", cwd=pasta, timeout=LIMITE_LOCAL_S)
+    except tools.GitTimeout:
+        return None, TEMPO_ESGOTADO
     except tools.ToolError:
         return None, "o git não lê a pasta como repositório"
     if Path(topo).resolve() != pasta.resolve():
         return None, "o .git dela não é válido: o git lê outro repositório em volta"
     try:
         tools._git("cat-file", "-e", "HEAD^{commit}", cwd=pasta, timeout=LIMITE_LOCAL_S)
+    except tools.GitTimeout:
+        return None, TEMPO_ESGOTADO
     except tools.ToolError:
         return None, "o HEAD não aponta para um commit que existe no repositório"
     try:
         return tools._git("rev-parse", "HEAD", cwd=pasta, timeout=LIMITE_LOCAL_S), ""
+    except tools.GitTimeout:
+        return None, TEMPO_ESGOTADO
     except tools.ToolError:
         return None, "o HEAD não se lê"
 
@@ -257,6 +268,10 @@ def _checkout(t: tools.Tool, pasta: Path, clone: str) -> tuple[str, Optional[str
         return "ok", None, [_row("instalada", "warn", f"{pasta} existe, mas sem o git não consigo conferir o commit",
                                  "instale o git (https://git-scm.com/downloads)", {"path": str(pasta)})]
     head, motivo = _leitura_do_checkout(pasta)
+    if head is None and motivo == TEMPO_ESGOTADO:  # a hang says nothing about the folder: no advice to delete it
+        return "ok", None, [_row("instalada", "warn", f"{pasta} existe, mas não consegui verificar o commit: tempo esgotado "
+                                 f"({LIMITE_LOCAL_S:g} s) esperando o git", "rode `simplicio-video doctor trilhas` de novo",
+                                 {"path": str(pasta)})]
     if head is None:
         return "quebrada", None, [_row("instalada", "fail", f"{pasta} não é um checkout íntegro ({motivo})",
                                        f"apague {_q(pasta)} e rode `{clone}`", {"path": str(pasta)})]
@@ -646,9 +661,16 @@ def _em_paralelo(trabalhos: dict, orcamento_s: float, nome: str = "upstream") ->
         return dict(resultados)
 
 
+def _upstream_com_prazo(fim: float, t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
+    with tools_update.prazo_de_leitura(fim):
+        return _upstream(t, ref, fonte, io)
+
+
 def _fecha_upstreams(jobs: list, io, orcamento_s: float, total_s: Optional[float] = None) -> None:
     """Reads the upstream of every track together, inside one budget. A track that did not answer in time says so."""
-    trabalhos = {i: functools.partial(_upstream, t, ref, fonte, io) for i, (_track, t, ref, fonte, _inst, _det) in enumerate(jobs)}
+    fim_das_leituras = time.monotonic() + max(0.0, orcamento_s) * 0.8  # the reads end (and kill their groups) before the budget does
+    trabalhos = {i: functools.partial(_upstream_com_prazo, fim_das_leituras, t, ref, fonte, io)
+                 for i, (_track, t, ref, fonte, _inst, _det) in enumerate(jobs)}
     resultados = _em_paralelo(trabalhos, orcamento_s)
     for i, job in enumerate(jobs):
         if i not in resultados:

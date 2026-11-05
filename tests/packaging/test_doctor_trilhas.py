@@ -1255,7 +1255,7 @@ def test_online_com_ls_remote_pendurado_nao_deixa_processo_vivo_nem_passa_do_orc
     monkeypatch.setattr(tools_update, "READ_TIMEOUT_S", 1.5)
     monkeypatch.setattr(dt, "LIMITE_LOCAL_S", 0.2)
     inicio = time.monotonic()
-    doc = dt.collect(online=True, orcamento_s=1.0)
+    doc = dt.collect(online=True, io=tools_update.Io(network=True), orcamento_s=1.0)  # the real reads (git on the sealed PATH)
     decorrido = time.monotonic() - inicio
     assert decorrido < 2.0, decorrido
     assert len(doc["tracks"]) == len(TRILHAS)
@@ -1268,8 +1268,11 @@ def test_online_com_ls_remote_pendurado_nao_deixa_processo_vivo_nem_passa_do_orc
     assert ainda == [], f"processos descendentes vivos depois do orçamento: {ainda}"
 
 
+PS = shutil.which("ps") or "/bin/ps"  # resolved at import: the tests seal the PATH
+
+
 def _vivo(pid: int) -> bool:
-    estado = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    estado = subprocess.run([PS, "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
     return bool(estado) and not estado.startswith("Z")
 
 

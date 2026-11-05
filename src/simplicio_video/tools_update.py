@@ -18,7 +18,9 @@ import json
 import os
 import re
 import shutil
+import contextlib
 import subprocess
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -39,6 +41,27 @@ _SHA256 = re.compile(r"[0-9a-f]{64}")
 FAILURES = (tools.ToolError, hostos.SemCasa, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
 
 
+_PRAZO = threading.local()
+
+
+@contextlib.contextmanager
+def prazo_de_leitura(fim: float):
+    """Inside this block every read of the network of THIS thread ends by `fim` (a time.monotonic() instant) at the latest, whatever
+    READ_TIMEOUT_S says. The doctor gives its reads a deadline shorter than its budget, so that a read kills its own process group
+    before the budget is over (a thread still waiting at the end would be left behind by the exit)."""
+    antes = getattr(_PRAZO, "fim", None)
+    _PRAZO.fim = fim
+    try:
+        yield
+    finally:
+        _PRAZO.fim = antes
+
+
+def _limite_de_leitura() -> float:
+    fim = getattr(_PRAZO, "fim", None)
+    return READ_TIMEOUT_S if fim is None else max(0.1, min(READ_TIMEOUT_S, fim - time.monotonic()))
+
+
 def _offline() -> bool:
     return os.environ.get("SIMPLICIO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on")
 
@@ -48,7 +71,7 @@ def _fetch_json(url: str) -> Any:
     if not url.startswith("https://"):
         raise ValueError(f"recusando uma url que não é https: {url}")
     request = urllib.request.Request(url, headers={"User-Agent": "simplicio-video-update", "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=READ_TIMEOUT_S) as response:
+    with urllib.request.urlopen(request, timeout=_limite_de_leitura()) as response:
         raw = response.read(MAX_JSON + 1)
     if len(raw) > MAX_JSON:
         raise ValueError("a resposta do PyPI é grande demais")
@@ -61,7 +84,7 @@ def _run_leitura(argv, cwd=None):
     env = dict(os.environ)
     env["GIT_TERMINAL_PROMPT"] = "0"
     try:
-        return hostos.run_limitado(argv, cwd=cwd, env=env, timeout=READ_TIMEOUT_S)  # a timeout kills git AND its git-remote-https
+        return hostos.run_limitado(argv, cwd=cwd, env=env, timeout=_limite_de_leitura())  # a timeout kills git AND its git-remote-https
     except OSError as exc:
         return subprocess.CompletedProcess(list(argv), 127, "", str(exc))
 

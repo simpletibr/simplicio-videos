@@ -1659,6 +1659,8 @@ def run_openverse(argv: list[str]) -> int:
     except OpenverseError as e:
         print(f"openverse: {e}", file=sys.stderr)
         return 1
+    except hostos.SemCasa:  # one clean message and exit 2 for the whole CLI (cli.main)
+        raise
     except KeyboardInterrupt:
         print("openverse: interrompido (Ctrl+C); o índice só é gravado ao fim de cada operação", file=sys.stderr)
         return 130

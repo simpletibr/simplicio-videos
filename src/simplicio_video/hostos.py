@@ -17,11 +17,13 @@ a folder cannot be searched (a PATH folder with mode 0000, a `~/.simplicio` of a
 """
 from __future__ import annotations
 
+import atexit
 import os
 import signal
 import stat
 import subprocess
 import sys
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Optional
@@ -104,17 +106,35 @@ def _mata_arvore(proc: "subprocess.Popen") -> None:
         pass
 
 
+_VIVOS: set = set()  # the processes run_limitado started and has not seen end: the exit of this process takes them down
+_VIVOS_TRAVA = threading.Lock()
+
+
+def _mata_os_vivos() -> None:
+    with _VIVOS_TRAVA:
+        vivos = list(_VIVOS)
+    for proc in vivos:
+        if proc.poll() is None:
+            _mata_arvore(proc)
+
+
+atexit.register(_mata_os_vivos)
+
+
 def run_limitado(argv, *, timeout: float, cwd=None, env=None) -> "subprocess.CompletedProcess":
     """subprocess.run(capture_output, text, stdin=DEVNULL, timeout=) whose timeout kills the WHOLE process tree. subprocess.run kills
     only the child: `git ls-remote` keeps its `git-remote-https` alive (a proxy that never answers left eight of them running
     minutes after the CLI had exited). The command runs in its own session (POSIX) or process group (Windows), which is what
-    is killed. Raises subprocess.TimeoutExpired like subprocess.run, and OSError when the program cannot be started.
+    is killed, and the exit of this process kills what is still running (atexit: a daemon thread that is waiting on a read dies with
+    the process before it could kill its own group). Raises subprocess.TimeoutExpired like subprocess.run, and OSError when the program cannot be started.
 
     Limit: a descendant that leaves the group on its own (`setsid`, `setpgid`, a daemon that double-forks) escapes the kill; git and
     npm do not do that, and nothing here can reach such a process short of a cgroup."""
     flags: dict = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP") else {"start_new_session": True}
     proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", env=env, **flags)
+    with _VIVOS_TRAVA:
+        _VIVOS.add(proc)
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -127,6 +147,9 @@ def run_limitado(argv, *, timeout: float, cwd=None, env=None) -> "subprocess.Com
     except BaseException:  # Ctrl-C: the child is in another session and would not get the signal
         _mata_arvore(proc)
         raise
+    finally:
+        with _VIVOS_TRAVA:
+            _VIVOS.discard(proc)
     return subprocess.CompletedProcess(list(argv), proc.returncode, out, err)
 
 

@@ -1364,6 +1364,8 @@ def run_busca(argv: list[str]) -> int:
         if e.untrusted_erro:
             print(f"untrusted_erro={json.dumps(e.untrusted_erro, ensure_ascii=False)}", file=sys.stderr)
         return 1
+    except hostos.SemCasa:  # one clean message and exit 2 for the whole CLI (cli.main)
+        raise
     except KeyboardInterrupt:
         print("busca: interrompido (Ctrl+C); o contador e o registro só são gravados inteiros", file=sys.stderr)
         return 130

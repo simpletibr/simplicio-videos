@@ -89,7 +89,7 @@ def test_sem_home_o_montage_clone_recusa_com_mensagem_e_sem_pasta(monkeypatch, t
     _sem_casa(monkeypatch)
     monkeypatch.chdir(tmp_path)
     antes = os.getcwd()
-    with pytest.raises(montage.MontageError) as erro:
+    with pytest.raises(hostos.SemCasa) as erro:  # goes up to cli.main: one message, exit 2 (the CLI test)
         montage.clone_openmontage()
     assert "HOME" in str(erro.value)
     assert os.getcwd() == antes and not (tmp_path / "~").exists()

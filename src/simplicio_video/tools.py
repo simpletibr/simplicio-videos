@@ -34,6 +34,10 @@ class ToolError(Exception):
     pass
 
 
+class GitTimeout(ToolError):
+    """A git that did not answer in time: it says nothing about the repository (a hang is transient)."""
+
+
 def _video_use_pin() -> str:
     """The pin of video-use: VU_REF of the packaged setup.sh, the file that `edit setup` runs (the single source of it)."""
     text = (paths.DATA_DIR / "tools" / "video-use" / "setup.sh").read_text(encoding="utf8")
@@ -230,7 +234,7 @@ def _git(*args: str, cwd: Path | None = None, timeout: float | None = None) -> s
         try:
             r = hostos.run_limitado([git, *args], cwd=cwd, timeout=timeout)
         except subprocess.TimeoutExpired:
-            raise ToolError(f"git {' '.join(args[:2])}: tempo esgotado ({timeout:g} s)") from None
+            raise GitTimeout(f"git {' '.join(args[:2])}: tempo esgotado ({timeout:g} s)") from None
     if r.returncode:
         raise ToolError(f"git {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
     return r.stdout.strip()

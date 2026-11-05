@@ -82,7 +82,7 @@ def clone_openmontage(target_dir: Path | None = None) -> Path:
         target = Path(target_dir).expanduser() if target_dir is not None else default_openmontage_dir()
         with _checkout_at(target):
             return Path(tools.install("openmontage"))
-    except (tools.ToolError, hostos.SemCasa) as e:
+    except tools.ToolError as e:  # hostos.SemCasa goes up to cli.main: one clean message, exit 2
         raise MontageError(str(e)) from None
 
 
