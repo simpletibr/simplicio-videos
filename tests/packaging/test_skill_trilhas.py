@@ -637,11 +637,10 @@ def test_a_linha_do_hypit_nao_lista_o_que_o_pin_nao_aceita(caminho):
     inicio = next(i for i, linha in enumerate(linhas) if linha.startswith("| Pedido"))
     linha = " ".join(next(linha for linha in linhas[inicio + 2:] if "| Hypit" in linha).split())
     limites = linha.strip("|").split("|")[-1]
-    pin = _pin("hypit")
-    assert f"`packages` e `measure` não existem no Hypit {pin}" in limites
+    assert "o MCP recusa `packages` e `measure`" in limites and "não foi conferido" in limites
     assert re.search(r"`studio`, `auth`, `runtime`, `capture` e `transcribe`", limites), "the terminal-only verbs that do exist in the pin"
     assert not re.search(r"`runtime`, `packages`|`packages`, `capture`|e `measure`,? ", limites.replace("`packages` e `measure` não existem", ""))
-    assert "upstream" in limites and "MCP" in limites
+    assert "MCP" in limites
 
 
 def test_o_codigo_de_saida_1_e_do_terminal_e_o_ok_true_e_do_mcp():
@@ -695,7 +694,7 @@ def test_o_online_do_doctor_trilhas_nao_regrava_o_cache_do_update():
     secao = _secao_doctor()
     assert "regrava" not in secao and "update-check" not in secao
     assert "cache do `update --check`" not in secao
-    assert "não grava no diretório de dados do motor" in secao and "~/.npm" in secao
+    assert "não grava nada no diretório de dados do motor" in secao and "~/.npm" in secao
 
 
 def test_a_secao_do_doctor_trilhas_descreve_as_falhas_como_o_codigo_as_da():
