@@ -1782,3 +1782,109 @@ def test_host_que_resolve_so_para_ip_publico_e_buscado(env):
     r = env.b.pagina("https://exemplo-publico.test/a")
     assert perguntados == ["exemplo-publico.test"] and len(env.fake.chamadas("fetch")) == 1
     assert r["untrusted_fonte"] == "https://exemplo-publico.test/a"
+
+
+# ------------------------------------------------------------------------------------------------ (#113 3) registro que gira, cache por bytes, log do fim
+
+def _procedencia(i: int) -> dict:
+    return {"schema": "simplicio.busca-registro/v1", "em": "2026-10-16T12:00:00Z", "comando": "consulta", "canal": "terminal", "do_cache": False,
+            "chave_cache": "0" * 64, "cli_versao": "0.50.1", "conteudo_sha256": "a" * 64, "conteudo_bytes": 10, "url_final_recusada": False,
+            "n": i, "pad": "x" * 150}
+
+
+def test_limites_do_registro_e_do_cache_estao_fixados(env):
+    assert env.b.REGISTRO_MAX_BYTES == 5 * 1024 * 1024
+    assert env.b.REGISTRO_ARQUIVOS_ANTIGOS == 3
+    assert env.b.CACHE_MAX_ARQUIVOS == 500 and env.b.CACHE_MAX_BYTES == 100 * 1024 * 1024
+
+
+def test_registro_sem_atingir_o_limite_nao_gira(env):
+    for i in range(60):
+        env.b._registrar(_procedencia(i))
+    assert sorted(p.name for p in env.registro.parent.glob("busca.registro.jsonl*")) == ["busca.registro.jsonl"]
+
+
+def test_registro_gira_no_limite_e_guarda_so_tres_arquivos_antigos_com_linhas_inteiras(env):
+    env.patch("REGISTRO_MAX_BYTES", 2000)
+    for i in range(60):
+        env.b._registrar(_procedencia(i))
+    pasta = env.registro.parent
+    nomes = sorted(p.name for p in pasta.glob("busca.registro.jsonl*"))
+    assert nomes == ["busca.registro.jsonl", "busca.registro.jsonl.1", "busca.registro.jsonl.2", "busca.registro.jsonl.3"]
+    numeros = []
+    for nome in nomes:
+        arq = pasta / nome
+        assert arq.stat().st_size <= 2000 and stat.S_IMODE(arq.stat().st_mode) == 0o600, nome
+        for linha in arq.read_text(encoding="utf8").splitlines():
+            rec = json.loads(linha)  # cada linha inteira e válida: a rotação só move linhas, nunca corta uma
+            assert len(rec["conteudo_sha256"]) == 64 and len(rec["id"]) == 16
+            numeros.append(rec["n"])
+    assert max(numeros) == 59
+    assert sorted(numeros) == list(range(60 - len(numeros), 60))  # os mais antigos saíram; o que ficou é contínuo até o último
+
+
+def test_linhas_do_fim_vem_de_tras_para_frente_qualquer_que_seja_o_bloco(env, tmp_path):
+    texto = "primeira\nsegunda com acento é ç\n\nquarta sem quebra final"
+    arq = tmp_path / "x.jsonl"
+    arq.write_bytes(texto.encode("utf8"))
+    esperado = [linha.encode("utf8") for linha in reversed(texto.split("\n"))]
+    for bloco in (1, 2, 3, 7, 64, 65536):
+        assert list(env.b._linhas_do_fim(arq, bloco)) == esperado, bloco
+    arq.write_bytes((texto + "\n").encode("utf8"))
+    assert list(env.b._linhas_do_fim(arq, 5)) == [b""] + esperado
+
+
+def test_log_le_do_fim_e_para_quando_os_pedidos_estao_prontos(env):
+    env.patch("REGISTRO_MAX_BYTES", 2000)
+    for i in range(60):
+        env.b._registrar(_procedencia(i))
+    r = env.b.log(ultimos=1)
+    assert [x["n"] for x in r["registros"]] == [59] and len(r["arquivos"]) == 1
+    assert r["arquivos"][0].endswith("busca.registro.jsonl")
+    r = env.b.log(ultimos=10)  # atravessa os arquivos girados, em ordem de gravação
+    assert [x["n"] for x in r["registros"]] == list(range(50, 60)) and len(r["arquivos"]) > 1
+
+
+def test_cache_acima_do_teto_de_bytes_apaga_os_mais_antigos_mesmo_com_poucos_arquivos(env):
+    env.patch("CACHE_MAX_BYTES", 3000)
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    for i in range(5):
+        p = cache / f"{i:04d}.json"
+        p.write_text("x" * 1000, encoding="utf8")
+        os.utime(p, (1_000_000_000 + i, 1_000_000_000 + i))
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina", "pad": "y" * 900})
+    nomes = _nomes_do_cache(env)
+    assert "nova.json" in nomes and "0000.json" not in nomes
+    assert sum((cache / n).stat().st_size for n in nomes) <= 3000
+
+
+def test_help_da_busca_explica_o_registro_o_cache_e_o_log(env):
+    out = run_cli("busca", "--help").stdout
+    for deve in ("5 MiB", "busca.registro.jsonl.3", "100 MiB", "500 arquivos", "do fim"):
+        assert deve in out, f"busca --help sem {deve!r}"
+
+
+# ------------------------------------------------------------------------------------------------ (#113 4) nomes e endereços internos
+
+NOMES_INTERNOS_NOVOS = ["lvh.me", "app.lvh.me", "localtest.me", "x.localtest.me", "xip.io", "127.0.0.1.xip.io", "home.arpa", "roteador.home.arpa",
+                        "metadata", "ip6-localhost", "ip6-loopback"]
+ENDERECOS_INTERNOS = ["http://169.254.169.254/latest/meta-data/", "http://[fd00:ec2::254]/latest/", "http://[fe80::1]/a",
+                      "http://[fd12:3456:789a::1]:8080/a", "http://[::1]/a", "http://[::ffff:169.254.169.254]/a", "http://[fe80::1%25eth0]/a",
+                      "http://8.8.8.8/a", "http://169.254.169.254.nip.io/a", "http://0x7f000001/a", "http://2130706433/a", "http://LOCALHOST/a"]
+
+
+@pytest.mark.parametrize("url", [f"https://{h}/a" for h in NOMES_INTERNOS_NOVOS] + ENDERECOS_INTERNOS)
+def test_nome_ou_endereco_interno_novo_e_recusado_em_pagina_e_em_consulta(env, url):
+    with pytest.raises(env.b.BuscaError, match="URL inválida"):
+        env.b.pagina(url)
+    assert env.fake.chamadas() == [] and not env.contador.exists()
+    env.fake.set(search={"stdout": jt({"query": "a", "total_results": 1, "page": 0, "results": [resultado_hostil(url=url)]})})
+    r = env.b.consulta("a")
+    assert r["resultados"] == [] and r["descartados"]["url_invalida"] == 1
+
+
+def test_help_da_busca_lista_os_nomes_internos_novos():
+    out = run_cli("busca", "--help").stdout
+    for deve in ("xip.io", "lvh.me", "localtest.me", "home.arpa", "IPv6"):
+        assert deve in out, f"busca --help sem {deve!r}"
