@@ -1554,3 +1554,436 @@ def test_an_upload_reply_with_a_non_text_file_name_says_what_is_wrong(checkout, 
     rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o", "45678"))
     err = capsys.readouterr().err
     assert rc == 1 and "resposta sem nome de arquivo" in err and "HTTP 200" not in err
+
+
+# ---- T4: `run` (flags do cli.py do upstream), MCP em segundo plano, progresso do setup -------------------------------
+
+EDGE = "pt-BR-FranciscaNeural-Female"
+
+
+def _task_stdout(checkout, task_id="t1", videos=("final-1.mp4",), extra=None):
+    paths = []
+    for name in videos:
+        f = checkout / "storage" / "tasks" / task_id / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(f"video {task_id} {name}".encode())
+        paths.append(str(f))
+    return json.dumps({"task_id": task_id, "result": {"state": 1, "videos": paths, **(extra or {})}})
+
+
+@pytest.fixture
+def spawn(monkeypatch, checkout, venv):
+    """Fakes the one place `run` starts the upstream cli.py: records (argv, cwd, env) and answers (rc, stdout)."""
+    st = SimpleNamespace(calls=[], rc=0, stdout=None)
+
+    def fake(argv, cwd, env):
+        st.calls.append((list(argv), cwd, env))
+        out = st.stdout if st.stdout is not None else _task_stdout(checkout)
+        return st.rc, out
+
+    monkeypatch.setattr(moneyprinter, "_spawn_cli", fake, raising=False)
+    return st
+
+
+def _run(tmp_path, *upstream, before=()):
+    return moneyprinter.run_moneyprinter(["run", "--out", str(tmp_path / "out"), *before, "--", *upstream])
+
+
+def _local(tmp_path, name="clip.mp4"):
+    clip = tmp_path / name
+    clip.write_bytes(b"clip")
+    return clip
+
+
+def _free(tmp_path, *extra):
+    return ["--video-script", "Olá, mundo.", "--video-source", "local", "--video-materials", str(_local(tmp_path)),
+            "--voice-name", EDGE, *extra]
+
+
+def test_run_passes_the_flags_to_the_upstream_cli_in_the_checkout_and_brings_the_video_back(
+        checkout, spawn, tmp_path, capsys):
+    import hashlib
+    rc = _run(tmp_path, *_free(tmp_path, "--stop-at", "video", "--no-subtitle-enabled"), before=("--json",))
+    assert rc == 0
+    argv, cwd, _ = spawn.calls[0]
+    assert argv[0] == str(moneyprinter.venv_python()) and argv[1] == "cli.py"
+    assert Path(cwd) == checkout
+    assert "--video-script=Olá, mundo." in argv and "--no-subtitle-enabled" in argv and "--stop-at=video" in argv
+    out = json.loads(capsys.readouterr().out)
+    assert out["total"] == 1 and out["failed"] == 0
+    video = out["tasks"][0]["videos"][0]
+    assert video["sha256"] == hashlib.sha256(b"video t1 final-1.mp4").hexdigest()
+    assert (tmp_path / "out" / video["video"]).read_bytes() == b"video t1 final-1.mp4"
+    assert (tmp_path / "out" / "moneyprinter-t1.json").is_file()
+
+
+def test_run_makes_relative_paths_absolute_against_the_callers_folder(checkout, spawn, tmp_path, monkeypatch):
+    (tmp_path / "w").mkdir()
+    (tmp_path / "w" / "a.mp4").write_bytes(b"a")
+    (tmp_path / "w" / "b.mp4").write_bytes(b"b")
+    monkeypatch.chdir(tmp_path / "w")
+    rc = moneyprinter.run_moneyprinter(["run", "--out", str(tmp_path / "out"), "--", "--video-script", "x",
+                                        "--video-source", "local", "--video-materials", "a.mp4,b.mp4",
+                                        "--voice-name", EDGE])
+    assert rc == 0
+    flag = next(a for a in spawn.calls[0][0] if a.startswith("--video-materials="))
+    assert flag == f"--video-materials={tmp_path / 'w' / 'a.mp4'},{tmp_path / 'w' / 'b.mp4'}"
+
+
+@pytest.mark.parametrize("bad", [["--video-script", "x", "--bogus"], ["--video-script", "x", "positional"],
+                                 ["--help"], ["-h"], ["--video-script", "x", "--upload-post"],
+                                 ["--video-script", "x", "--social-metadata"], ["--video-script"]])
+def test_run_refuses_anything_outside_the_closed_flag_list(checkout, spawn, tmp_path, bad):
+    with pytest.raises(moneyprinter.MoneyPrinterError):
+        _run(tmp_path, *bad)
+    assert spawn.calls == []
+
+
+def test_run_needs_the_double_dash_and_something_after_it(checkout, spawn, tmp_path):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--"):
+        moneyprinter.run_moneyprinter(["run", "--out", str(tmp_path / "o"), "--video-script", "x"])
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--"):
+        moneyprinter.run_moneyprinter(["run", "--out", str(tmp_path / "o"), "--"])
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--out"):
+        moneyprinter.run_moneyprinter(["run", "--", "--video-script", "x"])
+    assert spawn.calls == []
+
+
+def test_run_accepts_the_flag_equals_value_form(checkout, spawn, tmp_path):
+    assert _run(tmp_path, "--video-script=-dash start", "--video-source=local",
+                f"--video-materials={_local(tmp_path)}", f"--voice-name={EDGE}") == 0
+    assert "--video-script=-dash start" in spawn.calls[0][0]
+
+
+@pytest.mark.parametrize("flag", ["--confirm-wavespeed-charge", "--confirm-seedance-charge", "--confirm-ofox-charge",
+                                  "--confirm-metaso-minimax-charge", "--confirm-muapi-charge"])
+def test_run_confirm_charge_flags_need_the_engine_yes(checkout, spawn, tmp_path, flag):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, *_free(tmp_path, flag))
+    assert spawn.calls == []
+    assert _run(tmp_path, *_free(tmp_path, flag), before=("--yes",)) == 0
+
+
+@pytest.mark.parametrize("source,flag", [("wavespeed", "--confirm-wavespeed-charge"),
+                                         ("volcengine_seedance", "--confirm-seedance-charge"),
+                                         ("ofox", "--confirm-ofox-charge"),
+                                         ("metaso_minimax", "--confirm-metaso-minimax-charge"),
+                                         ("muapi", "--confirm-muapi-charge"), ("openai_image", None)])
+def test_run_paid_material_sources_need_yes_and_their_own_charge_confirmation(checkout, spawn, tmp_path, source, flag):
+    base = ["--video-script", "x", "--video-source", source, "--voice-name", EDGE, "--video-terms", "a,b"]
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, *base, *([flag] if flag else []))
+    if flag:
+        with pytest.raises(moneyprinter.MoneyPrinterError, match=flag):
+            _run(tmp_path, *base, before=("--yes",))
+    assert spawn.calls == []
+    assert _run(tmp_path, *base, *([flag] if flag else []), before=("--yes",)) == 0
+
+
+def test_run_script_by_llm_needs_yes(checkout, spawn, tmp_path):
+    args = ["--video-subject", "tema", "--video-source", "local", "--video-materials", str(_local(tmp_path)),
+            "--voice-name", EDGE]
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, *args)
+    assert spawn.calls == []
+    assert _run(tmp_path, *args, before=("--yes",)) == 0
+
+
+@pytest.mark.parametrize("extra", [["--voice-name", "gemini:Kore"], ["--voice-name", "elevenlabs:abc"],
+                                   ["--voice-name", "azure-voice-V2"], ["--bgm-type", "sonilo"],
+                                   ["--bgm-type", "elevenlabs"], ["--sonilo-bgm-prompt", "calm"],
+                                   ["--video-music-prompt", "calm", "--bgm-type", "sonilo"]])
+def test_run_paid_voice_or_ai_music_needs_yes(checkout, spawn, tmp_path, extra):
+    args = ["--video-script", "x", "--video-source", "local", "--video-materials", str(_local(tmp_path)), *extra]
+    if "--voice-name" not in extra:
+        args += ["--voice-name", EDGE]
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, *args)
+    assert spawn.calls == []
+
+
+@pytest.mark.parametrize("voice", [EDGE, "no-voice", "en-US-AriaNeural", "zh-CN-XiaoxiaoNeural-Female"])
+def test_run_edge_and_silent_voices_are_free(checkout, spawn, tmp_path, voice):
+    args = ["--video-script", "x", "--video-source", "local", "--video-materials", str(_local(tmp_path)),
+            "--voice-name", voice]
+    assert _run(tmp_path, *args) == 0
+
+
+def test_run_free_online_source_with_terms_given_needs_no_yes_but_without_terms_it_does(checkout, spawn, tmp_path):
+    base = ["--video-script", "x", "--video-source", "pexels", "--voice-name", EDGE]
+    assert _run(tmp_path, *base, "--video-terms", "mar,praia") == 0
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):  # the terms would come from an LLM
+        _run(tmp_path, *base)
+
+
+def test_run_stops_before_cross_posting_when_the_config_publishes(checkout, spawn, tmp_path):
+    (checkout / "config.toml").write_text("[app]\nupload_post_enabled = true\nupload_post_auto_upload = true\n")
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="publica"):
+        _run(tmp_path, *_free(tmp_path))
+    assert spawn.calls == []
+    (checkout / "config.toml").write_text("[app]\nupload_post_enabled = false\nupload_post_auto_upload = false\n")
+    assert _run(tmp_path, *_free(tmp_path)) == 0
+
+
+def test_run_earlier_stage_prints_the_upstream_result_and_copies_nothing(checkout, spawn, tmp_path, capsys):
+    spawn.stdout = json.dumps({"task_id": "t9", "result": {"script": "Olá"}})
+    assert _run(tmp_path, "--video-script", "Olá", "--stop-at", "script", before=("--json",)) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["tasks"][0]["result"] == {"script": "Olá"} and out["tasks"][0]["videos"] == []
+    assert not list((tmp_path / "out").glob("*.mp4"))
+
+
+def test_run_a_failed_task_returns_1_and_copies_nothing(checkout, spawn, tmp_path):
+    spawn.rc = 1
+    spawn.stdout = ""
+    assert _run(tmp_path, *_free(tmp_path)) == 1
+    assert not list((tmp_path / "out").glob("*.mp4"))
+
+
+def test_run_passes_the_upstream_exit_code_2_through(checkout, spawn, tmp_path):
+    spawn.rc = 2
+    spawn.stdout = ""
+    assert _run(tmp_path, *_free(tmp_path)) == 2
+
+
+def test_run_never_reads_a_video_outside_storage_tasks(checkout, spawn, tmp_path, capsys):
+    outside = tmp_path / "secret.mp4"
+    outside.write_bytes(b"x")
+    spawn.stdout = json.dumps({"task_id": "t1", "result": {"state": 1, "videos": [str(outside)]}})
+    assert _run(tmp_path, *_free(tmp_path)) == 1
+    assert "fora da pasta de tarefas" in capsys.readouterr().err
+    assert not list((tmp_path / "out").glob("*.mp4"))
+
+
+def test_run_several_videos_get_distinct_names(checkout, spawn, tmp_path, capsys):
+    spawn.stdout = _task_stdout(checkout, videos=("final-1.mp4", "final-2.mp4"))
+    assert _run(tmp_path, *_free(tmp_path, "--video-count", "2"), before=("--json",)) == 0
+    names = [v["video"] for v in json.loads(capsys.readouterr().out)["tasks"][0]["videos"]]
+    assert len(set(names)) == 2 and all((tmp_path / "out" / n).is_file() for n in names)
+
+
+def test_run_batch_file_copies_every_task_and_counts_failures(checkout, spawn, tmp_path, capsys):
+    manifest = tmp_path / "tasks.jsonl"
+    manifest.write_text(json.dumps({"video_script": "a", "video_source": "local"}) + "\n")
+    a = _task_stdout(checkout, "ta")
+    summary = {"total": 2, "succeeded": 1, "failed": 1, "tasks": [
+        {"index": 1, "task_id": "ta", "status": "succeeded", "result": json.loads(a)["result"], "failed_stage": None,
+         "error": None},
+        {"index": 2, "task_id": "tb", "status": "failed", "result": None, "failed_stage": "audio", "error": "boom"}]}
+    spawn.stdout = json.dumps(summary)
+    spawn.rc = 1
+    rc = _run(tmp_path, "--batch-file", str(manifest), "--voice-name", EDGE, before=("--json",))
+    assert rc == 1
+    out = json.loads(capsys.readouterr().out)
+    assert (out["total"], out["succeeded"], out["failed"]) == (2, 1, 1)
+    assert out["tasks"][0]["videos"][0]["sha256"] and out["tasks"][1]["error"] == "boom"
+    assert (tmp_path / "out" / "moneyprinter-ta.mp4").is_file()
+
+
+def test_run_batch_file_with_a_task_that_needs_an_llm_or_paid_source_needs_yes(checkout, spawn, tmp_path):
+    m = tmp_path / "m.json"
+    for entry in ({"video_subject": "tema"}, {"video_script": "a", "video_source": "wavespeed"},
+                  {"video_script": "a", "video_source": "local", "voice_name": "gemini:Kore"},
+                  {"video_script": "a", "video_source": "local", "bgm_type": "sonilo"}):
+        m.write_text(json.dumps([entry]))
+        with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+            _run(tmp_path, "--batch-file", str(m), "--video-source", "local", "--voice-name", EDGE)
+    assert spawn.calls == []
+    m.write_text(json.dumps([{"video_script": "a"}, {"video_script": "b"}]))
+    assert _run(tmp_path, "--batch-file", str(m), "--video-source", "local", "--voice-name", EDGE) == 0
+
+
+def test_run_batch_file_must_exist(checkout, spawn, tmp_path):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="manifesto"):
+        _run(tmp_path, "--batch-file", str(tmp_path / "nao-existe.json"), "--voice-name", EDGE)
+
+
+def test_run_without_a_venv_points_to_setup(checkout, spawn, tmp_path):
+    moneyprinter.venv_python().unlink()
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="setup"):
+        _run(tmp_path, *_free(tmp_path))
+
+
+def test_the_module_never_calls_the_publishing_endpoints():
+    src = (ROOT / "src" / "simplicio_video" / "moneyprinter.py").read_text(encoding="utf-8")
+    assert "social-metadata" not in src and "cross_post_video" not in src and "/api/v1/social" not in src
+
+
+def test_help_documents_run_with_examples_and_the_yes_rule():
+    u = moneyprinter.USAGE
+    assert "moneyprinter run" in u and "--yes" in u and "--out" in u and "--video-script" in u
+
+
+# ---- MCP: generate e run só como tarefa em segundo plano -----------------------------------------------------------
+
+@pytest.fixture
+def jobs_env(monkeypatch):
+    from simplicio_video import jobs
+    spawned = []
+    monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: spawned.append(jid) or os.getpid())
+    return jobs, spawned
+
+
+def _mcp_run(tmp_path, *upstream, out=None):
+    import shlex
+    out = out if out is not None else str(tmp_path / "out")
+    return mcp_server.video_moneyprinter("run --out " + shlex.quote(out) + " -- "
+                                         + " ".join(shlex.quote(u) for u in upstream))
+
+
+def test_mcp_run_with_a_script_local_material_and_edge_voice_becomes_a_moneyprinter_job(checkout, tmp_path, jobs_env):
+    jobs, spawned = jobs_env
+    r = _mcp_run(tmp_path, *_free(tmp_path))
+    assert r["ok"] is True, r
+    st = jobs.read_state(r["job"]["id"])
+    assert st["kind"] == "moneyprinter" and st["origin"] == "mcp" and st["spends"] is False
+    assert spawned == [st["id"]]
+    argv = jobs.build_argv("moneyprinter", st["params"])
+    assert argv[:3] == ["moneyprinter", "run", "--out"] and argv[3] == str(tmp_path / "out")
+    assert "--json" in argv and "--yes" not in argv and argv[argv.index("--json") + 1] == "--"
+    assert "--video-script=Olá, mundo." in argv and "--video-source=local" in argv
+
+
+def test_mcp_generate_with_a_script_file_becomes_a_job_with_subtitles_off(checkout, tmp_path, jobs_env):
+    jobs, _ = jobs_env
+    script = tmp_path / "roteiro.txt"
+    script.write_text("Texto do roteiro.")
+    clip = _local(tmp_path)
+    r = mcp_server.video_moneyprinter(f"generate --script {script} --material {clip} --out {tmp_path / 'out'}")
+    assert r["ok"] is True, r
+    argv = jobs.build_argv("moneyprinter", jobs.read_state(r["job"]["id"])["params"])
+    assert "--video-script=Texto do roteiro." in argv and f"--video-materials={clip}" in argv
+    assert f"--voice-name={moneyprinter.DEFAULT_VOICE}" in argv and "--no-subtitle-enabled" in argv
+
+
+@pytest.mark.parametrize("upstream", [
+    ["--video-subject", "tema"],                                    # script by LLM
+    ["--video-script", " "],
+    ["--video-script", "x", "--video-source", "pexels", "--video-terms", "a"],
+    ["--video-script", "x", "--video-source", "wavespeed", "--confirm-wavespeed-charge"],
+    ["--video-script", "x", "--voice-name", "gemini:Kore"],
+    ["--video-script", "x", "--bgm-type", "sonilo"],
+    ["--video-script", "x", "--batch-file", "/tmp/m.json"],
+    ["--video-script", "x", "--task-id", "00000000-0000-0000-0000-000000000000"],
+    ["--video-script", "x", "--stop-at", "script"],
+    ["--video-script", "x", "--paragraph-number", "2"],
+    ["--video-script", "x", "--video-script-prompt", "p"],
+    ["--video-script", "x", "--custom-system-prompt", "p"],
+    ["--video-script", "x", "--bogus"],
+])
+def test_mcp_run_refuses_everything_else_naming_the_terminal(checkout, tmp_path, jobs_env, upstream):
+    jobs, spawned = jobs_env
+    clip = _local(tmp_path)
+    full = list(upstream)
+    if "--video-source" not in full:
+        full += ["--video-source", "local"]
+    if "--video-materials" not in full:
+        full += ["--video-materials", str(clip)]
+    if "--voice-name" not in full:
+        full += ["--voice-name", EDGE]
+    r = _mcp_run(tmp_path, *full)
+    assert r["ok"] is False and "terminal" in r["error"]
+    assert spawned == [] and jobs.list_jobs() == []
+
+
+@pytest.mark.parametrize("what", ["relative-out", "relative-material", "missing-material", "no-voice-flag", "no-material"])
+def test_mcp_run_needs_absolute_paths_existing_material_and_an_explicit_voice(checkout, tmp_path, jobs_env, what):
+    _, spawned = jobs_env
+    clip = _local(tmp_path)
+    args = ["--video-script", "x", "--video-source", "local", "--video-materials", str(clip), "--voice-name", EDGE]
+    out = str(tmp_path / "out")
+    if what == "relative-out":
+        out = "out"
+    elif what == "relative-material":
+        args[args.index("--video-materials") + 1] = "clip.mp4"
+    elif what == "missing-material":
+        args[args.index("--video-materials") + 1] = str(tmp_path / "nao.mp4")
+    elif what == "no-voice-flag":
+        del args[-2:]
+    elif what == "no-material":
+        i = args.index("--video-materials")
+        del args[i:i + 2]
+    r = _mcp_run(tmp_path, *args, out=out)
+    assert r["ok"] is False and r["error"]
+    assert spawned == []
+
+
+def test_mcp_generate_refuses_relative_paths_and_a_missing_script(checkout, tmp_path, jobs_env):
+    _, spawned = jobs_env
+    clip = _local(tmp_path)
+    for cmd in (f"generate --script roteiro.txt --material {clip} --out {tmp_path / 'o'}",
+                f"generate --script {tmp_path / 'nao.txt'} --material {clip} --out {tmp_path / 'o'}",
+                f"generate --script {tmp_path / 'nao.txt'} --material {clip} --out o"):
+        assert mcp_server.video_moneyprinter(cmd)["ok"] is False
+    assert spawned == []
+
+
+def test_mcp_generate_refuses_a_paid_voice_with_terminal_in_the_error(checkout, tmp_path, jobs_env):
+    script = tmp_path / "r.txt"
+    script.write_text("x")
+    r = mcp_server.video_moneyprinter(
+        f"generate --script {script} --material {_local(tmp_path)} --out {tmp_path / 'o'} --voice gemini:Kore")
+    assert r["ok"] is False and "terminal" in r["error"]
+
+
+def test_mcp_still_refuses_setup_serve_and_batch(checkout, venv, tmp_path, jobs_env):
+    for a in ("setup", "serve", "serve --lan", f"run --out {tmp_path / 'o'} -- --batch-file {tmp_path / 'm.json'}"):
+        r = mcp_server.video_moneyprinter(a)
+        assert r["ok"] is False and "terminal" in r["error"], a
+
+
+def test_the_moneyprinter_job_kind_revalidates_what_it_is_given(checkout, tmp_path, jobs_env):
+    jobs, spawned = jobs_env
+    bad = {"out": str(tmp_path / "o"), "upstream": ["--video-subject=tema", "--video-source=local"]}
+    with pytest.raises(jobs.JobError, match="terminal"):
+        jobs.submit("moneyprinter", bad, origin="mcp")
+    with pytest.raises(jobs.JobError):
+        jobs.submit("moneyprinter", {"out": str(tmp_path / "o"), "upstream": [], "yes": True}, origin="mcp")
+    assert spawned == []
+
+
+def test_the_moneyprinter_job_never_carries_the_engine_yes(checkout, tmp_path, jobs_env):
+    jobs, _ = jobs_env
+    r = _mcp_run(tmp_path, *_free(tmp_path))
+    argv = jobs.build_argv("moneyprinter", jobs.read_state(r["job"]["id"])["params"])
+    assert "--yes" not in argv and not any(a.startswith("--confirm-") for a in argv)
+
+
+def test_the_moneyprinter_job_result_is_the_list_of_videos_with_their_hashes(tmp_path):
+    from simplicio_video import jobs
+    last = {"total": 1, "succeeded": 1, "failed": 0, "tasks": [
+        {"task_id": "t1", "status": "succeeded", "error": None,
+         "videos": [{"video": "moneyprinter-t1.mp4", "sha256": "ab" * 32, "bytes": 3}]}]}
+    res = jobs.KINDS["moneyprinter"]["result"]({"out": str(tmp_path)}, last)
+    assert res["videos"] == [{"path": str(tmp_path / "moneyprinter-t1.mp4"), "sha256": "ab" * 32, "bytes": 3}]
+    assert jobs.KINDS["moneyprinter"]["result"]({"out": str(tmp_path)}, None) is None
+
+
+def test_mcp_description_mentions_generate_run_and_the_terminal_only_rest():
+    d = mcp_server.DESC_video_moneyprinter
+    assert "generate" in d and "run" in d and "terminal" in d and "script" in d and "background" in d
+
+
+# ---- setup mostra o progresso por etapa ------------------------------------------------------------------------------
+
+def test_setup_prints_progress_per_step_with_the_time_each_took(checkout, calls, capsys):
+    assert moneyprinter.run_moneyprinter(["setup"]) == 0
+    out = capsys.readouterr().out
+    steps = re.findall(r"^\[(\d+)/(\d+)\] (.+)$", out, flags=re.M)
+    assert steps and all(total == steps[0][1] for _, total, _ in steps)
+    assert [int(i) for i, _, _ in steps] == list(range(1, len(steps) + 1))
+    assert int(steps[0][1]) == len(steps)
+    assert "pip install" in out and "venv" in out
+    assert len(re.findall(r"^\s*ok \(\d+s\)$", out, flags=re.M)) >= 2
+
+
+def test_setup_progress_line_comes_before_the_step_runs_and_a_failure_is_named(checkout, monkeypatch, capsys):
+    seen = []
+
+    def fake(cmd, cwd=None, env=None):
+        seen.append(capsys.readouterr().out)  # what was printed before this step started
+        return 5 if "pip" in cmd else 0
+    monkeypatch.setattr("subprocess.call", fake)
+    assert moneyprinter.run_moneyprinter(["setup"]) == 1
+    assert "[1/" in seen[0] and "[2/" in seen[1]
+    assert re.search(r"falhou \(código 5, \d+s\)", capsys.readouterr().out)
