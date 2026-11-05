@@ -408,6 +408,24 @@ def test_timeout_writes_the_partial_output_then_raises(monkeypatch):
     assert "partial" in out.getvalue()
 
 
+def test_nobody_redirects_stdout_process_wide():
+    """contextlib.redirect_std* swaps sys.stdout under the capture proxies of other tool calls: use childio.capture."""
+    bad = []
+    for rel in set(SCAN) | {"mcp_server.py"}:
+        for n in ast.walk(ast.parse((SRC / rel).read_text(encoding="utf-8"))):
+            if isinstance(n, ast.Attribute) and n.attr in ("redirect_stdout", "redirect_stderr"):
+                bad.append((rel, n.lineno))
+            elif isinstance(n, ast.ImportFrom) and n.module == "contextlib" and any(
+                    a.name in ("redirect_stdout", "redirect_stderr") for a in n.names):
+                bad.append((rel, n.lineno))
+    assert not bad, f"use childio.capture(out, err): {bad}"
+
+
+def test_lint_flags_getattr_on_the_spawn_modules():
+    assert _bare_calls_src("import subprocess\ngetattr(subprocess, 'run')(c)")
+    assert not _bare_calls_src("import subprocess\ngetattr(obj, 'run')")
+
+
 def test_input_is_refused_not_dropped(monkeypatch):
     monkeypatch.setenv("SIMPLICIO_MCP", "1")
     with pytest.raises(TypeError):
