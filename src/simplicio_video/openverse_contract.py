@@ -1,7 +1,8 @@
 """Openverse assets in a contract: the offline gate behind `validate`, `render` and `openverse library verify`.
 
-A contract asset (`assets[]` or `marca.logo`, image or audio) may declare `openverse: {id, pedido}`. The rules, all offline (no
-network, no LLM, nothing written to the library):
+A contract asset (`assets[]` or `marca.logo`, image or audio) may declare `openverse: {id, pedido}`, and so may the music bed
+(`trilha.music`, audio #113): the same gate, plus a track must be audio and under a license that allows modification (the engine
+arranges and ducks it). The rules, all offline (no network, no LLM, nothing written to the library):
 
 - the asset with the block must sit in an `assets/openverse/` folder (where `library export --contrato` puts it), next to the
   `CREDITS-openverse.md` the export wrote;
@@ -29,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import openverse as ov
+from . import trilha
 
 CREDITS_SUFFIX = ".CREDITS-openverse.md"
 BLOCK_HINT = 'openverse: {id: <uuid do ativo>, pedido: "<o que a cena precisa>"}'
@@ -42,9 +44,10 @@ class Verification:
 
 
 def declared_assets(c) -> list[dict]:
-    """The files the contract copies into the composition, in contract order: `assets[]` and `marca.logo` (they may carry the block)
-    and `placas_video[].file` (marked `placa`; a plate never carries the block, so the block is never read from it). The contract may
-    not be schema-valid yet."""
+    """The files the contract copies into the composition, in contract order: `assets[]` and `marca.logo` (they may carry the block),
+    `placas_video[].file` (marked `placa`; a plate never carries the block, so the block is never read from it) and the music bed
+    `trilha.music.arquivo` (marked `trilha`; its `destino` is the approved copy the compiler puts in the composition, only with the
+    block). The contract may not be schema-valid yet."""
     d = c.data
     out = [a for a in d.get("assets") or [] if isinstance(a, dict) and isinstance(a.get("arquivo"), str)]
     logo = (d.get("marca") or {}).get("logo")
@@ -53,7 +56,22 @@ def declared_assets(c) -> list[dict]:
     for slot in d.get("placas_video") or []:
         if isinstance(slot, dict) and isinstance(slot.get("file"), str):
             out.append({"arquivo": slot["file"], "destino": slot["file"], "placa": str(slot.get("id"))})
+    music = (d.get("trilha") or {}).get("music")
+    if isinstance(music, dict) and isinstance(music.get("arquivo"), str):
+        out.append({"arquivo": music["arquivo"], "destino": trilha.origem_destino(music), "openverse": music.get("openverse"), "trilha": True})
     return out
+
+
+def _trilha_erros(prov: dict) -> list[str]:
+    """What only a music bed needs (trilha.music.openverse): audio, and a license that lets the engine arrange and duck the track
+    (the bed is a derivative made on disk in the build; by-nd and by-nc-nd do not allow it, AGENTS.md)."""
+    if prov["tipo"] != "audio":
+        return [f"trilha.music: o ativo é {ov.TIPO_PT.get(prov['tipo'], prov['tipo'])}, e a trilha de fundo precisa de um áudio da biblioteca"]
+    licenca = ov._licenses()[prov["licenca"]]  # verify_asset already refused a license outside the table
+    if not licenca["permite_modificacao"]:
+        return [f"trilha.music: a licença {ov.license_label(prov['licenca'], prov['licenca_versao'])} não permite modificação, e o motor "
+                "arranja e dá ducking na trilha; use um áudio com licença que permite modificar (CC0, PDM, CC BY ou CC BY-SA)"]
+    return []
 
 
 def _folded(part: str) -> str:
@@ -115,6 +133,8 @@ def verify(c) -> Verification:
         else:
             r = ov.verify_asset(p, bloco, idx=idx)
             res.update(ok=r["ok"], erros=[_placa_msg(a, e) for e in r["erros"]] if placa else r["erros"], proveniencia=r["proveniencia"])
+            if a.get("trilha") and bloco is not None and r["ok"]:  # a trilha de fundo da biblioteca: áudio e licença que permite o arranjo
+                res["erros"] = res["erros"] + _trilha_erros(r["proveniencia"])
         res["ok"] = res["ok"] and not res["erros"]
         if bloco is not None or no_dir or res["erros"]:
             ver.ativos.append(res)

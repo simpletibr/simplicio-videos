@@ -170,8 +170,13 @@ def compile_project(c: Contract, workdir: Path, lock: dict | None) -> dict:
         if src.is_file():
             (workdir / slot["file"]).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, workdir / slot["file"])
+    music = c.data["trilha"]["music"]
+    origem = trilha.origem_destino(music)  # áudio do Openverse: a cópia aprovada entra na composição, e o render confere estes bytes
+    if origem and c.rel(music["arquivo"]).is_file():  # ausente: o trilha.prepara recusa com a mensagem certa
+        (workdir / origem).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(c.rel(music["arquivo"]), workdir / origem)
     spec = build_spec(c, lock)
-    if c.data["trilha"]["music"].get("arquivo"):  # trilha de arquivo: arranjada aqui (cortes); o build.mjs só a lê
+    if music.get("arquivo"):  # trilha de arquivo: arranjada aqui (cortes); o build.mjs só a lê
         spec["audio"]["music"] = {**spec["audio"]["music"], "arquivo": trilha.prepara(c, workdir, lock)}
     # narration from timing.lock.json -> engine manifest
     if spec["voice"]["enabled"]:
