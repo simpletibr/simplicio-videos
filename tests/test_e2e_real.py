@@ -1114,7 +1114,7 @@ def test_b3_dono_da_porta_confirma_o_filho_que_ouve(monkeypatch):
     try:
         assert proc.stdout.readline().strip() == "ok"
         monkeypatch.setattr(e2e, "_docker_publica", lambda p: None, raising=False)  # a árvore basta: o docker não é consultado
-        assert e2e._dono_da_porta(proc, porta) is True
+        assert e2e._diagnostico_dono(proc, porta)[0] is True
     finally:
         proc.kill()
         proc.wait()
@@ -1128,9 +1128,9 @@ def test_b3_dono_da_porta_recusa_quem_so_ouve_de_fora(monkeypatch):
     proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     try:
         monkeypatch.setattr(e2e, "_docker_publica", lambda p: False, raising=False)
-        assert e2e._dono_da_porta(proc, porta) is False
+        assert e2e._diagnostico_dono(proc, porta)[0] is False
         monkeypatch.setattr(e2e, "_docker_publica", lambda p: None, raising=False)
-        assert e2e._dono_da_porta(proc, porta) is None
+        assert e2e._diagnostico_dono(proc, porta)[0] is None
     finally:
         proc.kill()
         proc.wait()
@@ -1346,7 +1346,7 @@ def test_r5_dono_da_porta_nunca_levanta_excecao(monkeypatch):
 
     monkeypatch.setattr(e2e, "_pids_da_arvore", falha)
     monkeypatch.setattr(e2e, "_docker_publica", lambda p: None)
-    assert e2e._dono_da_porta(_Vivo(), 3000) is None
+    assert e2e._diagnostico_dono(_Vivo(), 3000)[0] is None
 
 
 # 7. a porta é verificada de novo logo antes de subir o serve
@@ -1374,3 +1374,297 @@ def test_r5_porta_ocupada_durante_o_toonflow_status_nao_sobe_o_serve(tmp_path, c
     item = _item(json.loads(out), "toonflow")
     assert item["estado"] == "FAIL" and "ocupad" in item["detalhe"], item
     assert lancados == [], "com a porta ocupada depois do status o serve não pode subir"
+
+
+# ------------------------------------------------------- sexta revisão (revisor 6): itens 1 a 7
+import random  # noqa: E402
+
+# 1. ocorrências que se sobrepõem: a redação é a UNIÃO dos intervalos (um *** por intervalo unido)
+CASOS_SOBREPOSTOS = [
+    ("dois segredos que se encostam", ["ABCDE", "DEFGH"], "ABCDEFGH", "***"),
+    ("o fim de um é o começo do outro", ["SEGREDO1", "1XYZWQ"], "pre SEGREDO1XYZWQ fim", "pre *** fim"),
+    ("o mesmo segredo sobreposto a si mesmo", ["abcXabc"], "pre abcXabcXabc fim", "pre *** fim"),
+    ("a mesma coisa sem texto em volta", ["SEGREDO1", "1XYZWQ"], "SEGREDO1XYZWQ", "***"),
+    # uma só ocorrência: o resto "-AAAA" não é ocorrência de nada e fica (igual ao oráculo da revisão)
+    ("uma ocorrência só", ["sk-AAAA-AAAA"], "x sk-AAAA-AAAA-AAAA y", "x ***-AAAA y"),
+    ("cadeia de três", ["abcd", "cdef", "efgh"], "..abcdefgh..", "..***.."),
+    ("vizinhas sem sobrepor continuam separadas", ["abc", "def"], "abcdef", "******"),
+]
+
+
+def _em_pedacos(segredos, texto, tam):
+    r = e2e.Redator(segredos)
+    return "".join(r.alimentar(texto[i:i + tam]) for i in range(0, len(texto), tam)) + r.finalizar()
+
+
+@pytest.mark.parametrize("nome,segredos,texto,esperado", CASOS_SOBREPOSTOS, ids=[c[0] for c in CASOS_SOBREPOSTOS])
+def test_s1_ocorrencias_sobrepostas_viram_um_so_intervalo_redigido(nome, segredos, texto, esperado):
+    assert e2e.redigir(texto, segredos) == esperado
+    for tam in range(1, len(texto) + 2):
+        assert _em_pedacos(segredos, texto, tam) == esperado, tam
+
+
+@pytest.mark.parametrize("nome,segredos,texto,esperado", CASOS_SOBREPOSTOS[:3], ids=[c[0] for c in CASOS_SOBREPOSTOS[:3]])
+def test_s1_sobreposicao_pelo_cauda_e_pelo_drenar(tmp_path, nome, segredos, texto, esperado):
+    assert e2e._Cauda(io.BytesIO(texto.encode("utf-8")), segredos).texto() == esperado
+    log = tmp_path / "serve.log"
+    e2e._drenar(io.StringIO(texto), log, segredos)
+    assert log.read_text(encoding="utf-8") == esperado
+
+
+def _intervalos_do_oraculo(texto, formas):
+    """Força bruta: cada ocorrência de cada forma em cada posição, mais o sufixo que é prefixo próprio de uma forma."""
+    achados = []
+    for f in formas:
+        i = texto.find(f)
+        while i != -1:
+            achados.append((i, i + len(f)))
+            i = texto.find(f, i + 1)
+    for p in range(len(texto)):
+        resto = texto[p:]
+        if any(len(resto) < len(f) and f.startswith(resto) for f in formas):
+            achados.append((p, len(texto)))
+            break
+    return sorted(achados)
+
+
+def _oraculo(texto, formas):
+    saida, pos, atual = [], 0, None
+    unidos = []
+    for s, e in _intervalos_do_oraculo(texto, formas):
+        if atual and s < atual[1]:
+            atual = (atual[0], max(atual[1], e))
+        else:
+            if atual:
+                unidos.append(atual)
+            atual = (s, e)
+    if atual:
+        unidos.append(atual)
+    for s, e in unidos:
+        saida.append(texto[pos:s] + "***")
+        pos = e
+    return "".join(saida) + texto[pos:]
+
+
+def _janela_de_forma(saida, formas):
+    return next((f[i:i + 3] for f in formas for i in range(len(f) - 2) if f[i:i + 3] in saida), None)
+
+
+def _caso_aleatorio(rnd, disjunto):
+    alfabeto = rnd.choice(["AB", "ABC", "abcX", "AB\"\n", "AéB", "ABCDE"])
+    segredos = []
+    for _ in range(rnd.randint(1, 3)):
+        if segredos and rnd.random() < 0.5:  # o fim de um segredo é o começo do outro
+            base = rnd.choice(segredos)
+            k = rnd.randint(1, max(1, len(base) - 1))
+            seg = base[-k:] + "".join(rnd.choice(alfabeto) for _ in range(rnd.randint(1, 5)))
+        else:
+            seg = "".join(rnd.choice(alfabeto) for _ in range(rnd.randint(3, 8)))
+        if rnd.random() < 0.3 and len(seg) >= 4:  # com borda: o segredo se sobrepõe a si mesmo
+            k = rnd.randint(1, len(seg) // 2)
+            seg = seg[:len(seg) - k] + seg[:k] if seg[:k] != seg[-k:] else seg
+        segredos.append(seg)
+    formas = e2e._formas(segredos)
+    pedacos = []
+    for _ in range(rnd.randint(0, 7)):
+        sorte = rnd.random()
+        if sorte < 0.45:
+            nova = rnd.choice(formas)
+            if pedacos and rnd.random() < 0.7:  # sobrepõe à força: a nova começa no fim do que já está
+                antes = pedacos[-1]
+                k = rnd.randint(1, min(len(antes), len(nova)))
+                for kk in range(k, 0, -1):
+                    if antes.endswith(nova[:kk]):
+                        pedacos[-1] = antes + nova[kk:]
+                        break
+                else:
+                    pedacos.append(nova)
+            else:
+                pedacos.append(nova)
+        elif sorte < 0.8 or disjunto:
+            pedacos.append("".join(rnd.choice("#%@ !") for _ in range(rnd.randint(1, 4))))
+        else:
+            pedacos.append("".join(rnd.choice(alfabeto) for _ in range(rnd.randint(1, 5))))
+    if rnd.random() < 0.4:  # o fluxo acaba no meio de um segredo
+        f = rnd.choice(formas)
+        if len(f) > 1:
+            pedacos.append(f[:rnd.randint(1, len(f) - 1)])
+    return segredos, formas, "".join(pedacos)
+
+
+def test_s1_fuzz_uniao_das_ocorrencias_nenhum_pedaco_de_3_sobrevive_e_fluxo_igual_ao_texto_inteiro():
+    rnd = random.Random(20260506)
+    casos = vazamentos = sobrepostos = 0
+    for k in range(20000):
+        disjunto = k % 2 == 0
+        segredos, formas, texto = _caso_aleatorio(rnd, disjunto)
+        esperado = _oraculo(texto, formas)
+        inteiro = e2e.redigir(texto, segredos)
+        assert inteiro == esperado, (segredos, texto, inteiro, esperado)
+        cortes = sorted(rnd.sample(range(1, len(texto)), min(len(texto) - 1, rnd.randint(0, 6)))) if len(texto) > 1 else []
+        pedacos = [texto[a:b] for a, b in zip([0] + cortes, cortes + [len(texto)])]
+        r = e2e.Redator(segredos)
+        fluxo = "".join(r.alimentar(p) for p in pedacos) + r.finalizar()
+        assert fluxo == esperado, (segredos, texto, pedacos, fluxo, esperado)
+        if disjunto:  # só há segredo inteiro (ou começo no fim) e enchimento: nenhuma janela de 3 caracteres pode sobrar
+            assert _janela_de_forma(fluxo, formas) is None, (segredos, texto, fluxo)
+        casos += 1
+        achados = _intervalos_do_oraculo(texto, formas)
+        sobrepostos += any(a[1] > b[0] for a, b in zip(achados, achados[1:]))
+    assert casos == 20000 and sobrepostos > 500, sobrepostos  # o gerador de fato produz sobreposição
+
+
+# 2. nomes: na dúvida, redige (substring), com uma lista pequena e explícita de falsos positivos
+NOMES_QUE_SAO_SEGREDO = ["FAL_KEY1", "API_KEY2", "GEMINIKEY", "MYKEY", "OPENAIAPIKEY", "SESSIONKEY", "MY_TOKEN2",
+                         "GEMINI_API_KEY", "GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "DB_PASSWD", "ACME_PASSWORD_X",
+                         "GOOGLE_CREDENTIALS", "SERVICE_CREDENTIAL", "OAUTH_CLIENT", "AUTHORIZATION", "apiKey", "myPassword",
+                         "TOKENS_DIR", "KEYS_DIR", "PRIVATE_KEY_PATH", "SENHA_DB", "DASHSCOPE_API_KEY"]
+NOMES_QUE_NAO_SAO = ["KEYBOARD_LAYOUT", "MONKEY_MODE", "KEYMAP", "KEYFRAME_RATE", "TURNKEY_MODE", "HOTKEY", "KEYBINDINGS",
+                     "SEARCH_KEYWORDS", "TOKENIZERS_PARALLELISM", "GIT_AUTHOR_NAME", "AUTHORITY", "HOME", "PATH", "LANG",
+                     "DEBUG", "name"]
+
+
+@pytest.mark.parametrize("nome", NOMES_QUE_SAO_SEGREDO)
+def test_s2_nome_com_key_token_secret_password_ou_afins_e_segredo(nome):
+    assert e2e._nome_e_segredo(nome), nome
+    sondas = SondasFalsas(chaves={nome: "valor-secreto-9876"})
+    assert "valor-secreto-9876" in e2e._segredos(sondas, e2e.detectar(sondas, sondar=False))
+
+
+@pytest.mark.parametrize("nome", NOMES_QUE_NAO_SAO)
+def test_s2_falsos_positivos_conhecidos_nao_sao_segredo(nome):
+    assert not e2e._nome_e_segredo(nome), nome
+    sondas = SondasFalsas(chaves={nome: "valor-comum-9876"})
+    assert "valor-comum-9876" not in e2e._segredos(sondas, e2e.detectar(sondas, sondar=False))
+
+
+def test_s2_nomes_do_config_seguem_a_mesma_regra(tmp_path, monkeypatch):
+    texto = ('FAL_KEY1 = "cfg-fal-1111"\nmyKey = "cfg-my-2222"\nkeyboard_layout = "cfg-kb-3333"\n'
+             'openaiapikey = "cfg-oa-4444"\n')
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(texto, encoding="utf-8")
+    esperado = {"cfg-fal-1111", "cfg-my-2222", "cfg-oa-4444"}
+    assert e2e._valores_do_config(cfg) == esperado
+    monkeypatch.setitem(sys.modules, "tomllib", None)
+    assert e2e._valores_do_config(cfg) == esperado
+
+
+def test_s2_valor_curto_em_variavel_de_segredo_continua_sem_ser_redigido():
+    sondas = SondasFalsas(chaves={"DEBUG_TOKEN": "1", "TOKEN_ON": "on", "MYKEY": "abc"})
+    segredos = e2e._segredos(sondas, e2e.detectar(sondas, sondar=False))
+    assert segredos == ["abc"]
+
+
+# 3. config.toml: o texto original do valor também sai redigido (a leitura do tomllib normaliza o número)
+CASOS_LITERAIS = [
+    ("inteiro com sublinhado", "token = 1_234_567\n", ["1_234_567", "1234567"]),
+    ("hexadecimal", "token = 0xDEADBEEF\n", ["0xDEADBEEF", "3735928559"]),
+    ("decimal com zero a direita", "api_key = 1.50\n", ["1.50"]),
+    ("notação científica", "api_key = 6.02e23\n", ["6.02e23"]),
+    ("lista de decimais", "keys = [1.50, 2.250]\n", ["1.50", "2.250"]),
+    ("octal e binário", "token = 0o7654321\nsecret = 0b1011001\n", ["0o7654321", "0b1011001"]),
+]
+
+
+@pytest.mark.parametrize("com_tomllib", [True, False], ids=["tomllib", "regex"])
+@pytest.mark.parametrize("nome,texto,literais", CASOS_LITERAIS, ids=[c[0] for c in CASOS_LITERAIS])
+def test_s3_literal_original_do_numero_e_redigido(tmp_path, monkeypatch, com_tomllib, nome, texto, literais):
+    if not com_tomllib:
+        monkeypatch.setitem(sys.modules, "tomllib", None)
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(texto, encoding="utf-8")
+    valores = e2e._valores_do_config(cfg)
+    for lit in literais:
+        assert lit in valores, (lit, valores)
+    saida = e2e.redigir("eco " + " e ".join(literais) + " fim", sorted(valores, key=len, reverse=True))
+    assert not any(lit in saida for lit in literais), saida
+
+
+# 4. o *** do fim do fluxo é exigido no _Cauda e no _drenar (reverter o finalizar de qualquer um dos dois fica vermelho)
+@pytest.mark.parametrize("k", [1, 5, 20])
+def test_s4_cauda_exige_o_asteriscos_no_fim_do_fluxo(k):
+    seg = SEG_CORTE
+    texto = e2e._Cauda(io.BytesIO(("linha " + seg[:k]).encode("utf-8")), [seg]).texto()
+    assert texto == "linha ***", texto
+
+
+@pytest.mark.parametrize("k", [1, 5, 20])
+def test_s4_drenar_exige_o_asteriscos_no_fim_do_fluxo(tmp_path, k):
+    seg = SEG_CORTE
+    log = tmp_path / "serve.log"
+    e2e._drenar(io.StringIO("linha " + seg[:k]), log, [seg])
+    assert log.read_text(encoding="utf-8") == "linha ***"
+
+
+def test_s4_drenar_exige_o_asteriscos_com_bytes_e_pedacos_pequenos(tmp_path):
+    seg = SEG_CORTE
+
+    class Pequenos:
+        def __init__(self, dados):
+            self.dados, self.i = dados, 0
+
+        def read1(self, n):
+            pedaco = self.dados[self.i:self.i + 3]
+            self.i += 3
+            return pedaco
+
+        def close(self):
+            pass
+
+    log = tmp_path / "serve.log"
+    e2e._drenar(Pequenos(("linha " + seg[:12]).encode("utf-8")), log, [seg])
+    assert log.read_text(encoding="utf-8") == "linha ***"
+
+
+# 5. _dono_da_porta era um invólucro só dos testes: some, e os testes chamam a função de verdade
+def test_s5_nao_ha_involucro_so_de_teste_para_o_dono_da_porta():
+    assert not hasattr(e2e, "_dono_da_porta")
+    assert callable(e2e._diagnostico_dono)
+
+
+# 6. custo do redator: por byte, não por leitura (leituras de 100 bytes não custam mais que blocos de 64 KiB)
+def _cpu_do_redator(segredo, tam_leitura, total):
+    r = e2e.Redator([segredo])
+    entrada = "A" * tam_leitura
+    inicio = time.process_time()
+    for _ in range(total // tam_leitura):
+        r.alimentar(entrada)
+    r.finalizar()
+    return time.process_time() - inicio
+
+
+def test_s6_leituras_pequenas_nao_custam_mais_que_blocos_grandes_no_pior_caso():
+    segredo = "A" * 2000 + "B"  # todo "A" do fluxo é começo de segredo: o pior caso das buscas
+    grande = _cpu_do_redator(segredo, 64 * 1024, 192 * 1024)
+    pequena = _cpu_do_redator(segredo, 100, 192 * 1024)
+    assert pequena <= 2.0 * grande + 0.3, f"100 bytes: {pequena:.2f} s; 64 KiB: {grande:.2f} s"
+
+
+def test_s6_o_docstring_do_redator_nao_promete_o_custo_errado():
+    doc = e2e.Redator.__doc__
+    assert "maior²" not in doc and "maior^2" not in doc
+    assert "bloco × maior" in doc or "bloco x maior" in doc
+
+
+# 7. aviso (sem imprimir o valor) quando um segredo configurado é curto demais para ser redigido
+def test_s7_aviso_quando_ha_segredo_curto_demais_e_o_valor_nao_aparece(tmp_path, capsys):
+    sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA, "MEU_PIN_TOKEN": "q7"})
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--apenas", "smoke-so"], sondas=sondas, gravador=Gravador())
+    assert "menos de 3 caracteres" in out and "não será redigido" in out, out
+    assert "q7" not in out and CHAVE_FALSA not in out
+
+
+def test_s7_aviso_vai_para_o_stderr_com_json_e_nao_suja_o_documento(tmp_path, capsys):
+    sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA, "MEU_PIN_TOKEN": "q7"})
+    rc = e2e.main(["--pasta", str(tmp_path / "e2e"), "--sim-gastar", "--json", "--apenas", "smoke-so"], sondas=sondas,
+                  runner=Gravador())
+    capturado = capsys.readouterr()
+    assert json.loads(capturado.out)["schema"] == e2e.SCHEMA
+    assert "menos de 3 caracteres" in capturado.err and "q7" not in capturado.err + capturado.out
+    assert rc in (0, 1)
+
+
+def test_s7_sem_segredo_curto_nao_ha_aviso(tmp_path, capsys):
+    sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA})
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--apenas", "smoke-so"], sondas=sondas, gravador=Gravador())
+    assert "menos de 3 caracteres" not in out
