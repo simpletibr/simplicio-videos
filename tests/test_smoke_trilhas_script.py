@@ -227,6 +227,10 @@ def test_rodar_cli_estouro_mata_o_processo_e_os_netos(smoke, monkeypatch, tmp_pa
     neto = int(pidfile.read_text())
     try:
         assert saida.timeout and saida.rc == 124
+        # The pipe reaches EOF when the neto closes its fds, a moment before the kernel marks it dead: poll briefly.
+        prazo = time.monotonic() + 2
+        while _vivo(neto) and time.monotonic() < prazo:
+            time.sleep(0.02)
         assert not _vivo(neto), "o neto sobreviveu ao estouro: o grupo do processo não foi morto"
     finally:
         if _vivo(neto):
@@ -234,12 +238,26 @@ def test_rodar_cli_estouro_mata_o_processo_e_os_netos(smoke, monkeypatch, tmp_pa
 
 
 def _vivo(pid: int) -> bool:
-    """True while `pid` runs (a zombie is dead for this purpose)."""
+    """True while `pid` runs; a zombie (Z) or a process that is exiting (X) is dead for this purpose."""
     try:
         estado = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
     except (FileNotFoundError, ProcessLookupError, IndexError):
         return False
-    return estado != "Z"
+    return estado not in ("Z", "X")
+
+
+def test_mensagem_do_mcp_no_stderr_entra_no_resultado(smoke, monkeypatch):
+    """video_voicestudio prints its 'app closed' message to stderr and returns an empty log: the check must still read it."""
+    def fechado(**kwargs):
+        print("voicestudio: não consegui falar com o VoiceStudio", file=sys.stderr)
+        return {"ok": False, "result": 1, "log": ""}
+
+    monkeypatch.setattr(smoke.mcp_server, "video_fechado", fechado, raising=False)
+    monkeypatch.setitem(smoke.MCP_LEITURA, "voicestudio", smoke.ChamadaMcp("video_fechado", {}, precisa=False))
+    resposta, erro = smoke._chamar_mcp("video_fechado", {})
+    assert erro == "" and "não consegui falar" in resposta["log"]
+    r = smoke._checar_mcp("voicestudio", False)
+    assert r.estado == smoke.SKIP and r.detalhe == "app fechado (sem resposta local)"
 
 
 def test_lista_de_tools_do_mcp_tem_limite_de_tempo(smoke, monkeypatch):
