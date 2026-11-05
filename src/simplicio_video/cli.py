@@ -602,20 +602,42 @@ def _render_json(a) -> int:
     return 0
 
 
-# subcommands handled before argparse: the ones with their own --json take the global one; the others refuse it (exit 2)
-_PASSTHROUGH_JSON = ("busca", "qc", "voicestudio", "swap", "jobs", "social", "openverse", "formats", "instagram", "moneyprinter")
-_PASSTHROUGH_NO_JSON = ("clone", "montage", "opencut", "edit", "shorts", "media", "toonflow", "matchcut", "rea-video")
+# Subcommands handled before argparse that take the global --json (their own parsers accept it). The hand-parsed ones
+# accept it only on some sub-subcommands, so the global one is passed on only there, right after the sub-subcommand
+# (never at the end, where it could become the value of an option); everywhere else it is a usage error (exit 2).
+_PASSTHROUGH_JSON = ("busca", "qc", "voicestudio", "swap", "jobs", "social", "openverse", "formats")
+_JSON_SO_EM = {"instagram": ("where", "status", "skills"), "moneyprinter": ("generate",)}
+
+
+def _json_global(ap, args_list: list[str]) -> list[str]:
+    """Moves a leading global `--json` (repeated ones collapse) to the subcommand that has its own; exit 2 if it has none."""
+    if not args_list or args_list[0] != "--json":
+        return args_list
+    resto = args_list[1:]
+    while resto and resto[0] == "--json":
+        resto = resto[1:]
+    if not resto:
+        return ["--json"]
+    cmd = resto[0]
+    if cmd in _JSON_SO_EM:
+        sub = resto[1] if len(resto) > 1 else ""
+        if sub not in _JSON_SO_EM[cmd]:
+            ap.error(f"--json não vale para `{cmd} {sub}`".rstrip() + f" (só em {', '.join(_JSON_SO_EM[cmd])})")
+        return [cmd, sub, "--json", *resto[2:]]
+    if cmd in _PASSTHROUGH_JSON:
+        corpo = resto[1:]
+        fim = corpo.index("--") if "--" in corpo else len(corpo)  # after `--` everything is a value
+        return [cmd, *corpo[:fim], "--json", *corpo[fim:]]
+    return ["--json", *resto]  # argparse decides: it accepts it where the subcommand has --json, else exit 2
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
-    if len(args_list) > 1 and args_list[0] == "--json" and args_list[1] in _PASSTHROUGH_JSON:
-        resto = args_list[2:]
-        fim = resto.index("--") if "--" in resto else len(resto)  # after `--` everything is a value
-        args_list = [args_list[1], *resto[:fim], "--json", *resto[fim:]]  # the global --json goes to the subcommand's own
-    elif len(args_list) > 1 and args_list[0] == "--json" and args_list[1] in _PASSTHROUGH_NO_JSON:
-        ap.error(f"--json não vale para `{args_list[1]}` (esse subcomando não tem saída JSON)")
+    args_list = _json_global(ap, args_list)
+    argv = args_list if argv is not None else None
+    if argv is None and args_list != sys.argv[1:]:
+        argv = args_list
     if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "qc", "toonflow", "moneyprinter", "matchcut", "instagram", "rea-video", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
         antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
         # `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this parser
