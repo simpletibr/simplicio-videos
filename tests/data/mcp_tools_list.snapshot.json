@@ -1230,7 +1230,7 @@
    "name": "video.voice"
   },
   {
-   "description": "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. Exige o app aberto; fora do render determinístico.",
+   "description": "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub create (sobe um vídeo ao app e cria o job de dublagem: só o upload e o preparo; transcrever, traduzir e gerar a dublagem rodam no app), dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. `args` é a linha de comando (aspas valem). --out/-o precisa ser um caminho absoluto: um relativo é recusado. Devolve `result` com o JSON do comando (a tool acrescenta --json), `rc` e, se falhar, `error`. Clonar ou dublar a voz de uma pessoa real só com o consentimento registrado dela. Exige o app aberto; fora do render determinístico.",
    "inputSchema": {
     "properties": {
      "args": {

@@ -485,21 +485,65 @@ def video_rea_video(args: str = "") -> dict:
     return out
 
 
-DESC_video_voicestudio = "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. Exige o app aberto; fora do render determinístico."
+DESC_video_voicestudio = "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub create (sobe um vídeo ao app e cria o job de dublagem: só o upload e o preparo; transcrever, traduzir e gerar a dublagem rodam no app), dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. `args` é a linha de comando (aspas valem). --out/-o precisa ser um caminho absoluto: um relativo é recusado. Devolve `result` com o JSON do comando (a tool acrescenta --json), `rc` e, se falhar, `error`. Clonar ou dublar a voz de uma pessoa real só com o consentimento registrado dela. Exige o app aberto; fora do render determinístico."
+
+
+def _voicestudio_out_relativo(argv: list[str]) -> str | None:
+    """The first --out/-o value that is not an absolute path (argparse also takes -oVALOR, --out=VALOR and a prefix like --ou), or None."""
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        valor = None
+        if tok.startswith("--"):
+            nome, eq, resto = tok.partition("=")
+            if len(nome) >= 3 and "--out".startswith(nome):
+                valor = resto if eq else (argv[i + 1] if i + 1 < len(argv) else "")
+        elif tok == "-o":
+            valor = argv[i + 1] if i + 1 < len(argv) else ""
+        elif tok.startswith("-o") and len(tok) > 2:
+            valor = tok[2:]
+        if valor is not None and not os.path.isabs(valor):
+            return valor
+        i += 1
+    return None
+
+
 def video_voicestudio(args: str = "") -> dict:
-    """VoiceStudio over MCP: status, listas, TTS, transcrição e perfis, pela API/MCP local do app em :3900.
-    `mcp` devolve o bloco de configuração; nada aqui instala ou inicia o app."""
+    """VoiceStudio over MCP: status, listas, TTS, transcrição, perfis e jobs de dublagem, pela API/MCP local do app em :3900.
+    `mcp` devolve o bloco de configuração; nada aqui instala ou inicia o app. --out/-o tem de ser absoluto."""
+    import shlex
+
     from . import voicestudio
-    argv = args.split() if isinstance(args, str) else list(args)
-    buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(buf):
+        argv = shlex.split(args) if isinstance(args, str) else [str(x) for x in args]
+    except ValueError as e:
+        return {"ok": False, "rc": 2, "result": None, "error": f"aspas não fechadas nos argumentos: {e}"}
+    relativo = _voicestudio_out_relativo(argv)
+    if relativo is not None:
+        return {"ok": False, "rc": 2, "result": None,
+                "error": f"--out precisa ser um caminho absoluto (recebi {relativo!r}): o servidor MCP não sabe em que pasta o cliente está."}
+    if argv and not any(t in ("--json", "-h", "--help", "help") for t in argv):
+        argv.append("--json")
+    out, err = io.StringIO(), io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             rc = voicestudio.run_voicestudio(argv)
-        out = {"ok": rc == 0, "result": rc}
+    except SystemExit as e:  # argparse ends with a code (2 on a usage error)
+        rc = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
-        out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    out["log"] = buf.getvalue().strip()[-8000:]
-    return out
+        return {"ok": False, "rc": 1, "result": None, "error": f"{type(e).__name__}: {e}"}
+    texto, erro = out.getvalue().strip(), err.getvalue().strip()
+    result = None
+    if texto[:1] in ("{", "["):
+        with contextlib.suppress(ValueError):
+            result = json.loads(texto)
+    res: dict[str, Any] = {"ok": rc == 0, "rc": rc, "result": result}
+    if rc != 0:
+        res["error"] = (erro or texto or f"saiu com o código {rc}")[-2000:]
+    log = "\n".join(p for p in ([erro] if rc == 0 else []) + ([texto] if result is None else []) if p)
+    if log:
+        res["log"] = log[-8000:]
+    return res
 
 
 DESC_video_shorts = "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; only new files are written."
