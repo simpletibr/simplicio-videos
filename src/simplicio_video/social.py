@@ -164,18 +164,22 @@ def _quanto(c: dict) -> str:
     return f"o vídeo tem {real}"
 
 
-def _limite_txt(limite) -> str:
+UNIDADE_DO_CAMPO = {"duration_min_s": "s", "duration_max_s": "s", "size_max_mb": "MB", "caption_max_chars": "caracteres",
+                    "title_max_chars": "caracteres", "hashtags_max": "hashtags"}
+
+
+def _limite_txt(limite, campo: str = "") -> str:
     if isinstance(limite, list):
         return " ou ".join(limite)
     if isinstance(limite, dict):
         return f"de {limite['min_ratio']} a {limite['max_ratio']} (proporção)"
-    return str(limite)
+    return f"{limite} {UNIDADE_DO_CAMPO.get(campo, '')}".rstrip()
 
 
 def _linha(c: dict) -> str:
     """One limit in words for the user, with the scope of the field (Spotlight, Saved Story...) when the table gives one."""
     escopo = f" ({c['escopo']})" if c.get("escopo") else ""
-    return f"{c['network']}: {c['field']} limite {_limite_txt(c['limit'])}{escopo}, {_quanto(c)}"
+    return f"{c['network']}: {c['field']} limite {_limite_txt(c['limit'], c['field'])}{escopo}, {_quanto(c)}"
 
 
 def providers_report() -> dict:
@@ -964,8 +968,9 @@ def _plan_text(res: dict) -> str:
     nao = [c for c in p["checks"] if c["status"] == "unchecked"]
     if nao:
         lines.append(f"  sem limite conferido ({len(nao)}): " + ", ".join(f"{c['network']}:{c['field']}" for c in nao))
-    if p["accepted_unverified"]:
-        lines.append("  violações UNVERIFIED aceitas: " + ", ".join(p["accepted_unverified"]))
+    for c in p["checks"]:  # each accepted violation, with its scope, its measure and its limit
+        if c["status"] == "violation":
+            lines.append(f"  violação UNVERIFIED aceita: {_linha(c)} (UNVERIFIED)")
     if sem:
         lines.append("a receita deste plano sai bloqueada: gere um plano só com as redes que o provedor publica (simplicio-video social providers)")
     else:

@@ -35,7 +35,7 @@
           "fonte": "https://realoficial.com.br/mcp"
         },
         "zernio": {
-          "texto": "não aprovado pela Snap: a Snap ainda não aprovou o app da Zernio; toda conexão falha com 403 PLATFORM_BETA_RESTRICTED",
+          "texto": "app da Zernio ainda sem aprovação da Snap; toda conexão falha com 403 PLATFORM_BETA_RESTRICTED",
           "fonte": "https://docs.zernio.com/platforms/snapchat"
         }
       }
@@ -295,7 +295,7 @@
         "o link de upload vale 1 hora e o arquivo some do armazenamento temporário em 7 dias",
         "limites por rede: só nas páginas docs.zernio.com por rede (UNVERIFIED), ver `social` limits.json",
         "limites de taxa: UNVERIFIED (guia de rate limits não lido)",
-        "redes: Reddit temporariamente indisponível; desde 19/10/2026 o Reddit bloqueia as chamadas do app da Zernio para todos os clientes Zernio; Snapchat não aprovado pela Snap (403 PLATFORM_BETA_RESTRICTED); lidas em docs.zernio.com/platforms/reddit e /snapchat em 2026-11-05 (ver sem_provedor)."
+        "redes: Reddit temporariamente indisponível; desde 19/10/2026 o Reddit bloqueia as chamadas do app da Zernio para todos os clientes Zernio; Snapchat não aprovado pela Snap (403 PLATFORM_BETA_RESTRICTED); lidas em https://docs.zernio.com/platforms/reddit e https://docs.zernio.com/platforms/snapchat, em 2026-11-05 (ver sem_provedor)."
       ],
       "gaps": [
         "Não se achou ferramenta de prévia, cotação ou rascunho: posts_create publica na hora quando publish_at é 'now', então o consentimento vem antes de subir a mídia e antes de criar o post.",
