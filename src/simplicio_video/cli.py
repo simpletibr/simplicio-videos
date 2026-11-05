@@ -460,7 +460,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video install --check\n  simplicio-video install --dry-run --json\n  simplicio-video install\n"
                "  simplicio-video install --host codex --target ~/meu-projeto\n  simplicio-video install --global\n"
                "  simplicio-video install --global --prune-project-copies --target ~/meu-projeto\n  simplicio-video install --verify\n"
-               "  simplicio-video install --uninstall --dry-run")
+               "  simplicio-video install --uninstall --dry-run",
+        allow_abbrev=False)  # no abbreviations: `--uninst` must not run the removal that `--uninstall` runs
     p.add_argument("--target", default=".", metavar="DIR", help="pasta do projeto onde instalar (padrão: a pasta atual)")
     p.add_argument("--global", dest="globally", action="store_true", help="instala nas 11 pastas de skills sob o home (~/.claude/skills, ~/.codex/skills...) em vez do projeto")
     p.add_argument("--host", default="claude", metavar="HOST", help="id do host ou all (padrão: claude); com --global é ignorado")

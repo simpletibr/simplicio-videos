@@ -111,7 +111,10 @@ def filter_values(rest: list[str]) -> list[str]:
 
 
 def colour_filter_ok(chain: str) -> bool:
-    """True if every filter of the chain is a colour filter from the closed set, with no file-reading option."""
+    """True if every filter of the chain is a colour filter from the closed set, with no file-reading option. A backslash or a
+    quote is refused wherever it is: ffmpeg drops them before it matches the option names, so ps\\file and 'psfile' are psfile."""
+    if any(c in chain for c in "\\'\""):
+        return False
     for part in re.split(r"[,;]", chain):
         name, _, opts = part.strip().partition("=")
         if name.strip() not in GRADE_FILTERS_MCP:
