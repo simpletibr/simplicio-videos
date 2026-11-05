@@ -38,7 +38,6 @@ Exemplos:
 from __future__ import annotations
 
 import argparse
-import bisect
 import codecs
 import importlib.util
 import json
@@ -295,25 +294,33 @@ def detectar(sondas, *, sondar: bool) -> Ambiente:
     )
 
 
+ROTULO_CONFIG_MP = "config.toml do MoneyPrinter"
 MIN_VALOR_SEGREDO = 3           # valores de segredo com menos caracteres não são redigidos (ver docs/how-to/e2e-real.md)
-_TOKENS_SEGREDO = frozenset({"KEY", "KEYS", "APIKEY", "ACCESSKEY", "PRIVATEKEY", "SECRETKEY", "SIGNINGKEY", "PASSWD",
-                             "PASSWORD", "PASSWORDS", "SENHA", "SENHAS", "TOKEN", "TOKENS", "SECRET", "SECRETS"})
-
-
-def _tokens_do_nome(nome: str) -> list:
-    """Partes de um nome de variável ou de campo: separa por não alfanumérico e por CamelCase (apiKey -> API, KEY)."""
-    separado = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", nome)
-    return [p for p in re.split(r"[^A-Za-z0-9]+", separado.upper()) if p]
+# Nome de variável ou de campo que guarda segredo: na dúvida, redige. Basta o nome CONTER uma destas partes (FAL_KEY1,
+# GEMINIKEY, MYKEY, OPENAIAPIKEY, SESSIONKEY, MY_TOKEN2 contam), menos as palavras de _NAO_SEGREDO.
+_PARTES_SEGREDO = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PASSPHRASE", "CREDENTIAL", "SENHA", "AUTH")
+# Falsos positivos conhecidos, tirados do nome antes da busca (lista pequena, de nomes reais de ambiente e de config):
+# teclado (KEYBOARD, KEYMAP, KEYBINDING, KEYCODE, KEYSTROKE, KEYPAD, HOTKEY), animais e afins (MONKEY, DONKEY, TURKEY,
+# TURNKEY, HOCKEY, JOCKEY, WHISKEY), KEYFRAME (animação), KEYWORD (busca), KEYSTONE e KEYCLOAK (nomes de serviços; as
+# credenciais deles têm SECRET ou PASSWORD no nome), TOKENIZ (TOKENIZERS_PARALLELISM do Hugging Face) e AUTHOR/AUTHORITY
+# (GIT_AUTHOR_NAME); AUTHORIZATION continua sendo segredo.
+_NAO_SEGREDO = re.compile(r"KEYBOARD|KEYMAP|KEYBIND|KEYCODE|KEYSTROKE|KEYPAD|HOTKEY|MONKEY|DONKEY|TURKEY|TURNKEY|HOCKEY|"
+                          r"JOCKEY|WHISKEY|KEYFRAME|KEYWORD|KEYSTONE|KEYCLOAK|TOKENIZ|AUTHOR(?!IZ)|AUTHORITY")
 
 
 def _nome_e_segredo(nome: str) -> bool:
-    """O nome tem uma parte que guarda segredo (KEY, TOKEN, SECRET, PASSWORD, senha...). KEYBOARD e MONKEY não são."""
-    return any(p in _TOKENS_SEGREDO or p.endswith(("TOKEN", "SECRET", "PASSWORD")) for p in _tokens_do_nome(nome))
+    """O nome contém uma parte que guarda segredo (KEY, TOKEN, SECRET, PASSWORD, senha...), fora os falsos positivos
+    conhecidos de _NAO_SEGREDO. Substring de propósito: GEMINIKEY e OPENAIAPIKEY são segredo, KEYBOARD_LAYOUT não."""
+    limpo = _NAO_SEGREDO.sub("_", str(nome).upper())
+    return any(parte in limpo for parte in _PARTES_SEGREDO)
+
+
 TETO_CAUDA = 1024 * 1024        # 1 MiB de saída guardada para o relatório (a redação continua em fluxo)
 TAM_BLOCO = 64 * 1024           # leitura em blocos fixos de 64 KiB
+LIMIAR_AMORTIZAR = 256          # sufixo retido acima disto: o texto novo espera juntar o tamanho dele (ver Redator)
 
 
-_NUMERO_TOML = re.compile(r"[-+]?\d[\d_.:eE+-]*")  # inteiro, decimal ou data: o texto é o que sai no config
+_NUMERO_TOML = re.compile(r"[-+]?\d[\w.:+-]*")  # inteiro (0x, 0o, 0b, _), decimal, científico ou data: o texto é o que sai no config
 
 
 def _ler_texto_toml(texto: str, i: int):
@@ -370,7 +377,7 @@ def _valores_de_valor_toml(texto: str, i: int) -> list:
 
 
 def _valores_por_regex(texto: str) -> set:
-    """Caminho sem tomllib (Python 3.10): cada `chave = valor` com chave que tem key, token, secret, password ou senha.
+    """Caminho sem tomllib (Python 3.10): cada `chave = valor` com chave de nome de segredo (ver _nome_e_segredo).
     Cobre chave e valor entre aspas simples ou duplas, escapes, listas em várias linhas, tabela inline e [[x]]."""
     achados: set = set()
     for m in re.finditer(r"""(?P<chave>["']?[\w.\-]+["']?)[ \t]*=[ \t]*""", texto):
@@ -380,9 +387,10 @@ def _valores_por_regex(texto: str) -> set:
 
 
 def _valores_do_config(caminho) -> set:
-    """Valores de campos de segredo do config.toml do MoneyPrinter (lidos, nunca impressos): strings e listas de
-    strings cujo nome tem key, token, secret, password ou senha, em qualquer tabela, tabela inline e [[x]]. Um campo
-    de segredo herda o segredo para tudo que está dentro dele. Sem tomllib usa a leitura por regex."""
+    """Valores de campos de segredo do config.toml do MoneyPrinter (lidos, nunca impressos): strings, números e listas
+    deles cujo nome é de segredo (ver _nome_e_segredo), em qualquer tabela, tabela inline e [[x]]. Um campo de segredo
+    herda o segredo para tudo que está dentro dele. Vale o valor lido pelo tomllib (quando há) e o texto original do
+    valor, achado por regex (o único caminho no Python 3.10)."""
     if caminho is None or not Path(caminho).is_file():
         return set()
     texto = Path(caminho).read_text(encoding="utf-8", errors="replace")
@@ -413,19 +421,42 @@ def _valores_do_config(caminho) -> set:
     try:
         caminhar(tomllib.loads(texto))
     except ValueError:
-        pass  # config.toml inválido: o MoneyPrinter é que reclama; aqui só não há o que redigir
+        pass  # config.toml inválido: o MoneyPrinter é que reclama; aqui a leitura por regex ainda acha o que dá
+    # o tomllib normaliza o número (1_234_567, 0xDEADBEEF, 6.02e23 e 1.50 viram 1234567, 3735928559, 6.02e+23 e 1.5): o
+    # texto ORIGINAL do valor, como está no arquivo (e como o MoneyPrinter o imprime), também tem de sair redigido
+    achados |= _valores_por_regex(texto)
     return {v for v in achados if v}
 
 
-def _segredos(sondas, amb: Ambiente) -> list:
-    """Tudo que deve sair redigido: toda variável de ambiente cujo nome tem KEY, TOKEN, SECRET ou PASSWORD (qualquer
-    valor), as chaves conhecidas dos adaptadores e os campos de segredo do config.toml do MoneyPrinter. Não cobre o que
-    o Toonflow guarda na própria interface (ver docs/how-to/e2e-real.md)."""
+def _candidatos(sondas, amb: Ambiente) -> list:
+    """(rótulo, valor) de tudo que é segredo: toda variável de ambiente de nome de segredo (ver _nome_e_segredo, qualquer
+    valor), as chaves conhecidas dos adaptadores e os campos de segredo do config.toml do MoneyPrinter. O rótulo é o
+    nome da variável (ou o config.toml), nunca o valor."""
     env = sondas.env()
     nomes = set(CHAVES_CONHECIDAS) | {var for var, _ in amb.adaptadores.values() if var}
     nomes |= {n for n in env if _nome_e_segredo(n)}
-    valores = {env[n] for n in nomes if env.get(n)} | _valores_do_config(sondas.config_moneyprinter())
-    return sorted((v for v in valores if len(v) >= MIN_VALOR_SEGREDO), key=len, reverse=True)
+    achados = [(n, env[n]) for n in sorted(nomes) if env.get(n)]
+    return achados + [(ROTULO_CONFIG_MP, v) for v in sorted(_valores_do_config(sondas.config_moneyprinter()))]
+
+
+def _segredos(sondas, amb: Ambiente) -> list:
+    """O que deve sair redigido (valores com pelo menos MIN_VALOR_SEGREDO caracteres), o mais longo primeiro. Não cobre o
+    que o Toonflow guarda na própria interface (ver docs/how-to/e2e-real.md)."""
+    return sorted({v for _, v in _candidatos(sondas, amb) if len(v) >= MIN_VALOR_SEGREDO}, key=len, reverse=True)
+
+
+def _segredos_curtos(sondas, amb: Ambiente) -> list:
+    """Rótulos (nunca valores) dos segredos configurados com menos de MIN_VALOR_SEGREDO caracteres: não são redigidos."""
+    return sorted({rotulo for rotulo, v in _candidatos(sondas, amb) if 0 < len(v) < MIN_VALOR_SEGREDO})
+
+
+def _aviso_segredo_curto(rotulos: list) -> str:
+    lista = ", ".join(rotulos)
+    if len(rotulos) == 1:
+        return (f"aviso: {lista} tem menos de {MIN_VALOR_SEGREDO} caracteres e não será redigido (trocar um valor tão curto "
+                f"estragaria a saída inteira); o valor não é impresso")
+    return (f"aviso: {lista} têm menos de {MIN_VALOR_SEGREDO} caracteres e não serão redigidos (trocar um valor tão curto "
+            f"estragaria a saída inteira); os valores não são impressos")
 
 
 def _formas(segredos) -> list:
@@ -441,88 +472,155 @@ def _formas(segredos) -> list:
 
 
 def _regex_segredos(segredos: list):
-    """Um padrão com todos os segredos, o mais longo primeiro: a busca acha a ocorrência mais à esquerda."""
+    """Um padrão com todos os segredos, o mais longo primeiro: em cada posição casa a forma mais longa."""
     validos = sorted({s for s in segredos if s}, key=len, reverse=True)
     return re.compile("|".join(re.escape(s) for s in validos)) if validos else None
 
 
-def _corte_do_prefixo(dados: str, spans: list, formas: list, maior: int) -> int:
-    """Onde o texto pode ser emitido: antes do maior sufixo que ainda pode ser começo de um segredo (prefixo próprio de
-    uma forma) e que não cai no meio de uma ocorrência completa (spans). Devolve len(dados) se não há sufixo retido."""
+def _inicio_parcial(dados: str, formas: list, maior: int, primeiros) -> int:
+    """Menor posição p cujo sufixo dados[p:] é prefixo PRÓPRIO de alguma forma: um começo de segredo que o fluxo ainda
+    pode completar. Devolve len(dados) se não há. Só os últimos maior-1 caracteres podem ser um tal começo; `primeiros`
+    (primeiro caractere de cada forma) descarta de graça quase todas as posições."""
     n = len(dados)
     if n == 0 or maior <= 1:
         return n
-    inicios = [s for s, _ in spans]
-    primeiros = {s[0] for s in formas}
-    for p in range(max(0, n - maior + 1), n):  # do sufixo mais longo para o mais curto: o primeiro achado é o corte
+    for p in range(max(0, n - maior + 1), n):
         if dados[p] not in primeiros:
             continue
         trecho = dados[p:]
-        if not any(len(trecho) < len(s) and s.startswith(trecho) for s in formas):
-            continue
-        j = bisect.bisect_right(inicios, p) - 1
-        if j >= 0 and spans[j][0] < p < spans[j][1]:
-            continue
-        return p
+        tam = len(trecho)
+        for forma in formas:  # do mais longo para o mais curto: para quando a forma já não é maior que o trecho
+            if len(forma) <= tam:
+                break
+            if forma.startswith(trecho):
+                return p
     return n
 
 
+def _redigir_trecho(dados: str, rx, cobre: int, limite: int, corte: int, truncado: Optional[int]):
+    """O coração da redação: troca por *** a UNIÃO dos intervalos de TODAS as ocorrências (inclusive as que se
+    sobrepõem), um *** por intervalo unido; intervalos que só se encostam continuam separados.
+
+    `cobre` = quantos caracteres do começo de `dados` já saíram como *** na chamada anterior (um intervalo que
+    atravessou o corte); só as ocorrências que começam antes de `limite` entram; sai o texto até `corte`;
+    `truncado` = onde começa o sufixo que é começo de segredo no FIM do fluxo (vira *** até o fim).
+    Devolve (texto emitido, novo `cobre`). A busca recomeça um caractere depois do início de cada ocorrência, por isso
+    acha as que começam dentro de outra (rx.sub e finditer pulam essas e deixavam sobrar pedaço do segredo)."""
+    n = len(dados)
+    if truncado is not None:
+        limite = min(limite, truncado)
+    uniao = []
+    ini, fim = (0, cobre) if cobre else (-1, -1)
+    pos, busca = 0, rx.search
+    while True:
+        m = busca(dados, pos)
+        if m is None:
+            break
+        s = m.start()
+        if s >= limite:
+            break
+        e = m.end()
+        if s < fim:
+            if e > fim:
+                fim = e
+        else:
+            if ini >= 0:
+                uniao.append((ini, fim))
+            ini, fim = s, e
+        pos = s + 1
+    if truncado is not None:
+        if truncado < fim:
+            fim = n
+        else:
+            if ini >= 0:
+                uniao.append((ini, fim))
+            ini, fim = truncado, n
+    if ini >= 0:
+        uniao.append((ini, fim))
+    partes, pos = [], 0
+    for k, (a, b) in enumerate(uniao):
+        if k == 0 and cobre:
+            pos = b  # o *** deste intervalo já foi emitido
+            continue
+        partes.append(dados[pos:a])
+        partes.append("***")
+        pos = b
+    if pos < corte:
+        partes.append(dados[pos:corte])
+        return "".join(partes), 0
+    return "".join(partes), pos - corte
+
+
 def redigir(texto: str, segredos: list) -> str:
-    """Referência para texto inteiro: a mesma regra que o Redator aplica em pedaços (inclusive o sufixo retido no fim:
-    um começo de segredo que termina o texto sai como ***)."""
+    """Referência para texto inteiro: a mesma regra que o Redator aplica em pedaços (inclusive o sufixo no fim: um
+    começo de segredo que termina o texto sai como ***)."""
     formas = _formas(segredos)
     rx = _regex_segredos(formas)
     if not rx:
         return texto
-    spans = [m.span() for m in rx.finditer(texto)]
-    corte = _corte_do_prefixo(texto, spans, formas, max((len(s) for s in formas), default=0))
-    cabeca, resto = texto[:corte], texto[corte:]
-    return rx.sub("***", cabeca) + ("***" if resto else "")
+    inicio = _inicio_parcial(texto, formas, max(len(s) for s in formas), {s[0] for s in formas})
+    saida, _ = _redigir_trecho(texto, rx, 0, len(texto), len(texto), inicio if inicio < len(texto) else None)
+    return saida
 
 
 class Redator:
-    """Redige um fluxo de texto que chega em pedaços, em tempo linear e com retenção limitada.
+    """Redige um fluxo de texto que chega em pedaços, com retenção limitada e saída igual à de `redigir` no texto inteiro,
+    qualquer que seja o corte em pedaços.
 
-    Ocorrências completas viram *** (busca da esquerda para a direita, a mais longa primeiro). Fica retido só o maior
-    sufixo, de até maior-1 caracteres, que ainda pode ser começo de um segredo: é prefixo próprio de algum segredo e não
-    cai no meio de uma ocorrência completa. Não há recuo em cascata: uma passada por bloco basta. Cada segredo entra nas
-    formas crua, JSON (com e sem ASCII) e repr (ver _formas).
+    Regra: a UNIÃO dos intervalos de todas as ocorrências (inclusive as que se sobrepõem: o fim de um segredo é o começo
+    de outro, ou o segredo tem borda e se sobrepõe a si mesmo) vira *** (um por intervalo unido). Fica retido só o maior
+    sufixo, de até maior-1 caracteres, que ainda pode ser começo de um segredo (prefixo próprio de alguma forma); um
+    intervalo que atravessa o ponto de corte já sai como *** e o resto dele é descartado quando chega (`cobre`). Cada
+    segredo entra nas formas crua, JSON (com e sem ASCII) e repr (ver _formas).
 
-    Custo (medido com scripts de revisão, Python 3.12, 2 MiB de 'A' no pior caso dos prefixos): segredo de 40 caracteres
-    0,00 s; de 3 000 caracteres 0,04 s; de 10 000 caracteres 0,16 s. Um bloco custa O(bloco + maior²) no pior caso, com
-    maior = o segredo mais longo."""
+    Custo (medido, Python 3.12, CPU): a busca é por regex e tenta cada posição, então um bloco custa O(bloco × maior),
+    com maior = a forma mais longa, mais O(maior) para achar o sufixo retido. O pior caso é um texto cujos prefixos são
+    prefixos do segredo em todo lugar (um filho que o conheça): ver docs/how-to/e2e-real.md. Leituras pequenas seriam
+    piores (o sufixo retido seria buscado de novo a cada leitura): enquanto o sufixo retido passa de LIMIAR_AMORTIZAR
+    caracteres, o texto novo espera até somar o tamanho dele, e a retenção total fica abaixo de 2 × maior."""
 
     def __init__(self, segredos: list):
         self.segredos = _formas(segredos)
         self.maior = max((len(s) for s in self.segredos), default=0)
         self.rx = _regex_segredos(self.segredos)
-        self.resto = ""
+        self.primeiros = {s[0] for s in self.segredos}
+        self.resto = ""     # sufixo retido (começo de segredo possível)
+        self.cobre = 0      # quantos caracteres do começo de `resto` já saíram como ***
+        self.pendente: list = []
+        self.n_pendente = 0
 
     def alimentar(self, texto: str) -> str:
         if not self.rx:
             return texto
-        partes = []
-        for i in range(0, len(texto), TAM_BLOCO):
-            partes.append(self._bloco(texto[i:i + TAM_BLOCO]))
-        return "".join(partes)
+        if texto:
+            self.pendente.append(texto)
+            self.n_pendente += len(texto)
+        if self.n_pendente < (len(self.resto) if len(self.resto) > LIMIAR_AMORTIZAR else 0):
+            return ""  # sufixo retido grande: espera juntar texto novo do tamanho dele antes de buscar de novo
+        return self._processar()
 
-    def _e_prefixo_de_segredo(self, trecho: str) -> bool:
-        return any(len(trecho) < len(s) and s.startswith(trecho) for s in self.segredos)
+    def _processar(self) -> str:
+        texto, self.pendente, self.n_pendente = "".join(self.pendente), [], 0
+        return "".join(self._bloco(texto[i:i + TAM_BLOCO]) for i in range(0, len(texto), TAM_BLOCO))
 
     def _bloco(self, bloco: str) -> str:
         dados = self.resto + bloco
-        spans = [(m.start(), m.end()) for m in self.rx.finditer(dados)]
-        corte = _corte_do_prefixo(dados, spans, self.segredos, self.maior)
+        corte = _inicio_parcial(dados, self.segredos, self.maior, self.primeiros)
+        saida, self.cobre = _redigir_trecho(dados, self.rx, self.cobre, corte, corte, None)
         self.resto = dados[corte:]
-        return self.rx.sub("***", dados[:corte])
+        return saida
 
     def finalizar(self) -> str:
         if not self.rx:
             return ""
-        resto, self.resto = self.resto, ""
-        if resto and self._e_prefixo_de_segredo(resto):
-            return "***"  # o fluxo acabou no meio de um começo de segredo: não há mais texto que o complete, e ele sai redigido
-        return self.rx.sub("***", resto)
+        saida = self._processar()
+        dados, cobre, self.resto, self.cobre = self.resto, self.cobre, "", 0
+        if not dados:
+            return saida
+        inicio = _inicio_parcial(dados, self.segredos, self.maior, self.primeiros)
+        # o fluxo acabou: um começo de segredo no fim não tem mais como se completar, e sai redigido
+        resto, _ = _redigir_trecho(dados, self.rx, cobre, len(dados), len(dados), inicio if inicio < len(dados) else None)
+        return saida + resto
 
 
 def _redigir_doc(obj, segredos: list):
@@ -1134,10 +1232,6 @@ def _diagnostico_dono(proc, porta: int) -> tuple:
         return None, f"não deu para ler o dono da porta ({type(exc).__name__})"
 
 
-def _dono_da_porta(proc, porta: int) -> Optional[bool]:
-    return _diagnostico_dono(proc, porta)[0]
-
-
 def _chk_toonflow(ctx: Ctx) -> Veredito:
     url = f"http://127.0.0.1:{PORTA_TOONFLOW}"
     # informativo: o estado do checkout e do pin (não gateia). O Docker não tem subcomando de status no motor:
@@ -1554,6 +1648,9 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     cabecalho = _cabecalho(amb, modo, str(tmp) if tmp else (str(Path(a.pasta).resolve()) if a.pasta else "<criada ao rodar>"))
     fluxo = sys.stderr if a.json else sys.stdout
     print("\n".join(cabecalho) + "\n", file=fluxo)
+    curtos = _segredos_curtos(sondas, amb) if a.sim_gastar else []
+    if curtos:
+        print(_aviso_segredo_curto(curtos) + "\n", file=fluxo)
 
     if a.sim_gastar:
         ctx = Ctx(tmp, a, runner, _ambiente_filho(sondas.env(), tmp), amb, segredos, teto)

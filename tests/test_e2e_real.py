@@ -1514,6 +1514,29 @@ def test_s1_fuzz_uniao_das_ocorrencias_nenhum_pedaco_de_3_sobrevive_e_fluxo_igua
     assert casos == 20000 and sobrepostos > 500, sobrepostos  # o gerador de fato produz sobreposição
 
 
+def test_s1_segredos_longos_com_leituras_pequenas_igualam_o_texto_inteiro():
+    """Sufixo retido acima de LIMIAR_AMORTIZAR: o texto novo espera, e a saída continua igual à do texto inteiro."""
+    rnd = random.Random(99)
+    for _ in range(120):
+        longo = "".join(rnd.choice("AB") for _ in range(rnd.randint(e2e.LIMIAR_AMORTIZAR + 20, e2e.LIMIAR_AMORTIZAR + 120)))
+        segredos = [longo, longo[-150:] + "".join(rnd.choice("AB") for _ in range(90))]
+        formas = e2e._formas(segredos)
+        pedacos = []
+        for _ in range(rnd.randint(1, 6)):
+            pedacos.append(rnd.choice(formas) if rnd.random() < 0.6 else "A" * rnd.randint(1, 400))
+        if rnd.random() < 0.6:
+            pedacos.append(longo[:rnd.randint(1, len(longo) - 1)])
+        texto = "".join(pedacos)
+        esperado = _oraculo(texto, formas)
+        assert e2e.redigir(texto, segredos) == esperado
+        for tam in (1, 7, 100, 333):
+            assert _em_pedacos(segredos, texto, tam) == esperado, (tam, len(texto))
+        r = e2e.Redator(segredos)
+        for i in range(0, len(texto), 13):
+            r.alimentar(texto[i:i + 13])
+            assert len(r.resto) + r.n_pendente < 2 * r.maior
+
+
 # 2. nomes: na dúvida, redige (substring), com uma lista pequena e explícita de falsos positivos
 NOMES_QUE_SAO_SEGREDO = ["FAL_KEY1", "API_KEY2", "GEMINIKEY", "MYKEY", "OPENAIAPIKEY", "SESSIONKEY", "MY_TOKEN2",
                          "GEMINI_API_KEY", "GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "DB_PASSWD", "ACME_PASSWORD_X",
@@ -1556,25 +1579,25 @@ def test_s2_valor_curto_em_variavel_de_segredo_continua_sem_ser_redigido():
 
 
 # 3. config.toml: o texto original do valor também sai redigido (a leitura do tomllib normaliza o número)
-CASOS_LITERAIS = [
-    ("inteiro com sublinhado", "token = 1_234_567\n", ["1_234_567", "1234567"]),
-    ("hexadecimal", "token = 0xDEADBEEF\n", ["0xDEADBEEF", "3735928559"]),
-    ("decimal com zero a direita", "api_key = 1.50\n", ["1.50"]),
-    ("notação científica", "api_key = 6.02e23\n", ["6.02e23"]),
-    ("lista de decimais", "keys = [1.50, 2.250]\n", ["1.50", "2.250"]),
-    ("octal e binário", "token = 0o7654321\nsecret = 0b1011001\n", ["0o7654321", "0b1011001"]),
+CASOS_LITERAIS = [  # (nome, config.toml, texto original, valor normalizado pelo tomllib)
+    ("inteiro com sublinhado", "token = 1_234_567\n", ["1_234_567"], ["1234567"]),
+    ("hexadecimal", "token = 0xDEADBEEF\n", ["0xDEADBEEF"], ["3735928559"]),
+    ("decimal com zero a direita", "api_key = 1.50\n", ["1.50"], ["1.5"]),
+    ("notação científica", "api_key = 6.02e23\n", ["6.02e23"], []),
+    ("lista de decimais", "keys = [1.50, 2.250]\n", ["1.50", "2.250"], ["1.5", "2.25"]),
+    ("octal e binário", "token = 0o7654321\nsecret = 0b1011001\n", ["0o7654321", "0b1011001"], ["2054353", "89"]),
 ]
 
 
 @pytest.mark.parametrize("com_tomllib", [True, False], ids=["tomllib", "regex"])
-@pytest.mark.parametrize("nome,texto,literais", CASOS_LITERAIS, ids=[c[0] for c in CASOS_LITERAIS])
-def test_s3_literal_original_do_numero_e_redigido(tmp_path, monkeypatch, com_tomllib, nome, texto, literais):
+@pytest.mark.parametrize("nome,texto,literais,normalizados", CASOS_LITERAIS, ids=[c[0] for c in CASOS_LITERAIS])
+def test_s3_literal_original_do_numero_e_redigido(tmp_path, monkeypatch, com_tomllib, nome, texto, literais, normalizados):
     if not com_tomllib:
         monkeypatch.setitem(sys.modules, "tomllib", None)
     cfg = tmp_path / "config.toml"
     cfg.write_text(texto, encoding="utf-8")
     valores = e2e._valores_do_config(cfg)
-    for lit in literais:
+    for lit in literais + (normalizados if com_tomllib else []):
         assert lit in valores, (lit, valores)
     saida = e2e.redigir("eco " + " e ".join(literais) + " fim", sorted(valores, key=len, reverse=True))
     assert not any(lit in saida for lit in literais), saida
