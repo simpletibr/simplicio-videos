@@ -434,14 +434,17 @@ LINHAS_COM_PIN = {"hypit": ("Hypit", "@hypit/hypit", "video.clone"), "tinyfish":
 
 def _pins_citados(texto: str, nome: str) -> list:
     """Every `pin|versão X.Y.Z` the lines about the tool `nome` cite, as (version, line). Only a version written as a pin counts: the
-    Node minimum ("Node 22.15") and other numbers are not pins. A line of the table is cut at its cell about another track."""
+    Node minimum ("Node 22.15") and other numbers are not pins. A line is cut into clauses, so that one tool's pin is not read from another tool's clause; table rows are skipped (no pin there)."""
     marcas = LINHAS_COM_PIN[nome]
     achados = []
     for linha in texto.splitlines():
-        if linha.startswith("|") or not any(marca in linha for marca in marcas):
+        if linha.startswith("|"):
             continue
-        for m in re.finditer(rf"(?:pin|versão) \(?({SEMVER})", linha):
-            achados.append((m.group(1), linha.strip()[:90]))
+        for oracao in re.split(r"[.;] ", linha):  # a line can talk about two tools ("... o HyperFrames ... Não instalam o TinyFish")
+            if not any(marca in oracao for marca in marcas):
+                continue
+            for m in re.finditer(rf"(?:pin|versão) \(?({SEMVER})", oracao):
+                achados.append((m.group(1), oracao.strip()[:90]))
     return achados
 
 
