@@ -284,12 +284,23 @@ def test_update_help_nao_e_recusado_como_instalacao(cli):
 
 # ---------------------------------------------------------------------------------- --help: uma regra para as tools
 
-@pytest.mark.parametrize("nome", [n for n in COM_ARGS if n != "video.rea-video"])
+ALLOWLIST_SEM_AJUDA = ("video.toonflow", "video.moneyprinter", "video.matchcut", "video.rea-video")
+
+
+@pytest.mark.parametrize("nome", [n for n in COM_ARGS if n not in ALLOWLIST_SEM_AJUDA])
 def test_help_em_argv_e_respondido_pela_tool(cli, voicestudio_gravado, nome):
-    """`--help` / `-h` em argv pede a ajuda do comando. Cada tool com args responde, menos o rea-video (o --help global dele é só do
-    terminal, por decisão do próprio comando)."""
+    """`--help` / `-h` em argv pede a ajuda do comando. Cada tool com args responde, menos as que têm uma allow-list sem a ajuda."""
     r = FUNCOES[nome](argv=["--help"])
     assert r["ok"] is True, (nome, r)
+
+
+@pytest.mark.parametrize("nome", ALLOWLIST_SEM_AJUDA)
+def test_help_das_allowlists_e_recusado_com_o_terminal(cli, nome):
+    """toonflow, moneyprinter, matchcut e rea-video (o --help global) deixam a ajuda de fora da allow-list, por decisão deles:
+    o MCP recusa e manda ao terminal, sem rodar nada."""
+    r = FUNCOES[nome](argv=["--help"])
+    assert r["ok"] is False and "terminal" in r["error"], (nome, r)
+    assert cli == []
 
 
 def test_instrucoes_do_servidor_documentam_o_help():

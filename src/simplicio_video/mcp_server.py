@@ -28,8 +28,8 @@ INSTRUCTIONS = ("simplicio-video: short marketing videos from a simplicio.video-
                 "video.render (or video.run for voice->render). Never invent client facts, never speed up the voice. "
                 "The upload is not a tool here: it is done by the operation tool. "
                 "Tools that take `args` also take `argv` (the exact argument list, nothing parsed) and `cmd` (the subcommand, "
-                "listed in each description). `-h` or `--help` in argv or args asks for that command's help; where the MCP does "
-                "not run that command, the refusal says so and gives the terminal command.")
+                "listed in each description). `-h` or `--help` in argv or args asks for that command's help. toonflow, moneyprinter, "
+                "matchcut and rea-video keep help out of their allow-lists: over MCP it is refused with the terminal command.")
 
 
 def _capture(fn, *a, **k) -> dict[str, Any]:
@@ -603,8 +603,6 @@ def video_toonflow(args: str = "", argv: list[str] | None = None, cmd: Literal[_
     instead of using _capture: the clone runs git with captured output, so nothing reaches the MCP stdio channel."""
     from . import toonflow
     argv = _argv(args, argv, cmd, _CMD_TOONFLOW)
-    if _pede_ajuda(argv):
-        return _roda_externa(toonflow.run_toonflow, ["--help"])
     if argv[:1] == ["serve"]:
         return {"ok": False, "error": f"toonflow serve sobe um servidor local que não termina; rode `simplicio-video toonflow serve {toonflow.LAN_FLAG}` (ou `serve --docker`, só em 127.0.0.1) no terminal"}
     if argv[:1] == ["clone"] and len(argv) > 1:
@@ -629,8 +627,6 @@ def video_moneyprinter(args: str = "", argv: list[str] | None = None, cmd: Liter
     confirmations and batch files spend money or call outside services. Nothing here publishes."""
     from . import jobs, moneyprinter
     argv = _argv(args, argv, cmd, _CMD_MONEYPRINTER)
-    if _pede_ajuda(argv):
-        return _roda_externa(moneyprinter.run_moneyprinter, ["--help"])
     if argv[:1] in (["generate"], ["run"]):
         try:
             st = jobs.submit("moneyprinter", moneyprinter.mcp_job_params(argv), origin="mcp")
@@ -657,8 +653,6 @@ def video_matchcut(args: list[str] | str = "", argv: list[str] | None = None, cm
     path for every path-like argument. `setup` and `clone` are terminal-only. It never runs the skill and never calls Renoise."""
     from . import matchcut
     argv = _argv(args, argv, cmd, _CMD_MATCHCUT)
-    if _pede_ajuda(argv):
-        return _roda_externa(matchcut.run_matchcut, ["--help"])
     if argv[:1] == ["run"]:
         if len(argv) < 2:
             return {"ok": False, "error": f"matchcut run precisa do script: {', '.join(matchcut.SCRIPTS)}"}
