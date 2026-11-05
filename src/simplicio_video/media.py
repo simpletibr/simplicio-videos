@@ -28,6 +28,15 @@ HELP = """media (audio-visual on any MP4: ffmpeg/ffprobe, deterministic; fetch u
   fetch URL -o OUT.mp4 --autorizo [--max-mb 500] [--timeout 600]
                                                    download one public video page to a new MP4 and write
                                                    OUT.fetch.json (source, sha256, yt-dlp version, time); needs --autorizo
+  fetch URL --info [-o info.json] [--timeout 600]  metadata only (title, duration, uploader, license, formats, subtitle
+                                                   languages); downloads and saves nothing, so no --autorizo
+  fetch URL -o OUT.mp4 --autorizo --subs LANG [--auto-subs]
+                                                   also save the creator's subtitles as OUT.LANG.srt (auto-generated
+                                                   ones only with --auto-subs); recorded in OUT.fetch.json
+  fetch URL -o OUT.mp4 --autorizo --section START-END
+                                                   only that range, in seconds (e.g. 0-3, 12.5-30); recorded
+  fetch URL -o OUT.m4a|OUT.wav --autorizo --audio-only
+                                                   extract the audio instead of the MP4; recorded
   probe FONTE [-o info.json]                       metadata: duration, size, fps, audio
   audio FONTE -o OUT.wav [--rate 16000]            mono PCM track (for transcription or a voice reference)
   sheet FONTE -o SHEET.jpg [--every 4] [--cols 8]  contact sheet of frames, to review on-screen text
@@ -48,6 +57,10 @@ The "audio" key is used only by voice-track. Times are seconds.
 
 Examples:
   simplicio-video media fetch https://www.instagram.com/veramundopet/reel/DfDdh8ugFWN/ -o reel.mp4 --autorizo
+  simplicio-video media fetch https://example.com/aula.mp4 --info
+  simplicio-video media fetch https://example.com/aula.mp4 -o aula.mp4 --autorizo --subs pt
+  simplicio-video media fetch https://example.com/aula.mp4 -o trecho.mp4 --autorizo --section 0-3
+  simplicio-video media fetch https://example.com/aula.mp4 -o aula.m4a --autorizo --audio-only
   simplicio-video media probe reel.mp4
   simplicio-video media audio reel.mp4 -o reel.wav --rate 16000
   simplicio-video media sheet reel.mp4 -o sheet.jpg --every 4
@@ -270,7 +283,7 @@ def _parse(args: list[str]) -> tuple[list[str], dict[str, str]]:
     pos: list[str] = []
     vals: dict[str, str] = {}
     i = 0
-    flags_sem_valor = {"--keep-length", "--autorizo"}
+    flags_sem_valor = {"--keep-length", "--autorizo", "--info", "--audio-only", "--auto-subs"}
     while i < len(args):
         a = args[i]
         if a in flags_sem_valor:
@@ -322,15 +335,37 @@ def _out(vals: dict[str, str], cmd: str) -> Path:
     return dest
 
 
+def _write_new_json(dest: Path, doc: dict) -> None:
+    """The only file `fetch --info` may write, and only when -o is given; never over an existing file."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with dest.open("x", encoding="utf8") as f:
+            f.write(json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
+    except FileExistsError:
+        raise MediaError(f"{dest.name} já existe: não sobrescrevo; escolha outro -o") from None
+
+
 def cmd_fetch(pos, vals) -> dict:
     if not pos:
         raise MediaError("fetch: informe a URL pública do vídeo")
+    if "--info" in vals:
+        # Metadata only: nothing is downloaded, so there is no use to authorise. -o (a .json) is the single optional output.
+        if any(k in vals for k in ("--subs", "--auto-subs", "--section", "--audio-only", "--autorizo", "--max-mb")):
+            raise MediaError("fetch --info só lê metadados: não combina com --subs, --auto-subs, --section, --audio-only, --autorizo nem --max-mb")
+        try:
+            doc = download.info(pos[0], timeout=_int(vals, "--timeout", download.DEFAULT_TIMEOUT_S))
+        except download.DownloadError as e:
+            raise MediaError(str(e)) from None
+        if "-o" in vals:
+            _write_new_json(Path(vals["-o"]).expanduser(), doc)
+        return doc
     if "--autorizo" not in vals:
         raise MediaError("fetch: confirme que você pode usar este vídeo com --autorizo (o motor não verifica o direito de uso)")
     dest = _out(vals, "fetch")
     try:
         return download.fetch(pos[0], dest, autorizo=True, max_mb=_int(vals, "--max-mb", download.DEFAULT_MAX_MB),
-                              timeout=_int(vals, "--timeout", download.DEFAULT_TIMEOUT_S))
+                              timeout=_int(vals, "--timeout", download.DEFAULT_TIMEOUT_S), subs=vals.get("--subs"),
+                              auto_subs="--auto-subs" in vals, section=vals.get("--section"), audio_only="--audio-only" in vals)
     except download.DownloadError as e:
         raise MediaError(str(e)) from None
 
