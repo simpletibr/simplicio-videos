@@ -48,7 +48,15 @@ O Zernio não tem prévia nem cotação (UNVERIFIED que exista rascunho), então
 
 ### Reddit e Snapchat: sem provedor
 
-O plano confere essas duas redes (`reddit`, `snapchat`), mas **nenhum provedor confirmado publica nelas (não confirmado)**. Os limites delas são UNVERIFIED (a única fonte lida é a documentação do Zernio); o Reddit exige título. A receita sai **BLOQUEADA** (`blocked: true`, com o motivo em `blocked_reason`), para o Real Oficial e para o Zernio: sem cotar, sem mostrar, sem pedir o sim e sem publicar. Quando o usuário pedir Reddit ou Snapchat, diga isso e o motivo que a receita traz (texto, fonte e data de cada provedor, em `sem_provedor` no `providers`): o Zernio informa o Reddit como temporariamente indisponível, pois desde 19/10/2026 o Reddit bloqueia as chamadas do app da Zernio para todos os clientes Zernio, e não tem o Snapchat aprovado pela Snap; para o Real Oficial, sem confirmação: a página do MCP não lista redes de publicação. Se o plano misturar uma dessas redes com outras, a receita inteira sai bloqueada: gere um plano só com as redes que o provedor publica. Não monte chamada de publicar para essas redes fora de uma receita liberada.
+O plano confere essas duas redes (`reddit`, `snapchat`), mas elas estão **sem provedor confirmado (não confirmado)**. Os limites delas são UNVERIFIED (a única fonte lida é a documentação do Zernio: https://docs.zernio.com/platforms/reddit e https://docs.zernio.com/platforms/snapchat, lida em 2026-11-05). Escopos dos limites: o Reddit exige título obrigatório de 300 caracteres, e o corpo de 40.000 caracteres vale para o corpo do post de texto. O Snapchat tem a legenda de 160 caracteres para **Spotlight** (as hashtags contam; Stories não têm teto no Zernio), o título de 45 caracteres para **Saved Story**, e vídeo de 5 a 60 s em MP4 de até 500 MB. A proporção 9:16 do Snapchat é expectativa: o plano avisa e não recusa.
+
+A receita sai **BLOQUEADA** (`blocked: true`, com o motivo em `blocked_reason`), para o Real Oficial e para o Zernio: sem cotar, sem mostrar, sem pedir o sim e sem publicar. Quando o usuário pedir Reddit ou Snapchat, diga isso e o motivo que a receita traz, com o texto, a fonte e a data de cada provedor (também em `sem_provedor` no `providers`).
+
+Zernio: o Reddit está temporariamente indisponível; desde 19/10/2026 o Reddit bloqueia as chamadas do app da Zernio para todos os clientes Zernio (https://docs.zernio.com/platforms/reddit, lida em 2026-11-05). O Snapchat não está aprovado pela Snap: toda conexão falha com 403 PLATFORM_BETA_RESTRICTED (https://docs.zernio.com/platforms/snapchat, lida em 2026-11-05).
+
+Real Oficial, sem confirmação: a página do MCP (https://realoficial.com.br/mcp, lida em 2026-11-05) não lista redes de publicação. Instagram, Facebook, X, LinkedIn, Threads, Pinterest e Bluesky ficam na lista do motor marcados como sem confirmação na página do RO (lista do motor): a receita não sai bloqueada por isso, mas a seção UNVERIFIED da receita as marca.
+
+Se o plano misturar uma dessas redes com outras, a receita inteira sai bloqueada: gere um plano só com as redes que o provedor publica. Não monte chamada de publicar para essas redes fora de uma receita liberada.
 
 ## Regras de consentimento (valem para qualquer provedor)
 

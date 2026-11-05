@@ -62,6 +62,15 @@
         "pinterest",
         "bluesky"
       ],
+      "networks_sem_confirmacao": [
+        "instagram",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "threads",
+        "pinterest",
+        "bluesky"
+      ],
       "pricing": "Exige workspace com assinatura ativa; analytics e legenda por IA pedem plano. Preço do plano e custo de publicar em créditos: UNVERIFIED (as descrições das ferramentas de publicar não citam custo).",
       "known_limits": [
         "daily_post_limit por conta: teto móvel de 24 h (null = sem teto), lido em ro_list_social_accounts",

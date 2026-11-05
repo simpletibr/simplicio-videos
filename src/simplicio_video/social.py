@@ -124,6 +124,20 @@ def _motivo_sem_provedor(nets: list[str], pid: str, label: str, doc: dict) -> st
             + "; ".join(partes))
 
 
+def _sem_confirmacao_ro(nets: list[str], doc: dict) -> list[str]:
+    """Planned networks that the Real Oficial's own page does not confirm. They stay in the provider's list and are not blocked."""
+    ro = next(p for p in doc["providers"] if p["id"] == "realoficial")
+    marcadas = ro.get("networks_sem_confirmacao", [])
+    return [n for n in dict.fromkeys(nets) if n in marcadas]
+
+
+def _nota_realoficial(pid: str, plan: dict, doc: dict) -> list[str]:
+    if pid != "realoficial":
+        return []
+    sem = _sem_confirmacao_ro([t["network"] for t in plan["targets"]], doc)
+    return [f"redes sem confirmação na página do RO (lista do motor), no plano: {', '.join(sem)}"] if sem else []
+
+
 def _nao_confirmados(checks: list[dict]) -> list[str]:
     """Networks whose every row is UNVERIFIED: their limits were not confirmed on the network's own page."""
     por_rede: dict[str, set] = {}
@@ -132,10 +146,36 @@ def _nao_confirmados(checks: list[dict]) -> list[str]:
     return [rede for rede, conf in por_rede.items() if conf == {UNVERIFIED}]
 
 
+def _quanto(c: dict) -> str:
+    """What was measured, in the words of its field: a caption counts characters, a video has seconds, and so on."""
+    campo, real = c["field"], c["actual"]
+    if campo == "title_max_chars":
+        return "título ausente (obrigatório)" if real is None else f"o título tem {real} caracteres"
+    if campo == "caption_max_chars":
+        return f"a legenda tem {real} caracteres"
+    if campo == "hashtags_max":
+        return f"a legenda tem {real} hashtags"
+    if campo in ("duration_min_s", "duration_max_s"):
+        return f"o vídeo tem {real} s"
+    if campo == "size_max_mb":
+        return f"o arquivo tem {real} MB"
+    if campo == "aspect_ratios":
+        return f"o vídeo é {real}"
+    return f"o vídeo tem {real}"
+
+
+def _limite_txt(limite) -> str:
+    if isinstance(limite, list):
+        return " ou ".join(limite)
+    if isinstance(limite, dict):
+        return f"de {limite['min_ratio']} a {limite['max_ratio']} (proporção)"
+    return str(limite)
+
+
 def _linha(c: dict) -> str:
-    """One limit in words for the user. A required field that is missing says so instead of printing None."""
-    quanto = "título ausente (obrigatório)" if c["actual"] is None else f"o vídeo tem {c['actual']}"
-    return f"{c['network']}: {c['field']} limite {c['limit']}, {quanto}"
+    """One limit in words for the user, with the scope of the field (Spotlight, Saved Story...) when the table gives one."""
+    escopo = f" ({c['escopo']})" if c.get("escopo") else ""
+    return f"{c['network']}: {c['field']} limite {_limite_txt(c['limit'])}{escopo}, {_quanto(c)}"
 
 
 def providers_report() -> dict:
@@ -709,7 +749,8 @@ def _flat(templates: list[dict]) -> list[dict]:
 def _recipe_doc(pid: str, prov: dict, plan: dict, doc: dict, *, reason: str, steps: list, blocked_until: list) -> dict:
     return {"schema": SCHEMA_RECIPE, "provider": pid, "label": prov["label"], "plan_id": plan["plan_id"], "mcp_url": prov["mcp_url"],
             "blocked": bool(reason), "blocked_reason": reason, "steps": steps, "blocked_until": blocked_until,
-            "publish_tools": prov["publish_tools"], "rules": doc["rules"], "unverified": prov["unverified"], "gaps": prov["gaps"]}
+            "publish_tools": prov["publish_tools"], "rules": doc["rules"],
+            "unverified": prov["unverified"] + _nota_realoficial(pid, plan, doc), "gaps": prov["gaps"]}
 
 
 def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = None) -> dict:
@@ -872,10 +913,13 @@ def _parser() -> argparse.ArgumentParser:
 def _providers_text(rep: dict) -> str:
     lines = ["Provedores de publicação (o motor não posta; o agente usa as ferramentas MCP do provedor):"]
     for p in rep["providers"]:
-        lines.append(f"\n{p['id']}  {p['label']}" + ("  [padrão]" if p["default"] else "") + f"  confiança: {p['confidence']}")
+        marca = " (ferramentas; as redes abaixo não têm confirmação na página do RO)" if p.get("networks_sem_confirmacao") else ""
+        lines.append(f"\n{p['id']}  {p['label']}" + ("  [padrão]" if p["default"] else "") + f"  confiança: {p['confidence']}{marca}")
         lines.append(f"  MCP: {p['mcp_url']}  (fonte {p['source_url']}, lido em {p['read_on']})")
         lines.append(f"  autenticação: {p['auth']}")
         lines.append(f"  redes: {', '.join(p['networks'])}")
+        if p.get("networks_sem_confirmacao"):
+            lines.append("  sem confirmação na página do RO (lista do motor): " + ", ".join(p["networks_sem_confirmacao"]))
         lines.append(f"  preço: {p['pricing']}")
         lines.append("  ferramentas:")
         for t in p["tools"]:
@@ -906,9 +950,17 @@ def _plan_text(res: dict) -> str:
     nc = _nao_confirmados(p["checks"])
     if nc:
         lines.append("  limites NÃO CONFIRMADOS (todas as linhas UNVERIFIED): " + ", ".join(nc))
+    sem_ro = _sem_confirmacao_ro([t["network"] for t in p["targets"]], _providers_doc())
+    if sem_ro:
+        lines.append("  sem confirmação na página do RO (lista do motor): " + ", ".join(sem_ro))
     avisos = [c for c in p["checks"] if c["status"] == "aviso"]
     if avisos:
-        lines.append("  avisos (expectativa, não regra): " + ", ".join(f"{c['network']}:{c['field']}" for c in avisos))
+        lines.append("  avisos (expectativa, não regra):")
+        for c in avisos:
+            if c["field"] == "aspect_ratios":
+                lines.append(f"  aviso: o vídeo é {c['actual']}; {c['network'].capitalize()} espera {_limite_txt(c['limit'])} (aviso, não recusa)")
+            else:
+                lines.append(f"  aviso: {_linha(c)} (não recusa)")
     nao = [c for c in p["checks"] if c["status"] == "unchecked"]
     if nao:
         lines.append(f"  sem limite conferido ({len(nao)}): " + ", ".join(f"{c['network']}:{c['field']}" for c in nao))

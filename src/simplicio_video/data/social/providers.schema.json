@@ -224,6 +224,12 @@
               }
             },
             "minItems": 1
+          },
+          "networks_sem_confirmacao": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }
