@@ -138,3 +138,16 @@ def test_validate_avisa_ducking_sem_trilha_de_arquivo(mini):
     mini.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False), encoding="utf8")
     avisos = validate(ct.load(mini)).warnings
     assert any("ducking" in a and "trilha.music.arquivo" in a for a in avisos), avisos
+
+
+def test_a_saida_do_ducking_tem_a_duracao_da_entrada(tmp_path):
+    """Regressão: com amix duration=first e a entrada de referência terminando antes do ramo areverse, o ffmpeg 6.1 gravava um WAV
+    vazio (ffprobe duration=N/A). A saída tem de durar o mesmo que a trilha."""
+    _ffmpeg_ou_pula()
+    n = 3 * SR
+    faixa = tons(n, SR, [(40.0, 0.1), (1000.0, 0.1)])
+    entrada = tmp_path / "in.wav"
+    grava_wav(entrada, [faixa, faixa], SR)
+    saida = tmp_path / "out.wav"
+    trilha.aplica_ducking(entrada, saida, janelas=[(1.0, 2.0)])
+    assert trilha.duracao_s(saida) == pytest.approx(3.0, abs=0.05)

@@ -107,6 +107,7 @@ def test_update_de_pacote_instalado_usa_o_ramo_pip_e_nunca_roda_git(pacote, caps
     monkeypatch.setattr(update_cmd, "fetch_latest_tag", lambda: "v99.0.0")
     monkeypatch.setattr(update_cmd, "_run", lambda argv, cwd=None: chamadas.append((list(argv), cwd)) or 0)
     monkeypatch.setattr(update_cmd, "is_pep668_environment", lambda **kw: (False, None))
+    monkeypatch.setattr(update_cmd, "_has_pip", lambda: True)  # hermético: o venv do uv (dev_install) não tem pip
     rc, out, err = executa(["update"], capsys, main)
     assert rc == 0, out + err
     assert chamadas == [([sys.executable, "-m", "pip", "install", "--upgrade", "simplicio-video==99.0.0"], None),
