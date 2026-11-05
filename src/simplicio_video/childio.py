@@ -130,7 +130,7 @@ def check_child(argv: Sequence[Any], **kw: Any) -> None:
     """`subprocess.run(argv, check=True)` through run_child: raises CalledProcessError on a non-zero exit (under MCP it
     carries the stderr, so the reason reaches the tool result)."""
     if not under_mcp():
-        rc, err = subprocess.call(argv, **kw), None
+        rc, err = run_child(argv, **kw), None  # a terminal: plain subprocess.call
     else:
         rc, _, err = _run_captured(argv, kw)
     if rc != 0:
