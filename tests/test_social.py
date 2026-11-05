@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import threading
 import tokenize
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -1631,31 +1632,46 @@ def test_skill_cita_os_escopos_dos_limites_e_o_espelho_e_identico():
 
 # ------------------------------------------------------------------------------------------------ terceira revisão: guarda de redação
 
-NEGACAO_FACTUAL = re.compile(r"\bn(ão|unca)\b(?!\s+confirmad)|\bnenhum\b", re.I)  # "não confirmado" é marca de incerteza, não negação
+NEGACAO_FACTUAL = re.compile(
+    r"\bn(ão|unca)\b(?!\s+confirmad)"  # não, nunca (fora "não confirmado", que é incerteza)
+    r"|\bnenhum(a|as|os)?\b|\bninguém\b|\bjamais\b"  # nenhum, nenhuma, ninguém, jamais
+    r"|\b(?:have|has|had|lists?|with|is|are|was|were|shows?|offers?|publishes?)\s+no\b"  # "have no" em inglês; "no plano" (pt) não casa
+    r"|\bno\s+(?:provider|network|platform|publisher|publishing)\b"
+    r"|\bnot\b(?!\s+confirmed\b)|\bnever\b|\bnone\b|\bnobody\b",  # "not confirmed" é incerteza, não negação
+    re.I,
+)
 FONTE_NA_LINHA = re.compile(r"https://|lida em \d{4}-\d{2}-\d{2}", re.I)
 MENCAO_REDE = re.compile(r"reddit|snapchat|\bsnap\b", re.I)
 REDES_DO_CASO = ("reddit", "snapchat")
 
 
+def _frases(texto):
+    """Frases do texto: as linhas de um parágrafo se juntam antes de dividir (quebra só em linha em branco); NFC antes de casar."""
+    texto = unicodedata.normalize("NFC", texto)
+    for paragrafo in re.split(r"\n\s*\n", texto):
+        yield from re.split(r"(?<=[.!?])\s+", " ".join(paragrafo.split()))
+
+
 def _negacoes_sem_fonte(texto):
-    """Frases que nomeiam Reddit ou Snapchat, afirmam ausência (não, nunca, nenhum) e não trazem URL ou data de leitura na própria frase."""
-    return [frase.strip()[:160] for frase in re.split(r"(?<=[.!?])\s+|\n+", texto)
+    """Frases que nomeiam Reddit ou Snapchat, afirmam ausência (não, nunca, nenhum, nobody, have no...) e não trazem URL ou data de leitura na própria frase."""
+    return [frase.strip()[:160] for frase in _frases(texto)
             if MENCAO_REDE.search(frase) and NEGACAO_FACTUAL.search(frase) and not FONTE_NA_LINHA.search(frase)]
 
 
-def _negacoes_em_folhas(no, sobre_rede=False, achados=None, tem_fonte=False):
-    """Toda string de um JSON, frase a frase; a entrada com a chave fonte ao lado conta como fonte (versão vermelha)."""
+def _negacoes_em_folhas(no, sobre_rede=False, achados=None):
+    """Toda string de um JSON, frase a frase. Strings de uma linha de Reddit ou Snapchat (ou sob essa chave) contam como sobre a rede. Sem exceção por irmão fonte."""
     if achados is None:
         achados = []
     if isinstance(no, dict):
-        for valor in no.values():
-            _negacoes_em_folhas(valor, sobre_rede, achados, "fonte" in no)
+        rede = no.get("network") in REDES_DO_CASO
+        for chave, valor in no.items():
+            _negacoes_em_folhas(valor, sobre_rede or rede or chave in REDES_DO_CASO, achados)
     elif isinstance(no, list):
         for valor in no:
-            _negacoes_em_folhas(valor, sobre_rede, achados, tem_fonte)
+            _negacoes_em_folhas(valor, sobre_rede, achados)
     elif isinstance(no, str):
-        for frase in re.split(r"(?<=[.!?])\s+", no):
-            if MENCAO_REDE.search(frase) and NEGACAO_FACTUAL.search(frase) and not FONTE_NA_LINHA.search(frase) and not tem_fonte:
+        for frase in _frases(no):
+            if (sobre_rede or MENCAO_REDE.search(frase)) and NEGACAO_FACTUAL.search(frase) and not FONTE_NA_LINHA.search(frase):
                 achados.append(frase.strip()[:120])
     return achados
 
