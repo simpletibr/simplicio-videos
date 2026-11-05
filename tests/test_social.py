@@ -1635,10 +1635,13 @@ NEGACAO_FACTUAL = re.compile(r"\bn(ão|unca)\b(?!\s+confirmad)|\bnenhum\b", re.I
 FONTE_NA_LINHA = re.compile(r"https://|lida em \d{4}-\d{2}-\d{2}", re.I)
 
 
+MENCAO_REDE = re.compile(r"reddit|snapchat|\bsnap\b", re.I)
+
+
 def _negacoes_sem_fonte(texto):
-    """Linhas que citam Reddit ou Snapchat, afirmam ausência (não, nunca, nenhum) e não trazem URL nem data de leitura."""
-    return [linha.strip()[:160] for linha in texto.splitlines()
-            if re.search(r"reddit|snapchat", linha, re.I) and NEGACAO_FACTUAL.search(linha) and not FONTE_NA_LINHA.search(linha)]
+    """Frases que nomeiam Reddit ou Snapchat, afirmam ausência (não, nunca, nenhum) e não trazem URL ou data de leitura na própria frase."""
+    return [frase.strip()[:160] for frase in re.split(r"(?<=[.!?])\s+|\n+", texto)
+            if MENCAO_REDE.search(frase) and NEGACAO_FACTUAL.search(frase) and not FONTE_NA_LINHA.search(frase)]
 
 
 def _negacoes_em_notas_da_tabela():
@@ -1663,7 +1666,8 @@ def _negacoes_em_folhas_do_providers():
 
 
 @pytest.mark.parametrize("frase", ["O Snapchat não está aprovado pela Snap.", "Não há provedor para o Reddit.",
-                                   "Reddit: nenhum provedor publica.", "O Snapchat nunca foi aprovado."])
+                                   "Reddit: nenhum provedor publica.", "O Snapchat nunca foi aprovado.",
+                                   "Veja https://docs.zernio.com/platforms/snapchat. O Snapchat não está aprovado pela Snap."])
 def test_guarda_de_redacao_pega_negacao_sem_fonte(frase):
     assert _negacoes_sem_fonte(frase), frase
 
