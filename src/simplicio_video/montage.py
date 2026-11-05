@@ -21,7 +21,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import hostos, tools
+from . import childio, hostos, tools
 from .childio import run_child, under_mcp
 
 
@@ -324,32 +324,34 @@ def _run_open(cmd: list[str], cwd: Path, env: dict) -> int:
     """`backlot open` spawns its server with stderr discarded, so when the upstream says it did not come up, run the server
     in the foreground for a few seconds and show why it exits (e.g. ModuleNotFoundError: fastapi)."""
     seen: list[str] = []
-    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", stdin=subprocess.DEVNULL)
-    assert p.stdout is not None
-    for line in p.stdout:
-        seen.append(line)
-        sys.stdout.write(line)
-        sys.stdout.flush()
-    rc = p.wait()
+    # SIGTERM, SIGHUP and Ctrl+C (also in the gap of Popen) kill the child on the way out and end the engine the usual way
+    with childio.guarded_child(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
+                               stdin=subprocess.DEVNULL) as p:
+        assert p.stdout is not None
+        for line in p.stdout:
+            seen.append(line)
+            sys.stdout.write(line)
+            sys.stdout.flush()
+        rc = p.wait()
     if "did not come up" in "".join(seen):
         serve = [cmd[0], "-m", "backlot", "serve"] + (["--port", os.environ["BACKLOT_PORT"]] if os.environ.get("BACKLOT_PORT") else [])
-        s = subprocess.Popen(serve, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                             text=True, errors="replace")
-        try:
-            _, err = s.communicate(timeout=_OPEN_DIAG_TIMEOUT)
-            low = (err or "").lower()
-            if "address already in use" in low or "errno 98" in low or "10048" in low:
-                print("montage: o backlot subiu tarde: a porta já em uso é o servidor que o `open` iniciou. Abra a URL do board no "
-                      "navegador ou rode `simplicio-video montage open` de novo.", file=sys.stderr)
-            else:
-                tail = "\n".join((err or "").strip().splitlines()[-8:]) or f"saiu com código {s.returncode} sem mensagem"
-                print(f"montage: o backlot não subiu. Motivo (fim do stderr do servidor):\n{tail}\n"
-                      "Se faltam módulos, rode `simplicio-video montage setup`.", file=sys.stderr)
-        except subprocess.TimeoutExpired:
-            s.kill()
-            s.communicate()
-            print("montage: o backlot subiu quando rodado em primeiro plano (encerrei o teste); o início pode ter sido lento. "
-                  "Tente `simplicio-video montage serve`.", file=sys.stderr)
+        with childio.guarded_child(serve, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                   text=True, errors="replace") as s:
+            try:
+                _, err = s.communicate(timeout=_OPEN_DIAG_TIMEOUT)
+                low = (err or "").lower()
+                if "address already in use" in low or "errno 98" in low or "10048" in low:
+                    print("montage: o backlot subiu tarde: a porta já em uso é o servidor que o `open` iniciou. Abra a URL do board no "
+                          "navegador ou rode `simplicio-video montage open` de novo.", file=sys.stderr)
+                else:
+                    tail = "\n".join((err or "").strip().splitlines()[-8:]) or f"saiu com código {s.returncode} sem mensagem"
+                    print(f"montage: o backlot não subiu. Motivo (fim do stderr do servidor):\n{tail}\n"
+                          "Se faltam módulos, rode `simplicio-video montage setup`.", file=sys.stderr)
+            except subprocess.TimeoutExpired:
+                s.kill()
+                s.communicate()
+                print("montage: o backlot subiu quando rodado em primeiro plano (encerrei o teste); o início pode ter sido lento. "
+                      "Tente `simplicio-video montage serve`.", file=sys.stderr)
     return rc
 
 
@@ -1179,28 +1181,27 @@ def run_tool_execute(plan: dict, inputs: dict, cwd: Path, *, timeout: float | No
     cmd = [py, "-I", "-c", _RUN_CHILD, str(om_dir), plan["tool"], input_json(inputs)]
     # The output goes to files, not pipes: a grandchild that left the process group can keep a pipe open for ever, and waiting
     # on the pipe would outlive the time limit. Only the child itself is waited for; its files are read once it has ended.
-    with tempfile.TemporaryFile() as out_f, (tempfile.TemporaryFile() if not stream else contextlib.nullcontext()) as err_f:
+    seen: dict[int, str] = {}  # the descendants of the child, as they were while it ran (see _descendants)
+
+    def stop_tree(proc) -> None:  # the one stop: a timeout, Ctrl-C, SIGTERM/SIGHUP, or a stop signal in the gap of Popen
+        seen.update(_descendants(proc.pid))  # the last look, before the group is killed
+        _kill_group(proc)
+        proc.wait()
+        _kill_survivors(seen)  # what left the group is not in the group any more
+
+    with tempfile.TemporaryFile() as out_f, (tempfile.TemporaryFile() if not stream else contextlib.nullcontext()) as err_f, \
+            contextlib.ExitStack() as guard:
         try:
-            proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=out_f,
-                                    stderr=None if stream else err_f, start_new_session=True)
+            proc = guard.enter_context(childio.guarded_child(cmd, kill=stop_tree, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=out_f,
+                                                             stderr=None if stream else err_f, start_new_session=True))
         except OSError as e:
             raise _spawn_error(e, py) from None
-        seen: dict[int, str] = {}  # the descendants of the child, as they were while it ran (see _descendants)
         try:
             _wait_watching(proc, limit, seen)
         except subprocess.TimeoutExpired:
-            seen.update(_descendants(proc.pid))  # the last look, before the group is killed
-            _kill_group(proc)
-            proc.wait()
-            _kill_survivors(seen)  # what left the group is not in the group any more
+            stop_tree(proc)
             raise MontageError(f"{plan['tool']} passou de {limit:g} s e foi encerrado por tempo limite "
                                "(mude com --timeout ou SIMPLICIO_MONTAGE_TIMEOUT)") from None
-        except BaseException:  # Ctrl-C and the like: the upstream does not outlive the command
-            seen.update(_descendants(proc.pid))
-            _kill_group(proc)
-            proc.wait()
-            _kill_survivors(seen)
-            raise
         _kill_survivors(seen)  # the tool may have returned while its descendants were still alive
         out = _read_text(out_f)
         err = "" if stream else _read_text(err_f)
