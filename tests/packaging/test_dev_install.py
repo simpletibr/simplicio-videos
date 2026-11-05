@@ -437,3 +437,19 @@ def test_doctor_com_so_a_trilha_opcional_quebrada_nao_para_a_instalacao(copia):
     feito = roda(copia)
     assert feito.returncode == 0, texto(feito)
     assert "doctor trilhas" in texto(feito)
+
+
+def test_falha_do_nucleo_junto_com_a_trilha_quebrada_continua_sai_1(copia):
+    """A core failure stops the install even when a track is broken too: the row `trilhas` does not make the core check optional."""
+    ferramentas_ok(copia)
+    disco_suficiente(copia.tmp)
+    (copia.repo / ".venv").mkdir()
+    (copia.repo / ".venv" / "pyvenv.cfg").write_text("version_info = 3.12.4\n", encoding="utf-8")
+    (copia.repo / ".venv" / "bin").mkdir()
+    stub = copia.repo / ".venv" / "bin" / "simplicio-video"
+    stub.write_text("#!/bin/sh\nprintf '%s\\n' 'simplicio-video doctor: fail' '  fail  python       Python 3.11' "
+                    "'  fail  trilhas       1 com instalação quebrada' '        fix: simplicio-video doctor trilhas'\nexit 1\n",
+                    encoding="utf-8")
+    stub.chmod(0o755)
+    feito = roda(copia)
+    assert feito.returncode == 1 and "doctor" in texto(feito), texto(feito)

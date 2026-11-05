@@ -20,6 +20,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -984,3 +985,69 @@ def test_integracao_head_que_aponta_para_objeto_ausente_falha(git_real):
     (pasta / ".git" / "refs" / "heads" / "falso").write_text("1" * 40 + "\n", encoding="utf-8")
     (pasta / ".git" / "HEAD").write_text("ref: refs/heads/falso\n", encoding="utf-8")
     assert _c(_trilha(dt.collect(), "opencut"), "instalada")["status"] == "fail"
+
+
+# --- the third review (red first): the time of --online, the invisible characters, the node probe, the PyPI limit -----------
+
+
+def test_online_com_leituras_que_nao_respondem_respeita_o_orcamento_total(ambiente, monkeypatch):
+    """Twelve reads that never answer are asked together: the whole --online ends within the budget, and each track that waited
+    says so (`tempo esgotado`). With the reads in a row this took 12 times the per-read timeout."""
+    monta_saudavel(ambiente, monkeypatch)
+
+    def lenta(argv, cwd=None):
+        time.sleep(3)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    def lenta_json(url):
+        time.sleep(3)
+        return {}
+
+    io = tools_update.Io(network=True, run=lenta, read=lenta, fetch_json=lenta_json, now=lambda: 1700000000,
+                         which=lambda nome: f"/falso/{nome}")
+    inicio = time.monotonic()
+    doc = dt.collect(online=True, io=io, orcamento_s=0.5)
+    decorrido = time.monotonic() - inicio
+    assert decorrido < 2.0, decorrido
+    esgotadas = [t for t in doc["tracks"] if t["upstream"] and t["upstream"].get("error") == "tempo esgotado"]
+    assert len(esgotadas) >= 10, [t["name"] for t in esgotadas]
+    assert all("tempo esgotado" in _c(t, "upstream")["summary"] for t in esgotadas)
+
+
+def test_pypi_tem_o_mesmo_limite_de_leitura_do_upstream(monkeypatch):
+    chamadas = []
+
+    class Resposta:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self, n=None):
+            return b'{"info": {"version": "1.0.0"}, "urls": []}'
+
+    def falso_urlopen(request, timeout=None):
+        chamadas.append(timeout)
+        return Resposta()
+
+    monkeypatch.setattr(tools_update.urllib.request, "urlopen", falso_urlopen)
+    tools_update._fetch_json("https://pypi.org/pypi/yt-dlp/json")
+    assert chamadas == [tools_update.READ_TIMEOUT_S]
+
+
+def test_node_e_sondado_uma_vez_por_coleta(ambiente, monkeypatch):
+    contador = {"n": 0}
+
+    def sonda():
+        contador["n"] += 1
+        return (22, 11, 0)
+
+    monkeypatch.setattr(dt, "_node_versao_sonda", sonda)
+    dt.collect()
+    assert contador["n"] == 1
+
+
+def test_texto_de_filho_sem_caracteres_de_direcao_nem_bom(ambiente):
+    """Zero-width spaces, bidi overrides, isolates and the BOM can disguise a line or a path: they are cleaned like controls."""
+    assert dt._limpa("a\u200bb\u202ec\u2066d\ufeffe\u200fz") == "a b c d e z"

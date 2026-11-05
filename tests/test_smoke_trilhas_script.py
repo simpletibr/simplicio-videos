@@ -474,3 +474,15 @@ def test_trilha_quebrada_no_doctor_e_aviso_no_smoke_e_nao_falha(smoke, monkeypat
     saida = SimpleNamespace(out=json.dumps(dados), rc=1, timeout=False, texto=json.dumps(dados), segundos=0.1)
     monkeypatch.setattr(smoke, "_rodar_cli", lambda argv: saida)
     assert smoke._core_doctor().estado != smoke.FAIL
+
+
+def test_falha_do_nucleo_mais_trilha_quebrada_continua_FAIL_no_smoke(smoke, monkeypatch):
+    from types import SimpleNamespace
+
+    dados = {"schema": "simplicio.doctor/v1", "status": "fail", "checks": [
+        {"name": "python", "status": "fail", "summary": "Python 3.11", "fix": "instale Python 3.12", "detail": {}},
+        {"name": "trilhas", "status": "fail", "summary": "1 com instalação quebrada",
+         "fix": "simplicio-video doctor trilhas", "detail": {}}]}
+    saida = SimpleNamespace(out=json.dumps(dados), rc=1, timeout=False, texto=json.dumps(dados), segundos=0.1)
+    monkeypatch.setattr(smoke, "_rodar_cli", lambda argv: saida)
+    assert smoke._core_doctor().estado == smoke.FAIL
