@@ -30,7 +30,6 @@ import signal
 import socket
 import subprocess
 import sys
-import threading
 import time
 import urllib.error
 import urllib.request
@@ -1168,29 +1167,27 @@ def _publishing_enabled(d: Path) -> str | None:
 
 
 def _spawn_cli(argv: list[str], cwd: Path, env: dict) -> tuple[int, str]:
-    """Run the upstream cli.py to the end and return (exit code, stdout), where stdout is its one JSON document. Its
-    stderr (the progress log) goes to ours: straight through in a terminal, line by line through sys.stderr under the MCP
-    server or a job, never on fd 1. It runs in its own process group so a stop reaches all of it."""
-    from .childio import under_mcp
+    """Run the upstream cli.py to the end and return (exit code, the JSON lines it printed). The upstream logs to STDOUT
+    (its loguru sink is sys.stdout, despite the --help text) and prints the result there too, so stdout and stderr are
+    read as one stream: every line that is not a JSON document is relayed at once to our stderr (the user sees the stages
+    as they happen, and fd 1 stays free for our own JSON), and the JSON lines come back. It runs in its own process group
+    so a stop reaches all of it."""
     proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE if under_mcp() else None, text=True, encoding="utf-8",
-                            errors="replace", start_new_session=True)
-    pump = None
-    if proc.stderr is not None:
-        def relay() -> None:
-            for line in proc.stderr:
+                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                            start_new_session=True)
+    documents = []
+    try:
+        for line in proc.stdout:
+            if line.lstrip().startswith("{"):
+                documents.append(line)
+            else:
                 sys.stderr.write(line)
                 sys.stderr.flush()
-        pump = threading.Thread(target=relay, daemon=True, name="moneyprinter-stderr")
-        pump.start()
-    try:
-        out, _ = proc.communicate()
+        proc.wait()
     except BaseException:  # Ctrl+C / SIGTERM: the upstream group goes down with us
         _stop_group(proc)
         raise
-    if pump is not None:
-        pump.join(timeout=5)
-    return proc.returncode, out or ""
+    return proc.returncode, "".join(documents)
 
 
 def _json_document(text: str) -> dict | None:
