@@ -273,8 +273,10 @@ def test_o_gitignore_tem_a_skill_de_trilhas():
 
 
 def _faltas_na_linha_decompose(texto: str) -> list:
-    """TDD stub (review round 3): the real check reads the `rea-video decompose` line of recipe (a). Returns the flags it lacks."""
-    return []
+    """The flags missing from the `rea-video decompose` command line of recipe (a) (the line itself, not a substring of the section)."""
+    linhas = [linha for linha in _secao_da_receita(texto, "a").splitlines() if linha.startswith("simplicio-video rea-video decompose")]
+    assert len(linhas) == 1, "recipe (a) must have exactly one `rea-video decompose` command line"
+    return [flag for flag in ("--no-vlm",) if flag not in linhas[0].split()]
 
 
 def test_a_linha_de_decompose_da_receita_a_tem_no_vlm():
@@ -296,7 +298,7 @@ def test_a_versao_e_o_pin_por_padrao_com_update_e_status_qualificados():
 
 def test_quem_baixa_codigo_lista_hyperframes_edit_helpers_e_pesos():
     secao = " ".join(_secao("Quem baixa código pelo MCP").split())
-    for trecho in ("hyperframes@0.8.97", "video.render", "video.run", "setup.sh", "faster-whisper", "primeiro uso"):
+    for trecho in ("hyperframes", "0.8.97", "video.render", "video.run", "setup.sh", "faster-whisper", "primeiro uso"):
         assert trecho in secao, f"'Quem baixa código pelo MCP' does not list {trecho!r}"
     assert "fora dessa lista" not in " ".join(TEXTO.split())
 
