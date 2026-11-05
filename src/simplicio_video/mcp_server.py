@@ -25,12 +25,19 @@ INSTRUCTIONS = ("simplicio-video: short marketing videos from a simplicio.video-
                 "The upload is not a tool here: it is done by the operation tool.")
 
 
+import threading  # noqa: E402 - next to the lock it serves
+
+# redirect_stdout/redirect_stderr swap the process-wide sys.stdout/sys.stderr, and mcp 2.x runs sync tools in worker
+# threads: two overlapping calls would mix their logs and could leave sys.stdout on a dead buffer. One capture at a time.
+_CAPTURE_LOCK = threading.RLock()
+
+
 def _capture(fn, *a, **k) -> dict[str, Any]:
     """Run fn with a log collector; SystemExit from the CLI layer becomes {ok: false, error}."""
     lines: list[str] = []
     buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(buf):
+        with _CAPTURE_LOCK, contextlib.redirect_stdout(buf):
             res = fn(*a, log=lambda *m: lines.append(" ".join(str(x) for x in m)), **k)
         out = {"ok": True, "result": json.loads(json.dumps(res, default=str)) if res is not None else None}
     except SystemExit as e:
@@ -66,7 +73,7 @@ def _cli(argv: list[str], codigos_ok: tuple[int, ...] = (0,)) -> dict:
     from .cli import main
     out, err = io.StringIO(), io.StringIO()
     try:
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        with _CAPTURE_LOCK, contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             rc = main(list(argv))
     except SystemExit as e:  # argparse and the CLI end with a code
         rc = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)

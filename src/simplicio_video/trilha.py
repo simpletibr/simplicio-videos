@@ -25,14 +25,14 @@ ARRANJO_REL = "assets/audio/trilha/arranjo.wav"
 
 
 def _ffmpeg(args: list[str]) -> None:
-    p = subprocess.run(["ffmpeg", "-v", "error", "-y", *args], capture_output=True, text=True)
+    p = subprocess.run(["ffmpeg", "-v", "error", "-y", *args], stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if p.returncode != 0:
         raise SystemExit(f"trilha: ffmpeg falhou ({p.returncode})\n{(p.stderr or '')[-2000:]}")
 
 
 def duracao_s(path: Path) -> float:
     out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
-                         capture_output=True, text=True)
+                         stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if out.returncode != 0 or not out.stdout.strip():
         raise SystemExit(f"trilha: ffprobe não leu a duração de {path}")
     return float(out.stdout.strip())

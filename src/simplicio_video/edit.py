@@ -17,7 +17,7 @@ class EditError(Exception):
 
 def helpers_dir() -> Path:
     setup = paths.home() / "tools" / "video-use" / "setup.sh"
-    r = subprocess.run(["bash", str(setup), "--quiet"], capture_output=True, text=True)
+    r = subprocess.run(["bash", str(setup), "--quiet"], stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if r.returncode != 0:
         raise EditError(r.stderr.strip() or "tools/video-use/setup.sh falhou")
     return Path(r.stdout.strip().splitlines()[-1])

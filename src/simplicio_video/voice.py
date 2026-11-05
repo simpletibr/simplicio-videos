@@ -16,7 +16,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import aio, paths, voice_clone, words as wordsmod
+from . import aio, childio, paths, voice_clone, words as wordsmod
 from .contract import Contract, r4
 
 DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,"
@@ -62,7 +62,7 @@ class VoiceError(SystemExit):
 
 
 def sh(*a: str) -> str:
-    return subprocess.run(a, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(a, check=True, stdin=subprocess.DEVNULL, capture_output=True, text=True).stdout
 
 
 def duration(p: Path) -> float:
@@ -144,7 +144,7 @@ def _local(S: dict, text: str, dst: Path) -> None:
     py = paths.tts_python()
     if not Path(py).exists():
         raise VoiceError(f"provider=local: python with kokoro_onnx not found at {py} (set SIMPLICIO_TTS_PY)")
-    subprocess.run([py, "-c", code, tts_dir, text, S["voice"], str(S["speed"]), S["lang"], str(dst)], check=True)
+    childio.check_child([py, "-c", code, tts_dir, text, S["voice"], str(S["speed"]), S["lang"], str(dst)])
 
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"

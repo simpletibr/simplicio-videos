@@ -98,7 +98,7 @@ def bundle_script(quality: str, gpu_encode: str = "auto") -> str:
 
 def _run(cmd: list[str], cwd: Path, log, extra_env: dict | None = None) -> str:
     log("$ " + " ".join(cmd))
-    p = subprocess.run(cmd, cwd=cwd, env={**paths.node_env(), **(extra_env or {})}, capture_output=True, text=True)
+    p = subprocess.run(cmd, cwd=cwd, env={**paths.node_env(), **(extra_env or {})}, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     out = (p.stdout or "") + (p.stderr or "")
     if p.returncode != 0:
         raise SystemExit(f"command failed ({p.returncode}): {' '.join(cmd)}\n{out[-4000:]}")
@@ -124,7 +124,7 @@ def tree_hash(root: Path) -> tuple[str, dict]:
 def tool_versions() -> dict:
     def first(cmd):
         try:
-            return subprocess.run(cmd, capture_output=True, text=True, env=paths.node_env()).stdout.splitlines()[0].strip()
+            return subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=paths.node_env()).stdout.splitlines()[0].strip()
         except Exception:  # noqa: BLE001 - informational only
             return None
     return {"simplicio_video": __version__, "hyperframes": HYPERFRAMES, "node": first(["node", "--version"]),
@@ -133,13 +133,13 @@ def tool_versions() -> dict:
 
 def media_hashes(mp4: Path) -> dict:
     def dec(args):
-        p = subprocess.run(["ffmpeg", "-v", "error", "-i", str(mp4), *args, "-"], capture_output=True, check=True)
+        p = subprocess.run(["ffmpeg", "-v", "error", "-i", str(mp4), *args, "-"], stdin=subprocess.DEVNULL, capture_output=True, check=True)
         return p.stdout
     fmd5 = dec(["-map", "0:v:0", "-f", "framemd5"]).decode()
     frames = [ln.rsplit(",", 1)[-1].strip() for ln in fmd5.splitlines() if ln and not ln.startswith("#")]
     pcm = dec(["-map", "0:a:0", "-f", "s16le", "-ac", "2", "-ar", "48000"])
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(mp4)],
-                               capture_output=True, text=True).stdout.strip())
+                               stdin=subprocess.DEVNULL, capture_output=True, text=True).stdout.strip())
     return {"sha256": sha256_file(mp4), "duration_s": round(dur, 3), "frames": len(frames),
             "video_frames_sha256": hashlib.sha256("\n".join(frames).encode()).hexdigest(),
             "audio_pcm_sha256": hashlib.sha256(pcm).hexdigest(), "frame_md5": frames}
@@ -147,7 +147,7 @@ def media_hashes(mp4: Path) -> dict:
 
 def loudness(mp4: Path) -> dict:
     p = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(mp4), "-af", "ebur128=peak=true", "-f", "null", "-"],
-                       capture_output=True, text=True)
+                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
     s = p.stderr[p.stderr.rfind("Summary:"):]
     i = re.search(r"I:\s+(-?[0-9.]+) LUFS", s)
     tp = re.search(r"Peak:\s+(-?[0-9.]+) dBFS", s)
@@ -377,7 +377,7 @@ def make_preview(src: Path, dst: Path, home: Path, log=print, marca: dict | None
     import tempfile
     marca = marca or MARCA_PADRAO
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(src)],
-                               capture_output=True, text=True, env=paths.node_env()).stdout.strip())
+                               stdin=subprocess.DEVNULL, capture_output=True, text=True, env=paths.node_env()).stdout.strip())
     logo = preview_logo(home)
     dst.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
@@ -389,11 +389,11 @@ def make_preview(src: Path, dst: Path, home: Path, log=print, marca: dict | None
             "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact", str(dst)]
         log(f"$ ffmpeg (prévia {PREVIEW['width']}x{PREVIEW['height']} crf {PREVIEW['crf']}, marca d'água"
             f"{' + cartão final' if marca.get('credito') else ''}) -> {dst}")
-        p = subprocess.run(cmd, cwd=dst.parent, env=paths.node_env(), capture_output=True, text=True)
+        p = subprocess.run(cmd, cwd=dst.parent, env=paths.node_env(), stdin=subprocess.DEVNULL, capture_output=True, text=True)
         if p.returncode != 0:
             raise SystemExit(f"render --preview: ffmpeg failed ({p.returncode})\n{(p.stderr or '')[-3000:]}")
     out_dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(dst)],
-                                   capture_output=True, text=True, env=paths.node_env()).stdout.strip())
+                                   stdin=subprocess.DEVNULL, capture_output=True, text=True, env=paths.node_env()).stdout.strip())
     return {"path": str(dst), "sha256": sha256_file(dst), "duration_s": round(out_dur, 3), "bytes": dst.stat().st_size,
             "watermark": marca["dagua"], "logo": str(logo) if logo else None}
 

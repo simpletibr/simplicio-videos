@@ -206,7 +206,7 @@ def _git(*args: str, cwd: Path | None = None) -> str:
     git = shutil.which("git")
     if not git:
         raise ToolError("git não encontrado no PATH")
-    r = subprocess.run([git, *args], cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run([git, *args], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if r.returncode:
         raise ToolError(f"git {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
     return r.stdout.strip()
@@ -240,7 +240,7 @@ def pip_binary(name: str) -> Path | None:
 def _run_subprocess(argv, cwd=None) -> "subprocess.CompletedProcess":
     """The default runner: a missing program is a failed command (rc 127), never an OSError out of here."""
     try:
-        return subprocess.run([str(a) for a in argv], cwd=str(cwd) if cwd else None, capture_output=True, text=True,
+        return subprocess.run([str(a) for a in argv], cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                               encoding="utf-8", errors="replace")
     except OSError as exc:
         return subprocess.CompletedProcess(list(argv), 127, "", str(exc))
@@ -292,7 +292,7 @@ def install(name: str) -> str:
         npx = shutil.which("npx")
         if not npx:
             raise ToolError("npx não encontrado no PATH (Node >= 18)")
-        r = subprocess.run([npx, "--yes", f"{t.source}@{ref}", "--version"], capture_output=True, text=True)
+        r = subprocess.run([npx, "--yes", f"{t.source}@{ref}", "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True)
         if r.returncode:
             raise ToolError(f"{t.source}@{ref}: {r.stderr.strip()[-300:]}")
         return f"npx {t.source}@{ref}"

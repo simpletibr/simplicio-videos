@@ -180,6 +180,39 @@ def test_check_child_raises_on_failure(monkeypatch):
     assert e.value.returncode == 5
 
 
+FIXTURE = Path(__file__).parent / "fixtures" / "mini"
+
+
+def _voice_under_mcp(tmp_path, monkeypatch, provider):
+    import shutil
+    from simplicio_video import mcp_server
+    monkeypatch.setenv("SIMPLICIO_MCP", "1")
+    d = tmp_path / "mini"
+    shutil.copytree(FIXTURE, d)
+    return mcp_server.video_voice(str(d / "contract.yaml"), provider=provider, force=True)
+
+
+def test_video_voice_file_provider_keeps_fd1_clean(tmp_path, monkeypatch, capfd):
+    r = _voice_under_mcp(tmp_path, monkeypatch, "file")
+    cap = capfd.readouterr()
+    assert r["ok"], r
+    assert cap.out == ""
+
+
+def test_video_voice_local_provider_child_output_stays_off_fd1(tmp_path, monkeypatch, capfd):
+    """The kokoro child (voice.py _local) printed straight to fd 1 before; a fake interpreter stands in for it."""
+    fake = tmp_path / "fakepy"
+    fake.write_text('#!/bin/sh\necho NOISE-ON-STDOUT\necho NOISE-ON-STDERR >&2\n'
+                    f'exec cp {FIXTURE}/vo/line-01.wav "$(eval echo \\${{$#}})"\n')
+    fake.chmod(0o755)
+    monkeypatch.setenv("SIMPLICIO_TTS_PY", str(fake))
+    r = _voice_under_mcp(tmp_path, monkeypatch, "local")
+    cap = capfd.readouterr()
+    assert r["ok"], r
+    assert cap.out == ""  # fd 2 is not the JSON-RPC stream: the stderr noise may land there
+    assert "NOISE-ON-STDOUT" in r["log"]
+
+
 def test_mcp_capture_is_safe_under_concurrent_tool_calls():
     """mcp 2.x runs sync tools in worker threads: redirect_stdout is process-wide, so calls must not interleave."""
     from simplicio_video import mcp_server

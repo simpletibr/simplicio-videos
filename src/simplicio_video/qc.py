@@ -43,7 +43,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def _duracao_arquivo(mp4: Path) -> float:
     p = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(mp4)],
-                       capture_output=True, text=True)
+                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if p.returncode != 0 or not p.stdout.strip():
         raise QcError(f"qc: ffprobe não leu a duração de {mp4}")
     return float(p.stdout.strip())
@@ -54,7 +54,7 @@ def detecta_congelado(mp4: Path, min_s: float) -> list[dict]:
         raise QcError("qc: --min-s tem de ser maior que zero")
     cmd = ["ffmpeg", "-hide_banner", "-nostats", "-i", str(mp4), "-map", "0:v:0",
            "-vf", f"freezedetect=n={RUIDO}:d={min_s:g}", "-f", "null", "-"]
-    p = subprocess.run(cmd, capture_output=True, text=True)
+    p = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if p.returncode != 0:
         raise QcError(f"qc: ffmpeg falhou ao ler {mp4}:\n{(p.stderr or '')[-1500:]}")
     inicios = [float(x) for x in re.findall(r"freeze_start: ([0-9.]+)", p.stderr)]

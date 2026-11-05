@@ -51,7 +51,7 @@ def encerra_thumb(raw: Path, destino: Path) -> dict:
     png = Path(destino).with_suffix(".png")
     png.parent.mkdir(parents=True, exist_ok=True)
     p = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(raw), *args_thumb(), str(png)],
-                       capture_output=True, text=True)
+                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if p.returncode != 0 or not png.is_file():
         raise SystemExit(f"thumb: o ffmpeg não gerou o PNG do quadro 0 de {raw} ({p.returncode})\n{(p.stderr or '')[-2000:]}")
     return {"saida": png, "quadro": 0}

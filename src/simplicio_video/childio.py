@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Sequence
 from typing import Any
 
@@ -24,9 +25,19 @@ def run_child(argv: Sequence[Any], **kw: Any) -> int:
         return subprocess.call(argv, **kw)
     for k in ("stdin", "stdout", "stderr", "capture_output", "input"):
         kw.pop(k, None)
-    r = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace", **kw)
-    if r.stdout:
-        sys.stdout.write(r.stdout)
-    if r.stderr:
-        sys.stderr.write(r.stderr)
-    return r.returncode
+    # Temp files, not pipes: a pipe would keep run() waiting for any grandchild that inherited it (`(sleep 4 &)`).
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+        rc = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=err, **kw).returncode
+        for f, sink in ((out, sys.stdout), (err, sys.stderr)):
+            f.seek(0)
+            text = f.read().decode("utf-8", errors="replace")  # explicit: the locale codec (cp1252 on Windows) would garble it
+            if text:
+                sink.write(text)
+    return rc
+
+
+def check_child(argv: Sequence[Any], **kw: Any) -> None:
+    """`subprocess.run(argv, check=True)` through run_child: raises CalledProcessError on a non-zero exit."""
+    rc = run_child(argv, **kw)
+    if rc != 0:
+        raise subprocess.CalledProcessError(rc, list(argv))

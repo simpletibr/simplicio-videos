@@ -115,7 +115,7 @@ def _mp4(arquivo: Path, pasta: Path) -> Path:
         raise DownloadError(f"o vídeo veio em {arquivo.suffix} e o MP4 precisa de ffmpeg para remuxar (copia os fluxos, sem recodificar)")
     destino = pasta / "remux.mp4"
     r = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(arquivo), "-c", "copy",
-                        "-movflags", "+faststart", str(destino)], capture_output=True, text=True)
+                        "-movflags", "+faststart", str(destino)], stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if r.returncode:
         raise DownloadError(f"remux para MP4 falhou ({arquivo.suffix} com codec que o MP4 não aceita): {_ultima_linha(r.stderr)}")
     return destino
@@ -150,7 +150,7 @@ def fetch(url: str, dest: Path, autorizo: bool, max_mb: int = DEFAULT_MAX_MB, ti
         cmd = [str(exe), "--ignore-config", "--no-playlist", "--no-cache-dir", "--no-progress", "--print-json",
                "-f", "best[ext=mp4]/best", "--max-filesize", f"{max_mb}M", "-o", str(pasta / "%(id)s.%(ext)s"), url]
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=_ambiente())
+            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout, env=_ambiente())
         except subprocess.TimeoutExpired:
             raise DownloadError(f"yt-dlp passou de {timeout} s e foi interrompido") from None
         if r.returncode:

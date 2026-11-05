@@ -74,7 +74,7 @@ def _need(exe: str) -> str:
 
 
 def _run(cmd: list[str]) -> None:
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if r.returncode != 0:
         raise MediaError((r.stderr or r.stdout).strip().splitlines()[-1] if (r.stderr or r.stdout).strip() else "ffmpeg falhou")
 
@@ -252,7 +252,7 @@ def voice_filter(plano: list[dict], duration: float) -> str:
 def _clip_seconds(path: Path) -> float:
     ffprobe = _need("ffprobe")
     r = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(path)],
-                       capture_output=True, text=True)
+                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
     try:
         return float(r.stdout.strip())
     except ValueError:
@@ -260,7 +260,7 @@ def _clip_seconds(path: Path) -> float:
 
 
 def _has_filter(name: str) -> bool:
-    r = subprocess.run([_need("ffmpeg"), "-hide_banner", "-filters"], capture_output=True, text=True)
+    r = subprocess.run([_need("ffmpeg"), "-hide_banner", "-filters"], stdin=subprocess.DEVNULL, capture_output=True, text=True)
     return any(re.match(r"\s*\S+\s+%s\s" % re.escape(name), linha) for linha in r.stdout.splitlines())
 
 

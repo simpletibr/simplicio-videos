@@ -249,7 +249,7 @@ def fetch_latest_tag() -> str:
     if gh:
         try:
             done = subprocess.run([gh, "release", "view", "-R", REPO, "--json", "tagName", "-q", ".tagName"],
-                                  capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+                                  stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace", timeout=30)
         except (OSError, subprocess.SubprocessError):  # a gh that hangs or cannot start: the API is the other way
             done = None
         if done is not None and done.returncode == 0 and done.stdout.strip():
@@ -286,7 +286,7 @@ def _git(checkout: Path, *args: str) -> "subprocess.CompletedProcess":
         try:
             # UTF-8 with `replace`: the Windows default is the console codec (cp1252 cannot read the 0x8D of an `Í`), and a diff
             # of the CHANGELOG must never be the reason for a UnicodeDecodeError
-            done = subprocess.run(argv, capture_output=True, encoding="utf-8", errors="replace",
+            done = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace",
                                   env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
         except OSError as exc:
             return subprocess.CompletedProcess(argv, 127, "", str(exc))
