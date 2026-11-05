@@ -26,7 +26,6 @@ def _isolated(tmp_path, monkeypatch):
     for t in tools.TOOLS.values():
         for var in (f"{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_REF"):
             monkeypatch.delenv(var, raising=False)
-    monkeypatch.delenv("VIDEO_USE_DIR", raising=False)
     monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()

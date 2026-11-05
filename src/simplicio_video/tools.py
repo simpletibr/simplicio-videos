@@ -101,7 +101,7 @@ TOOLS: dict[str, Tool] = {
     "video-use": Tool("video-use", "git", "https://github.com/browser-use/video-use",
                         "b877063", "MIT",
                         "EDL editing over any MP4: word-accurate cuts, subtitles, overlays and filmstrip review; "
-                        "the agent decides the EDL, ffmpeg executes it", marker="render.py",
+                        "the agent decides the EDL, ffmpeg executes it", marker="helpers/render.py",
                         note="pinned by tools/video-use/setup.sh (23/09/2026); the checkout lives in "
                              "~/.cache/simplicio/video-use, not in the tools cache"),
     "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.50.1", "not declared in the npm package (no license field, no LICENSE file; read 2026-10-16)",
@@ -198,6 +198,9 @@ def tools_dir() -> Path:
 
 
 def checkout_dir(t: Tool) -> Path:
+    if t.name == "video-use":  # setup.sh keeps it outside the tools cache: the resolution lives in tools_update (lazy: it imports us)
+        from . import tools_update
+        return tools_update.checkout_for(t)
     env = os.environ.get(f"{t.name.upper()}_DIR") or os.environ.get(f"SIMPLICIO_{t.name.upper()}_DIR")
     return Path(env).expanduser() if env else tools_dir() / t.name
 
