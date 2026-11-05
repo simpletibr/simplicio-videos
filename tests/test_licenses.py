@@ -143,6 +143,38 @@ def test_scan_segue_o_extra_pedido_a_uma_dependencia(monkeypatch, tmp_path):
     assert nomes == ["crypto-lib", "jwt-lib", "simplicio-video"]
 
 
+# (a5) a tabela do doc não lista dependência condicionada ao ambiente (python_version, plataforma...): é igual em qualquer Python.
+# O gate de licença continua vendo a dependência quando ela está instalada.
+def test_tabela_ignora_dependencia_com_marcador_de_ambiente_mas_o_gate_ve(monkeypatch, tmp_path):
+    lic = _lic()
+    produto = FakeDist("simplicio-video", "1.0", "MIT").requires("base-lib")
+    base = FakeDist("base-lib", "1.0", "MIT").requires("typing-ext; python_version < '3.13'", "tomli; python_full_version < '3.11'",
+                                                      "colorama; sys_platform == 'win32' and extra == 'test'")
+    outras = [FakeDist(n, "1.0", "MIT") for n in ("typing-ext", "tomli", "colorama")]
+    _use_dists(monkeypatch, produto, base, *outras)
+    exc = _exceptions(tmp_path, [])
+
+    assert [e.name for e in lic.scan(exceptions_path=exc)] == ["base-lib", "simplicio-video"]
+    assert [e.name for e in lic.scan(exceptions_path=exc, todos_os_extras=True)] == [
+        "base-lib", "colorama", "simplicio-video", "tomli", "typing-ext"]
+
+
+# (a6) pacote instalado mas não declarado (GPL) importado pelo código continua reprovado: o gate olha tudo o que está instalado
+def test_pacote_gpl_instalado_e_nao_declarado_importado_reprova(monkeypatch, tmp_path):
+    lic = _lic()
+    produto = FakeDist("simplicio-video", "1.0", "MIT").requires("base-lib")
+    gpl = FakeDist("undecl-gpl", "1.0", "GPL-2.0-only", top_level=["undeclgpl"])
+    _use_dists(monkeypatch, produto, FakeDist("base-lib", "1.0", "MIT"), gpl)
+    exc = _exceptions(tmp_path, [])
+
+    entries = lic.scan(exceptions_path=exc, todos_os_extras=True)
+    arquivo = tmp_path / "usa_gpl.py"
+    arquivo.write_text("import undeclgpl\n", encoding="utf-8")
+
+    assert [e.name for e in lic.denied(entries)] == ["undecl-gpl"]
+    assert len(lic.import_violations([arquivo], entries)) == 1
+
+
 # (b) a mesma licença, com exceção justificada, passa
 def test_excecao_justificada_deixa_o_agpl_passar(monkeypatch, tmp_path):
     lic = _lic()
