@@ -11,6 +11,20 @@
     "Depois de erro ou resposta incerta, confira o resultado (lista de publicações) antes de tentar publicar de novo.",
     "Não consulte o status em laço: no máximo 3 consultas seguidas, com a espera que o provedor informou."
   ],
+  "sem_provedor": {
+    "reddit": {
+      "motivo": "Zernio: indisponível desde 19/10/2026 (bloqueio da API pelo Reddit); Real Oficial: não lista como destino de publicação (página do MCP, 2026-11-05)",
+      "source_url": "https://docs.zernio.com/platforms/reddit",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED"
+    },
+    "snapchat": {
+      "motivo": "Zernio: não aprovado pela Snap (403 PLATFORM_BETA_RESTRICTED); Real Oficial: não lista como destino de publicação (página do MCP, 2026-11-05)",
+      "source_url": "https://docs.zernio.com/platforms/snapchat",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED"
+    }
+  },
   "providers": [
     {
       "id": "realoficial",
@@ -29,7 +43,6 @@
         "twitter",
         "linkedin",
         "threads",
-        "reddit",
         "pinterest",
         "bluesky"
       ],
@@ -44,7 +57,8 @@
       ],
       "gaps": [
         "Não há ferramenta para enviar um MP4 local: ro_preview_publication recebe o clip_id de um clip que já vive no Real Oficial; ro_import_video só importa vídeo gerado por IA no próprio Real Oficial (video_id) e ro_estimate_clips só aceita URL de YouTube ou Twitch (arquivo direto e Google Drive não são suportados). O MP4 do motor entra pelo app do Real Oficial e o agente informa o clip_id.",
-        "O motor não consegue provar que o clip_id corresponde ao MP4 do plano: o usuário confere o clip na cotação."
+        "O motor não consegue provar que o clip_id corresponde ao MP4 do plano: o usuário confere o clip na cotação.",
+        "Reddit e Snapchat não aparecem entre os destinos de publicação da página do MCP (lida em 2026-11-05): ver sem_provedor."
       ],
       "unverified": [
         "preço do plano e custo em créditos de publicar",
@@ -243,9 +257,7 @@
         "youtube",
         "threads",
         "pinterest",
-        "reddit",
         "bluesky",
-        "snapchat",
         "googlebusiness",
         "telegram",
         "whatsapp",
@@ -257,7 +269,8 @@
         "a URL da mídia precisa devolver o arquivo cru por HTTPS: links do Google Drive, Dropbox, OneDrive e iCloud falham",
         "o link de upload vale 1 hora e o arquivo some do armazenamento temporário em 7 dias",
         "limites por rede: só nas páginas docs.zernio.com por rede (UNVERIFIED), ver `social` limits.json",
-        "limites de taxa: UNVERIFIED (guia de rate limits não lido)"
+        "limites de taxa: UNVERIFIED (guia de rate limits não lido)",
+        "redes: Reddit indisponível desde 19/10/2026 (bloqueio da API pelo Reddit) e Snapchat não aprovado pela Snap (403 PLATFORM_BETA_RESTRICTED); lidas em docs.zernio.com/platforms/reddit e /snapchat em 2026-11-05 (ver sem_provedor)."
       ],
       "gaps": [
         "Não se achou ferramenta de prévia, cotação ou rascunho: posts_create publica na hora quando publish_at é 'now', então o consentimento vem antes de subir a mídia e antes de criar o post.",

@@ -97,10 +97,29 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _publishable(net: str, provs: list[dict]) -> bool:
+    """A provider that publishes YouTube videos publishes Shorts too: its networks list says 'youtube' only."""
+    key = "youtube" if net == "youtube_shorts" else net
+    return any(key in p["networks"] for p in provs)
+
+
+def _sem_provedor(nets: list[str], prov: dict | None = None) -> list[str]:
+    """Networks that no provider publishes yet or, with `prov`, that this one provider does not publish."""
+    provs = [prov] if prov is not None else _providers_doc()["providers"]
+    return [n for n in nets if not _publishable(n, provs)]
+
+
+def _motivo_sem_provedor(nets: list[str], label: str, doc: dict) -> str:
+    sem = doc.get("sem_provedor", {})
+    partes = [f"{n}: {sem[n]['motivo']}" if n in sem else f"{n}: nenhum provedor publica essa rede" for n in nets]
+    return f"sem provedor para {', '.join(nets)} pelo {label}: não dá para postar ainda ({'; '.join(partes)})"
+
+
 def providers_report() -> dict:
     doc = _providers_doc()
     provs = [{k: v for k, v in p.items() if k != "recipe"} for p in doc["providers"]]
-    return {"schema": doc["schema"], "default": doc["default"], "read_on": doc["read_on"], "rules": doc["rules"], "providers": provs}
+    return {"schema": doc["schema"], "default": doc["default"], "read_on": doc["read_on"], "rules": doc["rules"],
+            "sem_provedor": doc["sem_provedor"], "providers": provs}
 
 
 # ---------------------------------------------------------------------------------------------------------- video
@@ -454,6 +473,8 @@ def _check(path: str) -> tuple[dict, dict]:
         tgts = parse_targets([f"{t['network']}={t.get('account') or ''}" for t in plan["targets"]])
         if tgts != plan["targets"]:
             problems.append("os destinos do plano não estão no formato que o plan grava")
+        for net in _sem_provedor([t["network"] for t in tgts]):
+            warnings.append(f"sem provedor para {net}: nenhum provedor publica essa rede ainda; o plano confere, mas a receita sai bloqueada")
     except (SocialError, TypeError, AttributeError) as e:
         problems.append(f"destinos inválidos no plano: {e}")
     sched = plan.get("schedule")
@@ -642,6 +663,12 @@ def _flat(templates: list[dict]) -> list[dict]:
     return out
 
 
+def _recipe_doc(pid: str, prov: dict, plan: dict, doc: dict, *, reason: str, steps: list, blocked_until: list) -> dict:
+    return {"schema": SCHEMA_RECIPE, "provider": pid, "label": prov["label"], "plan_id": plan["plan_id"], "mcp_url": prov["mcp_url"],
+            "blocked": bool(reason), "blocked_reason": reason, "steps": steps, "blocked_until": blocked_until,
+            "publish_tools": prov["publish_tools"], "rules": doc["rules"], "unverified": prov["unverified"], "gaps": prov["gaps"]}
+
+
 def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = None) -> dict:
     doc = _providers_doc()
     pid = provider or doc["default"]
@@ -654,6 +681,11 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     clip_id = (clip_id or "").strip() or None
     if pid == "realoficial" and clip_id and not _RO_ID_RE.match(clip_id):
         raise SocialError("clip_id inválido: o Real Oficial usa ids de 26 letras e números")
+    sem = _sem_provedor([t["network"] for t in plan["targets"]], prov)
+    if sem:  # blocked for good: no quote, no show, no yes and no publish; only the explanation comes out
+        reason = _motivo_sem_provedor(sem, prov["label"], doc) + ". Gere um plano só com as redes que o provedor publica"
+        return _recipe_doc(pid, prov, plan, doc, reason=reason, steps=[{"n": 1, "id": "sem_provedor", "kind": "manual", "text": reason}],
+                           blocked_until=sem)
     flags = _context(plan, pid, clip_id, lambda _id: "?")  # only the `when` flags matter here: which steps this plan needs
     templates = [t for t in prov["recipe"] if not t.get("when") or flags.get(t["when"])]
     numbers = {t["id"]: i + 1 for i, t in enumerate(templates)}
@@ -701,10 +733,7 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
     if reason:  # really blocked: only the manual step comes out; no quoting, showing, asking for the yes or publishing with a placeholder
         steps = [s for s in steps if s["id"] == "clip" and s["kind"] == "manual"] or [{"n": 1, "id": "clip", "kind": "manual", "text": reason}]
         blocked = blocked or ["clip_id do vídeo no Real Oficial"]
-    return {"schema": SCHEMA_RECIPE, "provider": pid, "label": prov["label"], "plan_id": plan["plan_id"], "mcp_url": prov["mcp_url"],
-            "blocked": bool(reason), "blocked_reason": reason,
-            "steps": steps, "blocked_until": blocked, "publish_tools": prov["publish_tools"], "rules": doc["rules"],
-            "unverified": prov["unverified"], "gaps": prov["gaps"]}
+    return _recipe_doc(pid, prov, plan, doc, reason=reason, steps=steps, blocked_until=blocked)
 
 
 KIND_LABEL = {"call": "chamada", "manual": "manual", "show": "mostrar", "consent": "consentimento", "local": "local"}
@@ -751,7 +780,8 @@ HELP_DESC = (
     "não guarda credencial: quem publica é o agente, com as ferramentas do próprio provedor e o sim explícito do usuário em "
     "cada postagem. Limites e ferramentas não conferidos na fonte oficial ficam marcados UNVERIFIED; uma violação de limite "
     "UNVERIFIED só passa com --aceito-unverified (assinado com chave local). `check` e `recipe` revalidam o plano contra o vídeo e a tabela. "
-    "`recipe` do Real Oficial sem --clip-id sai BLOQUEADA (saída 1): o MCP dele não recebe MP4 local."
+    "`recipe` do Real Oficial sem --clip-id sai BLOQUEADA (saída 1): o MCP dele não recebe MP4 local. Reddit e Snapchat entram no plano "
+    "(limites), mas nenhum provedor os publica ainda: a receita sai BLOQUEADA com o motivo."
 )
 HELP_EPILOG = (
     "exemplos:\n"
@@ -774,7 +804,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--video", required=True, help="MP4 final")
     p.add_argument("--caption", help="legenda (com as hashtags)")
     p.add_argument("--caption-file", help="arquivo com a legenda")
-    p.add_argument("--target", action="append", default=[], help="rede[=conta], repetível ou separado por vírgula: youtube (vídeo comum), youtube_shorts, tiktok=@conta")
+    p.add_argument("--target", action="append", default=[], help="rede[=conta], repetível ou separado por vírgula: youtube (vídeo comum), youtube_shorts, tiktok=@conta; reddit e snapchat planejam, mas sem provedor ainda")
     p.add_argument("--title", help="título (YouTube, Pinterest)")
     p.add_argument("--at", help="horário local AAAA-MM-DDTHH:MM (sem --at, publicar agora)")
     p.add_argument("--timezone", help="fuso IANA do --at, ex.: America/Sao_Paulo")
@@ -807,6 +837,9 @@ def _providers_text(rep: dict) -> str:
             lines.append(f"    {t['name']:34s} {t['effect']:8s} {t['confidence']}")
         lines.append("  limites conhecidos: " + "; ".join(p["known_limits"]))
         lines.append("  lacunas: " + " ".join(p["gaps"]))
+    if rep["sem_provedor"]:
+        lines.append("\nSem provedor (o plano confere, mas nenhum provedor publica ainda):")
+        lines.extend(f"- {rede}: {item['motivo']}" for rede, item in rep["sem_provedor"].items())
     lines.append("\nRegras:")
     lines.extend(f"- {r}" for r in rep["rules"])
     return "\n".join(lines)
@@ -819,12 +852,18 @@ def _plan_text(res: dict) -> str:
              f"  vídeo {v['path']}  {v['duration_s']} s, {v['width']}x{v['height']} ({v['aspect_ratio']}), {v['video_codec']}/{v['audio_codec']}, {v['size_bytes']} bytes",
              "  destinos: " + ", ".join(f"{t['network']}" + (f"={t['account']}" if t["account"] else "") for t in p["targets"]),
              "  quando: " + (f"{p['schedule']['at']} {p['schedule']['timezone']}" if p["schedule"] else "agora (só depois do consentimento)")]
+    sem = _sem_provedor([t["network"] for t in p["targets"]])
+    if sem:
+        lines.append("  sem provedor para postar ainda: " + ", ".join(sem) + " (o plano confere; a receita sai bloqueada)")
     nao = [c for c in p["checks"] if c["status"] == "unchecked"]
     if nao:
         lines.append(f"  sem limite conferido ({len(nao)}): " + ", ".join(f"{c['network']}:{c['field']}" for c in nao))
     if p["accepted_unverified"]:
         lines.append("  violações UNVERIFIED aceitas: " + ", ".join(p["accepted_unverified"]))
-    lines.append("próximo passo: simplicio-video social recipe " + res["path"])
+    if sem:
+        lines.append("a receita deste plano sai bloqueada: gere um plano só com as redes que o provedor publica (simplicio-video social providers)")
+    else:
+        lines.append("próximo passo: simplicio-video social recipe " + res["path"])
     return "\n".join(lines)
 
 
