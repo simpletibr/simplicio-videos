@@ -8,9 +8,12 @@ enters a contract as a file with a hash, so the render stays reproducible.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
+import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -22,14 +25,26 @@ TOONFLOW_REPO = tools.get("toonflow").source
 # so `serve` only starts when the caller says LAN_FLAG on purpose.
 PORT = 3000
 LAN_FLAG = "--lan"
+DOCKER_FLAG = "--docker"
+LOCAL_FLAG = "--local"
+# Upstream MCP (packages/mcp, apps/server/src/utils/mcp/runtime.ts at the pin): off by default, enabled in Settings > MCP; while
+# enabled the server writes <data dir>/mcpRuntime<port>.json ({pid,url,token}, mode 0600) and build/mcp/stdio.js reads it.
+RUNTIME_RE = re.compile(r"^mcpRuntime(\d+)\.json$")
+STDIO_ENTRY = Path("build") / "mcp" / "stdio.js"
+SERVER_ENTRY = Path("build") / "server" / "index.js"
 
 USAGE = (
     f"Toonflow ({TOONFLOW_REPO}, MIT)\n"
     "  simplicio-video toonflow clone [dir]   # clona o Toonflow no commit fixado (TOONFLOW_DIR ou ~/.simplicio-video/tools)\n"
     f"  simplicio-video toonflow serve {LAN_FLAG}   # bun install --frozen-lockfile, build e start: http://localhost:{PORT}\n"
+    f"  simplicio-video toonflow serve {DOCKER_FLAG}   # alternativa só em 127.0.0.1:{PORT}: docker compose up --build do próprio Toonflow\n"
     "  simplicio-video toonflow where         # imprime o checkout\n"
+    "  simplicio-video toonflow status [--json]   # checkout e pin, bun, build e arquivo de runtime do MCP (nunca o token)\n"
+    "  simplicio-video toonflow mcp [--port N] [--json]   # bloco de config MCP stdio para colar no agente host\n"
     f"Sem {LAN_FLAG}, serve não sobe: o Toonflow escuta em 0.0.0.0:{PORT} (todas as interfaces) e não tem login.\n"
-    f"Para ficar só no seu computador, use o docker compose do próprio Toonflow (127.0.0.1:{PORT}) ou bloqueie a porta no firewall.\n"
+    f"Para ficar só no seu computador, use `serve {DOCKER_FLAG}` (docker compose do próprio Toonflow, 127.0.0.1:{PORT}) ou bloqueie a porta no firewall.\n"
+    f"{LOCAL_FLAG} não existe: o servidor fixa a porta e chama listen({PORT}) sem host, sem variável para trocar a interface.\n"
+    "O MCP do Toonflow vem desligado: ligue em Configurações > MCP na interface e rode `toonflow mcp`.\n"
     "Dados em TOONFLOW_DATA_DIR (padrão ~/.simplicio-video/toonflow-data), fora do checkout.\n"
     "O Toonflow fica fora do render determinístico: o que ele gera entra num contrato como arquivo com hash.\n"
 )
@@ -144,13 +159,22 @@ def _run_server(bun: str, d: Path, data: Path) -> int:
 
 
 def _serve(d: Path, args: list[str]) -> int:
+    if LOCAL_FLAG in args:
+        raise ToonflowError(
+            f"serve {LOCAL_FLAG} não é possível: no commit fixado o servidor chama listen({PORT}) sem host (apps/server/src/index.ts) "
+            f"e não lê variável de host ou porta, então escuta em todas as interfaces. Use `serve {DOCKER_FLAG}` (127.0.0.1:{PORT}) ou bloqueie a porta no firewall."
+        )
+    if DOCKER_FLAG in args:
+        if args != [DOCKER_FLAG]:
+            raise ToonflowError(f"serve {DOCKER_FLAG} não combina com outras opções: o compose do Toonflow já publica só em 127.0.0.1:{PORT}.")
+        return _serve_docker(d)
     if [a for a in args if a != LAN_FLAG]:
-        raise ToonflowError(f"serve aceita só {LAN_FLAG}: a porta é fixa no Toonflow ({PORT}).")
+        raise ToonflowError(f"serve aceita só {LAN_FLAG} ou {DOCKER_FLAG}: a porta é fixa no Toonflow ({PORT}).")
     if LAN_FLAG not in args:
         raise ToonflowError(
             f"serve não sobe sem {LAN_FLAG}: o Toonflow escuta em 0.0.0.0:{PORT} (todas as interfaces) e não tem login, "
             "então qualquer máquina da mesma rede alcança a API e os arquivos. "
-            f"Para ficar só no seu computador, use o docker compose do próprio Toonflow (127.0.0.1:{PORT}) ou bloqueie a porta no firewall. "
+            f"Para ficar só no seu computador, use `simplicio-video toonflow serve {DOCKER_FLAG}` (127.0.0.1:{PORT}) ou bloqueie a porta no firewall. "
             f"Para aceitar a exposição, rode `simplicio-video toonflow serve {LAN_FLAG}`."
         )
     bun = _bun()
@@ -172,13 +196,166 @@ def _serve(d: Path, args: list[str]) -> int:
             signal.signal(n, handler)
 
 
+def _compose_cmd() -> list[str] | None:
+    """`docker compose` (plugin) or the standalone `docker-compose`; None when neither works."""
+    docker = shutil.which("docker")
+    if docker:
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            if subprocess.run([docker, "compose", "version"], capture_output=True, timeout=15).returncode == 0:
+                return [docker, "compose"]
+    legacy = shutil.which("docker-compose")
+    return [legacy] if legacy else None
+
+
+def _serve_docker(d: Path) -> int:
+    """The loopback alternative: upstream's compose.yaml publishes 127.0.0.1:3000:3000 and keeps the data in a volume."""
+    compose = _compose_cmd()
+    if compose is None:
+        raise ToonflowError("docker compose não encontrado (https://docs.docker.com/compose/install/): instale o Docker, "
+                            f"ou use `serve {LAN_FLAG}` aceitando a exposição em todas as interfaces.")
+    print(f"Toonflow (docker compose) em http://127.0.0.1:{PORT}, só neste computador e sem login. Ctrl+C para parar.")
+    try:
+        return subprocess.call([*compose, "up", "--build"], cwd=d)
+    except KeyboardInterrupt:
+        print("toonflow: interrompido", file=sys.stderr)
+        return 0
+
+
+def _bun_version(bun: str) -> str | None:
+    try:
+        r = subprocess.run([bun, "--version"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return (r.stdout.strip() or None) if r.returncode == 0 else None
+
+
+def _port_of(f: Path) -> int:
+    return int(RUNTIME_RE.match(f.name).group(1))
+
+
+def _runtime_files() -> list[Path]:
+    d = data_dir()
+    if not d.is_dir():
+        return []
+    return sorted((f for f in d.iterdir() if RUNTIME_RE.match(f.name) and f.is_file()), key=_port_of)
+
+
+def _mode(f: Path) -> str:
+    return format(stat.S_IMODE(f.stat().st_mode), "04o")
+
+
+def _private(f: Path) -> bool:
+    """Upstream refuses a file others can reach; we ask for exactly 0600, owned by the user."""
+    if os.name == "nt":
+        return True
+    st = f.stat()
+    return stat.S_IMODE(st.st_mode) == 0o600 and st.st_uid == os.getuid()
+
+
+def status() -> dict:
+    """What is installed and what the MCP bridge needs. The runtime files are only stat()ed: the token inside is never read."""
+    t = tools.get("toonflow")
+    try:
+        pin = tools.effective_ref(t)
+    except tools.ToolError:
+        pin = t.ref
+    d = find_toonflow_dir()
+    head = None
+    if d is not None:
+        try:
+            head = tools._git("rev-parse", "HEAD", cwd=d)
+        except tools.ToolError:
+            head = None
+    bun = shutil.which("bun")
+    return {
+        "checkout": str(d) if d else None,
+        "pin": pin,
+        "head": head,
+        "pin_match": (head == pin) if head else None,
+        "bun": {"found": bool(bun), "path": bun, "version": _bun_version(bun) if bun else None},
+        "build": {"server": bool(d and (d / SERVER_ENTRY).is_file()), "mcp_stdio": bool(d and (d / STDIO_ENTRY).is_file())},
+        "mcp_runtime": [{"path": str(f), "port": _port_of(f), "mode": _mode(f), "ok": _private(f)} for f in _runtime_files()],
+    }
+
+
+def _print_status(s: dict) -> None:
+    b = s["bun"]
+    match = "confere com o pin" if s["pin_match"] else "DIFERE do pin" if s["pin_match"] is False else "sem checkout"
+    print(f"checkout: {s['checkout'] or 'não encontrado (rode `toonflow clone`)'}")
+    print(f"pin:      {s['pin']}")
+    print(f"head:     {s['head'] or '-'}  ({match})")
+    print(f"bun:      {(b['path'] + ' ' + (b['version'] or '?')) if b['found'] else 'não encontrado (https://bun.sh)'}")
+    print(f"build:    server={'ok' if s['build']['server'] else 'falta'}  mcp/stdio={'ok' if s['build']['mcp_stdio'] else 'falta'}  (bun run build:server)")
+    if not s["mcp_runtime"]:
+        print("mcp:      nenhum mcpRuntime<porta>.json (o MCP do Toonflow vem desligado: Configurações > MCP, com o servidor no ar)")
+    for r in s["mcp_runtime"]:
+        print(f"mcp:      {r['path']}  modo {r['mode']}  {'ok' if r['ok'] else 'ABERTO: chmod 600 ' + r['path']}")
+
+
+def mcp_config(port: int | None = None) -> dict:
+    """The stdio block for a host agent: `<node|bun> <checkout>/build/mcp/stdio.js --runtime <data>/mcpRuntime<port>.json`.
+    Refuses an open runtime file (upstream would too). The token is never read."""
+    d = find_toonflow_dir()
+    if d is None:
+        raise ToonflowError("Toonflow não encontrado: rode `simplicio-video toonflow clone` ou defina TOONFLOW_DIR.")
+    stdio = d / STDIO_ENTRY
+    if not stdio.is_file():
+        raise ToonflowError(f"falta {stdio}: rode `bun install --frozen-lockfile && bun run build:server` em {d} "
+                            f"(o `simplicio-video toonflow serve {LAN_FLAG}` também faz isso).")
+    files = _runtime_files()
+    if not files:
+        raise ToonflowError(f"nenhum mcpRuntime<porta>.json em {data_dir()}: o MCP do Toonflow vem desligado. Suba o servidor, ligue em "
+                            "Configurações > MCP (o arquivo só existe enquanto o MCP está ligado) e rode de novo.")
+    if port is None:
+        if len(files) > 1:
+            raise ToonflowError("há mais de um arquivo de runtime (" + ", ".join(f.name for f in files) + "): escolha com --port N.")
+        f = files[0]
+    else:
+        f = next((x for x in files if x.name == f"mcpRuntime{port}.json"), None)
+        if f is None:
+            raise ToonflowError(f"não há mcpRuntime{port}.json em {data_dir()} (existem: {', '.join(x.name for x in files)}).")
+    if not _private(f):
+        raise ToonflowError(f"{f.resolve()} está com modo {_mode(f)} (ou é de outro dono); o Toonflow só aceita o arquivo do seu usuário com 0600. "
+                            f"Corrija com `chmod 600 {f.resolve()}`.")
+    runner = shutil.which("node") or shutil.which("bun")
+    if not runner:
+        raise ToonflowError("node (20 ou mais novo) ou bun não encontrado: o build/mcp/stdio.js roda em um dos dois.")
+    return {"mcpServers": {"toonflow": {"command": runner, "args": [str(stdio.resolve()), "--runtime", str(f.resolve())]}}}
+
+
+def _flags(args: list[str], allow_port: bool) -> tuple[bool, int | None]:
+    as_json, port, i = False, None, 0
+    while i < len(args):
+        a = args[i]
+        if a == "--json":
+            as_json = True
+        elif a == "--port" and allow_port and i + 1 < len(args) and args[i + 1].isdigit():
+            port, i = int(args[i + 1]), i + 1
+        else:
+            raise ToonflowError(f"opção desconhecida: {a} (aceita --json{' e --port N' if allow_port else ''})")
+        i += 1
+    return as_json, port
+
+
 def run_toonflow(args: list[str]) -> int:
     first = args[0] if args else "help"
     if first in ("-h", "--help", "help"):
         print(USAGE)
         return 0
-    if first not in ("clone", "serve", "where"):
-        raise ToonflowError(f"subcomando desconhecido: {first} (clone|serve|where)")
+    if first not in ("clone", "serve", "where", "status", "mcp"):
+        raise ToonflowError(f"subcomando desconhecido: {first} (clone|serve|where|status|mcp)")
+    if first == "status":
+        as_json, _ = _flags(args[1:], False)
+        s = status()
+        if as_json:
+            print(json.dumps(s, indent=2, ensure_ascii=False))
+        else:
+            _print_status(s)
+        return 0
+    if first == "mcp":
+        _, port = _flags(args[1:], True)
+        print(json.dumps(mcp_config(port), indent=2))
+        return 0
     if first == "clone":
         print(clone_toonflow(Path(args[1]) if len(args) > 1 else None))
         return 0
