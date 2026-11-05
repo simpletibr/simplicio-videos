@@ -23,8 +23,45 @@ from simplicio_video.cli import build_parser
 
 PACOTE = ROOT / "src" / "simplicio_video" / "data" / "skills"
 ESPELHO = ROOT / "skills"
-NOMES = ("simplicio-video", "simplicio-video-social", "deep-news", "deep-service", "deep-product")
+NOMES = ("simplicio-video", "simplicio-video-social", "simplicio-video-trilhas", "deep-news", "deep-service", "deep-product")
 DELEGADOS = {"social": social._parser, "openverse": openverse._parser, "busca": busca._parser}  # `args: REMAINDER` in cli.py
+# Os outros grupos que repassam os argumentos a outro programa (`args: REMAINDER` em cli.py): o parser não conhece o verbo nem as
+# flags, então a conferência é esta. Cada verbo citado tem de estar na lista do grupo, e a lista tem de aparecer como texto no módulo
+# que a implementa (o teste lê o código; nenhum destes programas roda aqui). As listas vêm do --help de cada comando e do código.
+PASSAGEM = {
+    "media": ("media.py", ("fetch", "probe", "audio", "sheet", "subs", "burn", "mask", "replace-audio", "voice-track")),
+    "edit": ("edit.py", ("setup", "transcribe", "transcribe-batch", "pack", "render", "verify", "grade")),
+    "shorts": ("shorts.py", ("inspect", "plan", "cut", "run")),
+    "voicestudio": ("voicestudio.py", ("status", "voices", "languages", "personalities", "tts", "transcribe", "clone", "describe",
+                                       "design", "dub", "dub-export", "mcp")),
+    "montage": ("montage.py", ("clone", "open", "serve", "demo", "setup", "status", "doctor", "hyperframes-doctor", "preflight",
+                               "pipelines", "tools", "envelope", "estimate", "run-tool")),
+    "moneyprinter": ("moneyprinter.py", ("clone", "setup", "serve", "where", "generate", "run", "status")),
+    "matchcut": ("matchcut.py", ("clone", "where", "status", "setup", "run")),
+    "instagram": ("instagram.py", ("clone", "where", "status", "skills", "skill", "run")),
+    "rea-video": ("rea_video.py", ("clone", "setup", "where", "status", "summary", "probe", "tiles", "stems", "review",
+                                   "apply-review", "remake-plan", "decompose")),
+    "toonflow": ("toonflow.py", ("clone", "serve", "status", "mcp", "where")),
+    "opencut": ("opencut.py", ("clone", "dev", "status", "where")),
+    "clone": ("mcp_server.py", ("help", "version", "doctor", "check", "plan", "pricing", "status", "builds", "history", "activity",
+                                "inspect", "logs", "paths", "vocabulary", "build", "get")),  # o Hypit: a lista que o MCP aceita
+    "jobs": ("jobs.py", ("submit", "status", "list", "cancel", "result", "clean")),
+    "swap": ("swap.py", ("providers", "estimate", "run", "status")),
+    "formats": ("formats.py", ("list", "show", "prompt")),
+}
+
+
+def _fonte(arquivo: str) -> str:
+    return (ROOT / "src" / "simplicio_video" / arquivo).read_text(encoding="utf-8")
+
+
+def _literal(fonte: str, token: str) -> bool:
+    """The verb is written in the module: in its code, its help or its `a|b|c` lists (a word, not a part of a longer one)."""
+    return re.search(rf"(?<![\w-]){re.escape(token)}(?![\w-])", fonte) is not None
+
+
+def _flag_no_texto(fonte: str, flag: str) -> bool:
+    return re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", fonte) is not None
 
 
 def _texto(nome: str) -> str:
@@ -58,6 +95,15 @@ def _confere(comando: str) -> list:
     """What is wrong with one command line: an unknown verb, or a flag that the parser at the end of the chain does not have."""
     problemas = []
     palavras = comando.split()[1:]
+    if palavras and palavras[0] in PASSAGEM:
+        arquivo, verbos = PASSAGEM[palavras[0]]
+        fonte = _fonte(arquivo)
+        if len(palavras) > 1 and re.fullmatch(r"[a-z][a-z-]*", palavras[1]) and palavras[1] not in verbos:
+            problemas.append(f"`{palavras[1]}` is not a verb of `simplicio-video {palavras[0]}` ({', '.join(verbos)})")
+        for flag in set(re.findall(r"(?<![\w-])--[a-z][a-z0-9-]*", comando)):
+            if not _flag_no_texto(fonte, flag):
+                problemas.append(f"{flag} is not an option of `simplicio-video {palavras[0]}` ({arquivo})")
+        return problemas
     parser, usados = build_parser(), []
     for palavra in palavras:
         if len(usados) == 1 and usados[0] in DELEGADOS and not getattr(parser, "_delegado", False):
@@ -93,6 +139,31 @@ def test_o_varredor_acha_um_verbo_e_uma_flag_que_nao_existem():
     assert not _confere("simplicio-video social plan --video a.mp4 --target tiktok=@conta --ai-generated")
 
 
+def test_o_varredor_de_passagem_acha_verbo_e_flag_que_nao_existem():
+    assert _confere("simplicio-video media fetchh URL -o out/a.mp4 --autorizo")
+    assert _confere("simplicio-video media fetch URL -o out/a.mp4 --nao-existe")
+    assert _confere("simplicio-video montage run-tool audio_probe --input '{}' --nao-existe")
+    assert not _confere("simplicio-video media fetch URL -o out/a.mp4 --autorizo")
+    assert not _confere("simplicio-video montage run-tool audio_probe --input '{}' --yes")
+    assert not _confere("simplicio-video instagram run caption -- legenda.txt --json")
+
+
+def test_todo_comando_de_passagem_do_cli_esta_na_conferencia():
+    """Every command of cli.py that takes `args: REMAINDER` is checked here, by its verb list (or its own parser, `DELEGADOS`)."""
+    passagem = [nome for nome, sub in _sub(build_parser()).items() if any(a.dest == "args" and a.nargs == argparse.REMAINDER for a in sub._actions)]
+    assert len(passagem) >= 15, "the scan is broken: too few passthrough commands"
+    sem_conferencia = sorted(set(passagem) - set(PASSAGEM) - set(DELEGADOS))
+    assert not sem_conferencia, f"passthrough commands with no check in this test: {sem_conferencia}"
+
+
+@pytest.mark.parametrize("grupo", sorted(PASSAGEM))
+def test_os_verbos_de_passagem_estao_no_codigo_do_modulo(grupo):
+    arquivo, verbos = PASSAGEM[grupo]
+    fonte = _fonte(arquivo)
+    ausentes = [verbo for verbo in verbos if not _literal(fonte, verbo)]
+    assert not ausentes, f"`{grupo}` lists verbs that {arquivo} does not have: {ausentes}"
+
+
 @pytest.mark.parametrize("nome", NOMES)
 def test_toda_flag_da_skill_existe_em_algum_parser_do_cli(nome):
     """Flags written without their command (`--gpu-encode`, `--aceito-restricao`, `--permitir-dado-pessoal`...) must exist somewhere."""
@@ -106,6 +177,8 @@ def test_toda_flag_da_skill_existe_em_algum_parser_do_cli(nome):
     anda(build_parser())
     for fabrica in DELEGADOS.values():
         anda(fabrica())
+    for arquivo, _ in PASSAGEM.values():  # the options of a passthrough command live in its module (see `_confere`)
+        conhecidas.update(re.findall(r"(?<![\w-])--[a-z][a-z0-9-]*", _fonte(arquivo)))
     texto = _texto(nome)
     # `--gpu-encode` is a flag of the remote render script, `--with` of scripts/dev_install.sh and `--upgrade` of pip: not parsers of the CLI
     de_scripts = {"--gpu-encode", "--with", "--upgrade", "--publish"}  # `--publish`: the text says that it does NOT exist (#75)
@@ -273,7 +346,7 @@ def test_toda_tool_mcp_citada_existe_no_servidor(nome):
     from simplicio_video import mcp_server
 
     existentes = {t[0] for t in mcp_server.TOOLS}
-    citadas = set(re.findall(r"\bvideo\.[a-z]+\b", _texto(nome)))
+    citadas = set(re.findall(r"\bvideo\.[a-z][a-z-]*[a-z]\b", _texto(nome)))  # `video.rea-video` has a hyphen
     assert citadas <= existentes | {"video.*"}, f"{nome} cites MCP tools that do not exist: {sorted(citadas - existentes)}"
 
 
