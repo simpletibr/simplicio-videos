@@ -21,7 +21,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import tools
+from . import hostos, tools
 from .childio import run_child, under_mcp
 
 
@@ -47,7 +47,7 @@ def default_openmontage_dir() -> Path:
     if os.environ.get("SIMPLICIO_TOOLS_DIR"):
         return tools.tools_dir() / name
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_dir() / ".simplicio-video"
     return base / "tools" / name
 
 

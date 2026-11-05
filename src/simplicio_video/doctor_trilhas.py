@@ -4,16 +4,19 @@ For each track of tools.TOOLS (registry order), in `checks`, one row per thing t
 with the exact command that fixes it (`fix`), like the doctor's other checks:
 
   instalada        the checkout (git), the binary (npm) or the venv program (pip) is there; `fail` for a broken install (a folder
-                   that is not a checkout, a corrupt .git, a binary that does not run, a venv without its program)
-  pin              the commit or version in use (registry pin, the lock's, or SIMPLICIO_<NAME>_REF) is the one installed
-  integridade      git tracks with pinned files (instagram, matchcut): their sha256 at the pinned commit; `fail` if one changed
+                   that is not a checkout, a .git that does not read, a dangling link, a binary that does not run, a venv without
+                   its program)
+  pin              the commit or version in use (registry pin, the lock's, or SIMPLICIO_<NAME>_REF) is the one installed; an
+                   override that is not a commit (git) or a version (npm, pip) is not used and is reported without its value
+  integridade      matchcut's pinned scripts: their sha256 at the pinned commit; `fail` if one changed (instagram: see `instagram status`)
   setup:<item>     the track's own setup: venv, node_modules, build, config.toml, .env.local
   dep:<name>       system dependencies: git, bun, node (version), npx, npm, ffmpeg, docker (optional), SIMPLICIO_TTS_PY (video-use)
   upstream         only with --online: the same resolution as `update --check` (git ls-remote, npm view, PyPI); video-use is pin-only
 
 Offline by default: nothing here reads the network, starts a shell or writes a file. The version of a binary is read by running
-`--version` with the closed environment of `status` (no key of the shell reaches it). Status per track: the worst of its rows;
-a track that is not installed is `warn` (it is optional: the doctor's other optional things warn too), never `fail`.
+`--version` with the closed environment of `status` (no key of the shell reaches it). Every text that comes from a child process,
+the environment or a folder name is cleaned (controls and line separators out) and cut before it reaches a row or a fix. Status per
+track: the worst of its rows; a track that is not installed is `warn` (it is optional), never `fail`.
 
 Output: `texto(doc)` for the terminal; `collect()` returns {"schema": "simplicio.doctor-trilhas/v1", "status", "online", "tracks"};
 `linha_do_doctor(doc)` is the one aggregated row of `doctor all`.
@@ -23,16 +26,18 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
-from . import hostos, tools, tools_update
+from . import hostos, tools, tools_lock, tools_update
 from .status import ENV_FERRAMENTA
 
 SCHEMA = "simplicio.doctor-trilhas/v1"
 _RANK = {"ok": 0, "warn": 1, "fail": 2}
 _VERSAO = re.compile(r"\d+\.\d+\.\d+")
+_CONTROLE = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")
 MAX_ARQUIVO_FIXADO = 1024 * 1024  # the pinned files are a few KB; a bigger one is not the pinned one
 NODE_TINYFISH = (24,)  # the @tiny-fish/cli package declares Node >= 24
 NODE_HYPIT = tools.NODE_MIN  # (22, 15): @hypit/hypit "engines"
@@ -46,7 +51,8 @@ CLONE = {
     "rea_video": "simplicio-video rea-video clone",
     "video-use": "simplicio-video edit setup",
 }
-YTDLP_FETCH = "simplicio-video media fetch <URL> -o <arquivo.mp4> --autorizo"  # the first use installs the pinned yt-dlp
+# yt-dlp is not installed by a command of its own: the first `media fetch` installs the pinned one (it needs a URL and --autorizo)
+YTDLP_INSTALA = "instala na primeira vez que você usar `simplicio-video media fetch` (exige uma URL e --autorizo)"
 # (name, required, minimum version or None) for the tracks that need more than git; `hypit` adds npx when it has no binary
 DEPS = {
     "openmontage": [("ffmpeg", True, None)],
@@ -64,8 +70,35 @@ DEPS = {
 }
 
 
+# --- text that may come from outside, and the quoting of paths written into a fix ------------------------------------------
+
+
+def _limpa(texto: Any, limite: int = 300) -> str:
+    """Text that came from a child process, the environment, a file or a folder name: the controls and the line separators become
+    spaces, and it is cut to `limite` characters. Nothing of it can open a row of its own, a terminal sequence or a command."""
+    s = _CONTROLE.sub(" ", str(texto))
+    return s if len(s) <= limite else s[: limite - 3] + "..."
+
+
+def _limpa_valor(valor: Any) -> Any:
+    if isinstance(valor, str):
+        return _limpa(valor)
+    if isinstance(valor, dict):
+        return {k: _limpa_valor(v) for k, v in valor.items()}
+    if isinstance(valor, list):
+        return [_limpa_valor(v) for v in valor]
+    return valor
+
+
+def _q(valor: Any) -> str:
+    """A path or a name written into a command of a fix: quoted for the shell (POSIX), or as cmd.exe reads it (Windows)."""
+    texto = str(valor)
+    return subprocess.list2cmdline([texto]) if os.name == "nt" else shlex.quote(texto)
+
+
 def _row(name: str, status: str, summary: str, fix: Optional[str] = None, detail: Optional[dict] = None) -> dict:
-    return {"name": name, "status": status, "summary": summary, "fix": fix, "detail": detail or {}}
+    return {"name": name, "status": status, "summary": _limpa(summary), "fix": _limpa(fix, 1000) if fix else None,
+            "detail": _limpa_valor(detail or {})}
 
 
 def _ache(nome: str) -> Optional[str]:
@@ -88,7 +121,7 @@ def _node_versao() -> Optional[tuple]:
                            timeout=15, env=_ambiente())
     except (OSError, subprocess.SubprocessError):
         return None
-    achado = re.match(r"\s*v?(\d+)\.(\d+)\.(\d+)", r.stdout or "") if r.returncode == 0 else None
+    achado = re.match(r"\s*v?(\d+)\.(\d+)\.(\d+)", (r.stdout or "")[:200]) if r.returncode == 0 else None
     return tuple(int(x) for x in achado.groups()) if achado else None
 
 
@@ -106,20 +139,57 @@ def _versao_texto(versao: tuple) -> str:
     return ".".join(str(x) for x in versao)
 
 
-# --- the command of each track, and the folder a git track lives in --------------------------------------------------
+# --- the pin in use: the registry, the lock, or an override that is checked before it is used ----------------------------
 
 
-def _clone_de(t: tools.Tool) -> str:
-    """The command that installs the track at its pin. voicestudio has none in the CLI (its app is installed by its own
-    installer): the git commands that tools.install runs, at the commit in use."""
+def _ref_valida(t: tools.Tool, valor: str) -> bool:
+    """A commit for git, a version for npm and pip: the same patterns the lock and `update` accept."""
+    if t.kind == "git":
+        return bool(tools_lock._GIT_REF.fullmatch(valor))
+    if t.kind == "npm":
+        return bool(tools_update._NPM_VERSION.fullmatch(valor))
+    return bool(tools_lock._VERSION.fullmatch(valor))
+
+
+def _ref_em_uso(t: tools.Tool) -> tuple[str, str, Optional[str]]:
+    """(ref, source, problem): what the track really uses. An override that is not a commit or a version is not used: the registry
+    pin stands, `problem` says so, and the value is never printed (it may be a token typed by mistake)."""
+    nome_var = f"SIMPLICIO_{t.name.upper()}_REF"
+    valor = os.environ.get(nome_var)
+    if valor:
+        if _ref_valida(t, valor):
+            return valor, "override", None
+        return t.ref, "override-invalido", f"{nome_var} não é um commit (git) nem uma versão (npm, pip): o pin do registro vale"
+    ref, fonte = tools.effective(t)
+    return ref, fonte, None
+
+
+# --- the command of each track, and the folder a git track lives in --------------------------------------------------------
+
+
+def _clone_voicestudio(t: tools.Tool, ref: str) -> str:
+    """voicestudio has no clone in the CLI (its app is installed by its own installer): the git commands tools.install runs."""
+    destino = _q(tools.checkout_dir(t))
+    return f"git clone --filter=blob:none {t.source} {destino} && git -C {destino} checkout --detach {ref}"
+
+
+def _clone_de(t: tools.Tool, ref: str) -> str:
+    """The command that installs the track at `ref` (the pin in use)."""
     if t.name in CLONE:
         return CLONE[t.name]
     if t.name == "voicestudio":
-        destino = tools.checkout_dir(t)
-        return f"git clone --filter=blob:none {t.source} {destino} && git -C {destino} checkout --detach {tools.effective_ref(t)}"
+        return _clone_voicestudio(t, ref)
     if t.kind == "npm":
-        return f"npm install -g {t.source}@{tools.effective_ref(t)}"
-    return YTDLP_FETCH
+        return f"npm install -g {t.source}@{ref}"
+    return YTDLP_INSTALA
+
+
+def _instalar_fix(clone: str) -> str:
+    """The fix of a track that is not installed. With no home and no SIMPLICIO_TOOLS_DIR the folder it would be in is not known:
+    the fix says what to define first."""
+    if not os.environ.get("SIMPLICIO_TOOLS_DIR") and str(hostos.home_dir()) == "~":
+        return f"defina HOME ou SIMPLICIO_TOOLS_DIR e rode `{clone}`"
+    return clone
 
 
 def _pasta_do_checkout(t: tools.Tool) -> Path:
@@ -129,38 +199,53 @@ def _pasta_do_checkout(t: tools.Tool) -> Path:
     return tools.checkout_dir(t)
 
 
-def _head(pasta: Path) -> Optional[str]:
+def _leitura_do_checkout(pasta: Path) -> tuple[Optional[str], str]:
+    """(commit, why): the commit of the checkout at `pasta`, or None and the reason. Git walks up to a parent repository when the
+    folder's own .git is not valid, so the top of the repository must be the folder itself, and HEAD must name a commit that exists."""
     try:
-        return tools._git("rev-parse", "HEAD", cwd=pasta)
+        topo = tools._git("rev-parse", "--show-toplevel", cwd=pasta)
     except tools.ToolError:
-        return None
+        return None, "o git não lê a pasta como repositório"
+    if Path(topo).resolve() != pasta.resolve():
+        return None, "o .git dela não é válido: o git lê outro repositório em volta"
+    try:
+        tools._git("cat-file", "-e", "HEAD^{commit}", cwd=pasta)
+    except tools.ToolError:
+        return None, "o HEAD não aponta para um commit que existe no repositório"
+    try:
+        return tools._git("rev-parse", "HEAD", cwd=pasta), ""
+    except tools.ToolError:
+        return None, "o HEAD não se lê"
 
 
 def _checkout(t: tools.Tool, pasta: Path, clone: str) -> tuple[str, Optional[str], list]:
     """(state, commit, rows) of a git track at `pasta`: 'ausente' (not there), 'quebrada' (there, but not a checkout) or 'ok'."""
+    if pasta.is_symlink() and not pasta.exists():
+        return "quebrada", None, [_row("instalada", "fail", f"{pasta} é um link que não aponta para nada",
+                                       f"apague o link {_q(pasta)} e rode `{clone}`", {"path": str(pasta)})]
     if not pasta.exists():
-        return "ausente", None, [_row("instalada", "warn", "não instalada", clone, {"path": str(pasta)})]
+        return "ausente", None, [_row("instalada", "warn", "não instalada", _instalar_fix(clone), {"path": str(pasta)})]
     if not pasta.is_dir():
         return "quebrada", None, [_row("instalada", "fail", f"{pasta} é um arquivo, não uma pasta de checkout",
-                                       f"apague {pasta} e rode `{clone}`")]
+                                       f"apague {_q(pasta)} e rode `{clone}`")]
     try:
         vazia = not any(pasta.iterdir())
     except OSError as exc:
         return "quebrada", None, [_row("instalada", "fail", f"não consigo ler {pasta}: {exc.strerror or exc}",
                                        f"ajuste as permissões de {pasta} e rode o doctor de novo")]
     if vazia:  # an empty folder is what a clone that never started leaves: not installed
-        return "ausente", None, [_row("instalada", "warn", "não instalada", clone, {"path": str(pasta)})]
+        return "ausente", None, [_row("instalada", "warn", "não instalada", _instalar_fix(clone), {"path": str(pasta)})]
     faltam = [nome for nome, existe in ((".git", (pasta / ".git").exists()), (t.marker, (pasta / t.marker).exists())) if not existe]
     if faltam:
         return "quebrada", None, [_row("instalada", "fail", f"{pasta} não é um checkout íntegro (falta {', '.join(faltam)}): "
-                                       "sobra de um clone interrompido?", f"apague {pasta} e rode `{clone}`", {"path": str(pasta)})]
-    head = _head(pasta)
+                                       "sobra de um clone interrompido?", f"apague {_q(pasta)} e rode `{clone}`", {"path": str(pasta)})]
+    if _ache("git") is None:
+        return "ok", None, [_row("instalada", "warn", f"{pasta} existe, mas sem o git não consigo conferir o commit",
+                                 "instale o git (https://git-scm.com/downloads)", {"path": str(pasta)})]
+    head, motivo = _leitura_do_checkout(pasta)
     if head is None:
-        if _ache("git") is None:
-            return "ok", None, [_row("instalada", "warn", f"{pasta} existe, mas sem o git não consigo ler o commit",
-                                     "instale o git (https://git-scm.com/downloads)", {"path": str(pasta)})]
-        return "quebrada", None, [_row("instalada", "fail", f"o git não lê o repositório em {pasta}",
-                                       f"apague {pasta} e rode `{clone}`", {"path": str(pasta)})]
+        return "quebrada", None, [_row("instalada", "fail", f"{pasta} não é um checkout íntegro ({motivo})",
+                                       f"apague {_q(pasta)} e rode `{clone}`", {"path": str(pasta)})]
     return "ok", head, [_row("instalada", "ok", f"instalada em {pasta} (commit {head[:12]})", None,
                              {"path": str(pasta), "head": head})]
 
@@ -201,7 +286,7 @@ def _integridade(pasta: Path, tabela: dict) -> list:
         rels.append(rel)
     if problemas:
         return [_row("integridade", "fail", "arquivos fixados não conferem: " + "; ".join(problemas),
-                     f"git -C {pasta} checkout -- {' '.join(rels)}", {"problemas": problemas})]
+                     f"git -C {_q(pasta)} checkout -- {' '.join(_q(r) for r in rels)}", {"problemas": problemas})]
     return [_row("integridade", "ok", f"{len(tabela)} arquivo(s) fixados conferem (sha256)", None, {"arquivos": len(tabela)})]
 
 
@@ -239,20 +324,20 @@ def _setup(t: tools.Tool, pasta: Path) -> list:
         env = pasta / opencut.ENV_FILE
         if env.is_file() and env.stat().st_size == 0:
             env_row = _row("setup:.env.local", "warn", f"{env} está vazio: o app não sobe sem as variáveis",
-                           f"apague {env} e rode `simplicio-video opencut dev`", {"path": str(env)})
+                           f"apague {_q(env)} e rode `simplicio-video opencut dev`", {"path": str(env)})
         elif env.is_file():
             env_row = _row("setup:.env.local", "ok", "apps/web/.env.local pronto", None, {"path": str(env)})
         else:
             env_row = _row("setup:.env.local", "warn", "apps/web/.env.local ausente: o `opencut dev` cria na primeira vez",
                            "simplicio-video opencut dev", {"path": str(env)})
-        return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {pasta} && bun install",
+        return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {_q(pasta)} && bun install",
                            "node_modules ausente: as dependências do editor não foram instaladas"), env_row]
     if nome == "toonflow":
         from . import toonflow
         faltam = [str(rel) for rel in (toonflow.SERVER_ENTRY, toonflow.STDIO_ENTRY) if not (pasta / rel).is_file()]
-        build = (_row("setup:build", "warn", f"build ausente ({', '.join(faltam)})", f"cd {pasta} && bun run build:server")
+        build = (_row("setup:build", "warn", f"build ausente ({', '.join(faltam)})", f"cd {_q(pasta)} && bun run build:server")
                  if faltam else _row("setup:build", "ok", "build do servidor e do MCP prontos"))
-        return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {pasta} && bun install --frozen-lockfile",
+        return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {_q(pasta)} && bun install --frozen-lockfile",
                            "node_modules ausente: as dependências do Toonflow não foram instaladas"), build]
     return []
 
@@ -263,11 +348,12 @@ def _pasta_row(nome: str, caminho: Path, fix: str, ausente: str) -> dict:
     return _row(nome, "warn", ausente, fix, {"path": str(caminho)})
 
 
-# --- the binaries of the npm tracks and the venv of the pip one -------------------------------------------------------
+# --- the binaries of the npm tracks and the venv of the pip one -------------------------------------------------------------
 
 
 def _roda_versao(exe: str) -> tuple[bool, Optional[str]]:
-    """(runs, version) of `exe --version`, with the closed environment of `status`. A binary that does not run is a broken install."""
+    """(runs, version) of `exe --version`, with the closed environment of `status`. A binary that does not run is a broken install.
+    Its output is read in part (4 KB) and cleaned: it is text from a program we did not write."""
     try:
         r = subprocess.run([exe, "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace",
                            timeout=15, env=_ambiente())
@@ -275,14 +361,15 @@ def _roda_versao(exe: str) -> tuple[bool, Optional[str]]:
         return False, None
     if r.returncode != 0:
         return False, None
-    texto = (r.stdout or r.stderr or "").strip()
+    texto = ((r.stdout or r.stderr or "")[:4096]).strip()
     achado = _VERSAO.search(texto)
-    return True, (achado.group(0) if achado else (texto.splitlines()[0] if texto else None))
+    versao = achado.group(0) if achado else (texto.splitlines()[0] if texto else "")
+    return True, (_limpa(versao, 60) or None)
 
 
 def _npm(t: tools.Tool, ref: str, fonte: str) -> tuple[bool, Optional[str], list]:
     """(installed, version, rows) of an npm track: its binary on PATH, else npx at the pin (hypit, with Node 22.15 or newer)."""
-    clone = _clone_de(t)
+    clone = _clone_de(t, ref)
     exe = _ache(t.name)
     if exe is None:
         if t.name in tools.NPX_TRACKS and _npx_pronto():
@@ -314,10 +401,10 @@ def _pip(t: tools.Tool, ref: str, fonte: str) -> tuple[bool, Optional[str], Opti
     if exe is None:
         if venv.is_dir():
             return False, None, None, [_row("instalada", "fail", f"o venv de {t.name} não tem o programa (a instalação parou no meio)",
-                                            f"apague {venv} e rode `{YTDLP_FETCH}`", {"venv": str(venv)})]
-        return False, None, None, [_row("instalada", "warn", "não instalada", YTDLP_FETCH, {"venv": str(venv)})]
+                                            f"apague {_q(venv)}; {YTDLP_INSTALA}", {"venv": str(venv)})]
+        return False, None, None, [_row("instalada", "warn", "não instalada", YTDLP_INSTALA, {"venv": str(venv)})]
     versao = tools.pip_version(t.name)
-    fix = f"apague {venv} e rode `{YTDLP_FETCH}`"
+    fix = f"apague {_q(venv)}; {YTDLP_INSTALA}"
     if versao is None:
         return True, None, None, [_row("instalada", "fail", f"o venv de {t.name} não tem a versão instalada (dist-info)", fix,
                                        {"venv": str(venv)})]
@@ -326,7 +413,7 @@ def _pip(t: tools.Tool, ref: str, fonte: str) -> tuple[bool, Optional[str], Opti
                                       {"venv": str(venv), "version": versao})] + linhas
 
 
-# --- system dependencies ----------------------------------------------------------------------------------------------
+# --- system dependencies ----------------------------------------------------------------------------------------------------
 
 
 def _hint_bun() -> str:
@@ -384,23 +471,17 @@ def _deps(t: tools.Tool) -> list:
 
 def _tts_py_row(obrigatoria: bool) -> dict:
     """The python that video-use's setup.sh needs (numpy, Pillow, soundfile): SIMPLICIO_TTS_PY, else its default folder."""
-    caminho = os.environ.get("SIMPLICIO_TTS_PY")
-    if not caminho:
-        try:
-            caminho = str(hostos.home_dir() / ".local" / "share" / "simplicio-tts" / "cbvenv" / "bin" / "python")
-        except RuntimeError:  # no HOME: the default folder is unknown, so the variable is the only way out
-            caminho = None
+    caminho = os.environ.get("SIMPLICIO_TTS_PY") or str(hostos.home_dir() / ".local" / "share" / "simplicio-tts" / "cbvenv" / "bin" / "python")
     fix = ("defina SIMPLICIO_TTS_PY com um python que tenha numpy, Pillow e soundfile (e faster-whisper, para transcrever "
            "localmente), e rode `simplicio-video edit setup`")
-    if caminho and Path(caminho).is_file():
+    if Path(caminho).is_file():
         return _row("dep:SIMPLICIO_TTS_PY", "ok", f"python de apoio encontrado: {caminho}", None, {"path": caminho})
     if not obrigatoria:
         return _row("dep:SIMPLICIO_TTS_PY", "ok", "python de apoio ausente (opcional)", None, {"path": caminho})
-    onde = caminho or "sem HOME para achar a pasta padrão"
-    return _row("dep:SIMPLICIO_TTS_PY", "warn", f"python de apoio ausente: {onde}", fix, {"path": caminho})
+    return _row("dep:SIMPLICIO_TTS_PY", "warn", f"python de apoio ausente: {caminho}", fix, {"path": caminho})
 
 
-# --- upstream (--online) ----------------------------------------------------------------------------------------------
+# --- upstream (--online) ----------------------------------------------------------------------------------------------------
 
 
 def _fix_de_seguir(t: tools.Tool, latest: str) -> Optional[str]:
@@ -410,8 +491,7 @@ def _fix_de_seguir(t: tools.Tool, latest: str) -> Optional[str]:
     if t.kind == "pip":
         return None
     if t.name == "voicestudio":
-        destino = tools.checkout_dir(t)
-        instala = f"git clone --filter=blob:none {t.source} {destino} && git -C {destino} checkout --detach {latest}"
+        instala = _clone_voicestudio(t, latest)
     elif t.kind == "npm":
         instala = f"npm install -g {t.source}@{latest}"
     else:
@@ -430,7 +510,7 @@ def _upstream(t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
     try:
         alvo = tools_update.resolve(t, io)
     except tools_update.FAILURES as exc:
-        msg = (str(exc) or type(exc).__name__)[:300]
+        msg = _limpa(str(exc) or type(exc).__name__, 300)
         return {"pin_only": False, "latest": None, "newer": None, "error": msg}, [
             _row("upstream", "warn", f"não consegui consultar o upstream: {msg}", None)]
     latest = alvo["ref"]
@@ -443,7 +523,7 @@ def _upstream(t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
         _row("upstream", "ok", f"em dia com o upstream ({latest[:12]})", None, detalhe)]
 
 
-# --- one track, and the document ---------------------------------------------------------------------------------------
+# --- one track, and the document --------------------------------------------------------------------------------------------
 
 
 def _resumo(installed: bool, detalhe: str, rows: list) -> str:
@@ -453,12 +533,12 @@ def _resumo(installed: bool, detalhe: str, rows: list) -> str:
 
 
 def _avalia(t: tools.Tool, io) -> dict:
-    ref, fonte = tools.effective(t)
+    ref, fonte, problema = _ref_em_uso(t)
     rows: list = []
     installed, version, pin_match, detalhe = False, None, None, ""
     if t.kind == "git":
         pasta = _pasta_do_checkout(t)
-        clone = _clone_de(t)
+        clone = _clone_de(t, ref)
         estado, head, linhas = _checkout(t, pasta, clone)
         rows += linhas
         installed = estado == "ok"
@@ -484,6 +564,9 @@ def _avalia(t: tools.Tool, io) -> dict:
         installed, version, pin_match, linhas = _pip(t, ref, fonte)
         rows += linhas
         detalhe = f"versão {version}" if version else ""
+    if problema:  # the pin in use is the registry's: the one `pin` row says the override was refused, and no other `pin` row is shown
+        rows = [_row("pin", "warn", problema, f"apague SIMPLICIO_{t.name.upper()}_REF ou defina um commit (git) ou uma versão (npm, pip)")
+                ] + [r for r in rows if r["name"] != "pin"]
     rows += _deps(t)
     upstream = None
     if io is not None:
@@ -493,9 +576,9 @@ def _avalia(t: tools.Tool, io) -> dict:
         "name": t.name,
         "command": f"simplicio-video {tools.COMMANDS.get(t.name, t.name)}",
         "status": _pior(r["status"] for r in rows),
-        "summary": _resumo(installed, detalhe, rows),
+        "summary": _limpa(_resumo(installed, _limpa(detalhe, 80), rows)),
         "installed": installed,
-        "version": version,
+        "version": _limpa(version, 60) if version else None,
         "pin": ref,
         "pin_source": fonte,
         "pin_registry": t.ref,
@@ -520,10 +603,12 @@ def _avalia_seguro(t: tools.Tool, io) -> dict:
     try:
         return _avalia(t, io)
     except Exception as exc:  # noqa: BLE001 - reported in the row, never hidden
-        motivo = f"{type(exc).__name__}: {str(exc)[:200]}"
-        linha = _row("instalada", "warn", f"não consegui checar esta trilha ({motivo})", "simplicio-video doctor trilhas")
+        motivo = _limpa(f"{type(exc).__name__}: {exc}", 300)
+        fix = ("defina HOME ou SIMPLICIO_TOOLS_DIR e rode `simplicio-video doctor trilhas` de novo" if isinstance(exc, RuntimeError)
+               else "simplicio-video doctor trilhas")
+        linha = _row("instalada", "warn", f"não consegui checar esta trilha ({motivo})", fix)
         return {"name": t.name, "command": f"simplicio-video {tools.COMMANDS.get(t.name, t.name)}", "status": "warn",
-                "summary": f"não consegui checar ({motivo})", "installed": False, "version": None, "pin": t.ref,
+                "summary": _limpa(f"não consegui checar ({motivo})"), "installed": False, "version": None, "pin": t.ref,
                 "pin_source": "pin", "pin_registry": t.ref, "pin_match": None, "upstream": None, "checks": [linha]}
 
 

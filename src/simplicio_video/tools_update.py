@@ -29,6 +29,7 @@ from . import hostos, tools, tools_lock
 MODES = ("follow", "pin")
 PYPI_JSON = "https://pypi.org/pypi/{name}/json"
 MAX_JSON = 5 * 1024 * 1024
+READ_TIMEOUT_S = 20  # one read of the network (ls-remote, npm view): past it, the track is reported, the doctor goes on
 _HEAD_REF = re.compile(r"ref: refs/heads/([A-Za-z0-9._/-]{1,100})\s+HEAD")
 _HEAD_SHA = re.compile(r"([0-9a-f]{40})\s+HEAD")
 _NPM_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]{1,40})?")
@@ -54,14 +55,29 @@ def _fetch_json(url: str) -> Any:
     return json.loads(raw.decode("utf-8"))
 
 
+def _run_leitura(argv, cwd=None):
+    """One read of the network (git ls-remote, npm view): bounded in time, and never asking for a password on the terminal.
+    A read past READ_TIMEOUT_S raises subprocess.TimeoutExpired, which the callers count as a failure of that track."""
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        return subprocess.run([str(a) for a in argv], cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", timeout=READ_TIMEOUT_S, env=env)
+    except OSError as exc:
+        return subprocess.CompletedProcess(list(argv), 127, "", str(exc))
+
+
 class Io:
-    """The side effects of an update: the commands (`run`, a subprocess-like runner), the PyPI document (`fetch_json`), the clock,
-    the lookup of a program (`which`), and whether the network may be used at all. The tests pass fakes for all of them."""
+    """The side effects of an update: the commands (`run`, a subprocess-like runner; `read` for the reads of the upstream, bounded in
+    time), the PyPI document (`fetch_json`), the clock, the lookup of a program (`which`), and whether the network may be used at all.
+    The tests pass fakes for all of them. A fake `run` also serves the reads, unless `read` is given."""
 
     def __init__(self, *, network: bool = True, run: Optional[Callable] = None, fetch_json: Optional[Callable] = None,
-                 now: Optional[Callable[[], int]] = None, which: Optional[Callable] = None) -> None:
+                 now: Optional[Callable[[], int]] = None, which: Optional[Callable] = None,
+                 read: Optional[Callable] = None) -> None:
         self.network = network
         self.run = run or tools._run_subprocess
+        self.read = read or (run if run is not None else _run_leitura)
         self.fetch_json = fetch_json or _fetch_json
         self.now = now or (lambda: int(time.time()))
         self.which = which or shutil.which
@@ -89,7 +105,7 @@ def _must(done, what: str):
 def resolve_git(t: tools.Tool, io: Io) -> dict:
     """{ref: the commit of the default branch, branch: its name} from one read of the remote (no clone)."""
     _need_network(io, f"git ls-remote {t.source}")
-    done = _must(io.run(["git", "ls-remote", "--symref", t.source, "HEAD"], None), f"git ls-remote {t.source}")
+    done = _must(io.read(["git", "ls-remote", "--symref", t.source, "HEAD"], None), f"git ls-remote {t.source}")
     branch, sha = None, None
     for line in (done.stdout or "").splitlines():
         line = line.strip()
@@ -109,7 +125,7 @@ def resolve_npm(t: tools.Tool, io: Io) -> dict:
     npm = io.which("npm")
     if not npm:
         raise tools.ToolError("npm não encontrado no PATH (Node >= 18)")
-    done = _must(io.run([npm, "view", t.source, "version"], None), f"npm view {t.source}")
+    done = _must(io.read([npm, "view", t.source, "version"], None), f"npm view {t.source}")
     version = (done.stdout or "").strip()
     if not _NPM_VERSION.fullmatch(version):
         raise tools.ToolError(f"npm view {t.source} não devolveu uma versão: {version[:40]!r}")

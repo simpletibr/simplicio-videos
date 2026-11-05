@@ -204,7 +204,10 @@ def effective_pip(t: Tool) -> tuple[str, str, str]:
 
 
 def tools_dir() -> Path:
-    return Path(os.environ.get("SIMPLICIO_TOOLS_DIR") or Path.home() / ".simplicio-video" / "tools").expanduser()
+    """$SIMPLICIO_TOOLS_DIR, else ~/.simplicio-video/tools under hostos.home_dir() (HOME, then USERPROFILE). With no home at all the
+    path is relative: the doctor says to define HOME or SIMPLICIO_TOOLS_DIR."""
+    explicito = os.environ.get("SIMPLICIO_TOOLS_DIR")
+    return Path(explicito).expanduser() if explicito else hostos.home_dir() / ".simplicio-video" / "tools"
 
 
 def checkout_dir(t: Tool) -> Path:

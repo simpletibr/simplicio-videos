@@ -113,11 +113,21 @@ As linhas saem nesta ordem. Cada uma tem `name`, `status` (`ok`, `warn` ou `fail
 
 ### doctor trilhas
 
-`simplicio-video doctor trilhas [--json] [--online]` mostra uma linha por trilha externa (as doze de `tools.py`, na ordem do registro), com cada item olhado: `instalada`, `pin` (o commit ou a versão em uso, do registro, do lock ou de `SIMPLICIO_<NOME>_REF`), `integridade` (os scripts fixados do match-cut, por sha256), `setup:<item>` (venv, `node_modules`, `build`, `config.toml`, `.env.local`), `dep:<nome>` (git, bun, node na versão mínima da trilha, npx, npm, ffmpeg; docker é opcional) e, com `--online`, `upstream`. Cada lacuna sai com o comando exato que a fecha. O JSON é `simplicio.doctor-trilhas/v1`.
+`simplicio-video doctor trilhas [--json] [--online]` mostra uma linha por trilha externa (as doze de `tools.py`, na ordem do registro), com cada item olhado: `instalada`, `pin` (o commit ou a versão em uso), `integridade` (os scripts fixados do match-cut, por sha256), `setup:<item>` (venv, `node_modules`, `build`, `config.toml`, `.env.local`), `dep:<nome>` (git, bun, node na versão mínima da trilha, npx, npm, ffmpeg; docker é opcional) e, com `--online`, `upstream`. Cada lacuna sai com o comando que a fecha.
 
-Uma trilha não instalada é `warn`, nunca `fail`: as trilhas são opcionais. `fail` só para instalação quebrada. `doctor all` ganha uma linha `trilhas` com a contagem e o pior status. Sem `--online` não há rede: o upstream é comparado com o `ls-remote`, o `npm view` e o PyPI só quando você pede, e nada é gravado. O video-use é só pin (o `setup.sh` fixa o commit) e nunca pergunta ao upstream. O MCP `video.doctor` aceita `trilhas` com as mesmas regras.
+Campos do JSON `simplicio.doctor-trilhas/v1`:
 
-Duas trilhas não têm comando de instalação próprio no CLI: o VoiceStudio (o app se instala à parte; a linha mostra os comandos git do pin) e o yt-dlp (instala no primeiro `media fetch`, então a correção é esse comando). O sha256 dos scripts do instagram não é conferido aqui (o módulo não é importado por este diagnóstico): `simplicio-video instagram status` faz isso.
+- no documento: `schema`, `status` (o pior entre as trilhas), `online` (true com `--online`) e `tracks`;
+- em cada trilha: `name`, `command`, `status`, `summary`, `installed`, `version` (o commit ou a versão instalada), `pin` (o commit ou a versão em uso), `pin_source` (`pin` do registro, `lock` do `update`, `override` de `SIMPLICIO_<NOME>_REF`, ou `override-invalido`: o valor não é commit nem versão, não é usado e não aparece), `pin_registry` (o pin do registro), `pin_match` (true, false, ou null sem instalação para comparar), `upstream` (com `--online`: `pin_only`, `latest`, `newer`, `error`; null sem `--online`) e `checks`;
+- em cada linha de `checks`: `name`, `status` (`ok`, `warn` ou `fail`), `summary`, `fix` (o comando que fecha a lacuna, ou null) e `detail` (um objeto).
+
+Regras:
+
+- Uma trilha não instalada é `warn`, nunca `fail`: as trilhas são opcionais. `fail` só para instalação quebrada: pasta que não é checkout, link que não aponta para nada, `.git` que não lê, commit que não existe, binário que não roda, venv sem o programa, arquivo fixado alterado.
+- `doctor all` ganha uma linha `trilhas` com a contagem e o pior status. Uma trilha quebrada faz essa linha `fail`, e o `doctor` sai com 1; o `doctor trilhas` sai com 1 pela mesma razão. O `dev_install.sh` e o `smoke_trilhas.py` tratam uma trilha opcional quebrada como aviso: só uma checagem do núcleo para a instalação ou reprova o smoke. (O `dev_install.ps1` faz a mesma coisa; não foi executado no Windows nesta rodada.)
+- Sem `--online` o doctor não usa rede. Com `--online`, lê o upstream: `git ls-remote`, `npm view` (o npm pode deixar o cache do npm e o log dele na máquina) e o PyPI, cada leitura com 20 s e o PyPI com 60 s. Uma leitura que estoura vira aviso da trilha. Fora da leitura de rede, o doctor não grava nada. O video-use é só pin (o `setup.sh` fixa o commit) e nunca pergunta ao upstream. O MCP `video.doctor` aceita `trilhas` com as mesmas regras.
+- Sem `HOME` e sem `SIMPLICIO_TOOLS_DIR` não há onde achar as trilhas: o doctor diz o que definir.
+- Duas trilhas não têm comando de instalação próprio no CLI: o VoiceStudio (o app se instala à parte; a linha mostra os comandos git do pin) e o yt-dlp (instala na primeira vez que `media fetch` roda, e esse comando exige uma URL e `--autorizo`). O sha256 dos scripts do instagram não é conferido aqui (o módulo não é importado por este diagnóstico): `simplicio-video instagram status` faz isso.
 
 ### Por que GEMINI_API_KEY e o setup são aviso e não falha
 
