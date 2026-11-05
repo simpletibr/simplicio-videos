@@ -70,7 +70,9 @@ def test_help_after_clone_goes_to_hypit(chamadas):
 
 
 def test_engine_help_is_still_reachable(chamadas, capsys):
-    assert main(["clone", "--engine-help"]) == 0
+    with pytest.raises(SystemExit) as e:  # argparse prints the help and exits
+        main(["clone", "--engine-help"])
+    assert e.value.code == 0
     out = capsys.readouterr().out
     assert chamadas == [] and "argumentos repassados ao CLI do Hypit" in out
 

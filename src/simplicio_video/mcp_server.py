@@ -158,9 +158,52 @@ def video_list(what: str = "templates", grupo: str | None = None) -> dict:
     return {"ok": True, "items": rows}
 
 
-DESC_video_clone = "Clone videos using Hypit AI (https://github.com/hypit-ai/hypit)."
+DESC_video_clone = ("Hypit AI (https://github.com/hypit-ai/hypit, pinned @hypit/hypit), local single-user use. Allowed: help, version, doctor, "
+                    "check, plan, pricing, status, builds, history, activity, inspect, logs, paths, vocabulary, `get <build> --output <name> --to <absolute path>` "
+                    "and local `media probe|frames|tile|tiles|boundaries|cut`. terminal-only (refused here): build (can spend on providers), studio, auth, "
+                    "runtime up/down, packages, capture, media fetch/prepare-fetch (use `simplicio-video media fetch --autorizo`), transcribe, measure. "
+                    "Any other command is refused.")
+_HYPIT_LIVRE = ("help", "version", "doctor", "check", "plan", "pricing", "status", "builds", "history", "activity", "inspect", "logs",
+                "paths", "vocabulary")
+_HYPIT_MEDIA = ("probe", "frames", "tile", "tiles", "boundaries", "cut")
+_HYPIT_MOTIVO = {
+    "build": "build pode gastar em provedores e fica só no terminal na v1",
+    "studio": "studio sobe uma interface que nunca termina",
+    "auth": "auth lê um segredo da entrada padrão",
+    "runtime": "runtime up/down mexe em processos do runtime",
+    "packages": "packages instala código de terceiros",
+    "capture": "capture baixa um navegador e abre páginas",
+    "transcribe": "transcribe usa provedores e fica só no terminal",
+    "measure": "measure usa provedores e fica só no terminal",
+}
+
+
+def _so_terminal_hypit(argv: list[str]) -> dict:
+    if argv[:2] in (["media", "fetch"], ["media", "prepare-fetch"]):
+        return _so_terminal("media fetch --autorizo", f"media {argv[1]} baixa sem o portão --autorizo")
+    cmd = argv[0] if argv else "(vazio)"
+    return _so_terminal(f"clone {cmd}", _HYPIT_MOTIVO.get(cmd, f"`{cmd}` não está na lista do MCP (comando desconhecido ou não permitido)"))
+
+
+def _hypit_permitido(argv: list[str]) -> bool:
+    """A closed allowlist: the first word is the Hypit command, and nothing outside the list reaches Hypit."""
+    if not argv:
+        return False
+    cmd = argv[0]
+    if cmd in ("--help", "-h"):
+        return True
+    if cmd == "media":
+        return argv[1:2] != [] and argv[1] in _HYPIT_MEDIA
+    if cmd == "get":
+        i = argv.index("--to") + 1 if "--to" in argv[:-1] else 0
+        return bool(i) and os.path.isabs(argv[i]) and ".." not in Path(argv[i]).parts
+    return cmd in _HYPIT_LIVRE
+
+
 def video_clone(args: str = "") -> dict:
-    argv = args.split() if isinstance(args, str) else list(args)
+    argv = _argv(args)
+    if not _hypit_permitido(argv):
+        return _so_terminal_hypit(argv)
     return _cli(["clone", *argv])
 
 

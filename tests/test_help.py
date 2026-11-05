@@ -43,7 +43,7 @@ def test_main_help_lists_the_whole_flow():
     ("list", ["templates", "motion", "voices", "--json"]),
 ])
 def test_subcommand_help_is_complete(sub, must):
-    r = run_cli(sub, "--help")
+    r = run_cli(sub, "--engine-help" if sub == "clone" else "--help")  # `clone --help` is Hypit's own help
     assert r.returncode == 0, r.stderr
     for m in must:
         assert m in r.stdout, f"{sub} --help missing {m!r}"

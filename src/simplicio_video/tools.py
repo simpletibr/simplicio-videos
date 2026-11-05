@@ -20,6 +20,7 @@ resolved in tools.lock.json (tools_lock.py). effective() reads that lock; pinned
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -321,14 +322,46 @@ def command(t: Tool) -> str:
     return f"simplicio-video {COMMANDS.get(t.name, t.name)}"
 
 
+NPX_TRACKS = ("hypit",)  # npm tracks that run through `npm_command` (a PATH binary, else npx at the pin); the others need a binary
+NODE_MIN = (22, 15)      # @hypit/hypit "engines": node >= 22.15.0
+
+
+def node_version() -> tuple[int, ...] | None:
+    """The version of the `node` on PATH, e.g. (22, 15, 0). Local only: runs `node --version`, no network."""
+    exe = shutil.which("node")
+    if not exe:
+        return None
+    try:
+        r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=15, env={"PATH": os.environ.get("PATH", "")})
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", (r.stdout or "").strip())
+    return tuple(int(x) for x in m.groups()) if r.returncode == 0 and m else None
+
+
+def npx_ready() -> bool:
+    """Can npx run an npm track? npx on PATH and Node >= NODE_MIN. Offline-safe: nothing is downloaded or run."""
+    v = node_version()
+    return shutil.which("npx") is not None and v is not None and v[:2] >= NODE_MIN
+
+
+def install_source(t: Tool) -> str | None:
+    """For an npm track: "path" (a binary on PATH), "npx" (runnable through npx at the pin) or None. Other kinds: None."""
+    if t.kind != "npm":
+        return None
+    if shutil.which(t.name):
+        return "path"
+    return "npx" if t.name in NPX_TRACKS and npx_ready() else None
+
+
 def is_installed(t: Tool) -> bool:
     """Git tools: the pinned checkout in the tools cache. pip tools: the executable in their venv. npm tools: the binary
-    on PATH (as `status` does)."""
+    on PATH, or npx at the pinned version when npx and Node >= 22.15 are there (as `status` does)."""
     if t.kind == "git":
         return find(t.name) is not None
     if t.kind == "pip":
         return pip_binary(t.name) is not None
-    return shutil.which(t.name) is not None
+    return install_source(t) is not None
 
 
 def listing() -> list[dict]:
@@ -339,7 +372,7 @@ def listing() -> list[dict]:
         ref, source = effective(t)
         entry = lock_entry(t.name)
         rows.append({"name": t.name, "command": command(t), "repo": t.source, "version": pinned_ref(t),
-                     "installed": is_installed(t), "license": t.license, "produces": t.role,
+                     "installed": is_installed(t), "source": install_source(t), "license": t.license, "produces": t.role,
                      "effective_version": ref, "effective_source": source, "lock": dict(entry) or None})
     return rows
 

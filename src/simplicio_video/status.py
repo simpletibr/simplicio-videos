@@ -77,7 +77,12 @@ def _ferramenta_do_motor(name: str) -> dict:
         version = busca._versao_cli(exe)
     else:
         version = _primeira_linha([exe, "--version"]) if exe else None
-    return _linha(name, exe is not None, version, pinned, fonte)
+    linha = _linha(name, exe is not None, version, pinned, fonte)
+    if tools.install_source(t) == "npx":  # no binary, but npx + Node >= 22.15 run the pinned package (checked offline)
+        linha.update(installed=True, source="npx")
+    elif exe:
+        linha["source"] = "path"
+    return linha
 
 
 def _ferramenta_simples(name: str) -> dict:
