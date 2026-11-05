@@ -1363,3 +1363,26 @@ def test_mcp_description_names_the_skill_command_and_its_limits():
     desc = mcp_server.DESC_video_instagram
     for word in ("skill NAME", "untrusted_conteudo", "64 KiB", "truncado"):
         assert word in desc, word
+
+
+def test_variation_selectors_are_removed_for_an_agent_and_marked_on_the_terminal():
+    texto = "a️b︀c\U000e0100d\U000e01efe"
+    assert instagram._limpa_mcp(texto) == "abcde"
+    marcado = instagram.visivel(texto)
+    assert "️" not in marcado and "\U000e0100" not in marcado and "<U+FE0F>" in marcado and "<U+E0100>" in marcado
+
+
+@pytest.mark.integration
+def test_the_pinned_skill_table_matches_the_real_checkout_when_present(monkeypatch):
+    """The module's real PINNED_SKILLS_SHA256 against the checkout in ~/.simplicio-video (or INSTAGRAM_DIR); skipped when absent."""
+    monkeypatch.undo()  # no fixture here: the real table, the real environment
+    root = Path(os.environ.get("INSTAGRAM_DIR") or Path.home() / ".simplicio-video" / "tools" / "instagram")
+    if not (root / "skills").is_dir():
+        pytest.skip("sem checkout real do instagram-agent-skill")
+    try:
+        if subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip() != PIN:
+            pytest.skip("o checkout real não está no commit fixado")
+    except OSError:
+        pytest.skip("sem git")
+    for rel, digest in instagram.PINNED_SKILLS_SHA256.items():
+        assert hashlib.sha256((root / rel).read_bytes()).hexdigest() == digest, rel
