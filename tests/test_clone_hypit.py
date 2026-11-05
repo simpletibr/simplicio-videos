@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from simplicio_video import clone, mcp_server
+from simplicio_video import clone, mcp_server, tools
 from simplicio_video.cli import main
 
 
@@ -159,3 +159,79 @@ def test_status_does_not_count_npx_when_node_is_old(ambiente, capsys):
     _fake(ambiente, "node", "v20.0.0")
     _, rep = _json(["status", "--json"], capsys)
     assert {t["name"]: t for t in rep["tools"]}["hypit"]["installed"] is False
+
+
+# ---- review fixes: output/input paths of media, --watch, -h, specific reasons, effective version
+
+ESCAPES = ["media cut /abs/in.mp4 --start 0 --end 1 --to ../escape/deep/x.mp4",
+           "media cut /abs/in.mp4 --start 0 --end 1 --to rel/x.mp4",
+           "media cut /abs/in.mp4 --start 0 --end 1 --to /tmp/../etc/x.mp4",
+           "media cut /abs/in.mp4 --start 0 --end 1 --to=/tmp/x.mp4",
+           "media cut in.mp4 --start 0 --end 1 --to /tmp/x.mp4",
+           "media frames ../in.mp4 --to /tmp/f",
+           "media frames /abs/in.mp4 --to rel",
+           "media tile /abs/in.mp4 --to /tmp/t.png --transcript rel.json",
+           "media tiles /abs/in.mp4 --to /tmp/t --ranges ../r.json",
+           "media boundaries /abs/in.mp4 --to ./b.json",
+           "media probe rel.mp4",
+           "media cut /abs/in.mp4 --start 0 --end 1 --to /tmp/x.mp4 --nova x",
+           "get b-1 --output v --to=/tmp/x.mp4"]
+
+
+@pytest.mark.parametrize("args", ESCAPES)
+def test_media_paths_must_be_absolute_without_dotdot(chamadas, args):
+    r = mcp_server.video_clone(args)
+    assert r["ok"] is False and "terminal" in r["error"], r
+    assert chamadas == []
+
+
+GOOD_MEDIA = ["media cut /abs/in.mp4 --start 0 --end 1 --to /tmp/out/x.mp4",
+              "media frames /abs/in.mp4 --at 2 --to /tmp/f --label-time",
+              "media tile /abs/in.mp4 --to /tmp/t.png --transcript /abs/t.json --around hello --padding 1",
+              "media tiles /abs/in.mp4 --ranges /abs/r.json --to /tmp/t --cell 100 --columns 3 --every-frame",
+              "media boundaries /abs/in.mp4 --to /tmp/b.json --json", "media probe /abs/in.mp4 --json", "media cut --help"]
+
+
+@pytest.mark.parametrize("args", GOOD_MEDIA)
+def test_media_with_absolute_paths_is_allowed(chamadas, args):
+    assert mcp_server.video_clone(args)["ok"] is True
+
+
+@pytest.mark.parametrize("args", ["activity --watch", "status b-1 --watch", "status b-1 --watch --max-wait-ms 1000"])
+def test_watch_is_refused(chamadas, args):
+    r = mcp_server.video_clone(args)
+    assert r["ok"] is False and "terminal" in r["error"] and "--watch" in r["error"]
+    assert chamadas == []
+
+
+def test_dash_h_becomes_dash_dash_help_for_hypit(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda c: "/usr/local/bin/hypit" if c == "hypit" else None)
+    rec = []
+    monkeypatch.setattr(clone, "run_child", lambda cmd, cwd=None: rec.append(cmd) or 0)
+    assert clone.run_hypit(["-h"]) == 0
+    assert clone.run_hypit(["build", "-h"]) == 0
+    assert rec == [["/usr/local/bin/hypit", "--help"], ["/usr/local/bin/hypit", "build", "--help"]]
+
+
+REASONS = {"build x.md": "gastar em provedores", "studio": "nunca termina", "auth": "segredo", "runtime up": "processos do runtime",
+           "packages install x": "instala código", "capture install-browser": "baixa um navegador",
+           "transcribe a.wav": "usa provedores", "measure a.wav": "usa provedores", "novo-comando": "não está na lista",
+           "media fetch http://x": "sem o portão --autorizo", "activity --watch": "não termina"}
+
+
+@pytest.mark.parametrize("args,motivo", REASONS.items())
+def test_each_refusal_carries_its_own_reason(chamadas, args, motivo):
+    assert motivo in mcp_server.video_clone(args)["error"]
+
+
+def test_clone_status_reports_effective_and_pinned(ambiente, capsys, monkeypatch):
+    _fake(ambiente, "npx", "10.0.0")
+    _fake(ambiente, "node", "v22.15.0")
+    monkeypatch.setenv("SIMPLICIO_HYPIT_REF", "0.2.18")
+    _, r = _json(["clone", "status", "--json"], capsys)
+    assert r["pinned"] == "0.2.17" and r["effective"] == "0.2.18"
+
+
+def test_npm_command_error_names_node_22_15():
+    import inspect
+    assert "22.15" in inspect.getsource(tools.npm_command)
