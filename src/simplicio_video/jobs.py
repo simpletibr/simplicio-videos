@@ -507,18 +507,44 @@ def _prepare_montage_tool(params: dict, confirm_yes: bool, origin: str) -> tuple
         raise JobError(str(e)) from None
     if plan["refusal"]:
         raise JobError(plan["refusal"])
-    p = {"name": name, "input": inputs, "strict": strict}
+    p = {"name": name, "input": inputs, "strict": strict, "rid": uuid.uuid4().hex}
     extra = {"estimate_usd": plan["cost"], "confirmed": {"yes": True, "at": now_iso()} if plan["needs_yes"] else None}
     return p, plan["spends"], extra
 
 
+def _montage_result_path(rid) -> Path | None:
+    """The result file of one montage-tool job: beside the job folders, named by the token of its spec (the job id is made
+    after the spec, so the token is what both the argv and the result step can know)."""
+    if not (isinstance(rid, str) and re.fullmatch(r"[0-9a-f]{32}", rid)):
+        return None
+    return jobs_dir() / _MONTAGE_RESULT_DIR / f"{rid}.json"
+
+
+_MONTAGE_RESULT_DIR = ".resultados"
+
+
 def _argv_montage_tool(p: dict) -> list[str]:
-    a = ["montage", "run-tool", p["name"], "--input", json.dumps(p["input"], ensure_ascii=False), "--yes", "--json"]
+    from . import montage
+    a = ["montage", "run-tool", p["name"], "--input", montage.input_json(p["input"]), "--yes", "--json"]
+    rp = _montage_result_path(p.get("rid"))
+    if rp is not None:
+        a += ["--resultado-em", str(rp)]  # the run writes its whole result here; the output line stays small
     return a + (["--sob-mcp"] if p.get("strict") else [])
 
 
 def _result_montage_tool(p: dict, last_json: dict | None) -> dict | None:
-    return last_json if isinstance(last_json, dict) and last_json.get("tool") == p.get("name") else None
+    """The result step: the whole JSON the run wrote to its result file (any size), read here and removed."""
+    rp = _montage_result_path(p.get("rid"))
+    if rp is None:
+        return None
+    try:
+        res = json.loads(rp.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    finally:
+        with contextlib.suppress(OSError):
+            rp.unlink()
+    return res if isinstance(res, dict) and res.get("tool") == p.get("name") else None
 
 
 _register("montage-tool", prepare=_prepare_montage_tool, argv=_argv_montage_tool, result=_result_montage_tool)

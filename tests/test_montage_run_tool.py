@@ -19,7 +19,6 @@ import hashlib
 import json
 import os
 import stat
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -140,9 +139,12 @@ FAKE_ALLOWED = ("relativo", "pago", "rede", "sem_meta", "custo_cota", "publica",
                 "isolado", "falha", "quebra")
 
 
+NO_OUTPUT_FAKES = ("relativo", "ambiente", "isolado")
+
+
 @pytest.fixture(autouse=True)
 def _allowlist_with_fakes(monkeypatch):
-    extra = {n: {"outputs": ("output_path",), "why": "fake de teste"} for n in FAKE_ALLOWED}
+    extra = {n: {"outputs": () if n in NO_OUTPUT_FAKES else ("output_path",), "why": "fake de teste"} for n in FAKE_ALLOWED}
     monkeypatch.setattr(montage, "MCP_ALLOWLIST", {**REAL_ALLOWLIST, **extra}, raising=False)
 
 
@@ -391,7 +393,7 @@ def test_e2big_from_the_registry_child_is_a_clean_error(om, monkeypatch, capsys)
 
 def test_timeout_ends_a_run_that_does_not_end(om, capsys):
     t0 = time.monotonic()
-    code = montage.main(["run-tool", "dorme", "--input", "{}", "--yes", "--timeout", "1"])
+    code = montage.main(["run-tool", "dorme", "--input", json.dumps({"input_path": "/x"}), "--yes", "--timeout", "1"])
     assert code == 1 and time.monotonic() - t0 < 30
     assert "tempo" in capsys.readouterr().err
 
