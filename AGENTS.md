@@ -41,6 +41,7 @@ Qualquer tarefa de áudio ou vídeo (legendar, traduzir texto da tela, dublar, t
 ### Regras
 
 - Não use `ffmpeg`, `yt-dlp`, `whisper` ou um app de voz por fora quando já existir subcomando (`media`, `media fetch` para download, `voicestudio`, `edit`): se faltar algo, implemente no `simplicio-video` e adicione teste.
+- Exceção registrada: `scripts/e2e_real.py` chama o `ffmpeg` direto uma vez por execução, só para gerar o vídeo sintético dos checks reais (o repositório não tem MP4 de teste e o motor não tem gerador de mídia). Ver [docs/how-to/e2e-real.md](docs/how-to/e2e-real.md), seção "Exceções e notas".
 - Cada subcomando tem `--help` com exemplos; cada skill acima explica o subcomando com exemplos e limites.
 - Nada de publicar: o motor gera o arquivo; a publicação é de outra camada.
 - Voz de pessoa real só com consentimento registrado (ver `voicestudio` e a licença de cada modelo).
@@ -93,6 +94,8 @@ simplicio-video setup                              # primeira execução: cria o
 python scripts/smoke_so.py                         # fumaça multiplataforma em pasta isolada (rode em Windows e macOS: UNVERIFIED até lá)
 python -m pytest                                   # schema, validate, --help, determinismo (render curto)
 ```
+
+Teste real ponta a ponta com as suas chaves e apps (gasta só com `--sim-gastar`, com teto; fora do `make check`): [docs/how-to/e2e-real.md](docs/how-to/e2e-real.md) · `make e2e-real`.
 
 ## Mapa (todas as pastas)
 
