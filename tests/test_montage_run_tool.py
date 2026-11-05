@@ -451,6 +451,16 @@ def _alive(pid: int) -> bool:
     return state != "Z"
 
 
+def _wait_dead(pid: int, timeout: float = 5.0) -> bool:
+    """A SIGKILLed process is in state R for a moment and a zombie after it: wait (bounded) until it is dead."""
+    t_end = time.monotonic() + timeout
+    while _alive(pid):
+        if time.monotonic() > t_end:
+            return False
+        time.sleep(0.05)
+    return True
+
+
 def _kill_leftovers(pid_file: Path) -> None:
     if pid_file.exists():
         try:
@@ -474,7 +484,7 @@ def test_mcp_timeout_does_not_wait_for_a_grandchild_that_escaped(om, monkeypatch
                              "--timeout", "2"])
         elapsed = time.monotonic() - t0
         grandchild = int(pid_file.read_text())
-        assert not _alive(grandchild), "o neto que saiu do grupo sobreviveu ao tempo limite"
+        assert _wait_dead(grandchild), "o neto que saiu do grupo sobreviveu ao tempo limite"
     finally:
         _kill_leftovers(pid_file)
     assert code == 1 and elapsed <= 2 + 3, elapsed
@@ -491,7 +501,7 @@ def test_escaped_grandchild_is_killed_after_a_normal_exit(om, tmp_path):
         res = montage.run_tool_execute(plan, inputs, tmp_path)
         grandchild = int(pid_file.read_text())
         assert res["status"] == "done"
-        assert not _alive(grandchild), "o neto que saiu do grupo sobreviveu à saída normal da tool"
+        assert _wait_dead(grandchild), "o neto que saiu do grupo sobreviveu à saída normal da tool"
     finally:
         _kill_leftovers(pid_file)
 

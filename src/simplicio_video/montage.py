@@ -669,6 +669,8 @@ _PATH_KEY = re.compile(r"(^|_)(path|paths|file|files|dir|dirs|folder|folders|src
 _OUT_KEY = re.compile(r"(^|_)(output|out|dest|destination|dst)(s|_path|_paths|_dir|_file|_folder)?$", re.I)
 # A URI scheme (file:, data:, pipe:, https:...) at the start of a value. Colons inside an absolute path are not schemes.
 _SCHEME = re.compile(r"\s*[A-Za-z][A-Za-z0-9+.\-]*:")
+# A Windows drive (C:\ or C:/): a single letter, a colon and a separator, which the scheme rule must not take for a scheme.
+_DRIVE = re.compile(r"\s*[A-Za-z]:[\\/]")
 # ffmpeg protocol prefixes that take commas instead of a colon (subfile,,start,0,...:/x), at the start of a value.
 _FF_PROTO = re.compile(r"\s*(subfile|concat|pipe|fd|tcp|udp|http|https|rtmp|file|data|crypto|async|cache|hls)(?=[,:|])", re.I)
 # What a child's variable is set to when the checkout's .env would set it (upstream keeps a key already present, even empty).
@@ -779,6 +781,74 @@ def _spawn_error(e: OSError, py) -> MontageError:
         return MontageError("o input é grande demais para o sistema operacional (E2BIG): use caminhos em vez de conteúdo, "
                             "ou um input menor")
     return MontageError(f"não consegui rodar o Python do venv ({py}): {e}")
+
+
+# How often the descendants of a running tool are looked for (POSIX with /proc). A descendant that starts and reparents
+# between two looks is missed: this bounds the gap, it does not close it.
+_POLL_S = 0.05
+
+
+def _proc_stat(pid: int):
+    """(state, ppid, starttime) from /proc/<pid>/stat, or None when the process is gone (POSIX with /proc only)."""
+    try:
+        with open(f"/proc/{pid}/stat", encoding="ascii", errors="replace") as f:
+            rest = f.read().rsplit(")", 1)[1].split()
+        return rest[0], int(rest[1]), rest[19]  # the fields after the command name: state, ppid, ..., starttime (22nd field)
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _descendants(root: int) -> dict[int, str]:
+    """pid -> start time of every live descendant of `root`, found by walking the PPID links in /proc. Without /proc (macOS,
+    Windows) nothing is found: a grandchild that left the process group is then not seen, and only the child is killed."""
+    if not os.path.isdir("/proc/self"):
+        return {}
+    children: dict[int, list[int]] = {}
+    starts: dict[int, str] = {}
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        st = _proc_stat(int(name))
+        if st is None:
+            continue
+        _state, ppid, start = st
+        children.setdefault(ppid, []).append(int(name))
+        starts[int(name)] = start
+    found: dict[int, str] = {}
+    frontier = [root]
+    while frontier:
+        parent = frontier.pop()
+        for pid in children.get(parent, ()):
+            if pid not in found and pid != root:
+                found[pid] = starts[pid]
+                frontier.append(pid)
+    return found
+
+
+def _wait_watching(proc, limit: float, seen: dict) -> None:
+    """Waits for the child up to `limit` s, recording its descendants in `seen` on the way, every _POLL_S."""
+    t_end = time.monotonic() + limit
+    while True:
+        seen.update(_descendants(proc.pid))
+        remaining = t_end - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(proc.args, limit)
+        try:
+            proc.wait(timeout=min(_POLL_S, remaining))
+            return
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def _kill_survivors(seen: dict) -> None:
+    """Kills the descendants recorded while the tool ran that are still the same process (same start time, not a zombie).
+    A descendant that left the group and outlived its parent is reparented, so it is found only through this record."""
+    for pid, start in seen.items():
+        st = _proc_stat(pid)
+        if st is None or st[2] != start or st[0] == "Z":
+            continue
+        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+            os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
 
 
 def _read_text(f) -> str:
@@ -915,7 +985,7 @@ def _strict_input_refusal(inputs: dict, schema: dict | None, declared: tuple) ->
     absolute; every input a regular file; every output new and reached through real folders, in a place the engine may
     write; an output the tool takes (in its schema or declared on the allowlist) must be given."""
     for key, text in _all_strings(inputs):
-        if "://" in text or _SCHEME.match(text) or _FF_PROTO.match(text):
+        if "://" in text or (_SCHEME.match(text) and not _DRIVE.match(text)) or _FF_PROTO.match(text):
             return (f"o MCP não busca endereços nem usa esquemas e prefixos de protocolo ({key}: {text[:60]!r}); "
                     "dê um caminho absoluto de arquivo")
     for key, text in _all_strings(inputs):
@@ -1069,17 +1139,23 @@ def run_tool_execute(plan: dict, inputs: dict, cwd: Path, *, timeout: float | No
                                     stderr=None if stream else err_f, start_new_session=True)
         except OSError as e:
             raise _spawn_error(e, py) from None
+        seen: dict[int, str] = {}  # the descendants of the child, as they were while it ran (see _descendants)
         try:
-            proc.wait(timeout=limit)
+            _wait_watching(proc, limit, seen)
         except subprocess.TimeoutExpired:
+            seen.update(_descendants(proc.pid))  # the last look, before the group is killed
             _kill_group(proc)
             proc.wait()
+            _kill_survivors(seen)  # what left the group is not in the group any more
             raise MontageError(f"{plan['tool']} passou de {limit:g} s e foi encerrado por tempo limite "
                                "(mude com --timeout ou SIMPLICIO_MONTAGE_TIMEOUT)") from None
         except BaseException:  # Ctrl-C and the like: the upstream does not outlive the command
+            seen.update(_descendants(proc.pid))
             _kill_group(proc)
             proc.wait()
+            _kill_survivors(seen)
             raise
+        _kill_survivors(seen)  # the tool may have returned while its descendants were still alive
         out = _read_text(out_f)
         err = "" if stream else _read_text(err_f)
     if err:

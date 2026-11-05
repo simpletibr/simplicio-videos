@@ -449,7 +449,7 @@ def _prepare_voice(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, 
     return p, spends, extra
 
 
-def _argv_swap(p: dict) -> list[str]:
+def _argv_swap(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by swap)
     a = ["swap", "run", "--provider", p["provider"], "--video", p["video"]]
     for r in p.get("refs") or []:
         a += ["--ref", r]
@@ -462,7 +462,7 @@ def _argv_swap(p: dict) -> list[str]:
     return a + (["--aceito-unverified"] if p.get("aceito_unverified") else []) + (["--force"] if p.get("force") else [])
 
 
-def _argv_voice(p: dict) -> list[str]:
+def _argv_voice(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by voice)
     a = ["voice", p["contrato"], *p.get("only", []), "--provider", p["provider"]]
     if p.get("force"):
         a.append("--force")
@@ -507,7 +507,7 @@ def _prepare_montage_tool(params: dict, confirm_yes: bool, origin: str) -> tuple
         raise JobError(str(e)) from None
     if plan["refusal"]:
         raise JobError(plan["refusal"])
-    p = {"name": name, "input": inputs, "strict": strict, "origin": origin, "rid": uuid.uuid4().hex}
+    p = {"name": name, "input": inputs, "strict": strict, "rid": uuid.uuid4().hex}  # the origin is the job's, not the spec's
     extra = {"estimate_usd": plan["cost"], "confirmed": {"yes": True, "at": now_iso()} if plan["needs_yes"] else None}
     return p, plan["spends"], extra
 
@@ -523,15 +523,16 @@ def _montage_result_path(rid) -> Path | None:
 _MONTAGE_RESULT_DIR = ".resultados"
 
 
-def _argv_montage_tool(p: dict) -> list[str]:
-    """The run's argv. The strict gate comes from the ORIGIN the job was submitted with, never from the spec's flag: a job
-    that came from MCP (or whose origin is missing, which counts as MCP) always re-runs the MCP gate in its own process."""
+def _argv_montage_tool(p: dict, origin: str | None = None) -> list[str]:
+    """The run's argv. The strict gate comes from the job's ORIGIN (its top-level field, set by the engine at submit, which the
+    runner passes here), never from the spec: a copy of the origin inside the spec is ignored. A job whose origin is missing
+    counts as MCP, so it always re-runs the MCP gate in its own process."""
     from . import montage
     a = ["montage", "run-tool", p["name"], "--input", montage.input_json(p["input"]), "--yes", "--json"]
     rp = _montage_result_path(p.get("rid"))
     if rp is not None:
         a += ["--resultado-em", str(rp)]  # the run writes its whole result here; the output line stays small
-    return a + (["--sob-mcp"] if p.get("origin", "mcp") != "terminal" else [])
+    return a + (["--sob-mcp"] if (origin or "mcp") != "terminal" else [])
 
 
 def _result_montage_tool(p: dict, last_json: dict | None) -> dict | None:
@@ -552,8 +553,9 @@ def _result_montage_tool(p: dict, last_json: dict | None) -> dict | None:
 _register("montage-tool", prepare=_prepare_montage_tool, argv=_argv_montage_tool, result=_result_montage_tool)
 
 
-def build_argv(kind: str, params: dict) -> list[str]:
-    return KINDS[kind]["argv"](params)
+def build_argv(kind: str, params: dict, origin: str | None = None) -> list[str]:
+    """The argv of a task. `origin` is the task's own origin (the top-level field the engine wrote at submit)."""
+    return KINDS[kind]["argv"](params, origin)
 
 
 # -------------------------------------------------------------------------------------------------------------- submit
@@ -761,7 +763,7 @@ async def _runner(jid: str) -> int:
     rc: int | None = None
     error: str | None = None
     try:
-        argv = [sys.executable, "-m", "simplicio_video", *build_argv(kind, params)]
+        argv = [sys.executable, "-m", "simplicio_video", *build_argv(kind, params, st.get("origin"))]
         proc = await asyncio.create_subprocess_exec(*argv, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
                                                     stderr=asyncio.subprocess.STDOUT, start_new_session=True, cwd=st.get("cwd"),
                                                     env=os.environ.copy())
