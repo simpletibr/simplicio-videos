@@ -71,7 +71,6 @@ ALLOW = {
     ("rea_video.py", "_run_upstream"): "analysis commands are terminal-only: video.rea-video refuses them",
     ("rea_video.py", "_ocr_state"): "the probe is `python -c` that prints nothing and never reads stdin",
     ("toonflow.py", "_serve"): "serve never ends and is refused by video.toonflow",
-    ("moneyprinter.py", "_setup"): "setup/serve are terminal-only (video.moneyprinter refuses them)",
     ("opencut.py", "run_opencut"): "dev never ends and is refused by video.opencut",
     ("commands/install.py", "_run_setup"): "interactive setup runs only with a TTY (_tty guard); MCP refuses it",
     ("commands/update.py", "_run"): "installing an update is terminal-only; MCP only does --check/--dry-run",
