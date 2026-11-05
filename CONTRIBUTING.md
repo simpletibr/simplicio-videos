@@ -8,7 +8,7 @@ Todo trabalho aqui segue o acordo de [parallel-work.md](docs/factory/parallel-wo
 git worktree add ../sv-31 -b feat/31-gate origin/main
 cd ../sv-31
 make setup       # .venv, extra `test` e hooks (o pre-push roda `make check`)
-make check       # offline, menos de 60 s
+make check       # offline, ~2-3 min em 4 núcleos (a meta de 60 s não foi atingida; ver docs/host/gate.md)
 ```
 
 ## O ciclo de uma issue
