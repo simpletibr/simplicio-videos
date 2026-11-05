@@ -151,7 +151,7 @@ def _active(req: str, extra: str) -> bool:
         return (m.group(1) == extra) if m else True
 
 
-def _closure(dists) -> tuple[list, dict[str, list[str]]]:
+def _closure(dists, todos_os_extras: bool = False) -> tuple[list, dict[str, list[str]]]:
     """Distribuições alcançáveis a partir do produto (deps base + SCAN_EXTRAS), seguindo Requires-Dist e honrando marcadores,
     e quem exige cada uma. Assim extras instalados por fora (mcp...) e o pip não mudam a tabela. Sem o produto instalado
     (testes com distribuições falsas), vale tudo o que está instalado."""
@@ -162,13 +162,16 @@ def _closure(dists) -> tuple[list, dict[str, list[str]]]:
     if root is None:
         return list(dists), _parents(dists)
     parents: dict[str, list[str]] = {}
-    seen = {norm(PRODUCT)}
-    pending = [(root, ("",) + SCAN_EXTRAS)]
+    seen: dict[str, set[str]] = {norm(PRODUCT): set()}
+    extras = ("",) + SCAN_EXTRAS
+    if todos_os_extras:  # gate de licença: todo extra declarado cujas deps estejam instaladas (as não instaladas são ignoradas)
+        extras = ("",) + tuple(root.metadata.get_all("Provides-Extra") or SCAN_EXTRAS)
+    pending = [(root, extras)]
     while pending:
         dist, extras = pending.pop()
         parent = dist.metadata.get("Name") or getattr(dist, "name", "") or "?"
         for req in dist.metadata.get_all("Requires-Dist") or []:
-            m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", req)
+            m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[([^\]]*)\])?", req)
             if not m:
                 continue
             on = [e for e in extras if _active(req, e)]
@@ -178,9 +181,11 @@ def _closure(dists) -> tuple[list, dict[str, list[str]]]:
             label = parent if "" in on else f"{parent}[{on[0]}]"
             if child in by_name:
                 parents.setdefault(child, []).append(label)
-                if child not in seen:
-                    seen.add(child)
-                    pending.append((by_name[child], ("",)))
+                pedidos = {x.strip() for x in (m.group(2) or "").split(",") if x.strip()}  # dep[extra]
+                novos = ({""} | pedidos) - seen.get(child, set())
+                if novos:
+                    seen.setdefault(child, set()).update(novos)
+                    pending.append((by_name[child], tuple(sorted(novos))))
     return [d for n, d in by_name.items() if n in seen], parents
 
 
@@ -200,9 +205,9 @@ def _parents(dists) -> dict[str, list[str]]:
     return parents
 
 
-def scan(exceptions_path: Path = EXCEPTIONS) -> list[Entry]:
+def scan(exceptions_path: Path = EXCEPTIONS, todos_os_extras: bool = False) -> list[Entry]:
     exc = load_exceptions(exceptions_path)
-    dists, parents = _closure(list(importlib.metadata.distributions()))
+    dists, parents = _closure(list(importlib.metadata.distributions()), todos_os_extras)
 
     entries: list[Entry] = []
     seen: set[tuple[str, str]] = set()
@@ -343,12 +348,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        entries = scan(EXCEPTIONS)
+        entries = scan(EXCEPTIONS)  # a tabela do doc: base + test, estável
+        completo = scan(EXCEPTIONS, todos_os_extras=True)  # o gate: também o fecho dos outros extras instalados (mcp...)
     except ValueError as exc:
         print(f"licenses: {exc}", file=sys.stderr)
         return 2
 
-    bad = denied(entries)
+    bad = denied(completo)
     if args.write:
         DOC.write_text(render_table(entries), encoding="utf-8")
         print(f"licenses: {_rel(DOC)} gerado ({len(entries)} linhas)")
@@ -364,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"licenses: não é diretório: {d}", file=sys.stderr)
                 return 2
             files += sorted(p for p in base.rglob("*.py") if "__pycache__" not in p.parts)
-        problems = import_violations(files, entries)
+        problems = import_violations(files, completo)
         for line in problems:
             print(f"licenses: {line}", file=sys.stderr)
         if problems:
