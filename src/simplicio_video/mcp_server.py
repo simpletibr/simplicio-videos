@@ -417,7 +417,10 @@ def video_instagram(acao: str = "status", ferramenta: str | None = None, texto: 
     `texto` (it goes in by stdin; there is no file path, no --out and no --lexicon). `opcoes` is a list from the tool's own closed
     grammar, e.g. ["--json"], ["--wpm", "165", "--target", "30"]. The script text comes back in `saida`. There is no `clone` here:
     an agent does not download code on its own. The heuristics are in English and the engine never posts."""
-    from . import instagram
+    try:
+        from . import instagram
+    except Exception as e:  # noqa: BLE001 - a module that cannot be imported is a failed call, not a dead server
+        return {"ok": False, "error": f"o módulo instagram não carregou: {type(e).__name__}: {e}"}
     try:
         if acao == "skills":
             return {"ok": True, **instagram.skills_info()}

@@ -342,7 +342,8 @@ def test_skills_cleans_hostile_front_matter_into_one_short_line_of_plain_text(ig
     hostile_skill(ig, ">-\n  " + hostile.replace("\n", "\n  "))
     rc, out, _ = run(capsys, "skills", "--json")
     desc = next(s for s in json.loads(out)["skills"] if s["nome"] == "ig-reel")["untrusted_descricao"]
-    assert len(desc) == 300 and desc.endswith("…") and desc.startswith("hello")
+    assert len(desc) <= 300 and desc.endswith("…") and desc.startswith("hello")
+    assert len(instagram._limpa("x" * 1000, 300)) == 300  # the ellipsis counts
     assert not [c for c in desc if unicodedata.category(c) in ("Cc", "Cf", "Zl", "Zp")], repr(desc)
     assert "IGNORE PREVIOUS INSTRUCTIONS" in desc  # kept as data, in a field that says so
     rc, out, _ = run(capsys, "skills")

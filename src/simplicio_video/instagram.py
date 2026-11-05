@@ -17,7 +17,14 @@ How a script is run (`run`):
   its option (`--hook=TEXT`) so it can never be read as another option; an input file is passed by absolute path; `--out` is
   judged by the place where it really lands;
 - the child is `python -I -B -X utf8 <script>`, by argument list, no shell, with a closed list of environment names (no key),
-  a time limit and a cap on what it may print; past either the whole process group is killed.
+  a time limit and a cap on what it may print; past either the whole process group is killed;
+- an input file is opened once, checked with fstat on that descriptor (a regular file only), read up to MAX_INPUT_BYTES + 1,
+  and the script gets a private copy of exactly the bytes that were read;
+- if the engine itself is asked to stop (SIGTERM or SIGHUP: terminal closed, MCP host stopping, an agent's timeout) the process
+  group of the child is killed and the private folder removed; on POSIX the child also gets an RLIMIT_CPU, so the kernel ends a
+  script that burns CPU even when the engine is killed outright (SIGKILL). RLIMIT_CPU counts CPU time, not wall time, and it does
+  not exist on Windows (there only the 30 s wall-clock kill and the SIGTERM-like handling of the engine remain);
+- on the terminal the script text is shown with control, bidirectional and zero-width characters turned into visible marks.
 """
 from __future__ import annotations
 
@@ -40,6 +47,11 @@ from pathlib import Path
 
 from . import tools
 
+try:
+    import resource  # POSIX only: the CPU limit of the child
+except ImportError:  # pragma: no cover (Windows)
+    resource = None
+
 INSTAGRAM_REPO = tools.get("instagram").source
 
 TIMEOUT_S = 30
@@ -54,6 +66,9 @@ SKILL_HEAD_BYTES = 16 * 1024             # only the start of a SKILL.md is read
 MAX_DESCRICAO_CHARS = 300
 MAX_SKILLS = 50
 POLL_S = 0.02
+CPU_FOLGA_S = 5                          # the child's CPU limit is TIMEOUT_S + this: the kernel ends an orphan that burns CPU
+# macOS (APFS) and Windows compare folder names without regard to case (macOS also to Unicode normalization): the --out guard must too
+CASE_INSENSITIVE = sys.platform in ("darwin", "win32")
 
 # The only environment names the child receives (the exact names; PYTHONIOENCODING is added). No key, no proxy, no SIMPLICIO_*.
 ENV_NAMES = ("PATH", "HOME", "LANG", "LC_ALL", "TMP", "TEMP", "SYSTEMROOT")
@@ -84,13 +99,16 @@ USAGE = (
     "  simplicio-video instagram where [--skills] [--json]   # caminho do checkout e da pasta skills/ (para copiar as skills)\n"
     "  simplicio-video instagram status [--json] # instalado? commit fixado e do checkout; sha256 de cada script conferido\n"
     "  simplicio-video instagram skills [--json] # as 13 skills: nome e descrição do SKILL.md (texto de terceiros)\n"
-    "  simplicio-video instagram run FERRAMENTA [--forcar] [-- argumentos do script]\n"
+    "  simplicio-video instagram run FERRAMENTA [--forcar] [--bruto] [-- argumentos do script]\n"
     "    FERRAMENTA: hookscore, beats, caption, humanize, detect ou swipe (lista fechada; nunca um caminho)\n"
     "São skills de agente (prompts) e seis scripts locais só com a biblioteca padrão: sem rede, sem chave, sem LLM.\n"
     "O motor não posta e não publica: as skills escrevem e você posta. O `clone` é o único comando que usa a rede.\n"
     "Antes de rodar, o motor confere o commit do checkout e o sha256 do script (e dos arquivos que ele lê); script\n"
     "diferente do fixado é recusado. Os argumentos do script vão depois de `--`; o script roda em modo isolado, sem shell,\n"
-    "com ambiente mínimo (sem chaves), limite de 30 s e de 2 MB de saída; cada entrada tem no máximo 1 MiB.\n"
+    "com ambiente mínimo (sem chaves), limite de 30 s e de 2 MB de saída; cada entrada tem no máximo 1 MiB (o script lê uma cópia\n"
+    "dos bytes que o motor leu). Se o motor recebe SIGTERM ou SIGHUP ele mata o grupo do script e apaga a pasta privada; no POSIX o\n"
+    "script ainda tem limite de CPU do kernel (35 s), que vale até com o motor morto; no Windows esse limite não existe.\n"
+    "No terminal a saída do script mostra ESC, controles, bidi e zero-width como marcas visíveis; --bruto (do motor) deixa crua.\n"
     "--out (humanize -o/--out e swipe --out) só pelo terminal: o motor não sobrescreve arquivo que existe (use --forcar, que é\n"
     "do motor e vem antes do `--`) e não grava no checkout, em pastas do sistema nem em pastas ocultas do home.\n"
     "As heurísticas são em inglês (medidas em 74 ganchos de YouTube Shorts em inglês: AUC 0,83 para pegar ganchos ruins, 0,56\n"
@@ -298,9 +316,17 @@ def _prepara(f: Ferramenta, destino: Path) -> tuple[Path, list[str]]:
 
 # ---------------------------------------------------------------------------------------------------------- arguments
 
+@dataclass(frozen=True)
+class _Entrada:
+    """An input file that was read (once, through one descriptor): the script receives a private copy of these bytes."""
+    prefixo: str       # '' for a positional file, '--lexicon=' for an option
+    dados: bytes
+    nome: str          # a safe version of the file name, kept so a script that prints it shows something recognizable
+
+
 @dataclass
 class _Plano:
-    argv: list = field(default_factory=list)       # what the script receives: options first, then the input files
+    argv: list = field(default_factory=list)       # what the script receives: options first, then the input files (str or _Entrada)
     usa_stdin: bool = False
 
 
@@ -310,9 +336,21 @@ _RAIZES_POSIX = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/
 _RAIZES_WINDOWS = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
 
 
+# Folders whose files the system runs on its own at login: never a place for an output file (relative to the home).
+_INICIO_AUTOMATICO = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
+                      ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
+_STARTUP_DO_APPDATA = ("Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+
+
+def _chave(caminho: Path) -> tuple:
+    if CASE_INSENSITIVE:
+        return tuple(unicodedata.normalize("NFC", parte).casefold() for parte in caminho.parts)
+    return tuple(caminho.parts)
+
+
 def _dentro(caminho: Path, pasta: Path) -> bool:
-    pasta = pasta.resolve()
-    return caminho == pasta or pasta in caminho.parents
+    a, b = _chave(caminho), _chave(pasta.resolve())
+    return a[:len(b)] == b
 
 
 def _lugar_proibido(real: Path) -> str:
@@ -326,11 +364,15 @@ def _lugar_proibido(real: Path) -> str:
     if any(_dentro(real, r) for r in raizes):
         return "em pasta do sistema"
     home = Path(os.path.expanduser("~")).resolve()
+    inicio = [home.joinpath(*partes) for partes in _INICIO_AUTOMATICO]
+    inicio += [Path(base).joinpath(*_STARTUP_DO_APPDATA) for base in (os.environ.get(n) for n in ("APPDATA",)) if base]
+    if any(_dentro(real, pasta) for pasta in inicio):
+        return "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)"
     if _dentro(real, home):
         partes = real.relative_to(home).parts
         if partes and partes[0].startswith("."):
             return "em pasta oculta do home (.ssh, .config, .claude...)"
-    if ".git" in real.parts:
+    if ".git" in _chave(real):
         return "dentro de uma pasta .git"
     return ""
 
@@ -354,19 +396,29 @@ def _checa_saida(valor: str, forcar: bool) -> str:
     return str(real)
 
 
-def _arquivo_de_entrada(valor: str) -> str:
+def _le_entrada(valor: str, prefixo: str) -> _Entrada:
+    """Open once, fstat that same descriptor (a regular file only: a named pipe does not block, /proc files do not lie about the
+    size), read at most MAX_INPUT_BYTES + 1 and refuse if there is more. The script gets a copy of these bytes."""
     try:
-        st = os.stat(valor)
+        fd = os.open(valor, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
     except (OSError, ValueError):
         raise InstagramError(f"arquivo de entrada não encontrado: {_ascii(valor)}") from None
-    if not stat.S_ISREG(st.st_mode):
-        raise InstagramError(f"a entrada precisa ser um arquivo comum: {_ascii(valor)}")
-    if st.st_size > MAX_INPUT_BYTES:
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise InstagramError(f"a entrada precisa ser um arquivo comum: {_ascii(valor)}")
+        with os.fdopen(fd, "rb", closefd=False) as fh:
+            dados = fh.read(MAX_INPUT_BYTES + 1)
+    except OSError:
+        raise InstagramError(f"não consegui ler a entrada: {_ascii(valor)}") from None
+    finally:
+        os.close(fd)
+    if len(dados) > MAX_INPUT_BYTES:
         raise InstagramError(f"a entrada passa do limite de 1 MiB: {_ascii(valor)}")
-    return os.path.abspath(valor)
+    nome = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(valor))[:80]
+    return _Entrada(prefixo, dados, nome if nome.strip(".") else "entrada")
 
 
-def _valor(nome: str, op: Opcao, valor: str, forcar: bool) -> str:
+def _valor(nome: str, op: Opcao, valor: str, forcar: bool):
     if op.tipo == "texto":
         if not valor:
             raise InstagramError(f"{nome}: o valor está vazio")
@@ -385,7 +437,7 @@ def _valor(nome: str, op: Opcao, valor: str, forcar: bool) -> str:
         if not math.isfinite(numero):
             raise InstagramError(f"{nome}: {_ascii(valor)} não é um número finito")
     elif op.tipo == "entrada":
-        return _arquivo_de_entrada(valor)
+        return _le_entrada(valor, f"{nome}=")
     else:
         return _checa_saida(valor, forcar)
     if not op.minimo <= numero <= op.maximo:
@@ -399,7 +451,7 @@ def _plano(f: Ferramenta, args: list, canal: str, forcar: bool) -> _Plano:
         raise InstagramError("os argumentos do script precisam ser uma lista de textos")
     if any("\x00" in a for a in args):
         raise InstagramError("argumento com caractere NUL: recuso")
-    opcoes: list[str] = []
+    opcoes: list = []
     posicionais: list[str] = []
     alternativa = False
     i = 0
@@ -428,7 +480,8 @@ def _plano(f: Ferramenta, args: list, canal: str, forcar: bool) -> _Plano:
                 raise InstagramError(f"{nome} precisa de um valor")
             valor = args[i]
             i += 1
-        opcoes.append(f"{nome}={_valor(nome, op, valor, forcar)}")  # glued: the value can never be read as another option
+        achado = _valor(nome, op, valor, forcar)
+        opcoes.append(achado if isinstance(achado, _Entrada) else f"{nome}={achado}")  # glued: the value can never be read as another option
         alternativa = alternativa or nome == f.entrada_alternativa
     if canal == "mcp" and posicionais:
         raise InstagramError("no MCP não há arquivo nem `-` nos argumentos: o texto vai no parâmetro `texto`")
@@ -436,7 +489,7 @@ def _plano(f: Ferramenta, args: list, canal: str, forcar: bool) -> _Plano:
         raise InstagramError(f"{f.nome} aceita arquivos de entrada: no máximo {f.max_entradas}")
     if posicionais.count("-") > 1:
         raise InstagramError("só um `-` (stdin) por chamada")
-    arquivos = [p if p == "-" else _arquivo_de_entrada(p) for p in posicionais]
+    arquivos = [p if p == "-" else _le_entrada(p, "") for p in posicionais]
     usa_stdin = canal == "mcp" or "-" in arquivos or (not arquivos and not alternativa)
     if canal == "mcp":
         arquivos = ["-"]
@@ -461,18 +514,30 @@ def _matar(proc: subprocess.Popen) -> None:
         proc.wait(5)
 
 
+def _limites_do_filho(cpu: int):
+    """What the child sets on itself right after the fork (POSIX): a CPU limit, so the kernel ends a script that burns CPU even
+    when the engine is gone (SIGKILL cannot be handled), and no core dump. It limits CPU time, not wall time: a script that only
+    sleeps is stopped by the engine (the 30 s kill, or SIGTERM/SIGHUP handling), never by this. Not available on Windows."""
+    def aplica():
+        for limite, valores in ((resource.RLIMIT_CPU, (cpu, cpu + 5)), (resource.RLIMIT_CORE, (0, 0))):
+            with contextlib.suppress(ValueError, OSError):  # a lower hard limit inherited from the parent stays
+                resource.setrlimit(limite, valores)
+    return aplica
+
+
 def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, bytes]:
     """Run by argument list: no shell, closed environment, stdin from a file (or nothing), output to temporary files so the
     size can be watched while it runs. Past TIMEOUT_S or the output cap the whole process group is killed and the call fails."""
+    extra = {"preexec_fn": _limites_do_filho(max(1, int(TIMEOUT_S) + CPU_FOLGA_S))} if resource is not None and os.name == "posix" else {}
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as inp:
         if entrada is not None:
             inp.write(entrada)
             inp.seek(0)
         try:
             proc = subprocess.Popen(argv, stdin=inp if entrada is not None else subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd,
-                                    env=_ambiente(), start_new_session=True)
-        except OSError as e:
-            raise InstagramError(f"não consegui executar o script: {e.strerror or type(e).__name__}") from None
+                                    env=_ambiente(), start_new_session=True, **extra)
+        except (OSError, subprocess.SubprocessError) as e:
+            raise InstagramError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
         limite_tempo = time.monotonic() + TIMEOUT_S
         motivo = None
         try:
@@ -488,7 +553,7 @@ def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, b
                 if time.monotonic() >= limite_tempo:
                     motivo = "tempo"
                     break
-        except BaseException:  # Ctrl+C: the child lives in its own session and would keep running after the engine is gone
+        except BaseException:  # Ctrl+C, SIGTERM, SIGHUP: the child lives in its own session and would keep running after the engine is gone
             _matar(proc)
             raise
         if motivo:
@@ -502,6 +567,32 @@ def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, b
         if motivo == "tamanho" or len(dados) > MAX_OUTPUT_BYTES or len(erros) > MAX_STDERR_BYTES:
             raise InstagramError(f"a saída do script passou do limite de {MAX_OUTPUT_BYTES} bytes e foi cortada")
         return proc.returncode, dados, erros
+
+
+def _encerra_o_motor(signum, frame):
+    raise SystemExit(128 + signum)
+
+
+@contextlib.contextmanager
+def _sinais_encerram_o_motor():
+    """While a script runs, SIGTERM and SIGHUP (terminal closed, MCP host stopping, an agent's timeout) raise SystemExit, so the
+    group of the child is killed and the private folder is removed on the way out. A signal that was being ignored (`nohup`) stays
+    ignored, and the previous handlers come back at the end. Handlers can only be set in the main thread: elsewhere there is none."""
+    anteriores = {}
+    for nome in ("SIGTERM", "SIGHUP"):
+        sinal = getattr(signal, nome, None)
+        if sinal is None or signal.getsignal(sinal) == signal.SIG_IGN:
+            continue
+        try:
+            anteriores[sinal] = signal.signal(sinal, _encerra_o_motor)
+        except (ValueError, OSError):
+            continue
+    try:
+        yield
+    finally:
+        for sinal, antigo in anteriores.items():
+            with contextlib.suppress(ValueError, OSError):
+                signal.signal(sinal, antigo if antigo is not None else signal.SIG_DFL)
 
 
 def _le_stdin() -> bytes:
@@ -530,18 +621,32 @@ def _texto_mcp(texto) -> bytes:
     return dados
 
 
+def _materializa(argv: list, privada: Path) -> list[str]:
+    """The script arguments with every input file replaced by the private copy of the bytes that were read."""
+    final = []
+    for i, item in enumerate(argv):
+        if isinstance(item, _Entrada):
+            pasta = privada / "entradas" / str(i)
+            pasta.mkdir(parents=True)
+            (pasta / item.nome).write_bytes(item.dados)
+            item = item.prefixo + str(pasta / item.nome)
+        final.append(item)
+    return final
+
+
 def run_tool(ferramenta, args, *, texto=None, canal: str = "terminal", forcar: bool = False) -> dict:
     """Run one of the six tools. `canal` is 'terminal' (files, stdin, --out) or 'mcp' (the text goes in `texto`, nothing else).
     Returns {ferramenta, codigo_saida, resultado (the exit code is a result, not a failure), stdout, stderr, avisos}."""
     f = _ferramenta(ferramenta, canal)
     plano = _plano(f, args if args is not None else [], canal, forcar)
     entrada = _texto_mcp(texto) if canal == "mcp" else None
-    with tempfile.TemporaryDirectory(prefix="simplicio-instagram-") as privada:
+    with _sinais_encerram_o_motor(), tempfile.TemporaryDirectory(prefix="simplicio-instagram-") as privada:
         script, avisos = _prepara(f, Path(privada))
+        argv = _materializa(plano.argv, Path(privada))
         if canal == "terminal" and plano.usa_stdin:
             entrada = _le_stdin()
         cwd = os.getcwd() if canal == "terminal" else privada
-        rc, out, err = _executa([sys.executable, "-I", "-B", "-X", "utf8", str(script), *plano.argv], entrada, cwd)
+        rc, out, err = _executa([sys.executable, "-I", "-B", "-X", "utf8", str(script), *argv], entrada, cwd)
     return {"ferramenta": f.nome, "codigo_saida": rc, "resultado": rc in f.resultado,
             "stdout": out.decode("utf-8", errors="replace"), "stderr": err.decode("utf-8", errors="replace"), "avisos": avisos}
 
@@ -550,6 +655,26 @@ def _limpa_mcp(texto: str) -> str:
     """Script text for an agent: no control, bidirectional, zero-width or tag characters (they can hide instructions)."""
     texto = texto.replace("\r\n", "\n")
     return "".join(c for c in texto if c in "\n\t" or unicodedata.category(c) not in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"))
+
+
+def visivel(texto: str) -> str:
+    """Script text for a terminal: ESC and the other controls become their visible marks (U+2400 block), and C1, bidirectional,
+    zero-width, line-separator and tag characters become <U+XXXX>; newline and tab stay. A terminal never receives an escape
+    sequence that came from a script (and so, possibly, from a third party's text)."""
+    saida = []
+    for c in texto.replace("\r\n", "\n"):
+        n = ord(c)
+        if c in "\n\t":
+            saida.append(c)
+        elif n < 0x20:
+            saida.append(chr(0x2400 + n))
+        elif n == 0x7F:
+            saida.append(chr(0x2421))
+        elif unicodedata.category(c) in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"):
+            saida.append(f"<U+{n:04X}>")
+        else:
+            saida.append(c)
+    return "".join(saida)
 
 
 def resposta_mcp(res: dict) -> dict:
@@ -575,7 +700,7 @@ def _limpa(texto: str, limite: int) -> str:
         elif categoria not in ("Cc", "Cf", "Cs", "Co", "Cn"):
             saida.append(c)
     linha = re.sub(r"\s+", " ", "".join(saida)).strip()
-    return linha if len(linha) <= limite else linha[:limite].rstrip() + "…"
+    return linha if len(linha) <= limite else linha[:limite - 1].rstrip() + "…"  # the ellipsis counts: never more than `limite`
 
 
 def _descricao_do_front_matter(texto: str) -> str:
@@ -698,8 +823,8 @@ def _flags(args: list, aceitas: tuple, sub: str) -> set:
     return achadas
 
 
-def _divide_run(args: list) -> tuple[str, bool, list]:
-    """`run FERRAMENTA [--forcar] [-- argumentos do script]` -> (ferramenta, forcar, argumentos do script)."""
+def _divide_run(args: list) -> tuple[str, bool, bool, list]:
+    """`run FERRAMENTA [--forcar] [--bruto] [-- argumentos do script]` -> (ferramenta, forcar, bruto, argumentos do script)."""
     if not args:
         raise InstagramError(f"run precisa da ferramenta: {', '.join(FERRAMENTAS)}")
     ferramenta, resto = args[0], args[1:]
@@ -708,12 +833,13 @@ def _divide_run(args: list) -> tuple[str, bool, list]:
         motor, script = resto[:i], resto[i + 1:]
     else:
         motor, script = resto, []
-    forcar = False
+    forcar = bruto = False
     for a in motor:
-        if a != "--forcar":
-            raise InstagramError(f"argumento desconhecido do motor: {_ascii(a)}; os argumentos do script vão depois de `--` (o do motor é só --forcar)")
-        forcar = True
-    return ferramenta, forcar, script
+        if a not in ("--forcar", "--bruto"):
+            raise InstagramError(f"argumento desconhecido do motor: {_ascii(a)}; os argumentos do script vão depois de `--` "
+                                 "(os do motor são só --forcar e --bruto)")
+        forcar, bruto = forcar or a == "--forcar", bruto or a == "--bruto"
+    return ferramenta, forcar, bruto, script
 
 
 def _exit_code(rc: int) -> int:
@@ -734,13 +860,13 @@ def run_instagram(args: list[str]) -> int:
         print(clone_instagram(Path(resto[0]) if resto else None))
         return 0
     if first == "run":
-        ferramenta, forcar, script = _divide_run(resto)
+        ferramenta, forcar, bruto, script = _divide_run(resto)
         res = run_tool(ferramenta, script, forcar=forcar)
         for aviso in res["avisos"]:
             print(f"instagram: aviso: {aviso}", file=sys.stderr)
-        sys.stdout.write(res["stdout"])
+        sys.stdout.write(res["stdout"] if bruto else visivel(res["stdout"]))
         sys.stdout.flush()
-        sys.stderr.write(res["stderr"])
+        sys.stderr.write(res["stderr"] if bruto else visivel(res["stderr"]))
         return _exit_code(res["codigo_saida"])
     if first == "where":
         achadas = _flags(resto, ("--skills", "--json"), "where")

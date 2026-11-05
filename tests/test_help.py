@@ -33,7 +33,7 @@ def test_main_help_lists_the_whole_flow():
     ("moneyprinter", ["MoneyPrinterTurbo", "clone", "setup", "serve", "where", "--lan", "0.0.0.0", "8501", "8080"]),
     ("matchcut", ["match-cut", "clone", "where", "status", "Renoise", "créditos"]),
     ("instagram", ["instagram-agent-skill", "clone", "where", "status", "skills", "run", "hookscore", "beats", "caption", "humanize", "detect", "swipe",
-                   "--forcar", "INSTAGRAM_DIR", "MIT", "Jake Schincariol", "sha256", "inglês", "não posta", "terminal"]),
+                   "--forcar", "--bruto", "INSTAGRAM_DIR", "MIT", "Jake Schincariol", "sha256", "inglês", "não posta", "terminal"]),
     ("rea-video", ["rea-video", "clone", "setup", "where", "status", "decompose", "--vlm", "ffmpeg", "REA_VLM_API_KEY", "terceiro"]),
     ("jobs", ["submit", "status", "list", "cancel", "result", "swap-run", "voice", "--yes"]),
     ("social", ["providers", "plan", "check", "recipe", "realoficial", "zernio", "consentimento", "UNVERIFIED"]),

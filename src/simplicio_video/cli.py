@@ -309,6 +309,8 @@ def build_parser() -> argparse.ArgumentParser:
                     "Antes de rodar, confere o commit do checkout e o sha256 do script; ele roda em modo isolado, sem shell, com ambiente mínimo, "
                     "limite de 30 s e de 2 MB de saída. Os argumentos do script vão depois de `--`; `--forcar` (do motor, antes do `--`) permite "
                     "sobrescrever o arquivo do --out de humanize e swipe, que só existe no terminal. "
+                    "A saída do script mostra ESC, controles, bidi e zero-width como marcas visíveis; `--bruto` (do motor) deixa crua. "
+                    "Se o motor recebe SIGTERM ou SIGHUP, mata o script e apaga a pasta privada; no POSIX o script também tem limite de CPU do kernel (35 s). "
                     "As heurísticas são em inglês (AUC 0,83 para pegar ganchos ruins e 0,56 para escolher vencedores, medidas em 74 ganchos de "
                     "YouTube Shorts em inglês): em português elas pontuam mal ou ignoram. Para copiar as skills ao agente: `instagram where --skills`. "
                     "O checkout fica em INSTAGRAM_DIR ou em SIMPLICIO_TOOLS_DIR/instagram.",
@@ -316,7 +318,7 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video instagram run hookscore -- --hook 'I lost $18,000 because of one missing contract.'\n"
                "  simplicio-video instagram run beats -- roteiro.txt --target 30\n  simplicio-video instagram run caption -- legenda.txt\n"
                "  simplicio-video instagram where --skills\n  simplicio-video instagram status")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | where [--skills] | status | skills | run FERRAMENTA [--forcar] [-- argumentos]")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | where [--skills] | status | skills | run FERRAMENTA [--forcar] [--bruto] [-- argumentos]")
 
     p = sub.add_parser("rea-video", formatter_class=Fmt, help="rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake",
         description="Instala o rea-video (https://github.com/JuneYaooo/rea-video, MIT) no commit fixado em tools.py, num venv próprio, "
