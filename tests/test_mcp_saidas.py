@@ -75,3 +75,55 @@ def test_media_e_shorts_dizem_que_o_o_existente_e_sobrescrito_e_nao_so_arquivos_
         assert "new files" not in DESCRICOES[nome] and "new file" not in DESCRICOES[nome], nome
     assert "new file" not in (mcp_server.video_media.__doc__ or "")
     assert "new file" not in (mcp_server.video_shorts.__doc__ or "")
+
+
+# ---------------------------------------------------------------------------------- regressões e controles (já valiam antes)
+
+@pytest.mark.parametrize("argv", [
+    ["plan", FONTE, "--transcript", WORDS],        # sem -o: nada de default relativo
+    ["cut", FONTE, PLANO],
+    ["run", FONTE, "--transcript", WORDS],
+])
+def test_shorts_sem_o_e_recusado_e_o_inspect_sem_o_so_imprime(cli, argv):
+    assert mcp_server.video_shorts(argv=argv)["ok"] is False and cli == []
+    assert mcp_server.video_shorts(argv=["inspect", FONTE])["ok"] is True and cli == [["shorts", "inspect", FONTE]]
+
+
+def test_controles_com_o_absoluto_seguem_valendo(cli):
+    mcp_server.video_shorts(argv=["plan", FONTE, "--transcript", WORDS, "-o", "/abs/out/plan.json"])
+    mcp_server.video_shorts(argv=["cut", FONTE, PLANO, "-o", "/abs/out/cortes"])
+    mcp_server.video_edit(argv=["render", "/abs/out/edl.json", "-o", "/abs/out/final.mp4"])
+    mcp_server.video_edit(argv=["pack", "/abs/out/edit"])
+    mcp_server.video_media(argv=["sheet", "/abs/x.mp4", "-o", "/abs/ok.png", "--every", "4"])
+    assert cli == [
+        ["shorts", "plan", FONTE, "--transcript", WORDS, "-o", "/abs/out/plan.json"],
+        ["shorts", "cut", FONTE, PLANO, "-o", "/abs/out/cortes"],
+        ["edit", "render", "/abs/out/edl.json", "-o", "/abs/out/final.mp4"],
+        ["edit", "pack", "/abs/out/edit"],
+        ["media", "sheet", "/abs/x.mp4", "-o", "/abs/ok.png", "--every", "4"],
+    ]
+
+
+def test_edit_help_nao_e_barrado_pela_regra_do_edl(cli):
+    mcp_server.video_edit(argv=["render", "--help"])
+    mcp_server.video_edit(argv=["pack", "-h"])
+    assert cli == [["edit", "render", "--help"], ["edit", "pack", "-h"]]
+
+
+# ---------------------------------------------------------------------------------- F8: `..` nos caminhos do Hypit (já era recusado)
+
+@pytest.mark.parametrize("argv", [
+    ["media", "frames", "/abs/../x.mp4"],
+    ["media", "cut", "/abs/a.mp4", "--to", "/abs/../x.mp4"],
+    ["media", "cut", "/abs/a.mp4", "--to=/abs/../x.mp4"],
+    ["get", "b", "--to", "/abs/../x.mp4"],
+    ["get", "b", "--to=/abs/../x.mp4"],
+])
+def test_hypit_recusa_o_segmento_pai_em_qualquer_caminho(cli, argv):
+    r = mcp_server.video_clone(argv=argv)
+    assert r["ok"] is False and cli == [], r
+
+
+def test_hypit_aceita_caminho_absoluto_sem_pai(cli):
+    mcp_server.video_clone(argv=["get", "b", "--to", "/abs/ok.mp4"])
+    assert cli == [["clone", "get", "b", "--to", "/abs/ok.mp4"]]
