@@ -511,7 +511,7 @@
    "name": "video.moneyprinter"
   },
   {
-   "description": "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight and help. open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only.",
+   "description": "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, and the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME --input JSON; add --json). setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only.",
    "inputSchema": {
     "properties": {
      "args": {

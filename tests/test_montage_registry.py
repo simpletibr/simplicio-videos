@@ -4,6 +4,8 @@ Everything runs against a tiny fake OpenMontage checkout in tmp_path; no real ca
 from __future__ import annotations
 
 import json
+import stat
+import sys
 import textwrap
 
 import pytest
@@ -75,6 +77,11 @@ def fake_om(tmp_path, monkeypatch):
     (om / "tools" / "__init__.py").write_text("", encoding="utf8")
     (om / "tools" / "tool_registry.py").write_text(FAKE_REGISTRY, encoding="utf8")
     monkeypatch.setenv("OPENMONTAGE_DIR", str(om))
+    monkeypatch.setenv("OPENMONTAGE_DATA_DIR", str(tmp_path / "omdata"))
+    py = montage.venv_python()  # upstream code runs in the OpenMontage venv: a wrapper around the test interpreter stands in
+    py.parent.mkdir(parents=True)
+    py.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n', encoding="utf8")
+    py.chmod(py.stat().st_mode | stat.S_IXUSR)
     return om
 
 
