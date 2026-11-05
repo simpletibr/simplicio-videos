@@ -685,6 +685,7 @@ def _casa_vazia(tmp_path, monkeypatch):
     monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(dados / "tools"))  # where the checkouts of the tracks are looked for
     monkeypatch.setenv("VIDEO_USE_DIR", str(dados / "video-use"))
     monkeypatch.setattr(doctor_cmd, "porta_livre", lambda porta, *a, **kw: True)  # pytest-socket blocks the bind of the ports check
+    monkeypatch.setattr(doctor_cmd, "_checa_disco", lambda *a, **kw: doctor_cmd._row("disk", "ok", "espaço de sobra (teste)"))  # the host disk is not the test's
     return casa, dados
 
 
