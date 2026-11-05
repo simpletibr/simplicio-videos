@@ -295,10 +295,25 @@ def detectar(sondas, *, sondar: bool) -> Ambiente:
     )
 
 
-CAMPO_SEGREDO = re.compile(r"key|token|secret|password|senha", re.IGNORECASE)
-VAR_SEGREDO = re.compile(r"KEY|TOKEN|SECRET|PASSWORD", re.IGNORECASE)  # nome de variável de ambiente que guarda segredo
+MIN_VALOR_SEGREDO = 3           # valores de segredo com menos caracteres não são redigidos (ver docs/how-to/e2e-real.md)
+_TOKENS_SEGREDO = frozenset({"KEY", "KEYS", "APIKEY", "ACCESSKEY", "PRIVATEKEY", "SECRETKEY", "SIGNINGKEY", "PASSWD",
+                             "PASSWORD", "PASSWORDS", "SENHA", "SENHAS", "TOKEN", "TOKENS", "SECRET", "SECRETS"})
+
+
+def _tokens_do_nome(nome: str) -> list:
+    """Partes de um nome de variável ou de campo: separa por não alfanumérico e por CamelCase (apiKey -> API, KEY)."""
+    separado = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", nome)
+    return [p for p in re.split(r"[^A-Za-z0-9]+", separado.upper()) if p]
+
+
+def _nome_e_segredo(nome: str) -> bool:
+    """O nome tem uma parte que guarda segredo (KEY, TOKEN, SECRET, PASSWORD, senha...). KEYBOARD e MONKEY não são."""
+    return any(p in _TOKENS_SEGREDO or p.endswith(("TOKEN", "SECRET", "PASSWORD")) for p in _tokens_do_nome(nome))
 TETO_CAUDA = 1024 * 1024        # 1 MiB de saída guardada para o relatório (a redação continua em fluxo)
 TAM_BLOCO = 64 * 1024           # leitura em blocos fixos de 64 KiB
+
+
+_NUMERO_TOML = re.compile(r"[-+]?\d[\d_.:eE+-]*")  # inteiro, decimal ou data: o texto é o que sai no config
 
 
 def _ler_texto_toml(texto: str, i: int):
@@ -335,6 +350,8 @@ def _valores_de_valor_toml(texto: str, i: int) -> list:
     if texto[i] in "\"'":
         valor, _ = _ler_texto_toml(texto, i)
         return [valor] if isinstance(valor, str) else []
+    if _NUMERO_TOML.match(texto, i):
+        return [_NUMERO_TOML.match(texto, i).group()]
     if texto[i] == "[":
         achados, j = [], i + 1
         while j < len(texto) and texto[j] != "]":
@@ -342,6 +359,10 @@ def _valores_de_valor_toml(texto: str, i: int) -> list:
                 valor, j = _ler_texto_toml(texto, j)
                 if isinstance(valor, str):
                     achados.append(valor)
+            elif _NUMERO_TOML.match(texto, j):
+                numero = _NUMERO_TOML.match(texto, j)
+                achados.append(numero.group())
+                j = numero.end()
             else:
                 j += 1
         return achados
@@ -353,7 +374,7 @@ def _valores_por_regex(texto: str) -> set:
     Cobre chave e valor entre aspas simples ou duplas, escapes, listas em várias linhas, tabela inline e [[x]]."""
     achados: set = set()
     for m in re.finditer(r"""(?P<chave>["']?[\w.\-]+["']?)[ \t]*=[ \t]*""", texto):
-        if CAMPO_SEGREDO.search(m.group("chave").strip("\"'")):
+        if _nome_e_segredo(m.group("chave").strip("\"'")):
             achados.update(v for v in _valores_de_valor_toml(texto, m.end()) if v)
     return achados
 
@@ -373,7 +394,7 @@ def _valores_do_config(caminho) -> set:
 
     def caminhar(no, herdado=False):
         for chave, valor in no.items():
-            segredo = herdado or bool(CAMPO_SEGREDO.search(str(chave)))
+            segredo = herdado or _nome_e_segredo(str(chave))
             if isinstance(valor, dict):
                 caminhar(valor, segredo)
             elif isinstance(valor, list):
@@ -382,8 +403,12 @@ def _valores_do_config(caminho) -> set:
                         caminhar(item, segredo)
                     elif segredo and isinstance(item, str):
                         achados.add(item)
+                    elif segredo and isinstance(item, (int, float)) and not isinstance(item, bool):
+                        achados.add(str(item))
             elif segredo and isinstance(valor, str):
                 achados.add(valor)
+            elif segredo and isinstance(valor, (int, float)) and not isinstance(valor, bool):
+                achados.add(str(valor))  # token numérico: o TOML lê número, e o texto dele também tem de sair redigido
 
     try:
         caminhar(tomllib.loads(texto))
@@ -398,9 +423,9 @@ def _segredos(sondas, amb: Ambiente) -> list:
     o Toonflow guarda na própria interface (ver docs/how-to/e2e-real.md)."""
     env = sondas.env()
     nomes = set(CHAVES_CONHECIDAS) | {var for var, _ in amb.adaptadores.values() if var}
-    nomes |= {n for n in env if VAR_SEGREDO.search(n)}
+    nomes |= {n for n in env if _nome_e_segredo(n)}
     valores = {env[n] for n in nomes if env.get(n)} | _valores_do_config(sondas.config_moneyprinter())
-    return sorted((v for v in valores if v), key=len, reverse=True)
+    return sorted((v for v in valores if len(v) >= MIN_VALOR_SEGREDO), key=len, reverse=True)
 
 
 def _formas(segredos) -> list:
@@ -409,7 +434,8 @@ def _formas(segredos) -> list:
     formas: set = set()
     for s in segredos:
         if s:
-            formas.update((s, json.dumps(s)[1:-1], json.dumps(s, ensure_ascii=False)[1:-1], repr(s)[1:-1]))
+            formas.update((s, json.dumps(s)[1:-1], json.dumps(s, ensure_ascii=False)[1:-1], repr(s)[1:-1],
+                           ascii(s)[1:-1], json.dumps(json.dumps(s))[1:-1]))
     formas.discard("")
     return sorted(formas, key=len, reverse=True)
 
@@ -420,10 +446,38 @@ def _regex_segredos(segredos: list):
     return re.compile("|".join(re.escape(s) for s in validos)) if validos else None
 
 
+def _corte_do_prefixo(dados: str, spans: list, formas: list, maior: int) -> int:
+    """Onde o texto pode ser emitido: antes do maior sufixo que ainda pode ser começo de um segredo (prefixo próprio de
+    uma forma) e que não cai no meio de uma ocorrência completa (spans). Devolve len(dados) se não há sufixo retido."""
+    n = len(dados)
+    if n == 0 or maior <= 1:
+        return n
+    inicios = [s for s, _ in spans]
+    primeiros = {s[0] for s in formas}
+    for p in range(max(0, n - maior + 1), n):  # do sufixo mais longo para o mais curto: o primeiro achado é o corte
+        if dados[p] not in primeiros:
+            continue
+        trecho = dados[p:]
+        if not any(len(trecho) < len(s) and s.startswith(trecho) for s in formas):
+            continue
+        j = bisect.bisect_right(inicios, p) - 1
+        if j >= 0 and spans[j][0] < p < spans[j][1]:
+            continue
+        return p
+    return n
+
+
 def redigir(texto: str, segredos: list) -> str:
-    """Referência para texto inteiro: a mesma regra que o Redator aplica em pedaços."""
-    rx = _regex_segredos(_formas(segredos))
-    return rx.sub("***", texto) if rx else texto
+    """Referência para texto inteiro: a mesma regra que o Redator aplica em pedaços (inclusive o sufixo retido no fim:
+    um começo de segredo que termina o texto sai como ***)."""
+    formas = _formas(segredos)
+    rx = _regex_segredos(formas)
+    if not rx:
+        return texto
+    spans = [m.span() for m in rx.finditer(texto)]
+    corte = _corte_do_prefixo(texto, spans, formas, max((len(s) for s in formas), default=0))
+    cabeca, resto = texto[:corte], texto[corte:]
+    return rx.sub("***", cabeca) + ("***" if resto else "")
 
 
 class Redator:
@@ -457,27 +511,18 @@ class Redator:
 
     def _bloco(self, bloco: str) -> str:
         dados = self.resto + bloco
-        n = len(dados)
         spans = [(m.start(), m.end()) for m in self.rx.finditer(dados)]
-        inicios = [s for s, _ in spans]
-        corte = n
-        for k in range(min(self.maior - 1, n), 0, -1):
-            p = n - k
-            if not self._e_prefixo_de_segredo(dados[p:]):
-                continue
-            j = bisect.bisect_right(inicios, p) - 1
-            if j >= 0 and spans[j][0] < p < spans[j][1]:  # p cai no meio de uma ocorrência completa: não se corta ali
-                continue
-            corte = p
-            break
+        corte = _corte_do_prefixo(dados, spans, self.segredos, self.maior)
         self.resto = dados[corte:]
         return self.rx.sub("***", dados[:corte])
 
     def finalizar(self) -> str:
         if not self.rx:
             return ""
-        saida, self.resto = self.rx.sub("***", self.resto), ""
-        return saida
+        resto, self.resto = self.resto, ""
+        if resto and self._e_prefixo_de_segredo(resto):
+            return "***"  # o fluxo acabou no meio de um começo de segredo: não há mais texto que o complete, e ele sai redigido
+        return self.rx.sub("***", resto)
 
 
 def _redigir_doc(obj, segredos: list):
@@ -965,7 +1010,13 @@ def _inodes_escutando(porta: int) -> Optional[set]:
             continue
         for linha in linhas:
             campos = linha.split()
-            if len(campos) > 9 and campos[3] == "0A" and int(campos[1].rsplit(":", 1)[1], 16) == porta:
+            if len(campos) <= 9 or campos[3] != "0A":
+                continue
+            try:
+                porta_da_linha = int(campos[1].rsplit(":", 1)[1], 16)
+            except ValueError:
+                continue  # linha malformada do /proc: ignorada, não derruba a checagem
+            if porta_da_linha == porta:
                 inodes.add(campos[9])
     return inodes
 
@@ -1050,32 +1101,53 @@ def _docker_publica(porta: int) -> Optional[bool]:
     for item in _itens_do_compose(p.stdout):
         if not isinstance(item, dict) or str(item.get("State", "")).lower() != "running":
             continue
-        for publicacao in item.get("Publishers") or []:
+        publicacoes = item.get("Publishers")
+        if not isinstance(publicacoes, list):
+            continue  # formato fora do esperado: não publica a porta, não é erro do check
+        for publicacao in publicacoes:
             if isinstance(publicacao, dict) and str(publicacao.get("PublishedPort", "")) == str(porta):
                 return True
     return False
 
 
+def _diagnostico_dono(proc, porta: int) -> tuple:
+    """(dono, motivo). dono: True se o processo lançado (ou um descendente) ouve a porta, ou se o compose do Toonflow tem
+    um serviço rodando que a publica (caso do docker-proxy, fora da árvore); False se o compose não publica a porta e
+    quem ouve não é o serve; None se não deu para confirmar (sem /proc e sem docker). Nunca levanta exceção."""
+    try:
+        escutas = _inodes_escutando(porta)
+        if escutas is None:
+            motivo = "sem /proc para ver os sockets"
+        elif not escutas:
+            motivo = "nenhum socket ouve a porta em /proc"
+        elif escutas & _inodes_dos_processos(_pids_da_arvore(proc.pid)):
+            return True, "o serve lançado ou um descendente ouve a porta"
+        else:
+            motivo = "quem ouve a porta está fora da árvore do serve lançado"
+        publicada = _docker_publica(porta)
+        if publicada is True:
+            return True, "o compose do Toonflow tem um serviço rodando que publica a porta"
+        if publicada is False:
+            return False, motivo + "; o compose do Toonflow não publica a porta"
+        return None, motivo + "; o docker compose não respondeu"
+    except Exception as exc:  # noqa: BLE001 (o diagnóstico nunca derruba o check: vira UNVERIFIED)
+        return None, f"não deu para ler o dono da porta ({type(exc).__name__})"
+
+
 def _dono_da_porta(proc, porta: int) -> Optional[bool]:
-    """O processo lançado é o dono da porta? True: quem ouve é ele ou um descendente dele. Se quem ouve está fora da
-    árvore (docker-proxy), vale o compose: um serviço rodando que publica a porta. False: o compose não publica a porta
-    e quem ouve não é o serve. None: não deu para confirmar (sem /proc e sem docker): aí o check não dá PASS."""
-    escutas = _inodes_escutando(porta)
-    if escutas and escutas & _inodes_dos_processos(_pids_da_arvore(proc.pid)):
-        return True
-    return _docker_publica(porta)
+    return _diagnostico_dono(proc, porta)[0]
 
 
 def _chk_toonflow(ctx: Ctx) -> Veredito:
     url = f"http://127.0.0.1:{PORTA_TOONFLOW}"
-    if _porta_ocupada(PORTA_TOONFLOW):  # outro processo na porta faria o HTTP responder sem o serve: não sobe
-        return Veredito(FAIL, f"a porta {PORTA_TOONFLOW} já está ocupada: pare o que a usa e rode de novo (o serve não subiu)")
     # informativo: o estado do checkout e do pin (não gateia). O Docker não tem subcomando de status no motor:
     # o próprio `toonflow serve --docker` é a checagem (o daemon parado aparece no log dele e vira FAIL aqui).
     ctx.passo("toonflow status", _py("toonflow", "status", "--json"), 120)
+    if _porta_ocupada(PORTA_TOONFLOW):  # conferida de novo logo antes de subir: o status pode levar até 120 s
+        return Veredito(FAIL, f"a porta {PORTA_TOONFLOW} já está ocupada: pare o que a usa e rode de novo (o serve não subiu)")
     log = ctx.pasta("toonflow") / "serve.log"
     proc, leitor = _iniciar_servidor(_py("toonflow", "serve", "--docker"), env=ctx.env, log=log, segredos=ctx.segredos)
-    codigo, vivo, saiu_com, dono = None, False, None, None
+    codigo, vivo, saiu_com, dono, motivo_dono = None, False, None, None, ""
     try:
         codigo = esperar_http(url, 1200, vivo=lambda: proc.poll() is None)
         if codigo is not None:
@@ -1084,7 +1156,7 @@ def _chk_toonflow(ctx: Ctx) -> Veredito:
             vivo = _janela_viva(proc, JANELA_VIVO_S)
             saiu_com = proc.poll()
             if vivo and _sucesso_http(codigo):
-                dono = _dono_da_porta(proc, PORTA_TOONFLOW)
+                dono, motivo_dono = _diagnostico_dono(proc, PORTA_TOONFLOW)
     finally:
         _parar_processo(proc)
         leitor.join(timeout=30)
@@ -1095,12 +1167,13 @@ def _chk_toonflow(ctx: Ctx) -> Veredito:
     if not vivo:
         return Veredito(FAIL, f"HTTP {codigo} em {url}, mas o serve lançado morreu depois dessa resposta (rc {saiu_com}; log: {log})")
     if dono is None:
-        return Veredito(SKIP, f"HTTP {codigo} em {url}, mas não deu para confirmar que o serve lançado é o dono da porta "
-                              f"(sem /proc e sem docker compose): UNVERIFIED (log: {log})")
+        return Veredito(SKIP, f"HTTP {codigo} em {url}, mas não deu para confirmar o dono da porta ({motivo_dono}): "
+                              f"UNVERIFIED (log: {log})")
     if dono is False:
-        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas a porta não é do serve lançado: outro processo responde e o "
-                              f"compose não publica a porta (log: {log})")
-    return Veredito(PASS, f"HTTP {codigo} em {url}; serviço vivo, dono da porta confirmado, e parado com SIGINT (log: {log})")
+        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas a porta não é do serve lançado ({motivo_dono}; "
+                              f"log: {log})")
+    return Veredito(PASS, f"HTTP {codigo} em {url}; serviço vivo, dono da porta confirmado ({motivo_dono}), e parado com "
+                          f"SIGINT (log: {log})")
 
 
 def _chk_media_fetch(ctx: Ctx) -> Veredito:

@@ -578,7 +578,7 @@ class _Leitor:
 
 
 def test_toonflow_pass_so_com_o_serve_vivo_quando_responde(tmp_path, capsys, monkeypatch):
-    monkeypatch.setattr(e2e, "_dono_da_porta", lambda proc, porta: True)  # o dono é testado à parte (B3)
+    monkeypatch.setattr(e2e, "_diagnostico_dono", lambda proc, porta: (True, "mock"))  # o dono é testado à parte (B3)
     monkeypatch.setattr(e2e, "JANELA_VIVO_S", 0)
     monkeypatch.setattr(e2e, "_porta_ocupada", lambda porta: False)
     monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: 200)
@@ -818,7 +818,7 @@ def test_toonflow_que_morre_dentro_da_janela_da_fail(tmp_path, capsys, monkeypat
 
 def test_toonflow_que_sobrevive_a_janela_da_pass(tmp_path, capsys, monkeypatch):
     _toonflow_com_processo_real(monkeypatch, "import time; time.sleep(60)", janela=0.5)
-    monkeypatch.setattr(e2e, "_dono_da_porta", lambda proc, porta: True)  # o dono é testado à parte (B3)
+    monkeypatch.setattr(e2e, "_diagnostico_dono", lambda proc, porta: (True, "mock"))  # o dono é testado à parte (B3)
     _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
                       sondas=SondasFalsas(toonflow=True), gravador=Gravador())
     assert _item(json.loads(out), "toonflow")["estado"] == "PASS"
@@ -927,12 +927,13 @@ def test_b2_forma_escapada_do_json_e_redigida(nome):
 @pytest.mark.parametrize("nome", list(SEG_FORMAS))
 def test_b2_forma_escapada_partida_em_qualquer_corte_do_redator(nome):
     seg, _ = SEG_FORMAS[nome]
-    texto = "antes " + json.dumps({"erro": seg}) + " depois"
+    # termina em "." (não é começo de segredo): um "s" final seria redigido pela regra do fim do fluxo
+    texto = "antes " + json.dumps({"erro": seg}) + " depois."
     for i in range(len(texto) + 1):
         r = e2e.Redator([seg])
         saida = r.alimentar(texto[:i]) + r.alimentar(texto[i:]) + r.finalizar()
         assert not any(f in saida for f in _formas_de(seg)), (i, saida)
-        assert "antes" in saida and "depois" in saida
+        assert "antes" in saida and "depois." in saida
 
 
 _IMPRIME_FORMAS = ("import os, json, sys; s = os.environ['ECO_SEG']; "
@@ -989,7 +990,7 @@ def _toonflow_mocks(monkeypatch, *, porta=None, esperar=200, dono=True, vivo=Non
     monkeypatch.setattr(e2e, "_iniciar_servidor", lambda argv, **kw: (vivo or _Vivo(), _Leitor()))
     monkeypatch.setattr(e2e, "_parar_processo", lambda proc, espera_s=120: None)
     monkeypatch.setattr(e2e, "JANELA_VIVO_S", janela)
-    monkeypatch.setattr(e2e, "_dono_da_porta", lambda proc, p: dono, raising=False)
+    monkeypatch.setattr(e2e, "_diagnostico_dono", lambda proc, p: (dono, "mock"), raising=False)
     if porta is not None:
         monkeypatch.setattr(e2e, "PORTA_TOONFLOW", porta)
 
