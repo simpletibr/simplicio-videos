@@ -1691,3 +1691,21 @@ def test_s7_sem_segredo_curto_nao_ha_aviso(tmp_path, capsys):
     sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA})
     _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--apenas", "smoke-so"], sondas=sondas, gravador=Gravador())
     assert "menos de 3 caracteres" not in out
+
+
+# 3. lacunas conhecidas da redação (documentadas como xfail(strict=True): o dia em que forem corrigidas, o teste vira XPASS e
+# a marca sai). Nada aqui muda scripts/e2e_real.py.
+@pytest.mark.xfail(strict=True, reason="known gap: AUTHOR(?!IZ) in _NAO_SEGREDO only protects AUTHORIZ*, so AUTHORISATION (British "
+                                       "spelling of the same secret name) loses its AUTH part and is not redacted")
+def test_s3_authorisation_no_config_e_segredo(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('AUTHORISATION = "cfg-auth-5555"\n', encoding="utf-8")
+    assert "cfg-auth-5555" in e2e._valores_do_config(cfg)
+
+
+@pytest.mark.xfail(strict=True, reason="known gap: an api_key line with an unclosed quote in an invalid config.toml is not redacted: "
+                                       "tomllib refuses the file, and the regex path reads a string only up to its closing quote")
+def test_s3_api_key_com_aspas_sem_fechar_em_config_invalido_e_segredo(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('[llm]\napi_key = "cfg-aberta-7777\n', encoding="utf-8")
+    assert "cfg-aberta-7777" in e2e._valores_do_config(cfg)
