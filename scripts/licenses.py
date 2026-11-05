@@ -136,6 +136,54 @@ def _modules(dist, name: str) -> tuple[str, ...]:
     return mods or (norm(name).replace("-", "_"),)
 
 
+SCAN_EXTRAS = ("test",)  # além das dependências base do produto, só o extra do gate; mcp, local-tts etc. ficam de fora
+
+
+def _active(req: str, extra: str) -> bool:
+    """A exigência vale para o `extra` pedido ("" = dependência base)? Marcadores de ambiente (plataforma, Python) valem como no ambiente."""
+    if ";" not in req:
+        return True
+    try:
+        from packaging.markers import Marker
+        return Marker(req.split(";", 1)[1].strip()).evaluate({"extra": extra})
+    except ImportError:  # sem packaging: só o marcador de extra decide
+        m = re.search(r"extra\s*==\s*[\"']([^\"']+)", req)
+        return (m.group(1) == extra) if m else True
+
+
+def _closure(dists) -> tuple[list, dict[str, list[str]]]:
+    """Distribuições alcançáveis a partir do produto (deps base + SCAN_EXTRAS), seguindo Requires-Dist e honrando marcadores,
+    e quem exige cada uma. Assim extras instalados por fora (mcp...) e o pip não mudam a tabela. Sem o produto instalado
+    (testes com distribuições falsas), vale tudo o que está instalado."""
+    by_name = {}
+    for dist in dists:
+        by_name.setdefault(norm(dist.metadata.get("Name") or getattr(dist, "name", "") or "?"), dist)
+    root = by_name.get(norm(PRODUCT))
+    if root is None:
+        return list(dists), _parents(dists)
+    parents: dict[str, list[str]] = {}
+    seen = {norm(PRODUCT)}
+    pending = [(root, ("",) + SCAN_EXTRAS)]
+    while pending:
+        dist, extras = pending.pop()
+        parent = dist.metadata.get("Name") or getattr(dist, "name", "") or "?"
+        for req in dist.metadata.get_all("Requires-Dist") or []:
+            m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", req)
+            if not m:
+                continue
+            on = [e for e in extras if _active(req, e)]
+            if not on:
+                continue
+            child = norm(m.group(1))
+            label = parent if "" in on else f"{parent}[{on[0]}]"
+            if child in by_name:
+                parents.setdefault(child, []).append(label)
+                if child not in seen:
+                    seen.add(child)
+                    pending.append((by_name[child], ("",)))
+    return [d for n, d in by_name.items() if n in seen], parents
+
+
 def _parents(dists) -> dict[str, list[str]]:
     """Quem exige cada distribuição (Requires-Dist), com [extra] quando a exigência é de um extra."""
     parents: dict[str, list[str]] = {}
@@ -154,8 +202,7 @@ def _parents(dists) -> dict[str, list[str]]:
 
 def scan(exceptions_path: Path = EXCEPTIONS) -> list[Entry]:
     exc = load_exceptions(exceptions_path)
-    dists = list(importlib.metadata.distributions())
-    parents = _parents(dists)
+    dists, parents = _closure(list(importlib.metadata.distributions()))
 
     entries: list[Entry] = []
     seen: set[tuple[str, str]] = set()
@@ -209,7 +256,7 @@ def render_table(entries: list[Entry]) -> str:
         "",
         "<!-- Gerado por scripts/licenses.py --write (make licenses-write). Não edite à mão. -->",
         "",
-        "Scan das distribuições instaladas (`importlib.metadata`). Allowlist: MIT, Apache-2.0, BSD, ISC, "
+        "Scan das distribuições instaladas (`importlib.metadata`), limitado ao fecho das dependências base e do extra `test` (extras instalados por fora não entram). Allowlist: MIT, Apache-2.0, BSD, ISC, "
         "PSF-2.0, MPL-2.0 (nível de arquivo). Exceções com justificativa: `docs/licenses-exceptions.yaml`. "
         "Regras e como atualizar: `docs/host/licenses.md`.",
         "",

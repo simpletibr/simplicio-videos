@@ -22,7 +22,7 @@ scripts/licenses.py --help
 
 ## O que é checado
 
-1. **Scan das distribuições instaladas** (`importlib.metadata`). A licença sai, nesta ordem, de `License-Expression` (PEP 639), de `License` e dos classifiers `License ::`.
+1. **Scan das distribuições instaladas** (`importlib.metadata`), limitado ao fecho das dependências base e do extra `test` do produto (segue `Requires-Dist` e honra marcadores): extras instalados por fora (mcp, local-tts) e o pip não mudam a tabela. A licença sai, nesta ordem, de `License-Expression` (PEP 639), de `License` e dos classifiers `License ::`.
 2. **Allowlist, no nível de arquivo:** MIT, Apache-2.0, BSD (todas as variantes), ISC, PSF-2.0 e MPL-2.0. Em `A OR B` basta uma opção permitida. Em `A AND B` todas precisam ser permitidas. Qualquer outra licença reprova, inclusive GPL, LGPL, AGPL, MIT-0 e licença ausente.
 3. **Exceções** em `docs/licenses-exceptions.yaml`. Uma exceção vale só se tiver `package`, `license` (igual à licença declarada no metadado instalado), `justificativa` e `uso`. Faltando um desses campos, ou com licença diferente da declarada, o pacote reprova.
 4. **`docs/licenses.md` em dia.** O arquivo é gerado a partir do scan. Se estiver ausente ou diferente do que o scan produz, o gate reprova. Quem corrige é `make licenses-write`.
