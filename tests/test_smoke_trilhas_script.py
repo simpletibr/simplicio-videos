@@ -5,10 +5,15 @@ O script de verdade roda contra o que está instalado nesta máquina: é o teste
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
+import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -17,6 +22,7 @@ from simplicio_video import mcp_server, tools
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "smoke_trilhas.py"
+PROC_DISPONIVEL = os.name == "posix" and Path("/proc/self/stat").is_file()
 
 AJUDA_OPENCUT = """usage: simplicio-video opencut [-h] ...
 
@@ -34,6 +40,15 @@ AJUDA_INSTAGRAM = """usage: simplicio-video instagram [-h] ...
 positional arguments:
   args        clone [dir] | where [--skills] | status | skills | run FERRAMENTA
               [--forcar] [--bruto] [-- argumentos]
+
+options:
+  -h, --help  show this help message and exit
+"""
+
+AJUDA_VOICESTUDIO = """usage: simplicio-video voicestudio [-h] ...
+
+positional arguments:
+  args        status | voices | languages | personalities | tts | transcribe | clone | describe | design | mcp
 
 options:
   -h, --help  show this help message and exit
@@ -173,6 +188,118 @@ def test_chamadas_mcp_do_smoke_so_leem(smoke):
 
 def test_toda_trilha_do_registro_tem_roteiro_no_smoke(smoke):
     assert set(tools.TOOLS) <= set(smoke.MCP_LEITURA)
+
+
+def test_chamada_mcp_que_estoura_dentro_do_redirect_nao_perde_o_stdout(smoke, monkeypatch):
+    """A call that never ends inside contextlib.redirect_stdout (as _cli does) must not leave sys.stdout on its buffer."""
+    liberar, terminou = threading.Event(), threading.Event()
+
+    def preso(**kwargs):
+        with contextlib.redirect_stdout(io.StringIO()):
+            liberar.wait(5)
+        terminou.set()
+        return {"ok": True}
+
+    monkeypatch.setattr(smoke, "TIMEOUT_S", 0.2)
+    monkeypatch.setattr(smoke.mcp_server, "video_preso", preso, raising=False)
+    stdout, stderr = sys.stdout, sys.stderr
+    env_antes = os.environ.get("SIMPLICIO_MCP")
+    try:
+        resposta, erro = smoke._chamar_mcp("video_preso", {})
+        assert resposta is None and "sem resposta" in erro
+        assert sys.stdout is stdout and sys.stderr is stderr
+        assert os.environ.get("SIMPLICIO_MCP") == env_antes
+    finally:
+        liberar.set()
+        assert terminou.wait(5)
+
+
+@pytest.mark.skipif(not PROC_DISPONIVEL, reason="o teste lê /proc (Linux); em outros sistemas fica UNVERIFIED")
+def test_rodar_cli_estouro_mata_o_processo_e_os_netos(smoke, monkeypatch, tmp_path):
+    pidfile = tmp_path / "neto.pid"
+    filho = ("import subprocess, sys, time\n"
+             f"neto = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+             f"open({str(pidfile)!r}, 'w').write(str(neto.pid))\n"
+             "time.sleep(60)\n")
+    monkeypatch.setattr(smoke, "_comando_cli", lambda: [sys.executable, "-c", filho])
+    monkeypatch.setattr(smoke, "TIMEOUT_S", 3)
+    saida = smoke._rodar_cli(["qualquer"])
+    neto = int(pidfile.read_text())
+    try:
+        assert saida.timeout and saida.rc == 124
+        assert not _vivo(neto), "o neto sobreviveu ao estouro: o grupo do processo não foi morto"
+    finally:
+        if _vivo(neto):
+            os.kill(neto, 9)
+
+
+def _vivo(pid: int) -> bool:
+    """True while `pid` runs (a zombie is dead for this purpose)."""
+    try:
+        estado = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except (FileNotFoundError, ProcessLookupError, IndexError):
+        return False
+    return estado != "Z"
+
+
+def test_lista_de_tools_do_mcp_tem_limite_de_tempo(smoke, monkeypatch):
+    liberar = threading.Event()
+
+    class Servidor:
+        async def list_tools(self):
+            liberar.wait(2)
+            return []
+
+    monkeypatch.setattr(smoke, "TIMEOUT_S", 0.2)
+    monkeypatch.setattr(smoke.mcp_server, "build_server", lambda: Servidor())
+    try:
+        r = smoke._core_mcp_lista()
+    finally:
+        liberar.set()
+    assert r.estado == smoke.FAIL and "sem resposta" in r.detalhe
+
+
+def test_comando_inexistente_no_cli_e_skip(smoke, monkeypatch):
+    erro = "simplicio-video: error: argument COMANDO: invalid choice: 'hypit' (choose from 'init', 'validate')"
+    monkeypatch.setattr(smoke, "_rodar_cli", lambda argv: smoke.Saida(2, "", erro))
+    monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: ({"ok": True, "log": "x"}, ""))
+    monkeypatch.setattr(smoke.tools, "is_installed", lambda t: True)
+    por_checagem = {r.checagem: r for r in smoke.checar_trilha("hypit")}
+    assert por_checagem["cli --help"].estado == smoke.SKIP
+    assert por_checagem["cli --help"].detalhe == "comando ausente no CLI"
+    assert por_checagem["cli where"].estado == smoke.SKIP
+    assert por_checagem["cli status"].estado == smoke.SKIP
+    assert smoke.codigo_de_saida(list(por_checagem.values())) == 0
+
+
+@pytest.mark.parametrize("app_responde", [True, False])
+def test_voicestudio_sem_checkout_pergunta_ao_app(smoke, monkeypatch, app_responde):
+    """VoiceStudio is a desktop app: its status talks to the local API, so a missing checkout must not skip the check."""
+    if app_responde:
+        status_cli = smoke.Saida(0, '{"ok": true, "vozes": 3}', "")
+        status_mcp = ({"ok": True, "log": '{"ok": true, "vozes": 3}'}, "")
+        esperado = smoke.OK
+    else:
+        fechado = "voicestudio: não consegui falar com o VoiceStudio em http://127.0.0.1:3900/mcp/"
+        status_cli = smoke.Saida(1, "", fechado)
+        status_mcp = ({"ok": False, "log": fechado}, "")
+        esperado = smoke.SKIP
+
+    def cli(argv):
+        if argv[1:] == ["--help"]:
+            return smoke.Saida(0, AJUDA_VOICESTUDIO, "")
+        assert argv[1:] == ["status", "--json"], argv
+        return status_cli
+
+    monkeypatch.setattr(smoke, "_rodar_cli", cli)
+    monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: status_mcp)
+    monkeypatch.setattr(smoke.tools, "is_installed", lambda t: False)
+    por_checagem = {r.checagem: r for r in smoke.checar_trilha("voicestudio")}
+    assert por_checagem["cli status"].estado == esperado
+    assert por_checagem["mcp video_voicestudio"].estado == esperado
+    if not app_responde:
+        assert por_checagem["cli status"].detalhe == "app fechado (sem resposta local)"
+        assert por_checagem["mcp video_voicestudio"].detalhe == "app fechado (sem resposta local)"
 
 
 @pytest.mark.integration
