@@ -96,7 +96,7 @@ Outras mudanças no conjunto de testes, sem tirar nenhum teste do release:
 - `test_swap_concurrency.py`: o piso de `generation_s` caiu de 0,25 s para 0,1 s. A medida começa no primeiro poll que vê `running`, que atrasa sob carga; a asserção continua exigindo que a latência seja registrada.
 - `test_voice.py`: `import json` sem uso removido (o ruff roda em todo `.py` alterado no branch).
 - `docs/licenses.md` regenerado com `make licenses-write` (pytest-xdist 3.8.0 e execnet 2.1.2, ambos MIT).
-- `pyproject.toml`: `pytest-xdist>=3.6` no extra `test`; `scripts/check.sh` usa `-n` quando o xdist está instalado (`CHECK_JOBS`).
+- `pyproject.toml`: `pytest-xdist` entrou no extra `test` (fixado com `==`, versão em `docs/licenses.md`); `scripts/check.sh` usa `-n` quando o xdist está instalado (`CHECK_JOBS`).
 
 ## Regra de TDD
 

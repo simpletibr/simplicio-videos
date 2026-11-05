@@ -52,3 +52,5 @@ GPL, LGPL e AGPL nunca viram exceção de runtime. Se um deles aparecer como dep
 - **Metadado errado ou ausente.** Alguns pacotes declaram a licença de forma incompleta. A exceção com justificativa é o controle. Não corrija o metadado do pacote no `.venv` à mão.
 - **Dependências com licença divergente do binário.** O scan lê o metadado do wrapper. Um pacote que baixa um binário com outra licença só aparece pelo que a exceção documenta (exemplo: `shellcheck-py`).
 - **Pinagem.** As dependências base e transitivas continuam sem pin exato; só o extra `test` é fixado. O lock de release (`constraints.txt`) fica na #50.
+- **Pacote fora do fecho base + `test`.** Ele não entra em `docs/licenses.md`. Quem pega licença negada nele é só o check de negadas (o scan vivo de todos os extras), não a tabela.
+- **Exceções por nome.** Uma exceção vale para qualquer versão do pacote, desde que a licença declarada continue igual à da exceção. Trocar a licença reprova; trocar a versão não.

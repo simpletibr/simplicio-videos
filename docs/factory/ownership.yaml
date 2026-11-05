@@ -335,6 +335,8 @@ issues:
       - "tests/test_licenses.py"
       - "docs/host/licenses.md"
       - "docs/licenses-exceptions.yaml"
+      - "pyproject.toml#extras.test"   # só o extra `test` (pins das ferramentas); o resto do arquivo é do #31 e de outras
+      - "docs/host/gate.md#Tempo do gate"   # só a seção que cita o xdist; o resto do gate.md é do #31
   # ------------------------------------------------------------------ M1 close
   48:
     track: ui-e2e
