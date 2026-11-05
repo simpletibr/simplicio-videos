@@ -620,7 +620,12 @@ def test_plugins_are_off_one_item_only_and_the_output_template_is_relative_to_a_
 
 
 @pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
-@pytest.mark.parametrize("extra", [{"_type": "playlist"}, {"n_entries": 2}])
+# the real shape: with --playlist-items 1 yt-dlp prints the entry itself, a plain video that remembers its list
+@pytest.mark.parametrize("extra", [
+    {"_type": "playlist"},
+    {"_type": "video", "n_entries": 1, "playlist_count": 2, "playlist_index": 1, "playlist_id": "two"},
+    {"_type": "video", "playlist_id": "lazy", "playlist_count": None},
+])
 def test_a_page_that_is_a_list_of_videos_is_refused_and_nothing_is_kept(tmp_path, monkeypatch, extra):
     fake = _fake_ytdlp(tmp_path, (
         "open('x.mp4', 'wb').write(b'a')\n"
@@ -630,6 +635,33 @@ def test_a_page_that_is_a_list_of_videos_is_refused_and_nothing_is_kept(tmp_path
         download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True)
     assert _published(tmp_path) == []
     assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".fetch-")] == []
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_a_single_video_page_with_a_playlist_id_is_still_downloaded(tmp_path, monkeypatch):
+    fake = _fake_ytdlp(tmp_path, (
+        "open('x.mp4', 'wb').write(b'a')\n"
+        "print(json.dumps({'id': 'x', 'ext': 'mp4', '_type': 'video', 'n_entries': 1, 'playlist_count': 1,\n"
+        "                  'playlist_index': 1, 'playlist_id': 'page'}))\n"))
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True)
+    assert (tmp_path / "v.mp4").exists() and (tmp_path / "v.fetch.json").exists()
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_a_failed_record_write_leaves_no_partial_json_and_no_video(tmp_path, monkeypatch):
+    fake = _fake_ytdlp(tmp_path, (
+        "open('x.mp4', 'wb').write(b'a')\n"
+        "print(json.dumps({'id': 'x', 'ext': 'mp4'}))\n"))
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+
+    def disk_full(*a, **k):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(download.json, "dumps", disk_full)
+    with pytest.raises(download.DownloadError, match="não consegui gravar"):
+        download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True)
+    assert _published(tmp_path) == []
 
 
 @pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
