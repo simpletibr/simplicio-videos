@@ -840,13 +840,12 @@ def video_shorts(args: list[str] | str = "", argv: list[str] | None = None, cmd:
 
 
 _CMD_MEDIA = tuple(media.SUBCOMMANDS)
-DESC_video_media = "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Writes new files with -o." + _linha_cmd(_CMD_MEDIA)
+DESC_video_media = "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Each output goes to -o, overwriting an existing file there (fetch --info refuses one): use a new name." + _linha_cmd(_CMD_MEDIA)
 @_erro_de_argumentos
 def video_media(args: list[str] | str = "", argv: list[str] | None = None, cmd: Literal[_CMD_MEDIA] | None = None) -> dict:
     """Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (a
     public video page downloaded with the pinned yt-dlp). `fetch` needs `--autorizo` in args: pass it only after the user approved
-    that exact URL in the chat, since the engine cannot verify the right to use the file. Every subcommand writes a new file with
-    -o and never changes its input."""
+    that exact URL in the chat, since the engine cannot verify the right to use the file. Every subcommand writes its result to -o, overwriting an existing file there (`fetch --info` refuses one); `fetch` also writes its record next to the file."""
     argv = _argv(args, argv, cmd, _CMD_MEDIA)
     if not _saida_absoluta(argv):
         return {"ok": False, "error": "media: use -o com caminho absoluto, sem `..`; o MCP não sabe de que pasta o servidor foi iniciado"}

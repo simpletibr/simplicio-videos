@@ -635,7 +635,7 @@
    "name": "video.matchcut"
   },
   {
-   "description": "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Writes new files with -o. MCP subcommands (cmd): fetch, probe, audio, sheet, subs, burn, mask, replace-audio, voice-track.",
+   "description": "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Each output goes to -o, overwriting an existing file there (fetch --info refuses one): use a new name. MCP subcommands (cmd): fetch, probe, audio, sheet, subs, burn, mask, replace-audio, voice-track.",
    "inputSchema": {
     "properties": {
      "args": {

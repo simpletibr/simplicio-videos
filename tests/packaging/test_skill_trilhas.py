@@ -318,7 +318,7 @@ def test_media_sobrescreve_o_o_nao_arquivo_novo():
 
 def test_a_regra_de_gasto_e_envio_nomeia_cada_comando():
     regras = " ".join(_secao("Regras").split())
-    for trecho in ("swap run", "--autorizo", "voice --provider gemini", "--backend kaggle", "colab", "Edge", "openverse search",
+    for trecho in ("jobs submit swap-run --autorizo --yes", "--autorizo", "voice --provider gemini", "--backend kaggle", "colab-cli", "Edge", "openverse search",
                    "sim do usuário"):
         assert trecho in regras, f"the spend-and-send rule does not name {trecho!r}"
 
