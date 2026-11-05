@@ -1,10 +1,10 @@
 """Estado do motor para o looping (issue #73): `--version --json`, `status` e `status --json [CONTRATO]`.
 
-Ferramentas: as três do `tools.py` (OpenMontage, OpenCut, Hypit) com a versão fixada de lá; ffmpeg e node
-só são detectados (sem versão fixada). Detecção por shutil.which (existe no PATH) e leitura da versão
+Ferramentas: todas as trilhas do `tools.py` (TOOLS) com a versão fixada de lá; ffmpeg e node
+só são detectados (sem versão fixada). Detecção por shutil.which (existe no PATH; trilha pip: o executável do venv da trilha) e leitura da versão
 (`--version` / `-version`, ou o commit do checkout para ferramentas git; o `tinyfish`, de terceiros, roda com o ambiente
 fechado do `busca`: nenhuma chave do shell chega a ele). Nada de rede e nada de sockets:
-a versão só é lida de um executável que já está no PATH, e uma ferramenta ausente vira installed false.
+a versão só é lida de um executável que já está no PATH (trilha pip: do dist-info do venv, sem abrir o processo), e uma ferramenta ausente vira installed false.
 
 Estado do render: o render.manifest.json ao lado do contrato. Sem manifesto, rendered false.
 """
@@ -20,7 +20,7 @@ from . import HYPERFRAMES, __version__, tools
 
 SEM_VERSAO = "sem versão fixada"
 MANIFEST = "render.manifest.json"
-ENGINE_TOOLS = ("openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "voicestudio", "tinyfish", "ffmpeg", "node")
+ENGINE_TOOLS = (*tools.TOOLS, "ffmpeg", "node")  # every track of tools.py, so a new one shows up here too
 PLAIN_TOOLS = ("ffmpeg", "node")  # só detectadas: o motor não fixa versão delas
 
 
@@ -38,7 +38,7 @@ ENV_FERRAMENTA = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")  # the only variab
 def _primeira_linha(cmd: list[str]) -> str | None:
     env = {k: os.environ[k] for k in ENV_FERRAMENTA if k in os.environ}
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, env=env)
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15, env=env)
     except (OSError, subprocess.SubprocessError):
         return None
     linhas = (r.stdout or r.stderr or "").strip().splitlines()
@@ -71,13 +71,21 @@ def _ferramenta_do_motor(name: str) -> dict:
             except tools.ToolError:
                 version = None
         return _linha(name, d is not None, version, pinned, fonte)
+    if t.kind == "pip":  # o executável e a versão vêm do venv da trilha (nunca do PATH); a versão é o dist-info, sem abrir o processo
+        installed = tools.pip_binary(name) is not None
+        return _linha(name, installed, tools.pip_version(name) if installed else None, pinned, fonte)
     exe = shutil.which(t.name)  # npm: o binário no PATH (ou o npx do motor, que não é checado aqui)
     if exe and name == "tinyfish":
         from . import busca  # binário de terceiros: só o ambiente fechado do `busca` (nenhuma chave do shell) e sem telemetria
         version = busca._versao_cli(exe)
     else:
         version = _primeira_linha([exe, "--version"]) if exe else None
-    return _linha(name, exe is not None, version, pinned, fonte)
+    linha = _linha(name, exe is not None, version, pinned, fonte)
+    if tools.install_source(t) == "npx":  # no binary, but npx + Node >= 22.15 run the pinned package (checked offline)
+        linha.update(installed=True, source="npx")
+    elif exe:
+        linha["source"] = "path"
+    return linha
 
 
 def _ferramenta_simples(name: str) -> dict:

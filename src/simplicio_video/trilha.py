@@ -25,14 +25,14 @@ ARRANJO_REL = "assets/audio/trilha/arranjo.wav"
 
 
 def _ffmpeg(args: list[str]) -> None:
-    p = subprocess.run(["ffmpeg", "-v", "error", "-y", *args], capture_output=True, text=True)
+    p = subprocess.run(["ffmpeg", "-v", "error", "-y", *args], stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if p.returncode != 0:
         raise SystemExit(f"trilha: ffmpeg falhou ({p.returncode})\n{(p.stderr or '')[-2000:]}")
 
 
 def duracao_s(path: Path) -> float:
     out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
-                         capture_output=True, text=True)
+                         stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if out.returncode != 0 or not out.stdout.strip():
         raise SystemExit(f"trilha: ffprobe não leu a duração de {path}")
     return float(out.stdout.strip())
@@ -150,7 +150,9 @@ def aplica_ducking(entrada: Path, saida: Path, janelas: list[tuple[float, float]
         "[0:a]aformat=sample_fmts=fltp:channel_layouts=stereo,asplit=3[in][lo][hi];"
         f"[lo]{_passa('lowpass', CORTE_GRAVES_HZ)},volume=volume='({g_graves:.6f}-1)*{w}':eval=frame[dl];"
         f"[hi]{_passa('highpass', CORTE_AGUDOS_HZ)},volume=volume='({g_agudos:.6f}-1)*{w}':eval=frame[dh];"
-        "[in][dl][dh]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[out]"
+        # [in] por último e duration=longest: no ffmpeg 6.1 o ramo com areverse (atrasado até o fim) como 2.ª entrada do amix
+        # descartava [in] e, com duration=first, gravava um WAV vazio. As entradas têm o mesmo tamanho: longest == first.
+        "[dl][dh][in]amix=inputs=3:normalize=0:duration=longest:dropout_transition=0[out]"
     )
     saida.parent.mkdir(parents=True, exist_ok=True)
     _ffmpeg(["-i", str(entrada), "-filter_complex", filtro, "-map", "[out]", "-ar", str(SR), "-c:a", "pcm_s16le", str(saida)])

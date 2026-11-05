@@ -95,3 +95,10 @@ def test_config_md_tem_toda_variavel_lida_pelo_codigo(tmp_path):
 def test_eventos_vazio_com_aviso(tmp_path):
     out = _gen(tmp_path / "ref")
     assert "ainda não há eventos" in _read(out, "events.md").lower()
+
+
+def test_cli_md_nao_depende_da_versao_do_python(tmp_path):
+    """O argparse do 3.12 e o do 3.13 calculam a coluna de ajuda dos subcomandos de formas diferentes; o gerador fixa uma só.
+    O cli.md gerado por qualquer Python suportado tem de ser igual ao commitado."""
+    out = _gen(tmp_path / "ref")
+    assert _read(out, "cli.md") == (ROOT / "docs" / "reference" / "cli.md").read_text(encoding="utf-8")

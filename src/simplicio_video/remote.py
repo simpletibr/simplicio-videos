@@ -31,7 +31,7 @@ Runner = Callable[[list[str]], subprocess.CompletedProcess]
 
 
 def _default_runner(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
 
 
 def _bin(env: str, name: str) -> str:

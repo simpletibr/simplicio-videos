@@ -20,6 +20,12 @@ Facts read at the pinned release (v0.5.7, commit beaae08; the pin lives in tools
   list_voices, list_personalities, list_languages, transcribe and check_health return JSON-encoded text inside
   the MCP result. generate_speech returns audio shaped by OMNIVOICE_MCP_OUTPUT_MODE: wav_base64 ('resources',
   the default), audio_url plus output_path ('files'), or both.
+- Dubbing has NO MCP tool and no single "dub this" call (spike at beeaae0, backend/api/routers/dub_*.py). The app's
+  own UI runs a chain of HTTP calls: POST /dub/upload (multipart: video, job_id, input_type, source_lang; answers 202
+  {job_id, task_id, filename} and preps in the background, progress on SSE /tasks/stream/{task_id}), POST
+  /dub/transcribe/{job_id}, POST /dub/translate, POST /dub/generate/{job_id} (heavy: ASR, translation, TTS, GPU) and
+  GET /dub/download/{job_id}. Only the first step (`dub create`, creates the job and its prep) and the last (`dub-export`)
+  are driven from here; the middle steps are run in the app, where voices and speakers are chosen.
 - OpenAI-compatible REST, used here as the transcription alternative: POST /v1/audio/transcriptions
   (multipart, field 'file'). /v1/audio/speech is the lane the 'voicestudio' voice provider already uses
   (voice_clone.py), not this module.
@@ -31,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import ipaddress
 import json
 import os
 import sys
@@ -46,12 +53,14 @@ MCP_PATH = "/mcp/"
 WELL_KNOWN = "/.well-known/voicestudio-speech"
 TRANSCRIPTIONS_PATH = "/v1/audio/transcriptions"
 PROTOCOL_VERSION = "2025-06-18"
-SUBCOMMANDS = "status|voices|languages|personalities|tts|transcribe|clone|describe|design|dub-export|mcp"
+SUBCOMMANDS = "status|voices|languages|personalities|tts|transcribe|clone|describe|design|dub|dub-export|mcp"
 DUB_DOWNLOAD_PATH = "/dub/download/"
+DUB_UPLOAD_PATH = "/dub/upload"
+MAX_DUB_UPLOAD_BYTES = 1024 ** 3  # the file goes in memory as one multipart body; bigger ones are uploaded in the app itself
 MAX_BED_LEVEL = 4.0  # the app rejects a higher bed_level (backend/api/routers/dub_export.py)
 _JOB_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")  # the app takes only short uuid slices: alnum, hyphen and underscore
 _LANG = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
-OPEN_APP = ("Abra o VoiceStudio (ele serve a API em :3900) ou aponte VOICESTUDIO_URL/OMNIVOICE_URL para outra base; "
+OPEN_APP = ("Abra o VoiceStudio (ele serve a API em :3900) ou aponte VOICESTUDIO_URL/OMNIVOICE_URL para outra porta ou base (chamadas que enviam arquivo, como dub create, transcribe e clone, só aceitam loopback: 127.0.0.0/8, ::1 ou localhost); "
             "do source, a alternativa é executar bun install e bun run dev no checkout.")
 
 HELP_DESC = (
@@ -70,6 +79,7 @@ HELP_EPILOG = """exemplos:
   simplicio-video voicestudio transcribe audio.m4a --rest   # POST /v1/audio/transcriptions (OpenAI-compatible)
   simplicio-video voicestudio clone referencia.wav --name "Minha voz"
   simplicio-video voicestudio design "mulher jovem, voz grave, sotaque brasileiro" --name "Narradora"
+  simplicio-video voicestudio dub create video.mp4 --source-lang pt   # cria o job no app (upload + preparo); o resto da dublagem é no app
   simplicio-video voicestudio dub-export --job ID --lang pl -o dublado.mp4   # exporta um job de dublagem do app, fundo preservado
   simplicio-video voicestudio mcp                     # bloco de config MCP para o cliente (Streamable HTTP)
 
@@ -77,6 +87,14 @@ ambiente:
   VOICESTUDIO_URL, OMNIVOICE_URL        base completa (padrão http://127.0.0.1:3900)
   VOICESTUDIO_PORT, OMNIVOICE_PORT      porta quando só ela muda (padrão 3900)
   VOICESTUDIO_API_KEY, OMNIVOICE_API_KEY  opcional; loopback não pede credencial"""
+
+
+# What the MCP tool accepts as an input file (after resolving links) and where it never reads or writes.
+AUDIO_EXTS = frozenset({".wav", ".mp3", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".wma", ".aif", ".aiff"})
+VIDEO_EXTS = frozenset({".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"})
+_ROOTS_POSIX = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys", "/run",
+                "/System", "/Library", "/private/etc")
+_ROOTS_WINDOWS = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
 
 
 class VoiceStudioError(Exception):
@@ -93,6 +111,138 @@ def base_url() -> str:
     if not port.isdigit() or not 0 < int(port) < 65536:
         raise VoiceStudioError(f"porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {port!r} (esperava 1-65535)")
     return f"http://127.0.0.1:{port}"
+
+
+def is_loopback_base(base: str) -> bool:
+    """True when `base` is http(s) on 127.0.0.0/8, ::1 or localhost, without credentials in the URL."""
+    try:
+        parts = urllib.parse.urlsplit(base)
+        host = parts.hostname
+    except ValueError:
+        return False
+    if parts.scheme not in ("http", "https") or parts.username or parts.password or not host:
+        return False
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _forbidden_place(real: Path) -> str | None:
+    """Why the MCP tool never touches this (already resolved) path: a system folder or a hidden folder of the home."""
+    roots = [Path(r) for r in _ROOTS_POSIX]
+    roots += [Path(os.environ[v]) for v in _ROOTS_WINDOWS if os.environ.get(v)]
+    for root in roots:
+        try:
+            root = root.resolve()
+        except (OSError, RuntimeError):
+            continue
+        if real == root or root in real.parents:
+            return f"pasta do sistema ({root})"
+    try:
+        home = Path.home().resolve()
+    except (OSError, RuntimeError, KeyError):
+        return None
+    if home in real.parents and real.relative_to(home).parts[0].startswith("."):
+        return f"pasta oculta do home ({home / real.relative_to(home).parts[0]})"
+    return None
+
+
+def _guard_abs(value, what: str) -> Path:
+    if not isinstance(value, str) or not value or value.startswith("~") or not os.path.isabs(value):
+        raise VoiceStudioError(f"{what} precisa ser um caminho absoluto (recebi {value!r}): o servidor MCP não sabe em que pasta o cliente está.")
+    return Path(value)
+
+
+def _guard_input(value, exts, what: str) -> str:
+    """MCP input file: absolute, links resolved, a regular file whose real name has a media extension, outside system/hidden folders.
+    Returns the resolved path, which is what the command then uses."""
+    path = _guard_abs(value, what)
+    try:
+        real = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise VoiceStudioError(f"{what}: arquivo não encontrado: {value}") from None
+    if not real.is_file():
+        raise VoiceStudioError(f"{what}: não é um arquivo comum: {value}")
+    if real.suffix.lower() not in exts:
+        raise VoiceStudioError(f"{what}: o arquivo (depois de seguir links) não é de mídia aceita ({', '.join(sorted(exts))}): {real.name}")
+    place = _forbidden_place(real)
+    if place:
+        raise VoiceStudioError(f"{what}: o MCP não lê de {place}")
+    return str(real)
+
+
+def _guard_out(value, what: str = "--out") -> str:
+    """MCP output file: absolute, in a folder that already exists, not a link, not existing, outside system/hidden folders."""
+    path = _guard_abs(value, what)
+    if path.is_symlink():
+        raise VoiceStudioError(f"{what} não pode ser um link simbólico: {value}")
+    if not path.parent.is_dir():
+        raise VoiceStudioError(f"{what}: a pasta {path.parent} não existe (o MCP não cria pastas)")
+    real = path.parent.resolve() / path.name
+    place = _forbidden_place(real)
+    if place:
+        raise VoiceStudioError(f"{what}: o MCP não grava em {place}")
+    if os.path.lexists(real):
+        raise VoiceStudioError(f"{what}: já existe {value} (o MCP não sobrescreve; escolha outro nome)")
+    return str(real)
+
+
+def _mcp_guard(a) -> None:
+    """The extra rules of the MCP channel, applied to the parsed command; paths are replaced by the checked ones."""
+    cmd = a.cmd
+    if cmd == "tts":
+        if not a.out:
+            raise VoiceStudioError("tts precisa de --out com um caminho absoluto: o MCP não escolhe um nome nem grava na pasta do servidor")
+        a.out = _guard_out(a.out)
+    elif cmd == "dub-export":
+        a.out = _guard_out(a.out)
+    elif cmd == "transcribe":
+        a.audio = _guard_input(a.audio, AUDIO_EXTS, "AUDIO")
+    elif cmd == "clone":
+        a.audio = _guard_input(a.audio, AUDIO_EXTS, "REFERENCIA")
+    elif cmd == "dub" and a.dub_cmd == "create":
+        a.media = _guard_input(a.media, (VIDEO_EXTS | AUDIO_EXTS) if a.audio else VIDEO_EXTS, "VIDEO")
+
+
+class _Multipart:
+    """A multipart/form-data body read from the file as the socket asks for it (no copy of the file in memory).
+    Segments are bytes or (path, size); `length` is the total, for Content-Length."""
+
+    def __init__(self, segments):
+        self._segments = list(segments)
+        self.length = sum(len(x) if isinstance(x, bytes) else x[1] for x in self._segments)
+        self._gen = self._chunks()
+        self._buf = b""
+
+    def _chunks(self):
+        for seg in self._segments:
+            if isinstance(seg, bytes):
+                yield seg
+                continue
+            path, size = seg
+            with open(path, "rb") as fh:
+                left = size
+                while left:
+                    chunk = fh.read(min(1024 * 1024, left))
+                    if not chunk:
+                        raise VoiceStudioError(f"o arquivo mudou durante o envio: {path}")
+                    left -= len(chunk)
+                    yield chunk
+
+    def read(self, n: int | None = -1) -> bytes:
+        if n is None or n < 0:
+            data, self._buf = self._buf + b"".join(self._gen), b""
+            return data
+        while len(self._buf) < n:
+            try:
+                self._buf += next(self._gen)
+            except StopIteration:
+                break
+        data, self._buf = self._buf[:n], self._buf[n:]
+        return data
 
 
 def _api_key() -> str | None:
@@ -213,6 +363,24 @@ def _dub_error(status: int, raw: bytes, job_id: str, lang: str) -> str:
     return f"HTTP {status} em {DUB_DOWNLOAD_PATH}{job_id}: {text}"
 
 
+def _upload_error(status: int, raw: bytes, job_id: str | None) -> str:
+    """A readable message for an error of POST /dub/upload (FastAPI's {"detail": ...})."""
+    try:
+        detail = json.loads(_decode(raw)).get("detail")
+    except (ValueError, AttributeError):
+        detail = None
+    text = (detail.get("message") if isinstance(detail, dict) else detail) or _short(raw)
+    if status == 409:
+        return f"já existe um job com o id {job_id or '?'} no app (HTTP 409: {text}). Omita --job-id para o app gerar um novo."
+    if status == 415:
+        return f"o app não aceita esse formato de arquivo (HTTP 415: {text}). Use um vídeo comum (mp4, mov, mkv, webm) ou --audio."
+    if status in (401, 403):
+        return f"o app recusou o acesso (HTTP {status}: {text}). Defina VOICESTUDIO_API_KEY se o app pede chave."
+    if status in (400, 422):
+        return f"o app recusou o upload (HTTP {status}: {text})."
+    return f"HTTP {status} em {DUB_UPLOAD_PATH}: {text}"
+
+
 class VoiceStudio:
     """A client for one VoiceStudio backend. `transport` is the seam the tests replace (no sockets, no app needed)."""
 
@@ -225,6 +393,12 @@ class VoiceStudio:
         self._next_id = 0
 
     # ---- plumbing -------------------------------------------------------------------------------------------
+
+    def _require_loopback(self, what: str) -> None:
+        """Calls that send a file (or a recording) only go to this machine: a base elsewhere never receives the bytes."""
+        if not is_loopback_base(self.base):
+            raise VoiceStudioError(f"{what} só fala com o VoiceStudio nesta máquina (loopback: 127.0.0.0/8, ::1 ou localhost); "
+                                   f"a base configurada é {self.base!r}. Aponte VOICESTUDIO_URL/OMNIVOICE_URL para o app local.")
 
     def _id(self) -> int:
         self._next_id += 1
@@ -456,12 +630,12 @@ class VoiceStudio:
 
     def transcribe(self, path: str | Path, language: str | None = None, via: str = "mcp"):
         """Audio file -> text. via=mcp sends audio_base64 (no base path needed); via=rest uses the OpenAI endpoint."""
+        self._require_loopback("transcribe")
         audio = Path(path).expanduser()
         if not audio.is_file():
             raise VoiceStudioError(f"arquivo de áudio não encontrado: {path}")
-        data = audio.read_bytes()
         if via == "mcp":
-            arguments: dict = {"audio_base64": base64.b64encode(data).decode("ascii")}
+            arguments: dict = {"audio_base64": base64.b64encode(audio.read_bytes()).decode("ascii")}
             if language:
                 arguments["language"] = language
             result = self._tool_json("transcribe", arguments)
@@ -469,27 +643,29 @@ class VoiceStudio:
                 raise VoiceStudioError(f"transcribe devolveu {type(result).__name__}, esperava um objeto")
             return result
         if via == "rest":
-            return self._transcribe_rest(audio, data, language)
+            return self._transcribe_rest(audio, language)
         raise VoiceStudioError(f"via de transcrição desconhecida: {via!r} (use mcp ou rest)")
 
-    def _transcribe_rest(self, audio: Path, data: bytes, language: str | None) -> dict:
+    def _transcribe_rest(self, audio: Path, language: str | None) -> dict:
+        size = audio.stat().st_size
+        if size > MAX_DUB_UPLOAD_BYTES:
+            raise VoiceStudioError(f"arquivo grande demais para subir por aqui ({size} bytes; o limite é {MAX_DUB_UPLOAD_BYTES})")
         boundary = "simplicio-" + os.urandom(16).hex()
-        filename = audio.name.replace('"', "_")
-        chunks: list[bytes] = [
+        filename = audio.name.replace('"', "_").replace("\r", "_").replace("\n", "_")
+        segments: list = [
             (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n"
              "Content-Type: application/octet-stream\r\n\r\n").encode("utf-8"),
-            data,
+            (audio, size),
             b"\r\n",
         ]
         if language:
-            chunks += [
-                (f"--{boundary}\r\nContent-Disposition: form-data; name=\"language\"\r\n\r\n"
-                 f"{language}\r\n").encode("utf-8"),
-            ]
-        chunks.append(f"--{boundary}--\r\n".encode("utf-8"))
-        body = b"".join(chunks)
+            segments.append((f"--{boundary}\r\nContent-Disposition: form-data; name=\"language\"\r\n\r\n"
+                             f"{language}\r\n").encode("utf-8"))
+        segments.append(f"--{boundary}--\r\n".encode("utf-8"))
+        body = _Multipart(segments)
         url = self.base + TRANSCRIPTIONS_PATH
-        headers = {"Content-Type": f"multipart/form-data; boundary={boundary}", "Accept": "application/json"}
+        headers = {"Content-Type": f"multipart/form-data; boundary={boundary}", "Accept": "application/json",
+                   "Content-Length": str(body.length)}
         key = _api_key()
         if key:
             headers["Authorization"] = "Bearer " + key
@@ -549,9 +725,75 @@ class VoiceStudio:
         return {"out": str(out), "bytes": len(raw), "job": job_id, "lang": lang, "bed_level": level, "preserve_bg": True,
                 "warning": _header(resp_headers, "X-Dub-Export-Warning")}
 
+    def dub_create(self, media_path: str | Path, source_lang: str | None = None, input_type: str = "video",
+                   job_id: str | None = None) -> dict:
+        """Create a dubbing job in the app: POST /dub/upload (multipart). The app stores the file and starts the prep
+        (audio extraction, background separation) as a background task; it answers 202 with the ids.
+
+        Nothing is transcribed, translated or spoken here, and no voice is cloned: those steps (heavy models, GPU) run in the
+        app, where the speakers' voices are chosen. Cloning or dubbing the voice of a real person needs that person's
+        recorded consent. `dub-export` collects the result.
+        """
+        self._require_loopback("dub create")
+        if input_type not in ("video", "audio"):
+            raise VoiceStudioError(f"tipo de entrada desconhecido: {input_type!r} (use video ou audio)")
+        job = str(job_id).strip() if job_id is not None else None
+        if job is not None and not _JOB_ID.match(job):
+            raise VoiceStudioError(f"id de job inválido: {job!r} (o app usa só letras, números, hífen e sublinhado, até 64)")
+        lang = str(source_lang).strip() if source_lang else None
+        if lang is not None and not _LANG.match(lang):
+            raise VoiceStudioError(f"código de idioma inválido: {lang!r} (use o código do idioma falado, ex.: pt, en)")
+        media = Path(media_path).expanduser()
+        if not media.is_file():
+            raise VoiceStudioError(f"arquivo não encontrado: {media_path}")
+        size = media.stat().st_size
+        if size == 0:
+            raise VoiceStudioError(f"o arquivo está vazio: {media_path}")
+        if size > MAX_DUB_UPLOAD_BYTES:
+            raise VoiceStudioError(f"arquivo grande demais para subir por aqui ({size} bytes; o limite é {MAX_DUB_UPLOAD_BYTES}): "
+                                   "abra-o direto no app.")
+        boundary = "simplicio-" + os.urandom(16).hex()
+        filename = media.name.replace('"', "_").replace("\r", "_").replace("\n", "_")
+        fields = [("input_type", input_type)]
+        if job:
+            fields.append(("job_id", job))
+        if lang:
+            fields.append(("source_lang", lang))
+        segments: list = [
+            (f"--{boundary}\r\nContent-Disposition: form-data; name=\"video\"; filename=\"{filename}\"\r\n"
+             "Content-Type: application/octet-stream\r\n\r\n").encode("utf-8"),
+            (media, size),
+            b"\r\n",
+        ]
+        for key, value in fields:
+            segments.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{value}\r\n".encode("utf-8"))
+        segments.append(f"--{boundary}--\r\n".encode("utf-8"))
+        body = _Multipart(segments)
+        headers = {"Content-Type": f"multipart/form-data; boundary={boundary}", "Accept": "application/json",
+                   "X-OmniVoice-Client-Id": self.client_id, "Content-Length": str(body.length)}
+        api_key = _api_key()
+        if api_key:
+            headers["Authorization"] = "Bearer " + api_key
+        status, _, raw = self._transport("POST", self.base + DUB_UPLOAD_PATH, body, headers, max(self.timeout, 600.0))
+        if status >= 400:
+            raise VoiceStudioError(_upload_error(status, raw, job))
+        try:
+            data = json.loads(_decode(raw))
+        except ValueError:
+            raise VoiceStudioError(f"{DUB_UPLOAD_PATH} não devolveu JSON: {_short(raw)}") from None
+        if not isinstance(data, dict) or not data.get("job_id"):
+            raise VoiceStudioError(f"{DUB_UPLOAD_PATH} não devolveu job_id: {_short(raw)}")
+        new_id = str(data["job_id"])
+        return {"job": new_id, "task": data.get("task_id"), "filename": data.get("filename") or media.name,
+                "input_type": input_type, "source_lang": lang,
+                "next": ("o app prepara o job em segundo plano; quando estiver pronto, transcreva, traduza e gere a dublagem no app "
+                         "(vozes e falantes são escolhidos lá) e exporte com: simplicio-video voicestudio dub-export "
+                         f"--job {new_id} --lang <idioma> -o <arquivo.mp4>")}
+
     def clone_voice(self, ref_audio_path: str | Path, name: str, language: str | None = None,
                     ref_text: str | None = None) -> dict:
         """Reference clip -> new voice profile. The clip goes as base64, so no OMNIVOICE_MCP_BASE_PATH is needed."""
+        self._require_loopback("clone")
         ref = Path(ref_audio_path).expanduser()
         if not ref.is_file():
             raise VoiceStudioError(f"áudio de referência não encontrado: {ref_audio_path}")
@@ -677,7 +919,7 @@ def _parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("tts", help="texto vira áudio pelo perfil escolhido (generate_speech)")
     p.add_argument("texto", help="texto a falar")
-    p.add_argument("--out", "-o", default="voicestudio.wav", help="arquivo de saída (padrão voicestudio.wav)")
+    p.add_argument("--out", "-o", help="arquivo de saída (padrão voicestudio.wav no terminal; pelo MCP é obrigatório e absoluto)")
     p.add_argument("--profile", help="id do perfil de voz (padrão: a voz vinculada a este agente ou a padrão do app)")
     p.add_argument("--language", help="idioma (código ISO ou Auto); omitido = idioma salvo no perfil")
     p.add_argument("--format", default="wav", choices=["wav", "ogg", "opus"], help="formato do áudio (padrão wav)")
@@ -706,6 +948,15 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--language", help="idioma salvo do perfil (código ISO ou Auto)")
     p.add_argument("--json", action="store_true", help="imprime o resultado em JSON")
 
+    p = sub.add_parser("dub", help="cria um job de dublagem no app (dub create); a dublagem em si roda no app")
+    dsub = p.add_subparsers(dest="dub_cmd", metavar="ACAO", title="ações")
+    q = dsub.add_parser("create", help="sobe um vídeo (ou áudio) para o app e cria o job (POST /dub/upload); não transcreve, traduz nem gera voz")
+    q.add_argument("media", metavar="VIDEO", help="arquivo de vídeo (ou áudio, com --audio) a dublar")
+    q.add_argument("--source-lang", help="idioma falado no original (código ISO); omitido = detecção automática do app")
+    q.add_argument("--audio", action="store_true", help="a entrada é só áudio (dublagem sem vídeo)")
+    q.add_argument("--job-id", help="id do job (letras, números, hífen, sublinhado; padrão: o app gera)")
+    q.add_argument("--json", action="store_true", help="imprime o resultado em JSON")
+
     p = sub.add_parser("dub-export", help="exporta um job de dublagem que já existe no app, com o fundo (música e efeitos) preservado")
     p.add_argument("--job", required=True, help="id do job de dublagem no app")
     p.add_argument("--lang", required=True, help="código do idioma da faixa dublada (ex.: pl)")
@@ -733,7 +984,7 @@ def _run(a) -> int:
         rows = VoiceStudio().list_personalities()
         _emit(rows, a.json, _persons_text(rows))
     elif a.cmd == "tts":
-        r = VoiceStudio(timeout=600.0).speak(a.texto, a.out, profile_id=a.profile, language=a.language, fmt=a.format)
+        r = VoiceStudio(timeout=600.0).speak(a.texto, a.out or "voicestudio.wav", profile_id=a.profile, language=a.language, fmt=a.format)
         _emit(r, a.json, f"áudio gravado: {r['out']} ({r['bytes']} bytes, {r['format']}"
                           + (f", {r['duration_s']} s" if r.get("duration_s") is not None else "") + ")")
     elif a.cmd == "transcribe":
@@ -750,6 +1001,13 @@ def _run(a) -> int:
         data = VoiceStudio(timeout=600.0).design_voice(a.name, a.descricao, language=a.language)
         _emit(data, a.json, f"perfil criado: {data.get('profile_id') or data.get('id') or '?'} "
                           f"({data.get('name') or a.name}, {data.get('kind') or 'design'})")
+    elif a.cmd == "dub":
+        if a.dub_cmd != "create":
+            print("voicestudio: use 'dub create VIDEO' (ver 'voicestudio dub --help')", file=sys.stderr)
+            return 1
+        r = VoiceStudio(timeout=600.0).dub_create(a.media, source_lang=a.source_lang, input_type="audio" if a.audio else "video",
+                                                  job_id=a.job_id)
+        _emit(r, a.json, f"job criado: {r['job']} (tarefa {r['task']}, {r['filename']})\n{r['next']}")
     elif a.cmd == "dub-export":
         r = VoiceStudio(timeout=600.0).dub_export(a.job, a.lang, a.out, bed_level=a.bed_level)
         _emit(r, a.json, f"vídeo gravado: {r['out']} ({r['bytes']} bytes, job {r['job']}, idioma {r['lang']}, fundo {r['bed_level']:g})"
@@ -759,7 +1017,8 @@ def _run(a) -> int:
     return 0
 
 
-def run_voicestudio(argv: list[str]) -> int:
+def run_voicestudio(argv: list[str], mcp: bool = False) -> int:
+    """`mcp=True` is the MCP channel: input files must be absolute, resolved media files and outputs absolute, new, in an existing folder."""
     ap = _parser()
     if argv and argv[0] in ("-h", "--help", "help"):
         ap.print_help()
@@ -769,6 +1028,8 @@ def run_voicestudio(argv: list[str]) -> int:
         ap.print_help(sys.stderr)
         return 1
     try:
+        if mcp:
+            _mcp_guard(a)
         return _run(a)
     except VoiceStudioError as e:
         print(f"voicestudio: {e}", file=sys.stderr)

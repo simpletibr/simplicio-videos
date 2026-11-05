@@ -20,17 +20,27 @@ resolved in tools.lock.json (tools_lock.py). effective() reads that lock; pinned
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import hostos, tools_lock
+from . import hostos, paths, tools_lock
 
 
 class ToolError(Exception):
     pass
+
+
+def _video_use_pin() -> str:
+    """The pin of video-use: VU_REF of the packaged setup.sh, the file that `edit setup` runs (the single source of it)."""
+    text = (paths.DATA_DIR / "tools" / "video-use" / "setup.sh").read_text(encoding="utf8")
+    found = re.search(r"^VU_REF=([0-9a-f]{40})\b", text, re.MULTILINE)
+    if not found:
+        raise RuntimeError("data/tools/video-use/setup.sh sem VU_REF de 40 caracteres")
+    return found.group(1)
 
 
 @dataclass(frozen=True)
@@ -99,10 +109,10 @@ TOOLS: dict[str, Tool] = {
                               "`bun install && bun run dev` (this pin clones that source checkout). Loopback needs no "
                               "credential; the app is only reached over local HTTP (AGPL-3.0, never vendored)"),
     "video-use": Tool("video-use", "git", "https://github.com/browser-use/video-use",
-                        "b877063", "MIT",
+                        _video_use_pin(), "MIT",
                         "EDL editing over any MP4: word-accurate cuts, subtitles, overlays and filmstrip review; "
-                        "the agent decides the EDL, ffmpeg executes it", marker="render.py",
-                        note="pinned by tools/video-use/setup.sh (23/09/2026); the checkout lives in "
+                        "the agent decides the EDL, ffmpeg executes it", marker="helpers/render.py",
+                        note="pinned by the video-use setup.sh (data/tools/video-use) (23/09/2026); the checkout lives in "
                              "~/.cache/simplicio/video-use, not in the tools cache"),
     "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.50.1", "not declared in the npm package (no license field, no LICENSE file; read 2026-10-16)",
                      "web search and page fetch for research (`simplicio-video busca`); installed by the user, never bundled and never installed by the engine",
@@ -198,6 +208,9 @@ def tools_dir() -> Path:
 
 
 def checkout_dir(t: Tool) -> Path:
+    if t.name == "video-use":  # setup.sh keeps it outside the tools cache: the resolution lives in tools_update (lazy: it imports us)
+        from . import tools_update
+        return tools_update.checkout_for(t)
     env = os.environ.get(f"{t.name.upper()}_DIR") or os.environ.get(f"SIMPLICIO_{t.name.upper()}_DIR")
     return Path(env).expanduser() if env else tools_dir() / t.name
 
@@ -206,7 +219,7 @@ def _git(*args: str, cwd: Path | None = None) -> str:
     git = shutil.which("git")
     if not git:
         raise ToolError("git não encontrado no PATH")
-    r = subprocess.run([git, *args], cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run([git, *args], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if r.returncode:
         raise ToolError(f"git {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
     return r.stdout.strip()
@@ -237,10 +250,30 @@ def pip_binary(name: str) -> Path | None:
     return exe if exe.is_file() else None
 
 
+def pip_version(name: str) -> str | None:
+    """The version pip installed in the venv of a pip tool: the Version of its dist-info, read as a file (no process starts)."""
+    t = get(name)
+    venv = checkout_dir(t) / "venv"
+    if t.kind != "pip" or not venv.is_dir():
+        return None
+    sites = [venv / "Lib" / "site-packages"] if os.name == "nt" else sorted((venv / "lib").glob("python*/site-packages"))
+    stem = t.name.replace("-", "_")
+    for site in sites:
+        for info in sorted(site.glob(f"{stem}-*.dist-info")):
+            try:
+                metadata = (info / "METADATA").read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for line in metadata.splitlines():
+                if line.startswith("Version:"):
+                    return line.partition(":")[2].strip() or None
+    return None
+
+
 def _run_subprocess(argv, cwd=None) -> "subprocess.CompletedProcess":
     """The default runner: a missing program is a failed command (rc 127), never an OSError out of here."""
     try:
-        return subprocess.run([str(a) for a in argv], cwd=str(cwd) if cwd else None, capture_output=True, text=True,
+        return subprocess.run([str(a) for a in argv], cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                               encoding="utf-8", errors="replace")
     except OSError as exc:
         return subprocess.CompletedProcess(list(argv), 127, "", str(exc))
@@ -292,7 +325,7 @@ def install(name: str) -> str:
         npx = shutil.which("npx")
         if not npx:
             raise ToolError("npx não encontrado no PATH (Node >= 18)")
-        r = subprocess.run([npx, "--yes", f"{t.source}@{ref}", "--version"], capture_output=True, text=True)
+        r = subprocess.run([npx, "--yes", f"{t.source}@{ref}", "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True)
         if r.returncode:
             raise ToolError(f"{t.source}@{ref}: {r.stderr.strip()[-300:]}")
         return f"npx {t.source}@{ref}"
@@ -313,7 +346,7 @@ def npm_command(name: str) -> list[str]:
         return [local]
     npx = shutil.which("npx")
     if not npx:
-        raise ToolError(f"nem `{t.name}` nem `npx` foram encontrados no PATH. Instale o Node (>= 18).")
+        raise ToolError(f"nem `{t.name}` nem `npx` foram encontrados no PATH. Instale o Node (>= 22.15).")
     return [npx, "--yes", f"{t.source}@{effective_ref(t)}"]
 
 def command(t: Tool) -> str:
@@ -321,14 +354,47 @@ def command(t: Tool) -> str:
     return f"simplicio-video {COMMANDS.get(t.name, t.name)}"
 
 
+NPX_TRACKS = ("hypit",)  # npm tracks that run through `npm_command` (a PATH binary, else npx at the pin); the others need a binary
+NODE_MIN = (22, 15)      # @hypit/hypit "engines": node >= 22.15.0
+
+
+def node_version() -> tuple[int, ...] | None:
+    """The version of the `node` on PATH, e.g. (22, 15, 0). Local only: runs `node --version`, no network."""
+    exe = shutil.which("node")
+    if not exe:
+        return None
+    try:
+        r = subprocess.run([exe, "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15,
+                           env={"PATH": os.environ.get("PATH", "")})
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", (r.stdout or "").strip())
+    return tuple(int(x) for x in m.groups()) if r.returncode == 0 and m else None
+
+
+def npx_ready() -> bool:
+    """Can npx run an npm track? npx on PATH and Node >= NODE_MIN. Offline-safe: nothing is downloaded or run."""
+    v = node_version()
+    return shutil.which("npx") is not None and v is not None and v[:2] >= NODE_MIN
+
+
+def install_source(t: Tool) -> str | None:
+    """For an npm track: "path" (a binary on PATH), "npx" (runnable through npx at the pin) or None. Other kinds: None."""
+    if t.kind != "npm":
+        return None
+    if shutil.which(t.name):
+        return "path"
+    return "npx" if t.name in NPX_TRACKS and npx_ready() else None
+
+
 def is_installed(t: Tool) -> bool:
     """Git tools: the pinned checkout in the tools cache. pip tools: the executable in their venv. npm tools: the binary
-    on PATH (as `status` does)."""
+    on PATH, or npx at the pinned version when npx and Node >= 22.15 are there (as `status` does)."""
     if t.kind == "git":
         return find(t.name) is not None
     if t.kind == "pip":
         return pip_binary(t.name) is not None
-    return shutil.which(t.name) is not None
+    return install_source(t) is not None
 
 
 def listing() -> list[dict]:
@@ -339,7 +405,7 @@ def listing() -> list[dict]:
         ref, source = effective(t)
         entry = lock_entry(t.name)
         rows.append({"name": t.name, "command": command(t), "repo": t.source, "version": pinned_ref(t),
-                     "installed": is_installed(t), "license": t.license, "produces": t.role,
+                     "installed": is_installed(t), "source": install_source(t), "license": t.license, "produces": t.role,
                      "effective_version": ref, "effective_source": source, "lock": dict(entry) or None})
     return rows
 

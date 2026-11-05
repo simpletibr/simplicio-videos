@@ -82,7 +82,7 @@ def probe(path: Path) -> dict:
     ffprobe = _need("ffprobe")
     r = subprocess.run(
         [ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)],
-        capture_output=True, text=True)
+        stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if r.returncode != 0:
         raise ShortsError(r.stderr.strip() or f"ffprobe falhou em {path}")
     data = json.loads(r.stdout or "{}")
@@ -329,7 +329,7 @@ def cut_one(src: Path, clip: dict, out_dir: Path, source: dict, words: list[dict
                       str(opts.get("preset", "medium")), int(opts.get("fps", 30)))
     if opts.get("dry_run"):
         return {"file": str(dest), "command": cmd, "dry_run": True}
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if r.returncode != 0:
         raise ShortsError(r.stderr.strip() or ("ffmpeg falhou no corte %s" % clip["id"]))
     return {"file": str(dest), "dry_run": False}

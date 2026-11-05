@@ -25,6 +25,7 @@ description: Use for local voice work with the simplicio-video CLI and the Voice
 | `clone` | cria perfil a partir de referência | `simplicio-video voicestudio clone ref.wav --name "Vera" --language pt --ref-text "..."` |
 | `describe` | mostra como uma descrição vira atributos (não salva) | `simplicio-video voicestudio describe "mulher, voz calma, sotaque paulista"` |
 | `design` | cria perfil a partir de descrição | `simplicio-video voicestudio design "mulher adulta, voz calma" --name "Narradora" --language pt` |
+| `dub create` | sobe um vídeo ao app e cria o job de dublagem (só upload e preparo; transcrever, traduzir e gerar a voz rodam no app) | `simplicio-video voicestudio dub create video.mp4 --source-lang pt --json` |
 | `dub-export` | exporta um job de dublagem que já existe no app, com o fundo (música e efeitos) preservado; não gera nada | `simplicio-video voicestudio dub-export --job ID --lang pl --bed-level 1.0 -o dublado.mp4` |
 | `mcp` | bloco de config MCP para um cliente | `simplicio-video voicestudio mcp` |
 
@@ -61,6 +62,10 @@ Quando o vídeo tem música e efeitos, o fluxo acima (voz por cue + `replace-aud
 simplicio-video voicestudio dub-export --job ID --lang pl -o dublado.mp4              # fundo no nível original
 simplicio-video voicestudio dub-export --job ID --lang pl --bed-level 0.7 -o dublado.mp4   # fundo mais baixo (0 a 4)
 ```
+
+`dub create` cria o job no app (`POST /dub/upload`) e devolve `job` e `task`; o app não tem um comando único de dublar (nem tool MCP de dublagem), então a transcrição, a tradução e a geração são feitas na tela do app, onde se escolhem os falantes e as vozes. Dublar ou clonar a voz de uma pessoa real só com o consentimento registrado dela.
+
+Pelo MCP (`video.voicestudio`) a linha de comando vai em `args` (aspas valem). `result` é o JSON do comando e `rc` é o código de saída (antes `result` era o `rc`); em falha vem `error`. `tts` e `dub-export` exigem `--out`/`-o` absoluto, de arquivo novo (se existe, recusa; o MCP não sobrescreve nem cria pastas) e fora de pastas do sistema e ocultas; os arquivos de entrada (`dub create`, `transcribe`, `clone`) são caminhos absolutos de mídia (links são seguidos e o destino é que conta). Quem envia arquivo só fala com o app em loopback (127.0.0.0/8, `::1`, `localhost`).
 
 A geração (transcrição, tradução, voz) continua no app e pede modelos pesados e GPU. Se o app responder que o fundo não está disponível, refaça a dublagem no app com a separação de fundo ligada; não tente contornar.
 

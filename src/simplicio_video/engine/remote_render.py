@@ -42,7 +42,7 @@ def log(*a):
 
 
 def run(cmd, env=None):
-    return subprocess.run(cmd, shell=True, capture_output=True, text=True, env=env)
+    return subprocess.run(cmd, shell=True, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env)
 
 
 def sh(cmd, env=None):
@@ -61,7 +61,7 @@ def stream(cmd, cwd, env, logfile):
             print(f"[sv] ... still running ({time.time() - T0:.0f}s)", flush=True)
     threading.Thread(target=beat, daemon=True).start()
     with open(logfile, "a", encoding="utf8") as lf:
-        p = subprocess.Popen(cmd, shell=True, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        p = subprocess.Popen(cmd, shell=True, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         out = []
         for line in p.stdout:
             print(line, end="", flush=True)

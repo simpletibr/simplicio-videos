@@ -30,9 +30,9 @@ Fluxo completo:
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
-  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
+  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan ou --docker, status e mcp (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
-  matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; só baixa o commit fixado, o uso exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
+  matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; baixa o commit fixado e roda 7 scripts locais dele (setup, run), o uso do skill exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
   rea-video    rea-video (MIT): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake; instala o commit fixado num venv próprio e repassa os comandos dele (https://github.com/JuneYaooo/rea-video)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
@@ -72,7 +72,8 @@ comandos (na ordem do fluxo):
     opencut       editor OpenCut (open-source) para acabamento manual
     toonflow      Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
     moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
-    matchcut      match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta
+    matchcut      match-cut (MIT): skill de agente para vídeo de produto; baixa, aponta e roda 7 scripts
+                  locais
     instagram     instagram-agent-skill (MIT): skills de agente e scripts locais para Reels e legenda; não
                   posta
     rea-video     rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake
@@ -192,7 +193,8 @@ options:
   -h, --help  show this help message and exit
 
 exemplos:
-  simplicio-video clone --help
+  simplicio-video clone --help             # a ajuda do Hypit (--engine-help mostra esta)
+  simplicio-video clone status --json      # npx/binário, versão fixada, Node >= 22.15
   simplicio-video clone video.mp4
 ```
 
@@ -227,10 +229,10 @@ exemplos:
 ```text
 usage: simplicio-video edit [-h] ...
 
-Encadeia tools/video-use (https://github.com/browser-use/video-use): setup, transcribe, pack, render, verify. A decisão de corte fica no edl.json versionado.
+Encadeia o video-use (https://github.com/browser-use/video-use, arquivos no pacote): setup, transcribe, transcribe-batch (só no terminal), pack, render, verify, grade (cor: auto, --preset, --analyze). A decisão de corte fica no edl.json versionado.
 
 positional arguments:
-  args        setup | transcribe | pack | render | verify
+  args        setup | transcribe | transcribe-batch | pack | render | verify | grade (edit <sub> --help)
 
 options:
   -h, --help  show this help message and exit
@@ -238,6 +240,7 @@ options:
 exemplos:
   simplicio-video edit setup
   simplicio-video edit render edit/edl.json -o out/final.raw.mp4
+  simplicio-video edit grade --analyze fonte.mp4
 ```
 
 ## simplicio-video formats
@@ -386,10 +389,15 @@ um loop asyncio por tarefa), sem daemon e sem abrir porta. O estado fica em JSON
 ($SIMPLICIO_VIDEO_DATA, padrão ~/.simplicio-video), com escrita atômica.
 
 Lista fechada de tarefas:
-  swap-run    swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens
-              do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal
-  voice       voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede
-              (gemini) pede --yes
+  swap-run      swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens
+                do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal
+  rea-video     rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina
+  voice         voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede
+                (gemini) pede --yes
+  moneyprinter  corrida grátis do MoneyPrinterTurbo (roteiro seu, material local, voz Edge ou muda, --out absoluto). Só pelo
+                MCP (video.moneyprinter generate|run); quem gasta roda no terminal com `moneyprinter run --yes`
+  montage-tool  montage run-tool em segundo plano (uma tool do OpenMontage). Pelo MCP (video.montage run-tool) só a tool
+                local, grátis e offline, com caminhos absolutos e saída nova; o resto roda no terminal com --yes
 
 Subcomandos:
   submit TIPO ...   cria a tarefa e devolve o id
@@ -399,7 +407,7 @@ Subcomandos:
   cancel ID         SIGINT no grupo da tarefa, SIGKILL depois da tolerância; o swap cancela limpo e grava o manifesto
   clean             remove tarefas terminadas há mais de 7 dias (--older-than-days); `submit` também limpa
 
-Pelo MCP (tool video.jobs): list, status, result, cancel e submit só de voz com provedor local. swap-run nunca.
+Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local, de rea-video (decompose sem --vlm, stems) e de moneyprinter (corrida grátis) e de montage-tool (tool local, grátis e offline). swap-run nunca.
 A chave de API fica só no ambiente: argumentos com chave são recusados e nada vai para o estado nem para o log.
 
 positional arguments:
@@ -447,10 +455,10 @@ exemplos:
 ```text
 usage: simplicio-video matchcut [-h] ...
 
-Baixa o match-cut (https://github.com/Sac-Y/match-cut, MIT) no commit fixado em tools.py e mostra onde está o SKILL.md. É um skill de Claude Code ou Codex: o comando não roda o skill nem chama o Renoise. O uso do skill exige login no Renoise pela sua conta e gasta créditos pagos.
+Baixa o match-cut (https://github.com/Sac-Y/match-cut, MIT) no commit fixado em tools.py, mostra onde está o SKILL.md e roda, e só eles, sete scripts locais dele (music, mix, qc, render, assemble, align, undot) no venv criado por `setup`. Antes de rodar, confere o commit e o sha256 do script e do common.py; roda em modo isolado, sem shell, com stdin vazio e pasta privada. É um skill de Claude Code ou Codex: o comando não roda o skill nem chama o Renoise. O uso do skill exige login no Renoise pela sua conta e gasta créditos pagos.
 
 positional arguments:
-  args        clone [dir] | where | status
+  args        clone [dir] | where | status | setup | run SCRIPT [--forcar] [--bruto] [-- argumentos]
 
 options:
   -h, --help  show this help message and exit
@@ -459,6 +467,16 @@ exemplos:
   simplicio-video matchcut clone
   simplicio-video matchcut where
   simplicio-video matchcut status
+  simplicio-video matchcut setup
+  simplicio-video matchcut run music -- analyze faixa.wav --bpm 150 --json compassos.json
+  simplicio-video matchcut run music -- cut montage.json
+  simplicio-video matchcut run mix -- montage.json mix/
+  simplicio-video matchcut run qc -- sheet clipe.mp4 folha.jpg 0 48 3
+  simplicio-video matchcut run render -- montage.json render/ --draft s01 s02
+  simplicio-video matchcut run assemble -- montage.json render/ --draft
+  simplicio-video matchcut run align -- still.png alinhado.png 12 8 1.3
+  simplicio-video matchcut run undot -- tela.mp4 limpo.mp4 100,100,900,500
+todas as formas de cada script, com exemplos: simplicio-video matchcut help
 ```
 
 ## simplicio-video mcp
@@ -504,10 +522,11 @@ exemplos:
 ```text
 usage: simplicio-video moneyprinter [-h] ...
 
-Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo, MIT) no commit fixado em tools.py. Exige Python 3.11 ou mais novo; o setup cria um venv isolado e copia o config.toml sem chave nenhuma. O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080 ou --api-port) e só abre para a rede com --lan. O generate sobe a API por trás e traz o MP4 com hash. As chaves de API nunca são impressas. Fica fora do render determinístico.
+Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo, MIT) no commit fixado em tools.py. Exige Python 3.11 ou mais novo; o setup cria um venv isolado e copia o config.toml sem chave nenhuma. O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080 ou --api-port) e só abre para a rede com --lan. O generate sobe a API por trás e traz o MP4 com hash; o run repassa flags do cli.py do upstream (lista fechada, etapas, legendas, música, lote) e copia o MP4 com sha256: o que gasta (LLM, fonte paga, voz de rede, --confirm-*-charge) só no terminal e só com --yes. As chaves de API nunca são impressas. Fica fora do render determinístico.
 
 positional arguments:
-  args        clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | where | status
+  args        clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | generate ... | run [--yes]
+              --out DIR -- <flags do upstream> | where | status
 
 options:
   -h, --help  show this help message and exit
@@ -517,6 +536,8 @@ exemplos:
   simplicio-video moneyprinter setup
   simplicio-video moneyprinter serve --api --api-port 8090
   simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/ --json
+  simplicio-video moneyprinter run --out out/ -- --video-script "Texto do vídeo." --video-source local --video-materials clip.mp4 --voice-name pt-BR-FranciscaNeural-Female
+  simplicio-video moneyprinter run --yes --out out/ -- --video-subject tema --stop-at script   # LLM: só com --yes
   simplicio-video moneyprinter status
 ```
 
@@ -538,6 +559,12 @@ exemplos:
   simplicio-video montage clone
   simplicio-video montage open
   simplicio-video montage serve --port 8000
+  simplicio-video montage setup [--remotion] [--piper]
+  simplicio-video montage status --json
+  simplicio-video montage pipelines list --json
+  simplicio-video montage tools list --runtime api --json
+  simplicio-video montage envelope --json
+  simplicio-video montage estimate NOME --input '{}' --json
 ```
 
 ## simplicio-video opencut
@@ -545,10 +572,10 @@ exemplos:
 ```text
 usage: simplicio-video opencut [-h] ...
 
-Clona e sobe o OpenCut (https://github.com/OpenCut-app/OpenCut, MIT; usa o opencut-classic até o rewrite ter API).
+Clona e sobe o OpenCut (MIT), fixado no opencut-classic (https://github.com/OpenCut-app/opencut-classic, arquivado no upstream; o rewrite ainda não tem API). dev escuta só em 127.0.0.1; --lan abre em 0.0.0.0. status mostra checkout, pin, bun, node_modules, .env.local e porta.
 
 positional arguments:
-  args        clone [dir] | dev | where
+  args        clone [dir] | dev [--lan] | status [--json] | where
 
 options:
   -h, --help  show this help message and exit
@@ -556,6 +583,8 @@ options:
 exemplos:
   simplicio-video opencut clone
   simplicio-video opencut dev
+  simplicio-video opencut dev --lan
+  simplicio-video opencut status --json
 ```
 
 ## simplicio-video openverse
@@ -919,10 +948,10 @@ exemplos:
 ```text
 usage: simplicio-video toonflow [-h] ...
 
-Clona e sobe o Toonflow (https://github.com/HBAI-Ltd/Toonflow-app, MIT) no commit fixado em tools.py. Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan. Fica fora do render determinístico.
+Clona e sobe o Toonflow (https://github.com/HBAI-Ltd/Toonflow-app, MIT) no commit fixado em tools.py. Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan; serve --docker usa o compose do upstream em 127.0.0.1:3000 (não combina com `mcp`: o arquivo de runtime fica no volume). status mostra checkout, pin, bun, build e o modo do arquivo de runtime do MCP; mcp imprime o bloco de config MCP stdio (nunca o token). Fica fora do render determinístico.
 
 positional arguments:
-  args        clone [dir] | serve --lan | where
+  args        clone [dir] | serve --lan|--docker | status [--json] | mcp [--port N] [--json] | where
 
 options:
   -h, --help  show this help message and exit
@@ -930,6 +959,9 @@ options:
 exemplos:
   simplicio-video toonflow clone
   simplicio-video toonflow serve --lan
+  simplicio-video toonflow serve --docker
+  simplicio-video toonflow status --json
+  simplicio-video toonflow mcp --json
   simplicio-video toonflow where
 ```
 

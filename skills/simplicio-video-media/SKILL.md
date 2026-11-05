@@ -19,7 +19,7 @@ description: Use for audio-visual work on any MP4 with the simplicio-video CLI: 
 
 | Subcomando | Faz | Entrada | Saída |
 |---|---|---|---|
-| `fetch` | baixa uma página pública de vídeo (yt-dlp); exige `--autorizo` | URL | MP4 + `.fetch.json` |
+| `fetch` | baixa uma página pública de vídeo (yt-dlp); exige `--autorizo`. Opções: `--subs`, `--section`, `--audio-only`; `--info` só lê metadados | URL | MP4 (ou áudio) + `.fetch.json` |
 | `probe` | metadados: duração, largura, altura, fps, se tem áudio, sha256 | MP4 | JSON |
 | `audio` | trilha mono PCM (para transcrição ou referência de voz) | MP4 | `.wav` |
 | `sheet` | folha de contato de quadros a cada N segundos (revisar texto na tela) | MP4 | `.jpg` |
@@ -51,12 +51,22 @@ description: Use for audio-visual work on any MP4 with the simplicio-video CLI: 
 ```bash
 simplicio-video media fetch https://www.instagram.com/veramundopet/reel/DfDdh8ugFWN/ -o reel.mp4 --autorizo
 simplicio-video media fetch https://example.com/aula.mp4 -o aula.mp4 --autorizo --max-mb 200 --timeout 300
+simplicio-video media fetch https://example.com/aula.mp4 --info
+simplicio-video media fetch https://example.com/aula.mp4 -o aula.mp4 --autorizo --subs pt
+simplicio-video media fetch https://example.com/aula.mp4 -o trecho.mp4 --autorizo --section 0-3
+simplicio-video media fetch https://example.com/aula.mp4 -o aula.m4a --autorizo --audio-only
 ```
 
 - `--autorizo` é obrigatório: é a sua confirmação de que pode usar o arquivo. O motor não verifica o direito de uso.
 - Grava `reel.mp4` e `reel.fetch.json` (origem sem query, extrator, sha256, bytes, versão do yt-dlp, hora, e título e autor como `untrusted_*`). Nunca sobrescreve: escolha outro `-o`.
 - Não passa cookies, login nem credencial. URL com `usuário:senha` é recusada. Playlist não é baixada.
 - Se a plataforma recusar ou cortar a página, o comando sai com a mensagem do yt-dlp e nada fica pela metade.
+- `--info` só lê metadados (yt-dlp `-J --skip-download`) e imprime JSON: título e autor (`untrusted_*`), duração, licença se houver (`untrusted_licenca`), resumo dos formatos, idiomas de legenda (do criador e automáticas, separados) e `lista`/`itens` quando a página é uma lista de vídeos (a lista não é expandida). Não baixa nem grava nada, por isso **não pede `--autorizo`**; só grava um `.json` novo se você passar `-o info.json` (nunca sobrescreve). Não combina com as outras opções.
+- `--subs LANG` baixa também a legenda **do criador** naquele idioma e a converte para `.srt` ao lado do vídeo (`aula.pt.srt`). O idioma é um código literal (`pt`, `en`, `pt-BR`); `all` e padrões são recusados, e o nome do arquivo segue o idioma real que o yt-dlp gravou. Legenda gerada automaticamente só entra com `--auto-subs`, explícito. Se o vídeo não tiver a legenda, o vídeo é baixado e o registro traz `legendas.arquivos` vazio. Nome, idioma e sha256 ficam em `legendas` no `.fetch.json`.
+- `--section INICIO-FIM` baixa só esse trecho, em segundos (`0-3`, `12.5-30`; `FIM` maior que `INICIO`). Precisa de ffmpeg; o corte pode começar no quadro-chave mais próximo. Fica em `secao` no registro.
+- `--audio-only` extrai o áudio em vez do MP4: `-o` termina em `.m4a` ou `.wav`. Fica `somente_audio: true` no registro.
+- Vídeo, legendas e registro são publicados juntos: se algo falha, o que já foi gravado é desfeito, e um vídeo publicado sempre tem seu `.fetch.json`. O arquivo é conferido com o ffprobe (tem fluxo e duração) antes de gravar, e uma página com mais de um vídeo é recusada.
+- Tudo o que grava continua exigindo `--autorizo`, sem cookies, sem login e sem playlist.
 
 **1. Ver o texto que está na tela antes de apagar nada**
 
