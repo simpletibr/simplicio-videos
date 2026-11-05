@@ -556,14 +556,21 @@ def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, b
         if entrada is not None:
             inp.write(entrada)
             inp.seek(0)
+        proc = None
+        chegaram: list[int] = []  # SIGTERM/SIGHUP that arrive while Popen is starting the child: acted on once it has returned
         try:
-            proc = subprocess.Popen(argv, stdin=inp if entrada is not None else subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd,
-                                    env=_ambiente(), start_new_session=True, **extra)
-        except (OSError, subprocess.SubprocessError) as e:
-            raise InstagramError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
-        limite_tempo = time.monotonic() + TIMEOUT_S
-        motivo = None
-        try:
+            anteriores = _troca_sinais_de_parada(lambda signum, frame: chegaram.append(signum))
+            try:
+                proc = subprocess.Popen(argv, stdin=inp if entrada is not None else subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd,
+                                        env=_ambiente(), start_new_session=True, **extra)
+            except (OSError, subprocess.SubprocessError) as e:
+                raise InstagramError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
+            finally:
+                _devolve_sinais(anteriores)
+            if chegaram:  # it came in the gap between fork and return: the child exists now, so it is ended like any other
+                raise SystemExit(128 + chegaram[0])
+            limite_tempo = time.monotonic() + TIMEOUT_S
+            motivo = None
             while True:
                 try:
                     proc.wait(timeout=POLL_S)
@@ -577,7 +584,8 @@ def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, b
                     motivo = "tempo"
                     break
         except BaseException:  # Ctrl+C, SIGTERM, SIGHUP: the child lives in its own session and would keep running after the engine is gone
-            _matar(proc)
+            if proc is not None:  # None only when no child exists yet; a signal in the spawn gap is raised here, with proc set
+                _matar(proc)
             raise
         if motivo:
             _matar(proc)
@@ -596,26 +604,37 @@ def _encerra_o_motor(signum, frame):
     raise SystemExit(128 + signum)
 
 
-@contextlib.contextmanager
-def _sinais_encerram_o_motor():
-    """While a script runs, SIGTERM and SIGHUP (terminal closed, MCP host stopping, an agent's timeout) raise SystemExit, so the
-    group of the child is killed and the private folder is removed on the way out. A signal that was being ignored (`nohup`) stays
-    ignored, and the previous handlers come back at the end. Handlers can only be set in the main thread: elsewhere there is none."""
+def _troca_sinais_de_parada(handler) -> dict:
+    """Puts `handler` on SIGTERM and SIGHUP where the platform has them, except the ones being ignored, and returns the previous
+    handlers. Handlers can only be set in the main thread: elsewhere nothing is changed and the result is empty."""
     anteriores = {}
     for nome in ("SIGTERM", "SIGHUP"):
         sinal = getattr(signal, nome, None)
         if sinal is None or signal.getsignal(sinal) == signal.SIG_IGN:
             continue
         try:
-            anteriores[sinal] = signal.signal(sinal, _encerra_o_motor)
+            anteriores[sinal] = signal.signal(sinal, handler)
         except (ValueError, OSError):
             continue
+    return anteriores
+
+
+def _devolve_sinais(anteriores: dict) -> None:
+    for sinal, antigo in anteriores.items():
+        with contextlib.suppress(ValueError, OSError):
+            signal.signal(sinal, antigo if antigo is not None else signal.SIG_DFL)
+
+
+@contextlib.contextmanager
+def _sinais_encerram_o_motor():
+    """While a script runs, SIGTERM and SIGHUP (terminal closed, MCP host stopping, an agent's timeout) raise SystemExit, so the
+    group of the child is killed and the private folder is removed on the way out. A signal that was being ignored (`nohup`) stays
+    ignored, and the previous handlers come back at the end. Handlers can only be set in the main thread: elsewhere there is none."""
+    anteriores = _troca_sinais_de_parada(_encerra_o_motor)
     try:
         yield
     finally:
-        for sinal, antigo in anteriores.items():
-            with contextlib.suppress(ValueError, OSError):
-                signal.signal(sinal, antigo if antigo is not None else signal.SIG_DFL)
+        _devolve_sinais(anteriores)
 
 
 def _le_stdin() -> bytes:
