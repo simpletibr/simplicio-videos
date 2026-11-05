@@ -1,7 +1,7 @@
 # Gate local do simplicio-videos (sem CI): docs/host/gate.md
 #
 #   make setup       cria o .venv, instala o extra `test` e liga os hooks
-#   make check       o gate offline (< 60 s): ruff, shellcheck, testes sem slow/render/integration/ui, ownership e TDD
+#   make check       o gate offline (medido: ~2-3 min em 4 núcleos; a meta de 60 s não foi atingida): ruff, shellcheck, testes sem slow/render/integration/ui, ownership e TDD
 #   make check-full  check + testes render/integration/ui/slow (podem usar rede)
 #   make check-web   checagens do workspace web
 #   make hooks       core.hooksPath=.githooks (o pre-push roda `make check`)

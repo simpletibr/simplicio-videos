@@ -66,28 +66,29 @@ Medidas de 2026-11-05 nesta máquina (4 núcleos). Outras sessões rodavam teste
 | Medição | wall | CPU | pytest do gate | Resultado |
 |---|---|---|---|---|
 | antes (`main`, 143a804), `make check` serial | 533 s | não medido | 528 s | 4469 passaram, 8 pulados, 26 desmarcados |
-| depois, pytest serial com a mesma seleção do gate (sem xdist) | 296 s | 254 s | 295 s | 4400 passaram, 8 pulados, 96 desmarcados |
-| depois, `make check` paralelo (`-n auto`, 4 workers) | 164 s | 277 s | 159 s | 4400 passaram, 8 pulados |
+| main atual (bd99ed9, com o PR #183 e os PRs seguintes), pytest serial, mesma seleção do gate | 271 s | 260 s | 270 s | 4950 passaram, 8 pulados, 97 desmarcados |
+| main atual (bd99ed9), `make check` paralelo (`-n auto`, 4 workers) | 108 s | 286 s | 104 s | 4950 passaram, 8 pulados |
+| PR #183 antes desta correção (4403 testes), pytest serial / `make check` paralelo | 286 s / 117 s | 249 s / 277 s | 285 s / 112 s | 4403 passaram, 8 pulados |
 
-Medidas anteriores da mesma branch, antes da revisão: `make check` paralelo deu 128 s e 154 s de parede (CPU de 256 a 270 s), e serial 269 s. A CPU é a medida mais estável.
+A CPU é a medida mais estável. A linha serial foi medida com load de 2 (pouca contenção); as outras, com load de 6 a 13. A comparação de wall com a linha de 143a804 não é exata: a main ganhou testes de outros PRs desde então (gate de 4477 para 4958 itens). Na branch do PR #183 o `make check` paralelo deu 128 s, 154 s e 117 s em três medidas, com CPU de 256 a 277 s.
 
-Em série o pytest caiu de 528 para 295 s, com a mesma CPU de ~250 s. O paralelo leva 277 s de CPU a 164 s de parede nesta máquina ocupada. Com os 4 núcleos livres a estimativa é ~75 a 80 s (CPU / 4, mais ~8 s dos passos seriais: ruff, shellcheck, docs e licenças); não medi isso. **Não chegou a 60 s**, e não medi em máquina livre.
+Na main atual o paralelo leva 286 s de CPU a 108 s de parede. Com os 4 núcleos livres a estimativa é ~80 s (CPU / 4, mais ~8 s dos passos seriais: ruff, shellcheck, docs e licenças); não medi isso em máquina livre. **Não chegou a 60 s.**
 
-O que segura o resto é o custo de subir o CLI: `python -m simplicio_video` gasta ~0,2 s de CPU só para importar a árvore de comandos, e centenas de testes sobem o CLI em subprocesso. Tirar isso exige adiar importações no CLI, o que fica para outra tarefa.
+O que segura o resto é o custo de subir o CLI em subprocesso, e centenas de testes fazem isso. Medido nesta máquina (média de 8 processos, CPU de usuário mais sistema): `python -c pass` gasta 18 ms; importar `simplicio_video.cli` gasta 146 ms no total; `python -m simplicio_video --help` gasta 183 ms. Tirar isso exige adiar importações no CLI, o que fica para outra tarefa.
 
-O que saiu do gate (70 testes, 69 funções). Eles rodam em `make check-full`. Medido nesta branch: `pytest -m slow` dá 84 testes, todos passam (incluem os que já eram lentos, como os de wheel e sdist, que precisam de pip na venv):
+O que saiu do gate, no PR #183 (contado contra 143a804): 69 testes coletados (68 funções; o 69º é a variante de 200 mil colchetes do texto hostil). Eles rodam em `make check-full`. Medido na main atual: `pytest -m slow` dá 83 testes, todos passam (incluem os que já eram lentos, como os de wheel e sdist, que precisam de pip na venv):
 
 - concorrência com tempo real do swap e da voz (`test_swap_concurrency.py` 18, `test_voice_concurrency.py` 13): precisam de latência de verdade para provar o paralelismo;
 - ffmpeg e render reais: `test_swap.py` 2, `test_openverse.py` 3, `test_perfis_saida.py` 3, `test_trilha_cortes.py` 1, `test_voice.py` 1, `test_ducking_duas_bandas.py` 1, `test_marca_contrato.py` 1, `test_scripts/test_bench_concurrency.py` 2;
 - processos com tempo limite e morte do grupo: `test_instagram.py` 5, `test_jobs.py` 2, `test_montage_run_tool.py` 3, `test_childio.py` 2, `test_download.py` 1, `test_matchcut.py` 1, `test_moneyprinter.py` 1, `test_montage_hardening.py` 1, `test_rea_video.py` 1, `test_smoke_trilhas_script.py` 1, `packaging/test_smoke_so.py` 1, `packaging/test_install_seguranca.py` 1;
-- CLI inteiro e medições de tempo: `test_busca.py` 2 e a variante de 200 mil colchetes do texto hostil (~1 s), `test_social.py` 1, `test_scripts/test_gate_files.py` 1 (`make regen` numa cópia do repo).
+- medições de tempo e regeneração completa: `test_busca.py` 2 (`variaveis_de_ambiente` 1,4 s e `status_com_saida` 1,1 s) mais a variante de 200 mil colchetes do texto hostil (~1 s), e `test_scripts/test_gate_files.py` 1 (`make regen` numa cópia do repo).
 
-Regra: vai para `slow` o teste que leva mais de cerca de 1 s no corpo (medido com a máquina ocupada) e o que depende de tempo real. Os que ficaram abaixo de 1 s voltaram ao gate: os quatro de `test_cli_install.py` (instalação global), a ordem dos trechos do `test_trilha_cortes.py`, a voz local em segundo plano do `test_jobs.py`, a atualização do `test_openverse.py` e o apóstrofo no caminho do concat do `test_swap.py` (não tinha irmão no gate). Ficam no gate os guardas de contrato: o snapshot das tools MCP, a allowlist sem entradas antigas, o `install` sem PyYAML, o help documentado do matchcut, o guarda de dado de cliente no pacote e os guardas de ReDoS (cinco variantes do texto hostil, o amplificador por razão 2N/N e o teto de 1 milhão de colchetes).
+Regra: vai para `slow` o teste que leva mais de 1 s no corpo (medido com a máquina ocupada) e o que depende de tempo real. Os que medem menos de 1 s voltaram ao gate: os quatro de `test_cli_install.py` (instalação global), a ordem dos trechos do `test_trilha_cortes.py`, a voz local em segundo plano do `test_jobs.py`, a atualização do `test_openverse.py` e o `test_social.py` (`test_cli_providers_json_e_texto`, 0,55 s). Duas exceções à regra, por decisão de revisão: o apóstrofo no caminho do concat do `test_swap.py` mede 1,17 s e fica no gate porque não tem irmão lá; e as cinco variantes do texto hostil medem 0,2 a 0,35 s e voltam ao gate. Ficam no gate os guardas de contrato: o snapshot das tools MCP, a allowlist sem entradas antigas, o `install` sem PyYAML, o help documentado do matchcut, o guarda de dado de cliente no pacote, a trava de pasta do swap (`test_trava_da_pasta_recusa_a_segunda_execucao_e_solta_ao_sair`, determinística; o teste de duas execuções reais na mesma pasta é slow) e os guardas de ReDoS: as razões de `_linha` (10 mil sobre 1 mil colchetes, limite 30) e de `_texto_pagina` (2N sobre N, limite 3), e o teto absoluto de 1 milhão de colchetes.
 
 Outras mudanças no conjunto de testes, sem tirar nenhum teste do release:
 
 - `clone --help` põe um `hypit` falso no PATH: sem ele o teste chamava `npx --yes @hypit/hypit@<versão>`, que baixa do registro quando o cache está frio, fora do guarda de sockets (que não alcança o subprocesso). 0,6 s em vez de 5,8 s.
-- `test_gen_reference.py`: uma geração por módulo (fixture); antes eram 10 execuções do gerador.
+- `test_gen_reference.py`: duas execuções do gerador por módulo, não uma: a do fixture, que os testes que leem a saída compartilham, e a de outro cwd, que prova o determinismo. Antes eram 10.
 - `test_busca.py`: o amplificador ganha um teste de razão 2N/N no gate, e o teto absoluto de 1 milhão de colchetes continua no gate (já estava lá na `main`); cinco das seis variantes do texto hostil voltam ao gate.
 - `test_openverse.py`: o export que recusa CC-BY sem autor ou sem licença grava a aprovação direto no `index.json`, sem folha e sem ffmpeg.
 - `test_gate_files.py`: `make regen` roda numa cópia do repo; antes regravava `docs/` do próprio checkout enquanto outros testes liam esses arquivos.

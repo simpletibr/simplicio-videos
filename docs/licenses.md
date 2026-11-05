@@ -7,14 +7,16 @@ Scan das distribuições instaladas (`importlib.metadata`), limitado ao fecho da
 | Pacote | Versão | Licença | Status | Onde é usado |
 |---|---|---|---|---|
 | attrs | 26.1.0 | MIT | permitida | jsonschema, referencing |
+| execnet | 2.1.2 | MIT | permitida | pytest-xdist |
 | iniconfig | 2.3.1 | MIT | permitida | pytest |
 | jsonschema | 4.26.0 | MIT | permitida | simplicio-video |
 | jsonschema-specifications | 2025.9.1 | MIT | permitida | jsonschema |
 | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | permitida | pytest |
 | pluggy | 1.7.0 | MIT | permitida | pytest |
 | Pygments | 2.21.0 | BSD-2-Clause | permitida | pytest |
-| pytest | 9.2.0 | MIT | permitida | pytest-socket, simplicio-video[test] |
+| pytest | 9.2.0 | MIT | permitida | pytest-socket, pytest-xdist, simplicio-video[test] |
 | pytest-socket | 0.8.1 | MIT | permitida | simplicio-video[test] |
+| pytest-xdist | 3.8.0 | MIT | permitida | simplicio-video[test] |
 | PyYAML | 6.0.3 | MIT | permitida | simplicio-video |
 | referencing | 0.37.0 | MIT | permitida | jsonschema, jsonschema-specifications |
 | rpds-py | 2026.9.1 | MIT | permitida | jsonschema, referencing |

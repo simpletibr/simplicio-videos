@@ -25,7 +25,7 @@ Link do commit que só toca testes, fixtures e docs e falha pelo motivo certo:
 |---|---|
 | | |
 
-- [ ] `make check` verde, offline, em menos de 60 s.
+- [ ] `make check` verde, offline (~2-3 min em 4 núcleos; a meta de 60 s ainda não foi atingida, ver docs/host/gate.md).
 
 ## Docs e help
 

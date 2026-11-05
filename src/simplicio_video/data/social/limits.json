@@ -490,6 +490,131 @@
       "read_on": "2026-10-16",
       "confidence": "UNVERIFIED",
       "note": "Lido só na documentação do Zernio (terceiro), não na página da rede."
+    },
+    {
+      "network": "reddit",
+      "field": "duration_max_s",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/reddit",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Zernio não informa duração de vídeo de post (https://docs.zernio.com/platforms/reddit). Sem teto conferido."
+    },
+    {
+      "network": "reddit",
+      "field": "aspect_ratios",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/reddit",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Zernio não informa proporção (https://docs.zernio.com/platforms/reddit). Sem limite conferido."
+    },
+    {
+      "network": "reddit",
+      "field": "size_max_mb",
+      "value": 1000,
+      "source_url": "https://docs.zernio.com/platforms/reddit",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/reddit). Vídeo MP4 de 1 GB, convertido em decimal (1000 MB): a fonte não distingue GB de GiB (https://docs.zernio.com/platforms/reddit). Imagem: 20 MB."
+    },
+    {
+      "network": "reddit",
+      "field": "caption_max_chars",
+      "value": 40000,
+      "source_url": "https://docs.zernio.com/platforms/reddit",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/reddit). Corpo do texto (post de texto), até 40.000 caracteres; a legenda do plano entra como corpo.",
+      "escopo": "corpo do post de texto"
+    },
+    {
+      "network": "reddit",
+      "field": "title_max_chars",
+      "value": 300,
+      "source_url": "https://docs.zernio.com/platforms/reddit",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/reddit). Título obrigatório, 300 caracteres; não se edita depois de postar (https://docs.zernio.com/platforms/reddit).",
+      "obrigatorio": true,
+      "escopo": "post: título obrigatório"
+    },
+    {
+      "network": "reddit",
+      "field": "hashtags_max",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/reddit",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "A página não informa; sem limite conferido (https://docs.zernio.com/platforms/reddit)."
+    },
+    {
+      "network": "snapchat",
+      "field": "duration_min_s",
+      "value": 5,
+      "source_url": "https://docs.zernio.com/platforms/snapchat",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/snapchat). Vídeo de 5 a 60 s."
+    },
+    {
+      "network": "snapchat",
+      "field": "duration_max_s",
+      "value": 60,
+      "source_url": "https://docs.zernio.com/platforms/snapchat",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/snapchat). Vídeo de 5 a 60 s."
+    },
+    {
+      "network": "snapchat",
+      "field": "aspect_ratios",
+      "value": [
+        "9:16"
+      ],
+      "source_url": "https://docs.zernio.com/platforms/snapchat",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/snapchat). A página diz '9:16 vertical media is expected': expectativa, não regra dura; por isso aparece como aviso e não recusa o plano (https://docs.zernio.com/platforms/snapchat). A página de ajuda da Snap sobre Spotlight (help.snapchat.com, lida em 2026-11-05) não traz especificação técnica para post orgânico.",
+      "kind": "expectativa"
+    },
+    {
+      "network": "snapchat",
+      "field": "size_max_mb",
+      "value": 500,
+      "source_url": "https://docs.zernio.com/platforms/snapchat",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/snapchat). Vídeo MP4 até 500 MB."
+    },
+    {
+      "network": "snapchat",
+      "field": "caption_max_chars",
+      "value": 160,
+      "source_url": "https://docs.zernio.com/platforms/snapchat",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/snapchat). Descrição de Spotlight, 160 caracteres, com as hashtags contadas. Sem teto de legenda para Stories no Zernio.",
+      "escopo": "Spotlight: descrição, com as hashtags contadas; Stories sem teto de legenda no Zernio"
+    },
+    {
+      "network": "snapchat",
+      "field": "title_max_chars",
+      "value": 45,
+      "source_url": "https://docs.zernio.com/platforms/snapchat",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "Lido só na documentação do Zernio (terceiro), não na página da rede (https://docs.zernio.com/platforms/snapchat). Título de Saved Story, 45 caracteres. O plano confere o título só quando ele é informado.",
+      "escopo": "Saved Story: título"
+    },
+    {
+      "network": "snapchat",
+      "field": "hashtags_max",
+      "value": null,
+      "source_url": "https://docs.zernio.com/platforms/snapchat",
+      "read_on": "2026-11-05",
+      "confidence": "UNVERIFIED",
+      "note": "A página não informa; sem limite conferido (https://docs.zernio.com/platforms/snapchat)."
     }
   ]
 }

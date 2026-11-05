@@ -785,7 +785,7 @@ def test_o_registro_so_cresce_e_resiste_a_linha_estragada(env):
         f.write("{linha quebrada\n")
     env.b.consulta("b")
     r = env.b.log()
-    assert r["total"] == 2 and r["invalidas"] == 1 and len(r["registros"]) == 2
+    assert r["mostrados"] == 2 and r["invalidas"] == 1 and len(r["registros"]) == 2
 
 
 def test_log_lista_os_ultimos_com_urls_rotuladas(env):
@@ -793,8 +793,8 @@ def test_log_lista_os_ultimos_com_urls_rotuladas(env):
         env.b.consulta(t)
     env.b.pagina("https://example.com")
     r = env.b.log(ultimos=2)
-    assert r["schema"] == "simplicio.busca-log/v1" and list(r)[:2] == ["schema", "aviso_untrusted"]
-    assert r["total"] == 4 and r["mostrados"] == 2 and [x["comando"] for x in r["registros"]] == ["consulta", "pagina"]
+    assert r["schema"] == "simplicio.busca-log/v2" and list(r)[:2] == ["schema", "aviso_untrusted"]
+    assert r["mostrados"] == 2 and [x["comando"] for x in r["registros"]] == ["consulta", "pagina"] and len(r["arquivos"]) == 1
     ultimo = r["registros"][-1]
     assert ultimo["untrusted_url"] == "https://example.com" and "url" not in ultimo
     assert r["registros"][0]["untrusted_urls_resultados"][0] == CONSULTA["results"][0]["url"] and "urls_resultados" not in r["registros"][0]
@@ -806,7 +806,7 @@ def test_log_lista_os_ultimos_com_urls_rotuladas(env):
 
 def test_log_vazio_e_ultimos_invalido(env, capsys):
     r = env.b.log()
-    assert r["total"] == 0 and r["registros"] == []
+    assert r["mostrados"] == 0 and r["registros"] == [] and r["arquivos"] == []
     for n in (0, -1, "x", 10001):
         with pytest.raises(env.b.BuscaError, match="ultimos"):
             env.b.log(ultimos=n)
@@ -819,7 +819,7 @@ def test_log_pelo_cli_em_texto_e_json(env, capsys):
     out = capsys.readouterr().out
     assert "AVISO" in out and "consulta" in out and 'untrusted_urls_resultados=' in out and "sha256" in out
     assert main(["busca", "log", "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["total"] == 1
+    assert json.loads(capsys.readouterr().out)["mostrados"] == 1
 
 
 def test_arquivos_gravados_batem_com_os_schemas_publicados(env):
@@ -949,7 +949,8 @@ def test_erro_inesperado_no_mcp_nao_ecoa_a_chave(env):
 
 
 def test_chamada_sem_shell_e_metacaracteres_chegam_como_um_argumento(env, tmp_path):
-    marca = tmp_path / "invadido"
+    env.mp.chdir(tmp_path)  # a marca é relativa: um TMPDIR longo não estoura MAX_CONSULTA_CHARS (300)
+    marca = Path("invadido")
     texto = f"a; touch {marca} && $(touch {marca}) | cat '\"x\"'"
     assert len(texto) < 280
     espiao = []
@@ -961,7 +962,7 @@ def test_chamada_sem_shell_e_metacaracteres_chegam_como_um_argumento(env, tmp_pa
         return real(args, *a, **k)
     env.mp.setattr(subprocess, "Popen", popen)
     env.b.consulta(texto)
-    assert not marca.exists()
+    assert not (tmp_path / "invadido").exists()
     assert env.fake.chamadas("search")[0]["argv"] == ["search", "query", "--", texto]
     assert espiao and all(isinstance(a, list) and not k.get("shell") and k.get("stdin") == subprocess.DEVNULL for a, k in espiao)
     assert all(a[0] == str(env.fake.exe) for a, _ in espiao)
@@ -1083,7 +1084,7 @@ def test_mcp_consulta_pagina_status_e_log_com_as_mesmas_travas(env, hoje):
     assert p["ok"] is True and p["untrusted_conteudo"].startswith("This domain")
     assert mcp_server.video_busca("status")["ok"] is True
     lg = mcp_server.video_busca("log")
-    assert lg["ok"] is True and lg["total"] == 2
+    assert lg["ok"] is True and lg["mostrados"] == 2
 
 
 def test_mcp_herda_o_teto_diario_e_a_recusa_de_segredo(env, hoje):
@@ -1515,26 +1516,38 @@ def test_mais_invisiveis_saem_do_texto_e_recusam_a_consulta(env, invisivel):
 
 # ------------------------------------------------------------------------------------------------ (7) ReDoS com amplificador
 
-def test_amplificador_cresce_em_linha_reta(env):
-    """Guarda de ReDoS no gate. Com colchetes sem fechar e tags aninhadas, dobrar o texto tem de dobrar o tempo (razão ~2).
-    Uma regressão quadrática de custo comparável ao linear leva a razão a ~4 (o limite é 3). Melhor de três medidas por tamanho,
-    para o ruído do host não decidir. Regressões de custo pequeno ficam com o teto absoluto abaixo."""
-    def melhor(n):
-        hostil = "<<<<<b>b>b>b>b>" + "[" * n
-        tempos = []
-        for _ in range(3):
-            t0 = time.perf_counter()
-            env.b._texto_pagina(hostil, 20480)
-            env.b._linha(hostil, 1000)
-            tempos.append(time.perf_counter() - t0)
-        return min(tempos)
-
-    t_n, t_2n = melhor(50_000), melhor(100_000)
-    assert t_2n / t_n < 3.0, f"o tempo cresceu {t_2n / t_n:.2f}x ao dobrar o texto ({t_n:.3f} s -> {t_2n:.3f} s): ficou quadrático"
+def _melhor_de(fn, reps):
+    """Menor tempo de `reps` execuções: o ruído do host sobe os tempos, não os desce."""
+    tempos = []
+    for _ in range(reps):
+        t0 = time.perf_counter()
+        fn()
+        tempos.append(time.perf_counter() - t0)
+    return min(tempos)
 
 
-# Teto absoluto (1 milhão de colchetes, ~1,3 s): já estava no gate da main. A razão acima pega o crescimento quadrático de custo
-# comparável ao linear; esta medida pega o de custo pequeno (ele vira centenas de segundos com 1 milhão).
+def test_linha_cresce_em_linha_reta(env):
+    """Guarda de ReDoS no gate, para `_linha` isolada. Ela corta a entrada em max(limite*10, 2000) caracteres; com limite 1000
+    a janela tem 10 000, então 1 mil e 10 mil colchetes entram inteiros. Linear dá razão ~10 (medido 9 a 11); uma regressão
+    quadrática de custo visível (mutação medida: ~40) passa de 30."""
+    hostil = "<<<<<b>b>b>b>b>"
+    t_1k = _melhor_de(lambda: env.b._linha(hostil + "[" * 1_000, 1000), 5)
+    t_10k = _melhor_de(lambda: env.b._linha(hostil + "[" * 10_000, 1000), 5)
+    assert t_10k / t_1k < 30, f"_linha: o tempo cresceu {t_10k / t_1k:.1f}x de 1 mil para 10 mil colchetes ({t_1k * 1e3:.1f} ms -> {t_10k * 1e3:.1f} ms)"
+
+
+def test_texto_pagina_cresce_em_linha_reta(env):
+    """Guarda de ReDoS no gate, para `_texto_pagina` sozinha: dobrar o texto (50 mil -> 100 mil colchetes, abaixo do teto de
+    leitura de 400 mil) tem de dobrar o tempo (medido 1,6 a 2,2). Quadrático puro dá ~4 e o limite de 3 pega. Quadrático de custo
+    baixo, somado ao trabalho linear, pode dar menos de 3 e passar: a mutação medida deu 3,4, vermelha por pouco."""
+    hostil = "<<<<<b>b>b>b>b>"
+    t_n = _melhor_de(lambda: env.b._texto_pagina(hostil + "[" * 50_000, 20480), 3)
+    t_2n = _melhor_de(lambda: env.b._texto_pagina(hostil + "[" * 100_000, 20480), 3)
+    assert t_2n / t_n < 3.0, f"_texto_pagina: o tempo cresceu {t_2n / t_n:.2f}x ao dobrar o texto ({t_n:.3f} s -> {t_2n:.3f} s)"
+
+
+# Teto absoluto (1 milhão de colchetes, ~1,3 s): já estava no gate da main. As razões acima pegam o crescimento quadrático com custo
+# comparável ao linear em 10 mil; esta medida pega o de custo pequeno, que só aparece com o texto inteiro grande.
 def test_amplificador_de_tags_com_um_milhao_de_colchetes_fica_abaixo_de_3_s(env):
     hostil = "<<<<<b>b>b>b>b>" + "[" * 1_000_000
     t0 = time.monotonic()
@@ -1806,3 +1819,317 @@ def test_host_que_resolve_so_para_ip_publico_e_buscado(env):
     r = env.b.pagina("https://exemplo-publico.test/a")
     assert perguntados == ["exemplo-publico.test"] and len(env.fake.chamadas("fetch")) == 1
     assert r["untrusted_fonte"] == "https://exemplo-publico.test/a"
+
+
+# ------------------------------------------------------------------------------------------------ (#113 3) registro que gira, cache por bytes, log do fim
+
+def _procedencia(i: int) -> dict:
+    return {"schema": "simplicio.busca-registro/v1", "em": "2026-10-16T12:00:00Z", "comando": "consulta", "canal": "terminal", "do_cache": False,
+            "chave_cache": "0" * 64, "cli_versao": "0.50.1", "conteudo_sha256": "a" * 64, "conteudo_bytes": 10, "url_final_recusada": False,
+            "n": i, "pad": "x" * 150}
+
+
+def test_limites_do_registro_e_do_cache_estao_fixados(env):
+    assert env.b.REGISTRO_MAX_BYTES == 5 * 1024 * 1024
+    assert env.b.REGISTRO_ARQUIVOS_ANTIGOS == 3
+    assert env.b.CACHE_MAX_ARQUIVOS == 500 and env.b.CACHE_MAX_BYTES == 100 * 1024 * 1024
+
+
+def test_registro_sem_atingir_o_limite_nao_gira(env):
+    for i in range(60):
+        env.b._registrar(_procedencia(i))
+    assert sorted(p.name for p in env.registro.parent.glob("busca.registro.jsonl*")) == ["busca.registro.jsonl"]
+
+
+def test_registro_gira_no_limite_e_guarda_so_tres_arquivos_antigos_com_linhas_inteiras(env):
+    env.patch("REGISTRO_MAX_BYTES", 2000)
+    for i in range(60):
+        env.b._registrar(_procedencia(i))
+    pasta = env.registro.parent
+    nomes = sorted(p.name for p in pasta.glob("busca.registro.jsonl*"))
+    assert nomes == ["busca.registro.jsonl", "busca.registro.jsonl.1", "busca.registro.jsonl.2", "busca.registro.jsonl.3"]
+    numeros = []
+    for nome in nomes:
+        arq = pasta / nome
+        assert arq.stat().st_size <= 2000 and stat.S_IMODE(arq.stat().st_mode) == 0o600, nome
+        for linha in arq.read_text(encoding="utf8").splitlines():
+            rec = json.loads(linha)  # cada linha inteira e válida: a rotação só move linhas, nunca corta uma
+            assert len(rec["conteudo_sha256"]) == 64 and len(rec["id"]) == 16
+            numeros.append(rec["n"])
+    assert max(numeros) == 59
+    assert sorted(numeros) == list(range(60 - len(numeros), 60))  # os mais antigos saíram; o que ficou é contínuo até o último
+
+
+def test_linhas_do_fim_vem_de_tras_para_frente_qualquer_que_seja_o_bloco(env, tmp_path):
+    texto = "primeira\nsegunda com acento é ç\n\nquarta sem quebra final"
+    arq = tmp_path / "x.jsonl"
+    arq.write_bytes(texto.encode("utf8"))
+    esperado = [linha.encode("utf8") for linha in reversed(texto.split("\n"))]
+    for bloco in (1, 2, 3, 7, 64, 65536):
+        assert list(env.b._linhas_do_fim(arq, bloco)) == esperado, bloco
+    arq.write_bytes((texto + "\n").encode("utf8"))
+    assert list(env.b._linhas_do_fim(arq, 5)) == [b""] + esperado
+
+
+def test_log_le_do_fim_e_para_quando_os_pedidos_estao_prontos(env):
+    env.patch("REGISTRO_MAX_BYTES", 2000)
+    for i in range(60):
+        env.b._registrar(_procedencia(i))
+    r = env.b.log(ultimos=1)
+    assert [x["n"] for x in r["registros"]] == [59] and len(r["arquivos"]) == 1
+    assert r["arquivos"][0].endswith("busca.registro.jsonl")
+    r = env.b.log(ultimos=10)  # atravessa os arquivos girados, em ordem de gravação
+    assert [x["n"] for x in r["registros"]] == list(range(50, 60)) and len(r["arquivos"]) > 1
+
+
+def test_cache_acima_do_teto_de_bytes_apaga_os_mais_antigos_mesmo_com_poucos_arquivos(env):
+    env.patch("CACHE_MAX_BYTES", 3000)
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    for i in range(5):
+        p = cache / f"{i:04d}.json"
+        p.write_text("x" * 1000, encoding="utf8")
+        os.utime(p, (1_000_000_000 + i, 1_000_000_000 + i))
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina", "pad": "y" * 900})
+    nomes = _nomes_do_cache(env)
+    assert "nova.json" in nomes and "0000.json" not in nomes
+    assert sum((cache / n).stat().st_size for n in nomes) <= 3000
+
+
+def test_help_da_busca_explica_o_registro_o_cache_e_o_log(env):
+    out = run_cli("busca", "--help").stdout
+    for deve in ("5 MiB", "busca.registro.jsonl.3", "100 MiB", "500 arquivos", "do fim"):
+        assert deve in out, f"busca --help sem {deve!r}"
+
+
+# ------------------------------------------------------------------------------------------------ (#113 4) nomes e endereços internos
+
+# o apex de nip.io e o de xip.io passam (test_host_que_so_contem_o_sufixo_no_meio_continua_valendo); subdomínios de nip.io, sslip.io,
+# xip.io, lvh.me e localtest.me são recusados pelo sufixo, com IP ou sem; lvh.me, localtest.me e home.arpa (o apex) estão em _NOMES_INTERNOS
+NOMES_INTERNOS_NOVOS = ["lvh.me", "app.lvh.me", "localtest.me", "x.localtest.me", "127.0.0.1.xip.io", "home.arpa", "roteador.home.arpa",
+                        "metadata", "ip6-localhost", "ip6-loopback"]
+ENDERECOS_INTERNOS = ["http://169.254.169.254/latest/meta-data/", "http://[fd00:ec2::254]/latest/", "http://[fe80::1]/a",
+                      "http://[fd12:3456:789a::1]:8080/a", "http://[::1]/a", "http://[::ffff:169.254.169.254]/a", "http://[fe80::1%25eth0]/a",
+                      "http://8.8.8.8/a", "http://169.254.169.254.nip.io/a", "http://0x7f000001/a", "http://2130706433/a", "http://LOCALHOST/a"]
+
+
+@pytest.mark.parametrize("url", [f"https://{h}/a" for h in NOMES_INTERNOS_NOVOS] + ENDERECOS_INTERNOS)
+def test_nome_ou_endereco_interno_novo_e_recusado_em_pagina_e_em_consulta(env, url):
+    with pytest.raises(env.b.BuscaError, match="URL inválida"):
+        env.b.pagina(url)
+    assert env.fake.chamadas() == [] and not env.contador.exists()
+    env.fake.set(search={"stdout": jt({"query": "a", "total_results": 1, "page": 0, "results": [resultado_hostil(url=url)]})})
+    r = env.b.consulta("a")
+    assert r["resultados"] == [] and r["descartados"]["url_invalida"] == 1
+
+
+def test_help_da_busca_lista_os_nomes_internos_novos():
+    out = run_cli("busca", "--help").stdout
+    for deve in ("xip.io", "lvh.me", "localtest.me", "home.arpa", "IPv6"):
+        assert deve in out, f"busca --help sem {deve!r}"
+
+
+# ------------------------------------------------------------------------------------------------ (#113 revisão) B1 a B4 e B6
+
+@pytest.mark.parametrize("pausa_antes", ["busca.registro.jsonl", "busca.registro.jsonl.1"])
+def test_log_segura_a_trava_e_a_rotacao_espera_a_leitura(env, monkeypatch, pausa_antes):
+    """B1: log() lia sem a trava. Pausado logo antes de abrir `pausa_antes`, um rotator que respeita a trava tem de esperar a leitura
+    acabar; sem a trava, ou o ativo já tinha sumido (BuscaError "No such file") ou o .1 repetia linhas já lidas."""
+    env.patch("REGISTRO_MAX_BYTES", 2000)
+    for i in range(60):
+        env.b._registrar(_procedencia(i))
+    real = env.b._linhas_do_fim
+    pausado, liberar = threading.Event(), threading.Event()
+
+    def com_pausa(caminho, *args, **kwargs):
+        if caminho.name == pausa_antes and not pausado.is_set():
+            pausado.set()
+            liberar.wait(10)
+        return real(caminho, *args, **kwargs)
+
+    env.patch("_linhas_do_fim", com_pausa)
+    saida, erros = {}, []
+
+    def leitor():
+        try:
+            saida["r"] = env.b.log(ultimos=10)
+        except Exception as e:  # o erro da thread vira falha do teste, não aborta o pytest
+            erros.append(e)
+
+    def rotator():
+        with env.b._trava():
+            env.b._gira_registro()
+
+    t_leitor = threading.Thread(target=leitor)
+    t_leitor.start()
+    try:
+        assert pausado.wait(10), "log() não chegou ao ponto de pausa"
+        t_rotator = threading.Thread(target=rotator)
+        t_rotator.start()
+        t_rotator.join(0.5)
+        travado = t_rotator.is_alive()  # com a trava, a rotação espera o log terminar
+    finally:
+        liberar.set()
+        t_leitor.join(10)
+    t_rotator.join(10)
+    assert travado, "a rotação passou por cima do log() que estava lendo"
+    assert not erros, erros
+    assert [x["n"] for x in saida["r"]["registros"]] == list(range(50, 60))
+
+
+def test_log_json_troca_total_por_arquivos_no_schema_v2(env, capsys):
+    """B4: `total` saiu do `busca log --json` e o schema foi para v2 (consumidor do v1 precisa saber)."""
+    env.b.consulta("a")
+    assert main(["busca", "log", "--json"]) == 0
+    r = json.loads(capsys.readouterr().out)
+    assert r["schema"] == "simplicio.busca-log/v2" and "total" not in r and len(r["arquivos"]) == 1
+
+
+def test_changelog_registra_a_quebra_do_busca_log_json():
+    """B4: a nota de Unreleased diz que `total` saiu, que `arquivos` entrou e qual é o schema novo."""
+    texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
+    secao = texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    assert "busca log" in secao and "`total`" in secao and "`arquivos`" in secao and "busca-log/v2" in secao
+
+
+def test_registro_com_fragmento_sem_quebra_no_fim_isola_o_fragmento(env):
+    """B2: uma queda no meio da gravação deixa linha sem \\n; o registro seguinte não pode colar nela."""
+    env.pasta.mkdir(parents=True, exist_ok=True)
+    fragmento = '{"schema": "simplicio.busca-registro/v1", "n": 1, "pad": "xx'
+    env.registro.write_bytes(fragmento.encode("utf8"))
+    env.b._registrar(_procedencia(2))
+    linhas = env.registro.read_text(encoding="utf8").split("\n")
+    assert linhas[0] == fragmento and json.loads(linhas[1])["n"] == 2
+    r = env.b.log(ultimos=5)
+    assert [x["n"] for x in r["registros"]] == [2] and r["invalidas"] == 1
+
+
+def test_registro_grava_a_linha_inteira_mesmo_quando_o_sistema_aceita_pedacos(env, monkeypatch):
+    """B2: os.write pode gravar menos do que foi pedido; a linha tem de sair inteira (o loop escreve o resto)."""
+    escrita = os.write
+    pedidos = []
+
+    def aos_pedacos(fd, dados):
+        pedidos.append(len(dados))
+        return escrita(fd, bytes(dados[:7]))
+
+    monkeypatch.setattr(os, "write", aos_pedacos)
+    env.b._registrar(_procedencia(7))
+    assert len(pedidos) > 1
+    assert [x["n"] for x in linhas_do_registro(env)] == [7]
+
+
+def test_poda_nao_conta_como_saido_o_arquivo_que_o_unlink_nao_apagou(env, monkeypatch):
+    """B3: quando unlink falha, o arquivo continua no cache/ e não pode descontar do excesso."""
+    env.patch("CACHE_MAX_ARQUIVOS", 3)
+    _cache_com(env, 5)
+    apagar = Path.unlink
+
+    def unlink_que_falha_no_mais_antigo(self, *args, **kwargs):
+        if self.name == "0000.json":
+            raise PermissionError(13, "negado pelo teste", str(self))
+        return apagar(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", unlink_que_falha_no_mais_antigo)
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina"})
+    assert _nomes_do_cache(env) == ["0000.json", "0004.json", "nova.json"]
+
+
+def test_tmp_orfao_de_gravacao_interrompida_sai_e_o_tmp_recente_fica(env):
+    """B3: um .tmp de _atomic_write com mais de 1 h é sobra de queda e sai; um recente pode ser gravação em curso e fica."""
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    antigo = cache / ".0000.json.a1b2c3.tmp"
+    antigo.write_text("x" * 100, encoding="utf8")
+    agora = time.time()
+    os.utime(antigo, (agora - 7200, agora - 7200))
+    recente = cache / ".0001.json.d4e5f6.tmp"
+    recente.write_text("y" * 100, encoding="utf8")
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina"})
+    assert not antigo.exists() and recente.exists()
+
+
+def test_tmp_em_gravacao_conta_no_teto_de_bytes_do_cache(env):
+    """B3: o .tmp recente ocupa espaço em cache/; ele entra na conta de bytes e faz sair o json mais antigo."""
+    env.patch("CACHE_MAX_BYTES", 3000)
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    (cache / "0000.json").write_text("x" * 1000, encoding="utf8")
+    os.utime(cache / "0000.json", (1_000_000_000, 1_000_000_000))
+    (cache / ".0001.json.d4e5f6.tmp").write_text("y" * 2500, encoding="utf8")
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina"})
+    assert "0000.json" not in _nomes_do_cache(env) and "nova.json" in _nomes_do_cache(env)
+
+
+def test_link_simbolico_no_cache_nao_conta_e_nao_e_apagado(env, tmp_path):
+    """B3: poda com lstat. O alvo de um link fora de cache/ não conta no teto de bytes e não é tocado."""
+    env.patch("CACHE_MAX_BYTES", 3000)
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    alvo = tmp_path / "fora.json"
+    alvo.write_text("z" * 5000, encoding="utf8")
+    os.utime(alvo, (1_000_000_000 - 1, 1_000_000_000 - 1))
+    link = cache / "0000.json"
+    link.symlink_to(alvo)
+    (cache / "0001.json").write_text("x" * 1000, encoding="utf8")
+    os.utime(cache / "0001.json", (1_000_000_000 + 1, 1_000_000_000 + 1))
+    env.b._gravar_cache("nova", {"schema": "simplicio.busca-cache/v1", "comando": "pagina"})
+    assert os.path.islink(link) and os.readlink(link) == str(alvo)
+    assert alvo.read_text(encoding="utf8") == "z" * 5000
+    assert "0001.json" in _nomes_do_cache(env)
+
+
+def test_lista_de_nomes_internos_so_guarda_nome_que_a_forma_do_host_deixa_passar(env):
+    """B6: _url_http só aceita host com ponto (_HOST_RE); um nome de rótulo único nunca chega à lista."""
+    assert sorted(n for n in env.b._NOMES_INTERNOS if "." not in n) == []
+
+
+# ------------------------------------------------------------------------------------------------ (#113 revisão 2) F1, F2, F4, F6
+
+def test_log_json_nao_depende_do_texto_e_aceita_registro_incompleto(env, capsys):
+    """F1: o texto do `busca log` só é montado no terminal; um registro sem campos que o texto usa não derruba o --json."""
+    env.b._registrar(_procedencia(1))  # o registro de teste não tem "consulta" nem os contadores de resultado
+    assert main(["busca", "log", "--json"]) == 0
+    r = json.loads(capsys.readouterr().out)
+    assert r["mostrados"] == 1 and r["registros"][0]["comando"] == "consulta"
+    assert main(["busca", "log"]) == 0
+    assert "registro de procedência" in capsys.readouterr().out
+
+
+def test_contagem_do_cache_nao_conta_link_simbolico(env, tmp_path):
+    """F4: a contagem de entradas do cache conta arquivo regular; link simbólico (e o alvo dele) fica de fora."""
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    (cache / "0000.json").write_text("{}", encoding="utf8")
+    (cache / "0001.json").write_text("{}", encoding="utf8")
+    alvo = tmp_path / "fora.json"
+    alvo.write_text("{}", encoding="utf8")
+    (cache / "0002.json").symlink_to(alvo)
+    assert env.b._numero_cache() == 2
+
+
+def test_falha_da_trava_no_log_diz_registro_e_nao_ler(env):
+    """F6: a mensagem de falha do registro é genérica: a trava também falha por permissão, não só a leitura."""
+    def trava_negada():
+        raise OSError(13, "negado pelo teste")
+
+    env.patch("_trava", trava_negada)
+    with pytest.raises(env.b.BuscaError, match="não consegui usar o registro de procedência"):
+        env.b.log()
+
+
+def test_log_nao_aninha_a_trava(env):
+    """F5: _trava() não é reentrante. log() segura a trava na leitura inteira, então o corpo dele não pode pegar a trava de novo
+    (_registrar, _reservar) nem pegá-la duas vezes: isso trava o próprio processo, sem erro."""
+    arvore = ast.parse(inspect.getsource(env.b.log))
+    chamadas = [n.func.id for n in ast.walk(arvore) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+    assert chamadas.count("_trava") == 1
+    assert not {"_registrar", "_reservar"} & set(chamadas), sorted({"_registrar", "_reservar"} & set(chamadas))
+
+
+def test_changelog_registra_as_tools_que_o_plugin_anuncia():
+    """F2: plugin.json passou de 28 para 31 tools do MCP (e2236ef acrescentou video.rea-video, video.matchcut e video.qc); a nota de
+    Unreleased tem de dizer isso, porque o plugin é o que as ferramentas externas leem."""
+    texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
+    secao = texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    assert "plugin.json passa a anunciar as 31 tools do MCP" in secao
