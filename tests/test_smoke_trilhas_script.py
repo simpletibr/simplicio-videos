@@ -54,10 +54,39 @@ options:
   -h, --help  show this help message and exit
 """
 
-AJUDA_CLONE = """usage: simplicio-video clone [-h] ...
+# What `clone --help` really prints on main: it passes through to Hypit's own help (no `usage:` line; the engine's argparse
+# help is `clone --engine-help`). Copied from packages/cli/src/output.ts and packages/video-cli/src/cli.ts of @hypit/hypit 0.2.17.
+AJUDA_CLONE = """Hypit
+
+Authoring
+  check <source>                verify one self-described Author or Run source
+  plan <run-source>             show selected work without executing
+  build <run-source>            submit a Build; --follow observes it
+
+Results
+  builds                        list Results newest first
+  status <build-id> [--watch]   show current work and Result facts
+
+Preparation (local tools and project files)
+  media probe | frames | cut
+  capture screenshot | run | install-browser
+  vocabulary
+  hypit help media, hypit help capture, hypit help vocabulary
+"""
+
+AJUDA_CLONE_MOTOR = """usage: simplicio-video clone [-h] ...
 
 positional arguments:
   args        argumentos repassados ao CLI do Hypit AI
+
+options:
+  -h, --help  show this help message and exit
+"""
+
+AJUDA_MONTAGE = """usage: simplicio-video montage [-h] ...
+
+positional arguments:
+  args        argumentos repassados ao OpenMontage
 
 options:
   -h, --help  show this help message and exit
@@ -179,11 +208,110 @@ def test_app_fechado_nao_reprova(smoke, monkeypatch):
 
 
 def test_chamadas_mcp_do_smoke_so_leem(smoke):
-    permitidos = ("--help", "where", "status", ["fetch"])  # `fetch` sem URL é recusado antes de qualquer download
+    # `fetch` sem URL é recusado antes de qualquer download; `status --json` só lê (clone e montage informam o estado)
+    permitidos = ("--help", "where", "status", "status --json", ["fetch"])
     for trilha, chamada in smoke.MCP_LEITURA.items():
         assert trilha in tools.TOOLS, trilha
         assert all(valor in permitidos for valor in chamada.kwargs.values()), (trilha, chamada.kwargs)
         assert hasattr(mcp_server, chamada.funcao), (trilha, chamada.funcao)
+
+
+def test_clone_pede_a_ajuda_do_motor_e_nunca_a_do_hypit(smoke, monkeypatch):
+    """`clone --help` passes through to Hypit, which runs through npx when it is not installed: the check asks the engine
+    (`--engine-help`) and never sends `--help` to Hypit."""
+    chamadas = []
+
+    def cli(argv):
+        chamadas.append(list(argv))
+        if argv[1:] == ["--help"]:
+            return smoke.Saida(0, AJUDA_CLONE, "")  # Hypit's own help: rc 0, no `usage:`
+        if argv[1:] == ["--engine-help"]:
+            return smoke.Saida(0, AJUDA_CLONE_MOTOR, "")
+        return smoke.Saida(0, '{"ok": true, "source": "npx"}', "")
+
+    monkeypatch.setattr(smoke, "_rodar_cli", cli)
+    monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: ({"ok": True, "log": "x"}, ""))
+    monkeypatch.setattr(smoke.tools, "is_installed", lambda t: True)
+    resultados = smoke.checar_trilha("hypit")
+    assert ["clone", "--help"] not in chamadas
+    ajuda = [r for r in resultados if r.checagem.startswith("cli --")]
+    assert len(ajuda) == 1 and ajuda[0].estado == smoke.OK and ajuda[0].checagem == "cli --engine-help"
+
+
+def test_clone_status_json_entra_na_checagem_local(smoke, monkeypatch):
+    chamadas = []
+
+    def cli(argv):
+        chamadas.append(list(argv))
+        if argv[1:] == ["status", "--json"]:
+            return smoke.Saida(0, '{"ok": true, "source": "npx", "pinned": "0.2.17"}', "")
+        return smoke.Saida(0, AJUDA_CLONE_MOTOR, "")
+
+    monkeypatch.setattr(smoke, "_rodar_cli", cli)
+    monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: ({"ok": True, "log": "x"}, ""))
+    monkeypatch.setattr(smoke.tools, "is_installed", lambda t: True)
+    por_checagem = {r.checagem: r for r in smoke.checar_trilha("hypit")}
+    assert ["clone", "status", "--json"] in chamadas
+    assert por_checagem["cli status"].estado == smoke.OK
+    assert por_checagem["cli status"].comando == "simplicio-video clone status --json"
+
+
+def test_montage_status_json_entra_na_checagem(smoke, monkeypatch):
+    chamadas = []
+
+    def cli(argv):
+        chamadas.append(list(argv))
+        if argv[1:] == ["status", "--json"]:
+            return smoke.Saida(0, '{"ok": true, "checkout": {"found": true}}', "")
+        return smoke.Saida(0, AJUDA_MONTAGE, "")
+
+    monkeypatch.setattr(smoke, "_rodar_cli", cli)
+    monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: ({"ok": True, "log": "x"}, ""))
+    monkeypatch.setattr(smoke.tools, "is_installed", lambda t: True)
+    por_checagem = {r.checagem: r for r in smoke.checar_trilha("openmontage")}
+    assert ["montage", "status", "--json"] in chamadas
+    assert por_checagem["cli status"].estado == smoke.OK
+
+
+def test_instagram_skills_entra_na_checagem(smoke, monkeypatch):
+    chamadas = []
+
+    def cli(argv):
+        chamadas.append(list(argv))
+        if argv[1:] == ["skills"]:
+            return smoke.Saida(0, "skills do instagram-agent-skill (a descrição é texto de terceiros):\nig-audit  ...\n", "")
+        return smoke.Saida(0, AJUDA_INSTAGRAM if argv[1:] == ["--help"] else "x", "")
+
+    monkeypatch.setattr(smoke, "_rodar_cli", cli)
+    monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: ({"ok": True, "log": "x"}, ""))
+    monkeypatch.setattr(smoke.tools, "is_installed", lambda t: True)
+    por_checagem = {r.checagem: r for r in smoke.checar_trilha("instagram")}
+    assert ["instagram", "skills"] in chamadas
+    assert por_checagem["cli skills"].estado == smoke.OK
+
+
+def test_voicestudio_voices_entra_na_checagem_e_app_fechado_nao_reprova(smoke, monkeypatch):
+    fechado = "voicestudio: não consegui falar com o VoiceStudio em http://127.0.0.1:3900/mcp/"
+
+    def cli(argv):
+        if argv[1:] == ["--help"]:
+            return smoke.Saida(0, AJUDA_VOICESTUDIO, "")
+        return smoke.Saida(1, "", fechado)
+
+    monkeypatch.setattr(smoke, "_rodar_cli", cli)
+    monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: ({"ok": False, "log": fechado}, ""))
+    monkeypatch.setattr(smoke.tools, "is_installed", lambda t: False)  # the app is not a checkout: it is asked anyway
+    por_checagem = {r.checagem: r for r in smoke.checar_trilha("voicestudio")}
+    assert por_checagem["cli voices"].estado == smoke.SKIP
+    assert por_checagem["cli voices"].detalhe == "app fechado (sem resposta local)"
+
+
+def test_mcp_do_hypit_e_do_montage_leem_o_status(smoke):
+    """Both live behind their own read-only status (the registry allows it); neither MCP call asks for a help that passes
+    through to an upstream (Hypit's `--help` runs npx)."""
+    assert smoke.MCP_LEITURA["hypit"].kwargs == {"args": "status --json"}
+    assert smoke.MCP_LEITURA["hypit"].precisa is True
+    assert smoke.MCP_LEITURA["openmontage"].kwargs == {"args": "status --json"}
 
 
 def test_toda_trilha_do_registro_tem_roteiro_no_smoke(smoke):
@@ -282,12 +410,14 @@ def test_comando_inexistente_no_cli_e_skip(smoke, monkeypatch):
     monkeypatch.setattr(smoke, "_rodar_cli", lambda argv: smoke.Saida(2, "", erro))
     monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: ({"ok": True, "log": "x"}, ""))
     monkeypatch.setattr(smoke.tools, "is_installed", lambda t: True)
-    por_checagem = {r.checagem: r for r in smoke.checar_trilha("hypit")}
-    assert por_checagem["cli --help"].estado == smoke.SKIP
-    assert por_checagem["cli --help"].detalhe == "comando ausente no CLI"
+    resultados = smoke.checar_trilha("hypit")
+    ajuda = [r for r in resultados if r.checagem.startswith("cli --")]
+    assert len(ajuda) == 1 and ajuda[0].estado == smoke.SKIP
+    assert ajuda[0].detalhe == "comando ausente no CLI"
+    por_checagem = {r.checagem: r for r in resultados}
     assert por_checagem["cli where"].estado == smoke.SKIP
     assert por_checagem["cli status"].estado == smoke.SKIP
-    assert smoke.codigo_de_saida(list(por_checagem.values())) == 0
+    assert smoke.codigo_de_saida(resultados) == 0
 
 
 @pytest.mark.parametrize("app_responde", [True, False])
@@ -306,7 +436,7 @@ def test_voicestudio_sem_checkout_pergunta_ao_app(smoke, monkeypatch, app_respon
     def cli(argv):
         if argv[1:] == ["--help"]:
             return smoke.Saida(0, AJUDA_VOICESTUDIO, "")
-        assert argv[1:] == ["status", "--json"], argv
+        assert argv[1:] in (["status", "--json"], ["voices", "--json"]), argv
         return status_cli
 
     monkeypatch.setattr(smoke, "_rodar_cli", cli)
