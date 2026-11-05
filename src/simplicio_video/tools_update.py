@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from . import tools, tools_lock
+from . import hostos, tools, tools_lock
 
 MODES = ("follow", "pin")
 PYPI_JSON = "https://pypi.org/pypi/{name}/json"
@@ -159,9 +159,11 @@ def pin_target(t: tools.Tool) -> dict:
 
 def checkout_for(t: tools.Tool) -> Path:
     """Where a git track lives. video-use's checkout is kept by data/tools/video-use/setup.sh (VIDEO_USE_DIR, else ~/.cache), not the
-    tools cache: the update moves that one, and the registry marker tells it apart."""
+    tools cache: the update moves that one, and the registry marker tells it apart. VIDEO_USE_DIR is taken as it is, as bash takes it
+    in setup.sh (no ~ expansion inside a variable's value); the default is ~/.cache/simplicio/video-use under hostos.home_dir (HOME
+    first), the same home the lock uses."""
     if t.name == "video-use":
-        return Path(os.environ.get("VIDEO_USE_DIR") or Path.home() / ".cache" / "simplicio" / "video-use").expanduser()
+        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_dir(os.environ) / ".cache" / "simplicio" / "video-use")
     return tools.checkout_dir(t)
 
 
