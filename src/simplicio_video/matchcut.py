@@ -7,6 +7,10 @@ mix, qc, render, assemble, align, undot) from a closed list. It never runs the s
 Renoise (the skill's video, music and voice service, which needs the user's own sign-in and paid credits). It asks for and
 stores no secret.
 
+montage.json: the pinned scripts are not trusted with it. Before any script that reads one runs, the engine validates it (picks
+are interpolated into an ffmpeg filter, so only integers; ids and name come from a strict charset; numbers are numbers),
+predicts every file the run will write (shots and qc, mix, stems, music.out, deliverables) and judges each like an output argument.
+
 Audit of the eight upstream files (read at the pinned commit, 2026-11-05): none of the scripts imports a network module or
 names Renoise; they use numpy, scipy, opencv, soundfile, librosa, pyloudnorm and pillow, and ffmpeg/ffprobe by argument list.
 The Renoise calls of the skill are made by the agent through the Renoise tools, not by these scripts, so they are not here.
@@ -743,10 +747,18 @@ def _saidas(s: Script, argv: list[str]) -> list[str]:
             if sid not in todos:
                 raise MatchcutError(f"plano desconhecido no montage.json: {_ascii(sid)}")
         saida = argv[1]
+        planos = {sh["id"]: sh for sh in cfg.get("shots", []) if isinstance(sh, dict)}
         arquivos = []
         for sid in ids:
             arquivos.append(os.path.join(saida, "shots", f"{sid}.mov"))
-            arquivos += [os.path.join(saida, "qc", f"{sid}-{k}.{ext}") for k in ("first", "mid", "last") for ext in ("jpg", "json")]
+            sh = planos[sid]
+            if isinstance(sh.get("start"), int) and isinstance(sh.get("end"), int):
+                # render.py: qc = {0: 'first', n // 2: 'mid', n - 1: 'last'}, written only for frames i in range(n)
+                n = sh["end"] - sh["start"]
+                tipos = {v for k, v in {0: "first", n // 2: "mid", n - 1: "last"}.items() if 0 <= k < n}
+            else:
+                tipos = {"first", "mid", "last"}  # unknown length: assume all three
+            arquivos += [os.path.join(saida, "qc", f"{sid}-{k}.{ext}") for k in sorted(tipos) for ext in ("jpg", "json")]
         return arquivos
     if n == "assemble":
         cfg, base = _carrega_montagem(argv[0])
@@ -797,6 +809,10 @@ def _confere_montagem(s: Script, argv: list[str], canal: str, forcar: bool) -> N
         if re.search(r"['\r\n]", rdir) or (os.sep == "/" and "\\" in rdir):
             raise MatchcutError("a pasta dos planos tem aspas simples, barra invertida ou quebra de linha no nome: o assemble a escreve "
                                 "numa lista de concat do ffmpeg e o motor não deixa isso passar")
+        lista = os.path.join(rdir, "concat.txt")  # rewritten on every run: it may exist, but never as a link or a folder
+        if os.path.islink(lista) or os.path.isdir(lista):
+            raise MatchcutError("concat.txt na pasta dos planos é um link simbólico ou uma pasta: o assemble escreveria através dele; "
+                                "apague-o ou use outra pasta")
     for destino in saidas:
         _confere_destino(destino, canal, forcar, f"{s.nome}")
 
