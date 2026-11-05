@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from simplicio_video import tools
+from simplicio_video import status, tools
 from simplicio_video.cli import main
 
 NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "tinyfish", "voicestudio", "video-use", "yt-dlp", "rea_video"}
@@ -26,6 +26,7 @@ def _isolated(tmp_path, monkeypatch):
     for t in tools.TOOLS.values():
         for var in (f"{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_REF"):
             monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv("VIDEO_USE_DIR", raising=False)
     monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -112,3 +113,30 @@ def test_help_is_complete(capsys):
 def test_video_use_is_the_edit_command():
     assert tools.command(tools.TOOLS["video-use"]) == "simplicio-video edit"
     assert tools.TOOLS["video-use"].ref == "b877063"
+
+
+def test_video_use_checkout_where_setup_puts_it_is_installed_and_reads_its_commit(_isolated, monkeypatch, capsys):
+    """tools/video-use/setup.sh clones to $VIDEO_USE_DIR (default ~/.cache/simplicio/video-use), not to the tools cache, and
+    upstream keeps the helpers under helpers/: that checkout is an installed track, and `status` reads its HEAD."""
+    checkout = _isolated / "video-use"
+    monkeypatch.setenv("VIDEO_USE_DIR", str(checkout))
+    git_calls = []
+    monkeypatch.setattr(tools, "_git", lambda *args, cwd=None: git_calls.append((args, cwd)) or "b877063835e6")
+    assert tools.is_installed(tools.get("video-use")) is False  # nothing there yet
+    (checkout / ".git").mkdir(parents=True)
+    (checkout / "helpers").mkdir()
+    (checkout / "helpers" / "render.py").write_text("", encoding="utf8")
+
+    assert tools.find("video-use") == checkout.resolve()
+    assert tools.is_installed(tools.get("video-use")) is True
+    rc, out, err = _run(["tools", "--json"], capsys)
+    rows = {r["name"]: r["installed"] for r in json.loads(out)}
+    assert rc == 0 and rows["video-use"] is True
+    assert rows["opencut"] is False  # the other tracks keep their own place and state
+
+    rep = status.tool_status("video-use")
+    assert rep["installed"] is True
+    assert rep["version"] == "b877063835e6"  # the checkout's HEAD, read with git in that checkout
+    assert rep["pinned"] == "b877063"
+    assert git_calls[-1] == (("rev-parse", "--short=12", "HEAD"), checkout.resolve())
+    assert tools.checkout_dir(tools.get("opencut")) == _isolated / "tools" / "opencut"
