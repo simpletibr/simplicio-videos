@@ -406,3 +406,31 @@ def test_todo_video_tem_cta_no_final_nas_quatro_skills():
         assert "chamada final" in checklist and "slogan" in checklist, nome
         for acao in ("comente", "clique", "siga", "salve"):
             assert acao in checklist, (nome, acao)
+
+
+# --- review of PR #181: a flag vale para o verbo que a aceita, e a tabela cita verbos que existem ----------------------------------------
+
+
+def _problemas_de_celula(texto: str) -> list:
+    """TDD stub (commit 1 of the review): the real check comes with the fix. Returns what is wrong with the table cells of `texto`."""
+    return []
+
+
+def test_a_flag_de_um_verbo_nao_serve_a_outro_verbo():
+    """`--autorizo` exists in media.py (for `fetch`): `media probe --autorizo` passes the module check and must fail per verb."""
+    assert _confere("simplicio-video media probe reel.mp4 --autorizo")
+    assert _confere("simplicio-video voicestudio tts \"oi\" -o out/a.wav --name Voz")
+    assert not _confere("simplicio-video media fetch URL -o out/a.mp4 --autorizo")
+    assert not _confere("simplicio-video media mask out/a.mp4 --box 1,2,3,4 --from 0 --to 2 -o out/b.mp4")
+
+
+def test_a_tabela_pega_grupo_e_verbo_que_nao_existem_mesmo_sem_o_prefixo():
+    """A table cell cites `media fetch` without the `simplicio-video` prefix: its verb must exist too."""
+    assert _problemas_de_celula("| Pedido | `media fetchh URL -o out/a.mp4 --autorizo` |")
+    assert not _problemas_de_celula("| Pedido | `media fetch URL -o out/a.mp4 --autorizo` |")
+
+
+@pytest.mark.parametrize("nome", NOMES)
+def test_as_celulas_de_tabela_das_skills_citam_so_verbos_que_existem(nome):
+    ruins = _problemas_de_celula(_texto(nome))
+    assert not ruins, f"{nome}: cells that cite a command the CLI does not have:\n  " + "\n  ".join(ruins)

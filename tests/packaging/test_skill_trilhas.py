@@ -146,10 +146,18 @@ def test_cada_receita_diz_o_que_roda_aqui(letra):
     assert re.search(r"local|aqui|no terminal|terminal", _recipe_section(letra)), f"recipe ({letra}) does not say what runs locally"
 
 
-def test_as_receitas_dizem_o_que_pede_autorizacao_chave_ou_consentimento():
-    assert "--autorizo" in _recipe_section("a") and "coleta" in _recipe_section("a")
-    assert "consentimento" in _recipe_section("d") and "API_KEY" in TEXTO or "chave" in TEXTO
-    assert "--yes" in _recipe_section("e") or "--yes" in TEXTO
+def _termos_de_autorizacao(texto: str) -> list:
+    """TDD stub (commit 1 of the review): the real check comes with the fix. Returns the missing terms of the recipes."""
+    return []
+
+
+def test_os_termos_de_autorizacao_estao_nas_receitas():
+    assert _termos_de_autorizacao(TEXTO) == []
+
+
+def test_a_checagem_de_termos_pega_o_termo_que_falta():
+    """Mutation: without `consentimento` in the text the check must say so (the old `A and B or C` said nothing)."""
+    assert _termos_de_autorizacao(TEXTO.replace("consentimento", "")) == ["consentimento"]
 
 
 def test_a_receita_de_remake_nao_copia_material_de_terceiro_e_usa_a_coleta():
@@ -191,3 +199,75 @@ def test_a_skill_nao_manda_o_agente_postar_nem_publicar():
     texto = " ".join(TEXTO.split())
     assert "não posta" in texto
     assert not re.search(r"\b(poste|publique|publicar agora|faça o upload)\b", texto, re.I), "the skill must never tell the agent to post"
+
+
+# --- review of PR #181: texto que afirma o que o código faz, e o .gitignore -------------------------------------------------------------
+
+
+def test_o_mcp_nao_diz_que_nao_instala_nada():
+    """The MCP installs and downloads pinned tracks (edit setup, the clones of the default folder, media fetch, video.clone)."""
+    assert "não instala nada" not in " ".join(TEXTO.split())
+
+
+def test_quem_baixa_codigo_pelo_mcp_tem_secao_com_a_versao_fixada():
+    secao = " ".join(_secao("Quem baixa código pelo MCP").split())
+    for trecho in ("edit setup", "rea-video clone", "montage clone", "opencut clone", "toonflow clone", "moneyprinter clone",
+                   "media fetch", "video.clone", "0.2.17", "yt-dlp", "fixad"):
+        assert trecho in secao, f"a seção 'Quem baixa código pelo MCP' não cita {trecho!r}"
+
+
+def test_a_receita_a_roda_o_decompose_sem_modelo_de_visao():
+    """Outside the MCP nothing adds --no-vlm: a recipe that means "no third party" must say it."""
+    assert "--no-vlm" in _recipe_section("a")
+
+
+def test_o_fetch_json_vem_do_download_e_nao_do_decompose():
+    passo1, _, _ = _recipe_section("a").partition("rea-video decompose")
+    assert ".fetch.json" in passo1
+
+
+def test_remake_run_nao_promete_custo():
+    """`remake-run --dry-run` only lists the tasks and the parameters (upstream cli.py: 'só lista as tarefas e os parâmetros')."""
+    texto = " ".join(TEXTO.split())
+    assert "mostra as tarefas e o custo" not in texto
+    assert "não calcula o custo" in texto
+
+
+def test_nenhum_comando_envia_nada_e_falso():
+    texto = " ".join(TEXTO.split())
+    assert "envia nada" not in texto
+    secao = " ".join(_secao("Só no terminal, e por quê").split())
+    assert "TinyFish" in secao and "--vlm" in secao and "transcribe-batch" in secao
+
+
+def test_hypit_exige_node_22_15():
+    texto = " ".join(TEXTO.split())
+    assert "Node 22.15" in texto and "Node 22 ou mais novo" not in texto
+
+
+def test_a_regra_de_gasto_e_envio_pede_o_sim_do_usuario():
+    regras = " ".join(_secao("Regras").split())
+    assert "--yes" in regras and "--atualizar" in regras and "sim do usuário" in regras
+
+
+def test_assemble_e_so_ffmpeg_e_a_justificativa_diz_isso():
+    secao = " ".join(_secao("Só no terminal, e por quê").split())
+    assert re.search(r"assemble[^\n]*ffmpeg", secao), "rea-video assemble only runs ffmpeg: say so, not 'runs code'"
+
+
+def test_o_serve_do_moneyprinter_tem_host_e_o_do_toonflow_nao():
+    secao = " ".join(_secao("Só no terminal, e por quê").split())
+    assert "moneyprinter serve --host" in secao
+    assert "toonflow serve --host" not in " ".join(TEXTO.split())
+
+
+def test_os_caminhos_absolutos_so_sao_exigidos_na_saida():
+    texto = " ".join(TEXTO.split())
+    assert "todo caminho de mídia ou de `input` são absolutos" not in texto
+    assert "resolvida contra o diretório" in texto
+
+
+def test_o_gitignore_tem_a_skill_de_trilhas():
+    from _comum import ROOT as RAIZ
+
+    assert ".claude/skills/simplicio-video-trilhas/" in (RAIZ / ".gitignore").read_text(encoding="utf-8").splitlines()
