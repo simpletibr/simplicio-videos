@@ -123,9 +123,32 @@ def test_pipelines_show_rejects_path_tricks(fake_om, capsys, name):
 
 def test_pipelines_do_not_execute_yaml_tags(fake_om, capsys):
     (fake_om / "pipeline_defs" / "evil.yaml").write_text("name: evil\nx: !!python/object/apply:os.system ['echo pwned']\n", encoding="utf8")
-    code, _, err = run(capsys, "pipelines", "list")
-    assert "Traceback" not in err
-    assert code == 1 and "evil" in err
+    code, out, err = run(capsys, "pipelines", "list", "--json")
+    assert code == 0 and "Traceback" not in err
+    data = json.loads(out)
+    assert [p["name"] for p in data["pipelines"]] == ["alpha", "beta"]
+    assert [e["arquivo"] for e in data["erros"]] == ["evil.yaml"]
+    assert data["erros"][0]["motivo"]
+
+
+def test_pipelines_list_skips_malformed_and_warns(fake_om, capsys):
+    (fake_om / "pipeline_defs" / "broken.yaml").write_text("a: [unclosed\n", encoding="utf8")
+    (fake_om / "pipeline_defs" / "scalar.yaml").write_text("- 1\n- 2\n", encoding="utf8")
+    code, out, err = run(capsys, "pipelines", "list")
+    assert code == 0
+    assert "alpha" in out and "beta" in out
+    assert "broken.yaml" in err and "scalar.yaml" in err
+
+
+def test_pipelines_list_without_errors_has_empty_erros(fake_om, capsys):
+    _, out, _ = run(capsys, "pipelines", "list", "--json")
+    assert json.loads(out)["erros"] == []
+
+
+def test_pipelines_show_malformed_names_the_file(fake_om, capsys):
+    (fake_om / "pipeline_defs" / "broken.yaml").write_text("a: [unclosed\n", encoding="utf8")
+    code, _, err = run(capsys, "pipelines", "show", "broken")
+    assert code == 1 and "broken.yaml" in err and "Traceback" not in err
 
 
 def test_missing_checkout_says_clone(tmp_path, monkeypatch, capsys):
