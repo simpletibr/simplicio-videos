@@ -10,10 +10,12 @@ How it works, in a few rules:
   `_stop_group`): cancel = SIGTERM to the runner, which sends SIGINT to the task group, waits a grace period, then
   SIGKILL, then sweeps the group. No port is opened and nothing stays running after the task ends.
 - A closed list of tasks (`KINDS`): `swap-run`, `voice`, `rea-video` (decompose without the vision model, and stems) and
-  `moneyprinter` (a free MoneyPrinterTurbo run: supplied script, local material, Edge or silent voice). `swap-run` spends
+  `moneyprinter` (a free MoneyPrinterTurbo run: supplied script, local material, Edge or silent voice) and `montage-tool`
+  (one OpenMontage tool through `montage run-tool`). `swap-run` spends
   money, so it is confirmed at submission (`--yes` and `--autorizo`, after the same checks as `swap run`) and can only be
   submitted from the terminal. Over MCP only `voice` with a LOCAL provider, `rea-video` (decompose without the vision model,
-  stems) and `moneyprinter` (free runs only, absolute `out`; `video.moneyprinter generate|run` sends it) can be submitted;
+  stems), `moneyprinter` (free runs only, absolute `out`; `video.moneyprinter generate|run` sends it) and `montage-tool`
+  (local, free and offline tools only, strict gate, new outputs; `video.montage run-tool` sends it) can be submitted;
   status, list, result and cancel work for every task.
 - If the runner dies without writing a final state, the next status/list marks the task `lost` and kills what it left
   (orphan recovery). Finished tasks older than a week are removed on submit and by `jobs clean`.
@@ -452,7 +454,7 @@ def _prepare_voice(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, 
     return p, spends, extra
 
 
-def _argv_swap(p: dict) -> list[str]:
+def _argv_swap(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by swap)
     a = ["swap", "run", "--provider", p["provider"], "--video", p["video"]]
     for r in p.get("refs") or []:
         a += ["--ref", r]
@@ -465,7 +467,7 @@ def _argv_swap(p: dict) -> list[str]:
     return a + (["--aceito-unverified"] if p.get("aceito_unverified") else []) + (["--force"] if p.get("force") else [])
 
 
-def _argv_voice(p: dict) -> list[str]:
+def _argv_voice(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by voice)
     a = ["voice", p["contrato"], *p.get("only", []), "--provider", p["provider"]]
     if p.get("force"):
         a.append("--force")
@@ -512,7 +514,7 @@ def _prepare_rea_video(params: dict, confirm_yes: bool, origin: str) -> tuple[di
     return {"args": args, "cwd": cwd}, False, {"cwd": cwd, "estimate_usd": None, "confirmed": None}
 
 
-def _argv_rea_video(p: dict) -> list[str]:
+def _argv_rea_video(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by rea-video)
     """Checked again here, in the runner, so state edited on disk after the submit cannot add --vlm or --env-file."""
     from . import rea_video
     return ["rea-video", *rea_video.job_args(p["args"])]
@@ -562,7 +564,7 @@ def _prepare_moneyprinter(params: dict, confirm_yes: bool, origin: str) -> tuple
     return p, False, {"estimate_usd": None, "confirmed": None}
 
 
-def _argv_moneyprinter(p: dict) -> list[str]:
+def _argv_moneyprinter(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by moneyprinter)
     from . import moneyprinter
     return moneyprinter.job_argv(p)
 
@@ -575,8 +577,70 @@ def _result_moneyprinter(p: dict, last_json: dict | None) -> dict | None:
 _register("moneyprinter", prepare=_prepare_moneyprinter, argv=_argv_moneyprinter, result=_result_moneyprinter)
 
 
-def build_argv(kind: str, params: dict) -> list[str]:
-    return KINDS[kind]["argv"](params)
+# ------------------------------------------------------------------------------------------ montage-tool (T2c)
+
+def _prepare_montage_tool(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    """`montage run-tool` as a task. Submitted over MCP (origin mcp) it passes the STRICT gate (local, free, offline, absolute
+    paths, new outputs), so nothing that spends or uses the network is queued from there. The terminal submits with its own gate."""
+    from . import montage
+    _check_keys(params, {"name", "input"})
+    name, inputs = params.get("name"), params.get("input", {})
+    strict = origin != "terminal"
+    try:
+        plan = montage.run_tool_plan(name if isinstance(name, str) else "", inputs, strict=strict, yes=confirm_yes)
+    except montage.MontageError as e:
+        raise JobError(str(e)) from None
+    if plan["refusal"]:
+        raise JobError(plan["refusal"])
+    p = {"name": name, "input": inputs, "strict": strict, "rid": uuid.uuid4().hex}  # the origin is the job's, not the spec's
+    extra = {"estimate_usd": plan["cost"], "confirmed": {"yes": True, "at": now_iso()} if plan["needs_yes"] else None}
+    return p, plan["spends"], extra
+
+
+def _montage_result_path(rid) -> Path | None:
+    """The result file of one montage-tool job: beside the job folders, named by the token of its spec (the job id is made
+    after the spec, so the token is what both the argv and the result step can know)."""
+    if not (isinstance(rid, str) and re.fullmatch(r"[0-9a-f]{32}", rid)):
+        return None
+    return jobs_dir() / _MONTAGE_RESULT_DIR / f"{rid}.json"
+
+
+_MONTAGE_RESULT_DIR = ".resultados"
+
+
+def _argv_montage_tool(p: dict, origin: str | None = None) -> list[str]:
+    """The run's argv. The strict gate comes from the job's ORIGIN (its top-level field, set by the engine at submit, which the
+    runner passes here), never from the spec: a copy of the origin inside the spec is ignored. A job whose origin is missing
+    counts as MCP, so it always re-runs the MCP gate in its own process."""
+    from . import montage
+    a = ["montage", "run-tool", p["name"], "--input", montage.input_json(p["input"]), "--yes", "--json"]
+    rp = _montage_result_path(p.get("rid"))
+    if rp is not None:
+        a += ["--resultado-em", str(rp)]  # the run writes its whole result here; the output line stays small
+    return a + (["--sob-mcp"] if (origin or "mcp") != "terminal" else [])
+
+
+def _result_montage_tool(p: dict, last_json: dict | None) -> dict | None:
+    """The result step: the whole JSON the run wrote to its result file (any size), read here and removed."""
+    rp = _montage_result_path(p.get("rid"))
+    if rp is None:
+        return None
+    try:
+        res = json.loads(rp.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    finally:
+        with contextlib.suppress(OSError):
+            rp.unlink()
+    return res if isinstance(res, dict) and res.get("tool") == p.get("name") else None
+
+
+_register("montage-tool", prepare=_prepare_montage_tool, argv=_argv_montage_tool, result=_result_montage_tool)
+
+
+def build_argv(kind: str, params: dict, origin: str | None = None) -> list[str]:
+    """The argv of a task. `origin` is the task's own origin (the top-level field the engine wrote at submit)."""
+    return KINDS[kind]["argv"](params, origin)
 
 
 # -------------------------------------------------------------------------------------------------------------- submit
@@ -784,7 +848,7 @@ async def _runner(jid: str) -> int:
     rc: int | None = None
     error: str | None = None
     try:
-        argv = [sys.executable, "-m", "simplicio_video", *build_argv(kind, params)]
+        argv = [sys.executable, "-m", "simplicio_video", *build_argv(kind, params, st.get("origin"))]
         proc = await asyncio.create_subprocess_exec(*argv, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
                                                     stderr=asyncio.subprocess.STDOUT, start_new_session=True, cwd=st.get("cwd"),
                                                     env=os.environ.copy())
@@ -841,7 +905,9 @@ HELP_DESC = (
     "  voice         voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede\n"
     "                (gemini) pede --yes\n"
     "  moneyprinter  corrida grátis do MoneyPrinterTurbo (roteiro seu, material local, voz Edge ou muda, --out absoluto). Só pelo\n"
-    "                MCP (video.moneyprinter generate|run); quem gasta roda no terminal com `moneyprinter run --yes`\n\n"
+    "                MCP (video.moneyprinter generate|run); quem gasta roda no terminal com `moneyprinter run --yes`\n"
+    "  montage-tool  montage run-tool em segundo plano (uma tool do OpenMontage). Pelo MCP (video.montage run-tool) só a tool\n"
+    "                local, grátis e offline, com caminhos absolutos e saída nova; o resto roda no terminal com --yes\n\n"
     "Subcomandos:\n"
     "  submit TIPO ...   cria a tarefa e devolve o id\n"
     "  status ID         estado, tempos, pids e erro (estado lost = o runner morreu; a tarefa que sobrou é encerrada)\n"
@@ -849,7 +915,7 @@ HELP_DESC = (
     "  result ID         o resultado de uma tarefa terminada (sai com 2 se ainda roda)\n"
     "  cancel ID         SIGINT no grupo da tarefa, SIGKILL depois da tolerância; o swap cancela limpo e grava o manifesto\n"
     "  clean             remove tarefas terminadas há mais de 7 dias (--older-than-days); `submit` também limpa\n\n"
-    "Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local, de rea-video (decompose sem --vlm, stems) e de moneyprinter (corrida grátis). swap-run nunca.\n"
+    "Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local, de rea-video (decompose sem --vlm, stems) e de moneyprinter (corrida grátis) e de montage-tool (tool local, grátis e offline). swap-run nunca.\n"
     "A chave de API fica só no ambiente: argumentos com chave são recusados e nada vai para o estado nem para o log."
 )
 HELP_EPILOG = (

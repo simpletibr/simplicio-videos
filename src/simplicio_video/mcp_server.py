@@ -247,14 +247,17 @@ def video_clone(args: str = "") -> dict:
     return _cli(["clone", *argv])
 
 
-DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, and the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json). Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed, and paths inside `input` must be absolute. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only."
+DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json) and run-tool NAME with `input` as an object: one of the reviewed local, free, offline tools (video_trimmer with operation cut or speed, audio_probe, frame_sampler, scene_detect), run as a background job (the answer is the job id; video.jobs result ID gives the outputs with sha256). Its inputs must be absolute regular files, its outputs new files outside system, engine and venv folders, and no URL, URI scheme or protocol prefix (file:, data:, concat:, subfile,) may appear in `input`. Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed. run-tool refuses everything else (paid, networked, not local, not reviewed, publishing); the terminal runs a paid or networked tool with --yes, after the estimate. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only."
 def video_montage(args: str = "", input: dict | None = None) -> dict:
     """OpenMontage over MCP: `clone` into the default folder, `doctor`, `preflight`, `status`, help and the read-only registry
     (`pipelines`, `tools`, `envelope`, `estimate`). `setup` installs a venv with pip/npm; `open` (the default with no args) and
     `serve` start an interface that never ends; `demo` renders with OpenMontage pipelines; `clone <dir>` picks where the checkout is
-    written, and any other argument (a script, `-c` or `-m`) would run Python code of the client's choice: all of that is terminal-only."""
+    written, and any other argument (a script, `-c` or `-m`) would run Python code of the client's choice: all of that is terminal-only.
+    `run-tool NOME` with `input` submits one local, free, offline tool as a job (see _montage_run_tool)."""
     from . import montage
     argv = _argv(args)
+    if argv[:1] == ["run-tool"]:
+        return _montage_run_tool(argv[1:], input)
     if input is not None:  # a structured object: `args` is split on spaces, which would break a JSON with spaces or quotes
         if argv[:1] != ["estimate"]:
             return {"ok": False, "error": "video.montage: `input` só vale com `estimate NOME` (as entradas da tool, como objeto)"}
@@ -270,6 +273,26 @@ def video_montage(args: str = "", input: dict | None = None) -> dict:
     if not argv or argv[0] in ("open", "serve"):
         return _so_terminal("montage open|serve", "montage open e serve sobem uma interface que não termina")
     return _so_terminal(f"montage {argv[0]}", f"montage {argv[0]} roda outra coisa do OpenMontage que o MCP não aceita")
+
+
+def _montage_run_tool(rest: list[str], inputs) -> dict:
+    """`run-tool NOME` over MCP: nothing runs in this process. The strict gate and the run are the job `montage-tool`, and the
+    answer is its id (`video.jobs` with `status` or `result` follows it). Only the name and `input` (an object) are accepted:
+    there is no --yes over MCP."""
+    from . import jobs, montage
+    if len(rest) != 1:
+        return _so_terminal("montage run-tool NOME --input JSON --yes",
+                            "pelo MCP, run-tool recebe só o nome da tool e `input` como objeto")
+    if inputs is None:
+        inputs = {}
+    if not isinstance(inputs, dict):
+        return {"ok": False, "error": "video.montage: `input` precisa ser um objeto JSON ({...})"}
+    try:
+        st = jobs.submit("montage-tool", {"name": rest[0], "input": inputs}, confirm_yes=False, origin="mcp")
+    except (jobs.JobError, montage.MontageError) as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "job": jobs.summary(st),
+            "note": "tarefa em segundo plano: acompanhe com video.jobs (status, ou result com o id); o resultado traz as saídas e o sha256"}
 
 
 DESC_video_opencut = "OpenCut editor for manual finishing, pinned to opencut-classic (https://github.com/OpenCut-app/opencut-classic, archived upstream): clone (default folder), status (checkout, pin, bun, node_modules, .env.local, port; never prints values) and where. dev (a server that never ends) and a folder for clone are terminal-only."
@@ -344,7 +367,7 @@ def video_swap(acao: str = "providers", provider: str | None = None, video: str 
         return {"ok": False, "error": str(e)}
 
 
-DESC_video_jobs = "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}), rea-video (kind=rea-video, params={args: [decompose|stems, ...]}, no vision model; usually sent through video.rea-video) and moneyprinter (kind=moneyprinter, a free run; usually sent through video.moneyprinter generate|run). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes)."
+DESC_video_jobs = "Background tasks: list, status, result, cancel; submit for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}), rea-video (kind=rea-video, params={args: [decompose|stems, ...]}, no vision model; usually sent through video.rea-video), moneyprinter (kind=moneyprinter, a free run; usually sent through video.moneyprinter generate|run) and montage-tool (kind=montage-tool, params={name, input}: the same strict gate as video.montage run-tool, so only a reviewed local free offline tool). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes)."
 def video_jobs(acao: str = "list", id: str | None = None, kind: str | None = None, params: dict | None = None,
                state: str | None = None) -> dict:
     """Background tasks over MCP: `list`, `status`, `result`, `cancel` for any task, and `submit` ONLY for the kinds that
