@@ -22,6 +22,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -30,6 +31,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from _orfao import SINAIS, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao  # noqa: F401
 from conftest import ROOT, offline_env
 from simplicio_video import cli, instagram, mcp_server, tools, tools_lock, tools_update
 
@@ -846,6 +848,29 @@ def test_a_signal_right_after_the_script_starts_still_kills_it(ig, monkeypatch, 
     finally:
         if pidfile.exists() and pidfile.read_text() and vivo(int(pidfile.read_text())):
             os.kill(int(pidfile.read_text()), signal.SIGKILL)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.usefixtures("sinais_padrao")
+@pytest.mark.parametrize("nome", SINAIS)
+def test_every_stop_signal_inside_popen_kills_the_script_and_the_private_folder_goes(ig, monkeypatch, tmp_path, nome):
+    """SIGTERM and SIGHUP were already held until the child existed; Ctrl+C was not: KeyboardInterrupt came out of Popen with no
+    process to kill, the private folder went with the engine and the script kept running."""
+    pidfile = tmp_path / "pid"
+    tmpd = tmp_path / "tmpd"
+    tmpd.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmpd))
+    sinaliza_no_popen(monkeypatch, pidfile, getattr(signal, nome), so_se=str(pidfile))
+    exc, codigo = parada_esperada(nome)
+    try:
+        with pytest.raises(exc) as saida:
+            instagram.run_tool("hookscore", ["--hook", f"TRIGGER:SLEEP:{pidfile}"])
+        if codigo is not None:
+            assert saida.value.code == codigo
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 10), "the script outlived the engine"
+        assert not list(tmpd.glob("simplicio-instagram-*")), "the private folder was left behind"
+    finally:
+        mata_o_que_sobrou(pidfile)
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
