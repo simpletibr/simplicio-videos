@@ -689,7 +689,7 @@ issues:
       - "src/simplicio_video/data/skills/simplicio-video-trilhas/**"  # skill guarda-chuva das trilhas (#181, #185): sem dono antes; é da trilha de skills
       - "skills/simplicio-video-trilhas/**"
       - "tests/packaging/test_skill_trilhas.py"  # a #43 também cobre tests/packaging/**; sobreposição declarada
-      - "tests/test_mcp_registration.py"  # só o teste da descrição do video.media (#185); sem dono antes
+      - "tests/test_mcp_registration.py"  # só o teste da descrição do video.media (#185); sem dono antes. Discutivelmente é da trilha de mídia (video.media): fica na #141 até essa trilha ter issue com este arquivo
       - ".gitignore"
       - "AGENTS.md#Mapa"
       - "CHANGELOG.md#Unreleased"
