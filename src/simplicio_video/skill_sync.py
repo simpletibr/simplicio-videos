@@ -16,7 +16,7 @@ imports it, never the other way round.
 from __future__ import annotations
 
 SKILLS = ("simplicio-video", "simplicio-video-social", "simplicio-video-media", "simplicio-video-voicestudio",
-          "simplicio-video-shorts", "simplicio-video-edit",
+          "simplicio-video-shorts", "simplicio-video-edit", "simplicio-video-trilhas",
           "deep-news", "deep-service", "deep-product")
 
 # host -> skills root under the home. `claude` is where every install lands and what `--verify` is anchored to.

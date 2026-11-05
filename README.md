@@ -150,6 +150,8 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
 The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), or a PyPI version with a sha256 (yt-dlp); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all twelve tracks.
 
+Which track answers each request (a table of request, track, command, MCP tool and limits) and how to chain two or more is in the skill [`simplicio-video-trilhas`](skills/simplicio-video-trilhas/SKILL.md), written in Portuguese like the other skills.
+
 | Project | License | Command | MCP |
 |---|---|---|---|
 | [OpenMontage](https://github.com/calesthio/OpenMontage) | AGPL-3.0 | `montage` | `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `status`, the registry reads, and `run-tool` for four reviewed tools, as a job |

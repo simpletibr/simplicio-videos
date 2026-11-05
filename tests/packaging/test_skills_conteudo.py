@@ -23,8 +23,104 @@ from simplicio_video.cli import build_parser
 
 PACOTE = ROOT / "src" / "simplicio_video" / "data" / "skills"
 ESPELHO = ROOT / "skills"
-NOMES = ("simplicio-video", "simplicio-video-social", "deep-news", "deep-service", "deep-product")
+NOMES = ("simplicio-video", "simplicio-video-social", "simplicio-video-trilhas", "deep-news", "deep-service", "deep-product")
 DELEGADOS = {"social": social._parser, "openverse": openverse._parser, "busca": busca._parser}  # `args: REMAINDER` in cli.py
+# Os outros grupos que repassam os argumentos a outro programa (`args: REMAINDER` em cli.py): o parser não conhece o verbo nem as
+# flags, então a conferência é esta. Cada verbo citado tem de estar na lista do grupo, e a lista tem de aparecer como texto no módulo
+# que a implementa (o teste lê o código; nenhum destes programas roda aqui). As listas vêm do --help de cada comando e do código.
+PASSAGEM = {
+    "media": ("media.py", ("fetch", "probe", "audio", "sheet", "subs", "burn", "mask", "replace-audio", "voice-track")),
+    "edit": ("edit.py", ("setup", "transcribe", "transcribe-batch", "pack", "render", "verify", "grade")),
+    "shorts": ("shorts.py", ("inspect", "plan", "cut", "run")),
+    "voicestudio": ("voicestudio.py", ("status", "voices", "languages", "personalities", "tts", "transcribe", "clone", "describe",
+                                       "design", "dub", "dub-export", "mcp")),
+    "montage": ("montage.py", ("clone", "open", "serve", "demo", "setup", "status", "doctor", "hyperframes-doctor", "preflight",
+                               "pipelines", "tools", "envelope", "estimate", "run-tool")),
+    "moneyprinter": ("moneyprinter.py", ("clone", "setup", "serve", "where", "generate", "run", "status")),
+    "matchcut": ("matchcut.py", ("clone", "where", "status", "setup", "run")),
+    "instagram": ("instagram.py", ("clone", "where", "status", "skills", "skill", "run")),
+    "rea-video": ("rea_video.py", ("clone", "setup", "where", "status", "summary", "probe", "tiles", "stems", "review",
+                                   "apply-review", "remake-plan", "remake-run", "assemble", "capsule-draft", "decompose")),
+    "toonflow": ("toonflow.py", ("clone", "serve", "status", "mcp", "where")),
+    "opencut": ("opencut.py", ("clone", "dev", "status", "where")),
+    "clone": ("mcp_server.py", ("media", "help", "version", "doctor", "check", "plan", "pricing", "status", "builds", "history", "activity",
+                                "inspect", "logs", "paths", "vocabulary", "build", "get")),  # o Hypit: a lista que o MCP aceita
+    "jobs": ("jobs.py", ("submit", "status", "list", "cancel", "result", "clean")),
+    "swap": ("swap.py", ("providers", "estimate", "run", "status")),
+    "formats": ("formats.py", ("list", "show", "prompt")),
+}
+
+
+# As flags de cada verbo que a skill cita: o que o --help e o código do módulo aceitam ao verbo (a flag de um verbo não serve a outro:
+# `--autorizo` existe em media.py para `fetch`, e `media probe --autorizo` tem de falhar). Só o que vem antes do `--` conta: depois dele
+# são argumentos do programa de terceiros (o upstream), que aqui não são conferidos. Verbos fora desta tabela seguem a conferência por módulo.
+# `rea-video remake-run` e `assemble` ficam de fora: são do upstream, e as opções deles não estão no código do motor.
+FLAGS_POR_VERBO = {
+    ("media", "fetch"): {"-o", "--info", "--autorizo", "--max-mb", "--timeout", "--subs", "--auto-subs", "--section", "--audio-only"},
+    ("media", "probe"): {"-o"},
+    ("media", "audio"): {"-o", "--rate"},
+    ("media", "sheet"): {"-o", "--every", "--cols"},
+    ("media", "subs"): {"-o", "--style", "--wrap"},
+    ("media", "burn"): {"-o", "--crf", "--preset"},
+    ("media", "mask"): {"-o", "--box", "--from", "--to"},
+    ("media", "replace-audio"): {"-o", "--keep-length"},
+    ("media", "voice-track"): {"-o", "--duration", "--max-stretch"},
+    ("edit", "setup"): set(),
+    ("edit", "transcribe"): {"-o", "--out", "--output", "--model", "--lang", "--fixes", "--script"},
+    ("edit", "grade"): {"-o", "--output", "--preset", "--filter", "--analyze", "--list-presets", "--print-preset"},
+    ("shorts", "inspect"): set(),
+    ("shorts", "plan"): {"-o", "--out", "--transcript", "--clips", "--min", "--max"},
+    ("shorts", "cut"): {"-o", "--out", "--subs", "--fit", "--crf", "--preset", "--fps", "--dry-run"},
+    ("shorts", "run"): {"-o", "--out", "--transcript", "--clips", "--min", "--max", "--subs", "--fit", "--crf", "--preset", "--fps",
+                        "--dry-run"},
+    ("voicestudio", "status"): {"--json"},
+    ("voicestudio", "voices"): {"--json"},
+    ("voicestudio", "languages"): {"--json"},
+    ("voicestudio", "tts"): {"-o", "--out", "--profile", "--language", "--format", "--json"},
+    ("voicestudio", "transcribe"): {"--language", "--rest", "--json"},
+    ("voicestudio", "clone"): {"--name", "--language", "--ref-text", "--json"},
+    ("voicestudio", "design"): {"--name", "--language", "--json"},
+    ("voicestudio", "dub"): {"--source-lang", "--audio", "--job-id", "--json"},
+    ("voicestudio", "dub-export"): {"--job", "--lang", "--bed-level", "-o", "--out", "--json"},
+    ("montage", "status"): {"--json"},
+    ("montage", "pipelines"): {"--json"},
+    ("montage", "tools"): {"--json", "--runtime"},
+    ("montage", "estimate"): {"--json", "--input"},
+    ("montage", "run-tool"): {"--input", "--yes", "--json", "--timeout"},
+    ("moneyprinter", "generate"): {"--script", "--material", "--out", "--voice", "--aspect", "--subject", "--api-port", "--json"},
+    ("moneyprinter", "run"): {"--yes", "--out"},
+    ("moneyprinter", "serve"): {"--webui", "--api", "--lan", "--host", "--api-port"},
+    ("instagram", "run"): {"--forcar", "--bruto"},
+    ("instagram", "where"): {"--skills", "--json"},
+    ("matchcut", "run"): {"--forcar", "--bruto"},
+    ("rea-video", "decompose"): {"-o", "--out", "--vlm", "--no-vlm", "--no-whole", "--no-ocr", "--ocr-lang", "--no-packaging",
+                                 "--no-stems", "--workers", "--engine", "--meta"},
+    ("rea-video", "review"): {"--force"},
+    ("rea-video", "apply-review"): {"--by"},
+    ("rea-video", "probe"): {"--tags"},
+    ("rea-video", "tiles"): {"-o", "--out", "--start", "--end", "--every", "--cols", "--cell", "--max"},
+    ("rea-video", "stems"): {"-o", "--out"},
+    ("rea-video", "remake-plan"): {"--capsule-root", "--engine", "--mode", "--labels"},
+    ("rea-video", "summary"): set(),
+    ("toonflow", "serve"): {"--lan", "--docker"},
+    ("toonflow", "mcp"): {"--port", "--json"},
+    ("toonflow", "status"): {"--json"},
+    ("opencut", "dev"): {"--lan"},
+    ("opencut", "status"): {"--json"},
+}
+
+
+def _fonte(arquivo: str) -> str:
+    return (ROOT / "src" / "simplicio_video" / arquivo).read_text(encoding="utf-8")
+
+
+def _literal(fonte: str, token: str) -> bool:
+    """The verb is written in the module: in its code, its help or its `a|b|c` lists (a word, not a part of a longer one)."""
+    return re.search(rf"(?<![\w-]){re.escape(token)}(?![\w-])", fonte) is not None
+
+
+def _flag_no_texto(fonte: str, flag: str) -> bool:
+    return re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", fonte) is not None
 
 
 def _texto(nome: str) -> str:
@@ -58,6 +154,23 @@ def _confere(comando: str) -> list:
     """What is wrong with one command line: an unknown verb, or a flag that the parser at the end of the chain does not have."""
     problemas = []
     palavras = comando.split()[1:]
+    if palavras and palavras[0] in PASSAGEM:
+        arquivo, verbos = PASSAGEM[palavras[0]]
+        fonte = _fonte(arquivo)
+        if len(palavras) > 1 and re.fullmatch(r"[a-z][a-z-]*", palavras[1]) and palavras[1] not in verbos:
+            problemas.append(f"`{palavras[1]}` is not a verb of `simplicio-video {palavras[0]}` ({', '.join(verbos)})")
+        grupo, verbo = palavras[0], (palavras[1] if len(palavras) > 1 else "")
+        if (grupo, verbo) in FLAGS_POR_VERBO:  # the option belongs to THIS verb, not to any verb of the module
+            antes = palavras[: palavras.index("--")] if "--" in palavras else palavras
+            permitidas = FLAGS_POR_VERBO[(grupo, verbo)] | {"-h", "--help"}
+            for token in antes[2:]:
+                opcao = token.split("=")[0]
+                if opcao.startswith("-") and opcao not in permitidas:
+                    problemas.append(f"{opcao} is not an option of `simplicio-video {grupo} {verbo}`")
+        for flag in set(re.findall(r"(?<![\w-])--[a-z][a-z0-9-]*", comando)):
+            if not _flag_no_texto(fonte, flag):
+                problemas.append(f"{flag} is not an option of `simplicio-video {palavras[0]}` ({arquivo})")
+        return problemas
     parser, usados = build_parser(), []
     for palavra in palavras:
         if len(usados) == 1 and usados[0] in DELEGADOS and not getattr(parser, "_delegado", False):
@@ -93,6 +206,31 @@ def test_o_varredor_acha_um_verbo_e_uma_flag_que_nao_existem():
     assert not _confere("simplicio-video social plan --video a.mp4 --target tiktok=@conta --ai-generated")
 
 
+def test_o_varredor_de_passagem_acha_verbo_e_flag_que_nao_existem():
+    assert _confere("simplicio-video media fetchh URL -o out/a.mp4 --autorizo")
+    assert _confere("simplicio-video media fetch URL -o out/a.mp4 --nao-existe")
+    assert _confere("simplicio-video montage run-tool audio_probe --input '{}' --nao-existe")
+    assert not _confere("simplicio-video media fetch URL -o out/a.mp4 --autorizo")
+    assert not _confere("simplicio-video montage run-tool audio_probe --input '{}' --yes")
+    assert not _confere("simplicio-video instagram run caption -- legenda.txt --json")
+
+
+def test_todo_comando_de_passagem_do_cli_esta_na_conferencia():
+    """Every command of cli.py that takes `args: REMAINDER` is checked here, by its verb list (or its own parser, `DELEGADOS`)."""
+    passagem = [nome for nome, sub in _sub(build_parser()).items() if any(a.dest == "args" and a.nargs == argparse.REMAINDER for a in sub._actions)]
+    assert len(passagem) >= 15, "the scan is broken: too few passthrough commands"
+    sem_conferencia = sorted(set(passagem) - set(PASSAGEM) - set(DELEGADOS))
+    assert not sem_conferencia, f"passthrough commands with no check in this test: {sem_conferencia}"
+
+
+@pytest.mark.parametrize("grupo", sorted(PASSAGEM))
+def test_os_verbos_de_passagem_estao_no_codigo_do_modulo(grupo):
+    arquivo, verbos = PASSAGEM[grupo]
+    fonte = _fonte(arquivo)
+    ausentes = [verbo for verbo in verbos if not _literal(fonte, verbo)]
+    assert not ausentes, f"`{grupo}` lists verbs that {arquivo} does not have: {ausentes}"
+
+
 @pytest.mark.parametrize("nome", NOMES)
 def test_toda_flag_da_skill_existe_em_algum_parser_do_cli(nome):
     """Flags written without their command (`--gpu-encode`, `--aceito-restricao`, `--permitir-dado-pessoal`...) must exist somewhere."""
@@ -106,6 +244,8 @@ def test_toda_flag_da_skill_existe_em_algum_parser_do_cli(nome):
     anda(build_parser())
     for fabrica in DELEGADOS.values():
         anda(fabrica())
+    for arquivo, _ in PASSAGEM.values():  # the options of a passthrough command live in its module (see `_confere`)
+        conhecidas.update(re.findall(r"(?<![\w-])--[a-z][a-z0-9-]*", _fonte(arquivo)))
     texto = _texto(nome)
     # `--gpu-encode` is a flag of the remote render script, `--with` of scripts/dev_install.sh and `--upgrade` of pip: not parsers of the CLI
     de_scripts = {"--gpu-encode", "--with", "--upgrade", "--publish"}  # `--publish`: the text says that it does NOT exist (#75)
@@ -225,6 +365,8 @@ def _problemas_de_caminho(texto: str) -> list:
             limpo = token.rstrip("/.,;:)")
             if ("<" in limpo) != (">" in limpo) or limpo.startswith("../"):
                 continue  # a piece of a placeholder (`<nome que o export criou>.jpg`), or a folder next to the user's own contract
+            if re.match(r"<[^>]+>/", limpo):
+                continue  # the user's own absolute folder, as a placeholder: `<pasta-absoluta>/assets/clip.mp4` (the MCP wants absolute paths)
             if re.fullmatch(r"simplicio\.[a-z-]+/v\d+|[A-Z][a-z]+/[A-Z][A-Za-z_]+|\d+/\d+|[\w<>.\-]+\|[\w<>.\-|]+", limpo):
                 continue  # a schema id, a time zone, an aspect ratio, an alternative list
             if limpo.replace("\\", "/") in SCRIPTS_DO_CHECKOUT or limpo.startswith(SAIDAS_DO_CLI) or limpo in NOMES_PERMITIDOS:
@@ -247,6 +389,8 @@ def test_o_varredor_de_caminhos_pega_o_que_o_usuario_do_pip_nao_tem():
     assert _problemas_de_caminho("Veja `ugc/README.md` e `docs/custos.md` e `clients/<slug>/coleta/` e `AGENTS.md` e `tools/video-use/`.")
     assert _problemas_de_caminho(f"[x]({URL_BASE}docs/nao-existe-mesmo.md)") or _existe_na_main("README.md") is None
     assert not _problemas_de_caminho("`out/final.mp4`, `assets/openverse/`, `simplicio_video/data/schema/contract.schema.json`, `bash scripts/dev_install.sh`, `timing.lock.json`")
+    assert not _problemas_de_caminho("`--input '{\"input_path\": \"<pasta-absoluta>/assets/video.mp4\"}'` e `<pasta-absoluta>/out/curto`")
+    assert _problemas_de_caminho("`/home/user/clip.mp4` e `src/simplicio_video/mcp_server.py`")
     assert not _problemas_de_caminho(f"Veja [o custo]({URL_BASE}docs/custos.md).") or _existe_na_main("docs/custos.md") is None
 
 
@@ -273,7 +417,7 @@ def test_toda_tool_mcp_citada_existe_no_servidor(nome):
     from simplicio_video import mcp_server
 
     existentes = {t[0] for t in mcp_server.TOOLS}
-    citadas = set(re.findall(r"\bvideo\.[a-z]+\b", _texto(nome)))
+    citadas = set(re.findall(r"\bvideo\.[a-z][a-z-]*[a-z]\b", _texto(nome)))  # `video.rea-video` has a hyphen
     assert citadas <= existentes | {"video.*"}, f"{nome} cites MCP tools that do not exist: {sorted(citadas - existentes)}"
 
 
@@ -329,3 +473,49 @@ def test_todo_video_tem_cta_no_final_nas_quatro_skills():
         assert "chamada final" in checklist and "slogan" in checklist, nome
         for acao in ("comente", "clique", "siga", "salve"):
             assert acao in checklist, (nome, acao)
+
+
+# --- review of PR #181: a flag vale para o verbo que a aceita, e a tabela cita verbos que existem ----------------------------------------
+
+
+def _problemas_de_celula(texto: str) -> list:
+    """What is wrong with the commands that the table cells of `texto` cite without the `simplicio-video` prefix (`media fetch URL`):
+    the same checks of `_confere`, on the group and the verb that the cell names."""
+    problemas = []
+    for linha in texto.splitlines():
+        if not linha.startswith("|"):
+            continue
+        for trecho in re.findall(r"`([^`\n]+)`", linha):
+            palavras = trecho.split()
+            if palavras and (palavras[0] in PASSAGEM or palavras[0] in DELEGADOS):
+                problemas += [f"`{trecho}`: {problema}" for problema in _confere("simplicio-video " + trecho)]
+    return problemas
+
+
+def test_a_flag_de_um_verbo_nao_serve_a_outro_verbo():
+    """`--autorizo` exists in media.py (for `fetch`): `media probe --autorizo` passes the module check and must fail per verb."""
+    assert _confere("simplicio-video media probe reel.mp4 --autorizo")
+    assert _confere("simplicio-video voicestudio tts \"oi\" -o out/a.wav --name Voz")
+    assert not _confere("simplicio-video media fetch URL -o out/a.mp4 --autorizo")
+    assert not _confere("simplicio-video media mask out/a.mp4 --box 1,2,3,4 --from 0 --to 2 -o out/b.mp4")
+
+
+def test_a_tabela_pega_grupo_e_verbo_que_nao_existem_mesmo_sem_o_prefixo():
+    """A table cell cites `media fetch` without the `simplicio-video` prefix: its verb must exist too."""
+    assert _problemas_de_celula("| Pedido | `media fetchh URL -o out/a.mp4 --autorizo` |")
+    assert not _problemas_de_celula("| Pedido | `media fetch URL -o out/a.mp4 --autorizo` |")
+
+
+@pytest.mark.parametrize("nome", NOMES)
+def test_as_celulas_de_tabela_das_skills_citam_so_verbos_que_existem(nome):
+    ruins = _problemas_de_celula(_texto(nome))
+    assert not ruins, f"{nome}: cells that cite a command the CLI does not have:\n  " + "\n  ".join(ruins)
+
+
+@pytest.mark.parametrize("grupo, verbo", sorted(FLAGS_POR_VERBO))
+def test_as_flags_por_verbo_sao_de_verbos_listados_e_existem_no_codigo(grupo, verbo):
+    arquivo, verbos = PASSAGEM[grupo]
+    assert verbo in verbos, f"`{grupo} {verbo}` has options but is not a verb of the group"
+    fonte = _fonte(arquivo)
+    ausentes = [opcao for opcao in FLAGS_POR_VERBO[(grupo, verbo)] if not _flag_no_texto(fonte, opcao)]
+    assert not ausentes, f"`{grupo} {verbo}` lists options that {arquivo} does not have: {ausentes}"
