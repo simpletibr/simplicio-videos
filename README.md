@@ -29,7 +29,7 @@ Who it is for: people who make ads and short videos with voice, subtitles, and c
 | Reverse-engineer a reference video | `rea-video` | Ready on the pinned commit; installs on demand. A synthetic clip was tested end to end, real footage was not | Local by default. With `--vlm`, frames go to a vision model you configure |
 | MCP server | `simplicio-video-mcp` | 31 `video.*` tools | No `swap run` spending, no software removal |
 | Audio cleanup | not available yet | In a PR, not on main yet | not applicable |
-| Dubbing with preserved background | not available in the CLI yet | Today only in the VoiceStudio app; exposure in progress | not applicable |
+| Dubbing with preserved background | `voicestudio dub-export` | Exports a finished dubbing job from the VoiceStudio app, with music and effects | The dub is made in the app; the CLI only exports the finished job |
 
 ## Installation
 
@@ -152,29 +152,29 @@ The engine does not import any of these projects. Each one runs as a separate pr
 
 | Project | License | Command | MCP |
 |---|---|---|---|
-| [OpenMontage](https://github.com/calesthio/OpenMontage) | AGPL-3.0 | `montage` | `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `help` |
-| [OpenCut](https://github.com/OpenCut-app/opencut-classic) (opencut-classic) | MIT | `opencut` | `clone`, `where`, `help` |
-| [Hypit AI](https://github.com/hypit-ai/hypit) | Hypit license (modified Apache-2.0) | `clone` | argument passthrough, no closed list |
-| [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | `toonflow` | `where`, `clone` |
-| [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | MIT | `moneyprinter` | `where`, `clone`, `status` |
+| [OpenMontage](https://github.com/calesthio/OpenMontage) | AGPL-3.0 | `montage` | `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `status`, `help`, and the reads `pipelines`, `tools`, `envelope`, `estimate` |
+| [OpenCut](https://github.com/OpenCut-app/opencut-classic) (opencut-classic) | MIT | `opencut` | `clone`, `status`, `where`, `help` |
+| [Hypit AI](https://github.com/hypit-ai/hypit) | Hypit license (modified Apache-2.0) | `clone` | closed list of commands and of `media` |
+| [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | `toonflow` | `status`, `mcp`, `where`, `clone` |
+| [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | MIT | `moneyprinter` | `where`, `clone`, `status`, and `generate` and `run` as a job |
 | [match-cut](https://github.com/Sac-Y/match-cut) | MIT | `matchcut` | `where`, `clone`, `status` |
 | [instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) | MIT | `instagram` | `skills`, `where`, `status`, `run` |
 | [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (local HTTP only) | `voicestudio` | all subcommands |
-| [video-use](https://github.com/browser-use/video-use) | MIT | `edit` | all subcommands |
-| [rea-video](https://github.com/JuneYaooo/rea-video) | MIT (declared in `pyproject.toml`) | `rea-video` | `where`, `status`, `clone` |
-| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense | `media fetch` | `fetch`, only with `--autorizo` |
+| [video-use](https://github.com/browser-use/video-use) | MIT | `edit` | all except `transcribe-batch`; absolute outputs |
+| [rea-video](https://github.com/JuneYaooo/rea-video) | MIT (declared in `pyproject.toml`) | `rea-video` | `where`, `status`, `clone`, `summary`, `probe`, `tiles`, `review`, `apply-review`, `remake-plan`; `decompose` and `stems` as a job |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense | `media fetch` | `fetch` only with `--autorizo`; `--info` open |
 | [TinyFish CLI](https://www.npmjs.com/package/@tiny-fish/cli) | not declared in the package | `busca` | `consulta`, `pagina`, `status`, `log` |
 
 ### OpenMontage (`montage`)
 
 [calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) · AGPL-3.0
 
-Agentic video production: pipelines and tools from OpenMontage (the Backlot interface), running as a separate program. The engine does not install the upstream's dependencies; the command uses the same Python as `simplicio-video`.
+Agentic video production: pipelines and tools from OpenMontage (the Backlot interface), running as a separate program. `montage setup` creates the venv with the dependencies (needs network). `pipelines`, `tools`, `envelope`, and `estimate` read the pipeline and tool registry; `estimate` shows cost and time without running the tool.
 
-- **Command:** `montage clone [folder]`, `montage open` (default), `montage serve --port 8000`, `montage doctor`, `montage demo`.
-- **MCP:** `clone` (default folder), `doctor`, `hyperframes-doctor`, `preflight`, and `help`.
-- **Terminal only:** `open`, `serve`, and `demo` (they start an interface that never ends, or render with the upstream's pipelines); `clone` with a folder (the agent does not choose where the checkout is written); and any other argument, which runs Python code chosen by the caller.
-- **Example:** `simplicio-video montage doctor`
+- **Command:** `montage setup [--remotion] [--piper]`, `montage status --json`, `montage pipelines list|show NAME`, `montage tools list [--runtime R]|info NAME`, `montage envelope [--full]`, `montage estimate NAME --input '{}'`, `montage clone [folder]`, `montage open` (default), `montage serve --port 8000`, `montage doctor`, `montage demo`.
+- **MCP:** `clone` (default folder), `doctor`, `hyperframes-doctor`, `preflight`, `status`, `help`, and the reads `pipelines`, `tools`, `envelope`, and `estimate`. Over MCP, `estimate` takes `input` as an object, `status` skips the live probes, and `envelope` comes summarized unless `--full` is passed.
+- **Terminal only:** `setup` (installs packages with pip and npm), `open`, `serve`, and `demo` (they start an interface that never ends, or render with the pipelines), `clone` with a folder (the agent does not choose where the checkout is written), and any other argument, which runs Python code chosen by the caller.
+- **Example:** `simplicio-video montage pipelines list --json`
 
 ### OpenCut (`opencut`)
 
@@ -182,45 +182,47 @@ Agentic video production: pipelines and tools from OpenMontage (the Backlot inte
 
 A browser video editor for manual finishing of an MP4 the CLI already made. It uses opencut-classic, which is archived upstream, because the OpenCut rewrite has no API yet. Needs Bun.
 
-- **Command:** `opencut clone [folder]`, `opencut dev` (runs `bun install` and starts the development server, at localhost:3000 according to the command's help), `opencut where`.
-- **MCP:** `clone` (default folder), `where`, and `help`.
-- **Terminal only:** `dev`, which starts a server that never ends, and `clone` with a folder.
+- **Command:** `opencut clone [folder]`, `opencut dev [--lan]`, `opencut status [--json]`, `opencut where`.
+- **`dev`:** runs `bun install` and starts the editor on port 3000. It listens only on 127.0.0.1; `--lan` opens 0.0.0.0, and the whole network can reach the editor with no login in front. It creates `apps/web/.env.local` (0600) if missing, with a random secret and inert placeholders for the required variables; it never overwrites an existing file.
+- **MCP:** `clone` (default folder), `status` (checkout, pin, bun, node_modules, `.env.local`, and port; no values), and `where`.
+- **Terminal only:** `dev` (a server that never ends) and `clone` with a folder.
 - **Example:** `simplicio-video opencut dev` (stays up until Ctrl+C).
 
 ### Hypit AI (`clone`)
 
 [hypit-ai/hypit](https://github.com/hypit-ai/hypit) · npm package `@hypit/hypit` · Hypit license (modified Apache-2.0): forbids commercial redistribution and multi-tenant service without written permission. The engine does not bundle it.
 
-Agentic video cloning. `simplicio-video clone` passes its arguments to Hypit through `npx`, at the pinned version (or to a `hypit` on the PATH, if there is one). Needs Node.
+Agentic video cloning. `simplicio-video clone` passes its arguments to Hypit through `npx`, at the pinned version. Needs Node.
 
-- **Command:** `simplicio-video clone <arguments>` (passthrough).
-- **MCP:** `video.clone` passes its arguments to Hypit. There is no closed list of commands for the agent yet.
-- **Terminal only:** nothing is separated from MCP on main (see above).
-- **Example:** `simplicio-video clone --help` (the help is Hypit's own).
+- **Command:** `simplicio-video clone <command> [arguments]`, for example `clone status`.
+- **MCP:** `video.clone` accepts only a closed list: `help`, `version`, `doctor`, `check`, `plan`, `pricing`, `status`, `builds`, `history`, `activity`, `inspect`, `logs`, `paths`, and `vocabulary`; `get <build> --output <name> --to <absolute path>`; and `media probe|frames|tile|tiles|boundaries|cut`, with absolute paths, no `..`, and no `--watch`. Anything else is refused.
+- **Terminal only:** `build` (can spend on providers), `studio` (never ends), `auth`, `runtime up|down`, `packages`, `capture`, `transcribe` and `measure` (they use providers), `media fetch` (use `simplicio-video media fetch --autorizo`), and `--watch`.
+- **Example:** `simplicio-video clone status`
 
 ### Toonflow (`toonflow`)
 
 [HBAI-Ltd/Toonflow-app](https://github.com/HBAI-Ltd/Toonflow-app) · MIT
 
-An AI studio for short series, comics, and videos, with the creation done in the app itself. It is a local web application (Bun).
+An AI studio for short series, comics, and videos, with the creation done in the app itself. It runs as a local application (Bun). Toonflow's own MCP is off by default: turn it on in Settings > MCP in the interface, then run `toonflow mcp`.
 
-- **Command:** `toonflow clone [folder]`, `toonflow serve --lan` (installs, builds, and starts at http://localhost:3000), `toonflow where`.
-- **Warning:** Toonflow listens on every interface (0.0.0.0:3000) and has no login, so `serve` only starts with `--lan`. To keep it on your own computer, use Toonflow's own docker compose, which publishes on 127.0.0.1:3000.
-- **MCP:** `where` and `clone` (default folder).
-- **Terminal only:** `serve`, which starts a server that never ends and, with `--lan`, is reachable on the network; and `clone` with a folder.
-- **Example:** `simplicio-video toonflow clone`
+- **Command:** `toonflow clone [folder]`, `toonflow serve --lan` (installs, builds, and starts at http://localhost:3000), `toonflow serve --docker` (an alternative bound to 127.0.0.1:3000 only, through Toonflow's own `docker compose`), `toonflow status [--json]` (checkout, pin, bun, build, and the MCP runtime file; never the token), `toonflow mcp [--port N] [--json]` (the stdio MCP config block to paste into the agent; never the token), and `toonflow where`.
+- **Warning:** without `--lan`, `serve` does not start: Toonflow listens on 0.0.0.0:3000 and has no login. `--docker` does not combine with `mcp`, because the MCP runtime file lives in the container's volume.
+- **MCP:** `status`, `mcp` (also with `--port N`), `where`, and `clone` (default folder).
+- **Terminal only:** `serve` (a server that never ends; `--lan` exposes it on the network, `--docker` stays on 127.0.0.1) and `clone` with a folder.
+- **Example:** `simplicio-video toonflow status --json`
 
 ### MoneyPrinterTurbo (`moneyprinter`)
 
 [harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) · MIT
 
-Generates a short video from a topic: an LLM script, a synthesized voice, and clips from a stock library or from your own material. Needs Python 3.11 or newer. The third-party services it uses (LLM, voice, stock) have their own terms, which were not reviewed here.
+Generates a short video from a topic: an LLM script, a synthesized voice, and clips from a stock library or from your own material. Needs Python 3.11 or newer. The third-party services it uses (LLM, voice, and stock) have their own terms, which were not reviewed here.
 
-- **Command:** `moneyprinter clone [folder]`, `setup` (its own venv; copies the example `config.toml`, with no key), `serve [--webui] [--api] [--lan]` (127.0.0.1 only, unless `--lan`), `generate --script ... --material ... --out ...` (starts the API behind the scenes and returns the MP4 with a hash), `status` (says whether each key is filled in, never the value), `where`.
+- **Command:** `moneyprinter clone [folder]`, `setup` (its own venv; copies the example `config.toml`, with no key), `serve [--webui] [--api] [--lan] [--host H] [--api-port N]` (127.0.0.1 only, unless `--lan`), `generate --script ... --material ... --out ...` (starts the API behind the scenes and returns the MP4 with a hash), `run [--yes] --out DIR -- <upstream flags>`, `status` (says whether each key is filled in, never the value), and `where`.
+- **`run`:** passes flags of the upstream `cli.py` through a closed list (script, steps, subtitles, music, batch) and copies the MP4 with its sha256. Anything that spends (LLM, paid material source, network voice, `--confirm-*-charge`) runs only in the terminal and only with `--yes`.
 - **Keys:** yours, in `config.toml` or in the WebUI. The command never prints the value.
-- **MCP:** `where`, `clone` (default folder), and `status`.
-- **Terminal only:** `setup` (installs packages and writes `config.toml`), `serve` (a server that never ends), `generate` (uses the providers you configured), and `clone` with a folder.
-- **Example:** `simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/ --json`
+- **MCP:** `where`, `clone` (default folder), and `status`. `generate` and `run` become a background job (follow it with `video.jobs`), and only in free mode: your own script, local material, an Edge or silent voice, and an absolute `--out`. The MP4 comes back copied to the output folder, with its sha256.
+- **Terminal only:** `setup`, `serve`, LLM scripts, paid or online material sources, `--confirm-*-charge`, batch files, and `clone` with a folder.
+- **Example:** `simplicio-video moneyprinter run --out out/ -- --video-script "Texto do vídeo." --video-source local --video-materials clip.mp4 --voice-name pt-BR-FranciscaNeural-Female`
 
 ### match-cut (`matchcut`)
 
@@ -261,11 +263,11 @@ A local voice app: TTS, transcription, voice cloning and design, and dubbing exp
 
 [browser-use/video-use](https://github.com/browser-use/video-use) · MIT
 
-EDL editing of any MP4: word-accurate cuts, subtitles, overlays, and filmstrip review. The agent writes the decision in `edl.json`, and ffmpeg executes it. Transcription is local (faster-whisper).
+EDL editing of any MP4: word-accurate cuts, subtitles, overlays, filmstrip review, and color grading. The agent writes the decision in `edl.json`, and ffmpeg executes it. Local transcription uses faster-whisper.
 
-- **Command:** `edit setup`, `transcribe`, `pack`, `render`, `verify`.
-- **MCP:** `video.edit`, with the same subcommands.
-- **Terminal only:** nothing, on main.
+- **Command:** `edit setup`, `transcribe`, `transcribe-batch DIR` (terminal only; ElevenLabs Scribe, a paid third party), `pack`, `render`, `verify`, `grade` (`--analyze`, `--preset`, `--filter`, `--list-presets`).
+- **MCP:** all subcommands except `transcribe-batch`. For `transcribe`, `render`, `verify`, and `grade`, the outputs (`-o`, `--out`, `--output`) must be absolute paths. For `grade`, `--filter` accepts only color filters (eq, curves, colorbalance, hue, lut, lutrgb, lutyuv, colorchannelmixer, vibrance).
+- **Terminal only:** `transcribe-batch`.
 - **Example:** `simplicio-video edit render edit/edl.json -o out/final.raw.mp4`
 
 ### rea-video (`rea-video`)
@@ -276,8 +278,8 @@ Analyzes a reference video shot by shot (live action, AI, 3D, or code render) an
 
 - **Command:** `rea-video clone`, `setup`, `where`, `status`, and passthrough of any upstream command (`decompose`, `summary`, `review`, `apply-review`, `remake-plan`, and others).
 - **Network:** without `--vlm`, only model downloads. With `--vlm`, frames go to the vision-model provider you configure, a third party.
-- **MCP:** `where`, `status`, and `clone` (default folder).
-- **Terminal only:** `setup` (installs dependencies), the analyses (they take minutes and may spend vision-model calls), and `clone` with a folder.
+- **MCP:** `where`, `status`, `clone` (default folder), `summary`, `probe`, `tiles` (with a new `-o`), `review`, `apply-review`, and `remake-plan`, with a closed list of flags and absolute paths. `decompose` and `stems` become a background job (follow it with `video.jobs`); `decompose` always runs without the vision model. In `review` and `apply-review`, the calling agent does the looking, so no frame goes to a third party.
+- **Terminal only:** `setup` (installs dependencies), `remake-run` (spends), `capsule-draft` (runs code from a folder), `prefs`, `correct`, `memory`, `--vlm`, `--env-file`, and `clone` with a folder.
 - **Example:** `simplicio-video rea-video decompose ref.mp4 -o out/ref --no-stems`
 
 ### yt-dlp (`media fetch`)
@@ -286,11 +288,11 @@ Analyzes a reference video shot by shot (live action, AI, 3D, or code render) an
 
 Downloads a public video to a local MP4 and writes `OUT.fetch.json` next to it, with the URL, sha256, yt-dlp version, and time. It runs in its own venv, with the wheel checked by sha256. It does not log in, does not read browser cookies, and does not download playlists.
 
-- **Command:** `media fetch <URL> -o output.mp4 --autorizo` (also `--max-mb` and `--timeout`).
-- **`--autorizo`:** required. You confirm that you may use the video; the engine does not check this, and platforms such as Instagram have their own download rules.
-- **MCP:** `video.media` runs `fetch` only with `--autorizo`, and the agent passes the flag only after you approve that URL in the chat.
+- **Command:** `media fetch <URL> --info` (metadata only: title, duration, uploader, license, formats, and subtitle languages; it downloads nothing and needs no `--autorizo`); `media fetch <URL> -o output.mp4 --autorizo`, with `--max-mb`, `--timeout`, `--subs LANG [--auto-subs]` (the creator's subtitles, as `.srt`), `--section START-END` (only that range, in seconds), and `--audio-only` (outputs `.m4a` or `.wav`).
+- **`--autorizo`:** required to download. You confirm that you may use the video; the engine does not check this, and platforms such as Instagram have their own download rules.
+- **MCP:** `video.media` runs `fetch` only with `--autorizo`, and the agent passes the flag only after you approve that URL in the chat. `--info` needs no approval.
 - **Terminal only:** nothing, on main. Over MCP, your approval of the URL in the chat is what holds the download back.
-- **Example:** `simplicio-video media fetch <URL> -o reference.mp4 --autorizo`
+- **Example:** `simplicio-video media fetch <URL> --info`
 
 ### TinyFish CLI (`busca`)
 
@@ -342,7 +344,7 @@ It uses your own API keys for LLM, TTS and stock services, typed in its WebUI or
 **Known gaps:**
 - Audio cleanup: in a PR, not on main yet.
 - Voice and background separation: no command.
-- Dubbing with preserved background: only in the VoiceStudio app today.
+- Dubbing with preserved background: the dub is made in the VoiceStudio app today; `voicestudio dub-export` exports the finished job.
 
 ### rea-video (`rea-video`)
 
