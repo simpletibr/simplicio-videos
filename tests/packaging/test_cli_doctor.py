@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -138,6 +139,19 @@ def test_pouco_disco_falha_com_a_correcao(saude, capsys):
     assert rc == 1
     c = _linha(rel, "disk")
     assert c["status"] == "fail" and c["fix"] and c["detail"]["free_bytes"] < 5 * GB
+
+
+def test_o_piso_do_disco_e_real_falha_abaixo_de_5_gb_e_ok_acima(tmp_path):
+    """The check itself, with no stub (the packaging tests fix the row with `disco_de_sobra`): fail under the 5 GB floor, ok above."""
+    def livre(gb):
+        return lambda caminho: SimpleNamespace(free=int(gb * GB))
+
+    def linha(gb):
+        return doctor_cmd.collect(only="disk", state_dir=tmp_path, kind="pip", usage=livre(gb))["checks"][0]
+
+    abaixo, acima = linha(4.9), linha(5.1)
+    assert abaixo["status"] == "fail" and abaixo["fix"] and abaixo["detail"]["free_bytes"] < abaixo["detail"]["floor_bytes"]
+    assert acima["status"] == "ok" and acima["fix"] is None
 
 
 def test_o_disco_e_medido_com_shutil_e_nao_com_statvfs(saude, capsys, monkeypatch):
