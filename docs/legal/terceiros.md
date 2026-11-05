@@ -35,6 +35,13 @@ Estas ferramentas não são redistribuídas pelo repositório. O CLI as invoca c
 | Hypit | **Não empacotado.** A licença (Apache-2.0 modificada) proíbe redistribuição comercial e serviço multi-inquilino sem permissão por escrito. Só o comando `clone` roda a instalação do próprio usuário (`npx`). |
 | VoiceStudio | Programa externo, AGPL. Não empacotado. |
 | instagram-agent-skill (Jake Schincariol) | MIT, **não empacotado**: 13 skills de agente e seis scripts Python do upstream, no commit fixado `d03c56b`. Só o comando `instagram clone` baixa o checkout, para o cache do usuário; o motor roda os seis scripts depois de conferir o sha256 e não redistribui nenhum arquivo deles. A licença e o aviso de copyright ficam no `LICENSE` do checkout. A tabela de [licenças](../licenses.md) não os lista: não são dependência Python do pacote. |
+| Toonflow | Programa externo, MIT. **Não empacotado**: `toonflow clone` baixa o commit fixado `d2e94ac` para o cache do usuário; o `serve` roda o app à parte. |
+| MoneyPrinterTurbo | Programa externo, MIT. **Não empacotado**: `moneyprinter clone` baixa o commit fixado `4b7b965` para o cache. Os serviços de terceiros que ele usa (LLM, voz, estoque) têm termos próprios, que não foram revisados aqui. |
+| match-cut (Sac-Y) | Skill externo, MIT. **Não empacotado**: `matchcut clone` baixa o commit fixado `b51c98f`. O motor nunca roda o skill nem chama a Renoise; o uso do skill exige login e créditos da própria pessoa. |
+| video-use (browser-use) | Programa externo, MIT. **Não empacotado**: `edit setup` clona o upstream no commit fixado `b877063` para o cache. Os arquivos do wrapper (`setup.sh`, `transcribe_local.py`, `edl_transcript.py`) são deste repositório. |
+| rea-video (JuneYaooo) | MIT, declarada no `pyproject.toml` do upstream; o commit fixado `36e02dd` não traz arquivo LICENSE. **Não empacotado**: `rea-video clone` baixa o commit fixado, e `rea-video setup` instala as dependências num venv próprio. |
+| yt-dlp | Unlicense. **Não empacotado** no pacote do motor: `media fetch` instala o wheel fixado por sha256 num venv próprio, no cache do usuário. |
+| TinyFish CLI (`@tiny-fish/cli`) | Não declara licença no pacote npm (sem campo `license` e sem arquivo LICENSE, lido em 2026-10-16). **Não empacotado**: o usuário instala o binário, e o motor só o chama. |
 | Postiz | Programa externo, AGPL. Não empacotado. |
 
 A checagem de importação em `scripts/licenses.py --imports` reprova código Python que importe OpenMontage, VoiceStudio ou Postiz.
