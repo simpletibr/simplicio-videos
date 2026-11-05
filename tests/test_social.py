@@ -1495,19 +1495,19 @@ def test_providers_sem_provedor_traz_texto_fonte_data_e_nao_confirmado_por_prove
 def test_redacao_sem_afirmar_ausencia_e_com_a_data_do_bloqueio_do_reddit():
     sem = social.providers_report()["sem_provedor"]
     ro = sem["reddit"]["por_provedor"]["realoficial"]["texto"]
-    assert "sem confirmação" in ro and "não lista redes de publicação" in ro
+    assert "sem confirmação" in ro and "só cita TikTok e YouTube" in ro
     zr = sem["reddit"]["por_provedor"]["zernio"]["texto"]
     assert "temporariamente indisponível" in zr and "desde 19/10/2026" in zr
     assert "bloqueia as chamadas do app da Zernio para todos os clientes Zernio" in zr
-    arquivos = [ROOT / "docs" / "recursos.md", ROOT / "docs" / "realoficial.md", ROOT / "skills" / "simplicio-video-social" / "SKILL.md",
-                paths.data_dir() / "social" / "providers.json"]
-    # negação sobre Reddit ou Snapchat só com fonte (URL ou data de leitura) na mesma linha; F1 proibido em qualquer lugar
-    for arq in arquivos:
-        for n, linha_txt in enumerate(arq.read_text(encoding="utf8").splitlines(), 1):
-            assert "não aparece entre os destinos" not in linha_txt and "não lista como destino" not in linha_txt, f"{arq}:{n}"
-        achados = _negacoes_sem_fonte(arq.read_text(encoding="utf8"))
+    for arq in [ROOT / "docs" / "recursos.md", ROOT / "docs" / "realoficial.md", ROOT / "skills" / "simplicio-video-social" / "SKILL.md"]:
+        texto = arq.read_text(encoding="utf8")
+        assert "não aparece entre os destinos" not in texto and "não lista como destino" not in texto, arq
+        achados = _negacoes_sem_fonte(texto)
         assert not achados, f"{arq}: " + " | ".join(achados)
-    achados = _negacoes_em_notas_da_tabela() + _negacoes_em_folhas_do_providers()
+    for arq in [paths.data_dir() / "social" / "providers.json", paths.data_dir() / "social" / "limits.json"]:
+        texto = arq.read_text(encoding="utf8")
+        assert "não aparece entre os destinos" not in texto and "não lista como destino" not in texto, arq
+    achados = _negacoes_em_folhas(social._providers_doc()) + _negacoes_em_folhas(social.limits_table())
     assert not achados, " | ".join(achados)
 
 
@@ -1633,9 +1633,8 @@ def test_skill_cita_os_escopos_dos_limites_e_o_espelho_e_identico():
 
 NEGACAO_FACTUAL = re.compile(r"\bn(ão|unca)\b(?!\s+confirmad)|\bnenhum\b", re.I)  # "não confirmado" é marca de incerteza, não negação
 FONTE_NA_LINHA = re.compile(r"https://|lida em \d{4}-\d{2}-\d{2}", re.I)
-
-
 MENCAO_REDE = re.compile(r"reddit|snapchat|\bsnap\b", re.I)
+REDES_DO_CASO = ("reddit", "snapchat")
 
 
 def _negacoes_sem_fonte(texto):
@@ -1644,25 +1643,48 @@ def _negacoes_sem_fonte(texto):
             if MENCAO_REDE.search(frase) and NEGACAO_FACTUAL.search(frase) and not FONTE_NA_LINHA.search(frase)]
 
 
-def _negacoes_em_notas_da_tabela():
-    """Notas das linhas de Reddit e Snapchat em limits.json: a própria nota traz a fonte (URL ou data de leitura)."""
-    return [f"{r['network']}:{r['field']}: {r['note'][:120]}" for r in social.limits_table()["rows"]
-            if r["network"] in ("reddit", "snapchat") and NEGACAO_FACTUAL.search(r["note"]) and not FONTE_NA_LINHA.search(r["note"])]
-
-
-def _negacoes_em_folhas_do_providers():
-    """Textos de sem_provedor: a negação vale se a própria frase traz a fonte ou se a entrada traz a chave fonte ao lado."""
-    achados = []
-
-    def anda(no, pai):
-        if isinstance(no, dict):
-            for valor in no.values():
-                anda(valor, no)
-        elif isinstance(no, str) and NEGACAO_FACTUAL.search(no) and not FONTE_NA_LINHA.search(no) and not (pai and "fonte" in pai):
-            achados.append(no[:120])
-
-    anda(social._providers_doc()["sem_provedor"], None)
+def _negacoes_em_folhas(no, sobre_rede=False, achados=None, tem_fonte=False):
+    """Toda string de um JSON, frase a frase; a entrada com a chave fonte ao lado conta como fonte (versão vermelha)."""
+    if achados is None:
+        achados = []
+    if isinstance(no, dict):
+        for valor in no.values():
+            _negacoes_em_folhas(valor, sobre_rede, achados, "fonte" in no)
+    elif isinstance(no, list):
+        for valor in no:
+            _negacoes_em_folhas(valor, sobre_rede, achados, tem_fonte)
+    elif isinstance(no, str):
+        for frase in re.split(r"(?<=[.!?])\s+", no):
+            if MENCAO_REDE.search(frase) and NEGACAO_FACTUAL.search(frase) and not FONTE_NA_LINHA.search(frase) and not tem_fonte:
+                achados.append(frase.strip()[:120])
     return achados
+
+
+@pytest.mark.parametrize("frase", ["Ninguém publica no Snapchat.", "Nenhuma rede publica no Reddit.",
+                                   "So Reddit and Snapchat have no confirmed provider here.",
+                                   "Reddit is not published by Real Oficial."])
+def test_guarda_pega_negacao_em_ingles_e_nenhuma_ninguem(frase):
+    assert _negacoes_sem_fonte(frase), frase
+
+
+def test_guarda_nao_toma_not_confirmed_por_negacao():
+    assert not _negacoes_sem_fonte("Reddit: not confirmed.")
+
+
+def test_guarda_normaliza_o_unicode_antes_de_casar():
+    assert _negacoes_sem_fonte("O Snapchat não está aprovado pela Snap.")
+
+
+def test_guarda_junta_as_linhas_de_um_paragrafo_antes_de_dividir_em_frases():
+    assert not _negacoes_sem_fonte("O Snapchat não está aprovado\nhttps://docs.zernio.com/platforms/snapchat.")
+
+
+def test_guarda_nao_deixa_o_irmao_fonte_absolver_a_negacao():
+    assert _negacoes_em_folhas({"reddit": {"texto": "O Reddit não é publicado pelo RO.", "fonte": "https://realoficial.com.br/mcp"}})
+
+
+def test_guarda_varre_as_notas_de_reddit_e_snapchat_sem_mencao_no_texto():
+    assert _negacoes_em_folhas({"network": "snapchat", "note": "Zernio não informa duração de vídeo de post."})
 
 
 @pytest.mark.parametrize("frase", ["O Snapchat não está aprovado pela Snap.", "Não há provedor para o Reddit.",
