@@ -113,6 +113,12 @@ def _dev_cmd(calls):
     return [c for c, _ in calls if c[1:2] != ["install"]][-1]
 
 
+def test_dev_runs_next_dev_from_apps_web_because_turbo_rejects_hostname(checkout, bun, calls):
+    opencut.run_opencut(["dev"])
+    cmd, cwd = calls[-1]
+    assert cmd[:3] == ["/usr/bin/bun", "run", "dev"] and cwd == checkout / "apps" / "web"
+
+
 def test_dev_binds_to_loopback_by_default(checkout, bun, calls):
     opencut.run_opencut(["dev"])
     cmd = _dev_cmd(calls)
@@ -214,16 +220,22 @@ def test_status_rejects_unknown_flags(checkout):
         opencut.run_opencut(["status", "--xml"])
 
 
-def test_port_free_sees_a_listening_socket():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    s.listen(1)
-    port = s.getsockname()[1]
-    try:
-        assert opencut._port_free(port) is False
-    finally:
-        s.close()
-    assert opencut._port_free(port) is True
+@pytest.mark.parametrize("rc,free", [(0, False), (111, True)])
+def test_port_free_connects_to_loopback_only(monkeypatch, rc, free):
+    seen = []
+
+    class FakeSocket:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def settimeout(self, t): pass
+        def connect_ex(self, addr):
+            seen.append(addr)
+            return rc
+
+    monkeypatch.setattr(socket, "socket", FakeSocket)
+    assert opencut._port_free(3000) is free
+    assert seen == [("127.0.0.1", 3000)]
 
 
 # --- MCP / CLI ---------------------------------------------------------------------------------------------------
