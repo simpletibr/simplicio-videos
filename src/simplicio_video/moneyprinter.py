@@ -828,7 +828,7 @@ def _generate(d: Path, args: list[str]) -> int:
         # o log do servidor vai para o stderr (fd 2): o stdout fica só com o resultado, que pode ser JSON
         procs.append(subprocess.Popen([str(venv_python()), "-m", "uvicorn", "app.asgi:app", "--fd", str(fd),
                                        "--log-level", "warning"],
-                                      cwd=d, env=env, start_new_session=True, stdout=2, pass_fds=(fd,)))
+                                      cwd=d, env=env, start_new_session=True, stdin=subprocess.DEVNULL, stdout=2, stderr=2, pass_fds=(fd,)))
         listener.close()  # o filho tem a sua cópia do socket
         listener = None
         proc = procs[0]

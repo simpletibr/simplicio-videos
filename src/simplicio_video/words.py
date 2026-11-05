@@ -45,7 +45,7 @@ def stt_words(wav: Path, lang: str = "pt") -> list[dict] | None:
     py = stt_python()
     if not Path(py).exists():
         return None
-    p = subprocess.run([py, "-c", STT_CODE, str(wav), MODEL, lang], capture_output=True, text=True)
+    p = subprocess.run([py, "-c", STT_CODE, str(wav), MODEL, lang], stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if p.returncode != 0:
         return None
     try:

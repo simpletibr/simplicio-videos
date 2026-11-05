@@ -178,7 +178,7 @@ PROC = Path("/proc")
 def _ps(field: str, pid: int) -> str | None:
     """`ps -o <field>= -p PID` (macOS and other systems without /proc). None when ps is missing or the pid is gone."""
     try:
-        r = subprocess.run(["ps", "-o", f"{field}=", "-p", str(int(pid))], capture_output=True, text=True, timeout=5,
+        r = subprocess.run(["ps", "-o", f"{field}=", "-p", str(int(pid))], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5,
                            env={**os.environ, "LC_ALL": "C", "LANG": "C"})
     except (OSError, subprocess.SubprocessError, ValueError):
         return None

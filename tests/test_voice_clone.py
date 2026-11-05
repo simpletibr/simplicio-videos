@@ -20,7 +20,7 @@ def test_keep_path_isolated_per_provider(tmp_path):
 def test_voxcpm_cli_args(monkeypatch, tmp_path):
     calls = []
     monkeypatch.setenv("VOXCPM_BIN", "/bin/voxcpm")
-    monkeypatch.setattr("subprocess.run", lambda cmd, check: calls.append(cmd))
+    monkeypatch.setattr("simplicio_video.childio.run_child", lambda cmd, **kw: calls.append(cmd) or 0)
     S = {"control": "warm", "reference_audio": "r.wav", "reference_text": "hello", "seed": 7}
     voice_clone.voxcpm(S, "hi", tmp_path / "o.wav", tmp_path / "r.wav")
     cmd = calls[0]
@@ -32,7 +32,7 @@ def test_voxcpm_cli_args(monkeypatch, tmp_path):
 def test_audio8_cli_args(monkeypatch, tmp_path):
     calls = []
     monkeypatch.setenv("AUDIO8_TTS_BIN", "/bin/audio8-tts")
-    monkeypatch.setattr("subprocess.run", lambda cmd, check: calls.append(cmd))
+    monkeypatch.setattr("simplicio_video.childio.run_child", lambda cmd, **kw: calls.append(cmd) or 0)
     S = {"model": "Edge0/Audio8-TTS-Realistic-0.6b", "reference_text": "hello", "device": "cuda:0"}
     voice_clone.audio8(S, "hi", tmp_path / "o.wav", tmp_path / "r.wav")
     cmd = calls[0]

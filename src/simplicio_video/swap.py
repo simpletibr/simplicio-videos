@@ -111,7 +111,7 @@ def _bin(name: str) -> str:
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     except FileNotFoundError:
         raise SwapError(f"{Path(cmd[0]).name} não encontrado: instale o ffmpeg (ffmpeg e ffprobe no PATH)") from None
     if r.returncode != 0:
@@ -318,7 +318,7 @@ async def _asleep(seconds: float) -> None:
 async def _arun(cmd: list[str]) -> None:
     """`_run` for the event loop: the subprocess dies with the task when it is cancelled (Ctrl+C, another chunk failed)."""
     try:
-        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     except FileNotFoundError:
         raise SwapError(f"{Path(cmd[0]).name} não encontrado: instale o ffmpeg (ffmpeg e ffprobe no PATH)") from None
     try:
