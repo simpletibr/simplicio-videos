@@ -321,3 +321,35 @@ def test_args_de_mais_de_64_KiB_e_recusado_com_erro_claro(cli, args):
     r = mcp_server.video_media(args)
     assert r["ok"] is False and "64 KiB" in r["error"] and "argv" in r["error"], r
     assert cli == []
+
+
+# ---------------------------------------------------------------------------------- revisão 3: barra fora de aspas, `..` na saída
+
+def test_install_descricao_diz_que_uninstall_com_dry_run_e_so_terminal():
+    assert "also with --dry-run, are terminal-only" in DESCRICOES["video.install"]
+
+
+@pytest.mark.parametrize("linha", ['probe C:\\dir\\a.mp4 -o "/abs/o 1.mp4"', 'probe "/abs/a b.mp4" C:\\x\\b.mp4'])
+def test_args_que_mistura_barra_fora_de_aspas_com_aspas_e_recusada_com_use_argv(cli, linha):
+    """Barra fora de aspas numa linha que também tem aspas é ambígua: o shlex transforma C:\\dir\\a.mp4 em C:dira.mp4 sem avisar.
+    A linha é recusada e a mensagem manda usar `argv`."""
+    r = mcp_server.video_media(linha)
+    assert r["ok"] is False and "argv" in r["error"], r
+    assert cli == []
+
+
+@pytest.mark.parametrize("windows", [True, False])
+def test_split_args_recusa_a_mistura_nos_dois_sistemas(windows):
+    with pytest.raises(mcp_server._ArgsErro):
+        mcp_server._split_args('probe C:\\dir\\a.mp4 -o "/abs/o 1.mp4"', windows=windows)
+
+
+@pytest.mark.parametrize("nome, argv", [
+    ("video.media", ["sheet", "/abs/x.mp4", "-o", "/abs/../etc/x.jpg"]),
+    ("video.edit", ["verify", "/abs/a.mp4", "0", "1", "-o", "/abs/../x.png"]),
+    ("video.shorts", ["cut", "/abs/x.mp4", "-o", "/abs/../o"]),
+])
+def test_saida_com_segmento_pai_e_recusada_como_no_hypit_e_no_voicestudio(cli, nome, argv):
+    r = FUNCOES[nome](argv=argv)
+    assert r["ok"] is False and ".." in r["error"], r
+    assert cli == []
