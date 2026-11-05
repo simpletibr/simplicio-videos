@@ -6,12 +6,15 @@ editor for touching up an MP4 the CLI produced.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
 import subprocess
+import tempfile
 from pathlib import Path
 
 from . import tools
@@ -78,18 +81,24 @@ def _port_free(port: int, host: str = LOOPBACK) -> bool:
 
 
 def _env_text(example: Path) -> str:
-    """Contents of a new .env.local: the example's own lines, the secret replaced by a random one, the required keys the
-    example lacks filled with placeholders."""
-    lines = example.read_text(encoding="utf-8").splitlines() if example.is_file() else []
+    """Contents of a new .env.local: the example's own lines (undecodable bytes replaced), the secret replaced by a random
+    one, empty or missing required keys filled with placeholders."""
+    try:
+        raw = example.read_bytes().decode("utf-8", errors="replace") if example.is_file() else ""
+    except OSError as e:
+        raise OpenCutError(f"não consegui ler {example}: {e.strerror}") from None
     seen: set[str] = set()
     out: list[str] = []
-    for line in lines:
-        key, sep, _ = line.partition("=")
-        key = key.strip()
-        if sep and key in ENV_DEFAULTS:
-            seen.add(key)
+    for line in raw.splitlines():
+        m = re.match(r"^(\s*(?:export\s+)?)([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$", line)
+        if m and m.group(2) in ENV_DEFAULTS:
+            prefix, key, value = m.groups()
             if key == "BETTER_AUTH_SECRET":
-                line = f"BETTER_AUTH_SECRET={secrets.token_hex(32)}"
+                value = secrets.token_hex(32)
+            elif not value.strip().strip("\"'").strip():
+                value = ENV_DEFAULTS[key]
+            seen.add(key)
+            line = f"{prefix}{key}={value}"
         out.append(line)
     for key, value in ENV_DEFAULTS.items():
         if key not in seen:
@@ -99,16 +108,33 @@ def _env_text(example: Path) -> str:
 
 
 def ensure_env_local(d: Path) -> bool:
-    """Create apps/web/.env.local (0600) when missing. Never overwrites (O_EXCL). Returns True when it created the file."""
+    """Create apps/web/.env.local (0600) when missing. Never overwrites and is atomic: the text is built first, written
+    to a private temp file in the same folder and hard-linked into place, so a failure leaves nothing behind. A symlink or
+    folder at that path is an error. Returns True when it created the file."""
     path = d / ENV_FILE
-    try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
+    if os.path.lexists(path):
+        if path.is_symlink() or not path.is_file():
+            raise OpenCutError(f"{path} existe mas não é um arquivo comum (link ou pasta): remova ou corrija antes do dev.")
         return False
+    text = _env_text(d / ENV_EXAMPLE)
+    tmp = None
+    try:
+        fd, tmp = tempfile.mkstemp(prefix=".env.local.", dir=path.parent)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            os.fchmod(f.fileno(), 0o600)
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.link(tmp, path)
+        except FileExistsError:
+            return False
     except OSError as e:
         raise OpenCutError(f"não consegui criar {path}: {e.strerror}") from None
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(_env_text(d / ENV_EXAMPLE))
+    finally:
+        if tmp is not None:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(tmp)
     return True
 
 
@@ -121,6 +147,9 @@ def _dev_steps(d: Path, args: list[str]) -> list[tuple[list[str], Path]]:
     bun = shutil.which("bun")
     if not bun:
         raise OpenCutError("bun não encontrado (https://bun.sh).")
+    env_path = d / ENV_FILE
+    if env_path.is_file() and env_path.stat().st_size == 0:
+        print(f"opencut: aviso: {env_path} está vazio; o app não sobe sem as variáveis (apague o arquivo para recriar).")
     if ensure_env_local(d):
         print(f"opencut: criei {d / ENV_FILE} (0600) com valores locais de mentira e um BETTER_AUTH_SECRET aleatório.")
     host = "0.0.0.0" if lan else LOOPBACK
@@ -134,21 +163,26 @@ def _dev_steps(d: Path, args: list[str]) -> list[tuple[list[str], Path]]:
 
 def status() -> dict:
     d = find_opencut_dir()
-    pin = tools.pinned_ref(tools.get("opencut"))
+    t = tools.get("opencut")
+    pin = tools.effective_ref(t)
     head = None
     if d is not None:
         try:
             head = tools._git("rev-parse", "HEAD", cwd=d)
         except tools.ToolError:
             head = None
+    env_path = d / ENV_FILE if d is not None else None
+    env_size = env_path.stat().st_size if env_path is not None and env_path.is_file() else -1
     return {
         "checkout": str(d) if d else None,
         "pin": pin,
+        "pin_default": t.ref,
         "head": head,
         "pin_match": bool(head) and head == pin,
         "bun": shutil.which("bun") is not None,
         "node_modules": d is not None and (d / "node_modules").is_dir(),
-        "env_local": d is not None and (d / ENV_FILE).is_file(),
+        "env_local": env_size > 0,
+        "env_local_empty": env_size == 0,
         "port": PORT,
         "port_free": _port_free(PORT),
     }
@@ -169,7 +203,8 @@ def _status(args: list[str]) -> int:
     print(f"pin:          {s['pin'][:12]}  head: {(s['head'] or '?')[:12]}  confere: {yn(s['pin_match'])}")
     print(f"bun:          {yn(s['bun'])}")
     print(f"node_modules: {yn(s['node_modules'])}")
-    print(f".env.local:   {yn(s['env_local'])} (os valores não são mostrados)")
+    env = "vazio" if s["env_local_empty"] else yn(s["env_local"])
+    print(f".env.local:   {env} (os valores não são mostrados)")
     print(f"porta {s['port']}:   {'livre' if s['port_free'] else 'em uso'}")
     return 0
 
