@@ -59,6 +59,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
+# o plano importa o pacote para o custo: sem isto ele escreveria __pycache__ dentro do repositório
+sys.dont_write_bytecode = True
+
 REPO = Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
 if SRC.is_dir() and str(SRC) not in sys.path:
@@ -75,9 +78,8 @@ TEXTO_ROTEIRO = "Teste de ponta a ponta do simplicio-video."
 BUSCA_PADRAO = "o que é a licença Creative Commons CC0"
 NODE_MIN = (22, 15)             # tools.NODE_MIN (@hypit/hypit exige node >= 22.15)
 PORTA_VOICESTUDIO = 3900
-URL_TOONFLOW = "http://127.0.0.1:3000"
+PORTA_TOONFLOW = 3000
 CHAVES_CONHECIDAS = ("GEMINI_API_KEY", "FAL_KEY", "WAVESPEED_API_KEY", "KIE_API_KEY", "DASHSCOPE_API_KEY", "TINYFISH_API_KEY")
-MINIMO_SEGREDO = 8              # valores menores que isso não são redigidos (evita apagar palavras comuns)
 PASS, FAIL, SKIP, PLANO = "PASS", "FAIL", "SKIP", "PLANO"
 
 
@@ -221,6 +223,14 @@ class SondasReais:
         except Exception:  # noqa: BLE001 (uma checagem de presença não derruba o plano)
             return False
 
+    def config_moneyprinter(self):
+        try:
+            from simplicio_video import moneyprinter as mp
+            d = mp.find_moneyprinter_dir()
+            return d / "config.toml" if d else None
+        except Exception:  # noqa: BLE001
+            return None
+
     def toonflow_dir(self):
         try:
             from simplicio_video import toonflow
@@ -280,17 +290,82 @@ def detectar(sondas, *, sondar: bool) -> Ambiente:
     )
 
 
+CAMPO_SEGREDO = re.compile(r"key|token|secret|password|senha", re.IGNORECASE)
+
+
+def _valores_do_config(caminho) -> set:
+    """Valores de campos de segredo do config.toml do MoneyPrinter (lidos, nunca impressos). Sem tomllib (Python 3.10),
+    cai numa leitura por linha, suficiente para `campo = "valor"`."""
+    if caminho is None or not Path(caminho).is_file():
+        return set()
+    texto = Path(caminho).read_text(encoding="utf-8", errors="replace")
+    try:
+        import tomllib
+    except ImportError:
+        return {v for _, v in re.findall(r'^\s*([\w.-]*(?:key|token|secret|password|senha)[\w.-]*)\s*=\s*"([^"]*)"',
+                                         texto, re.IGNORECASE | re.MULTILINE)}
+    achados: set = set()
+
+    def caminhar(no):
+        for chave, valor in no.items():
+            if isinstance(valor, dict):
+                caminhar(valor)
+            elif isinstance(valor, str) and CAMPO_SEGREDO.search(str(chave)):
+                achados.add(valor)
+
+    try:
+        caminhar(tomllib.loads(texto))
+    except ValueError:
+        pass  # config.toml inválido: o MoneyPrinter é que reclama; aqui só não há o que redigir
+    return achados
+
+
 def _segredos(sondas, amb: Ambiente) -> list:
+    """Tudo que deve sair redigido: as variáveis de chave do ambiente e os campos de segredo do config.toml do
+    MoneyPrinter. Não cobre o que o Toonflow guarda na própria interface (ver docs/how-to/e2e-real.md)."""
     env = sondas.env()
     nomes = set(CHAVES_CONHECIDAS) | {var for var, _ in amb.adaptadores.values() if var}
-    valores = {env[n] for n in nomes if env.get(n) and len(env[n]) >= MINIMO_SEGREDO}
-    return sorted(valores, key=len, reverse=True)
+    valores = {env[n] for n in nomes if env.get(n)} | _valores_do_config(sondas.config_moneyprinter())
+    return sorted((v for v in valores if v), key=len, reverse=True)
 
 
 def redigir(texto: str, segredos: list) -> str:
     for s in segredos:
         texto = texto.replace(s, "***")
     return texto
+
+
+class Redator:
+    """Redige segredos num fluxo de texto que chega em pedaços. Um segredo pode vir partido entre pedaços ou ter quebra
+    de linha: o trecho final que ainda pode ser o começo de um segredo fica retido, e só sai depois de decidido."""
+
+    def __init__(self, segredos: list):
+        self.segredos = [s for s in segredos if s]
+        self.resto = ""
+
+    def alimentar(self, texto: str) -> str:
+        dados = self.resto + texto
+        if not self.segredos:
+            self.resto = ""
+            return dados
+        maior = max(len(s) for s in self.segredos)
+        corte = max(0, len(dados) - (maior - 1))  # tudo que vier depois pode ainda ser começo de um segredo
+        mudou = True
+        while mudou:  # um segredo completo que atravessa o corte não pode ser partido: o corte recua até o começo dele
+            mudou = False
+            for s in self.segredos:
+                for i in range(max(0, corte - len(s) + 1), corte):
+                    if dados.startswith(s, i) and i + len(s) > corte:
+                        corte, mudou = i, True
+                        break
+                if mudou:
+                    break
+        self.resto = dados[corte:]
+        return redigir(dados[:corte], self.segredos)
+
+    def finalizar(self) -> str:
+        saida, self.resto = redigir(self.resto, self.segredos), ""
+        return saida
 
 
 # ------------------------------------------------------------------------------- execução (processos)
@@ -418,6 +493,8 @@ def _midia_sintetica(ctx: Ctx) -> tuple:
     """Vídeo sintético de DURACAO_SINTETICA_S e um avatar. EXCEÇÃO JUSTIFICADA: o ffmpeg direto gera só o vídeo (uma
     chamada), porque o repositório não tem vídeo de teste e o `simplicio-video` não tem gerador de mídia. O avatar é uma
     cópia de um PNG do próprio repositório (o estimador só lê as dimensões e o tamanho)."""
+    if "ffmpeg_falha" in ctx.notas:  # uma falha não é repetida pelo próximo check: a primeira mensagem já vale
+        raise Parar(Veredito(FAIL, ctx.notas["ffmpeg_falha"]))
     pasta = ctx.pasta("midia")
     video, ref = pasta / "sintetico.mp4", pasta / "avatar.png"
     ff = ctx.amb.ffmpeg
@@ -426,7 +503,9 @@ def _midia_sintetica(ctx: Ctx) -> tuple:
                                                  "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t",
                                                  f"{DURACAO_SINTETICA_S:g}", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
                                                  "-shortest", str(video)], 300)
-        _exige(p, "ffmpeg (vídeo sintético)")
+        if not p.ok:
+            ctx.notas["ffmpeg_falha"] = f"ffmpeg (vídeo sintético): rc {p.rc}; última linha: {_ultima_linha(p.erro) or '-'} (log: {p.log})"
+            raise Parar(Veredito(FAIL, ctx.notas["ffmpeg_falha"]))
     if not ref.exists():
         shutil.copyfile(REF_PADRAO, ref)
     return video, ref
@@ -530,7 +609,8 @@ def _chk_voicestudio(ctx: Ctx) -> Veredito:
 
 def _chk_hypit(ctx: Ctx) -> Veredito:
     _exige(ctx.passo("clone doctor", _py("clone", "doctor"), 900), "clone doctor")
-    _exige(ctx.passo("clone pricing", _py("clone", "pricing"), 600), "clone pricing")
+    # `hypit pricing <run-source>`: sem a fonte o Hypit falha sempre ("requires one Source"), por isso o check exige a flag
+    _exige(ctx.passo("clone pricing", _py("clone", "pricing", ctx.args.hypit_fonte), 600), "clone pricing")
     return Veredito(PASS, "clone doctor e clone pricing ok (leitura, sem build)")
 
 
@@ -616,11 +696,13 @@ def _parar_processo(proc, espera_s: float = 120) -> None:
 
 
 def _drenar(fluxo, log: Path, segredos: list) -> None:
-    """Lê a saída do filho linha a linha e grava no log já redigida (o serve pode ecoar uma chave)."""
+    """Lê a saída do filho e grava no log já redigida (o serve pode ecoar uma chave, até partida entre linhas)."""
+    redator = Redator(segredos)
     with open(log, "a", encoding="utf-8") as fh:
         for linha in fluxo:
-            fh.write(redigir(linha, segredos))
+            fh.write(redator.alimentar(linha))
             fh.flush()
+        fh.write(redator.finalizar())
     fluxo.close()
 
 
@@ -635,20 +717,36 @@ def _iniciar_servidor(argv: list, *, env: dict, log: Path, segredos: list):
     return proc, leitor
 
 
+def _porta_ocupada(porta: int) -> bool:
+    """Alguém já ouve em 127.0.0.1:porta? (conexão de teste, sem enviar nada)."""
+    try:
+        with socket.create_connection(("127.0.0.1", porta), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
 def _chk_toonflow(ctx: Ctx) -> Veredito:
+    url = f"http://127.0.0.1:{PORTA_TOONFLOW}"
+    if _porta_ocupada(PORTA_TOONFLOW):  # outro processo na porta faria o HTTP responder sem o serve: não sobe
+        return Veredito(FAIL, f"a porta {PORTA_TOONFLOW} já está ocupada: pare o que a usa e rode de novo (o serve não subiu)")
     # informativo: o estado do checkout e do pin (não gateia). O Docker não tem subcomando de status no motor:
     # o próprio `toonflow serve --docker` é a checagem (o daemon parado aparece no log dele e vira FAIL aqui).
     ctx.passo("toonflow status", _py("toonflow", "status", "--json"), 120)
     log = ctx.pasta("toonflow") / "serve.log"
     proc, leitor = _iniciar_servidor(_py("toonflow", "serve", "--docker"), env=ctx.env, log=log, segredos=ctx.segredos)
+    vivo_ao_responder = False
     try:
-        codigo = esperar_http(URL_TOONFLOW, 1200, vivo=lambda: proc.poll() is None)
+        codigo = esperar_http(url, 1200, vivo=lambda: proc.poll() is None)
+        vivo_ao_responder = codigo is not None and proc.poll() is None  # o PASS é do processo lançado, não de outro
     finally:
         _parar_processo(proc)
         leitor.join(timeout=30)
     if codigo is None:
-        return Veredito(FAIL, f"o Toonflow não respondeu em {URL_TOONFLOW}; o serve falhou ou o Docker não subiu (log: {log})")
-    return Veredito(PASS, f"HTTP {codigo} em {URL_TOONFLOW}; serviço parado com SIGINT (log: {log})")
+        return Veredito(FAIL, f"o Toonflow não respondeu em {url}; o serve falhou ou o Docker não subiu (log: {log})")
+    if not vivo_ao_responder:
+        return Veredito(FAIL, f"HTTP {codigo} em {url}, mas o serve lançado já tinha saído: outro processo respondeu (log: {log})")
+    return Veredito(PASS, f"HTTP {codigo} em {url}; serviço vivo e parado com SIGINT (log: {log})")
 
 
 def _chk_media_fetch(ctx: Ctx) -> Veredito:
@@ -787,6 +885,13 @@ def _f_mp_pago(a, amb):
     return faltas
 
 
+def _f_hypit(a, amb):
+    faltas = _falta_node(amb)
+    if not a.hypit_fonte:
+        faltas.append("falta --hypit-fonte (a run ou fonte para o clone pricing: sem ela o Hypit falha sempre)")
+    return faltas
+
+
 def _f_toonflow(a, amb):
     faltas = []
     if not amb.docker:
@@ -830,7 +935,7 @@ DEFINICOES = [
               lambda a, g: "1 chamada do teto diário (padrão 20 por dia); US$ conforme a conta TinyFish", _chk_busca),
     Definicao("voicestudio", "VoiceStudio (status, voices, tts)", _f_voicestudio,
               lambda a, g: "0 (app local, sua GPU)", _chk_voicestudio),
-    Definicao("hypit", "Hypit: clone doctor e clone pricing", lambda a, g: _falta_node(g),
+    Definicao("hypit", "Hypit: clone doctor e clone pricing", lambda a, g: _f_hypit(a, g),
               lambda a, g: "0 (leitura; o npx baixa o pacote fixado)", _chk_hypit),
     Definicao("hypit-build", "Hypit: clone build (opcional)", _f_build, lambda a, g: "não calculado: o Hypit cobra por provedor, sem teto no motor",
               _chk_hypit_build, teto=lambda a: a.max_usd, opcional=True),
@@ -880,30 +985,43 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--url", metavar="URL", help="vídeo público que você pode usar (media fetch; registra a procedência)")
     ap.add_argument("--busca-texto", default=BUSCA_PADRAO, help="consulta única do check de busca (não envie dado pessoal)")
     ap.add_argument("--incluir-build", action="store_true", help="roda clone build do Hypit (gasta; exige --max-usd e --build-args)")
+    ap.add_argument("--hypit-fonte", default=None, metavar="FONTE",
+                    help="run ou fonte para o clone pricing do Hypit (obrigatória: sem ela o check hypit não roda)")
     ap.add_argument("--build-args", default="", metavar="ARGS", help="argumentos do clone build, entre aspas")
     ap.add_argument("--incluir-pago", action="store_true", help="roda o MoneyPrinter com uma fonte paga (gasta; exige --moneyprinter-fonte)")
     ap.add_argument("--moneyprinter-fonte", default=None, metavar="FONTE", help="fonte paga do MoneyPrinter (ex.: wavespeed)")
     return ap
 
 
-def _validar(ap: argparse.ArgumentParser, a, amb: Ambiente) -> None:
+def _validar_puros(ap: argparse.ArgumentParser, a) -> None:
+    """Argumentos que não dependem da máquina: checados ANTES de qualquer leitura (sondas, PATH, arquivos do motor)."""
     if a.max_usd is not None and not (math.isfinite(a.max_usd) and a.max_usd > 0):
         ap.error("--max-usd precisa ser um número finito e maior que zero")
-    if amb.adaptadores and a.swap_provider not in amb.adaptadores:  # sem o pacote a lista vem vazia: o plano já diz por quê
-        ap.error(f"--swap-provider desconhecido: {a.swap_provider} (use: {', '.join(sorted(amb.adaptadores))})")
     for nome, caminho in (("--swap-video", a.swap_video), ("--swap-ref", a.swap_ref)):
         if caminho and not Path(caminho).is_file():
             ap.error(f"{nome}: arquivo não encontrado: {caminho}")
     if a.url and not re.match(r"^https?://", a.url):
         ap.error("--url precisa ser http:// ou https://")
-    if amb.fontes_pagas and a.moneyprinter_fonte and a.moneyprinter_fonte not in amb.fontes_pagas:
-        ap.error(f"--moneyprinter-fonte desconhecido: {a.moneyprinter_fonte} (fontes pagas: {', '.join(sorted(amb.fontes_pagas))})")
+    if a.pasta:
+        pasta = Path(a.pasta)
+        if pasta.exists() and not pasta.is_dir():
+            ap.error(f"--pasta {a.pasta} é um arquivo: informe uma pasta nova ou vazia")
+        if pasta.is_dir() and any(pasta.iterdir()):
+            ap.error(f"--pasta {a.pasta} já existe e não está vazia: nada é apagado nem sobrescrito")
     if a.apenas:
         pedidos = [x.strip() for x in a.apenas.split(",") if x.strip()]
         desconhecidos = [x for x in pedidos if x not in IDS]
         if desconhecidos:
             ap.error(f"--apenas com check desconhecido: {', '.join(desconhecidos)} (use: {', '.join(IDS)})")
         a.apenas = pedidos
+
+
+def _validar_ambiente(ap: argparse.ArgumentParser, a, amb: Ambiente) -> None:
+    """Argumentos que dependem do que a máquina tem (o pacote, a lista de adaptadores e de fontes pagas)."""
+    if amb.adaptadores and a.swap_provider not in amb.adaptadores:  # sem o pacote a lista vem vazia: o plano já diz por quê
+        ap.error(f"--swap-provider desconhecido: {a.swap_provider} (use: {', '.join(sorted(amb.adaptadores))})")
+    if amb.fontes_pagas and a.moneyprinter_fonte and a.moneyprinter_fonte not in amb.fontes_pagas:
+        ap.error(f"--moneyprinter-fonte desconhecido: {a.moneyprinter_fonte} (fontes pagas: {', '.join(sorted(amb.fontes_pagas))})")
 
 
 def _cel(texto: str) -> str:
@@ -978,11 +1096,12 @@ def _resumo(resultados: list) -> dict:
 def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     ap = _parser()
     a = ap.parse_args(argv)
+    _validar_puros(ap, a)  # antes de qualquer leitura da máquina
     sondas = sondas or SondasReais()
     runner = runner or _rodar
     amb = detectar(sondas, sondar=a.sim_gastar)  # versões e a porta 3900 só com --sim-gastar
-    _validar(ap, a, amb)
-    segredos = _segredos(sondas, amb)
+    _validar_ambiente(ap, a, amb)
+    segredos = _segredos(sondas, amb) if a.sim_gastar else []
     teto = a.max_usd if a.max_usd is not None else TETO_PADRAO_USD
     itens = planejar(amb, a)
 
@@ -990,9 +1109,7 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     criada = False
     if a.sim_gastar:
         if a.pasta:
-            tmp = Path(a.pasta).resolve()
-            if tmp.exists() and any(tmp.iterdir()):
-                ap.error(f"--pasta {tmp} já existe e não está vazia")
+            tmp = Path(a.pasta).resolve()  # a validação pura já recusou pasta usada e arquivo
             tmp.mkdir(parents=True, exist_ok=True)
         else:
             tmp = Path(tempfile.mkdtemp(prefix="simplicio-e2e-real-")).resolve()

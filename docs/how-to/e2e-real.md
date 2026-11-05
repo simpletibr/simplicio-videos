@@ -36,11 +36,11 @@ Antes de todos os checks, o roteiro roda o smoke de SO ([`scripts/smoke_so.py`](
 | `FAL_KEY`, `WAVESPEED_API_KEY`, `KIE_API_KEY`, `DASHSCOPE_API_KEY` | `swap-run` com `--swap-provider fal`, `wavespeed`, `kie` ou `alibaba` | o teto de `--max-usd` | e `--aceito-unverified`: esses adaptadores não foram verificados na API real |
 | `TINYFISH_API_KEY` (ou o login do `tinyfish`) e o binário `tinyfish` | `busca-consulta`: uma consulta, com `--atualizar` | uma chamada do teto diário (padrão 20 por dia) | `--busca-texto` (não envie dado pessoal) |
 | VoiceStudio ouvindo em `127.0.0.1:3900` | `voicestudio`: `status`, `voices` e `tts` para um arquivo temporário | zero (app local, sua GPU) | nenhuma |
-| Node 22.15 ou mais e `npx` | `hypit`: `clone doctor` e `clone pricing` (leitura) | zero | nenhuma |
+| Node 22.15 ou mais e `npx` | `hypit`: `clone doctor` e `clone pricing <fonte>` (leitura). A fonte é obrigatória: sem ela o Hypit falha sempre ("requires one Source"), então o check não roda | zero | `--hypit-fonte` (a run ou fonte do pricing) |
 | Node 22.15 ou mais e `npx` | `hypit-build`: `clone build` | não calculado (o Hypit cobra por provedor) | `--incluir-build`, `--max-usd` e `--build-args` são obrigatórios |
 | MoneyPrinterTurbo pronto (`clone`, `setup`) | `moneyprinter-livre`: `run` sem fonte paga (material local, voz Edge) | zero (Edge TTS, rede) | nenhuma |
 | MoneyPrinterTurbo pronto e a chave da fonte no `config.toml` ou no ambiente | `moneyprinter-pago`: `run` com fonte paga | não calculado (a fonte cobra por vídeo) | `--incluir-pago` e `--moneyprinter-fonte` (ex.: `wavespeed`) |
-| `docker` com o daemon no ar e o Toonflow clonado | `toonflow`: `serve --docker`, consulta `127.0.0.1:3000` e para com SIGINT | zero (baixa imagens e compila) | nenhuma |
+| `docker` no PATH, o Toonflow clonado e a porta `3000` livre | `toonflow`: `serve --docker`, consulta `127.0.0.1:3000` e para com SIGINT. Se a porta já estiver ocupada, o check dá FAIL e não sobe nada; o PASS só sai com o serve lançado vivo quando responde | zero (baixa imagens e compila) | nenhuma |
 | `--url` de um vídeo público que você pode usar | `media-fetch`: `media fetch` com registro de procedência | zero | `--autorizo` |
 
 `swap-estimate` roda sem chave (é só ffprobe e a tabela de preço, sem rede). `smoke-so` e `smoke-trilhas` rodam sempre que você passa `--sim-gastar`.
@@ -53,13 +53,13 @@ Antes de todos os checks, o roteiro roda o smoke de SO ([`scripts/smoke_so.py`](
 - **`hypit-build`**: o motor não tem teto para o build. O `--max-usd` só autoriza a execução e vai para o log; defina um limite no painel do provedor.
 - **`moneyprinter-pago`**: a fonte cobra por vídeo e o motor não tem teto para ela. Por isso o check só roda com `--incluir-pago` e com a fonte nomeada.
 - **Busca**: a consulta vai para um terceiro (TinyFish) e a chamada conta no teto diário do motor, que fica na pasta de dados do motor (não na temporária, para que o teto conte de verdade).
-- **Chave**: nunca vai em argumento nem em log; o que aparece na saída é `***`.
+- **Redação**: redige (a) todo valor não vazio das variáveis de chave conhecidas (`GEMINI_API_KEY`, `FAL_KEY`, `WAVESPEED_API_KEY`, `KIE_API_KEY`, `DASHSCOPE_API_KEY`, `TINYFISH_API_KEY`) e (b) os campos de segredo do `config.toml` do MoneyPrinter (nomes com `key`, `token`, `secret`, `password` ou `senha`), lidos sem imprimir. **Não redige:** as chaves digitadas na interface do Toonflow (ficam nos dados dele, e o roteiro não os lê) nem outros arquivos de configuração de terceiros. Se um desses processos imprimir uma chave fora desses casos, ela aparece no log. A chave nunca vai em argumento de processo.
 
 ## Saída
 
 - Tudo que é gerado fica numa pasta temporária nova, ou na que você passar com `--pasta` (ela tem de não existir ou estar vazia; se não estiver, o roteiro recusa com exit 2 antes de qualquer chamada). Dentro dela ficam as mídias, os contratos copiados, o cache do npm (`npm-cache`, por isso o `npx` baixa de novo a cada execução) e os logs. A pasta é mantida no fim e o caminho é impresso; `--limpar` a apaga.
 - **Fora da pasta temporária, de propósito:** a pasta de dados do motor (checkouts e caches do Hypit, do MoneyPrinter e do Toonflow, e o registro e o contador diário da busca). É ali que o teto diário da busca conta de verdade, e os checkouts são o estado instalado do motor.
-- Os logs e a saída do `toonflow serve` passam pela redação: uma chave que o processo ecoar vira `***` antes de ir para o disco.
+- Logs, saída de passos e a saída do `toonflow serve` passam pela redação em fluxo: uma chave que chega partida entre linhas ou pedaços também vira `***`, e o texto é redigido antes de ir para o disco.
 - Dentro dela, `logs/` tem a linha de comando, o código de saída e a saída de cada passo.
 - `--json` imprime só o documento `simplicio.e2e-real/v1` no stdout (estados, motivos, custo, teto e passos).
 - Estados: `PASS`, `FAIL`, `SKIP` (com o motivo) e `PLANO` (pronto para rodar com `--sim-gastar`).
@@ -78,12 +78,12 @@ make e2e-real E2E_ARGS="--sim-gastar --apenas media-fetch --url https://exemplo.
 python scripts/e2e_real.py --sim-gastar --json > e2e.json
 ```
 
-## Exceções justificadas
+## Exceções e notas
 
-Duas chamadas fora do motor, por falta de subcomando adequado. Nenhuma delas gasta nem usa rede.
+Uma chamada fora do motor, por falta de gerador de mídia no motor: o ffmpeg direto. Não gasta nem usa rede. A nota sobre o Docker não é exceção: é só como a checagem é feita.
 
-- **ffmpeg direto, uma vez por execução:** gera o vídeo sintético de 4 s dos checks de swap e do MoneyPrinter. O repositório não tem vídeo de teste (só PNGs e WAVs) e o `simplicio-video` não tem gerador de mídia. O avatar não gasta chamada: é uma cópia de um PNG do próprio repositório. Não existe subcomando do motor para isso; se surgir um, este roteiro deve passar a usá-lo.
-- **Docker sem subcomando de status:** o motor não tem comando que diga se o daemon do Docker está no ar. A checagem é o próprio `simplicio-video toonflow serve --docker`: se o daemon estiver parado ou o compose falhar, o `toonflow/serve.log` (redigido) mostra o motivo e o check dá FAIL. Antes disso o roteiro roda `simplicio-video toonflow status --json`, só para registrar o checkout e o pin; esse passo não gateia.
+- **ffmpeg direto, uma vez por execução (exceção justificada):** gera o vídeo sintético de 4 s dos checks de swap e do MoneyPrinter. O repositório não tem nenhum MP4 versionado (só PNGs e WAVs, e o fixture `mini` não serve), e o `simplicio-video` não tem gerador de mídia. Por isso o vídeo é gerado uma vez e reaproveitado, e uma falha do ffmpeg não é repetida. O avatar não gasta chamada: é uma cópia de um PNG do próprio repositório. A regra correspondente está em AGENTS.md. Se surgir um fixture ou um subcomando do motor, este roteiro passa a usá-lo.
+- **Docker (nota, não exceção):** o script só faz `shutil.which("docker")` no plano. Quem confere o daemon é o próprio `simplicio-video toonflow serve --docker`: se o daemon estiver parado ou o compose falhar, o `toonflow/serve.log` (redigido) mostra o motivo e o check dá FAIL. Antes do serve, o roteiro roda `simplicio-video toonflow status --json` só para registrar o checkout e o pin; esse passo não gateia.
 
 ## Estado
 
