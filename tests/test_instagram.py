@@ -19,8 +19,11 @@ import io
 import json
 import os
 import re
+import signal
+import stat
 import subprocess
 import sys
+import threading
 import time
 import unicodedata
 from pathlib import Path
@@ -81,6 +84,15 @@ for a in argv:
 if "TRIGGER:SLEEP:" in blob:
     open(blob.split("TRIGGER:SLEEP:", 1)[1].split()[0], "w").write(str(os.getpid()))
     time.sleep(60)
+if "TRIGGER:SPIN:" in blob:
+    open(blob.split("TRIGGER:SPIN:", 1)[1].split()[0], "w").write(str(os.getpid()))
+    while True:
+        pass
+if "TRIGGER:GRANDCHILD:" in blob:
+    import subprocess
+    subprocess.Popen([sys.executable, "-c", "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(60)",
+                      blob.split("TRIGGER:GRANDCHILD:", 1)[1].split()[0]])
+    time.sleep(60)
 if "TRIGGER:BIGERR" in blob:
     sys.stderr.write("e" * 3_000_000)
     sys.stderr.flush()
@@ -92,13 +104,19 @@ if "TRIGGER:BIG" in blob:
 if "TRIGGER:EXIT:" in blob:
     print("falhou de proposito", file=sys.stderr)
     sys.exit(int(blob.split("TRIGGER:EXIT:", 1)[1].split()[0]))
+if "TRIGGER:OSC" in blob:
+    print("\x1b]0;PWNED\x07 tab\there\x9b\nline2")
+    print("\x1b[2Jerr", file=sys.stderr)
+    sys.exit(0)
 if "TRIGGER:ANSI" in blob:
     print("\x1b[31mred\x1b[0m\x00\u202etail")
     sys.exit(0)
 if "TRIGGER:UNICODE" in blob:
     print("ação — 日本 " + data.strip())
     sys.exit(0)
-print(json.dumps({"argv": argv, "stdin": data, "env": dict(os.environ), "cwd": os.getcwd(), "file": __file__,
+candidatos = [a.split("=", 1)[1] if a.startswith("--") and "=" in a else a for a in argv]
+read = {c: open(c, encoding="utf-8", errors="replace").read() for c in candidatos if os.path.isfile(c)}
+print(json.dumps({"argv": argv, "stdin": data, "env": dict(os.environ), "cwd": os.getcwd(), "file": __file__, "read": read,
                   "flags": {"isolated": sys.flags.isolated, "utf8": sys.flags.utf8_mode, "nobytecode": sys.flags.dont_write_bytecode}},
                  ensure_ascii=False))
 '''
@@ -158,6 +176,29 @@ def spy(monkeypatch):
 
     monkeypatch.setattr(subprocess, "Popen", wrapper)
     return calls
+
+
+def vivo(pid: int) -> bool:
+    """Is the process alive (a zombie that nobody reaped counts as dead)?"""
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+    except (OSError, IndexError):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
+
+def espera(condicao, segundos: float = 20.0) -> bool:
+    limite = time.monotonic() + segundos
+    while time.monotonic() < limite:
+        if condicao():
+            return True
+        time.sleep(0.05)
+    return bool(condicao())
 
 
 def run(capsys, *argv):
@@ -274,7 +315,8 @@ def test_help_states_the_limits_the_boundary_and_the_closed_tool_set(capsys):
     assert instagram.run_instagram(["--help"]) == 0
     out = capsys.readouterr().out
     for word in ("clone", "where", "status", "skills", "run", "hookscore", "beats", "caption", "humanize", "detect", "swipe",
-                 "--forcar", "INSTAGRAM_DIR", "MIT", "Jake Schincariol", "sha256", "inglês", "não posta", "não publica", "--out"):
+                 "--forcar", "--bruto", "INSTAGRAM_DIR", "MIT", "Jake Schincariol", "sha256", "inglês", "não posta", "não publica", "--out",
+                 "SIGTERM", "CPU"):
         assert word in out, word
 
 
@@ -300,7 +342,7 @@ def test_skills_cleans_hostile_front_matter_into_one_short_line_of_plain_text(ig
     hostile_skill(ig, ">-\n  " + hostile.replace("\n", "\n  "))
     rc, out, _ = run(capsys, "skills", "--json")
     desc = next(s for s in json.loads(out)["skills"] if s["nome"] == "ig-reel")["untrusted_descricao"]
-    assert len(desc) <= 301 and desc.startswith("hello")
+    assert len(desc) == 300 and desc.endswith("…") and desc.startswith("hello")
     assert not [c for c in desc if unicodedata.category(c) in ("Cc", "Cf", "Zl", "Zp")], repr(desc)
     assert "IGNORE PREVIOUS INSTRUCTIONS" in desc  # kept as data, in a field that says so
     rc, out, _ = run(capsys, "skills")
@@ -422,7 +464,7 @@ def test_a_nul_in_the_tool_name_or_an_argument_never_reaches_subprocess(ig, caps
     assert spy == []
 
 
-def test_input_files_must_exist_be_regular_and_small_and_are_passed_by_absolute_path(ig, capsys, tmp_path):
+def test_input_files_must_exist_be_regular_and_small_and_the_script_gets_a_private_copy_of_the_bytes_read(ig, capsys, tmp_path):
     rc, _, err = run(capsys, "run", "beats", "--", "nao-existe.txt")
     assert rc == 1 and "não encontrado" in err
     (ig.work / "pasta").mkdir()
@@ -436,10 +478,34 @@ def test_input_files_must_exist_be_regular_and_small_and_are_passed_by_absolute_
     ok.write_text("linha\n", encoding="utf8")
     info = echo(capsys, "run", "beats", "--", "roteiro.txt", "--json")
     assert info["argv"][0] == "--json" and len(info["argv"]) == 2  # options first, then the file
-    assert Path(info["argv"][1]).is_absolute() and Path(info["argv"][1]).resolve() == ok.resolve()  # by absolute path: it never starts with a hyphen
+    copia = Path(info["argv"][1])
+    assert copia.is_absolute() and copia.name == "roteiro.txt"  # absolute: it never starts with a hyphen; the name is kept
+    assert copia.resolve() != ok.resolve() and info["read"][info["argv"][1]] == "linha\n"  # a copy of the bytes that were read and checked
+    assert not copia.exists()  # in the private folder, removed after the run
     (ig.work / "-rf").write_text("x", encoding="utf8")  # a file whose name looks like an option
     rc, _, err = run(capsys, "run", "beats", "--", "-rf")
     assert rc == 1 and "opção" in err
+
+
+@pytest.mark.skipif(not os.path.exists("/proc/self/environ"), reason="procfs")
+def test_the_size_limit_counts_the_bytes_read_not_the_size_the_file_claims(ig, capsys, monkeypatch):
+    """/proc/self/environ says st_size 0 and still has content: the limit is on what is read, through the same descriptor."""
+    monkeypatch.setattr(instagram, "MAX_INPUT_BYTES", 1000)
+    monkeypatch.setenv("PADDING", "x" * 3000)
+    assert os.stat("/proc/self/environ").st_size == 0
+    rc, _, err = run(capsys, "run", "beats", "--", "/proc/self/environ")
+    assert rc == 1 and "1 MiB" in err
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX")
+def test_a_named_pipe_is_refused_without_blocking(ig, capsys):
+    os.mkfifo(ig.work / "fifo")
+    signal.alarm(10)  # a hang is a failure, not a stuck suite
+    try:
+        rc, _, err = run(capsys, "run", "beats", "--", "fifo")
+    finally:
+        signal.alarm(0)
+    assert rc == 1 and "arquivo comum" in err
 
 
 def test_stdin_is_read_up_to_one_mebibyte_and_handed_to_the_child(ig, capsys, monkeypatch):
@@ -522,6 +588,7 @@ def test_a_script_that_runs_too_long_is_killed(ig, capsys, monkeypatch, tmp_path
 
 def test_the_default_limits_are_the_documented_ones():
     assert instagram.TIMEOUT_S == 30 and instagram.MAX_OUTPUT_BYTES == 2 * 1024 * 1024 and instagram.MAX_INPUT_BYTES == 1024 * 1024
+    assert instagram.CPU_FOLGA_S == 5  # 35 s of CPU time for the child on POSIX, a little over the 30 s of wall clock
 
 
 def test_a_script_that_prints_past_the_cap_is_killed(ig, capsys, monkeypatch, tmp_path):
@@ -565,6 +632,16 @@ def test_a_missing_script_or_a_link_in_place_of_the_script_is_refused(ig, capsys
     (ig.dir / SCRIPTS["beats"]).symlink_to(target)
     rc, _, err = run(capsys, "run", "beats", "--", "--json")
     assert rc == 1 and "link" in err
+
+
+def test_a_link_to_a_file_inside_the_checkout_with_the_right_bytes_is_still_refused(ig, capsys):
+    real = ig.dir / "skills" / "ig-reel" / "beats_real.py"
+    real.write_bytes((ig.dir / SCRIPTS["beats"]).read_bytes())  # same sha256, same checkout: only the link rule can refuse it
+    (ig.dir / SCRIPTS["beats"]).unlink()
+    (ig.dir / SCRIPTS["beats"]).symlink_to(real.name)
+    rc, out, err = run(capsys, "run", "beats", "--", "--json")
+    assert rc == 1 and out == "" and "link" in err
+    assert json.loads(run(capsys, "status", "--json")[1])["scripts"]["beats"] == "link"
 
 
 def test_a_checkout_at_another_commit_is_refused_even_when_the_hashes_match(ig, capsys, spy, monkeypatch):
@@ -687,9 +764,156 @@ def test_lexicon_and_hooks_paths_are_inputs_with_the_same_rules_as_any_input(ig,
     (ig.work / "slop.json").write_text("{}", encoding="utf8")
     info = echo(capsys, "run", "humanize", "--", "--lexicon", "slop.json", "--json")
     (lexicon,) = [a for a in info["argv"] if a.startswith("--lexicon=")]
-    assert Path(lexicon[len("--lexicon="):]).is_absolute() and Path(lexicon[len("--lexicon="):]).resolve() == (ig.work / "slop.json").resolve()
+    copia = lexicon[len("--lexicon="):]
+    assert Path(copia).is_absolute() and Path(copia).name == "slop.json" and info["read"][copia] == "{}"  # a copy of the bytes read
     rc, _, err = run(capsys, "run", "detect", "--", "--lexicon", "nao-existe.json")
     assert rc == 1 and "não encontrado" in err
+
+
+# ------------------------------------------------------------------------------------------------ the engine dies: the child must not outlive it
+
+RUNNER = r"""
+import json, sys
+from simplicio_video import instagram, tools
+cfg = json.loads(sys.argv[1])
+instagram.PINNED_SHA256 = cfg["sha"]
+instagram.TIMEOUT_S = cfg.get("timeout", instagram.TIMEOUT_S)
+if "cpu_folga" in cfg:
+    instagram.CPU_FOLGA_S = cfg["cpu_folga"]
+tools._git = lambda *a, cwd=None: cfg["ref"]
+sys.exit(instagram.run_instagram(sys.argv[2:]))
+"""
+
+
+def start_engine(ig, tmp_path, *args, **cfg):
+    """The engine in its own process (so it can be signalled), over the fake checkout, with its own TMPDIR."""
+    tmpd = tmp_path / "tmpd"
+    tmpd.mkdir(exist_ok=True)
+    env = offline_env(INSTAGRAM_DIR=str(ig.dir), HOME=str(ig.home), SIMPLICIO_TOOLS_DIR=str(tmp_path / "tools"), TMPDIR=str(tmpd),
+                      SIMPLICIO_VIDEO_HOME=str(ROOT), SIMPLICIO_VIDEO_DATA=str(tmp_path / "data"))
+    env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])
+    config = json.dumps({"sha": ig.hashes, "ref": ig.ref, **cfg})
+    proc = subprocess.Popen([sys.executable, "-c", RUNNER, config, *args], env=env, cwd=ig.work, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    return proc, tmpd
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.parametrize("sinal,codigo", [(signal.SIGTERM, 143), (getattr(signal, "SIGHUP", 1), 129)])
+def test_sigterm_and_sighup_to_the_engine_kill_the_child_and_remove_the_private_folder(ig, tmp_path, sinal, codigo):
+    pidfile = tmp_path / "pid"
+    proc, tmpd = start_engine(ig, tmp_path, "run", "hookscore", "--", "--hook", f"TRIGGER:SLEEP:{pidfile}")
+    try:
+        assert espera(lambda: pidfile.exists() and pidfile.read_text()), "the child never started"
+        pid = int(pidfile.read_text())
+        assert list(tmpd.glob("simplicio-instagram-*")), "the private folder should exist while the script runs"
+        proc.send_signal(sinal)
+        assert proc.wait(timeout=20) == codigo
+        assert espera(lambda: not vivo(pid), 10), "the script outlived the engine"
+        assert not list(tmpd.glob("simplicio-instagram-*")), "the private folder was left behind"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        proc.stderr.close()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
+def test_a_script_that_burns_cpu_is_ended_by_the_kernel_even_if_the_engine_is_killed(ig, tmp_path):
+    """SIGKILL cannot be handled: the CPU limit set on the child is what ends it (it limits CPU time, not wall time)."""
+    pidfile = tmp_path / "pid"
+    proc, _ = start_engine(ig, tmp_path, "run", "hookscore", "--", "--hook", f"TRIGGER:SPIN:{pidfile}", timeout=20, cpu_folga=-18)  # 2 s of CPU
+    pid = None
+    try:
+        assert espera(lambda: pidfile.exists() and pidfile.read_text()), "the child never started"
+        pid = int(pidfile.read_text())
+        proc.kill()
+        proc.wait(timeout=10)
+        assert espera(lambda: not vivo(pid), 20), "the orphan kept running past its CPU limit"
+    finally:
+        if pid is not None and vivo(pid):
+            os.kill(pid, signal.SIGKILL)
+        proc.stderr.close()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
+def test_the_child_has_a_cpu_limit_a_little_over_the_wall_clock_one(ig, monkeypatch, tmp_path):
+    monkeypatch.setattr(instagram, "TIMEOUT_S", 20)
+    monkeypatch.setattr(instagram, "CPU_FOLGA_S", -19)  # 1 s of CPU
+    start = time.monotonic()
+    res = instagram.run_tool("hookscore", ["--hook", f"TRIGGER:SPIN:{tmp_path / 'pid'}"])
+    assert time.monotonic() - start < 15 and res["codigo_saida"] == -signal.SIGXCPU and res["resultado"] is False  # the kernel ended it, not the timeout
+
+
+def test_the_signal_handlers_are_restored_and_a_thread_still_runs_the_tool(ig):
+    antes = {n: signal.getsignal(getattr(signal, n)) for n in ("SIGTERM", "SIGHUP") if hasattr(signal, n)}
+    assert mcp_server.video_instagram("run", "beats", texto="a b c", opcoes=["--json"])["ok"] is True
+    assert {n: signal.getsignal(getattr(signal, n)) for n in antes} == antes
+    saida = []
+    hilo = threading.Thread(target=lambda: saida.append(mcp_server.video_instagram("run", "beats", texto="a b c", opcoes=["--json"])))
+    hilo.start()  # signal handlers can only be installed in the main thread: elsewhere the run goes on without them
+    hilo.join(30)
+    assert saida and saida[0]["ok"] is True
+
+
+def test_a_timeout_kills_the_whole_process_group_including_a_grandchild(ig, capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr(instagram, "TIMEOUT_S", 1.5)
+    pidfile = tmp_path / "grandchild"
+    neto = None
+    try:
+        rc, _, err = run(capsys, "run", "hookscore", "--", "--hook", f"TRIGGER:GRANDCHILD:{pidfile}")
+        assert rc == 1 and "tempo" in err
+        assert espera(lambda: pidfile.exists() and pidfile.read_text(), 5)
+        neto = int(pidfile.read_text())
+        assert espera(lambda: not vivo(neto), 5), "the grandchild of the script survived the timeout"
+    finally:
+        if neto is not None and vivo(neto):
+            os.kill(neto, signal.SIGKILL)
+
+
+# ------------------------------------------------------------------------------------------------ the terminal shows the script text, it does not obey it
+
+def test_visivel_turns_controls_bidi_and_zero_width_into_visible_marks_and_keeps_newline_and_tab():
+    assert instagram.visivel("a\x1b[31mb\x07\x00\tc\nd") == "a␛[31mb␇␀\tc\nd"
+    assert instagram.visivel("x\x7f\x9b\u202e\u200b\u2028\U000e0041y") == "x␡<U+009B><U+202E><U+200B><U+2028><U+E0041>y"
+    assert instagram.visivel("ação — 日本 😀 ok\r\nfim\r") == "ação — 日本 😀 ok\nfim␍"
+
+
+def test_the_terminal_gets_visible_marks_instead_of_escape_sequences_and_bruto_gives_the_raw_text(ig, capsys):
+    rc, out, err = run(capsys, "run", "hookscore", "--", "--hook", "TRIGGER:OSC")
+    assert rc == 0 and "\x1b" not in out and "\x07" not in out and "\x9b" not in out and "\x1b" not in err
+    assert out == "␛]0;PWNED␇ tab\there<U+009B>\nline2\n" and err.startswith("instagram: aviso") and "␛[2Jerr" in err
+    rc, out, err = run(capsys, "run", "hookscore", "--", "--hook", "TRIGGER:ANSI")
+    assert out == "␛[31mred␛[0m␀<U+202E>tail\n"
+    rc, out, err = run(capsys, "run", "hookscore", "--bruto", "--", "--hook", "TRIGGER:OSC")
+    assert out.startswith("\x1b]0;PWNED\x07") and "\x1b[2Jerr" in err  # the engine flag asks for the raw text
+
+
+# ------------------------------------------------------------------------------------------------ --out guard: case, auto-start folders
+
+def test_out_guard_ignores_case_on_case_insensitive_systems(ig, capsys, monkeypatch):
+    (ig.work / ".git" / "hooks").mkdir(parents=True)
+    alvos = ["/USR/local/bin/x", "/Etc/cron.d/x", f"{ig.work}/.GIT/hooks/pre-commit", f"{ig.home}/.SSH/authorized_keys",
+             str(ig.dir).upper() + "/x.txt"]
+    monkeypatch.setattr(instagram, "CASE_INSENSITIVE", True)  # darwin and win32 set it on their own
+    for alvo in alvos:
+        rc, _, err = run(capsys, "run", "humanize", "--forcar", "--", "--out", alvo)
+        assert rc == 1 and "não grava" in err, (alvo, err)
+    monkeypatch.setattr(instagram, "CASE_INSENSITIVE", False)
+    rc, _, err = run(capsys, "run", "humanize", "--forcar", "--", "--out", "/USR/local/bin/x")
+    assert rc == 1 and "não existe" in err  # on a case-sensitive system /USR is just another (missing) folder
+
+
+def test_out_guard_covers_the_auto_start_folders_of_macos_and_windows(ig, capsys, monkeypatch, tmp_path):
+    appdata = tmp_path / "AppData" / "Roaming"
+    monkeypatch.setenv("APPDATA", str(appdata))
+    inicio = "Microsoft/Windows/Start Menu/Programs/Startup"
+    for alvo in (f"{ig.home}/Library/LaunchAgents/com.x.plist", f"{ig.home}/Library/LaunchDaemons/x.plist",
+                 f"{appdata}/{inicio}/x.bat", f"{ig.home}/AppData/Roaming/{inicio}/x.bat"):
+        rc, _, err = run(capsys, "run", "humanize", "--forcar", "--", "--out", alvo)
+        assert rc == 1 and "não grava" in err, (alvo, err)
+
+
+def test_the_platform_flag_matches_the_platform():
+    assert instagram.CASE_INSENSITIVE == (sys.platform in ("darwin", "win32"))
 
 
 # ------------------------------------------------------------------------------------------------ MCP: read-only, text in, text out
@@ -768,6 +992,22 @@ def test_mcp_run_with_a_tool_outside_the_table_is_refused(ig, spy):
         res = mcp_server.video_instagram("run", nome, texto="x")
         assert res["ok"] is False and "ferramenta" in res["error"], nome
     assert spy == []
+
+
+def test_mcp_does_not_take_the_hook_option_either_the_text_goes_in_texto(ig, spy):
+    res = mcp_server.video_instagram("run", "hookscore", texto="x", opcoes=["--hook", "y"])
+    assert res["ok"] is False and "--hook" in res["error"] and spy == []
+    res = mcp_server.video_instagram("run", "hookscore", texto="x", opcoes=["--hook=y"])
+    assert res["ok"] is False and spy == []
+
+
+def test_mcp_reports_a_failed_import_instead_of_raising(monkeypatch):
+    import simplicio_video
+    monkeypatch.delattr(simplicio_video, "instagram")  # `from . import x` uses the attribute when it is there
+    monkeypatch.setitem(sys.modules, "simplicio_video.instagram", None)
+    for acao in ("status", "skills", "where", "run", "clone"):
+        res = mcp_server.video_instagram(acao, "hookscore", "x")
+        assert res["ok"] is False and "error" in res, acao
 
 
 def test_mcp_cleans_control_characters_out_of_the_script_text_and_flags_script_failures(ig):
@@ -893,8 +1133,22 @@ def test_both_readmes_document_the_instagram_track_with_its_limits():
         assert re.search(r"\|[^|\n]*`instagram`", texto), f"{nome}: sem a linha do instagram nas tabelas"
 
 
+def test_both_readmes_warn_that_the_engine_guarantees_stop_once_the_skills_are_copied():
+    quadros = (("README.md", "### Instagram agent skills", ("After you copy the skills", "directly", "sha256", "30 s", "logged in", "yt-dlp",
+                                                             "~/.claude/instagram/swipe.md", "refuses", "instagram run", "--bruto", "SIGTERM", "RLIMIT_CPU", "Windows")),
+               ("README.pt-BR.md", "### Skills de Instagram", ("Depois de copiar as skills", "direto", "sha256", "30 s", "logado", "yt-dlp",
+                                                                "~/.claude/instagram/swipe.md", "recusa", "instagram run", "--bruto", "SIGTERM", "RLIMIT_CPU", "Windows")))
+    for nome, titulo, frases in quadros:
+        texto = (ROOT / nome).read_text(encoding="utf8")
+        secao = texto[texto.index(titulo):].split("\n## ", 1)[0]
+        for frase in frases:
+            assert frase in secao, f"{nome}: a seção do instagram não diz {frase!r}"
+
+
 def test_changelog_agents_and_third_party_docs_mention_the_instagram_track():
-    assert re.search(r"instagram", (ROOT / "CHANGELOG.md").read_text(encoding="utf8").split("## 0.6.0")[0], re.I)
+    novidades = (ROOT / "CHANGELOG.md").read_text(encoding="utf8").split("## 0.6.0")[0]
+    assert re.search(r"instagram", novidades, re.I)
+    assert "Follow-ups" in novidades and "Traceback" in novidades and "clone" in novidades.split("Follow-ups", 1)[1]  # the two known gaps
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf8")
     linhas = [ln for ln in agents.splitlines() if "instagram" in ln.lower()]
     assert any("simplicio-video instagram" in ln for ln in linhas) and any("instagram.py" in ln for ln in linhas)
