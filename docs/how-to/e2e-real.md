@@ -47,7 +47,8 @@ Antes de todos os checks, o roteiro roda o smoke de SO ([`scripts/smoke_so.py`](
 
 ## Teto e consentimento
 
-- **Nada roda sem `--sim-gastar`** (ou `--yes`). Sem a flag, o roteiro imprime o plano e o custo, e sai com 0.
+- **Nada roda sem `--sim-gastar`** (ou `--yes`). Sem a flag, o roteiro imprime o plano e o custo, e sai com 0. O plano só lê o PATH, os arquivos e o ambiente: não roda processo, não abre porta e não pergunta versão de ferramenta. Versões do Node e do ffmpeg e a porta do VoiceStudio são conferidas só com a flag.
+- **`--max-usd`** precisa ser maior que zero; 0 ou negativo é erro de uso.
 - **`swap run`**: o motor impõe o teto (`--max-usd`, padrão US$ 1,00). Se a estimativa passa do teto, nada é enviado. Com o padrão, um vídeo de cerca de 9 s ou mais é recusado; suba `--max-usd` de propósito.
 - **`hypit-build`**: o motor não tem teto para o build. O `--max-usd` só autoriza a execução e vai para o log; defina um limite no painel do provedor.
 - **`moneyprinter-pago`**: a fonte cobra por vídeo e o motor não tem teto para ela. Por isso o check só roda com `--incluir-pago` e com a fonte nomeada.
@@ -56,7 +57,9 @@ Antes de todos os checks, o roteiro roda o smoke de SO ([`scripts/smoke_so.py`](
 
 ## Saída
 
-- Tudo que é gerado fica numa pasta temporária nova, ou na que você passar com `--pasta` (ela tem de não existir ou estar vazia). A pasta é mantida no fim e o caminho é impresso; `--limpar` a apaga.
+- Tudo que é gerado fica numa pasta temporária nova, ou na que você passar com `--pasta` (ela tem de não existir ou estar vazia; se não estiver, o roteiro recusa com exit 2 antes de qualquer chamada). Dentro dela ficam as mídias, os contratos copiados, o cache do npm (`npm-cache`, por isso o `npx` baixa de novo a cada execução) e os logs. A pasta é mantida no fim e o caminho é impresso; `--limpar` a apaga.
+- **Fora da pasta temporária, de propósito:** a pasta de dados do motor (checkouts e caches do Hypit, do MoneyPrinter e do Toonflow, e o registro e o contador diário da busca). É ali que o teto diário da busca conta de verdade, e os checkouts são o estado instalado do motor.
+- Os logs e a saída do `toonflow serve` passam pela redação: uma chave que o processo ecoar vira `***` antes de ir para o disco.
 - Dentro dela, `logs/` tem a linha de comando, o código de saída e a saída de cada passo.
 - `--json` imprime só o documento `simplicio.e2e-real/v1` no stdout (estados, motivos, custo, teto e passos).
 - Estados: `PASS`, `FAIL`, `SKIP` (com o motivo) e `PLANO` (pronto para rodar com `--sim-gastar`).
@@ -74,6 +77,13 @@ make e2e-real E2E_ARGS="--sim-gastar --apenas media-fetch --url https://exemplo.
 # o JSON completo, para guardar o resultado
 python scripts/e2e_real.py --sim-gastar --json > e2e.json
 ```
+
+## Exceções justificadas
+
+Duas chamadas fora do motor, por falta de subcomando adequado. Nenhuma delas gasta nem usa rede.
+
+- **ffmpeg direto, uma vez por execução:** gera o vídeo sintético de 4 s dos checks de swap e do MoneyPrinter. O repositório não tem vídeo de teste (só PNGs e WAVs) e o `simplicio-video` não tem gerador de mídia. O avatar não gasta chamada: é uma cópia de um PNG do próprio repositório. Não existe subcomando do motor para isso; se surgir um, este roteiro deve passar a usá-lo.
+- **Docker sem subcomando de status:** o motor não tem comando que diga se o daemon do Docker está no ar. A checagem é o próprio `simplicio-video toonflow serve --docker`: se o daemon estiver parado ou o compose falhar, o `toonflow/serve.log` (redigido) mostra o motivo e o check dá FAIL. Antes disso o roteiro roda `simplicio-video toonflow status --json`, só para registrar o checkout e o pin; esse passo não gateia.
 
 ## Estado
 

@@ -461,7 +461,13 @@ def test_ambiente_filho_mantem_caches_e_bytecode_dentro_da_temporaria(tmp_path):
 
 def test_so_um_ffmpeg_gera_a_midia_sintetica_e_o_avatar_vem_do_repositorio(tmp_path, capsys):
     """A mídia sintética gasta uma chamada ao ffmpeg (o repo não tem vídeo de teste); a imagem é copiada do repo."""
-    grav = Gravador()
+    def ffmpeg_grava(argv):
+        # só o binário do ffmpeg grava (a chave casa por substring e o caminho temporário tem o nome do teste)
+        if str(argv[0]).endswith("ffmpeg"):
+            Path(argv[-1]).write_bytes(b"midia")  # como o ffmpeg de verdade: o arquivo de saída passa a existir
+        return e2e.Saida(0, "", "")
+
+    grav = Gravador({"ffmpeg": ffmpeg_grava})
     sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA}, mp=True)
     _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "swap-estimate,moneyprinter-livre"], sondas=sondas,
           gravador=grav)

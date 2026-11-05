@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Roteiro de testes reais ponta a ponta do simplicio-video, com as chaves e os apps DESTA máquina.
 
-Sem `--sim-gastar` (ou `--yes`) nada roda: o script só detecta o ambiente e imprime o plano, com o custo estimado de cada
-check, e sai com 0. Com a flag, roda só o que o ambiente habilita; o que falta vira SKIP com o motivo. Tudo que é gerado
+Sem `--sim-gastar` (ou `--yes`) nada roda: o script só lê o PATH, os arquivos e o ambiente (sem processo, sem socket, sem
+versão de ferramenta), imprime o plano com o custo estimado de cada check, e sai com 0. Com a flag, roda só o que o ambiente habilita; o que falta vira SKIP com o motivo. Tudo que é gerado
 vai para uma pasta temporária (use `--manter` ou `--pasta` para guardar; a padrão fica no disco e o caminho é impresso).
 
 O roteiro também roda, primeiro, o smoke de SO (`scripts/smoke_so.py`) e o das trilhas (`scripts/smoke_trilhas.py`),
@@ -51,6 +51,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -122,8 +123,10 @@ class Parar(Exception):
 class Ambiente:
     sistema: str
     python: str
-    node: Optional[tuple]
+    node: Optional[tuple]           # versão, só quando conferida (execução)
     node_texto: str
+    node_presente: bool
+    node_conferido: bool
     ffmpeg: Optional[str]
     ffmpeg_texto: str
     npx: Optional[str]
@@ -131,7 +134,7 @@ class Ambiente:
     tinyfish: Optional[str]
     tinyfish_chave: bool
     chaves: frozenset
-    voicestudio: bool
+    voicestudio: Optional[bool]     # None no plano: a porta não é sondada sem --sim-gastar
     moneyprinter: bool
     toonflow: bool
     pacote: bool
@@ -149,6 +152,7 @@ class Item:
     teto_usd: Optional[float]
     executar: Optional[Callable]
     opcional: bool = False
+    nota: str = ""               # condição que só a execução confere (ex.: a porta do VoiceStudio)
 
 
 @dataclass
@@ -239,21 +243,38 @@ def node_ok(versao: Optional[tuple]) -> bool:
     return versao is not None and versao[:2] >= NODE_MIN
 
 
-def detectar(sondas) -> Ambiente:
+def _sistema() -> str:
+    """SO sem subprocesso (platform.platform() chama `uname -p` em algumas plataformas)."""
+    return f"{platform.system()} {platform.release()} ({platform.machine()})"
+
+
+def detectar(sondas, *, sondar: bool) -> Ambiente:
+    """Lê a máquina. Só com `sondar` (execução, --sim-gastar) roda versões e abre a porta do VoiceStudio: o plano é
+    só leitura do PATH, de arquivos e do ambiente."""
     env = sondas.env()
-    node = _versao_do_node(sondas.versao(["node", "--version"])) if sondas.achar("node") else None
+    node_path = sondas.achar("node")
+    node = _versao_do_node(sondas.versao(["node", "--version"])) if (sondar and node_path) else None
     ffmpeg = sondas.achar("ffmpeg")
     adaptadores = sondas.adaptadores()
     variaveis = {var for var, _ in adaptadores.values() if var} | set(CHAVES_CONHECIDAS)
     chaves = frozenset(v for v in variaveis if env.get(v))
     tinyfish_chave = bool(env.get("TINYFISH_API_KEY")) or sondas.arquivo_existe(Path.home() / ".tinyfish" / "config.json")
+    versao_nota = "versão conferida com --sim-gastar"
+    if node_path:
+        node_texto = ".".join(map(str, node)) if node else (f"presente, {versao_nota}" if not sondar else "versão ilegível")
+    else:
+        node_texto = "ausente"
+    if ffmpeg:
+        ffmpeg_texto = (sondas.versao([ffmpeg, "-version"]) or "?") if sondar else f"presente, {versao_nota}"
+    else:
+        ffmpeg_texto = "ausente"
     return Ambiente(
-        sistema=platform.platform(), python=f"{platform.python_version()} ({sys.executable})",
-        node=node, node_texto=".".join(map(str, node)) if node else "ausente",
-        ffmpeg=ffmpeg, ffmpeg_texto=(sondas.versao([ffmpeg, "-version"]) or "?") if ffmpeg else "ausente",
+        sistema=_sistema(), python=f"{platform.python_version()} ({sys.executable})",
+        node=node, node_texto=node_texto, node_presente=bool(node_path), node_conferido=sondar,
+        ffmpeg=ffmpeg, ffmpeg_texto=ffmpeg_texto,
         npx=sondas.achar("npx"), docker=sondas.achar("docker"), tinyfish=sondas.achar("tinyfish"),
         tinyfish_chave=tinyfish_chave, chaves=chaves,
-        voicestudio=sondas.porta_aberta("127.0.0.1", PORTA_VOICESTUDIO),
+        voicestudio=sondas.porta_aberta("127.0.0.1", PORTA_VOICESTUDIO) if sondar else None,
         moneyprinter=sondas.moneyprinter_pronto(), toonflow=sondas.toonflow_dir() is not None,
         pacote=sondas.pacote(), adaptadores=adaptadores, fontes_pagas=sondas.fontes_pagas(),
     )
@@ -390,7 +411,13 @@ def preparar_contrato(origem: Path, destino: Path) -> Path:
 
 
 # -------------------------------------------------------------------------------- checks (executores)
+REF_PADRAO = REPO / "src" / "simplicio_video" / "data" / "motion" / "patterns" / "logo-drop-shockwave" / "preview.png"
+
+
 def _midia_sintetica(ctx: Ctx) -> tuple:
+    """Vídeo sintético de DURACAO_SINTETICA_S e um avatar. EXCEÇÃO JUSTIFICADA: o ffmpeg direto gera só o vídeo (uma
+    chamada), porque o repositório não tem vídeo de teste e o `simplicio-video` não tem gerador de mídia. O avatar é uma
+    cópia de um PNG do próprio repositório (o estimador só lê as dimensões e o tamanho)."""
     pasta = ctx.pasta("midia")
     video, ref = pasta / "sintetico.mp4", pasta / "avatar.png"
     ff = ctx.amb.ffmpeg
@@ -401,9 +428,7 @@ def _midia_sintetica(ctx: Ctx) -> tuple:
                                                  "-shortest", str(video)], 300)
         _exige(p, "ffmpeg (vídeo sintético)")
     if not ref.exists():
-        p = ctx.passo("ffmpeg: imagem sintética", [ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x3366aa:s=256x256",
-                                                   "-frames:v", "1", str(ref)], 120)
-        _exige(p, "ffmpeg (imagem sintética)")
+        shutil.copyfile(REF_PADRAO, ref)
     return video, ref
 
 
@@ -516,15 +541,6 @@ def _chk_hypit_build(ctx: Ctx) -> Veredito:
     return Veredito(PASS, f"build do Hypit terminou (teto informado {_usd(ctx.args.max_usd, 2)}; o Hypit não aplica teto)")
 
 
-def _material_sintetico(ctx: Ctx, destino: Path) -> Path:
-    if not destino.exists():
-        p = ctx.passo("ffmpeg: material sintético", [ctx.amb.ffmpeg, "-y", "-loglevel", "error", "-f", "lavfi", "-i",
-                                                     "testsrc2=size=360x640:rate=24", "-t", "5", "-an", "-c:v", "libx264",
-                                                     "-pix_fmt", "yuv420p", str(destino)], 300)
-        _exige(p, "ffmpeg (material)")
-    return destino
-
-
 def _veredito_mp(p: Passo, out: Path) -> Veredito:
     doc = _json_de(p.saida)
     if not p.ok or not doc:
@@ -536,7 +552,7 @@ def _veredito_mp(p: Passo, out: Path) -> Veredito:
 
 def _chk_moneyprinter_livre(ctx: Ctx) -> Veredito:
     pasta = ctx.pasta("moneyprinter")
-    material = _material_sintetico(ctx, pasta / "material.mp4")
+    material, _ = _midia_sintetica(ctx)  # o mesmo vídeo sintético: uma só chamada ao ffmpeg no roteiro
     out = pasta / "saida-livre"
     argv = _py("moneyprinter", "run", "--out", str(out), "--json", "--", "--video-script", TEXTO_ROTEIRO,
                "--video-source", "local", "--video-materials", str(material), "--voice-name", VOZ_EDGE,
@@ -599,23 +615,39 @@ def _parar_processo(proc, espera_s: float = 120) -> None:
             pass
 
 
+def _drenar(fluxo, log: Path, segredos: list) -> None:
+    """Lê a saída do filho linha a linha e grava no log já redigida (o serve pode ecoar uma chave)."""
+    with open(log, "a", encoding="utf-8") as fh:
+        for linha in fluxo:
+            fh.write(redigir(linha, segredos))
+            fh.flush()
+    fluxo.close()
+
+
+def _iniciar_servidor(argv: list, *, env: dict, log: Path, segredos: list):
+    """Sobe um processo de longa duração com a saída canalizada e redigida. Devolve (processo, leitor)."""
+    kwargs = {"start_new_session": True} if os.name == "posix" else {
+        "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+    proc = subprocess.Popen(argv, cwd=str(REPO), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", **kwargs)
+    leitor = threading.Thread(target=_drenar, args=(proc.stdout, Path(log), list(segredos)), daemon=True)
+    leitor.start()
+    return proc, leitor
+
+
 def _chk_toonflow(ctx: Ctx) -> Veredito:
-    dk = ctx.passo("docker info", ["docker", "info", "--format", "{{.ServerVersion}}"], 60)
-    if not dk.ok:
-        return Veredito(SKIP, "o daemon do Docker não respondeu (docker info falhou); abra o Docker e rode de novo")
+    # informativo: o estado do checkout e do pin (não gateia). O Docker não tem subcomando de status no motor:
+    # o próprio `toonflow serve --docker` é a checagem (o daemon parado aparece no log dele e vira FAIL aqui).
+    ctx.passo("toonflow status", _py("toonflow", "status", "--json"), 120)
     log = ctx.pasta("toonflow") / "serve.log"
-    argv = _py("toonflow", "serve", "--docker")
-    with open(log, "w", encoding="utf-8") as fh:
-        kwargs = {"start_new_session": True} if os.name == "posix" else {
-            "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
-        proc = subprocess.Popen(argv, cwd=str(REPO), env=ctx.env, stdin=subprocess.DEVNULL, stdout=fh,
-                                stderr=subprocess.STDOUT, **kwargs)
+    proc, leitor = _iniciar_servidor(_py("toonflow", "serve", "--docker"), env=ctx.env, log=log, segredos=ctx.segredos)
     try:
         codigo = esperar_http(URL_TOONFLOW, 1200, vivo=lambda: proc.poll() is None)
     finally:
         _parar_processo(proc)
+        leitor.join(timeout=30)
     if codigo is None:
-        return Veredito(FAIL, f"o Toonflow não respondeu em {URL_TOONFLOW} (log: {log})")
+        return Veredito(FAIL, f"o Toonflow não respondeu em {URL_TOONFLOW}; o serve falhou ou o Docker não subiu (log: {log})")
     return Veredito(PASS, f"HTTP {codigo} em {URL_TOONFLOW}; serviço parado com SIGINT (log: {log})")
 
 
@@ -641,7 +673,9 @@ def _falta_node(amb: Ambiente) -> list:
     faltas = []
     if not amb.npx:
         faltas.append("falta npx (Node no PATH)")
-    if not node_ok(amb.node):
+    if not amb.node_presente:
+        faltas.append("falta node no PATH")
+    elif amb.node_conferido and not node_ok(amb.node):  # no plano a versão não é lida: a execução confere
         faltas.append(f"Node {NODE_MIN[0]}.{NODE_MIN[1]} ou mais (há: {amb.node_texto})")
     return faltas
 
@@ -721,6 +755,8 @@ def _f_busca(a, amb):
 
 
 def _f_voicestudio(a, amb):
+    if amb.voicestudio is None:  # plano: a porta é anotada e sondada na execução
+        return []
     return [] if amb.voicestudio else [f"nenhum app ouvindo em 127.0.0.1:{PORTA_VOICESTUDIO} (abra o VoiceStudio)"]
 
 
@@ -819,8 +855,9 @@ def planejar(amb: Ambiente, args) -> list:
             faltas.insert(0, PACOTE_FALTA)
         if args.apenas and d.id not in args.apenas:
             faltas.insert(0, "fora de --apenas")
+        nota = f"porta {PORTA_VOICESTUDIO} só é sondada com --sim-gastar" if (d.id == "voicestudio" and amb.voicestudio is None) else ""
         itens.append(Item(id=d.id, titulo=d.titulo, estado=SKIP if faltas else PLANO, motivo="; ".join(faltas),
-                          custo=d.custo(args, amb), teto_usd=d.teto(args), executar=d.executar, opcional=d.opcional))
+                          custo=d.custo(args, amb), teto_usd=d.teto(args), executar=d.executar, opcional=d.opcional, nota=nota))
     return itens
 
 
@@ -834,7 +871,7 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--pasta", metavar="DIR", help="pasta de saída (tem de não existir ou estar vazia); padrão: temporária nova")
     ap.add_argument("--limpar", action="store_true", help="apaga a pasta temporária no fim (sem isto ela fica, com o caminho impresso)")
     ap.add_argument("--max-usd", type=float, default=None, metavar="USD",
-                    help=f"teto de gasto: do swap run (padrão {TETO_PADRAO_USD:.2f}) e obrigatório no build do Hypit")
+                    help=f"teto de gasto, maior que zero: do swap run (padrão {TETO_PADRAO_USD:.2f}) e obrigatório no build do Hypit")
     ap.add_argument("--swap-provider", default="gemini", help="adaptador do swap (padrão gemini; fal, wavespeed, kie, alibaba são não verificados)")
     ap.add_argument("--swap-video", metavar="ARQ", help="vídeo a trocar (seu; o swap run exige)")
     ap.add_argument("--swap-ref", metavar="ARQ", help="imagem do avatar (sua; o swap run exige)")
@@ -850,8 +887,8 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _validar(ap: argparse.ArgumentParser, a, amb: Ambiente) -> None:
-    if a.max_usd is not None and not (math.isfinite(a.max_usd) and a.max_usd >= 0):
-        ap.error("--max-usd precisa ser um número finito, 0 ou maior")
+    if a.max_usd is not None and not (math.isfinite(a.max_usd) and a.max_usd > 0):
+        ap.error("--max-usd precisa ser um número finito e maior que zero")
     if amb.adaptadores and a.swap_provider not in amb.adaptadores:  # sem o pacote a lista vem vazia: o plano já diz por quê
         ap.error(f"--swap-provider desconhecido: {a.swap_provider} (use: {', '.join(sorted(amb.adaptadores))})")
     for nome, caminho in (("--swap-video", a.swap_video), ("--swap-ref", a.swap_ref)):
@@ -894,12 +931,16 @@ def _cabecalho(amb: Ambiente, modo: str, pasta: str) -> list:
     ]
 
 
-def _ambiente_filho(base: dict) -> dict:
+def _ambiente_filho(base: dict, tmp: Path) -> dict:
+    """Ambiente dos processos filhos. Caches do npm e bytecode ficam DENTRO da pasta temporária; a pasta de dados do
+    motor (checkouts, busca e o contador diário) continua onde o motor a põe, por ser o próprio estado do motor."""
     env = dict(base)
     env.pop("SIMPLICIO_OFFLINE", None)  # o roteiro é o único lugar que pede rede de propósito
     env["PYTHONPATH"] = str(SRC) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["npm_config_cache"] = str(Path(tmp) / "npm-cache")
     return env
 
 
@@ -939,7 +980,7 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
     a = ap.parse_args(argv)
     sondas = sondas or SondasReais()
     runner = runner or _rodar
-    amb = detectar(sondas)
+    amb = detectar(sondas, sondar=a.sim_gastar)  # versões e a porta 3900 só com --sim-gastar
     _validar(ap, a, amb)
     segredos = _segredos(sondas, amb)
     teto = a.max_usd if a.max_usd is not None else TETO_PADRAO_USD
@@ -956,18 +997,18 @@ def main(argv: Optional[list] = None, *, sondas=None, runner=None) -> int:
         else:
             tmp = Path(tempfile.mkdtemp(prefix="simplicio-e2e-real-")).resolve()
             criada = True
-    ctx = Ctx(tmp or Path("<criada ao rodar>"), a, runner, _ambiente_filho(sondas.env()), amb, segredos, teto)
-
     modo = "executado" if a.sim_gastar else "plano (nada roda; acrescente --sim-gastar para executar)"
     cabecalho = _cabecalho(amb, modo, str(tmp) if tmp else (str(Path(a.pasta).resolve()) if a.pasta else "<criada ao rodar>"))
     fluxo = sys.stderr if a.json else sys.stdout
     print("\n".join(cabecalho) + "\n", file=fluxo)
 
     if a.sim_gastar:
+        ctx = Ctx(tmp, a, runner, _ambiente_filho(sondas.env(), tmp), amb, segredos, teto)
         resultados = _executar(itens, ctx, segredos)
     else:
-        resultados = [Resultado(it.id, it.titulo, it.estado, it.motivo or "pronto (roda com --sim-gastar)", it.custo, it.teto_usd)
-                      for it in itens]
+        resultados = [Resultado(it.id, it.titulo, it.estado,
+                                it.motivo if it.estado == SKIP else (it.nota or "pronto (roda com --sim-gastar)"),
+                                it.custo, it.teto_usd) for it in itens]
 
     resumo = _resumo(resultados)
     rc = 1 if resumo[FAIL] else 0
