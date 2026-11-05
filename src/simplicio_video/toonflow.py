@@ -167,7 +167,13 @@ def _serve(d: Path, args: list[str]) -> int:
     if DOCKER_FLAG in args:
         if args != [DOCKER_FLAG]:
             raise ToonflowError(f"serve {DOCKER_FLAG} não combina com outras opções: o compose do Toonflow já publica só em 127.0.0.1:{PORT}.")
-        return _serve_docker(d)
+        up = _docker_up()
+        print(f"Toonflow (docker compose) em http://127.0.0.1:{PORT}, só neste computador e sem login. Ctrl+C para parar.")
+        try:
+            return subprocess.call(up, cwd=d)  # in _serve on purpose: terminal-only, like the bun path (tests/test_childio.py ALLOW)
+        except KeyboardInterrupt:
+            print("toonflow: interrompido", file=sys.stderr)
+            return 0
     if [a for a in args if a != LAN_FLAG]:
         raise ToonflowError(f"serve aceita só {LAN_FLAG} ou {DOCKER_FLAG}: a porta é fixa no Toonflow ({PORT}).")
     if LAN_FLAG not in args:
@@ -207,18 +213,13 @@ def _compose_cmd() -> list[str] | None:
     return [legacy] if legacy else None
 
 
-def _serve_docker(d: Path) -> int:
+def _docker_up() -> list[str]:
     """The loopback alternative: upstream's compose.yaml publishes 127.0.0.1:3000:3000 and keeps the data in a volume."""
     compose = _compose_cmd()
     if compose is None:
         raise ToonflowError("docker compose não encontrado (https://docs.docker.com/compose/install/): instale o Docker, "
                             f"ou use `serve {LAN_FLAG}` aceitando a exposição em todas as interfaces.")
-    print(f"Toonflow (docker compose) em http://127.0.0.1:{PORT}, só neste computador e sem login. Ctrl+C para parar.")
-    try:
-        return subprocess.call([*compose, "up", "--build"], cwd=d)
-    except KeyboardInterrupt:
-        print("toonflow: interrompido", file=sys.stderr)
-        return 0
+    return [*compose, "up", "--build"]
 
 
 def _bun_version(bun: str) -> str | None:
