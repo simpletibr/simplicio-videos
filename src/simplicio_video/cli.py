@@ -249,7 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("montage", formatter_class=Fmt, help="trilha Montage (OpenMontage): produção de vídeo com agentes de IA",
         description="Invoca o OpenMontage (https://github.com/calesthio/OpenMontage) para pipelines e agentes de produção de vídeo (Backlot, Remotion, HyperFrames).",
-        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000")
+        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000\n  simplicio-video montage pipelines list --json\n  simplicio-video montage tools list --runtime api --json\n  simplicio-video montage envelope --json\n  simplicio-video montage estimate NOME --input '{}' --json")
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao OpenMontage")
 
     p = sub.add_parser("edit", formatter_class=Fmt, help="edição por EDL com video-use sobre qualquer MP4",
@@ -609,6 +609,9 @@ def main(argv: list[str] | None = None) -> int:
         antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
         # `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this parser
         ajuda_do_upstream = args_list[0] == "rea-video" and rea_video.repassa(args_list[1:])
+        # `montage tools --help` etc. have their own argparse (with examples) inside montage.py
+        ajuda_propria = args_list[0] == "montage" and args_list[1:2] and args_list[1] in montage.REGISTRY_COMMANDS
+        ajuda_do_upstream = ajuda_do_upstream or bool(ajuda_propria)
         if not ajuda_do_upstream and any(h in antes_do_traco for h in ("-h", "--help")):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
