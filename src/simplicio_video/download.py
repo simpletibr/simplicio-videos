@@ -236,7 +236,10 @@ def fetch(url: str, dest: Path, autorizo: bool, max_mb: int = DEFAULT_MAX_MB, ti
         if r.returncode:
             raise DownloadError(f"yt-dlp: {_ultima_linha(r.stderr or r.stdout)}")
         info = _info(r.stdout)
-        if info.get("_type") == "playlist" or (info.get("n_entries") or 0) > 1:
+        # With --playlist-items 1 yt-dlp prints the entry as a plain video that remembers its list (playlist_count), so look there.
+        contagem = info.get("playlist_count")
+        if (info.get("_type") == "playlist" or (info.get("n_entries") or 0) > 1 or (isinstance(contagem, int) and contagem > 1)
+                or (info.get("playlist_id") and contagem is None)):
             raise DownloadError("a página é uma lista de vídeos: o motor baixa um vídeo só, passe a URL do vídeo")
         arquivo = _arquivo(pasta)
         if not audio_only:
@@ -294,15 +297,14 @@ def fetch(url: str, dest: Path, autorizo: bool, max_mb: int = DEFAULT_MAX_MB, ti
             publicados.append(dest)
             try:
                 with registro.open("x", encoding="utf8") as f:
+                    publicados.append(registro)  # created by us from here on, even if the write below fails halfway
                     f.write(json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
             except FileExistsError:
                 raise DownloadError(f"{registro.name} apareceu durante o download; não sobrescrevo") from None
             except OSError as e:
                 raise DownloadError(f"não consegui gravar {registro.name}: {e.strerror or type(e).__name__}") from None
-            publicados.append(registro)
         except BaseException:
-            # `registro` is ours only when it was appended above; a file that appeared meanwhile belongs to someone else.
-            _desfazer([p for p in publicados if p != registro])
+            _desfazer(publicados)  # a record that appeared meanwhile is not in the list: it belongs to someone else
             raise
     finally:
         shutil.rmtree(pasta, ignore_errors=True)
