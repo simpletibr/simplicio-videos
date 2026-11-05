@@ -236,7 +236,7 @@ def test_commands_without_a_checkout_point_to_clone(args):
 
 
 def test_unknown_subcommand_is_an_error(checkout):
-    with pytest.raises(moneyprinter.MoneyPrinterError, match="clone\\|setup\\|serve\\|generate\\|where\\|status"):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="clone\\|setup\\|serve\\|generate\\|run\\|where\\|status"):
         moneyprinter.run_moneyprinter(["nope"])
 
 

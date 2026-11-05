@@ -383,16 +383,31 @@ def video_toonflow(args: str = "") -> dict:
     return out
 
 
-DESC_video_moneyprinter = "MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder, where and status (read-only); setup and serve run in the terminal (https://github.com/harry0703/MoneyPrinterTurbo)."
+DESC_video_moneyprinter = 'MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder, where and status (read-only). generate and run submit a background job (kind moneyprinter; follow it with video.jobs status|result) and only with a supplied script (no LLM), local material, an Edge or silent voice and an absolute output path: `generate --script /abs/roteiro.txt --material /abs/clip.mp4 --out /abs/dir [--voice V] [--aspect 9:16]` or `run --out /abs/dir -- --video-script "..." --video-source local --video-materials /abs/a.mp4,/abs/b.mp4 --voice-name pt-BR-FranciscaNeural-Female` (plus subtitle, background music and layout flags). The MP4 comes back copied to the output folder with its sha256. Everything else is terminal-only: LLM scripts, online and paid material sources, --confirm-*-charge, batch files, setup and serve. Nothing is ever published (https://github.com/harry0703/MoneyPrinterTurbo).'
 def video_moneyprinter(args: str = "") -> dict:
-    """MoneyPrinterTurbo over MCP: `where` and `clone` into the default folder only. Everything else is refused:
-    `serve` runs servers that never end, `setup` installs packages and writes config.toml, and `clone <dir>` picks where
-    a checkout is written. An agent does none of that; the person does it in the terminal."""
-    from . import moneyprinter
-    argv = args.split() if isinstance(args, str) else list(args)
+    """MoneyPrinterTurbo over MCP: `where`, `clone` into the default folder and `status` (read-only), plus `generate` and
+    `run`, which only submit a background job (kind moneyprinter, followed with video.jobs) and only for a free run: a
+    supplied script (no LLM), local material, an Edge or silent voice and an absolute output folder. Everything else is
+    refused with the terminal command: `serve` runs servers that never end, `setup` installs packages and writes
+    config.toml, `clone <dir>` picks where a checkout is written, and LLM scripts, online or paid material, charge
+    confirmations and batch files spend money or call outside services. Nothing here publishes."""
+    import shlex
+    from . import jobs, moneyprinter
+    try:
+        argv = shlex.split(args) if isinstance(args, str) else [str(x) for x in args]
+    except ValueError as e:
+        return {"ok": False, "error": f"argumentos mal formados: {e}"}
+    if argv[:1] in (["generate"], ["run"]):
+        try:
+            st = jobs.submit("moneyprinter", moneyprinter.mcp_job_params(argv), origin="mcp")
+        except (moneyprinter.MoneyPrinterError, jobs.JobError) as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "job": jobs.summary(st),
+                "next": "video.jobs status|result com este id; o MP4 volta copiado em `out`, com sha256"}
     if argv[:1] not in (["where"], ["clone"], ["status"]):
-        return {"ok": False, "error": "moneyprinter pelo MCP aceita `where`, `clone` (na pasta padrão) e `status` (leitura); "
-                                      "setup e serve são pelo terminal: `simplicio-video moneyprinter setup|serve`"}
+        return {"ok": False, "error": "moneyprinter pelo MCP aceita `where`, `clone` (na pasta padrão), `status` (leitura), e `generate` e `run` "
+                                      "(roteiro seu, material local, voz Edge, --out absoluto: viram uma tarefa em segundo plano); "
+                                      "setup, serve, roteiro por LLM, fonte paga e lote são pelo terminal: `simplicio-video moneyprinter setup|serve|run --yes`"}
     if argv[:1] == ["clone"] and len(argv) > 1:
         return {"ok": False, "error": "moneyprinter clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
     if argv[:1] == ["where"] and len(argv) > 1:

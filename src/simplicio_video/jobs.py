@@ -492,6 +492,36 @@ def _result_voice(p: dict, last_json: dict | None) -> dict | None:
 _register("voice", prepare=_prepare_voice, argv=_argv_voice, result=_result_voice)
 
 
+# moneyprinter (T4): a free MoneyPrinterTurbo run (supplied script, local material, Edge voice) in the background. It never
+# spends, so MCP may submit it; anything that would spend is refused here and runs in the terminal with `moneyprinter run --yes`.
+MONEYPRINTER_KEYS = {"out", "upstream"}
+
+
+def _prepare_moneyprinter(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    from . import moneyprinter
+    _check_keys(params, MONEYPRINTER_KEYS)
+    if confirm_yes:
+        raise JobError("moneyprinter em segundo plano nunca leva --yes: o que gasta roda no terminal, com `simplicio-video moneyprinter run --yes`")
+    try:
+        p = moneyprinter.job_params(params)
+    except moneyprinter.MoneyPrinterError as e:
+        raise JobError(str(e)) from None
+    return p, False, {"estimate_usd": None, "confirmed": None}
+
+
+def _argv_moneyprinter(p: dict) -> list[str]:
+    from . import moneyprinter
+    return moneyprinter.job_argv(p)
+
+
+def _result_moneyprinter(p: dict, last_json: dict | None) -> dict | None:
+    from . import moneyprinter
+    return moneyprinter.job_result(p, last_json)
+
+
+_register("moneyprinter", prepare=_prepare_moneyprinter, argv=_argv_moneyprinter, result=_result_moneyprinter)
+
+
 def build_argv(kind: str, params: dict) -> list[str]:
     return KINDS[kind]["argv"](params)
 
