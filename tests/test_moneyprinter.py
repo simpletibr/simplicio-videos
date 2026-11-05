@@ -2004,3 +2004,168 @@ def test_spawn_cli_returns_the_exit_code(tmp_path):
     rc, out = moneyprinter._spawn_cli([sys.executable, "-c", "import sys; print('x'); sys.exit(3)"], tmp_path,
                                       dict(os.environ))
     assert rc == 3 and out == ""
+
+
+# ---- revisão do PR #165 ----------------------------------------------------------------------------------------------
+
+PUBLISHING_CONFIGS = {
+    "string-true": '[app]\nupload_post_auto_upload = "true"\n',
+    "string-true-literal": "[app]\nupload_post_auto_upload = 'true'\n",
+    "string-false-is-truthy": '[app]\nupload_post_auto_upload = "false"\n',
+    "int-one": "[app]\nupload_post_auto_upload = 1\n",
+    "string-yes": '[app]\nupload_post_auto_upload = "yes"\n',
+    "quoted-key": '[app]\n"upload_post_auto_upload" = true\n',
+    "literal-quoted-key": "[app]\n'upload_post_auto_upload' = true\n",
+    "dotted-key": "app.upload_post_auto_upload = true\n",
+    "inline-table": "app = { upload_post_auto_upload = true }\n",
+    "with-comment": "[app]\nupload_post_auto_upload=true # sim\n",
+    "non-empty-list": '[app]\nupload_post_auto_upload = ["x"]\n',
+    "invalid-toml": "[app\nupload_post_auto_upload = true\n",
+}
+
+
+@pytest.mark.parametrize("name", sorted(PUBLISHING_CONFIGS))
+def test_run_refuses_every_form_of_a_truthy_auto_upload(checkout, spawn, tmp_path, name):
+    (checkout / "config.toml").write_text(PUBLISHING_CONFIGS[name])
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="publica|config.toml"):
+        _run(tmp_path, *_free(tmp_path))
+    assert spawn.calls == []
+
+
+@pytest.mark.parametrize("text", ['[app]\nupload_post_auto_upload = false\n', "[app]\nupload_post_auto_upload = 0\n",
+                                  '[app]\nupload_post_auto_upload = ""\n', "[app]\nx = 1\n", "upload_post_auto_upload = true\n"])
+def test_run_allows_a_falsy_or_absent_auto_upload(checkout, spawn, tmp_path, text):
+    (checkout / "config.toml").write_text(text)  # the last one is top level: upstream reads only [app]
+    assert _run(tmp_path, *_free(tmp_path)) == 0
+
+
+def test_generate_and_serve_apply_the_publishing_gate_too(checkout, venv, server, monkeypatch, tmp_path):
+    (checkout / "config.toml").write_text('[app]\nupload_post_auto_upload = "true"\n')
+    script, clip = _generate_inputs(tmp_path)
+    monkeypatch.setattr(moneyprinter, "_request", _api_request())
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="publica"):
+        moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
+    for args in (["serve", "--api"], ["serve", "--webui"], ["serve"]):
+        with pytest.raises(moneyprinter.MoneyPrinterError, match="publica"):
+            moneyprinter.run_moneyprinter(args)
+    assert server.started == []
+
+
+def _ui(checkout, body):
+    (checkout / "config.toml").write_text("[ui]\n" + body)
+
+
+def _novoice(tmp_path, *extra):
+    return ["--video-script", "x", "--video-source", "local", "--video-materials", str(_local(tmp_path)), *extra]
+
+
+def test_run_without_a_voice_resolves_the_one_from_config_and_classifies_it(checkout, spawn, tmp_path):
+    _ui(checkout, 'voice_name = "gemini:Kore"\n')
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, *_novoice(tmp_path))
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, *_novoice(tmp_path, "--voice-name", ""))
+    assert spawn.calls == []
+    assert _run(tmp_path, *_novoice(tmp_path), before=("--yes",)) == 0
+
+
+@pytest.mark.parametrize("body", ['voice_name = "gemini:Kore"\nvoice_mode = "none"\n',
+                                  'voice_name = "gemini:Kore"\nvoice_mode = "upload"\n',
+                                  'voice_name = "pt-BR-FranciscaNeural-Female"\n', ""])
+def test_run_without_a_voice_is_free_when_config_says_none_upload_edge_or_nothing(checkout, spawn, tmp_path, body):
+    _ui(checkout, body)
+    assert _run(tmp_path, *_novoice(tmp_path)) == 0
+
+
+def test_run_an_explicit_voice_wins_over_the_config(checkout, spawn, tmp_path):
+    _ui(checkout, 'voice_name = "gemini:Kore"\n')
+    assert _run(tmp_path, *_novoice(tmp_path, "--voice-name", EDGE)) == 0
+
+
+@pytest.mark.parametrize("voice", ["", " ", "x"])
+def test_mcp_needs_a_non_empty_explicit_free_voice(checkout, tmp_path, jobs_env, voice):
+    _, spawned = jobs_env
+    r = _mcp_run(tmp_path, "--video-script", "x", "--video-source", "local", "--video-materials", str(_local(tmp_path)),
+                 "--voice-name", voice)
+    assert r["ok"] is False and spawned == []
+    script = tmp_path / "r.txt"
+    script.write_text("x")
+    r = mcp_server.video_moneyprinter(["generate", "--script", str(script), "--material", str(_local(tmp_path)), "--out",
+                                       str(tmp_path / "o"), "--voice", voice])
+    assert r["ok"] is False and spawned == []
+
+
+@pytest.mark.parametrize("bgm", ["ELEVENLABS", " Sonilo", "SoNiLo ", "elevenlabs"])
+def test_run_classifies_the_bgm_type_the_way_upstream_normalizes_it(checkout, spawn, tmp_path, bgm):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, *_free(tmp_path, "--bgm-type", bgm))
+    assert spawn.calls == []
+
+
+def test_batch_entry_bgm_type_is_normalized_too(checkout, spawn, tmp_path):
+    m = tmp_path / "m.json"
+    m.write_text(json.dumps([{"video_script": "a", "bgm_type": " ELEVENLABS"}]))
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, "--batch-file", str(m), "--video-source", "local", "--voice-name", EDGE)
+
+
+@pytest.mark.parametrize("terms", [" , ", ",", "，", " "])
+def test_terms_that_split_to_nothing_mean_llm_terms(checkout, spawn, tmp_path, terms):
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+        _run(tmp_path, "--video-script", "x", "--video-source", "pexels", "--video-terms", terms, "--voice-name", EDGE)
+    assert spawn.calls == []
+    assert _run(tmp_path, "--video-script", "x", "--video-source", "pexels", "--video-terms", "mar， praia",
+                "--voice-name", EDGE) == 0
+
+
+def test_batch_entry_terms_that_are_empty_mean_llm_terms(checkout, spawn, tmp_path):
+    m = tmp_path / "m.json"
+    for terms in ([], [" "], " , "):
+        m.write_text(json.dumps([{"video_script": "a", "video_source": "pexels", "video_terms": terms}]))
+        with pytest.raises(moneyprinter.MoneyPrinterError, match="--yes"):
+            _run(tmp_path, "--batch-file", str(m), "--voice-name", EDGE)
+
+
+def test_batch_manifest_is_capped_before_it_is_read(checkout, spawn, tmp_path):
+    big = tmp_path / "big.jsonl"
+    big.write_text(("x" * 1024 * 1024) + "\n")
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="1 MiB|MiB"):
+        _run(tmp_path, "--batch-file", str(big), "--voice-name", EDGE)
+    many = tmp_path / "many.json"
+    many.write_text(json.dumps([{"video_script": "a", "video_source": "local"}] * 101))
+    with pytest.raises(moneyprinter.MoneyPrinterError, match="100"):
+        _run(tmp_path, "--batch-file", str(many), "--voice-name", EDGE)
+    assert spawn.calls == []
+
+
+def test_stopping_run_takes_the_upstream_process_group_down_within_the_grace(tmp_path):
+    fake = tmp_path / "fake_cli.py"
+    fake.write_text("import os, signal, sys, time\nsignal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+                    "open(sys.argv[1], 'w').write(str(os.getpid()))\nprint('log line', flush=True)\ntime.sleep(25)\n")
+    pidfile = tmp_path / "pid"
+    driver = tmp_path / "driver.py"
+    driver.write_text("import os, sys\nfrom pathlib import Path\nfrom simplicio_video import moneyprinter as m\n"
+                      "m._spawn_cli([sys.executable, sys.argv[1], sys.argv[2]], Path('.'), dict(os.environ))\n")
+    env = {**os.environ, "SIMPLICIO_JOBS_GRACE_S": "2"}
+    p = subprocess.Popen([sys.executable, str(driver), str(fake), str(pidfile)], env=env, cwd=tmp_path)
+    try:
+        deadline = time.monotonic() + 15
+        while not (pidfile.exists() and pidfile.read_text()) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        child = int(pidfile.read_text())
+        assert _alive(child)
+        t0 = time.monotonic()
+        p.send_signal(signal.SIGINT)
+        p.send_signal(signal.SIGINT)  # a second Ctrl+C must not abort the stop
+        p.wait(timeout=10)
+        while _alive(child) and time.monotonic() - t0 < 3.5:
+            time.sleep(0.05)
+        assert not _alive(child), "the upstream cli.py outlived the stop"
+        assert time.monotonic() - t0 <= 3.1  # grace (2 s) + 1
+    finally:
+        p.kill()
+        if pidfile.exists() and pidfile.read_text():
+            try:
+                os.kill(int(pidfile.read_text()), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
