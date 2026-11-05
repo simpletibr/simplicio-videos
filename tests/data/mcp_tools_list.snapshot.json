@@ -513,15 +513,28 @@
   {
    "description": "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, and the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json). Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed, and paths inside `input` must be absolute. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only.",
    "inputSchema": {
+    "type": "object",
     "properties": {
      "args": {
       "default": "",
       "title": "Args",
       "type": "string"
+     },
+     "input": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Input"
      }
     },
-    "title": "video_montageArguments",
-    "type": "object"
+    "title": "video_montageArguments"
    },
    "name": "video.montage"
   },

@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from . import tools
-from .childio import run_child
+from .childio import run_child, under_mcp
 
 
 class MontageError(Exception):
@@ -96,19 +96,29 @@ REGISTRY_COMMANDS = ("pipelines", "tools", "envelope", "estimate", "setup", "sta
 READ_ONLY_COMMANDS = ("pipelines", "tools", "envelope", "estimate", "status")  # what the MCP tool may run
 RUNTIMES = ("local", "local_gpu", "api", "hybrid")
 _CHILD_TIMEOUT = 300
+_OPEN_DIAG_TIMEOUT = 8
+_WARNED_RELATIVE: set[str] = set()
 
 # Runs inside the child (cwd = checkout, PYTHONPATH = checkout). Upstream chatter on stdout is sent to stderr so the
 # single JSON document on the real stdout stays parseable.
 _CHILD = r"""
-import json, sys
-real = sys.stdout
+import json, os, sys
+real = os.fdopen(os.dup(1), "w", encoding="utf-8")  # the result goes here; fd 1 now belongs to stderr, so grandchildren and C code cannot corrupt it
+os.dup2(2, 1)
 sys.stdout = sys.stderr
 op, payload = sys.argv[1], json.loads(sys.argv[2])
 def emit(d):
     real.write(json.dumps(d, default=str)); real.flush()
+class _Skipped:
+    value = "unknown (probe skipped)"
 try:
     from tools.tool_registry import registry
     registry.discover()
+    if payload.get("skip_probes"):  # get_status() shells out to npm/npx and calls networks: do not call it at all
+        for _n in registry.list_all():
+            _t = registry.get(_n)
+            if _t is not None:
+                _t.get_status = lambda: _Skipped()
 except ImportError as e:
     emit({"ok": False, "kind": "import", "missing": [e.name or str(e)], "error": str(e)}); sys.exit(0)
 except Exception as e:
@@ -146,7 +156,12 @@ def data_dir() -> Path:
     """Where the venv lives: $OPENMONTAGE_DATA_DIR, else $SIMPLICIO_VIDEO_DATA/openmontage-data (~/.simplicio-video/openmontage-data)."""
     explicit = os.environ.get("OPENMONTAGE_DATA_DIR")
     if explicit:
-        return Path(explicit).expanduser().resolve()
+        path = Path(explicit).expanduser()
+        if not path.is_absolute() and explicit not in _WARNED_RELATIVE:
+            _WARNED_RELATIVE.add(explicit)
+            print(f"montage: aviso: OPENMONTAGE_DATA_DIR relativo ({explicit}) vira {path.resolve()} a partir da pasta atual; "
+                  "use um caminho absoluto.", file=sys.stderr)
+        return path.resolve()
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
     base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
     return (base / "openmontage-data").resolve()
@@ -265,7 +280,7 @@ def status_report() -> dict:
            "missing_modules": None, "remotion": bool(d and (d / "remotion-composer" / "node_modules").is_dir()), "piper": False}
     if d is not None and py.is_file() and (d / "requirements.txt").is_file():
         try:
-            p = subprocess.run([str(py), "-c", _STATUS_PROBE, str(d / "requirements.txt")], capture_output=True, text=True, timeout=60)
+            p = subprocess.run([str(py), "-c", _STATUS_PROBE, str(d / "requirements.txt")], capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
             probe = json.loads(p.stdout)
             rep["missing_modules"], rep["piper"] = probe["missing"], probe["piper"]
         except (OSError, subprocess.SubprocessError, ValueError, KeyError):
@@ -277,7 +292,7 @@ def _run_open(cmd: list[str], cwd: Path, env: dict) -> int:
     """`backlot open` spawns its server with stderr discarded, so when the upstream says it did not come up, run the server
     in the foreground for a few seconds and show why it exits (e.g. ModuleNotFoundError: fastapi)."""
     seen: list[str] = []
-    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", stdin=subprocess.DEVNULL)
     assert p.stdout is not None
     for line in p.stdout:
         seen.append(line)
@@ -289,14 +304,19 @@ def _run_open(cmd: list[str], cwd: Path, env: dict) -> int:
         s = subprocess.Popen(serve, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                              text=True, errors="replace")
         try:
-            _, err = s.communicate(timeout=8)
-            tail = "\n".join((err or "").strip().splitlines()[-8:]) or f"saiu com código {s.returncode} sem mensagem"
-            print(f"montage: o backlot não subiu. Motivo (fim do stderr do servidor):\n{tail}\n"
-                  "Se faltam módulos, rode `simplicio-video montage setup`.", file=sys.stderr)
+            _, err = s.communicate(timeout=_OPEN_DIAG_TIMEOUT)
+            low = (err or "").lower()
+            if "address already in use" in low or "errno 98" in low or "10048" in low:
+                print("montage: o backlot subiu tarde: a porta já em uso é o servidor que o `open` iniciou. Abra a URL do board no "
+                      "navegador ou rode `simplicio-video montage open` de novo.", file=sys.stderr)
+            else:
+                tail = "\n".join((err or "").strip().splitlines()[-8:]) or f"saiu com código {s.returncode} sem mensagem"
+                print(f"montage: o backlot não subiu. Motivo (fim do stderr do servidor):\n{tail}\n"
+                      "Se faltam módulos, rode `simplicio-video montage setup`.", file=sys.stderr)
         except subprocess.TimeoutExpired:
             s.kill()
             s.communicate()
-            print("montage: o backlot subiu quando rodado em primeiro plano; a porta pode estar ocupada ou o início foi lento. "
+            print("montage: o backlot subiu quando rodado em primeiro plano (encerrei o teste); o início pode ter sido lento. "
                   "Tente `simplicio-video montage serve`.", file=sys.stderr)
     return rc
 
@@ -357,8 +377,12 @@ def _child(op: str, payload: dict) -> dict:
     py = upstream_python()
     env = _upstream_env(om_dir)
     env["PYTHONIOENCODING"] = "utf-8"
+    skip = _offline() or under_mcp()  # no network probes offline or under the MCP server; the terminal keeps the live ones
+    if skip:
+        env["npm_config_offline"] = "true"
+        payload = {**payload, "skip_probes": True}
     try:
-        p = subprocess.run([py, "-c", _CHILD, op, json.dumps(payload)], cwd=om_dir, env=env,
+        p = subprocess.run([py, "-c", _CHILD, op, json.dumps(payload)], cwd=om_dir, env=env, stdin=subprocess.DEVNULL,
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=_CHILD_TIMEOUT)
     except subprocess.TimeoutExpired:
         raise MontageError(f"o OpenMontage não respondeu em {_CHILD_TIMEOUT}s") from None
@@ -377,6 +401,27 @@ def _child(op: str, payload: dict) -> dict:
     if kind == "not_found":
         raise _ChildError(f"{data['error']}. Veja `simplicio-video montage tools list`.", data)
     raise _ChildError(f"o OpenMontage falhou: {data.get('error')}", data)
+
+
+def _envelope_summary(env: dict) -> dict:
+    def count(key):
+        out: dict = {}
+        for info in env.values():
+            out[str(info.get(key))] = out.get(str(info.get(key)), 0) + 1
+        return dict(sorted(out.items()))
+    return {"count": len(env), "by_runtime": count("runtime"), "by_tier": count("tier"), "tools": sorted(env)}
+
+
+def _relative_paths(value) -> list[str]:
+    """Strings in `value` that look like a relative path (a slash, no spaces, not a URL, not absolute)."""
+    if isinstance(value, str):
+        looks = ("/" in value or "\\" in value) and not any(c.isspace() for c in value) and "://" not in value
+        return [value] if looks and not os.path.isabs(value) else []
+    if isinstance(value, dict):
+        return [x for v in value.values() for x in _relative_paths(v)]
+    if isinstance(value, list):
+        return [x for v in value for x in _relative_paths(v)]
+    return []
 
 
 def _registry_parser() -> argparse.ArgumentParser:
@@ -414,7 +459,8 @@ def _registry_parser() -> argparse.ArgumentParser:
     st.add_argument("--remotion", action="store_true", help="também roda npm install em remotion-composer")
     st.add_argument("--piper", action="store_true", help="também instala o piper-tts (voz local)")
     add(sub, "status", "checkout, pino, venv, módulos que faltam, Remotion e Piper", ["status --json"])
-    add(sub, "envelope", "support_envelope(): o que cada tool declara e o estado ao vivo", ["envelope --json"])
+    en = add(sub, "envelope", "support_envelope(): o que cada tool declara e o estado ao vivo", ["envelope --json", "envelope --json --full"])
+    en.add_argument("--full", action="store_true", help="o envelope inteiro (sob o servidor MCP o padrão é um resumo)")
     e = add(sub, "estimate", "custo e tempo estimados (dry_run do upstream; não executa a tool)",
             ['estimate NOME --input \'{"prompt": "um gato"}\' --json'])
     e.add_argument("name")
@@ -477,7 +523,10 @@ def _run_registry(ns: argparse.Namespace) -> int:
             print(f"remotion: {'sim' if rep['remotion'] else 'não'}; piper: {'sim' if rep['piper'] else 'não'}")
     elif ns.cmd == "envelope":
         env = _child("envelope", {})["envelope"]
-        _print({"ok": True, "envelope": env} if ns.json else env, ns.json)
+        if under_mcp() and not ns.full:
+            _print({"ok": True, "summary": _envelope_summary(env), "note": "resumo; passe --full para o envelope inteiro (centenas de KB)"}, True)
+        else:
+            _print({"ok": True, "envelope": env} if ns.json else env, ns.json)
     else:  # estimate
         try:
             inputs = json.loads(ns.input)
@@ -485,6 +534,9 @@ def _run_registry(ns: argparse.Namespace) -> int:
             raise MontageError(f"--input não é JSON válido: {e}") from None
         if not isinstance(inputs, dict):
             raise MontageError("--input precisa ser um objeto JSON ({...})")
+        rel = _relative_paths(inputs) if under_mcp() else []
+        if rel:  # a relative path would resolve against the server's cwd, and estimate would probe whether it exists
+            raise MontageError(f"sob o MCP os caminhos em --input precisam ser absolutos; recebi: {', '.join(rel[:3])}")
         _print(_child("estimate", {"name": ns.name, "input": inputs})["estimate"], ns.json)
     return 0
 
