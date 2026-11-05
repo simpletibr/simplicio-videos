@@ -783,7 +783,7 @@ def test_o_registro_so_cresce_e_resiste_a_linha_estragada(env):
         f.write("{linha quebrada\n")
     env.b.consulta("b")
     r = env.b.log()
-    assert r["total"] == 2 and r["invalidas"] == 1 and len(r["registros"]) == 2
+    assert r["mostrados"] == 2 and r["invalidas"] == 1 and len(r["registros"]) == 2
 
 
 def test_log_lista_os_ultimos_com_urls_rotuladas(env):
@@ -792,7 +792,7 @@ def test_log_lista_os_ultimos_com_urls_rotuladas(env):
     env.b.pagina("https://example.com")
     r = env.b.log(ultimos=2)
     assert r["schema"] == "simplicio.busca-log/v1" and list(r)[:2] == ["schema", "aviso_untrusted"]
-    assert r["total"] == 4 and r["mostrados"] == 2 and [x["comando"] for x in r["registros"]] == ["consulta", "pagina"]
+    assert r["mostrados"] == 2 and [x["comando"] for x in r["registros"]] == ["consulta", "pagina"] and len(r["arquivos"]) == 1
     ultimo = r["registros"][-1]
     assert ultimo["untrusted_url"] == "https://example.com" and "url" not in ultimo
     assert r["registros"][0]["untrusted_urls_resultados"][0] == CONSULTA["results"][0]["url"] and "urls_resultados" not in r["registros"][0]
@@ -804,7 +804,7 @@ def test_log_lista_os_ultimos_com_urls_rotuladas(env):
 
 def test_log_vazio_e_ultimos_invalido(env, capsys):
     r = env.b.log()
-    assert r["total"] == 0 and r["registros"] == []
+    assert r["mostrados"] == 0 and r["registros"] == [] and r["arquivos"] == []
     for n in (0, -1, "x", 10001):
         with pytest.raises(env.b.BuscaError, match="ultimos"):
             env.b.log(ultimos=n)
@@ -817,7 +817,7 @@ def test_log_pelo_cli_em_texto_e_json(env, capsys):
     out = capsys.readouterr().out
     assert "AVISO" in out and "consulta" in out and 'untrusted_urls_resultados=' in out and "sha256" in out
     assert main(["busca", "log", "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["total"] == 1
+    assert json.loads(capsys.readouterr().out)["mostrados"] == 1
 
 
 def test_arquivos_gravados_batem_com_os_schemas_publicados(env):
@@ -1080,7 +1080,7 @@ def test_mcp_consulta_pagina_status_e_log_com_as_mesmas_travas(env, hoje):
     assert p["ok"] is True and p["untrusted_conteudo"].startswith("This domain")
     assert mcp_server.video_busca("status")["ok"] is True
     lg = mcp_server.video_busca("log")
-    assert lg["ok"] is True and lg["total"] == 2
+    assert lg["ok"] is True and lg["mostrados"] == 2
 
 
 def test_mcp_herda_o_teto_diario_e_a_recusa_de_segredo(env, hoje):

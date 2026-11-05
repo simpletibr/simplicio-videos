@@ -45,7 +45,6 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -93,6 +92,9 @@ MAX_SAIDA_STATUS_BYTES = 64 * 1024
 MAX_STDERR_BYTES = 64 * 1024
 STALE_DAYS = 7  # a cached answer older than this carries a warning
 CACHE_MAX_ARQUIVOS = 500  # teto de arquivos em cache/; ao gravar um a mais, saem os mais antigos por mtime
+CACHE_MAX_BYTES = 100 * 1024 * 1024  # teto de bytes de cache/ (somado aos arquivos); passou, saem os mais antigos também
+REGISTRO_MAX_BYTES = 5 * 1024 * 1024  # o busca.registro.jsonl ativo gira antes de passar disso; uma linha nunca é cortada
+REGISTRO_ARQUIVOS_ANTIGOS = 3  # guarda busca.registro.jsonl.1 a .3; o .3 antigo sai na rotação seguinte
 POLL_S = 0.02
 CANAIS = ("terminal", "mcp")
 
@@ -755,41 +757,71 @@ def _gravar_cache(chave: str, doc: dict) -> None:
 
 
 def _poda_cache(manter: Path) -> None:
-    """Keeps at most CACHE_MAX_ARQUIVOS files in cache/: the oldest by mtime go. `manter` (the file just written) never goes.
-    Only cache/ is touched: the registry and the counter are outside it."""
+    """Keeps cache/ within CACHE_MAX_ARQUIVOS files and CACHE_MAX_BYTES bytes: the oldest by mtime go first. `manter` (the file just
+    written) never goes. Only cache/ is touched: the registry and the counter are outside it."""
     vivos = []
     for p in (pasta() / "cache").glob("*.json"):
         try:
-            vivos.append((p.stat().st_mtime_ns, p.name, p))
+            st = p.stat()
         except OSError:  # sumiu entre o glob e o stat (outro processo)
             continue
+        vivos.append((st.st_mtime_ns, p.name, p, st.st_size))
     vivos.sort()
     excesso = len(vivos) - CACHE_MAX_ARQUIVOS
-    for _, _, p in vivos:
-        if excesso <= 0:
+    bytes_total = sum(tam for *_, tam in vivos)
+    for _, _, p, tam in vivos:
+        if excesso <= 0 and bytes_total <= CACHE_MAX_BYTES:
             break
         if p == manter:
             continue
         with contextlib.suppress(OSError):
             p.unlink()
         excesso -= 1
+        bytes_total -= tam
+
+
+def _arquivos_do_registro() -> list[Path]:
+    """The active registry first, then the rotated ones from the newest (.1) to the oldest (.3)."""
+    ativo = _caminho_registro()
+    return [ativo, *(ativo.with_name(f"{ativo.name}.{n}") for n in range(1, REGISTRO_ARQUIVOS_ANTIGOS + 1))]
+
+
+def _linha_registro(rec: dict, deslocamento: int) -> tuple[bytes, str]:
+    """The provenance line of `rec` written at byte `deslocamento` of the registry; its id hashes the record and that position."""
+    rec = {**rec, "id": _sha(_canonico(rec) + str(deslocamento))[:16]}
+    return (_guard(json.dumps(rec, sort_keys=True, ensure_ascii=False)) + "\n").encode("utf8"), rec["id"]
+
+
+def _gira_registro() -> None:
+    """Under the lock: the oldest rotated file goes, each one moves up a number, and the active file becomes .1. Lines move whole."""
+    arquivos = _arquivos_do_registro()
+    arquivos[-1].unlink(missing_ok=True)
+    for i in range(len(arquivos) - 1, 0, -1):
+        if arquivos[i - 1].exists():
+            os.replace(arquivos[i - 1], arquivos[i])
 
 
 def _registrar(rec: dict) -> str:
-    """Append one provenance line under the lock (O_APPEND, fsync). Returns its id. Without the line there is no delivery."""
+    """Append one provenance line under the lock (O_APPEND, fsync). The registry turns over between lines once it passes
+    REGISTRO_MAX_BYTES. Returns the line's id. Without the line there is no delivery."""
     try:
         with _trava():
-            fd = os.open(_caminho_registro(), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+            ativo = _caminho_registro()
+            tamanho = ativo.stat().st_size if ativo.exists() else 0
+            linha, id_ = _linha_registro(rec, tamanho)
+            if tamanho and tamanho + len(linha) > REGISTRO_MAX_BYTES:
+                _gira_registro()
+                tamanho = 0
+                linha, id_ = _linha_registro(rec, tamanho)
+            fd = os.open(ativo, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
             try:
-                deslocamento = os.fstat(fd).st_size
-                rec = {**rec, "id": _sha(_canonico(rec) + str(deslocamento))[:16]}
-                os.write(fd, (_guard(json.dumps(rec, sort_keys=True, ensure_ascii=False)) + "\n").encode("utf8"))
+                os.write(fd, linha)
                 os.fsync(fd)
             finally:
                 os.close(fd)
     except OSError as e:
         raise BuscaError(f"não consegui gravar o registro de procedência ({e.strerror}): o resultado não foi entregue") from None
-    return rec["id"]
+    return id_
 
 
 def _registro_base(comando: str, canal: str, do_cache: bool, chave: str, doc: dict, url_final_recusada: bool = False, **campos) -> dict:
@@ -1071,33 +1103,55 @@ def _registro_view(rec: dict) -> dict:
     return out
 
 
+def _linhas_do_fim(caminho: Path, bloco: int = 64 * 1024):
+    """The lines of a file from the last to the first, read in blocks from the end: the tail of a file, not the whole of it."""
+    with caminho.open("rb") as f:
+        pos = f.seek(0, os.SEEK_END)
+        resto = b""
+        while pos > 0:
+            tam = min(bloco, pos)
+            pos -= tam
+            f.seek(pos)
+            partes = (f.read(tam) + resto).split(b"\n")
+            resto = partes[0]  # pode ser o começo de uma linha que continua no bloco anterior
+            yield from reversed(partes[1:])
+        yield resto
+
+
 def log(ultimos=20) -> dict:
-    """The last records of `busca.registro.jsonl`; a broken line is counted and skipped, never fatal. The file is read line by line
-    and only the last N valid records are kept, so a long registro does not sit whole in memory."""
+    """The last N records of the registry: the active file is read from its end, and the rotated ones only if N is not reached yet.
+    It stops as soon as N valid records are found. A broken line is counted and skipped, never fatal."""
     n = _inteiro(ultimos, 1, 10000, "--ultimos")
-    recentes: deque = deque(maxlen=n)
-    total = invalidas = 0
+    recentes: list[dict] = []  # from the newest to the oldest while reading
+    lidos: list[str] = []
+    invalidas = 0
     try:
-        with _caminho_registro().open(encoding="utf8", errors="replace") as f:
-            for linha in f:
-                if not linha.strip():
-                    continue
-                try:
-                    rec = json.loads(linha)
-                except (ValueError, RecursionError):
-                    invalidas += 1
-                    continue
-                if isinstance(rec, dict) and rec.get("schema") == SCHEMA_REGISTRO and rec.get("comando") in ("consulta", "pagina"):
-                    total += 1
-                    recentes.append(rec)
-                else:
-                    invalidas += 1
-    except FileNotFoundError:
-        pass
+        for caminho in _arquivos_do_registro():
+            if len(recentes) >= n:
+                break
+            if not caminho.exists():
+                continue
+            lidos.append(str(caminho))
+            with contextlib.closing(_linhas_do_fim(caminho)) as linhas:
+                for bruta in linhas:
+                    if not bruta.strip():
+                        continue
+                    try:
+                        rec = json.loads(bruta.decode("utf8", errors="replace"))
+                    except (ValueError, RecursionError):
+                        invalidas += 1
+                        continue
+                    if isinstance(rec, dict) and rec.get("schema") == SCHEMA_REGISTRO and rec.get("comando") in ("consulta", "pagina"):
+                        recentes.append(rec)
+                        if len(recentes) >= n:
+                            break
+                    else:
+                        invalidas += 1
     except OSError as e:
         raise BuscaError(f"não consegui ler o registro: {e.strerror}") from None
+    recentes.reverse()
     mostrados = [_registro_view(r) for r in recentes]
-    return {"schema": SCHEMA_LOG, "aviso_untrusted": UNTRUSTED_NOTICE, "arquivo": str(_caminho_registro()), "total": total,
+    return {"schema": SCHEMA_LOG, "aviso_untrusted": UNTRUSTED_NOTICE, "arquivo": str(_caminho_registro()), "arquivos": lidos,
             "mostrados": len(mostrados), "invalidas": invalidas, "registros": mostrados}
 
 
@@ -1209,9 +1263,10 @@ def _status_text(s: dict) -> str:
 
 
 def _log_text(r: dict) -> str:
-    if not r["total"]:
+    if not r["mostrados"]:
         return f"nenhum registro ainda em {r['arquivo']}" + (f" ({r['invalidas']} linha(s) inválida(s))" if r["invalidas"] else "")
-    lines = [f"registro de procedência: {r['arquivo']} | {r['total']} registro(s), mostrando {r['mostrados']}, {r['invalidas']} linha(s) inválida(s)",
+    lines = [f"registro de procedência: {r['arquivo']} | mostrando {r['mostrados']} registro(s), lidos de {len(r['arquivos'])} arquivo(s), "
+             f"{r['invalidas']} linha(s) inválida(s) entre as lidas",
              f"AVISO {UNTRUSTED_NOTICE}"]
     for x in r["registros"]:
         alvo = json.dumps(x["consulta"], ensure_ascii=False) if x["comando"] == "consulta" else _u(x, "url")

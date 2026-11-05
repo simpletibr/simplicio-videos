@@ -648,6 +648,7 @@ issues:
     status: ready
     owns:
       - "src/simplicio_video/busca.py"
+      - "src/simplicio_video/busca_ajuda.py"   # #113 3 e 4: o texto de ajuda da busca (registro, cache, nomes internos)
       - "tests/test_busca.py"
       - "tests/test_publish.py"
       - "plugin.json"   # na lista `generated`, mas a remoção do verbo video.publish é edição manual: não há gerador no repo
