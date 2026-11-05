@@ -1315,8 +1315,8 @@ def test_skill_json_has_no_control_bidi_or_zero_width_characters(ig, capsys, mon
 
 
 def test_help_lists_the_skill_command(capsys):
-    rc, out, _ = run(capsys, "--help")
-    assert rc == 0 and "skill NAME" in out
+    assert instagram.run_instagram(["--help"]) == 0
+    assert "skill NAME" in capsys.readouterr().out
 
 
 # MCP
