@@ -447,7 +447,7 @@
    "name": "video.instagram"
   },
   {
-   "description": "Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies (abbreviations too) are terminal-only. MCP subcommands: none (flags only, in argv or args).",
+   "description": "Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies, also with --dry-run, are terminal-only (abbreviations too). MCP subcommands: none (flags only, in argv or args).",
    "inputSchema": {
     "properties": {
      "args": {

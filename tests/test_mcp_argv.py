@@ -344,6 +344,21 @@ def test_split_args_recusa_a_mistura_nos_dois_sistemas(windows):
         mcp_server._split_args('probe C:\\dir\\a.mp4 -o "/abs/o 1.mp4"', windows=windows)
 
 
+def test_install_uninstall_com_dry_run_pelo_mcp_e_recusado_sem_rodar(cli):
+    r = mcp_server.video_install(argv=["--uninstall", "--dry-run", "--target", "/abs/proj"])
+    assert r["ok"] is False and "terminal" in r["error"], r
+    assert cli == []
+
+
+def test_args_so_com_aspas_e_so_com_barra_continuam_valendo(cli):
+    """Os dois casos que não são ambíguos seguem como antes: só aspas (shlex) e só barra (a barra do caminho fica)."""
+    mcp_server.video_media('probe "/abs/com espaço.mp4" --json')
+    mcp_server.video_media(r"probe C:\dir\a.mp4 --json")
+    assert cli == [["media", "probe", "/abs/com espaço.mp4", "--json"], ["media", "probe", r"C:\dir\a.mp4", "--json"]]
+    assert mcp_server._split_args(r"probe C:\dir\a.mp4", windows=True) == ["probe", r"C:\dir\a.mp4"]
+    assert mcp_server._split_args(r'probe "C:\dir\a b.mp4"', windows=True) == ["probe", r"C:\dir\a b.mp4"]
+
+
 @pytest.mark.parametrize("nome, argv", [
     ("video.media", ["sheet", "/abs/x.mp4", "-o", "/abs/../etc/x.jpg"]),
     ("video.edit", ["verify", "/abs/a.mp4", "0", "1", "-o", "/abs/../x.png"]),

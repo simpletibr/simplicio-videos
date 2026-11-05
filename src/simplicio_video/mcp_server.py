@@ -141,10 +141,10 @@ def _linha_cmd(cmds: tuple[str, ...], nota: str = "") -> str:
 
 
 def _saida_absoluta(argv: list[str]) -> bool:
-    """Every -o / --out given must be an absolute path: a relative one would land in the folder the MCP server was started from,
-    which the client does not control."""
+    """Every -o / --out given must be an absolute path with no `..` (the same rule as the Hypit paths and the voicestudio --out): a
+    relative one would land in the folder the MCP server was started from, which the client does not control."""
     for i, a in enumerate(argv[:-1]):
-        if a in ("-o", "--out") and not Path(argv[i + 1]).is_absolute():
+        if a in ("-o", "--out") and not _caminho_seguro(argv[i + 1]):
             return False
     return True
 
@@ -419,8 +419,8 @@ def video_edit(args: str = "", argv: list[str] | None = None, cmd: Literal[_CMD_
         saidas = edit._output_values(rest)
         if not saidas:
             return {"ok": False, "error": f"edit {sub}: -o <caminho absoluto> é obrigatório no MCP"}
-        if any(not v or not Path(v).is_absolute() for v in saidas):
-            return {"ok": False, "error": f"edit {sub}: -o/--out/--output precisa ser um caminho absoluto (um relativo cairia na pasta onde o servidor MCP foi iniciado)"}
+        if any(not _caminho_seguro(v) for v in saidas):
+            return {"ok": False, "error": f"edit {sub}: -o/--out/--output precisa ser um caminho absoluto, sem `..` (um relativo cairia na pasta onde o servidor MCP foi iniciado)"}
     if sub == "grade":
         for f in edit.filter_values(rest):
             if not edit.colour_filter_ok(f):
@@ -762,6 +762,9 @@ def _split_args(args, windows: bool | None = None) -> list[str]:
         raise _ArgsErro("`args` passa de 64 KiB; para uma entrada tão grande, passe a lista em `argv`")
     if not any(q in args for q in "\"'"):
         return args.split()
+    if _barra_fora_de_aspas(args):
+        raise _ArgsErro("`args` mistura barra invertida fora de aspas com aspas (o shlex comeria a barra de um caminho em silêncio); "
+                        "passe a linha em `argv`, a lista exata")
     if windows is None:
         windows = hostos.is_windows()
     try:
@@ -772,6 +775,21 @@ def _split_args(args, windows: bool | None = None) -> list[str]:
         if "escaped" in str(e):
             raise _ArgsErro("`args` termina numa barra invertida sem caractere depois (um caminho que acaba em \\ vai em `argv`)") from None
         raise _ArgsErro("aspas sem fechar em `args`; para um argumento com espaço ou aspas, passe `argv`") from None
+
+
+def _barra_fora_de_aspas(args: str) -> bool:
+    """True if a backslash stands outside every quote. Only matters on a line that also has quotes: there the shlex reading of a
+    path (C:\\dir\\a.mp4 -> C:dira.mp4) is silent corruption, so such a line is refused instead of guessed."""
+    aspa = ""
+    for c in args:
+        if aspa:
+            if c == aspa:
+                aspa = ""
+        elif c in "\"'":
+            aspa = c
+        elif c == "\\":
+            return True
+    return False
 
 
 @_erro_de_argumentos
@@ -815,7 +833,7 @@ def video_shorts(args: list[str] | str = "", argv: list[str] | None = None, cmd:
     `run`. `plan` and `run` need a word transcript (`video.edit` with transcribe makes one). Only new files are written."""
     argv = _argv(args, argv, cmd, _CMD_SHORTS)
     if not _saida_absoluta(argv):
-        return {"ok": False, "error": "shorts: use -o/--out com caminho absoluto; o MCP não sabe de que pasta o servidor foi iniciado"}
+        return {"ok": False, "error": "shorts: use -o/--out com caminho absoluto, sem `..`; o MCP não sabe de que pasta o servidor foi iniciado"}
     if argv[:1] in (["plan"], ["cut"], ["run"]) and not {"-o", "--out"} & set(argv):
         return {"ok": False, "error": f"shorts {argv[0]}: informe -o/--out com caminho absoluto (onde gravar os cortes)"}
     return _cli(["shorts", *argv])
@@ -831,7 +849,7 @@ def video_media(args: list[str] | str = "", argv: list[str] | None = None, cmd: 
     -o and never changes its input."""
     argv = _argv(args, argv, cmd, _CMD_MEDIA)
     if not _saida_absoluta(argv):
-        return {"ok": False, "error": "media: use -o com caminho absoluto; o MCP não sabe de que pasta o servidor foi iniciado"}
+        return {"ok": False, "error": "media: use -o com caminho absoluto, sem `..`; o MCP não sabe de que pasta o servidor foi iniciado"}
     return _cli(["media", *argv])
 
 
@@ -876,7 +894,7 @@ def video_setup(args: list[str] | str = "", argv: list[str] | None = None) -> di
     return _cli(["setup", *_argv(args, argv)])
 
 
-DESC_video_install = "Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies (abbreviations too) are terminal-only." + _SEM_SUBCOMANDO
+DESC_video_install = "Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies, also with --dry-run, are terminal-only (abbreviations too)." + _SEM_SUBCOMANDO
 @_erro_de_argumentos
 def video_install(args: list[str] | str = "", argv: list[str] | None = None) -> dict:
     """Copies the packaged skills into the agent hosts (`--global` for the home folder). `--check`, `--dry-run` and `--verify` only read.
