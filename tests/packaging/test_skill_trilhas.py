@@ -70,12 +70,16 @@ def _secao(titulo: str) -> str:
     return TEXTO[m.end(): m.end() + fim.start()] if fim else TEXTO[m.end():]
 
 
-def _recipe_section(letra: str) -> str:
-    """The text of recipe (letra): up to the next `##` or `###` heading. A `# comment` inside a code block is not a heading."""
-    m = re.search(rf"^### Receita \({letra}\).*$", TEXTO, re.M)
+def _secao_da_receita(texto: str, letra: str) -> str:
+    """The text of recipe (letra) in `texto`: up to the next `##` or `###` heading. A `# comment` inside a code block is not a heading."""
+    m = re.search(rf"^### Receita \({letra}\).*$", texto, re.M)
     assert m, f"no heading for recipe ({letra})"
-    fim = re.search(r"^#{2,3} ", TEXTO[m.end():], re.M)
-    return TEXTO[m.end(): m.end() + fim.start()] if fim else TEXTO[m.end():]
+    fim = re.search(r"^#{2,3} ", texto[m.end():], re.M)
+    return texto[m.end(): m.end() + fim.start()] if fim else texto[m.end():]
+
+
+def _recipe_section(letra: str) -> str:
+    return _secao_da_receita(TEXTO, letra)
 
 
 # --- the decision table ----------------------------------------------------------------------------------------------------------------
@@ -147,8 +151,13 @@ def test_cada_receita_diz_o_que_roda_aqui(letra):
 
 
 def _termos_de_autorizacao(texto: str) -> list:
-    """TDD stub (commit 1 of the review): the real check comes with the fix. Returns the missing terms of the recipes."""
-    return []
+    """The authorization terms that each recipe must carry, checked one by one (no `or` that lets the rest pass). Case does not matter:
+    recipe (d) writes "Consentimento"."""
+    faltas = []
+    for letra, termo in (("a", "--autorizo"), ("a", "coleta"), ("d", "consentimento"), ("e", "--yes")):
+        if termo.lower() not in _secao_da_receita(texto, letra).lower():
+            faltas.append(termo)
+    return faltas
 
 
 def test_os_termos_de_autorizacao_estao_nas_receitas():
@@ -156,8 +165,8 @@ def test_os_termos_de_autorizacao_estao_nas_receitas():
 
 
 def test_a_checagem_de_termos_pega_o_termo_que_falta():
-    """Mutation: without `consentimento` in the text the check must say so (the old `A and B or C` said nothing)."""
-    assert _termos_de_autorizacao(TEXTO.replace("consentimento", "")) == ["consentimento"]
+    """Mutation: without `consentimento` (in any case) the check must say so. The old `A and B or C` with C always true said nothing."""
+    assert _termos_de_autorizacao(re.sub(r"consentimento", "", TEXTO, flags=re.I)) == ["consentimento"]
 
 
 def test_a_receita_de_remake_nao_copia_material_de_terceiro_e_usa_a_coleta():

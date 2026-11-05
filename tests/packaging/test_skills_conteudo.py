@@ -43,11 +43,70 @@ PASSAGEM = {
                                    "apply-review", "remake-plan", "remake-run", "assemble", "capsule-draft", "decompose")),
     "toonflow": ("toonflow.py", ("clone", "serve", "status", "mcp", "where")),
     "opencut": ("opencut.py", ("clone", "dev", "status", "where")),
-    "clone": ("mcp_server.py", ("help", "version", "doctor", "check", "plan", "pricing", "status", "builds", "history", "activity",
+    "clone": ("mcp_server.py", ("media", "help", "version", "doctor", "check", "plan", "pricing", "status", "builds", "history", "activity",
                                 "inspect", "logs", "paths", "vocabulary", "build", "get")),  # o Hypit: a lista que o MCP aceita
     "jobs": ("jobs.py", ("submit", "status", "list", "cancel", "result", "clean")),
     "swap": ("swap.py", ("providers", "estimate", "run", "status")),
     "formats": ("formats.py", ("list", "show", "prompt")),
+}
+
+
+# As flags de cada verbo que a skill cita: o que o --help e o código do módulo aceitam ao verbo (a flag de um verbo não serve a outro:
+# `--autorizo` existe em media.py para `fetch`, e `media probe --autorizo` tem de falhar). Só o que vem antes do `--` conta: depois dele
+# são argumentos do programa de terceiros (o upstream), que aqui não são conferidos. Verbos fora desta tabela seguem a conferência por módulo.
+# `rea-video remake-run` e `assemble` ficam de fora: são do upstream, e as opções deles não estão no código do motor.
+FLAGS_POR_VERBO = {
+    ("media", "fetch"): {"-o", "--info", "--autorizo", "--max-mb", "--timeout", "--subs", "--auto-subs", "--section", "--audio-only"},
+    ("media", "probe"): {"-o"},
+    ("media", "audio"): {"-o", "--rate"},
+    ("media", "sheet"): {"-o", "--every", "--cols"},
+    ("media", "subs"): {"-o", "--style", "--wrap"},
+    ("media", "burn"): {"-o", "--crf", "--preset"},
+    ("media", "mask"): {"-o", "--box", "--from", "--to"},
+    ("media", "replace-audio"): {"-o", "--keep-length"},
+    ("media", "voice-track"): {"-o", "--duration", "--max-stretch"},
+    ("edit", "setup"): set(),
+    ("edit", "transcribe"): {"-o", "--out", "--output", "--model", "--lang", "--fixes", "--script"},
+    ("edit", "grade"): {"-o", "--output", "--preset", "--filter", "--analyze", "--list-presets", "--print-preset"},
+    ("shorts", "inspect"): set(),
+    ("shorts", "plan"): {"-o", "--out", "--transcript", "--clips", "--min", "--max"},
+    ("shorts", "cut"): {"-o", "--out", "--subs", "--fit", "--crf", "--preset", "--fps", "--dry-run"},
+    ("shorts", "run"): {"-o", "--out", "--transcript", "--clips", "--min", "--max", "--subs", "--fit", "--crf", "--preset", "--fps",
+                        "--dry-run"},
+    ("voicestudio", "status"): {"--json"},
+    ("voicestudio", "voices"): {"--json"},
+    ("voicestudio", "languages"): {"--json"},
+    ("voicestudio", "tts"): {"-o", "--out", "--profile", "--language", "--format", "--json"},
+    ("voicestudio", "transcribe"): {"--language", "--rest", "--json"},
+    ("voicestudio", "clone"): {"--name", "--language", "--ref-text", "--json"},
+    ("voicestudio", "design"): {"--name", "--language", "--json"},
+    ("voicestudio", "dub"): {"--source-lang", "--audio", "--job-id", "--json"},
+    ("voicestudio", "dub-export"): {"--job", "--lang", "--bed-level", "-o", "--out", "--json"},
+    ("montage", "status"): {"--json"},
+    ("montage", "pipelines"): {"--json"},
+    ("montage", "tools"): {"--json", "--runtime"},
+    ("montage", "estimate"): {"--json", "--input"},
+    ("montage", "run-tool"): {"--input", "--yes", "--json", "--timeout"},
+    ("moneyprinter", "generate"): {"--script", "--material", "--out", "--voice", "--aspect", "--subject", "--api-port", "--json"},
+    ("moneyprinter", "run"): {"--yes", "--out"},
+    ("moneyprinter", "serve"): {"--webui", "--api", "--lan", "--host", "--api-port"},
+    ("instagram", "run"): {"--forcar", "--bruto"},
+    ("instagram", "where"): {"--skills", "--json"},
+    ("matchcut", "run"): {"--forcar", "--bruto"},
+    ("rea-video", "decompose"): {"-o", "--out", "--vlm", "--no-vlm", "--no-whole", "--no-ocr", "--ocr-lang", "--no-packaging",
+                                 "--no-stems", "--workers", "--engine", "--meta"},
+    ("rea-video", "review"): {"--force"},
+    ("rea-video", "apply-review"): {"--by"},
+    ("rea-video", "probe"): {"--tags"},
+    ("rea-video", "tiles"): {"-o", "--out", "--start", "--end", "--every", "--cols", "--cell", "--max"},
+    ("rea-video", "stems"): {"-o", "--out"},
+    ("rea-video", "remake-plan"): {"--capsule-root", "--engine", "--mode", "--labels"},
+    ("rea-video", "summary"): set(),
+    ("toonflow", "serve"): {"--lan", "--docker"},
+    ("toonflow", "mcp"): {"--port", "--json"},
+    ("toonflow", "status"): {"--json"},
+    ("opencut", "dev"): {"--lan"},
+    ("opencut", "status"): {"--json"},
 }
 
 
@@ -100,6 +159,14 @@ def _confere(comando: str) -> list:
         fonte = _fonte(arquivo)
         if len(palavras) > 1 and re.fullmatch(r"[a-z][a-z-]*", palavras[1]) and palavras[1] not in verbos:
             problemas.append(f"`{palavras[1]}` is not a verb of `simplicio-video {palavras[0]}` ({', '.join(verbos)})")
+        grupo, verbo = palavras[0], (palavras[1] if len(palavras) > 1 else "")
+        if (grupo, verbo) in FLAGS_POR_VERBO:  # the option belongs to THIS verb, not to any verb of the module
+            antes = palavras[: palavras.index("--")] if "--" in palavras else palavras
+            permitidas = FLAGS_POR_VERBO[(grupo, verbo)] | {"-h", "--help"}
+            for token in antes[2:]:
+                opcao = token.split("=")[0]
+                if opcao.startswith("-") and opcao not in permitidas:
+                    problemas.append(f"{opcao} is not an option of `simplicio-video {grupo} {verbo}`")
         for flag in set(re.findall(r"(?<![\w-])--[a-z][a-z0-9-]*", comando)):
             if not _flag_no_texto(fonte, flag):
                 problemas.append(f"{flag} is not an option of `simplicio-video {palavras[0]}` ({arquivo})")
@@ -412,8 +479,17 @@ def test_todo_video_tem_cta_no_final_nas_quatro_skills():
 
 
 def _problemas_de_celula(texto: str) -> list:
-    """TDD stub (commit 1 of the review): the real check comes with the fix. Returns what is wrong with the table cells of `texto`."""
-    return []
+    """What is wrong with the commands that the table cells of `texto` cite without the `simplicio-video` prefix (`media fetch URL`):
+    the same checks of `_confere`, on the group and the verb that the cell names."""
+    problemas = []
+    for linha in texto.splitlines():
+        if not linha.startswith("|"):
+            continue
+        for trecho in re.findall(r"`([^`\n]+)`", linha):
+            palavras = trecho.split()
+            if palavras and (palavras[0] in PASSAGEM or palavras[0] in DELEGADOS):
+                problemas += [f"`{trecho}`: {problema}" for problema in _confere("simplicio-video " + trecho)]
+    return problemas
 
 
 def test_a_flag_de_um_verbo_nao_serve_a_outro_verbo():
@@ -434,3 +510,12 @@ def test_a_tabela_pega_grupo_e_verbo_que_nao_existem_mesmo_sem_o_prefixo():
 def test_as_celulas_de_tabela_das_skills_citam_so_verbos_que_existem(nome):
     ruins = _problemas_de_celula(_texto(nome))
     assert not ruins, f"{nome}: cells that cite a command the CLI does not have:\n  " + "\n  ".join(ruins)
+
+
+@pytest.mark.parametrize("grupo, verbo", sorted(FLAGS_POR_VERBO))
+def test_as_flags_por_verbo_sao_de_verbos_listados_e_existem_no_codigo(grupo, verbo):
+    arquivo, verbos = PASSAGEM[grupo]
+    assert verbo in verbos, f"`{grupo} {verbo}` has options but is not a verb of the group"
+    fonte = _fonte(arquivo)
+    ausentes = [opcao for opcao in FLAGS_POR_VERBO[(grupo, verbo)] if not _flag_no_texto(fonte, opcao)]
+    assert not ausentes, f"`{grupo} {verbo}` lists options that {arquivo} does not have: {ausentes}"

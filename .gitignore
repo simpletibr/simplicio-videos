@@ -38,6 +38,7 @@ clients/*/coleta/
 .claude/skills/deep-news/
 .claude/skills/deep-service/
 .claude/skills/deep-product/
+.claude/skills/simplicio-video-trilhas/
 
 # dados de cliente nunca vão para o git (AGENTS.md; backup fora do repo)
 clients/
