@@ -24,9 +24,10 @@ Para quem é: quem produz anúncios e vídeos curtos com voz, legenda e cortes, 
 | Planejamento de redes | `social` | Pronto | Não posta. A publicação fica em outra camada |
 | Biblioteca Openverse | `openverse` | Pronto | Revisão por pedido. A licença é da fonte |
 | Pesquisa na web | `busca` | Pronto | Exige TinyFish e chave. Teto diário de chamadas |
-| Trilhas externas | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `edit`, `rea-video` | Instalação sob demanda, versão fixada | A licença varia; veja a tabela de trilhas |
+| Trilhas externas | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `edit`, `rea-video` | Instalação sob demanda, versão fixada | A licença varia; veja a tabela de trilhas |
+| Skills e scripts de Instagram | `instagram` | Pronto no commit fixado; instala sob demanda. Os seis scripts rodaram de verdade; nenhum agente foi rodado com as skills | Local, sem chave, sem LLM. As heurísticas são em inglês e pontuam mal o português. Não posta |
 | Engenharia reversa de vídeo de referência | `rea-video` | Pronto no commit fixado; instala sob demanda. Clipe sintético testado de ponta a ponta; vídeo real, não | Local por padrão. Com `--vlm`, os quadros vão a um modelo de visão que você configura |
-| Servidor MCP | `simplicio-video-mcp` | 30 tools `video.*` | Sem gasto em `swap run` nem remoção de software |
+| Servidor MCP | `simplicio-video-mcp` | 31 tools `video.*` | Sem gasto em `swap run` nem remoção de software |
 | Limpeza de áudio | não há ainda | Em PR, não está no main | não se aplica |
 | Dublagem com fundo preservado | não há ainda no CLI | Hoje só no app VoiceStudio; exposição em andamento | não se aplica |
 
@@ -166,7 +167,7 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 
 ## MCP
 
-- Servidor: `simplicio-video-mcp` (stdio). Testado: responde `initialize` e lista 30 tools `video.*` pelo protocolo stdio, entre elas `video.rea-video`.
+- Servidor: `simplicio-video-mcp` (stdio). Testado: responde `initialize` e lista 31 tools `video.*` pelo protocolo stdio, entre elas `video.rea-video` e `video.instagram`.
 - Lista das tools: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Ficam de fora por segurança:**
   - `swap run`: gasta créditos;
@@ -204,6 +205,7 @@ Cada versão está fixada em [`src/simplicio_video/tools.py`](src/simplicio_vide
 | Toonflow | `toonflow` | commit `d2e94ac` | default branch | MIT |
 | MoneyPrinterTurbo | `moneyprinter` | commit `4b7b965` | default branch | MIT |
 | match-cut | `matchcut` | commit `b51c98f` | default branch | MIT. Uso exige login e créditos na Renoise |
+| instagram-agent-skill | `instagram` | commit `d03c56b` | default branch | MIT (Jake Schincariol). O script só roda depois que o sha256 bate com o fixado |
 | TinyFish CLI | `busca` | npm `0.50.1` | última versão npm | Não declarada no pacote |
 | VoiceStudio | `voicestudio` | commit `beeaae08` | default branch | AGPL-3.0. Usado só por HTTP local |
 | video-use | `edit` | commit `b877063` | default branch | MIT |
@@ -238,6 +240,62 @@ O `decompose` grava `breakdown.json`, `report.html`, `report.md`, `storyboard.jp
 - **MCP.** `video.rea-video` aceita `where`, `status` e `clone` (na pasta padrão). `setup` e a análise rodam no terminal: uma análise leva minutos e pode gastar chamadas do modelo de visão.
 
 Testado aqui, em Linux: clone no commit fixado; `setup` no Python 3.13 (só o núcleo) e no 3.11 (núcleo e OCR); o repasse de `decompose`, `probe`, `summary` e `memory`; uma análise padrão com o download de 67 MB; `--vlm` sem chave, que avisa e segue; a tool MCP listada pelo stdio. Não verificado: vídeo real, chamada real a um modelo de visão, os números de acurácia do README do upstream, `remake-run` e `capsule-draft`, OCR em japonês, Windows e macOS.
+
+### Skills de Instagram (`instagram`)
+
+```bash
+simplicio-video instagram clone                                  # baixa o commit fixado d03c56b para o cache de ferramentas (único passo que usa a rede)
+simplicio-video instagram skills                                 # as 13 skills: nome e descrição
+simplicio-video instagram run hookscore -- --hook 'I lost $18,000 because of one missing contract.'
+simplicio-video instagram run beats -- roteiro.txt --target 30   # roteiro vira folha de batidas com tempo
+simplicio-video instagram run caption -- legenda.txt             # linter de legenda
+simplicio-video instagram where --skills                         # a pasta das skills (para copiar para o seu agente)
+simplicio-video instagram status                                 # commit do checkout e sha256 de cada script
+```
+
+**O que é.** [Jakeschincariol/instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill), de Jake Schincariol, MIT, fixado no commit `d03c56b` (o último do upstream, de 2026-09-13; lido aqui em 2026-11-04). São treze skills de Claude (`ig-reel`, `ig-viral`, `ig-caption`, `ig-carousel`, `ig-story`, `ig-profile`, `ig-plan`, `ig-human`, `ig-comment`, `ig-reply`, `ig-dm`, `ig-repurpose`, `ig-audit`), um `templates/voice.md` e seis scripts Python que só usam a biblioteca padrão: `hookscore` (pontua um gancho), `beats` (roteiro vira folha de batidas com tempo), `caption` (linter de legenda), `humanize` (tira caracteres invisíveis, tipografia e palavras de enchimento), `detect` (painel de cinco checagens) e `swipe` (ranking de reels fora da curva a partir de um TSV). As skills são prompts para um agente, não código.
+
+**Não posta.** O upstream diz o mesmo: "These skills write. You post." O motor não posta, não publica, não faz login e não pede chave; o `clone` é o único subcomando que usa a rede.
+
+**Subcomandos.** `clone [dir]` (o commit fixado, em `INSTAGRAM_DIR` ou `SIMPLICIO_TOOLS_DIR/instagram`; recusa `SIMPLICIO_OFFLINE=1`), `where`, `status`, `skills` (a descrição de cada `SKILL.md` é texto de terceiros, mostrada como dado) e `run <ferramenta> [--forcar] [-- argumentos do script]`. A ferramenta é uma entre `hookscore`, `beats`, `caption`, `humanize`, `detect`, `swipe`, uma lista fechada: caminho nunca é aceito. Cada opção do script é conferida na lista da própria ferramenta (abreviação como `--ou` é recusada); por isso os argumentos do script vão depois de `--`, e o `--json` do script funciona.
+
+**O que o `run` confere e limita.**
+- O commit do checkout e o sha256 do script, dos arquivos que ele lê (`slop.json`, `hooks.json`) e dos que ele importa (o `swipe` importa o `hookscore.py`). Arquivo diferente é recusado. O que roda é uma cópia privada dos bytes conferidos.
+- O script roda como `python -I -B -X utf8`, por lista de argumentos e sem shell, na pasta em que você está, só com `PATH`, `HOME`, `LANG`, `LC_ALL`, `PYTHONIOENCODING`, `TMP`, `TEMP` e `SYSTEMROOT` (nenhuma chave), por no máximo 30 s e 2 MB de saída, com no máximo 1 MiB por arquivo de entrada ou pela entrada padrão.
+- `humanize -o/--out` e `swipe --out` só existem no terminal. O motor não sobrescreve arquivo que existe, a menos que você passe `--forcar` antes do `--`, e nunca grava dentro do checkout, em pasta do sistema (`/etc`, `/usr`...) nem em pasta oculta do seu home (`~/.ssh`, `~/.config`, `~/.claude`...); os links são resolvidos antes.
+- O arquivo de entrada é aberto uma vez, conferido com `fstat` nesse mesmo descritor (só arquivo comum; um named pipe não trava) e lido até 1 MiB + 1; o script recebe uma cópia privada desses mesmos bytes.
+- Se o motor recebe SIGTERM ou SIGHUP (terminal fechado, host do MCP encerrando, timeout de um agente), ele mata o grupo de processos do script e apaga a pasta privada. No POSIX o script ainda tem `RLIMIT_CPU` de 35 s do kernel, então um script que gasta CPU termina mesmo com o motor morto de vez. Ele limita tempo de CPU, não tempo de relógio, e não existe no Windows (lá só valem a morte aos 30 s e o tratamento de sinal).
+- No terminal, o texto do script aparece com ESC, controles, bidi e zero-width trocados por marcas visíveis (`␛`, `<U+202E>`), porque ele pode vir de terceiros. `--bruto`, flag do motor antes do `--`, imprime cru. Para guardar o texto limpo do `humanize`, use `-o` (o próprio script grava o arquivo) ou `--bruto`.
+- A guarda do `--out` compara nomes de pasta sem diferenciar maiúsculas no macOS e no Windows (e a normalização Unicode no macOS) e também recusa as pastas de início automático (`~/Library/LaunchAgents`, `~/Library/LaunchDaemons`, a pasta `Startup` do Menu Iniciar do Windows). UNVERIFIED: aqui não há macOS nem Windows.
+- Depois que o `simplicio-video update` leva a trilha a um commit mais novo do upstream, o `run` recusa o script cujo sha256 mudou, até a tabela de `src/simplicio_video/instagram.py` ser auditada de novo. `update --pin` volta ao commit fixado.
+
+**As heurísticas são em inglês.** As expressões regulares, o léxico de palavras (`slop.json`) e as 26 fórmulas de gancho do upstream são em inglês. O autor mediu o `hookscore` em 74 ganchos de YouTube Shorts: AUC 0,83 para pegar ganchos escritos para serem ruins, e 0,56 para separar os acertos de um criador dos erros do mesmo criador (0,50 é cara ou coroa). Rodado aqui, com os mesmos scripts fixados:
+
+| Entrada | Resultado |
+|---|---|
+| `I lost $18,000 because of one missing contract.` | `hookscore` 81,4 STRONG |
+| `Eu perdi R$ 18.000 por causa de um contrato que faltava.` (a mesma frase) | 59,6 OK; ele diz "third person, nobody in the room" para uma frase em primeira pessoa |
+| `Hey guys, today I wanted to talk about content strategy` | 9,6 WEAK, com o impeditivo "Greeting" |
+| `Oi pessoal, hoje eu quero falar sobre estratégia de conteúdo` (a mesma saudação) | 30,0 WEAK, sem impeditivo nenhum |
+| Legenda terminando em "Comment CLAUSE" / "Comente CLÁUSULA" | o `caption` acha a chamada para ação na primeira e diz "no call to action" na segunda |
+| Rascunho em português cheio de clichês | `detect`: "0 stock terms"; o `humanize` tira o caractere invisível e o travessão, mas nenhuma palavra |
+
+O `beats` conta o tempo do português pelo número de palavras a 165 palavras por minuto (padrão do inglês; mude com `--wpm`). Em português, trate as notas como indício grosseiro, não como veredito.
+
+**Copiar as skills para o seu agente.** O motor não copia (`simplicio-video install` é só da skill deste projeto). O comando do próprio upstream, apontado para o checkout:
+
+```bash
+mkdir -p ~/.claude/skills
+cp -r "$(simplicio-video instagram where --skills)"/ig-* ~/.claude/skills/
+```
+
+O upstream também pede para copiar `templates/voice.md` para `~/.claude/instagram/voice.md` e preencher: todas as skills leem esse arquivo.
+
+**Depois de copiar as skills, nenhuma garantia do motor vale.** Com as skills em `~/.claude/skills/`, o seu agente roda os scripts direto, como mandam os `SKILL.md` do upstream (`python3 swipe.py captured.tsv --out ...`, `python3 humanize.py rascunho.txt -o ...`): sem conferência de sha256, sem `-I`, sem ambiente fechado (as suas chaves ficam visíveis para o script), sem limite de 30 s nem de 2 MB, sem a guarda do `--out` e sem tratamento de `SIGTERM`. A skill `ig-viral` do upstream também manda o agente usar o seu navegador já logado no Instagram (extensão ou computer use) e o `yt-dlp` para ler YouTube Shorts: isso é comportamento da skill, não do motor. O caminho que o upstream sugere, `--out ~/.claude/instagram/swipe.md`, é um que o `instagram run` recusa (pasta oculta do home). Quem quer as garantias do motor usa `instagram run`; quem copia as skills assume o risco do que o agente executa. A frase "não posta" acima vale para o motor, não para um agente que segue essas skills.
+
+**MCP.** `video.instagram` aceita `skills`, `where`, `status` e `run` de `hookscore`, `beats`, `caption`, `detect` e `humanize`. O texto vai no parâmetro `texto` e entra no script pela entrada padrão; não há caminho de arquivo, nem `--out`, nem `--lexicon`, e o texto do script volta em `saida` com o aviso de que é texto de terceiros e heurística em inglês. `clone` e `swipe` são só do terminal: o agente não baixa código por conta própria.
+
+Testado aqui, em Linux: `clone` do commit fixado; os oito sha256 da tabela contra esse clone; os seis scripts pelo `run` com entradas em inglês e em português (os números acima); `humanize -o` e `swipe --out` gravando arquivo novo e recusando arquivo que existe, `/etc` e o checkout; a tool MCP pelo stdio (31 tools, um gancho pontuado, `--out` recusado); uma suíte com argumentos hostis, script adulterado, outro commit, saída gigante, tempo esgotado, ambiente fechado e `SKILL.md` hostil. **UNVERIFIED:** Windows e macOS; um agente usando as skills de verdade (nenhum foi rodado aqui, então a qualidade das skills, em inglês ou em português, não foi avaliada); os números de AUC do autor (são dele, não foram reproduzidos); a instalação por `/plugin` do upstream; commits depois de 2026-11-04.
 
 ## Referências
 

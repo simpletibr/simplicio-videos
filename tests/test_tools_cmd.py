@@ -8,7 +8,7 @@ import pytest
 from simplicio_video import tools
 from simplicio_video.cli import main
 
-NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "tinyfish", "voicestudio", "video-use", "yt-dlp", "rea_video"}
+NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "tinyfish", "voicestudio", "video-use", "yt-dlp", "rea_video"}
 
 
 def _run(argv, capsys):
@@ -65,6 +65,7 @@ def test_commands_match_the_cli_front_door(capsys):
     assert by["tinyfish"] == "simplicio-video busca"
     assert by["toonflow"] == "simplicio-video toonflow"
     assert by["rea_video"] == "simplicio-video rea-video"
+    assert by["instagram"] == "simplicio-video instagram"
 
 
 def test_text_output_names_every_track_and_its_state(capsys):

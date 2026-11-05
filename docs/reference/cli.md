@@ -33,13 +33,14 @@ Fluxo completo:
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; só baixa o commit fixado, o uso exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
+  instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
   rea-video    rea-video (MIT): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake; instala o commit fixado num venv próprio e repassa os comandos dele (https://github.com/JuneYaooo/rea-video)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
   tools        lista as trilhas externas fixadas (versão, comando, se estão no cache de tools e o que produzem)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/matchcut/rea-video/social/openverse/busca
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/matchcut/instagram/rea-video/social/openverse/busca
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      copia as skills do simplicio-video para o host do agente (11 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
   update       pacote pip: PyPI e reinstala as skills; checkout git: recusa (git pull e scripts/dev_install.sh); --check sai 0, 10 ou 2
@@ -72,6 +73,8 @@ comandos (na ordem do fluxo):
     toonflow      Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
     moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
     matchcut      match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta
+    instagram     instagram-agent-skill (MIT): skills de agente e scripts locais para Reels e legenda; não
+                  posta
     rea-video     rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake
     voicestudio   VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900
     formats       biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
@@ -285,6 +288,30 @@ exemplos:
   simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome "<Nome do cliente>"
   simplicio-video init <cliente> <Campanha> --template assistencia-tecnica-games --ano 2026 \
       --out clients/<cliente>/<campanha>/contract.yaml
+```
+
+## simplicio-video instagram
+
+```text
+usage: simplicio-video instagram [-h] ...
+
+Baixa o instagram-agent-skill (https://github.com/Jakeschincariol/instagram-agent-skill, MIT, Jake Schincariol) no commit fixado em tools.py, lista as 13 skills e roda, e só eles, seis scripts locais (hookscore, beats, caption, humanize, detect, swipe): só biblioteca padrão, sem rede, sem chave, sem LLM. O motor não posta e não publica; as skills escrevem e você posta. Antes de rodar, confere o commit do checkout e o sha256 do script; ele roda em modo isolado, sem shell, com ambiente mínimo, limite de 30 s e de 2 MB de saída. Os argumentos do script vão depois de `--`; `--forcar` (do motor, antes do `--`) permite sobrescrever o arquivo do --out de humanize e swipe, que só existe no terminal. A saída do script mostra ESC, controles, bidi e zero-width como marcas visíveis; `--bruto` (do motor) deixa crua. Se o motor recebe SIGTERM ou SIGHUP, mata o script e apaga a pasta privada; no POSIX o script também tem limite de CPU do kernel (35 s). As heurísticas são em inglês (AUC 0,83 para pegar ganchos ruins e 0,56 para escolher vencedores, medidas em 74 ganchos de YouTube Shorts em inglês): em português elas pontuam mal ou ignoram. Para copiar as skills ao agente: `instagram where --skills`. O checkout fica em INSTAGRAM_DIR ou em SIMPLICIO_TOOLS_DIR/instagram.
+
+positional arguments:
+  args        clone [dir] | where [--skills] | status | skills | run FERRAMENTA [--forcar] [--bruto] [--
+              argumentos]
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video instagram clone
+  simplicio-video instagram skills
+  simplicio-video instagram run hookscore -- --hook 'I lost $18,000 because of one missing contract.'
+  simplicio-video instagram run beats -- roteiro.txt --target 30
+  simplicio-video instagram run caption -- legenda.txt
+  simplicio-video instagram where --skills
+  simplicio-video instagram status
 ```
 
 ## simplicio-video install
