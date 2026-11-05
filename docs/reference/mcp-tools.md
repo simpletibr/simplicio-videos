@@ -11,7 +11,7 @@
 | `video.run` | voice -> validate -> render in one call (stops at the MP4; no upload). |
 | `video.list` | List templates, motion patterns, voice providers or ad angles (what = templates\|motion\|voices\|angles; angles accepts grupo). |
 | `video.clone` | Clone videos using Hypit AI (https://github.com/hypit-ai/hypit). |
-| `video.montage` | Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight and help. open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only. |
+| `video.montage` | Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, and the read-only registry (pipelines list\|show NAME, tools list\|info NAME, envelope, estimate NAME --input JSON; add --json). setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only. |
 | `video.edit` | video-use EDL editing over any MP4 (setup\|transcribe\|pack\|render\|verify). |
 | `video.opencut` | OpenCut editor for manual finishing (https://github.com/OpenCut-app/OpenCut): clone (default folder) and where. dev (a server that never ends) and a folder for clone are terminal-only. |
 | `video.formats` | Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format. |

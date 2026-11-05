@@ -102,7 +102,7 @@ def test_montage_run_demo_list(monkeypatch, fake_checkout):
 
 def test_montage_run_open_subcommand(monkeypatch, fake_checkout):
     recorded = []
-    monkeypatch.setattr("subprocess.call", lambda cmd, cwd=None, env=None: recorded.append((cmd, cwd)) or 0)
+    monkeypatch.setattr(montage, "_run_open", lambda cmd, cwd=None, env=None: recorded.append((cmd, cwd)) or 0)  # open streams its output
     ret = montage.run_montage(["open", "proj-123"])
     assert ret == 0
     assert len(recorded) == 1

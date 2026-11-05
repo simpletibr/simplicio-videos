@@ -79,7 +79,8 @@ def test_every_upstream_command_without_venv_is_a_clean_error(om, capsys, argv):
     assert "montage setup" in err and "Traceback" not in err
 
 
-def test_pipelines_and_status_need_no_venv(om, capsys):
+def test_pipelines_and_status_need_no_venv(om, monkeypatch, capsys):
+    monkeypatch.setattr(tools, "_git", lambda *a, **k: "0" * 40)
     assert run(capsys, "pipelines", "list")[0] == 0
     assert run(capsys, "status", "--json")[0] == 0
 
@@ -111,6 +112,7 @@ def test_pythonpath_is_joined_with_os_pathsep(om, monkeypatch):
 @pytest.fixture
 def steps(monkeypatch):
     """Record the setup steps; the venv-creation step leaves a fake venv python behind."""
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)  # the hermetic fixture sets it; setup itself refuses offline
     rec = []
 
     def fake(cmd, cwd=None):
@@ -154,6 +156,7 @@ def test_setup_remotion_without_npm_is_a_clean_error_and_runs_nothing(om, venv, 
 
 
 def test_setup_failing_step_stops_and_names_the_step(om, venv, monkeypatch, capsys):
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
     calls = []
     monkeypatch.setattr(montage, "_run_step", lambda cmd, cwd=None: calls.append(cmd) or 3)
     monkeypatch.setattr(shutil, "which", lambda n: "/fake/npm")
@@ -225,7 +228,8 @@ def test_open_surfaces_why_backlot_did_not_come_up(om, venv, capsys):
 
 # ---- MCP ----------------------------------------------------------------------------------------------------------
 
-def test_mcp_allows_the_read_only_registry(om, venv, tmp_path):
+def test_mcp_allows_the_read_only_registry(om, venv, monkeypatch):
+    monkeypatch.setattr(tools, "_git", lambda *a, **k: "0" * 40)
     (om / "pipeline_defs" / "alpha.yaml").write_text("name: alpha\n", encoding="utf8")
     r = mcp_server.video_montage("pipelines list --json")
     assert r["ok"] is True and r["result"]["pipelines"][0]["name"] == "alpha"

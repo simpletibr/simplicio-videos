@@ -538,6 +538,8 @@ exemplos:
   simplicio-video montage clone
   simplicio-video montage open
   simplicio-video montage serve --port 8000
+  simplicio-video montage setup [--remotion] [--piper]
+  simplicio-video montage status --json
   simplicio-video montage pipelines list --json
   simplicio-video montage tools list --runtime api --json
   simplicio-video montage envelope --json

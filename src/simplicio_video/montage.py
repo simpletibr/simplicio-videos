@@ -8,7 +8,10 @@ import argparse
 import contextlib
 import json
 import os
+import shutil
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 from . import tools
@@ -89,7 +92,8 @@ def ensure_openmontage_dir(target_dir: Path | None = None) -> Path:
 # upstream code (AGPL), so they run in a child process and only parsed JSON comes back. Never imported by the engine.
 # ---------------------------------------------------------------------------------------------------------------------
 
-REGISTRY_COMMANDS = ("pipelines", "tools", "envelope", "estimate")
+REGISTRY_COMMANDS = ("pipelines", "tools", "envelope", "estimate", "setup", "status")
+READ_ONLY_COMMANDS = ("pipelines", "tools", "envelope", "estimate", "status")  # what the MCP tool may run
 RUNTIMES = ("local", "local_gpu", "api", "hybrid")
 _CHILD_TIMEOUT = 300
 
@@ -134,6 +138,167 @@ class _ChildError(MontageError):
     def __init__(self, msg: str, data: dict):
         super().__init__(msg)
         self.data = data
+
+
+# ---- the OpenMontage venv (outside the checkout, so a re-clone never wipes it) -------------------------------------------
+
+def data_dir() -> Path:
+    """Where the venv lives: $OPENMONTAGE_DATA_DIR, else $SIMPLICIO_VIDEO_DATA/openmontage-data (~/.simplicio-video/openmontage-data)."""
+    explicit = os.environ.get("OPENMONTAGE_DATA_DIR")
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
+    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    return (base / "openmontage-data").resolve()
+
+
+def venv_python() -> Path:
+    sub = ("Scripts", "python.exe") if os.name == "nt" else ("bin", "python")
+    return data_dir() / "venv" / sub[0] / sub[1]
+
+
+def upstream_python() -> str:
+    """The interpreter every upstream command runs in: the venv's, or a clean error that points at `montage setup`."""
+    py = venv_python()
+    if not py.is_file():
+        raise MontageError(
+            f"o venv do OpenMontage não existe ({py.parent.parent}). Rode `simplicio-video montage setup` "
+            "(precisa de rede) para criá-lo e instalar as dependências."
+        )
+    return str(py)
+
+
+def _upstream_env(om_dir: Path) -> dict:
+    env = os.environ.copy()
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{om_dir}{os.pathsep}{existing}" if existing else str(om_dir)
+    return env
+
+
+def _run_step(cmd: list[str], cwd: Path | None = None) -> int:
+    env = os.environ.copy()
+    env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
+    try:
+        return run_child(cmd, cwd=cwd, env=env)
+    except OSError as e:
+        print(f"montage: não consegui rodar {cmd[0]}: {e}", file=sys.stderr)
+        return 127
+    except KeyboardInterrupt:
+        print("montage: interrompido durante o setup", file=sys.stderr)
+        return 130
+
+
+def run_setup(remotion: bool = False, piper: bool = False) -> int:
+    """Create the venv, install the upstream requirements.txt (and optionally Remotion / Piper), saying what runs before each step."""
+    om_dir = find_openmontage_dir()
+    if om_dir is None:
+        raise MontageError(f"OpenMontage não encontrado em {default_openmontage_dir()}. Rode `simplicio-video montage clone` primeiro.")
+    if _offline():
+        raise MontageError("modo offline (SIMPLICIO_OFFLINE=1): não vou instalar o OpenMontage, porque o pip e o npm precisam de rede. "
+                           "Rode `simplicio-video montage setup` fora do modo offline.")
+    npm = None
+    if remotion:
+        npm = shutil.which("npm")
+        if npm is None:
+            raise MontageError("--remotion precisa do npm (Node.js) no PATH e não achei. Instale o Node.js e rode de novo.")
+    venv = data_dir() / "venv"
+    py = str(venv_python())
+    plan: list[tuple[str, list[str], Path | None]] = []
+    if not venv_python().is_file():
+        plan.append((f"criando o venv em {venv}", [sys.executable, "-m", "venv", str(venv)], None))
+    plan.append(("instalando o requirements.txt do OpenMontage com o pip (pode levar vários minutos; o pip mostra o andamento)",
+                 [py, "-m", "pip", "install", "-r", str(om_dir / "requirements.txt")], om_dir))
+    if remotion:
+        plan.append(("npm install em remotion-composer (pode levar alguns minutos)", [npm, "install"], om_dir / "remotion-composer"))
+    if piper:
+        plan.append(("instalando o piper-tts (voz local) com o pip", [py, "-m", "pip", "install", "piper-tts"], om_dir))
+    try:
+        data_dir().mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise MontageError(f"não consegui criar a pasta de dados {data_dir()}: {e}") from None
+    total = len(plan)
+    for i, (what, cmd, cwd) in enumerate(plan, 1):
+        print(f"[{i}/{total}] {what}", flush=True)
+        t0 = time.monotonic()
+        rc = _run_step(cmd, cwd)
+        if rc != 0:
+            raise MontageError(f"passo {i}/{total} falhou (código {rc}): {' '.join(str(c) for c in cmd[:4])}. A saída acima diz por quê.")
+        print(f"[{i}/{total}] ok ({time.monotonic() - t0:.0f}s)", flush=True)
+    print(f"OpenMontage pronto: venv em {venv}. Próximo passo: `simplicio-video montage tools list` ou `simplicio-video montage status`.")
+    return 0
+
+
+_STATUS_PROBE = r"""
+import importlib.metadata as m, json, re, sys
+missing = []
+for line in open(sys.argv[1], encoding="utf-8"):
+    name = re.split(r"[\s<>=!~;\[#]", line.strip(), maxsplit=1)[0]
+    if not name:
+        continue
+    try:
+        m.version(name)
+    except m.PackageNotFoundError:
+        missing.append(name)
+try:
+    m.version("piper-tts"); piper = True
+except m.PackageNotFoundError:
+    piper = False
+print(json.dumps({"missing": missing, "piper": piper}))
+"""
+
+
+def status_report() -> dict:
+    """Checkout, pin, venv, missing requirements, Remotion and Piper: read-only, asks the venv's own Python."""
+    d = find_openmontage_dir()
+    pin = tools.effective_ref(tools.get("openmontage"))
+    head = None
+    if d is not None:
+        try:
+            head = tools._git("rev-parse", "HEAD", cwd=d)
+        except tools.ToolError:
+            head = None
+    py = venv_python()
+    rep = {"ok": True,
+           "checkout": {"found": d is not None, "path": str(d or default_openmontage_dir()), "pin": pin, "head": head,
+                        "pin_match": (head == pin) if head else None},
+           "venv": {"present": py.is_file(), "path": str(py.parent.parent), "python": str(py) if py.is_file() else None},
+           "missing_modules": None, "remotion": bool(d and (d / "remotion-composer" / "node_modules").is_dir()), "piper": False}
+    if d is not None and py.is_file() and (d / "requirements.txt").is_file():
+        try:
+            p = subprocess.run([str(py), "-c", _STATUS_PROBE, str(d / "requirements.txt")], capture_output=True, text=True, timeout=60)
+            probe = json.loads(p.stdout)
+            rep["missing_modules"], rep["piper"] = probe["missing"], probe["piper"]
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError):
+            rep["probe_error"] = "o Python do venv não respondeu"
+    return rep
+
+
+def _run_open(cmd: list[str], cwd: Path, env: dict) -> int:
+    """`backlot open` spawns its server with stderr discarded, so when the upstream says it did not come up, run the server
+    in the foreground for a few seconds and show why it exits (e.g. ModuleNotFoundError: fastapi)."""
+    seen: list[str] = []
+    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+    assert p.stdout is not None
+    for line in p.stdout:
+        seen.append(line)
+        sys.stdout.write(line)
+        sys.stdout.flush()
+    rc = p.wait()
+    if "did not come up" in "".join(seen):
+        serve = [cmd[0], "-m", "backlot", "serve"] + (["--port", os.environ["BACKLOT_PORT"]] if os.environ.get("BACKLOT_PORT") else [])
+        s = subprocess.Popen(serve, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                             text=True, errors="replace")
+        try:
+            _, err = s.communicate(timeout=8)
+            tail = "\n".join((err or "").strip().splitlines()[-8:]) or f"saiu com código {s.returncode} sem mensagem"
+            print(f"montage: o backlot não subiu. Motivo (fim do stderr do servidor):\n{tail}\n"
+                  "Se faltam módulos, rode `simplicio-video montage setup`.", file=sys.stderr)
+        except subprocess.TimeoutExpired:
+            s.kill()
+            s.communicate()
+            print("montage: o backlot subiu quando rodado em primeiro plano; a porta pode estar ocupada ou o início foi lento. "
+                  "Tente `simplicio-video montage serve`.", file=sys.stderr)
+    return rc
 
 
 def _require_checkout() -> Path:
@@ -189,12 +354,11 @@ def show_pipeline(name: str, om_dir: Path | None = None) -> dict:
 def _child(op: str, payload: dict) -> dict:
     """Run one registry operation of the upstream in a separate process; return its parsed JSON answer."""
     om_dir = _require_checkout()
-    env = os.environ.copy()
-    existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{om_dir}{os.pathsep}{existing}" if existing else str(om_dir)
+    py = upstream_python()
+    env = _upstream_env(om_dir)
     env["PYTHONIOENCODING"] = "utf-8"
     try:
-        p = subprocess.run([sys.executable, "-c", _CHILD, op, json.dumps(payload)], cwd=om_dir, env=env,
+        p = subprocess.run([py, "-c", _CHILD, op, json.dumps(payload)], cwd=om_dir, env=env,
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=_CHILD_TIMEOUT)
     except subprocess.TimeoutExpired:
         raise MontageError(f"o OpenMontage não respondeu em {_CHILD_TIMEOUT}s") from None
@@ -209,8 +373,7 @@ def _child(op: str, payload: dict) -> dict:
     if kind == "import":
         missing = ", ".join(data.get("missing") or ["?"])
         raise _ChildError(
-            f"faltam dependências do OpenMontage no Python do motor ({sys.executable}): {missing}. "
-            "`simplicio-video montage setup` (em breve) instala; por ora instale-as com pip nesse Python.", data)
+            f"faltam dependências do OpenMontage no venv ({py}): {missing}. Rode `simplicio-video montage setup` para instalá-las.", data)
     if kind == "not_found":
         raise _ChildError(f"{data['error']}. Veja `simplicio-video montage tools list`.", data)
     raise _ChildError(f"o OpenMontage falhou: {data.get('error')}", data)
@@ -246,6 +409,11 @@ def _registry_parser() -> argparse.ArgumentParser:
         "--runtime", choices=RUNTIMES, help="filtra pelo runtime declarado")
     add(tls, "info", "contrato completo de uma tool (get_info, input_schema)", ["tools info NOME --json"]).add_argument("name")
 
+    st = add(sub, "setup", "cria o venv do OpenMontage e instala as dependências (precisa de rede; só no terminal)",
+             ["setup", "setup --remotion --piper"])
+    st.add_argument("--remotion", action="store_true", help="também roda npm install em remotion-composer")
+    st.add_argument("--piper", action="store_true", help="também instala o piper-tts (voz local)")
+    add(sub, "status", "checkout, pino, venv, módulos que faltam, Remotion e Piper", ["status --json"])
     add(sub, "envelope", "support_envelope(): o que cada tool declara e o estado ao vivo", ["envelope --json"])
     e = add(sub, "estimate", "custo e tempo estimados (dry_run do upstream; não executa a tool)",
             ['estimate NOME --input \'{"prompt": "um gato"}\' --json'])
@@ -294,6 +462,19 @@ def _run_registry(ns: argparse.Namespace) -> int:
                 print(f"{r['name']:<28} {r['runtime']:<10} {r['status']:<12} {r['capability']}")
     elif ns.cmd == "tools":
         _print(_child("info", {"name": ns.name})["info"], ns.json)
+    elif ns.cmd == "setup":
+        return run_setup(ns.remotion, ns.piper)
+    elif ns.cmd == "status":
+        rep = status_report()
+        if ns.json:
+            _print(rep, True)
+        else:
+            c, v = rep["checkout"], rep["venv"]
+            pin = "confere" if c["pin_match"] else "NÃO confere" if c["pin_match"] is False else "?"
+            print(f"checkout: {c['path']} ({'encontrado' if c['found'] else 'ausente: rode montage clone'}; pino {pin})")
+            print(f"venv: {v['path']} ({'presente' if v['present'] else 'ausente: rode montage setup'})")
+            print(f"módulos que faltam: {rep['missing_modules'] if rep['missing_modules'] is not None else '?'}")
+            print(f"remotion: {'sim' if rep['remotion'] else 'não'}; piper: {'sim' if rep['piper'] else 'não'}")
     elif ns.cmd == "envelope":
         env = _child("envelope", {})["envelope"]
         _print({"ok": True, "envelope": env} if ns.json else env, ns.json)
@@ -333,7 +514,7 @@ def run_montage(args: list[str], cwd: Path | None = None) -> int:
         om_dir = ensure_openmontage_dir()
 
     workdir = cwd or om_dir
-    py = sys.executable
+    py = upstream_python()
 
     first = args[0] if args else "open"
     if first == "open":
@@ -366,10 +547,9 @@ def run_montage(args: list[str], cwd: Path | None = None) -> int:
         else:
             cmd = [py, "-m", "backlot", "open"]
 
-    env = os.environ.copy()
-    existing_pp = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{om_dir}:{existing_pp}" if existing_pp else str(om_dir)
-
+    env = _upstream_env(om_dir)
+    if first == "open":
+        return _run_open(cmd, cwd=workdir, env=env)
     return run_child(cmd, cwd=workdir, env=env)
 
 

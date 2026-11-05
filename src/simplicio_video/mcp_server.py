@@ -164,16 +164,22 @@ def video_clone(args: str = "") -> dict:
     return _cli(["clone", *argv])
 
 
-DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight and help. open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only."
+DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, and the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME --input JSON; add --json). setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only."
 def video_montage(args: str = "") -> dict:
-    """OpenMontage over MCP: `clone` into the default folder, `doctor`, `preflight` and help. `open` (the default with no args) and
+    """OpenMontage over MCP: `clone` into the default folder, `doctor`, `preflight`, `status`, help and the read-only registry
+    (`pipelines`, `tools`, `envelope`, `estimate`). `setup` installs a venv with pip/npm; `open` (the default with no args) and
     `serve` start an interface that never ends; `demo` renders with OpenMontage pipelines; `clone <dir>` picks where the checkout is
     written, and any other argument (a script, `-c` or `-m`) would run Python code of the client's choice: all of that is terminal-only."""
+    from . import montage
     argv = _argv(args)
     if argv[:1] == ["clone"] and len(argv) > 1:
         return _so_terminal("montage clone <dir>", "clonar o OpenMontage num diretório escolhido")
+    if argv[:1] and argv[0] in montage.READ_ONLY_COMMANDS:
+        return _cli(["montage", *argv])
     if argv[:1] in (["clone"], ["doctor"], ["hyperframes-doctor"], ["preflight"], ["--help"], ["-h"], ["help"]) or argv == ["clone"]:
         return _cli(["montage", *argv])
+    if argv[:1] == ["setup"]:
+        return _so_terminal("montage setup", "montage setup cria o venv e instala dependências com pip e npm")
     if not argv or argv[0] in ("open", "serve"):
         return _so_terminal("montage open|serve", "montage open e serve sobem uma interface que não termina")
     return _so_terminal(f"montage {argv[0]}", f"montage {argv[0]} roda outra coisa do OpenMontage que o MCP não aceita")

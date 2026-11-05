@@ -249,7 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("montage", formatter_class=Fmt, help="trilha Montage (OpenMontage): produção de vídeo com agentes de IA",
         description="Invoca o OpenMontage (https://github.com/calesthio/OpenMontage) para pipelines e agentes de produção de vídeo (Backlot, Remotion, HyperFrames).",
-        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000\n  simplicio-video montage pipelines list --json\n  simplicio-video montage tools list --runtime api --json\n  simplicio-video montage envelope --json\n  simplicio-video montage estimate NOME --input '{}' --json")
+        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000\n  simplicio-video montage setup [--remotion] [--piper]\n  simplicio-video montage status --json\n  simplicio-video montage pipelines list --json\n  simplicio-video montage tools list --runtime api --json\n  simplicio-video montage envelope --json\n  simplicio-video montage estimate NOME --input '{}' --json")
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao OpenMontage")
 
     p = sub.add_parser("edit", formatter_class=Fmt, help="edição por EDL com video-use sobre qualquer MP4",
