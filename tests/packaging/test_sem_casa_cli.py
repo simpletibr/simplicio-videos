@@ -36,7 +36,7 @@ RECUSAM = [
     ["media", "fetch", "http://example.invalid/x", "-o", "x.mp4", "--autorizo"],
 ]
 SO_OLHAM = [
-    ["doctor", "update"], ["doctor", "tools"], ["doctor", "disk"], ["doctor", "trilhas"], ["doctor", "trilhas", "--json"], ["update", "--check"], ["install", "--check"],
+    ["doctor", "trilhas"], ["doctor", "trilhas", "--json"], ["update", "--check"], ["install", "--check"],
     ["busca", "status"], ["openverse", "library", "list"], ["social", "providers"], ["clone", "status"],
 ]
 
@@ -123,3 +123,23 @@ def test_o_cache_do_update_sem_HOME_nao_cria_pasta_e_nao_quebra(monkeypatch, tmp
     assert update.read_check() is None
     with pytest.raises(hostos.SemCasa):
         update.default_state_dir()
+
+
+def test_a_raiz_do_disco_nao_e_um_home(monkeypatch):
+    for nome in [n for n in os.environ if n.startswith("SIMPLICIO_") or n.endswith("_DIR") or n == "USERPROFILE"]:
+        monkeypatch.delenv(nome, raising=False)
+    monkeypatch.setenv("HOME", "/")
+    with pytest.raises(hostos.SemCasa):
+        hostos.home_absoluta()
+
+
+def test_o_doctor_sem_HOME_segue_e_responde(monkeypatch, tmp_path):
+    """The doctor is a diagnostic: with no home its update and tools rows still answer, without a cache to read or write."""
+    from simplicio_video.commands import doctor
+    _sem_casa(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    for secao in ("update", "tools", "disk"):
+        doc = doctor.collect(only=secao)
+        assert doc["checks"][0]["name"] == secao and doc["checks"][0]["status"] in ("ok", "warn"), doc
+    assert doctor.collect(only="update")["checks"][0]["summary"].startswith("nenhuma checagem")
+    assert list(tmp_path.iterdir()) == []

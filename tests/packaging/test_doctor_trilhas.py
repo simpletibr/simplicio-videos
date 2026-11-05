@@ -1185,3 +1185,26 @@ def test_o_doc_do_override_nao_promete_o_que_o_install_recusa():
     texto = (Path(__file__).resolve().parents[2] / "docs" / "recursos.md").read_text(encoding="utf-8")
     linha = next(l for l in texto.splitlines() if l.startswith("- **Override**"))
     assert "pip" in linha and "sha256" in linha and "versão fixada" in linha, linha
+
+
+def test_sondas_locais_e_upstream_dividem_o_mesmo_orcamento(ambiente, monkeypatch):
+    """The local probes take 0.9 s and finish; the upstream reads then get only what is left of the 1.5 s, not a full 1.5 s of their
+    own (that would end at 2.4 s)."""
+    monta_saudavel(ambiente, monkeypatch)
+
+    def media(*args, **kwargs):
+        time.sleep(0.9)
+        return "0" * 40
+
+    monkeypatch.setattr(tools, "_git", media)
+
+    def lenta_io(argv, cwd=None):
+        time.sleep(4)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    io = tools_update.Io(network=True, run=lenta_io, read=lenta_io, fetch_json=lambda url: time.sleep(4), now=lambda: 1700000000,
+                         which=lambda nome: f"/falso/{nome}")
+    inicio = time.monotonic()
+    dt.collect(online=True, io=io, orcamento_s=1.5)
+    decorrido = time.monotonic() - inicio
+    assert decorrido < 2.0, decorrido
