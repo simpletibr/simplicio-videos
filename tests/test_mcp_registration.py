@@ -1,0 +1,40 @@
+"""The MCP tool registry is conflict-free (DESC_<fn> next to each function, jobs kinds via _register) and its output is frozen."""
+import asyncio
+import json
+from pathlib import Path
+
+import pytest
+
+from simplicio_video import jobs, mcp_server
+
+SNAPSHOT = json.loads((Path(__file__).parent / "data" / "mcp_tools_list.snapshot.json").read_text(encoding="utf-8"))
+
+
+def test_tools_table_matches_snapshot_without_sdk():
+    assert [n for n, _, _ in mcp_server.TOOLS] == SNAPSHOT["order"]
+    assert {n: d for n, _, d in mcp_server.TOOLS} == {t["name"]: t["description"] for t in SNAPSHOT["tools"]}
+
+
+def test_every_description_is_a_desc_constant_next_to_its_function():
+    for name, fn, desc in mcp_server.TOOLS:
+        assert getattr(mcp_server, f"DESC_{fn.__name__}") is desc, name
+
+
+def test_mcp_tools_list_is_identical_to_the_snapshot():
+    mcp = pytest.importorskip("mcp")
+    if not hasattr(mcp, "Client"):
+        pytest.skip("in-process Client needs mcp>=2")
+    srv = mcp_server.build_server()
+
+    async def go():
+        async with mcp.Client(srv) as client:
+            res = await client.list_tools()
+            return [{"name": t.name, "description": t.description, "inputSchema": t.input_schema}
+                    for t in sorted(res.tools, key=lambda t: t.name)]
+    assert asyncio.run(go()) == SNAPSHOT["tools"]
+
+
+def test_jobs_kinds_are_registered_in_order():
+    assert list(jobs.KINDS) == ["swap-run", "voice"]
+    for spec in jobs.KINDS.values():
+        assert set(spec) == {"prepare", "argv", "result"} and all(callable(f) for f in spec.values())
