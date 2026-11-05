@@ -126,6 +126,43 @@ def test_trilha_nao_instalada_so_roda_a_ajuda(smoke, monkeypatch):
     assert all(r.detalhe == "não instalado" for r in res if r.estado == "SKIP" and r.via == "cli" and "where" in r.checagem)
 
 
+def test_where_quebrado_em_trilha_instalada_reprova(smoke, monkeypatch):
+    def cli_falso(argv):
+        if argv[1:] == ["where"]:
+            return smoke.Saida(1, "", "boom")
+        return smoke.Saida(0, AJUDA_OPENCUT, "")
+
+    monkeypatch.setattr(smoke, "_rodar_cli", cli_falso)
+    monkeypatch.setattr(smoke, "_chamar_mcp", lambda funcao, kwargs: ({"ok": True, "log": "/x"}, ""))
+    monkeypatch.setattr(smoke.tools, "is_installed", lambda t: True)
+
+    por_checagem = {r.checagem: r for r in smoke.checar_trilha("opencut")}
+
+    assert por_checagem["cli where"].estado == smoke.FAIL
+    assert por_checagem["cli where"].detalhe == "rc 1: boom"
+    assert por_checagem["mcp video_opencut"].estado == smoke.OK
+    assert smoke.codigo_de_saida(list(por_checagem.values())) == 1
+
+
+def test_status_sem_json_le_o_texto(smoke, monkeypatch):
+    def cli_falso(argv):
+        if argv[-1] == "--json":
+            return smoke.Saida(1, "", "moneyprinter: status não recebe argumentos; argumento a mais: --json")
+        return smoke.Saida(0, "checkout: /x\n", "")
+
+    monkeypatch.setattr(smoke, "_rodar_cli", cli_falso)
+    r = smoke._checar_sub_cli("moneyprinter", "moneyprinter", "status", {"status"}, True, False)
+    assert (r.estado, r.detalhe) == (smoke.OK, "texto (sem --json)")
+
+
+def test_app_fechado_nao_reprova(smoke, monkeypatch):
+    monkeypatch.setattr(smoke, "_rodar_cli", lambda argv: smoke.Saida(
+        1, "", "voicestudio: não consegui falar com o VoiceStudio em http://127.0.0.1:3900/mcp/"))
+    r = smoke._checar_sub_cli("voicestudio", "voicestudio", "status", {"status"}, True, False)
+    assert r.estado == smoke.SKIP
+    assert smoke.codigo_de_saida([r]) == 0
+
+
 def test_chamadas_mcp_do_smoke_so_leem(smoke):
     permitidos = ("--help", "where", "status", ["fetch"])  # `fetch` sem URL é recusado antes de qualquer download
     for trilha, chamada in smoke.MCP_LEITURA.items():
