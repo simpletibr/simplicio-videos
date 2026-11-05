@@ -16,7 +16,7 @@ import pytest
 
 import _caixa
 from _caixa import write_git_launcher
-from simplicio_video import montage, tools
+from simplicio_video import hostos, montage, tools, tools_lock, tools_update
 
 saude = _caixa.saude
 caixa = _caixa.caixa
@@ -93,6 +93,75 @@ def test_sem_home_o_montage_clone_recusa_com_mensagem_e_sem_pasta(monkeypatch, t
         montage.clone_openmontage()
     assert "HOME" in str(erro.value)
     assert os.getcwd() == antes and not (tmp_path / "~").exists()
+
+
+def _tils(cwd: Path) -> list:
+    return sorted(p.name for p in cwd.iterdir() if p.name.startswith("~"))
+
+
+def test_sem_HOME_nenhuma_til_no_cwd_install_lock_e_update(monkeypatch, tmp_path):
+    """No HOME and no passwd entry: Path("~") is relative, and a mkdir on it makes a folder literally named `~` in the cwd. Neither
+    install('video-use'), nor the lock, nor an `update` may make one: each refuses (or records the failure) and creates nothing."""
+    _sem_casa(monkeypatch)
+    monkeypatch.delenv("VIDEO_USE_DIR", raising=False)
+    monkeypatch.setattr(tools, "_git", lambda *args, **kwargs: "")  # a git that "works": only the folder it is given is in question
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(tools.ToolError) as erro:
+        tools.install("video-use")
+    assert "HOME" in str(erro.value)
+    assert _tils(tmp_path) == [], _tils(tmp_path)
+    with pytest.raises(hostos.SemCasa):
+        tools_lock.write_lock(tools_lock.empty())
+    assert _tils(tmp_path) == [], _tils(tmp_path)
+    assert tools_lock.read_lock() == tools_lock.empty()  # nothing to read is no lock, not a traceback
+    chamadas = []
+
+    def roda(argv, cwd=None):
+        chamadas.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, "a" * 40 + "\tHEAD\n", "")
+
+    io = tools_update.Io(network=True, run=roda, fetch_json=lambda url: {}, now=lambda: 1_800_000_000)
+    for modo in ("pin", "follow"):
+        linhas, falhas = tools_update.apply_all(tools_lock.empty(), modo, io)  # must not raise
+        assert falhas > 0 and any("HOME" in linha for linha in linhas), linhas
+        assert _tils(tmp_path) == [], (modo, _tils(tmp_path))
+    assert sorted(p.name for p in tmp_path.iterdir()) == []
+
+
+def test_home_absoluta_le_o_ambiente_como_o_resto(monkeypatch, tmp_path):
+    """USERPROFILE (Windows) or HOME: hostos.home_absoluta() must read os.environ like home_dir(os.environ) does, so the tools folder and
+    the video-use checkout agree. Path.home() alone (what home_dir() does without an environment) answers another folder here."""
+    for nome in ("HOME", "SIMPLICIO_TOOLS_DIR", "VIDEO_USE_DIR", "SIMPLICIO_VIDEO_DATA"):
+        monkeypatch.delenv(nome, raising=False)
+    perfil = tmp_path / "perfil"
+    outro = tmp_path / "outro-home"
+    monkeypatch.setenv("USERPROFILE", str(perfil))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: outro))
+    assert hostos.home_absoluta() == perfil
+    assert tools.tools_dir() == perfil / ".simplicio-video" / "tools"
+    assert tools_update.checkout_for(tools.get("video-use")) == perfil / ".cache" / "simplicio" / "video-use"
+    assert tools_lock.default_data_dir() == perfil / ".simplicio-video"
+
+
+def test_override_de_pip_nao_aparece_na_mensagem(monkeypatch):
+    monkeypatch.setenv("SIMPLICIO_YT-DLP_REF", "2099.1.1")
+    with pytest.raises(tools.ToolError) as erro:
+        tools.install("yt-dlp")
+    assert "2099.1.1" not in str(erro.value)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bash")
+def test_setup_sh_sem_HOME_diz_o_que_definir_e_nao_cria_nada(tmp_path):
+    """`set -u` made the script die with `HOME: unbound variable`: a message that names the fix, and nothing created."""
+    setup = Path(tools.__file__).parent / "data" / "tools" / "video-use" / "setup.sh"
+    bash = shutil.which("bash")
+    assert bash
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    r = subprocess.run([bash, str(setup), "--quiet"], cwd=cwd, env={"PATH": os.environ["PATH"]}, capture_output=True, text=True, timeout=30)
+    assert r.returncode != 0
+    assert "unbound" not in r.stderr and "defina HOME" in r.stderr, r.stderr
+    assert list(cwd.iterdir()) == [] and list(tmp_path.iterdir()) == [cwd]
 
 
 @pytest.mark.integration

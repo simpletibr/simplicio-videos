@@ -31,6 +31,8 @@ from _comum import executa, instantanea
 from simplicio_video import matchcut, mcp_server, tools, tools_lock, tools_update
 from simplicio_video.cli import main
 
+REAL_GIT = tools._git  # the `ambiente` fixture swaps tools._git for a fake: this one is the real git
+
 # the new module is looked up on use, so a missing module fails each TEST (red for the right reason)
 dt = _Lazy("simplicio_video.doctor_trilhas")
 
@@ -1049,5 +1051,54 @@ def test_node_e_sondado_uma_vez_por_coleta(ambiente, monkeypatch):
 
 
 def test_texto_de_filho_sem_caracteres_de_direcao_nem_bom(ambiente):
-    """Zero-width spaces, bidi overrides, isolates and the BOM can disguise a line or a path: they are cleaned like controls."""
-    assert dt._limpa("a\u200bb\u202ec\u2066d\ufeffe\u200fz") == "a b c d e z"
+    """Zero-width spaces, bidi overrides, isolates, the Arabic letter mark (U+061C) and the BOM can disguise a line or a path: they are cleaned like controls."""
+    assert dt._limpa("a\u200bb\u202ec\u2066d\ufeffe\u200fz\u061cy") == "a b c d e z y"
+
+
+def test_override_invalido_nao_diz_que_o_pin_do_registro_vale(ambiente, monkeypatch):
+    """`tools.install` REFUSES an override that is not a commit or a version (it does not fall back to the registry pin), so the
+    doctor must not tell the person that the registry pin "vale": the message says the install refuses it, and to unset it."""
+    monta_saudavel(ambiente, monkeypatch)
+    monkeypatch.setenv("SIMPLICIO_MATCHCUT_REF", "main")
+    track = _trilha(dt.collect(), "matchcut")
+    pin = _c(track, "pin")
+    assert pin["status"] == "warn"
+    assert "o pin do registro vale" not in pin["summary"]
+    assert "recusa" in pin["summary"] and "main" not in pin["summary"]
+    assert "SIMPLICIO_MATCHCUT_REF" in pin["fix"] and "apague" in pin["fix"]
+    with pytest.raises(tools.ToolError):  # the claim of the message is true: install really refuses it
+        tools.install("matchcut")
+
+
+def _falso_pendurado(diretorio: Path, nome: str) -> Path:
+    diretorio.mkdir(parents=True, exist_ok=True)
+    exe = diretorio / nome
+    exe.write_text("#!/bin/sh\nexec sleep 60\n", encoding="utf-8")
+    exe.chmod(0o755)
+    return exe
+
+
+@pytest.mark.skipif(os.name == "nt", reason="sh")
+def test_binario_que_pendura_no_version_tem_limite_proprio(tmp_path, monkeypatch):
+    """`<exe> --version` of a track hangs: the doctor gives up after LIMITE_LOCAL_S (a hung binary used to cost 15 s per track,
+    outside the 25 s of --online)."""
+    monkeypatch.setattr(dt, "LIMITE_LOCAL_S", 0.5)
+    exe = _falso_pendurado(tmp_path / "bin", "tinyfish")
+    inicio = time.monotonic()
+    assert dt._roda_versao(str(exe)) == (False, None)
+    assert time.monotonic() - inicio < 5
+
+
+@pytest.mark.skipif(os.name == "nt", reason="sh")
+def test_git_que_pendura_na_leitura_do_checkout_tem_limite(tmp_path, monkeypatch):
+    """The git calls that read a local checkout (rev-parse, cat-file) have a timeout of their own: a hung git is "o git não lê a pasta"."""
+    _falso_pendurado(tmp_path / "bin", "git")
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setattr(dt, "LIMITE_LOCAL_S", 0.5)
+    monkeypatch.setattr(tools, "_git", REAL_GIT)
+    pasta = tmp_path / "checkout"
+    pasta.mkdir()
+    inicio = time.monotonic()
+    commit, motivo = dt._leitura_do_checkout(pasta)
+    assert commit is None and motivo
+    assert time.monotonic() - inicio < 5
