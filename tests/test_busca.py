@@ -701,6 +701,7 @@ def test_pagina_perde_html_ativo_e_comentarios_e_link_perigoso(env):
 
 
 @pytest.mark.parametrize("hostil", ["[a](" * 100_000, "[" * 200_000, "<script" * 50_000, "<!--" * 100_000, "<a " * 130_000, "[a](" + "(x)" * 130_000])
+@pytest.mark.slow
 def test_texto_feito_para_travar_regex_e_limpo_em_poucos_segundos(env, hostil):
     env.fake.set(fetch={"stdout": jt({"results": [{"url": "https://example.com", "final_url": None, "title": hostil, "format": "markdown", "text": hostil}],
                                       "errors": []})},
@@ -1024,6 +1025,7 @@ def test_status_versao_diferente_da_testada_avisa_mas_nao_bloqueia(env):
     assert any("0.50.1" in a and "0.49.3" in a for a in r["avisos"])
 
 
+@pytest.mark.slow
 def test_status_com_saida_estranha_do_binario_nao_quebra(env):
     env.fake.set(version={"stdout": "lixo sem numero\n"}, auth={"stdout": "isto nao e json"})
     r = env.b.status()
@@ -1212,6 +1214,7 @@ def test_as_fixtures_reais_passam_pelo_normalizador(env):
     assert p["untrusted_conteudo"] == json.loads(PAGINA_RAW)["results"][0]["text"]
 
 
+@pytest.mark.slow
 def test_variaveis_de_ambiente_novas_estao_descritas_na_referencia():
     sys.path.insert(0, str(ROOT / "scripts"))
     try:
@@ -1511,6 +1514,7 @@ def test_mais_invisiveis_saem_do_texto_e_recusam_a_consulta(env, invisivel):
 
 # ------------------------------------------------------------------------------------------------ (7) ReDoS com amplificador
 
+@pytest.mark.slow
 def test_amplificador_de_tags_com_um_milhao_de_colchetes_fica_abaixo_de_3_s(env):
     hostil = "<<<<<b>b>b>b>b>" + "[" * 1_000_000
     t0 = time.monotonic()

@@ -61,8 +61,15 @@ def test_check_web_succeeds_without_a_web_workspace_and_says_why():
     assert "#34" in r.stdout
 
 
-def test_regen_with_nothing_to_regenerate_succeeds():
-    r = make("regen")
+@pytest.mark.slow
+def test_regen_with_nothing_to_regenerate_succeeds(tmp_path):
+    # `make regen` rewrites docs/reference, the blocks of README and AGENTS, and docs/licenses.md inside the tree it runs in. It runs
+    # in a copy so the test never writes the checkout (the docs tests read those files, possibly at the same time).
+    copia = tmp_path / "repo"
+    shutil.copytree(ROOT, copia, ignore=shutil.ignore_patterns(".git", ".venv", "tests", "clients", "prospects", "node_modules",
+                                                               "__pycache__", "*.egg-info", "build", "dist"))
+    env = clean_env(PYTHONPATH=str(copia / "src"))
+    r = make("regen", f"PYTHON={sys.executable}", cwd=copia, env=env)
     assert r.returncode == 0, r.stderr
 
 

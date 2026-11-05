@@ -1127,6 +1127,7 @@ def test_folha_de_imagem_tem_sinais_objetivos_e_miniatura(env, midia):
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_nitidez_e_brilho_distinguem_imagens(env, midia):
     nit = ov.review_sheet(baixar(env, idx=0, body=midia["nitida"])["id"], PEDIDO)["sinais"]
     bor = ov.review_sheet(baixar(env, idx=1, body=midia["borrada"])["id"], PEDIDO)["sinais"]
@@ -1217,6 +1218,7 @@ def test_stderr_do_ffmpeg_com_bytes_invalidos_nao_quebra_a_folha(monkeypatch):
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_metadados_hostis_do_arquivo_nao_falsificam_os_numeros_da_folha(env, midia):
     limpo = ov.review_sheet(baixar(env, "audio", idx=0, body=midia["tom"])["id"], "som de chuva")["sinais"]
     hostil = ov.review_sheet(baixar(env, "audio", idx=1, body=midia["hostil"])["id"], "som de chuva")["sinais"]
@@ -1345,6 +1347,7 @@ def test_export_recusa_sobrescrever_arquivo_com_bytes_diferentes(env, aprovado):
     assert not (dest / "CREDITS-openverse.md").exists()
 
 
+@pytest.mark.slow
 def test_export_recusa_cc_by_sem_autor_ou_sem_licenca(env, aprovado):
     idx = json.loads((env.lib / "index.json").read_text(encoding="utf8"))
     dest = env.tmp / "saida"
@@ -1781,6 +1784,7 @@ def test_dois_ids_com_os_mesmos_bytes_aprovar_um_nao_aprova_o_outro(env, midia):
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_get_atualizar_com_os_mesmos_bytes_e_outro_autor_pede_nova_revisao(env, midia):
     a = baixar(env, idx=0, body=midia["nitida"])
     ov.review_sheet(a["id"], PEDIDO)
@@ -2180,6 +2184,7 @@ def test_mcp_nao_tem_parametro_de_canal_e_grava_mcp(env):
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_aprovar_pelo_mcp_e_pelo_plugin_continua_exigindo_a_folha_do_par(env, midia, capsys):
     item = baixar(env, body=midia["nitida"])
     r = mcp_server.video_openverse("review", id=item["id"], pedido=PEDIDO, veredito="aprovado", motivo="serve", por="agente")

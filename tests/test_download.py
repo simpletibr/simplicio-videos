@@ -205,6 +205,7 @@ def test_fetch_runs_yt_dlp_with_the_safe_options_and_a_closed_environment(tmp_pa
 
 
 @pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+@pytest.mark.slow
 def test_fetch_stops_at_the_timeout_and_leaves_nothing_behind(tmp_path, monkeypatch):
     fake = _fake_ytdlp(tmp_path, "time.sleep(30)\n")
     monkeypatch.setattr(download, "_binario", lambda: fake)

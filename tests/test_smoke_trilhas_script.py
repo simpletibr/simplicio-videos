@@ -343,6 +343,7 @@ def test_chamada_mcp_que_estoura_dentro_do_redirect_nao_perde_o_stdout(smoke, mo
 
 
 @pytest.mark.skipif(not PROC_DISPONIVEL, reason="o teste lê /proc (Linux); em outros sistemas fica UNVERIFIED")
+@pytest.mark.slow
 def test_rodar_cli_estouro_mata_o_processo_e_os_netos(smoke, monkeypatch, tmp_path):
     pidfile = tmp_path / "neto.pid"
     filho = ("import subprocess, sys, time\n"

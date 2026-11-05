@@ -300,6 +300,7 @@ def test_run_completo_com_manifesto(media, capsys):
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_run_corta_em_pedacos_e_emenda(media, monkeypatch):
     longo = make_video(media["dir"] / "longo.mp4", 14)
     monkeypatch.setattr(fake.FakeAdapter, "capabilities", fake.FakeAdapter.capabilities.__class__(
@@ -338,6 +339,7 @@ def test_timeout_grava_manifesto_e_falha(media, capsys):
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_backoff_do_polling_cresce_e_tem_teto(media, _fakes, monkeypatch):
     esperas = []
     monkeypatch.setattr(swap, "_sleep", lambda s: (esperas.append(s), _fakes.__setitem__("t", _fakes["t"] + s)))
@@ -594,6 +596,7 @@ def dois_pedacos(monkeypatch):
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_i1_caminho_com_apostrofo_e_espaco_emenda(media, monkeypatch):
     dois_pedacos(monkeypatch)
     out = media["dir"] / "Joana's dir" / "out.mp4"

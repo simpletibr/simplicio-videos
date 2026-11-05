@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import re
 
+import pytest
+
 from _docs import ROOT, run_script
 
 REFERENCE_FILES = {"cli.md", "mcp-tools.md", "schemas.md", "events.md", "config.md"}
@@ -25,6 +27,12 @@ def _gen(out):
     return out
 
 
+@pytest.fixture(scope="module")
+def gerado(tmp_path_factory):
+    """Uma geração só para o módulo: os testes que só leem a saída não pagam o gerador de novo (são ~3 s cada)."""
+    return _gen(tmp_path_factory.mktemp("gerado") / "ref")
+
+
 def _read(out, name):
     return (out / name).read_text(encoding="utf-8")
 
@@ -37,24 +45,21 @@ def _subcommands():
     return action.choices
 
 
-def test_gera_os_cinco_arquivos(tmp_path):
-    out = _gen(tmp_path / "ref")
-    assert {p.name for p in out.iterdir()} == REFERENCE_FILES
+def test_gera_os_cinco_arquivos(gerado):
+    assert {p.name for p in gerado.iterdir()} == REFERENCE_FILES
 
 
-def test_duas_execucoes_geram_bytes_iguais(tmp_path):
-    first = _gen(tmp_path / "a")
-    second = _gen(tmp_path / "b")
-    third = tmp_path / "de-outro-cwd"
-    third.mkdir()
-    run_script("gen_reference.py", "--out", str(tmp_path / "c"), cwd=third)
+def test_duas_execucoes_geram_bytes_iguais(gerado, tmp_path):
+    # Duas execuções: a do módulo (`gerado`) e uma de outro cwd, que é também uma segunda execução independente.
+    other_cwd = tmp_path / "de-outro-cwd"
+    other_cwd.mkdir()
+    run_script("gen_reference.py", "--out", str(tmp_path / "c"), cwd=other_cwd)
     for name in sorted(REFERENCE_FILES):
-        assert (first / name).read_bytes() == (second / name).read_bytes(), f"{name} muda entre execuções"
-        assert (first / name).read_bytes() == (tmp_path / "c" / name).read_bytes(), f"{name} depende do cwd"
+        assert (gerado / name).read_bytes() == (tmp_path / "c" / name).read_bytes(), f"{name} muda entre execuções ou depende do cwd"
 
 
-def test_cli_md_tem_todo_subcomando_e_toda_opcao_longa(tmp_path):
-    text = _read(_gen(tmp_path / "ref"), "cli.md")
+def test_cli_md_tem_todo_subcomando_e_toda_opcao_longa(gerado):
+    text = _read(gerado, "cli.md")
     subcommands = _subcommands()
     assert subcommands, "build_parser() não tem subcomandos"
     for name, sub in subcommands.items():
@@ -64,41 +69,39 @@ def test_cli_md_tem_todo_subcomando_e_toda_opcao_longa(tmp_path):
                 assert opt in text, f"opção {name} {opt} ausente de cli.md (o help real não entrou)"
 
 
-def test_mcp_tools_md_tem_toda_tool(tmp_path):
+def test_mcp_tools_md_tem_toda_tool(gerado):
     from simplicio_video.mcp_server import TOOLS
 
-    text = _read(_gen(tmp_path / "ref"), "mcp-tools.md")
+    text = _read(gerado, "mcp-tools.md")
     for name, _fn, _desc in TOOLS:
         assert name in text, f"tool MCP {name!r} ausente de mcp-tools.md"
 
 
-def test_schemas_md_tem_todo_schema_do_pacote(tmp_path):
-    text = _read(_gen(tmp_path / "ref"), "schemas.md")
+def test_schemas_md_tem_todo_schema_do_pacote(gerado):
+    text = _read(gerado, "schemas.md")
     schemas = sorted((PKG / "data").rglob("*.schema.json"))
     assert schemas, "não achei schemas em src/simplicio_video/data/"
     for path in schemas:
         assert path.name in text, f"{path.name} ausente de schemas.md"
 
 
-def test_config_md_tem_toda_variavel_lida_pelo_codigo(tmp_path):
+def test_config_md_tem_toda_variavel_lida_pelo_codigo(gerado):
     read = set()
     for path in PKG.rglob("*.py"):
         for match in ENV_READ.finditer(path.read_text(encoding="utf-8")):
             read.add(match.group(1) or match.group(2))
     read.discard("PATH")  # variável do sistema, não do produto
     assert "GEMINI_API_KEY" in read and "SIMPLICIO_OFFLINE" in read, "o scan não achou variáveis conhecidas"
-    text = _read(_gen(tmp_path / "ref"), "config.md")
+    text = _read(gerado, "config.md")
     missing = sorted(name for name in read if name not in text)
     assert not missing, f"variáveis lidas pelo código ausentes de config.md: {missing}"
 
 
-def test_eventos_vazio_com_aviso(tmp_path):
-    out = _gen(tmp_path / "ref")
-    assert "ainda não há eventos" in _read(out, "events.md").lower()
+def test_eventos_vazio_com_aviso(gerado):
+    assert "ainda não há eventos" in _read(gerado, "events.md").lower()
 
 
-def test_cli_md_nao_depende_da_versao_do_python(tmp_path):
+def test_cli_md_nao_depende_da_versao_do_python(gerado):
     """O argparse do 3.12 e o do 3.13 calculam a coluna de ajuda dos subcomandos de formas diferentes; o gerador fixa uma só.
     O cli.md gerado por qualquer Python suportado tem de ser igual ao commitado."""
-    out = _gen(tmp_path / "ref")
-    assert _read(out, "cli.md") == (ROOT / "docs" / "reference" / "cli.md").read_text(encoding="utf-8")
+    assert _read(gerado, "cli.md") == (ROOT / "docs" / "reference" / "cli.md").read_text(encoding="utf-8")

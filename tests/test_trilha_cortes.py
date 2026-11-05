@@ -75,6 +75,7 @@ def test_duracao_da_saida_com_crossfade_de_8_ms(arranjo):
     assert abs(info["duracao_s"] - DURACAO_ESPERADA) <= 0.001
 
 
+@pytest.mark.slow
 def test_ordem_dos_trechos_pela_frequencia_dominante_por_janela(arranjo):
     _, _, sr, x = arranjo
     # centro de cada trecho na saída, longe das zonas de crossfade (7.992 s, 15.984 s)
@@ -105,6 +106,7 @@ def test_valida_cortes_confere_em_s_e_recusa_erros():
         trilha.valida_cortes([])
 
 
+@pytest.mark.slow
 def test_compile_monta_a_trilha_de_arquivo_e_aponta_o_spec(mini):
     _ffmpeg_ou_pula()
     (mini.parent / "trilha").mkdir()

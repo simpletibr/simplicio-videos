@@ -454,6 +454,7 @@ def test_e2big_from_the_registry_child_is_a_clean_error(om, monkeypatch, capsys)
     assert "grande" in err and "Traceback" not in err
 
 
+@pytest.mark.slow
 def test_timeout_ends_a_run_that_does_not_end(om, capsys):
     t0 = time.monotonic()
     code = montage.main(["run-tool", "dorme", "--input", json.dumps({"input_path": "/x"}), "--yes", "--timeout", "1"])
@@ -493,6 +494,7 @@ needs_proc = pytest.mark.skipif(not os.path.isdir("/proc/self"), reason="o rastr
 
 
 @needs_proc
+@pytest.mark.slow
 def test_mcp_timeout_does_not_wait_for_a_grandchild_that_escaped(om, monkeypatch, tmp_path, capsys):
     """The grandchild is in its own session and keeps the output open: the run must still end near its time limit, and the
     grandchild must be dead by then (it is found through /proc before the group is killed)."""
@@ -512,6 +514,7 @@ def test_mcp_timeout_does_not_wait_for_a_grandchild_that_escaped(om, monkeypatch
 
 
 @needs_proc
+@pytest.mark.slow
 def test_escaped_grandchild_is_killed_after_a_normal_exit(om, tmp_path):
     """The tool returns normally while its grandchild (in its own session) is alive: the grandchild must not survive the run."""
     pid_file = tmp_path / "neto-normal.pid"

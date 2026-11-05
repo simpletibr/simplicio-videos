@@ -229,6 +229,7 @@ def todos_os_arquivos(root: Path) -> str:
 # ---------------------------------------------------------------- ponta a ponta com o runner de verdade
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_swap_run_em_segundo_plano_termina_e_entrega_o_resultado(media, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
     st = jobs.submit("swap-run", swap_params(media, concurrency=2), confirm_yes=True)
@@ -261,6 +262,7 @@ def test_runner_e_tarefa_ficam_em_grupos_proprios(media, monkeypatch):
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_cancelar_para_o_grupo_e_deixa_o_manifesto_cancelado(media, monkeypatch):
     monkeypatch.setenv("SIMPLICIO_FAKE_STUCK", "1")
     st = jobs.submit("swap-run", swap_params(media, timeout=120, poll_interval=0.05), confirm_yes=True)
@@ -325,6 +327,7 @@ def test_chave_na_saida_da_tarefa_nao_vai_para_o_log(mini, monkeypatch):
     assert FAKE_KEY not in json.dumps(jobs.status(st["id"]))
 
 
+@pytest.mark.slow
 def test_voz_local_em_segundo_plano(mini):
     r = mcp_server.video_jobs("submit", kind="voice", params={"contrato": str(mini), "provider": "file"})
     assert r["ok"], r

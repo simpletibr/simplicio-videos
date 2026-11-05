@@ -172,6 +172,7 @@ def SCRIPT_PASSOS():
         sys.modules.pop(spec.name, None)
 
 
+@pytest.mark.slow
 def test_roda_de_verdade_no_linux_passa_e_nao_toca_no_home_real(smoke, capsys, tmp_path):
     casa = Path.home()
     antes = {n: (casa / n).exists() for n in (".simplicio", ".simplicio-video")}
