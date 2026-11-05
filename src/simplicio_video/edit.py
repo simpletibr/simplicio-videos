@@ -4,6 +4,7 @@ Thin wrapper over the video-use files shipped in the package (data/tools/video-u
 """
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -34,19 +35,11 @@ def _run(cmd: list[str]) -> int:
 
 
 def _tem_saida(rest: list[str]) -> bool:
-    """True if the output option is there in any spelling the upstream argparse takes: -o X, -oX, --output X, --out X, --o=X..."""
-    for r in rest[1:] if rest and not rest[0].startswith("-") else rest:
-        if r == "--":
-            break
-        if r.startswith("-o") and not r.startswith("--"):
-            return True
-        if r.startswith("--") and len(r) > 2 and r.split("=", 1)[0] in ("--output", "--outpu", "--outp", "--out", "--ou", "--o"):
-            return True
-    return False
+    """True if the output option is there in any spelling the upstream argparse takes (see _output_values)."""
+    return bool(_output_values(rest))
 
 
 SUBCOMMANDS = ("setup", "transcribe", "transcribe-batch", "pack", "render", "verify", "grade")
-OUT_FLAGS = ("--output", "--out")
 NEEDS_OUT = ("transcribe", "render", "verify", "grade")
 GRADE_READ_ONLY = ("--analyze", "--list-presets", "--print-preset")
 
@@ -67,23 +60,67 @@ exemplos:
 Teste o tom de pele num quadro (edit verify) antes de aplicar em tudo; grade no corte (por trecho), não depois de concatenar."""
 
 
+def _is_out_flag(a: str) -> bool:
+    """--output or any prefix of it from --o: argparse takes every unambiguous abbreviation (--o, --ou, --outp, --outpu...)."""
+    flag = a.split("=", 1)[0]
+    return a.startswith("--") and len(flag) >= 3 and "--output".startswith(flag)
+
+
 def _output_values(rest: list[str]) -> list[str]:
-    """Values given to -o / --out / --output in any spelling (-o X, -oX, --out X, --output=X); '' if the value is missing."""
+    """ALL values given to the output option, in any spelling argparse accepts: -o X, -oX, -o=X, --output X, --out=X, --o X ...
+    (the last one wins upstream, so a caller that checks them must check every one). '' marks a missing value. Stops at `--`."""
     vals: list[str] = []
     i = 0
     while i < len(rest):
         a = rest[i]
         if a == "--":
             break
-        if a == "-o" or a in OUT_FLAGS:
+        if a == "-o" or (_is_out_flag(a) and "=" not in a):
             vals.append(rest[i + 1] if i + 1 < len(rest) else "")
             i += 1
         elif a.startswith("-o") and not a.startswith("--"):
-            vals.append(a[2:])
-        elif a.startswith("--") and "=" in a and a.split("=", 1)[0] in OUT_FLAGS:
+            v = a[2:]
+            vals.append(v[1:] if v.startswith("=") else v)
+        elif _is_out_flag(a):
             vals.append(a.split("=", 1)[1])
         i += 1
     return vals
+
+
+GRADE_FILTERS_MCP = frozenset({"eq", "curves", "colorbalance", "hue", "lut", "lutrgb", "lutyuv", "colorchannelmixer", "vibrance"})
+GRADE_BAD_OPTIONS = frozenset({"file", "filename", "stats_file", "result", "psfile", "preset"})
+
+
+def filter_values(rest: list[str]) -> list[str]:
+    """Values of --filter in any abbreviation (--f ... --filter, with or without =)."""
+    vals: list[str] = []
+    i = 0
+    while i < len(rest):
+        a = rest[i]
+        if a == "--":
+            break
+        flag = a.split("=", 1)[0]
+        if a.startswith("--") and len(flag) >= 3 and "--filter".startswith(flag):
+            if "=" in a:
+                vals.append(a.split("=", 1)[1])
+            else:
+                vals.append(rest[i + 1] if i + 1 < len(rest) else "")
+                i += 1
+        i += 1
+    return vals
+
+
+def colour_filter_ok(chain: str) -> bool:
+    """True if every filter of the chain is a colour filter from the closed set, with no file-reading option."""
+    for part in re.split(r"[,;]", chain):
+        name, _, opts = part.strip().partition("=")
+        if name.strip() not in GRADE_FILTERS_MCP:
+            return False
+        for o in (opts.split(":") if opts else []):
+            key, eq, _v = o.partition("=")
+            if key.strip().lower() in GRADE_BAD_OPTIONS or (not eq and name.strip() == "curves"):
+                return False
+    return True
 
 
 def _grade_inputs(rest: list[str]) -> list[str]:
@@ -92,7 +129,7 @@ def _grade_inputs(rest: list[str]) -> list[str]:
     for r in rest:
         if skip:
             skip = False
-        elif r in ("-o", "--preset", "--filter", *OUT_FLAGS):
+        elif r in ("-o", "--preset") or ((_is_out_flag(r) or (r.startswith("--f") and "--filter".startswith(r))) and "=" not in r):
             skip = True
         elif not r.startswith("-"):
             out.append(r)

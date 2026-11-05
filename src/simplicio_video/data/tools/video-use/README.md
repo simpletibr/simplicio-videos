@@ -1,4 +1,4 @@
-# tools/video-use — edição agêntica (opcional)
+# video-use — edição agêntica (opcional)
 
 [browser-use/video-use](https://github.com/browser-use/video-use) (MIT), fixado no commit `b877063` (23/09/2026) em [`setup.sh`](setup.sh). É uma skill de edição: o agente (humano ou LLM) lê a transcrição palavra a palavra, decide os cortes num **EDL** (`edl.json`) e os helpers em Python/ffmpeg executam — cortes em limite de palavra, fades de 30 ms, concat sem reencode, overlays (inclusive HyperFrames), legendas e autoavaliação por filmstrip. Avaliação completa: [docs/video-use-integracao.md](../../../../../docs/video-use-integracao.md).
 

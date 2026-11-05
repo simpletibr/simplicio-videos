@@ -192,7 +192,7 @@ def video_opencut(args: str = "") -> dict:
 
 
 DESC_video_edit = ("video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify|grade; grade = color: auto, --preset, --analyze). "
-                   "Every output (-o/--out/--output) must be an absolute path. Batch transcription (transcribe-batch, ElevenLabs Scribe, "
+                   "Every output (-o/--out/--output, abbreviations included) must be an absolute path; grade --filter takes only colour filters here. Batch transcription (transcribe-batch, ElevenLabs Scribe, "
                    "a paid third party) is terminal-only.")
 def video_edit(args: str = "") -> dict:
     from . import edit
@@ -207,6 +207,10 @@ def video_edit(args: str = "") -> dict:
             return {"ok": False, "error": f"edit {sub}: -o <caminho absoluto> é obrigatório no MCP"}
         if any(not v or not Path(v).is_absolute() for v in saidas):
             return {"ok": False, "error": f"edit {sub}: -o/--out/--output precisa ser um caminho absoluto (um relativo cairia na pasta onde o servidor MCP foi iniciado)"}
+    if sub == "grade":
+        for f in edit.filter_values(rest):
+            if not edit.colour_filter_ok(f):
+                return _so_terminal("edit grade --filter", "pelo MCP o --filter só aceita filtros de cor (eq, curves, colorbalance, hue, lut, lutrgb, lutyuv, colorchannelmixer, vibrance), sem opção que leia ou grave arquivo; uma cadeia livre")
     return _cli(["edit", *argv])
 
 
