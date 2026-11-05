@@ -102,7 +102,7 @@ TOOLS: dict[str, Tool] = {
                         "b877063", "MIT",
                         "EDL editing over any MP4: word-accurate cuts, subtitles, overlays and filmstrip review; "
                         "the agent decides the EDL, ffmpeg executes it", marker="render.py",
-                        note="pinned by tools/video-use/setup.sh (23/09/2026); the checkout lives in "
+                        note="pinned by the video-use setup.sh (data/tools/video-use) (23/09/2026); the checkout lives in "
                              "~/.cache/simplicio/video-use, not in the tools cache"),
     "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.50.1", "not declared in the npm package (no license field, no LICENSE file; read 2026-10-16)",
                      "web search and page fetch for research (`simplicio-video busca`); installed by the user, never bundled and never installed by the engine",

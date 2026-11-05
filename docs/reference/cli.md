@@ -228,10 +228,10 @@ exemplos:
 ```text
 usage: simplicio-video edit [-h] ...
 
-Encadeia tools/video-use (https://github.com/browser-use/video-use): setup, transcribe, pack, render, verify. A decisão de corte fica no edl.json versionado.
+Encadeia o video-use (https://github.com/browser-use/video-use, arquivos no pacote): setup, transcribe, transcribe-batch (só no terminal), pack, render, verify, grade (cor: auto, --preset, --analyze). A decisão de corte fica no edl.json versionado.
 
 positional arguments:
-  args        setup | transcribe | pack | render | verify
+  args        setup | transcribe | transcribe-batch | pack | render | verify | grade (edit <sub> --help)
 
 options:
   -h, --help  show this help message and exit
@@ -239,6 +239,7 @@ options:
 exemplos:
   simplicio-video edit setup
   simplicio-video edit render edit/edl.json -o out/final.raw.mp4
+  simplicio-video edit grade --analyze fonte.mp4
 ```
 
 ## simplicio-video formats

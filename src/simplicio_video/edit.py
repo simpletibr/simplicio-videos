@@ -45,6 +45,7 @@ def _tem_saida(rest: list[str]) -> bool:
     return False
 
 
+SUBCOMMANDS = ("setup", "transcribe", "transcribe-batch", "pack", "render", "verify", "grade")
 OUT_FLAGS = ("--output", "--out")
 NEEDS_OUT = ("transcribe", "render", "verify", "grade")
 GRADE_READ_ONLY = ("--analyze", "--list-presets", "--print-preset")
@@ -98,6 +99,20 @@ def _grade_inputs(rest: list[str]) -> list[str]:
     return out
 
 
+SUB_HELP = {
+    "setup": "simplicio-video edit setup\n  clona/atualiza o video-use no commit fixado e imprime a pasta helpers/ (precisa de ffmpeg e de SIMPLICIO_TTS_PY)\n"
+             "exemplo:\n  simplicio-video edit setup",
+    "pack": "simplicio-video edit pack EDIT_DIR\n  junta edit/transcripts/*.json em takes_packed.md (o que o agente lê)\n"
+            "exemplo:\n  simplicio-video edit pack edit",
+    "render": "simplicio-video edit render EDL.json -o OUT.mp4 [args do render.py]\n  aplica o EDL (sem loudnorm, 30 fps); legendas precisam de ffmpeg com libass\n"
+              "exemplo:\n  simplicio-video edit render edit/edl.json -o out/final.raw.mp4",
+    "verify": "simplicio-video edit verify VIDEO T0 T1 -o PNG [--transcript words.json]\n  filmstrip do trecho para conferir o corte\n"
+              "exemplo:\n  simplicio-video edit verify out/final.mp4 12.0 18.5 -o out/check.png",
+    "transcribe-batch": "simplicio-video edit transcribe-batch DIR [args do transcribe_batch.py]\n  transcreve uma pasta de vídeos em paralelo com o ElevenLabs Scribe "
+                        "(terceiro pago, ELEVENLABS_API_KEY); só no terminal, o MCP recusa\nexemplo:\n  simplicio-video edit transcribe-batch videos/",
+}
+
+
 def run_edit(args: list[str]) -> int:
     first = args[0] if args else "help"
     rest = args[1:]
@@ -113,6 +128,9 @@ def run_edit(args: list[str]) -> int:
               "  edit verify VIDEO T0 T1 -o PNG [--transcript words.json]   # filmstrip do corte\n"
               "  edit grade FONTE.mp4 -o OUT.mp4 [--preset N|--filter F] | --analyze FONTE   # cor (edit help grade)\n"
               "  edit transcribe-batch DIR [args]            # Scribe em lote (ElevenLabs, terceiro pago): só no terminal")
+        return 0
+    if first in SUB_HELP and any(h in rest for h in ("-h", "--help")):
+        print(SUB_HELP[first])
         return 0
     if first == "grade" and any(h in rest for h in ("-h", "--help")):
         print(GRADE_HELP)

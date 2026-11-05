@@ -65,7 +65,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `TINYFISH_API_KEY` | Chave da API do TinyFish, lida só pelo binário `tinyfish` (que também a guarda em `~/.tinyfish/config.json`). O `busca` a repassa ao binário se estiver no ambiente e nunca a lê, imprime nem grava; nunca em argumento. | `src/simplicio_video/busca.py:1057`<br>`src/simplicio_video/busca.py:174` |
 | `TOONFLOW_DATA_DIR` | Pasta de dados do servidor Toonflow (padrão: `~/.simplicio-video/toonflow-data`, fora do checkout). | `src/simplicio_video/toonflow.py:54` |
 | `TOONFLOW_DIR` | Checkout do Toonflow (alternativa a `SIMPLICIO_TOOLS_DIR/toonflow`). | `src/simplicio_video/toonflow.py:65`<br>`src/simplicio_video/toonflow.py:66`<br>`src/simplicio_video/toonflow.py:71`<br>`src/simplicio_video/toonflow.py:73` |
-| `VIDEO_USE_DIR` | Checkout do video-use (trilha `edit`), mantido por tools/video-use/setup.sh; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`). | `src/simplicio_video/tools_update.py:155` |
+| `VIDEO_USE_DIR` | Checkout do video-use (trilha `edit`), mantido pelo setup.sh em data/tools/video-use; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`). | `src/simplicio_video/tools_update.py:155` |
 | `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:73`<br>`src/simplicio_video/voice_clone.py:74`<br>`src/simplicio_video/voicestudio.py:99` |
 | `VOICESTUDIO_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:91` |
 | `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voice_clone.py:66`<br>`src/simplicio_video/voicestudio.py:88` |

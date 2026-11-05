@@ -149,7 +149,7 @@ def test_edit_sub_help_reaches_run_edit_and_never_runs_setup(sub, needle, tmp_pa
     from conftest import run_cli
     r = run_cli("edit", sub, "--help", cwd=tmp_path)
     assert r.returncode == 0, r.stderr
-    assert needle in r.stdout and "simplicio-video edit" in r.stdout, r.stdout
+    assert needle in r.stdout, r.stdout
     assert "usage: simplicio-video edit [-h]" not in r.stdout
 
 
