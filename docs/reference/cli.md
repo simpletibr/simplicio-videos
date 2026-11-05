@@ -388,11 +388,13 @@ um loop asyncio por tarefa), sem daemon e sem abrir porta. O estado fica em JSON
 ($SIMPLICIO_VIDEO_DATA, padrão ~/.simplicio-video), com escrita atômica.
 
 Lista fechada de tarefas:
-  swap-run    swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens
-              do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal
-  rea-video   rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina
-  voice       voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede
-              (gemini) pede --yes
+  swap-run      swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens
+                do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal
+  rea-video     rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina
+  voice         voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede
+                (gemini) pede --yes
+  moneyprinter  corrida grátis do MoneyPrinterTurbo (roteiro seu, material local, voz Edge ou muda, --out absoluto). Só pelo
+                MCP (video.moneyprinter generate|run); quem gasta roda no terminal com `moneyprinter run --yes`
 
 Subcomandos:
   submit TIPO ...   cria a tarefa e devolve o id
@@ -402,7 +404,7 @@ Subcomandos:
   cancel ID         SIGINT no grupo da tarefa, SIGKILL depois da tolerância; o swap cancela limpo e grava o manifesto
   clean             remove tarefas terminadas há mais de 7 dias (--older-than-days); `submit` também limpa
 
-Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local e de rea-video (decompose sem --vlm, stems). swap-run nunca.
+Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local, de rea-video (decompose sem --vlm, stems) e de moneyprinter (corrida grátis). swap-run nunca.
 A chave de API fica só no ambiente: argumentos com chave são recusados e nada vai para o estado nem para o log.
 
 positional arguments:
