@@ -1,4 +1,4 @@
-"""`simplicio-video media fetch`: download one public video page to a local MP4 with yt-dlp (pinned in tools.py).
+"""`simplicio-video media fetch`: download one public video page to a local MP4 (or audio, a time range, creator subtitles) with yt-dlp (pinned in tools.py); `info` reads metadata only.
 
 The engine does not choose what to download and never logs in: no cookies, no account, no playlist, and the user's own
 yt-dlp config is ignored (`--ignore-config`). The user confirms the right to use the file with `--autorizo`; the engine
@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -24,10 +25,16 @@ from urllib.parse import urlsplit, urlunsplit
 from . import tools
 
 FETCH_SCHEMA = "simplicio.media-fetch/v1"
+INFO_SCHEMA = "simplicio.media-info/v1"
 MAX_URL_CHARS = 2048
 DEFAULT_MAX_MB = 500
 DEFAULT_TIMEOUT_S = 600
 MAX_TEXT_CHARS = 300
+MAX_FORMATS = 40
+AUDIO_FORMATS = {".m4a": "m4a", ".wav": "wav"}
+SECTION_RE = re.compile(r"^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$")
+LANG_RE = re.compile(r"^[A-Za-z0-9]{1,8}(?:[-_][A-Za-z0-9]{1,8})*$")
+SUB_SUFFIXES = (".srt", ".vtt", ".ass", ".json3", ".ttml", ".srv1", ".srv2", ".srv3")
 # The only variables the downloader receives: no keys, tokens or SIMPLICIO_* from the shell reach a third-party program.
 ENV_REPASSADO = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE",
                  "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy")
@@ -101,7 +108,7 @@ def _info(saida: str) -> dict:
 
 def _arquivo(pasta: Path) -> Path:
     """The one media file in the temporary folder (yt-dlp leaves `.part` files only on failure, which the run reports)."""
-    candidatos = [p for p in pasta.iterdir() if p.is_file() and p.suffix not in (".part", ".ytdl")]
+    candidatos = [p for p in pasta.iterdir() if p.is_file() and p.suffix not in (".part", ".ytdl") + SUB_SUFFIXES]
     if len(candidatos) != 1:
         raise DownloadError(f"esperava um arquivo de vídeo baixado e achei {len(candidatos)}")
     return candidatos[0]
@@ -131,24 +138,56 @@ def _publicar(origem: Path, dest: Path) -> None:
         raise DownloadError(f"não consegui gravar {dest.name}: {e.strerror or type(e).__name__}") from None
 
 
-def fetch(url: str, dest: Path, autorizo: bool, max_mb: int = DEFAULT_MAX_MB, timeout: int = DEFAULT_TIMEOUT_S) -> dict:
-    """Download `url` to the new file `dest` (an .mp4) and write its provenance record next to it. Returns the record."""
+def _secao(section) -> tuple[float, float]:
+    m = SECTION_RE.match(section) if isinstance(section, str) else None
+    if not m or float(m.group(2)) <= float(m.group(1)):
+        raise DownloadError("--section: use INICIO-FIM em segundos, com FIM maior que INICIO (ex.: 0-3 ou 12.5-30)")
+    return float(m.group(1)), float(m.group(2))
+
+
+def _legendas_dest(dest: Path, lang: str) -> Path:
+    return dest.with_suffix(f".{lang}.srt")
+
+
+def fetch(url: str, dest: Path, autorizo: bool, max_mb: int = DEFAULT_MAX_MB, timeout: int = DEFAULT_TIMEOUT_S, *,
+          subs: str | None = None, auto_subs: bool = False, section: str | None = None, audio_only: bool = False) -> dict:
+    """Download `url` to the new file `dest` (an .mp4, or .m4a/.wav with `audio_only`) and write its provenance record next to it.
+    Optional: `subs` LANG (the creator's own subtitles, as <name>.<lang>.srt; `auto_subs` also accepts the auto-generated ones),
+    `section` "START-END" seconds (only that range). Every option is recorded. Returns the record."""
     if not autorizo:
         raise DownloadError("media fetch: confirme que você pode usar este vídeo com --autorizo (o motor não verifica o direito de uso)")
     url = validate_url(url)
-    if dest.suffix.lower() != ".mp4":
+    if audio_only:
+        if dest.suffix.lower() not in AUDIO_FORMATS:
+            raise DownloadError("com --audio-only a saída precisa ser .m4a ou .wav")
+    elif dest.suffix.lower() != ".mp4":
         raise DownloadError("a saída precisa ser .mp4")
     if max_mb < 1 or timeout < 1:
         raise DownloadError("--max-mb e --timeout precisam ser >= 1")
+    faixa = _secao(section) if section is not None else None
+    if auto_subs and subs is None:
+        raise DownloadError("--auto-subs só vale junto de --subs LANG")
+    if subs is not None and not (isinstance(subs, str) and len(subs) <= 20 and LANG_RE.match(subs)):
+        raise DownloadError("--subs: informe um idioma como pt, en ou pt-BR (um só)")
     registro = dest.with_suffix(".fetch.json")
-    for alvo in (dest, registro):
+    alvos = [dest, registro] + ([_legendas_dest(dest, subs)] if subs is not None else [])
+    for alvo in alvos:
         if alvo.exists():
             raise DownloadError(f"{alvo.name} já existe: não sobrescrevo; escolha outro -o")
     exe = _binario()
     pasta = Path(tempfile.mkdtemp(prefix=".fetch-", dir=dest.parent))
+    legendas = None
     try:
-        cmd = [str(exe), "--ignore-config", "--no-playlist", "--no-cache-dir", "--no-progress", "--print-json",
-               "-f", "best[ext=mp4]/best", "--max-filesize", f"{max_mb}M", "-o", str(pasta / "%(id)s.%(ext)s"), url]
+        cmd = [str(exe), "--ignore-config", "--no-playlist", "--no-cache-dir", "--no-progress", "--print-json"]
+        if audio_only:
+            cmd += ["-f", "bestaudio/best", "-x", "--audio-format", AUDIO_FORMATS[dest.suffix.lower()]]
+        else:
+            cmd += ["-f", "best[ext=mp4]/best"]
+        if faixa:
+            cmd += ["--download-sections", f"*{section}"]
+        if subs is not None:
+            cmd += ["--write-subs"] + (["--write-auto-subs"] if auto_subs else []) + ["--sub-langs", subs, "--convert-subs", "srt"]
+        cmd += ["--max-filesize", f"{max_mb}M", "-o", str(pasta / "%(id)s.%(ext)s"), url]
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=_ambiente())
         except subprocess.TimeoutExpired:
@@ -156,12 +195,24 @@ def fetch(url: str, dest: Path, autorizo: bool, max_mb: int = DEFAULT_MAX_MB, ti
         if r.returncode:
             raise DownloadError(f"yt-dlp: {_ultima_linha(r.stderr or r.stdout)}")
         info = _info(r.stdout)
-        arquivo = _mp4(_arquivo(pasta), pasta)
+        arquivo = _arquivo(pasta)
+        if not audio_only:
+            arquivo = _mp4(arquivo, pasta)
+        elif arquivo.suffix.lower() != dest.suffix.lower():
+            raise DownloadError(f"o áudio veio em {arquivo.suffix} e a saída pede {dest.suffix}")
         tamanho = arquivo.stat().st_size
         if tamanho > max_mb * 1024 * 1024:
             raise DownloadError(f"o arquivo tem {tamanho // (1024 * 1024)} MB, acima de --max-mb {max_mb}")
         sha = _sha256(arquivo)
+        srts = sorted(p for p in pasta.iterdir() if p.is_file() and p.suffix == ".srt") if subs is not None else []
         _publicar(arquivo, dest)
+        if subs is not None:
+            legendas = {"idioma": subs, "automaticas": bool(auto_subs), "arquivos": []}
+            for srt in srts:
+                lang = srt.name.rsplit(".", 2)[-2] if srt.name.count(".") >= 2 else subs
+                alvo = _legendas_dest(dest, lang if LANG_RE.match(lang) else subs)
+                _publicar(srt, alvo)
+                legendas["arquivos"].append({"arquivo": alvo.name, "sha256": _sha256(alvo)})
     finally:
         shutil.rmtree(pasta, ignore_errors=True)
     doc = {
@@ -180,5 +231,56 @@ def fetch(url: str, dest: Path, autorizo: bool, max_mb: int = DEFAULT_MAX_MB, ti
         "untrusted_titulo": _cap(info.get("title")),
         "untrusted_autor": _cap(info.get("uploader") or info.get("channel")),
     }
+    if faixa:
+        doc["secao"] = {"inicio_s": faixa[0], "fim_s": faixa[1]}
+    if audio_only:
+        doc["somente_audio"] = True
+    if legendas is not None:
+        doc["legendas"] = legendas
     registro.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf8")
     return doc
+
+
+def _formato(f: dict) -> dict:
+    def tem(codec):  # None = the extractor did not say (generic pages)
+        return None if codec is None else codec != "none"
+
+    return {"id": _cap(f.get("format_id"), 60), "ext": _cap(f.get("ext"), 20), "altura": f.get("height"),
+            "video": tem(f.get("vcodec")), "audio": tem(f.get("acodec")),
+            "bytes": f.get("filesize") or f.get("filesize_approx")}
+
+
+def _idiomas(valor) -> list:
+    return sorted(_cap(k, 40) for k in valor) if isinstance(valor, dict) else []
+
+
+def info(url: str, timeout: int = DEFAULT_TIMEOUT_S) -> dict:
+    """Metadata only (`yt-dlp -J --skip-download`): nothing is downloaded or saved, so no consent is needed. Title and author
+    are untrusted_* third-party text; the format URLs (which carry signed tokens) are left out."""
+    url = validate_url(url)
+    if timeout < 1:
+        raise DownloadError("--timeout precisa ser >= 1")
+    exe = _binario()
+    cmd = [str(exe), "--ignore-config", "--no-playlist", "--no-cache-dir", "--no-progress", "-J", "--skip-download", url]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=_ambiente())
+    except subprocess.TimeoutExpired:
+        raise DownloadError(f"yt-dlp passou de {timeout} s e foi interrompido") from None
+    if r.returncode:
+        raise DownloadError(f"yt-dlp: {_ultima_linha(r.stderr or r.stdout)}")
+    dados = _info(r.stdout)
+    formatos = [_formato(f) for f in (dados.get("formats") or [])[:MAX_FORMATS] if isinstance(f, dict)]
+    return {
+        "schema": INFO_SCHEMA,
+        "origem": record_url(url),
+        "extrator": dados.get("extractor_key") or dados.get("extractor"),
+        "id": _cap(dados.get("id"), 200),
+        "duracao_s": dados.get("duration"),
+        "licenca": _cap(dados.get("license")),
+        "formatos": formatos,
+        "legendas": _idiomas(dados.get("subtitles")),
+        "legendas_automaticas": _idiomas(dados.get("automatic_captions")),
+        "ferramenta": {"name": "yt-dlp", "version": tools.effective_ref(tools.get("yt-dlp"))},
+        "untrusted_titulo": _cap(dados.get("title")),
+        "untrusted_autor": _cap(dados.get("uploader") or dados.get("channel")),
+    }
