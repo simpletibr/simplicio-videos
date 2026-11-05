@@ -273,8 +273,8 @@ def test_trilha_sem_bloco_com_indice_ilegivel_e_arquivo_dentro_da_biblioteca_e_r
 
 
 @needs_ffmpeg
-def test_trilha_de_arquivo_comum_com_indice_ilegivel_segue_com_aviso(env, mini):
-    """Guarda: uma trilha que não é da biblioteca continua valida, com o aviso de que não deu para conferir (como antes)."""
+def test_trilha_de_arquivo_comum_com_indice_ilegivel_e_recusada(env, mini):
+    """Índice de procedência presente e ilegível: sem ele não se sabe se a trilha sem bloco é da biblioteca, então recusa (antes seguia com aviso)."""
     _sem_voz(mini)
     (mini.parent / "trilha").mkdir()
     _wav_tom(mini.parent / "trilha" / "fundo.wav", freq=440)
@@ -282,7 +282,45 @@ def test_trilha_de_arquivo_comum_com_indice_ilegivel_segue_com_aviso(env, mini):
     env.lib.mkdir(parents=True)
     (env.lib / "index.json").write_text(INDICE_ILEGIVEL, encoding="utf8")
     rep = ct.validate(ct.load(mini))
-    assert rep.ok and any("biblioteca" in w for w in rep.warnings), (rep.errors, rep.warnings)
+    erros = [e for e in rep.errors if e.startswith("openverse:")]
+    assert not rep.ok and erros and "repare o índice" in erros[0], (rep.errors, rep.warnings)
+
+
+@needs_ffmpeg
+def test_copia_a_mao_da_trilha_com_indice_ilegivel_e_sem_files_tambem_e_recusada(env, trilha_aprovada, mini):
+    """Índice presente e ilegível + pasta files/ ausente: a cópia à mão da trilha (sem bloco) passava. Agora recusa."""
+    nome = _exportar_trilha(mini, trilha_aprovada)
+    _copia_para_trilha(mini, nome)
+    shutil.rmtree(env.lib / "files")
+    (env.lib / "index.json").write_text(INDICE_ILEGIVEL, encoding="utf8")
+    rep = ct.validate(ct.load(mini))
+    erros = [e for e in rep.errors if e.startswith("openverse:")]
+    assert not rep.ok and erros and "repare o índice" in erros[0], rep.errors
+
+
+@needs_ffmpeg
+def test_biblioteca_sem_index_json_nao_bloqueia_trilha_de_arquivo_comum(env, mini):
+    """Guarda: sem index.json não há procedência a conferir (biblioteca nova): a trilha de arquivo comum segue como antes, sem aviso."""
+    _sem_voz(mini)
+    (mini.parent / "trilha").mkdir()
+    _wav_tom(mini.parent / "trilha" / "fundo.wav", freq=440)
+    _edit(mini, lambda d: d["trilha"]["music"].update(arquivo="trilha/fundo.wav"))
+    rep = ct.validate(ct.load(mini))
+    assert rep.ok and not [w for w in rep.warnings if "openverse" in w], (rep.errors, rep.warnings)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("licenca, url", [
+    ("by-nc", "https://creativecommons.org/licenses/by-nc/4.0/"),
+    ("by-nc-sa", "https://creativecommons.org/licenses/by-nc-sa/4.0/"),
+])
+def test_trilha_com_licenca_nao_comercial_e_recusada_mesmo_com_aceite(env, mini, tmp_path, licenca, url):
+    """AGENTS.md: trilha só com uso comercial claro. O aceite do export libera o ativo, não uma trilha de cliente não comercial."""
+    item = baixar(env, tipo="audio", body=_wav_tom(tmp_path / "tom.wav"))
+    _mudar_e_reaprovar(env, item["id"], licenca=licenca, licenca_url=url, licenca_versao="4.0")
+    _exportar_trilha(mini, item, aceito=True)
+    erros = _ov_erros(mini)
+    assert erros and any("não é de uso comercial" in e for e in erros), erros
 
 
 @needs_ffmpeg
@@ -308,19 +346,14 @@ def test_creditos_da_trilha_dizem_que_o_audio_foi_modificado(env, trilha_aprovad
 
 
 @needs_ffmpeg
-@pytest.mark.parametrize("licenca, url", [
-    ("by-sa", "https://creativecommons.org/licenses/by-sa/4.0/"),
-    ("by-nc", "https://creativecommons.org/licenses/by-nc/4.0/"),
-    ("by-nc-sa", "https://creativecommons.org/licenses/by-nc-sa/4.0/"),
-])
-def test_creditos_da_trilha_repetem_o_aviso_da_licenca_com_restricao(env, mini, tmp_path, licenca, url):
-    """F3: com by-sa, by-nc ou by-nc-sa o crédito da trilha repete o aviso da licença (mesma licença ou uso não comercial)."""
+def test_creditos_da_trilha_by_sa_repetem_o_aviso_da_licenca(env, mini, tmp_path):
+    """F3: a trilha com by-sa (a única licença com aviso que a trilha aceita) repete o aviso de mesma licença no crédito."""
     item = baixar(env, tipo="audio", body=_wav_tom(tmp_path / "tom.wav"))
-    _mudar_e_reaprovar(env, item["id"], licenca=licenca, licenca_url=url, licenca_versao="4.0")
+    _mudar_e_reaprovar(env, item["id"], licenca="by-sa", licenca_url="https://creativecommons.org/licenses/by-sa/4.0/", licenca_versao="4.0")
     _exportar_trilha(mini, item, aceito=True)
     _sem_voz(mini)
     cred = _creditos_do_video(mini)
-    aviso = ov._licenses()[licenca]["aviso"]
+    aviso = ov._licenses()["by-sa"]["aviso"]
     assert NOTA_MODIFICADO in cred and aviso in cred, cred
 
 
@@ -382,14 +415,14 @@ def test_asset_no_destino_do_arranjo_da_trilha_nao_passa(env, mini):
 
 @needs_ffmpeg
 def test_licenca_que_nao_permite_modificacao_na_trilha_lista_todas_as_que_permitem(env, mini, tmp_path):
-    """F6a: a recusa da trilha lista as licenças que o motor aceita (by-nc e by-nc-sa também), não só CC0, PDM, CC BY e CC BY-SA."""
+    """F6a: a recusa da trilha lista as licenças que o motor aceita (permitem modificar e são de uso comercial), com o nome que a tabela dá."""
     item = baixar(env, tipo="audio", body=_wav_tom(tmp_path / "tom.wav"))
     _mudar_e_reaprovar(env, item["id"], licenca="by-nd", licenca_url="https://creativecommons.org/licenses/by-nd/4.0/", licenca_versao="4.0")
     _exportar_trilha(mini, item, aceito=True)
     erros = _ov_erros(mini)
     assert erros and "não permite modificação" in erros[0], erros
-    permitidas = [r["nome"] for r in ov._licenses().values() if r["permite_modificacao"]]
-    assert permitidas and all(n in erros[0] for n in permitidas), erros
+    permitidas = [r["nome"] for r in ov._licenses().values() if r["permite_modificacao"] and r["uso_comercial"]]
+    assert permitidas and all(n in erros[0] for n in permitidas) and "CC BY-NC" not in erros[0], erros
 
 
 @needs_ffmpeg
