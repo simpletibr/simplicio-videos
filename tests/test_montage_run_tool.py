@@ -111,10 +111,17 @@ class Tool:
             return Result(True)
         if self.mode == "neto":  # a grandchild that leaves the process group and keeps the output open
             g = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(40)"], start_new_session=True)
-            pid_file = os.environ.get("FAKE_NETO_PID")
+            pid_file = inputs.get("pid_file")
             if pid_file:
                 pathlib.Path(pid_file).write_text(str(g.pid), encoding="utf8")
             time.sleep(40)
+            return Result(True)
+        if self.mode == "neto_normal":  # the same grandchild, but the tool returns normally while it is still alive
+            g = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(40)"], start_new_session=True)
+            pid_file = inputs.get("pid_file")
+            if pid_file:
+                pathlib.Path(pid_file).write_text(str(g.pid), encoding="utf8")
+            time.sleep(1)
             return Result(True)
         if self.mode == "env":
             return Result(True, {"env": sorted(k for k in ("OPENAI_API_KEY",) if os.environ.get(k)),
@@ -146,6 +153,7 @@ class Registry:
                   Tool("relativo", mode="relative", schema=SCHEMA_NO_OUT),
                   Tool("nan", cost=float("nan")), Tool("inf", cost=float("inf")), Tool("dorme", mode="sleep"),
                   Tool("dorme_neto", mode="neto", schema=SCHEMA_NO_OUT),
+                  Tool("neto_normal", mode="neto_normal", schema=SCHEMA_NO_OUT),
                   Tool("ambiente", mode="env", deps=("env:OPENAI_API_KEY",), schema=SCHEMA_NO_OUT),
                   Tool("isolado", mode="isolated")):
             self._tools[t.name] = t
@@ -166,8 +174,8 @@ registry = Registry()
 # the fake tools that the strict tests reach through the allowlist (copia is deliberately NOT here: it is free and local,
 # and the allowlist must still refuse it over MCP)
 FAKE_ALLOWED = ("relativo", "pago", "rede", "sem_meta", "custo_cota", "publica", "gpu", "nan", "inf", "dorme", "dorme_neto",
-                "ambiente", "isolado", "falha", "quebra")
-NO_OUTPUT_FAKES = ("relativo", "ambiente", "isolado", "dorme_neto")
+                "neto_normal", "ambiente", "isolado", "falha", "quebra")
+NO_OUTPUT_FAKES = ("relativo", "ambiente", "isolado", "dorme_neto", "neto_normal")
 NEUTRAL_FFREPORT = "file=/dev/null"
 
 
@@ -433,23 +441,59 @@ def test_timeout_ends_a_run_that_does_not_end(om, capsys):
     assert "tempo" in capsys.readouterr().err
 
 
+def _alive(pid: int) -> bool:
+    """A process that exists and is not a zombie (an orphan that its init does not reap stays a zombie: that is dead)."""
+    try:
+        with open(f"/proc/{pid}/stat", encoding="ascii", errors="replace") as f:
+            state = f.read().rsplit(")", 1)[1].split()[0]
+    except OSError:
+        return False
+    return state != "Z"
+
+
+def _kill_leftovers(pid_file: Path) -> None:
+    if pid_file.exists():
+        try:
+            os.kill(int(pid_file.read_text()), 9)
+        except (OSError, ValueError):
+            pass
+
+
+needs_proc = pytest.mark.skipif(not os.path.isdir("/proc/self"), reason="o rastreio de netos usa /proc (POSIX com /proc)")
+
+
+@needs_proc
 def test_mcp_timeout_does_not_wait_for_a_grandchild_that_escaped(om, monkeypatch, tmp_path, capsys):
-    """The grandchild is in its own session and keeps the output open: the run must still end near its time limit."""
+    """The grandchild is in its own session and keeps the output open: the run must still end near its time limit, and the
+    grandchild must be dead by then (it is found through /proc before the group is killed)."""
     pid_file = tmp_path / "neto.pid"
-    monkeypatch.setenv("FAKE_NETO_PID", str(pid_file))
     monkeypatch.setenv("SIMPLICIO_MCP", "1")
     t0 = time.monotonic()
     try:
-        code = montage.main(["run-tool", "dorme_neto", "--input", json.dumps({"input_path": "/x"}), "--timeout", "2"])
+        code = montage.main(["run-tool", "dorme_neto", "--input", json.dumps({"input_path": "/x", "pid_file": str(pid_file)}),
+                             "--timeout", "2"])
         elapsed = time.monotonic() - t0
+        grandchild = int(pid_file.read_text())
+        assert not _alive(grandchild), "o neto que saiu do grupo sobreviveu ao tempo limite"
     finally:
-        if pid_file.exists():
-            try:
-                os.kill(int(pid_file.read_text()), 9)
-            except (OSError, ValueError):
-                pass
+        _kill_leftovers(pid_file)
     assert code == 1 and elapsed <= 2 + 3, elapsed
     assert "tempo" in capsys.readouterr().err
+
+
+@needs_proc
+def test_escaped_grandchild_is_killed_after_a_normal_exit(om, tmp_path):
+    """The tool returns normally while its grandchild (in its own session) is alive: the grandchild must not survive the run."""
+    pid_file = tmp_path / "neto-normal.pid"
+    inputs = {"input_path": "/x", "pid_file": str(pid_file)}
+    try:
+        plan = montage.run_tool_plan("neto_normal", inputs, strict=False, yes=False)
+        res = montage.run_tool_execute(plan, inputs, tmp_path)
+        grandchild = int(pid_file.read_text())
+        assert res["status"] == "done"
+        assert not _alive(grandchild), "o neto que saiu do grupo sobreviveu à saída normal da tool"
+    finally:
+        _kill_leftovers(pid_file)
 
 
 def test_upstream_children_run_isolated(om, capsys):
@@ -817,5 +861,37 @@ def test_job_regate_follows_the_origin_not_the_spec_flag(om, src, tmp_path, monk
 
 
 def test_montage_tool_argv_from_mcp_origin_is_always_strict(om):
-    argv = jobs.build_argv("montage-tool", {"name": "video_trimmer", "input": {}, "strict": False, "origin": "mcp"})
+    argv = jobs.build_argv("montage-tool", {"name": "video_trimmer", "input": {}, "strict": False}, "mcp")
     assert "--sob-mcp" in argv
+
+
+def test_the_argv_takes_the_job_origin_not_the_stored_params_origin(om):
+    """params.origin is part of the stored spec (a copy, writable); the origin that decides is the job's own, set at submit."""
+    spec = {"name": "pago", "input": {}, "strict": False, "origin": "terminal"}
+    assert "--sob-mcp" in jobs.build_argv("montage-tool", spec, "mcp")
+    assert "--sob-mcp" not in jobs.build_argv("montage-tool", spec, "terminal")
+
+
+def test_job_regate_ignores_a_tampered_params_origin(om, src, tmp_path, monkeypatch):
+    """Submitted from MCP (top-level origin mcp), then the spec says origin terminal and strict False: still the MCP gate."""
+    monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: os.getpid())
+    monkeypatch.delenv("SIMPLICIO_MCP", raising=False)
+    r = mcp_server.video_montage("run-tool video_trimmer", input=VT(input_path=str(src), output_path=str(tmp_path / "p.txt")))
+    jid = r["job"]["id"]
+    jobs.update(jid, origin="mcp", params={"name": "pago", "input": {"input_path": str(src), "output_path": str(tmp_path / "p.txt")},
+                                           "strict": False, "origin": "terminal"})
+    st = _run_job(jid)
+    assert st["state"] == "failed", st
+    assert not (tmp_path / "p.txt").exists()
+
+
+@pytest.mark.parametrize("value", ["C:\\Users\\x\\clip.mp4", "c:/users/x/clip.mp4"])
+def test_windows_drive_letter_is_not_taken_for_a_scheme(om, tmp_path, value):
+    """C:\\... is a drive, not the scheme 'C:': the refusal is the absolute-path one (this is not a posix absolute path)."""
+    plan = _plan("video_trimmer", VT(input_path=value, output_path=str(tmp_path / "w")))
+    assert plan["refusal"] and "absolut" in plan["refusal"] and "esquema" not in plan["refusal"], plan["refusal"]
+
+
+def test_two_letter_scheme_is_still_a_scheme(om, tmp_path):
+    plan = _plan("video_trimmer", VT(input_path="ab:/x/clip.mp4", output_path=str(tmp_path / "w")))
+    assert plan["refusal"] and "esquema" in plan["refusal"]
