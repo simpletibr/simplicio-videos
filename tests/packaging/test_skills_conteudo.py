@@ -40,7 +40,7 @@ PASSAGEM = {
     "matchcut": ("matchcut.py", ("clone", "where", "status", "setup", "run")),
     "instagram": ("instagram.py", ("clone", "where", "status", "skills", "skill", "run")),
     "rea-video": ("rea_video.py", ("clone", "setup", "where", "status", "summary", "probe", "tiles", "stems", "review",
-                                   "apply-review", "remake-plan", "decompose")),
+                                   "apply-review", "remake-plan", "remake-run", "assemble", "capsule-draft", "decompose")),
     "toonflow": ("toonflow.py", ("clone", "serve", "status", "mcp", "where")),
     "opencut": ("opencut.py", ("clone", "dev", "status", "where")),
     "clone": ("mcp_server.py", ("help", "version", "doctor", "check", "plan", "pricing", "status", "builds", "history", "activity",
@@ -298,6 +298,8 @@ def _problemas_de_caminho(texto: str) -> list:
             limpo = token.rstrip("/.,;:)")
             if ("<" in limpo) != (">" in limpo) or limpo.startswith("../"):
                 continue  # a piece of a placeholder (`<nome que o export criou>.jpg`), or a folder next to the user's own contract
+            if re.match(r"<[^>]+>/", limpo):
+                continue  # the user's own absolute folder, as a placeholder: `<pasta-absoluta>/assets/clip.mp4` (the MCP wants absolute paths)
             if re.fullmatch(r"simplicio\.[a-z-]+/v\d+|[A-Z][a-z]+/[A-Z][A-Za-z_]+|\d+/\d+|[\w<>.\-]+\|[\w<>.\-|]+", limpo):
                 continue  # a schema id, a time zone, an aspect ratio, an alternative list
             if limpo.replace("\\", "/") in SCRIPTS_DO_CHECKOUT or limpo.startswith(SAIDAS_DO_CLI) or limpo in NOMES_PERMITIDOS:
@@ -320,6 +322,8 @@ def test_o_varredor_de_caminhos_pega_o_que_o_usuario_do_pip_nao_tem():
     assert _problemas_de_caminho("Veja `ugc/README.md` e `docs/custos.md` e `clients/<slug>/coleta/` e `AGENTS.md` e `tools/video-use/`.")
     assert _problemas_de_caminho(f"[x]({URL_BASE}docs/nao-existe-mesmo.md)") or _existe_na_main("README.md") is None
     assert not _problemas_de_caminho("`out/final.mp4`, `assets/openverse/`, `simplicio_video/data/schema/contract.schema.json`, `bash scripts/dev_install.sh`, `timing.lock.json`")
+    assert not _problemas_de_caminho("`--input '{\"input_path\": \"<pasta-absoluta>/assets/video.mp4\"}'` e `<pasta-absoluta>/out/curto`")
+    assert _problemas_de_caminho("`/home/user/clip.mp4` e `src/simplicio_video/mcp_server.py`")
     assert not _problemas_de_caminho(f"Veja [o custo]({URL_BASE}docs/custos.md).") or _existe_na_main("docs/custos.md") is None
 
 

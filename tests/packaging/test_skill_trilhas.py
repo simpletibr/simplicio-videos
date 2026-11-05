@@ -71,9 +71,10 @@ def _secao(titulo: str) -> str:
 
 
 def _recipe_section(letra: str) -> str:
+    """The text of recipe (letra): up to the next `##` or `###` heading. A `# comment` inside a code block is not a heading."""
     m = re.search(rf"^### Receita \({letra}\).*$", TEXTO, re.M)
     assert m, f"no heading for recipe ({letra})"
-    fim = re.search(r"^#{1,3} ", TEXTO[m.end():], re.M)
+    fim = re.search(r"^#{2,3} ", TEXTO[m.end():], re.M)
     return TEXTO[m.end(): m.end() + fim.start()] if fim else TEXTO[m.end():]
 
 
