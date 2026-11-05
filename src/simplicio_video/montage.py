@@ -12,8 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
-
 from . import tools
 
 
@@ -150,6 +148,8 @@ def _require_checkout() -> Path:
 
 def list_pipelines(om_dir: Path | None = None) -> list[dict]:
     """Every pipeline_defs/*.yaml of the checkout as {file, doc} (safe loader; the file stem is the fallback name)."""
+    import yaml  # lazy: cli imports this module and the install path must work before PyYAML exists
+
     om_dir = om_dir or _require_checkout()
     out = []
     for f in sorted((om_dir / "pipeline_defs").glob("*.yaml")):
