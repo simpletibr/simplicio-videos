@@ -14,7 +14,8 @@ from simplicio_video import __version__, tools
 from simplicio_video.cli import main
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini" / "contract.yaml"
-TOOL_NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "ffmpeg", "node"}
+TOOL_NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "voicestudio",
+              "video-use", "tinyfish", "yt-dlp", "rea_video", "ffmpeg", "node"}
 
 
 def _run(argv, capsys):
@@ -145,3 +146,41 @@ def test_status_texto_continua_funcionando(capsys, ambiente):
     assert rc == 0
     assert "openmontage" in out
     assert "ffmpeg" in out
+
+
+# (f) status --json lista todas as trilhas do tools.py, e cada uma é achada onde o setup a deixa
+
+def test_status_json_lista_todas_as_trilhas_do_tools_py(capsys, ambiente):
+    rc, out, _ = _run(["status", "--json"], capsys)
+    assert rc == 0
+    names = [t["name"] for t in json.loads(out)["tools"]]
+    assert len(names) == len(set(names))
+    assert set(names) == TOOL_NAMES == set(tools.TOOLS) | {"ffmpeg", "node"}
+
+
+@pytest.mark.parametrize("nome", ["matchcut", "instagram", "rea_video", "video-use"])
+def test_trilha_git_com_checkout_no_lugar_do_setup_aparece_instalada(nome, capsys, ambiente, monkeypatch):
+    t = tools.get(nome)
+    (tools.checkout_dir(t) / t.marker).parent.mkdir(parents=True)
+    (tools.checkout_dir(t) / t.marker).write_text("", encoding="utf8")
+    monkeypatch.setattr(tools, "_git", lambda *args, cwd=None: "0123456789ab")
+    rc, out, _ = _run(["status", "--json"], capsys)
+    assert rc == 0
+    by = _ferramentas(out)
+    assert by[nome]["installed"] is True and by[nome]["version"] == "0123456789ab", nome
+    assert by[nome]["pinned"] == tools.pinned_ref(t)
+
+
+def test_yt_dlp_no_venv_do_cache_aparece_instalado_com_a_versao_do_venv(capsys, ambiente):
+    """yt-dlp é uma trilha pip: o executável fica no venv do cache de tools, nunca no PATH."""
+    t = tools.get("yt-dlp")
+    exe = ambiente.parent / "tools" / "yt-dlp" / "venv" / tools.PIP_BIN_DIR / "yt-dlp"
+    exe.parent.mkdir(parents=True)
+    exe.write_text("#!/bin/sh\necho 2026.10.26\n")
+    exe.chmod(0o755)
+    rc, out, _ = _run(["status", "--json"], capsys)
+    assert rc == 0
+    by = _ferramentas(out)
+    assert by["yt-dlp"]["installed"] is True
+    assert by["yt-dlp"]["version"] == "2026.10.26"
+    assert by["yt-dlp"]["pinned"] == tools.pinned_ref(t)
