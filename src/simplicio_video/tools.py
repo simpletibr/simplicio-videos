@@ -314,7 +314,7 @@ def npm_command(name: str) -> list[str]:
         return [local]
     npx = shutil.which("npx")
     if not npx:
-        raise ToolError(f"nem `{t.name}` nem `npx` foram encontrados no PATH. Instale o Node (>= 18).")
+        raise ToolError(f"nem `{t.name}` nem `npx` foram encontrados no PATH. Instale o Node (>= 22.15).")
     return [npx, "--yes", f"{t.source}@{effective_ref(t)}"]
 
 def command(t: Tool) -> str:

@@ -34,7 +34,7 @@ def status() -> dict:
     binary, npx, node = shutil.which(t.name), shutil.which("npx"), tools.node_version()
     node_ok = node is not None and node[:2] >= tools.NODE_MIN
     source = tools.install_source(t)
-    return {"ok": source is not None, "track": t.name, "package": t.source, "pinned": tools.pinned_ref(t), "source": source,
+    return {"ok": source is not None, "track": t.name, "package": t.source, "pinned": t.ref, "effective": tools.effective_ref(t), "source": source,
             "binary": binary, "npx": npx,
             "node": {"path": shutil.which("node"), "version": ".".join(map(str, node)) if node else None, "ok": node_ok,
                      "minimum": ".".join(map(str, tools.NODE_MIN))}}
@@ -56,6 +56,7 @@ def run_hypit(args: list[str], cwd: Path | None = None) -> int:
     """Execute hypit CLI with passed arguments. `status` without a Build id is the engine's own check (Hypit's needs one)."""
     if args[:1] == ["status"] and all(a == "--json" for a in args[1:]):
         return run_status(args)
+    args = ["--help" if a == "-h" else a for a in args]  # Hypit only knows --help
     cmd = find_hypit_bin() + args
     return run_child(cmd, cwd=cwd)
 
