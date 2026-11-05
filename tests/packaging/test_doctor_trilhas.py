@@ -1054,6 +1054,13 @@ def test_node_e_sondado_uma_vez_por_coleta(ambiente, monkeypatch):
 def test_texto_de_filho_sem_caracteres_de_direcao_nem_bom(ambiente):
     """Zero-width spaces, bidi overrides, isolates, the Arabic letter mark (U+061C) and the BOM can disguise a line or a path: they are cleaned like controls."""
     assert dt._limpa("a\u200bb\u202ec\u2066d\ufeffe\u200fz\u061cy") == "a b c d e z y"
+    # the other invisible characters: soft hyphen, word joiner and the invisible operators, the Mongolian vowel separator,
+    # the interlinear annotations, and the tag characters (an ASCII text hidden in a line). The emoji selector FE0F stays: it is
+    # part of a legitimate emoji and changes nothing in a line of text a person reads.
+    for escondido in ("\u00ad", "\u2060", "\u2061", "\u2062", "\u2063", "\u2064", "\u180e", "\ufff9", "\ufffa", "\ufffb",
+                      "\U000e0000", "\U000e0041", "\U000e007f"):
+        assert dt._limpa(f"a{escondido}b") == "a b", hex(ord(escondido))
+    assert dt._limpa("ok \u2764\ufe0f") == "ok \u2764\ufe0f"
 
 
 def test_override_invalido_nao_diz_que_o_pin_do_registro_vale(ambiente, monkeypatch):
@@ -1071,10 +1078,13 @@ def test_override_invalido_nao_diz_que_o_pin_do_registro_vale(ambiente, monkeypa
         tools.install("matchcut")
 
 
+SLEEP = shutil.which("sleep") or "/bin/sleep"  # resolved at import: the tests seal the PATH
+
+
 def _falso_pendurado(diretorio: Path, nome: str) -> Path:
     diretorio.mkdir(parents=True, exist_ok=True)
     exe = diretorio / nome
-    exe.write_text("#!/bin/sh\nexec sleep 60\n", encoding="utf-8")
+    exe.write_text(f"#!/bin/sh\nexec {SLEEP} 60\n", encoding="utf-8")  # absolute: the sealed PATH has no sleep
     exe.chmod(0o755)
     return exe
 
@@ -1103,3 +1113,75 @@ def test_git_que_pendura_na_leitura_do_checkout_tem_limite(tmp_path, monkeypatch
     commit, motivo = dt._leitura_do_checkout(pasta)
     assert commit is None and motivo
     assert time.monotonic() - inicio < 5
+
+
+# --- the fourth review: the local probes inside the budget, and the pip override as `install` sees it -----------------------------
+
+
+def test_limite_de_cada_programa_local_cabe_varias_vezes_no_orcamento():
+    """One hung program costs LIMITE_LOCAL_S; the budget of the whole run must hold several of them (5 s against 25 s)."""
+    assert 0 < dt.LIMITE_LOCAL_S <= dt.ORCAMENTO_ONLINE_S / 4
+
+
+@pytest.mark.skipif(os.name == "nt", reason="sh")
+def test_varias_trilhas_com_git_pendurado_gastam_um_limite_so_nao_um_por_trilha(ambiente, monkeypatch):
+    """Nine git tracks and a git that never answers: the local probes run together, so the offline run costs about one
+    LIMITE_LOCAL_S, not nine (45 s with the real 5 s limit, outside the budget of --online)."""
+    monta_saudavel(ambiente, monkeypatch)
+    _falso_pendurado(ambiente.caixa.bin, "git")  # the sealed PATH's git now hangs
+    monkeypatch.setattr(tools, "_git", REAL_GIT)
+    monkeypatch.setattr(dt, "LIMITE_LOCAL_S", 0.7)
+    inicio = time.monotonic()
+    doc = dt.collect()
+    decorrido = time.monotonic() - inicio
+    assert decorrido < 3.5, decorrido  # nine in a row would be 6.3 s or more
+    assert len(doc["tracks"]) == len(TRILHAS)
+
+
+def test_sondas_locais_que_estouram_o_orcamento_viram_aviso_e_o_total_nao_passa_dele(ambiente, monkeypatch):
+    """Local probes AND upstream reads share ONE budget: when the probes are slow, the tracks that did not finish say `tempo
+    esgotado`, and the whole run (--online too) ends inside it."""
+    monta_saudavel(ambiente, monkeypatch)
+
+    def lenta(*args, **kwargs):
+        time.sleep(4)
+        return "0" * 40
+
+    monkeypatch.setattr(tools, "_git", lenta)
+
+    def lenta_io(argv, cwd=None):
+        time.sleep(4)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    io = tools_update.Io(network=True, run=lenta_io, read=lenta_io, fetch_json=lambda url: time.sleep(4), now=lambda: 1700000000,
+                         which=lambda nome: f"/falso/{nome}")
+    inicio = time.monotonic()
+    doc = dt.collect(online=True, io=io, orcamento_s=1.0)
+    decorrido = time.monotonic() - inicio
+    assert decorrido < 2.5, decorrido
+    assert len(doc["tracks"]) == len(TRILHAS)
+    esgotadas = [t for t in doc["tracks"] if any("tempo esgotado" in c["summary"] for c in t["checks"])]
+    assert len(esgotadas) >= 8, [t["name"] for t in esgotadas]
+    assert all(t["status"] in ("warn", "fail") for t in esgotadas)
+
+
+def test_override_de_pip_com_outra_versao_o_doctor_avisa_o_que_o_install_faz(ambiente, monkeypatch):
+    """`install` refuses a pip version that is not the registry's (the sha256 is the registry's: it is not pinned for another
+    one). The doctor must not take SIMPLICIO_YT-DLP_REF=<another version> as a valid override."""
+    monta_saudavel(ambiente, monkeypatch)
+    monkeypatch.setenv("SIMPLICIO_YT-DLP_REF", "2026.1.1")
+    track = _trilha(dt.collect(), "yt-dlp")
+    assert track["pin_source"] == "override-invalido"
+    pin = _c(track, "pin")
+    assert pin["status"] == "warn" and "recusa" in pin["summary"] and "2026.1.1" not in pin["summary"]
+    with pytest.raises(tools.ToolError):
+        tools.install("yt-dlp")
+    monkeypatch.setenv("SIMPLICIO_YT-DLP_REF", tools.get("yt-dlp").ref)  # the pinned version itself is a valid override
+    assert _trilha(dt.collect(), "yt-dlp")["pin_source"] == "override"
+
+
+def test_o_doc_do_override_nao_promete_o_que_o_install_recusa():
+    """docs/recursos.md: pip accepts only the registry's own version; the doctor warns for the rest."""
+    texto = (Path(__file__).resolve().parents[2] / "docs" / "recursos.md").read_text(encoding="utf-8")
+    linha = next(l for l in texto.splitlines() if l.startswith("- **Override**"))
+    assert "pip" in linha and "sha256" in linha and "versão fixada" in linha, linha
