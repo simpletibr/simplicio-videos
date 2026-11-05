@@ -362,3 +362,50 @@ def test_as_afirmacoes_absolutas_que_eram_falsas_sairam():
     texto = " ".join(TEXTO.split())
     presentes = [trecho for trecho in ABSOLUTOS_FALSOS if trecho in texto]
     assert not presentes, f"absolute claims that the code contradicts are still in the skill: {presentes}"
+
+
+# --- review 4 (follow-up of the merged PR #181): texto que o código contradiz ---------------------------------------------------------
+
+
+def test_quem_baixa_codigo_inclui_o_voice_com_faster_whisper_e_a_condicao():
+    """voice, video.voice and video.run align the words with faster-whisper ("small") when SIMPLICIO_STT_PY has faster_whisper, and
+    download the model on first use (words.py: MODEL = "small"; voice.py calls the alignment)."""
+    secao = " ".join(_secao("Quem baixa código pelo MCP").split())
+    for trecho in ("SIMPLICIO_STT_PY", "faster_whisper", "video.voice", "video.run", "small", "Hugging Face"):
+        assert trecho in secao, f"'Quem baixa código pelo MCP' does not say {trecho!r}"
+
+
+def test_a_linha_de_media_diz_que_o_voicestudio_so_recusa_pelo_mcp():
+    linha = next(linha for linha in _tabela() if linha[1].startswith("núcleo de mídia"))
+    assert "sobrescreve" in linha[4]
+    assert "só pelo MCP" in linha[4] and "no terminal" in linha[4], "the voicestudio refusal of an existing --out is MCP-only"
+
+
+def test_o_pedido_de_download_fora_do_pin_nao_contradiz_a_secao_de_mcp():
+    texto = " ".join(TEXTO.split())
+    assert "baixa código de terceiros, abre navegador ou publica" not in texto
+    assert "fora do pin do motor" in texto
+
+
+def test_o_swap_run_pede_autorizo_e_yes_pelo_jobs():
+    texto = " ".join(TEXTO.split())
+    assert "jobs submit swap-run --autorizo --yes" in texto
+    assert "jobs submit swap-run --yes" not in texto
+    assert "jobs submit swap-run --autorizo --yes" in " ".join(_secao("Regras").split())
+
+
+def test_o_render_colab_manual_nao_entra_na_regra_de_envio():
+    """`render --backend colab` (the notebook, by hand) sends nothing through the engine: only kaggle and colab-cli do."""
+    regras = " ".join(_secao("Regras").split())
+    assert "`colab-cli`" in regras and "ou `colab`" not in regras
+
+
+def test_o_toonflow_com_docker_publica_so_em_127_0_0_1():
+    linha = next(linha for linha in _tabela() if linha[1].startswith("Toonflow"))
+    assert "com `--lan`" in linha[4] and "0.0.0.0" in linha[4]
+    assert "127.0.0.1" in linha[4] and "compose" in linha[4]
+
+
+def test_o_openverse_search_consulta_a_api_so_quando_a_consulta_nao_esta_no_cache():
+    regras = " ".join(_secao("Regras").split())
+    assert "openverse search" in regras and "quando a consulta não está no cache" in regras
