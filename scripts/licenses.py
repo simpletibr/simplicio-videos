@@ -136,25 +136,27 @@ def _modules(dist, name: str) -> tuple[str, ...]:
     return mods or (norm(name).replace("-", "_"),)
 
 
-SCAN_EXTRAS = ("test",)  # além das dependências base do produto, só o extra do gate; mcp, local-tts etc. ficam de fora
+SCAN_EXTRAS = ("test",)  # a tabela do doc: dependências base do produto + o extra do gate
+_ENV_MARKER = re.compile(r"\b(python_version|python_full_version|sys_platform|platform_\w+|os_name|implementation_\w+)\b")
 
 
 def _active(req: str, extra: str) -> bool:
-    """A exigência vale para o `extra` pedido ("" = dependência base)? Marcadores de ambiente (plataforma, Python) valem como no ambiente."""
+    """A exigência vale para o `extra` pedido ("" = dependência base)? Exigência com marcador de AMBIENTE (versão do Python,
+    plataforma, implementação) nunca vale aqui: a tabela tem de ser igual em qualquer Python e sistema. O gate de licença
+    cobre essas dependências quando estão instaladas (scan(todos_os_extras=True))."""
     if ";" not in req:
         return True
-    try:
-        from packaging.markers import Marker
-        return Marker(req.split(";", 1)[1].strip()).evaluate({"extra": extra})
-    except ImportError:  # sem packaging: só o marcador de extra decide
-        m = re.search(r"extra\s*==\s*[\"']([^\"']+)", req)
-        return (m.group(1) == extra) if m else True
+    marker = req.split(";", 1)[1]
+    if _ENV_MARKER.search(marker):
+        return False
+    m = re.search(r"extra\s*==\s*[\"']([^\"']+)", marker)
+    return (m.group(1) == extra) if m else True
 
 
-def _closure(dists, todos_os_extras: bool = False) -> tuple[list, dict[str, list[str]]]:
-    """Distribuições alcançáveis a partir do produto (deps base + SCAN_EXTRAS), seguindo Requires-Dist e honrando marcadores,
-    e quem exige cada uma. Assim extras instalados por fora (mcp...) e o pip não mudam a tabela. Sem o produto instalado
-    (testes com distribuições falsas), vale tudo o que está instalado."""
+def _closure(dists) -> tuple[list, dict[str, list[str]]]:
+    """Distribuições alcançáveis a partir do produto (deps base + SCAN_EXTRAS) por exigências sem marcador de ambiente, e quem
+    exige cada uma. Só alimenta a tabela do doc: extras instalados por fora (mcp...), o pip e deps condicionadas ao ambiente não a
+    mudam. Sem o produto instalado (testes com distribuições falsas), vale tudo o que está instalado."""
     by_name = {}
     for dist in dists:
         by_name.setdefault(norm(dist.metadata.get("Name") or getattr(dist, "name", "") or "?"), dist)
@@ -163,10 +165,7 @@ def _closure(dists, todos_os_extras: bool = False) -> tuple[list, dict[str, list
         return list(dists), _parents(dists)
     parents: dict[str, list[str]] = {}
     seen: dict[str, set[str]] = {norm(PRODUCT): set()}
-    extras = ("",) + SCAN_EXTRAS
-    if todos_os_extras:  # gate de licença: todo extra declarado cujas deps estejam instaladas (as não instaladas são ignoradas)
-        extras = ("",) + tuple(root.metadata.get_all("Provides-Extra") or SCAN_EXTRAS)
-    pending = [(root, extras)]
+    pending = [(root, ("",) + SCAN_EXTRAS)]
     while pending:
         dist, extras = pending.pop()
         parent = dist.metadata.get("Name") or getattr(dist, "name", "") or "?"
@@ -207,7 +206,11 @@ def _parents(dists) -> dict[str, list[str]]:
 
 def scan(exceptions_path: Path = EXCEPTIONS, todos_os_extras: bool = False) -> list[Entry]:
     exc = load_exceptions(exceptions_path)
-    dists, parents = _closure(list(importlib.metadata.distributions()), todos_os_extras)
+    dists = list(importlib.metadata.distributions())
+    if todos_os_extras:  # o gate: tudo o que está instalado, declarado ou não
+        parents = _parents(dists)
+    else:  # a tabela do doc
+        dists, parents = _closure(dists)
 
     entries: list[Entry] = []
     seen: set[tuple[str, str]] = set()
@@ -348,8 +351,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        entries = scan(EXCEPTIONS)  # a tabela do doc: base + test, estável
-        completo = scan(EXCEPTIONS, todos_os_extras=True)  # o gate: também o fecho dos outros extras instalados (mcp...)
+        entries = scan(EXCEPTIONS)  # a tabela do doc: base + test, sem marcador de ambiente, estável
+        completo = scan(EXCEPTIONS, todos_os_extras=True)  # o gate: toda distribuição instalada (extras, deps de ambiente, não declaradas)
     except ValueError as exc:
         print(f"licenses: {exc}", file=sys.stderr)
         return 2

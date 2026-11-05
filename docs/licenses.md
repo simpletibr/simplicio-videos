@@ -21,4 +21,3 @@ Scan das distribuições instaladas (`importlib.metadata`), limitado ao fecho da
 | ruff | 0.17.3 | MIT | permitida | simplicio-video[test] |
 | shellcheck_py | 0.11.0.1 | MIT | exceção | simplicio-video[test] |
 | simplicio-video | 0.6.0 | AGPL-3.0-or-later | produto | produto (este repo) |
-| typing_extensions | 4.16.0 | PSF-2.0 | permitida | referencing |
