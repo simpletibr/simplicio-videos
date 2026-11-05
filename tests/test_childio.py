@@ -157,6 +157,13 @@ def _bare_calls_src(src: str, rel: str = "<src>"):
             found.append((rel, fn, node.lineno))  # `from subprocess import run [as r]` would hide the call from this lint
         if isinstance(node, ast.Call):
             f = node.func
+            if (isinstance(f, ast.Name) and f.id == "getattr" and node.args and isinstance(node.args[0], ast.Name)
+                    and node.args[0].id in alias):
+                mod = alias[node.args[0].id]
+                name = node.args[1] if len(node.args) > 1 else None
+                if not (isinstance(name, ast.Constant) and isinstance(name.value, str)) or (
+                        _bad_name(mod, name.value) or name.value in SPAWNERS.get(mod, ())):
+                    found.append((rel, fn, node.lineno))  # getattr(subprocess, "run") hides the call from this lint
             if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id in alias:
                 mod, attr = alias[f.value.id], f.attr
                 if _bad_name(mod, attr):

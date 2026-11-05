@@ -9,7 +9,9 @@ exactly subprocess.call.
 redirect mixed their logs, and a lock around it made every tool wait behind a render). While at least one capture is open,
 sys.stdout/sys.stderr are small proxies that write to the sink of the *current context* (a ContextVar). aio's helper
 threads copy that context, so their output lands in the tool that spawned them. A thread with no sink at all (one nobody
-spawned through aio) falls back to the REAL STDERR, never to fd 1."""
+spawned through aio) falls back to the REAL STDERR, never to fd 1. That holds only while a capture is open: a daemon
+writer that outlives its tool call (aio's late takes) writes to whatever sys.stdout is after the last capture closed, i.e.
+the real stream. Nothing in the engine may use contextlib.redirect_std* (a test enforces it): it would swap the proxy."""
 from __future__ import annotations
 
 import contextlib

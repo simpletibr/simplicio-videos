@@ -18,6 +18,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from . import childio
+
 INSTRUCTIONS = ("simplicio-video: short marketing videos from a simplicio.video-contract/v1 YAML "
                 "(src/simplicio_video/data/schema/contract.schema.json; how to write it: skills/simplicio-video/SKILL.md). "
                 "Flow: video.init (pass `out`, an absolute path, in a pip-installed package) -> fill TODOs from clients/<slug>/coleta -> video.validate -> video.voice -> "
@@ -377,7 +379,7 @@ def video_toonflow(args: str = "") -> dict:
         return {"ok": False, "error": "toonflow clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
     buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(buf):
+        with childio.capture(buf, buf):
             rc = toonflow.run_toonflow(argv)
         out = {"ok": rc == 0, "result": rc}
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
@@ -402,7 +404,7 @@ def video_moneyprinter(args: str = "") -> dict:
         return {"ok": False, "error": "moneyprinter where não recebe argumentos"}
     buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(buf):
+        with childio.capture(buf, buf):
             rc = moneyprinter.run_moneyprinter(argv)
         out = {"ok": rc == 0, "result": rc}
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
@@ -425,7 +427,7 @@ def video_matchcut(args: str = "") -> dict:
         return {"ok": False, "error": f"matchcut {argv[0]} não recebe argumentos"}
     buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(buf):
+        with childio.capture(buf, buf):
             rc = matchcut.run_matchcut(argv)
         out = {"ok": rc == 0, "result": rc}
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
@@ -479,7 +481,7 @@ def video_rea_video(args: str = "") -> dict:
         return {"ok": False, "error": f"rea-video {argv[0]} não recebe argumentos"}
     buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(buf):
+        with childio.capture(buf, buf):
             rc = rea_video.run_rea_video(argv)
         out = {"ok": rc == 0, "result": rc}
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
@@ -496,7 +498,7 @@ def video_voicestudio(args: str = "") -> dict:
     argv = args.split() if isinstance(args, str) else list(args)
     buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(buf):
+        with childio.capture(buf, buf):
             rc = voicestudio.run_voicestudio(argv)
         out = {"ok": rc == 0, "result": rc}
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
