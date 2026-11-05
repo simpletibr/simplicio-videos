@@ -695,10 +695,13 @@ import json, os, sys
 cfg = json.load(open(sys.argv[1])); outdir = os.path.abspath(sys.argv[2])
 ids = [a for a in sys.argv[3:] if a != '--draft'] or [s['id'] for s in cfg['shots']]
 os.makedirs(f'{outdir}/shots', exist_ok=True); os.makedirs(f'{outdir}/qc', exist_ok=True)
+sh = {s['id']: s for s in cfg['shots']}
 for sid in ids:
     open(f'{outdir}/shots/{sid}.mov', 'w').write('x')
-    for k in ('first', 'mid', 'last'):
-        open(f'{outdir}/qc/{sid}-{k}.jpg', 'w').write('x'); open(f'{outdir}/qc/{sid}-{k}.json', 'w').write('{}')
+    n = sh[sid]['end'] - sh[sid]['start']; qc = {0: 'first', n // 2: 'mid', n - 1: 'last'}   # render.py:337
+    for i in range(n):
+        if i in qc:
+            k = qc[i]; open(f'{outdir}/qc/{sid}-{k}.jpg', 'w').write('x'); open(f'{outdir}/qc/{sid}-{k}.json', 'w').write('{}')
 ''',
     "scripts/mix.py": r'''
 import json, os, sys
@@ -953,7 +956,7 @@ def test_render_does_not_overwrite_shots_or_qc_files_and_checks_only_the_selecte
     ("assemble", lambda c, r: [c, str(r / "rd"), "--draft"]),
 ])
 def test_the_predicted_outputs_are_exactly_what_the_upstream_shaped_script_writes(writers, nome, make):
-    cfg, root = montage(writers, shots=[{"id": "s1", "start": 0, "end": 12}, {"id": "s2", "start": 12, "end": 24}])
+    cfg, root = montage(writers, shots=[{"id": "s1", "start": 0, "end": 12}, {"id": "s2", "start": 12, "end": 14}, {"id": "s3", "start": 14, "end": 15}])
     (root / "rd" / "shots").mkdir(parents=True)
     (root / "mix" / "stems").mkdir(parents=True)
     (root / "mix" / "mix.wav").write_text("m")
@@ -1073,3 +1076,44 @@ def test_help_documents_the_limits_and_that_versions_are_not_hashed(capsys):
     out = capsys.readouterr().out
     for word in ("MATCHCUT_MEM_GIB", "sem hash", "montage.json", "picks", "já existe"):
         assert word in out, word
+
+
+def test_qc_files_are_predicted_only_where_render_writes_them(writers):
+    cfg, root = montage(writers, shots=[{"id": "a", "start": 0, "end": 2}, {"id": "b", "start": 2, "end": 3}, {"id": "c", "start": 3, "end": 6}])
+    got = {Path(p).name for p in matchcut._saidas(matchcut.SCRIPTS["render"], [cfg, str(root / "o")])}
+    assert "a-mid.jpg" not in got and {"a-first.jpg", "a-last.json"} <= got      # n=2: mid and last are the same frame, last wins
+    assert {"b-last.jpg", "b-last.json"} <= got and "b-first.jpg" not in got and "b-mid.jpg" not in got   # n=1: one frame
+    assert {"c-first.jpg", "c-mid.jpg", "c-last.jpg"} <= got
+
+
+def test_a_concat_list_that_is_a_symlink_is_refused(writers, monkeypatch):
+    home = writers.tmp / "home5"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    victim = home / ".r2bashrc"
+    victim.write_text("ORIGINAL")
+    cfg, root = montage(writers)
+    rd = root / "rd"
+    rd.mkdir()
+    (rd / "concat.txt").symlink_to(victim)
+    for canal in ("mcp", "terminal"):
+        with pytest.raises(matchcut.MatchcutError, match="concat.txt"):
+            matchcut.run_script("assemble", [cfg, str(rd), "--draft"], canal=canal, forcar=True)
+    assert victim.read_text() == "ORIGINAL"
+
+
+def test_a_concat_list_that_is_a_directory_is_refused_and_a_plain_file_is_fine(writers):
+    cfg, root = montage(writers)
+    rd = root / "rd"
+    (rd / "concat.txt").mkdir(parents=True)
+    with pytest.raises(matchcut.MatchcutError, match="concat.txt"):
+        matchcut.run_script("assemble", [cfg, str(rd), "--draft"])
+    (rd / "concat.txt").rmdir()
+    (rd / "concat.txt").write_text("old")
+    assert matchcut.run_script("assemble", [cfg, str(rd), "--draft"])["resultado"] is True
+
+
+def test_the_module_docstring_mentions_the_montage_validation():
+    doc = matchcut.__doc__
+    for word in ("montage.json", "picks", "predict"):
+        assert word in doc, word
