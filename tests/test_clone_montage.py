@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 from pathlib import Path
 
 import pytest
@@ -208,3 +209,70 @@ def test_montage_never_clones_when_offline(monkeypatch, tmp_path):
 def test_montage_source_has_no_machine_specific_path():
     src = Path(montage.__file__).read_text()
     assert not re.search(r"""["'](/projetos|/home/|/Users/|[A-Za-z]:\\)""", src)
+
+
+# ---- a stop signal must not orphan the child (SIGTERM/SIGHUP/Ctrl+C, in the gap of Popen or while waiting) ----
+
+_PARADA = pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+
+
+def _afirma_sem_orfao(res, pidfile, nome):
+    from _orfao import espera, espera_pid, vivo
+
+    assert espera(lambda: not vivo(espera_pid(pidfile)), 8), f"the child outlived the engine (rc {res.returncode})\n{res.stderr[-400:]}"
+    assert res.returncode in (128 + getattr(signal, nome), -getattr(signal, nome), 1), res.returncode
+
+
+@_PARADA
+@pytest.mark.parametrize("quando", ["popen", "espera"])
+@pytest.mark.parametrize("nome", ["SIGTERM", "SIGHUP", "SIGINT"])
+def test_run_tool_execute_stop_signal_kills_the_upstream(tmp_path, nome, quando):
+    """run-tool: the upstream (own session) was armed for the kill only after Popen returned and SIGTERM/SIGHUP had no handler at
+    all (the default action ended the engine and left the tool running, possibly spending money)."""
+    from _orfao import mata_o_que_sobrou, roda_motor
+
+    pidfile = tmp_path / "pid"
+    corpo = ("import os, sys\nfrom pathlib import Path\nfrom simplicio_video import montage\n"
+             f"montage._RUN_CHILD = \"import os, time; open({str(pidfile)!r}, 'w').write(str(os.getpid())); time.sleep(120)\"\n"
+             "montage._require_checkout = lambda: Path('.').resolve()\nmontage.upstream_python = lambda: sys.executable\n"
+             "montage._child_env = lambda *a, **k: dict(os.environ)\n"
+             "plan = {'tool': 'x', 'strict': False, 'env_keys': [], 'estimate': {}}\n"
+             "montage.run_tool_execute(plan, {}, Path('.').resolve())\n")
+    try:
+        _afirma_sem_orfao(roda_motor(tmp_path, corpo, pidfile, nome, quando), pidfile, nome)
+    finally:
+        mata_o_que_sobrou(pidfile)
+
+
+@_PARADA
+@pytest.mark.parametrize("quando", ["popen", "espera"])
+@pytest.mark.parametrize("nome", ["SIGTERM", "SIGHUP", "SIGINT"])
+def test_run_open_stop_signal_kills_the_backlot_open_child(tmp_path, nome, quando):
+    """`montage open` ran the upstream with no kill at all: any stop left `backlot open` (and the server it starts) running."""
+    from _orfao import mata_o_que_sobrou, roda_motor
+
+    pidfile = tmp_path / "pid"
+    code = f"import os, time; open({str(pidfile)!r}, 'w').write(str(os.getpid())); time.sleep(120)"
+    corpo = ("import os, sys\nfrom pathlib import Path\nfrom simplicio_video import montage\n"
+             f"montage._run_open([sys.executable, '-c', {code!r}], Path('.').resolve(), dict(os.environ))\n")
+    try:
+        _afirma_sem_orfao(roda_motor(tmp_path, corpo, pidfile, nome, quando), pidfile, nome)
+    finally:
+        mata_o_que_sobrou(pidfile)
+
+
+@_PARADA
+@pytest.mark.parametrize("quando", ["popen", "espera"])
+@pytest.mark.parametrize("nome", ["SIGTERM", "SIGHUP", "SIGINT"])
+def test_run_open_stop_signal_kills_the_diagnostic_server_too(tmp_path, nome, quando):
+    """When `open` says it did not come up, the engine runs `backlot serve` for a few seconds to show why: that child too."""
+    from _orfao import mata_o_que_sobrou, roda_motor
+
+    pidfile = tmp_path / "pid"
+    (tmp_path / "backlot.py").write_text(f"import os, time\nopen({str(pidfile)!r}, 'w').write(str(os.getpid()))\ntime.sleep(120)\n")
+    corpo = ("import os, sys\nfrom pathlib import Path\nfrom simplicio_video import montage\n"
+             "montage._run_open([sys.executable, '-c', 'print(\"did not come up\")'], Path('.').resolve(), dict(os.environ))\n")
+    try:
+        _afirma_sem_orfao(roda_motor(tmp_path, corpo, pidfile, nome, quando, so_se="backlot"), pidfile, nome)
+    finally:
+        mata_o_que_sobrou(pidfile)

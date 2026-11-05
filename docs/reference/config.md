@@ -7,7 +7,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | Variável | Para quê | Onde o código lê ou define |
 |---|---|---|
 | `AUDIO8_TTS_BIN` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:88` |
-| `BACKLOT_PORT` | Porta do board (Backlot) do OpenMontage; o `montage open` e o `montage serve` a repassam ao upstream. | `src/simplicio_video/montage.py:335` |
+| `BACKLOT_PORT` | Porta do board (Backlot) do OpenMontage; o `montage open` e o `montage serve` a repassam ao upstream. | `src/simplicio_video/montage.py:337` |
 | `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:447` |
 | `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo. | `src/simplicio_video/voice.py:215` |
 | `GH_TOKEN` | Token do GitHub que o `update` manda só para `api.github.com` ao ler a última release (um redirect para outro host tira o cabeçalho). Só no ambiente. | `src/simplicio_video/commands/update.py:215` |
@@ -50,7 +50,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SIMPLICIO_GEMINI_BASE` | Base da API Gemini (padrão: a oficial). Para proxies e testes. | `src/simplicio_video/swap_providers/gemini.py:60`<br>`src/simplicio_video/voice.py:156` |
 | `SIMPLICIO_JOBS_GRACE_S` | Tolerância, em segundos, entre o SIGINT e o SIGKILL ao cancelar uma tarefa de `jobs` (padrão 15). | `src/simplicio_video/jobs.py:732` |
 | `SIMPLICIO_MCP` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/childio.py:87`<br>`src/simplicio_video/mcp_server.py:1041` |
-| `SIMPLICIO_MONTAGE_TIMEOUT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/montage.py:776` |
+| `SIMPLICIO_MONTAGE_TIMEOUT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/montage.py:778` |
 | `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline (inclui a consulta da última release no `update` e no `doctor --online`). O gate (`make check`) roda com `1`. | `src/simplicio_video/busca.py:602`<br>`src/simplicio_video/commands/update.py:63`<br>`src/simplicio_video/instagram.py:148`<br>`src/simplicio_video/montage.py:36`<br>`src/simplicio_video/openverse.py:783`<br>`src/simplicio_video/swap_providers/http.py:45`<br>`src/simplicio_video/tools_update.py:66`<br>`src/simplicio_video/toonflow.py:59` |
 | `SIMPLICIO_OPENMONTAGE_DIR` | Pasta do OpenMontage (alternativa a `OPENMONTAGE_DIR`). | `src/simplicio_video/montage.py:44` |
 | `SIMPLICIO_RCLONE_BIN` | Caminho do binário do rclone (padrão: o `rclone` do PATH). | `src/simplicio_video/publish.py:116` |
