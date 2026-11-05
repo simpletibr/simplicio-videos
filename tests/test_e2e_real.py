@@ -43,10 +43,13 @@ class SondasFalsas:
     """A máquina de mentira: o que existe, quais portas abrem, quais chaves estão no ambiente."""
 
     def __init__(self, *, achados=("node", "npx", "ffmpeg", "docker", "tinyfish"), portas=(), chaves=(), node=(22, 23, 4),
-                 mp=False, toonflow=False, config_tinyfish=False, pacote=True):
+                 mp=False, toonflow=False, config_tinyfish=False, pacote=True, config_mp=None):
         self.achados, self.portas, self.chaves = set(achados), set(portas), dict(chaves)
         self.node, self.mp, self.toonflow, self.config_tinyfish = node, mp, toonflow, config_tinyfish
-        self._pacote = pacote
+        self._pacote, self._config_mp = pacote, config_mp
+
+    def config_moneyprinter(self):
+        return self._config_mp
 
     def achar(self, nome):
         return f"/bin/{nome}" if nome in self.achados else None
@@ -439,17 +442,48 @@ def test_log_do_servidor_passa_pela_redacao(tmp_path):
     assert "erro com ***" in texto and "fim" in texto
 
 
-def test_pasta_nao_vazia_recusa_antes_de_qualquer_chamada(tmp_path, capsys):
+@pytest.mark.parametrize("flags", [[], ["--sim-gastar"]], ids=["plano", "execucao"])
+def test_pasta_nao_vazia_da_rc_2_no_plano_e_na_execucao_sem_tocar_nada(tmp_path, capsys, flags):
     pasta = tmp_path / "usado"
     pasta.mkdir()
     (pasta / "antigo.txt").write_text("não pode ser apagado", encoding="utf-8")
     grav = Gravador()
     with pytest.raises(SystemExit) as exc:
-        e2e.main(["--sim-gastar", "--pasta", str(pasta)],
-                 sondas=SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA}), runner=grav)
+        e2e.main([*flags, "--pasta", str(pasta)], sondas=SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA}), runner=grav)
     assert exc.value.code == 2
-    assert grav.chamadas == []
-    assert (pasta / "antigo.txt").read_text(encoding="utf-8") == "não pode ser apagado"
+    assert grav.chamadas == [], "nenhuma chamada: nem o plano roda processo, nem a execução começa"
+    assert sorted(p.name for p in pasta.iterdir()) == ["antigo.txt"], "a pasta usada não ganha nada"
+
+
+def test_pasta_que_e_arquivo_da_rc_2_sem_traceback(tmp_path, capsys):
+    arquivo = tmp_path / "nao-e-pasta.txt"
+    arquivo.write_text("x", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        e2e.main(["--sim-gastar", "--pasta", str(arquivo)], sondas=SondasFalsas(), runner=Gravador())
+    assert exc.value.code == 2
+    assert arquivo.read_text(encoding="utf-8") == "x"
+
+
+def test_argumentos_puros_sao_validados_antes_de_detectar_a_maquina(tmp_path, monkeypatch):
+    """--max-usd 0 e --pasta usada são recusados antes de qualquer leitura da máquina (sondas ou detectar)."""
+    def detectar_proibido(*args, **kwargs):
+        raise AssertionError("detectar chamado antes da validação dos argumentos puros")
+
+    monkeypatch.setattr(e2e, "detectar", detectar_proibido)
+    with pytest.raises(SystemExit) as exc:
+        e2e.main(["--max-usd", "0"], sondas=SondasFalsas(), runner=Gravador())
+    assert exc.value.code == 2
+    pasta = tmp_path / "usado"
+    pasta.mkdir()
+    (pasta / "x.txt").write_text("x", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        e2e.main(["--pasta", str(pasta)], sondas=SondasFalsas(), runner=Gravador())
+    assert exc.value.code == 2
+
+
+def test_o_roteiro_nao_escreve_bytecode_no_repositorio():
+    # o plano importa o pacote para o custo: sem isto ele criaria __pycache__ dentro do repo
+    assert sys.dont_write_bytecode is True
 
 
 def test_ambiente_filho_mantem_caches_e_bytecode_dentro_da_temporaria(tmp_path):
@@ -462,20 +496,29 @@ def test_ambiente_filho_mantem_caches_e_bytecode_dentro_da_temporaria(tmp_path):
 def test_so_um_ffmpeg_gera_a_midia_sintetica_e_o_avatar_vem_do_repositorio(tmp_path, capsys):
     """A mídia sintética gasta uma chamada ao ffmpeg (o repo não tem vídeo de teste); a imagem é copiada do repo."""
     def ffmpeg_grava(argv):
-        # só o binário do ffmpeg grava (a chave casa por substring e o caminho temporário tem o nome do teste)
-        if str(argv[0]).endswith("ffmpeg"):
-            Path(argv[-1]).write_bytes(b"midia")  # como o ffmpeg de verdade: o arquivo de saída passa a existir
+        Path(argv[-1]).write_bytes(b"midia")  # como o ffmpeg de verdade: o arquivo de saída passa a existir
         return e2e.Saida(0, "", "")
 
-    grav = Gravador({"ffmpeg": ffmpeg_grava})
+    grav = Gravador({"/bin/ffmpeg": ffmpeg_grava})  # casa pelo binário, nunca por substring (o caminho tem o nome do teste)
     sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA}, mp=True)
     _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "swap-estimate,moneyprinter-livre"], sondas=sondas,
           gravador=grav)
-    ffmpeg = [c for c in grav.chamadas if c[0].endswith("ffmpeg")]
+    ffmpeg = [c for c in grav.chamadas if c[0] == "/bin/ffmpeg"]
     assert len(ffmpeg) == 1, ffmpeg
     estimativa = grav.comandos("swap estimate")[0]
     ref = estimativa[estimativa.index("--ref") + 1]
     assert Path(ref).name == "avatar.png" and Path(ref).is_file()
+
+
+def test_falha_do_ffmpeg_e_memorizada_e_nao_roda_de_novo(tmp_path, capsys):
+    grav = Gravador({"/bin/ffmpeg": e2e.Saida(1, "", "erro do ffmpeg")})
+    sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA}, mp=True)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "swap-estimate,moneyprinter-livre"],
+                      sondas=sondas, gravador=grav)
+    assert len([c for c in grav.chamadas if c[0] == "/bin/ffmpeg"]) == 1, "uma falha não pode disparar nova tentativa"
+    doc = json.loads(out)
+    assert _item(doc, "swap-estimate")["estado"] == "FAIL"
+    assert _item(doc, "moneyprinter-livre")["estado"] == "FAIL"
 
 
 def test_toonflow_usa_o_serve_como_checagem_do_docker_e_nao_chama_docker_pelo_executor(tmp_path, capsys, monkeypatch):
@@ -501,6 +544,7 @@ def test_toonflow_usa_o_serve_como_checagem_do_docker_e_nao_chama_docker_pelo_ex
 
     monkeypatch.setattr(e2e, "_iniciar_servidor", lancar)
     monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: None)
+    monkeypatch.setattr(e2e, "_porta_ocupada", lambda porta: False)
     monkeypatch.setattr(subprocess, "Popen", popen_proibido)
     grav = Gravador()
     _, out, grav = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
@@ -508,3 +552,127 @@ def test_toonflow_usa_o_serve_como_checagem_do_docker_e_nao_chama_docker_pelo_ex
     assert not any("docker" in " ".join(c) for c in grav.chamadas), grav.chamadas
     assert any("toonflow" in " ".join(c) and "serve" in " ".join(c) for c in lancados)
     assert _item(json.loads(out), "toonflow")["estado"] == "FAIL"
+
+
+class _Morto:
+    def poll(self):
+        return 1
+
+    def wait(self, timeout=None):
+        return 1
+
+
+class _Vivo:
+    def poll(self):
+        return None
+
+    def wait(self, timeout=None):
+        return 0
+
+
+class _Leitor:
+    def join(self, timeout=None):
+        return None
+
+
+def test_toonflow_pass_so_com_o_serve_vivo_quando_responde(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(e2e, "_porta_ocupada", lambda porta: False)
+    monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: 200)
+    monkeypatch.setattr(e2e, "_iniciar_servidor", lambda argv, **kw: (_Vivo(), _Leitor()))
+    monkeypatch.setattr(e2e, "_parar_processo", lambda proc, espera_s=120: None)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    item = _item(json.loads(out), "toonflow")
+    assert item["estado"] == "PASS" and "200" in item["detalhe"]
+
+
+def test_toonflow_serve_que_morreu_nao_da_pass_mesmo_com_http(tmp_path, capsys, monkeypatch):
+    # outro processo pode ter respondido, ou o serve caiu logo depois: o PASS exige o processo lançado vivo
+    monkeypatch.setattr(e2e, "_porta_ocupada", lambda porta: False)
+    monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: 200)
+    monkeypatch.setattr(e2e, "_iniciar_servidor", lambda argv, **kw: (_Morto(), _Leitor()))
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    assert _item(json.loads(out), "toonflow")["estado"] == "FAIL"
+
+
+@pytest.mark.allow_hosts(["127.0.0.1", "localhost"])
+def test_toonflow_com_outro_servidor_na_porta_da_falha_e_nao_sobe_o_serve(tmp_path, capsys, monkeypatch):
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        monkeypatch.setattr(e2e, "PORTA_TOONFLOW", srv.getsockname()[1])
+        lancados = []
+        monkeypatch.setattr(e2e, "_iniciar_servidor", lambda argv, **kw: (lancados.append(argv), (_Morto(), _Leitor()))[1])
+        _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                          sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+        item = _item(json.loads(out), "toonflow")
+        assert item["estado"] == "FAIL" and "ocupad" in item["detalhe"]
+        assert lancados == [], "com a porta ocupada o serve não pode ser lançado"
+    finally:
+        srv.close()
+
+
+# ----------------------------------------------------------------------------- hypit: clone pricing
+
+def test_hypit_pricing_recebe_a_fonte_pela_flag(tmp_path, capsys):
+    grav = Gravador()
+    _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "hypit", "--hypit-fonte", "minha-run"],
+          sondas=SondasFalsas(), gravador=grav)
+    assert grav.comandos("clone pricing")[0][-3:] == ["clone", "pricing", "minha-run"]
+    assert grav.comandos("clone doctor"), "o doctor continua no check"
+
+
+@pytest.mark.parametrize("flags", [[], ["--sim-gastar"]], ids=["plano", "execucao"])
+def test_hypit_pricing_sem_fonte_nao_roda_e_diz_o_que_falta(tmp_path, capsys, flags):
+    grav = Gravador()
+    _, out, _ = _roda(tmp_path, capsys, [*flags, "--json", "--apenas", "hypit"], sondas=SondasFalsas(), gravador=grav)
+    item = _item(json.loads(out), "hypit")
+    assert item["estado"] == "SKIP" and "--hypit-fonte" in item["motivo"]
+    assert grav.comandos("clone pricing") == [], "clone pricing sem fonte falha sempre: não pode rodar"
+
+
+# ----------------------------------------------------------------------------- redação
+
+def test_chave_curta_tambem_e_redigida():
+    sondas = SondasFalsas(chaves={"GEMINI_API_KEY": "abc"})
+    amb = e2e.detectar(sondas, sondar=False)
+    assert "abc" in e2e._segredos(sondas, amb)
+
+
+def test_segredo_partido_entre_pedacos_e_redigido():
+    r = e2e.Redator(["chave-dividida-0123"])
+    saida = r.alimentar("antes chave-divi") + r.alimentar("dida-0123 depois") + r.finalizar()
+    assert "chave-divi" not in saida and "dida-0123" not in saida
+    assert "antes" in saida and "depois" in saida and "***" in saida
+
+
+def test_segredo_com_quebra_de_linha_e_redigido_no_fluxo():
+    s = "linha-um\nlinha-dois-0123"
+    r = e2e.Redator([s])
+    saida = r.alimentar("inicio linha-um\n") + r.alimentar("linha-dois-0123 fim\n") + r.finalizar()
+    assert "linha-um" not in saida and "linha-dois" not in saida
+    assert "***" in saida and "inicio" in saida and "fim" in saida
+
+
+def test_log_do_servidor_redige_segredo_com_quebra_de_linha(tmp_path):
+    s = "linha-um\nlinha-dois-0123456"
+    log = tmp_path / "serve.log"
+    filho = [sys.executable, "-c", "import sys; sys.stdout.write(%r); sys.stdout.flush()" % ("pre " + s + " pos\n")]
+    proc, leitor = e2e._iniciar_servidor(filho, env=dict(os.environ), log=log, segredos=[s])
+    assert proc.wait(timeout=60) == 0
+    leitor.join(timeout=60)
+    texto = log.read_text(encoding="utf-8")
+    assert "linha-dois-0123456" not in texto and "linha-um" not in texto
+    assert "***" in texto and "pre" in texto and "pos" in texto
+
+
+def test_chave_do_config_do_moneyprinter_entra_na_redacao(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('[llm]\napi_key = "chave-config-mp-0123"\n\n[vazio]\napi_key = ""\n', encoding="utf-8")
+    sondas = SondasFalsas(config_mp=cfg)
+    amb = e2e.detectar(sondas, sondar=False)
+    segredos = e2e._segredos(sondas, amb)
+    assert "chave-config-mp-0123" in segredos
+    assert "" not in segredos
