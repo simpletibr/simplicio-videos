@@ -258,7 +258,7 @@ def test_trilha_sem_bloco_com_indice_ilegivel_e_copia_da_biblioteca_e_recusada(e
     (env.lib / "index.json").write_text(INDICE_ILEGIVEL, encoding="utf8")
     rep = ct.validate(ct.load(mini))
     erros = [e for e in rep.errors if e.startswith("openverse:")]
-    assert not rep.ok and erros and "trilha/fundo.wav" in erros[0] and "mesmos bytes" in erros[0], rep.errors
+    assert not rep.ok and erros and "trilha/fundo.wav" in erros[0] and "repare o índice" in erros[0], rep.errors  # o contrato novo: índice ilegível recusa
 
 
 @needs_ffmpeg
@@ -269,7 +269,7 @@ def test_trilha_sem_bloco_com_indice_ilegivel_e_arquivo_dentro_da_biblioteca_e_r
     _edit(mini, lambda d: d["trilha"]["music"].update(arquivo=str(arquivo)))
     (env.lib / "index.json").write_text(INDICE_ILEGIVEL, encoding="utf8")
     rep = ct.validate(ct.load(mini))
-    assert not rep.ok and any(e.startswith("openverse:") and "dentro da biblioteca" in e for e in rep.errors), rep.errors
+    assert not rep.ok and any(e.startswith("openverse:") and "repare o índice" in e for e in rep.errors), rep.errors  # o contrato novo: índice ilegível recusa
 
 
 @needs_ffmpeg

@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 from jsonschema import Draft202012Validator
 
-from . import paths, trilha  # trilha não importa o contrato: sem ciclo
+from . import paths
 
 EPS = 1e-6
 
@@ -181,22 +181,32 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
     for a in items:
         if not c.rel(a["arquivo"]).is_file():
             rep.errors.append(f"assets: missing file {a['arquivo']} (-> {a['destino']})")
-    # one file per destination: the last copy wins, so the file in the video would not be the one that was checked
+    # one file per destination: the last copy wins, so the file in the video would not be the one that was checked.
+    # Destinos are compared without case and Unicode form (macOS and Windows: `Arranjo.wav` is `arranjo.wav`); the message keeps the first spelling.
+    import unicodedata  # local: keeps this change inside validate (contract.py#validate)
+    from . import trilha  # sem ciclo: trilha não importa o contrato
     onde: dict[str, list[str]] = {}
+    nomes: dict[str, str] = {}
+
+    def aponta(destino: str, quem: str) -> None:
+        chave = unicodedata.normalize("NFC", posixpath.normpath(destino)).casefold()
+        nomes.setdefault(chave, posixpath.normpath(destino))
+        onde.setdefault(chave, []).append(quem)
+
     for i, a in enumerate(d.get("assets", [])):
-        onde.setdefault(posixpath.normpath(a["destino"]), []).append(f"assets[{i}]")
+        aponta(a["destino"], f"assets[{i}]")
     if logo:
-        onde.setdefault(posixpath.normpath(logo["destino"]), []).append("marca.logo")
+        aponta(logo["destino"], "marca.logo")
     for slot in d.get("placas_video", []):
-        onde.setdefault(posixpath.normpath(slot["file"]), []).append(f"placas_video[{slot['id']}].file")
+        aponta(slot["file"], f"placas_video[{slot['id']}].file")
     music = (d.get("trilha") or {}).get("music") or {}
     if music.get("arquivo"):  # the compiler writes the music bed's files too: the approved copy of a library audio and the arranged WAV
         for destino in (trilha.origem_destino(music), trilha.ARRANJO_REL):
             if destino:
-                onde.setdefault(posixpath.normpath(destino), []).append("trilha.music")
-    for destino, quem in onde.items():
+                aponta(destino, "trilha.music")
+    for chave, quem in onde.items():
         if len(quem) > 1:
-            rep.errors.append(f"assets: duplicated destino {destino} ({', '.join(quem)}): the last copy wins; give each file its own destino")
+            rep.errors.append(f"assets: duplicated destino {nomes[chave]} ({', '.join(quem)}): the last copy wins; give each file its own destino")
     # ---- assets from the Openverse library: declared provenance, review for the request, rights and credit (offline) ----
     # imported here so the module loads only when a contract is validated; the library index is opened only if an asset file exists
     from . import openverse_contract

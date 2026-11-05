@@ -11,9 +11,9 @@ arranges and ducks it). The rules, all offline (no network, no LLM, nothing writ
 - a file inside `assets/openverse/` without the block is refused (nobody skips the gate by copying a file by hand), and so is any
   other asset with the bytes of a library asset; `placas_video[].file` goes through the same check and never carries the block, so a
   library file cannot reach the video as a plate;
-- a music bed (`trilha.music`) without the block is compared with the library by its SOURCE bytes: the arranged WAV in the composition
-  does not keep them. With an unreadable index, a source with the bytes of a library file, or a source inside the library folder,
-  is refused (nothing says which asset it is, so it cannot pass as a hand-made track).
+- a music bed (`trilha.music`) without the block is refused while `index.json` exists and does not read: nothing can say whether its
+  source is a library file, and the arranged WAV in the composition does not keep the bytes to check. A library with no `index.json`
+  has no provenance to check and is not blocked.
 - `validate` opens the library only if an asset file exists. The render also compares the COMPILED composition with the library
   (`check_workdir`, after the compile, over the sha256 of every file the render will read): a file with the bytes of a library asset
   must be the `destino` of an approved, declared asset, and every declared `destino` must hold exactly the approved bytes. That
@@ -73,11 +73,14 @@ def _trilha_erros(prov: dict) -> list[str]:
     if prov["tipo"] != "audio":
         return [f"trilha.music: o ativo é {ov.TIPO_PT.get(prov['tipo'], prov['tipo'])}, e a trilha de fundo precisa de um áudio da biblioteca"]
     licenca = ov._licenses()[prov["licenca"]]  # verify_asset already refused a license outside the table
+    rotulo = ov.license_label(prov["licenca"], prov["licenca_versao"])
+    aceitas = ", ".join(r["nome"] for r in ov._licenses().values() if r["permite_modificacao"] and r["uso_comercial"])
     if not licenca["permite_modificacao"]:
-        aceitas = ", ".join(r["nome"] for r in ov._licenses().values() if r["permite_modificacao"])
-        return [f"trilha.music: a licença {ov.license_label(prov['licenca'], prov['licenca_versao'])} não permite modificação, e o motor "
-                f"arranja e dá ducking na trilha; use um áudio com licença que permite modificar ({aceitas}; as que têm restrição pedem "
-                "o aceite no export)"]
+        return [f"trilha.music: a licença {rotulo} não permite modificação, e o motor arranja e dá ducking na trilha; use um áudio com licença "
+                f"que permite modificar e tem uso comercial ({aceitas}; as que têm restrição pedem o aceite no export)"]
+    if not licenca["uso_comercial"]:  # AGENTS.md: só com uso comercial claro; o aceite do export não libera uma trilha de vídeo de cliente
+        return [f"trilha.music: a licença {rotulo} não é de uso comercial, e a trilha vai a um vídeo comercial: o aceite do export não libera "
+                f"isso; use um áudio de uso comercial ({aceitas})"]
     return []
 
 
@@ -114,21 +117,12 @@ def _link_nota(c, a: dict) -> str:
             if (c.dir / a["arquivo"]).is_symlink() else "")
 
 
-def _trilha_sem_bloco(p: Path, falha: str) -> list[str]:
-    """A music bed without the block while the index is unreadable. Nothing says which asset it is, so the SOURCE is compared with the
-    library files (their names are the sha256s): the arranged WAV in the composition has other bytes, so the render would not see it.
-    A source inside the library folder cannot be checked at all, and is refused too."""
-    if ov.library_dir() in p.parents:
-        return [f"trilha.music: o arquivo está dentro da biblioteca do Openverse e o índice não pode ser lido ({falha}): não dá para conferir a "
-                f"procedência; use a cópia que o `library export` grava em assets/openverse/ (com o bloco {BLOCK_HINT}) ou repare o índice"]
-    try:
-        sha = ov.sha256_file(p)
-    except OSError as e:
-        return [f"trilha.music: não consegui ler o arquivo para conferir se ele veio da biblioteca ({e.strerror or e})"]
-    if sha in ov.library_hashes(None):
-        return [f"trilha.music: o arquivo tem os mesmos bytes de um ativo da biblioteca do Openverse e a trilha não declara o bloco openverse; "
-                f"o índice não pode ser lido ({falha}): repare o índice para saber o id e depois declare {TRILHA_HINT}"]
-    return []
+def _trilha_sem_bloco(falha: str) -> list[str]:
+    """A music bed without the block while the index of provenance EXISTS and does not read (`falha`): nothing says whether its file is a
+    library asset, and the arranged WAV in the composition would not show it, so it is refused. A library with no index.json has no
+    provenance to check and is not blocked (verify does not get here: there is no `falha`)."""
+    return [f"trilha.music: sem o bloco openverse, e o índice de procedência da biblioteca não lê ({falha}): não dá para conferir se o áudio "
+            f"veio da biblioteca; repare o índice de procedência da biblioteca, ou declare {TRILHA_HINT} com o ativo aprovado"]
 
 
 def verify(c) -> Verification:
@@ -163,7 +157,7 @@ def verify(c) -> Verification:
             if bloco is not None:
                 res["erros"].append(falha)
             elif a.get("trilha"):  # a music bed without the block cannot be checked against the library: it is refused, not warned
-                res["erros"] += _trilha_sem_bloco(p, falha)
+                res["erros"] += _trilha_sem_bloco(falha)
         else:
             r = ov.verify_asset(p, bloco, idx=idx)
             res.update(ok=r["ok"], erros=[_placa_msg(a, e) for e in r["erros"]] if placa else r["erros"], proveniencia=r["proveniencia"])
