@@ -1,8 +1,10 @@
 """`simplicio-video update` for the external tracks (issue #150): follow each track's upstream, or keep the registry pins (--pin).
 
-* git (openmontage, opencut, toonflow, moneyprinter, matchcut, voicestudio, video-use): `git ls-remote --symref <repo> HEAD` gives the
+* git (openmontage, opencut, toonflow, moneyprinter, matchcut, voicestudio): `git ls-remote --symref <repo> HEAD` gives the
   default branch (main or master) and its commit. The checkout is fetched and moved there, and only when the registry marker of the
   track is still in place; if it is not, the previous commit is put back.
+* video-use is pinned in every mode: its pin is VU_REF of the packaged setup.sh, the commit that `edit setup` checks out, so the
+  update never moves it to upstream and the lock records the pin (mode "pin").
 * npm (hypit, tinyfish): `npm view <package> version` gives the latest version, checked with `npx <package>@<version> --version`.
 * pip (yt-dlp): the PyPI JSON gives the latest version and the sha256 of its universal wheel; pip checks that hash (--require-hashes).
 
@@ -22,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from . import tools, tools_lock
+from . import hostos, tools, tools_lock
 
 MODES = ("follow", "pin")
 PYPI_JSON = "https://pypi.org/pypi/{name}/json"
@@ -133,7 +135,14 @@ def resolve_pip(t: tools.Tool, io: Io) -> dict:
     raise tools.ToolError(f"PyPI: não achei o wheel {wheel}")
 
 
+def pin_only(t: tools.Tool) -> bool:
+    """video-use never follows its upstream: the checkout must stay the commit `edit setup` makes (VU_REF of setup.sh)."""
+    return t.name == "video-use"
+
+
 def resolve(t: tools.Tool, io: Io) -> dict:
+    if pin_only(t):
+        return pin_target(t)
     if t.kind == "git":
         return resolve_git(t, io)
     if t.kind == "npm":
@@ -150,9 +159,11 @@ def pin_target(t: tools.Tool) -> dict:
 
 def checkout_for(t: tools.Tool) -> Path:
     """Where a git track lives. video-use's checkout is kept by data/tools/video-use/setup.sh (VIDEO_USE_DIR, else ~/.cache), not the
-    tools cache: the update moves that one, and the registry marker tells it apart."""
+    tools cache: the update moves that one, and the registry marker tells it apart. VIDEO_USE_DIR is taken as it is, as bash takes it
+    in setup.sh (no ~ expansion inside a variable's value); the default is ~/.cache/simplicio/video-use under hostos.home_dir (HOME
+    first), the same home the lock uses."""
     if t.name == "video-use":
-        return Path(os.environ.get("VIDEO_USE_DIR") or Path.home() / ".cache" / "simplicio" / "video-use").expanduser()
+        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_dir(os.environ) / ".cache" / "simplicio" / "video-use")
     return tools.checkout_dir(t)
 
 
@@ -211,6 +222,7 @@ def _in_place(t: tools.Tool, previous: Optional[dict], target: dict, mode: str) 
 def refresh(t: tools.Tool, mode: str, previous: Optional[dict], io: Io) -> tuple[dict, str, str]:
     """(lock entry, outcome, the ref before). Outcome: 'updated', 'same' or 'failed'. A failure keeps the checkout that is in place:
     the entry keeps its ref and records the error, so the lock says what is really there."""
+    mode = "pin" if pin_only(t) else mode  # video-use: the lock records the pin whatever the mode asked
     now = io.now()
     before = (previous or {}).get("ref") or ""
     try:
@@ -295,13 +307,14 @@ def report(mode: str, io: Io, *, dry: bool) -> list[str]:
             lines.append(f"  {t.name:<13} fixada por SIMPLICIO_{t.name.upper()}_REF={override}: o update não mexe")
             continue
         current, _ = tools.effective(t)
+        mode_t = "pin" if pin_only(t) else mode
         try:
-            target = pin_target(t) if mode == "pin" else resolve(t, io)
+            target = pin_target(t) if mode_t == "pin" else resolve(t, io)
         except FAILURES as exc:
             lines.append(f"  {t.name:<13} não consultado: {exc}")
             continue
         same = _same_ref(t, current, target["ref"])
-        if mode == "pin":
+        if mode_t == "pin":
             if same:
                 lines.append(f"  {t.name:<13} no pin: {current}")
             else:

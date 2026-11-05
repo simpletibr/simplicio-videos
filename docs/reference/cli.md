@@ -32,7 +32,7 @@ Fluxo completo:
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan ou --docker, status e mcp (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
-  matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; só baixa o commit fixado, o uso exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
+  matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; baixa o commit fixado e roda 7 scripts locais dele (setup, run), o uso do skill exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
   rea-video    rea-video (MIT): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake; instala o commit fixado num venv próprio e repassa os comandos dele (https://github.com/JuneYaooo/rea-video)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
@@ -72,7 +72,8 @@ comandos (na ordem do fluxo):
     opencut       editor OpenCut (open-source) para acabamento manual
     toonflow      Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
     moneyprinter  MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
-    matchcut      match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta
+    matchcut      match-cut (MIT): skill de agente para vídeo de produto; baixa, aponta e roda 7 scripts
+                  locais
     instagram     instagram-agent-skill (MIT): skills de agente e scripts locais para Reels e legenda; não
                   posta
     rea-video     rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake
@@ -388,11 +389,15 @@ um loop asyncio por tarefa), sem daemon e sem abrir porta. O estado fica em JSON
 ($SIMPLICIO_VIDEO_DATA, padrão ~/.simplicio-video), com escrita atômica.
 
 Lista fechada de tarefas:
-  swap-run    swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens
-              do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal
-  rea-video   rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina
-  voice       voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede
-              (gemini) pede --yes
+  swap-run      swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens
+                do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal
+  rea-video     rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina
+  voice         voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede
+                (gemini) pede --yes
+  moneyprinter  corrida grátis do MoneyPrinterTurbo (roteiro seu, material local, voz Edge ou muda, --out absoluto). Só pelo
+                MCP (video.moneyprinter generate|run); quem gasta roda no terminal com `moneyprinter run --yes`
+  montage-tool  montage run-tool em segundo plano (uma tool do OpenMontage). Pelo MCP (video.montage run-tool) só a tool
+                local, grátis e offline, com caminhos absolutos e saída nova; o resto roda no terminal com --yes
 
 Subcomandos:
   submit TIPO ...   cria a tarefa e devolve o id
@@ -402,7 +407,7 @@ Subcomandos:
   cancel ID         SIGINT no grupo da tarefa, SIGKILL depois da tolerância; o swap cancela limpo e grava o manifesto
   clean             remove tarefas terminadas há mais de 7 dias (--older-than-days); `submit` também limpa
 
-Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local e de rea-video (decompose sem --vlm, stems). swap-run nunca.
+Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local, de rea-video (decompose sem --vlm, stems) e de moneyprinter (corrida grátis) e de montage-tool (tool local, grátis e offline). swap-run nunca.
 A chave de API fica só no ambiente: argumentos com chave são recusados e nada vai para o estado nem para o log.
 
 positional arguments:
@@ -450,10 +455,10 @@ exemplos:
 ```text
 usage: simplicio-video matchcut [-h] ...
 
-Baixa o match-cut (https://github.com/Sac-Y/match-cut, MIT) no commit fixado em tools.py e mostra onde está o SKILL.md. É um skill de Claude Code ou Codex: o comando não roda o skill nem chama o Renoise. O uso do skill exige login no Renoise pela sua conta e gasta créditos pagos.
+Baixa o match-cut (https://github.com/Sac-Y/match-cut, MIT) no commit fixado em tools.py, mostra onde está o SKILL.md e roda, e só eles, sete scripts locais dele (music, mix, qc, render, assemble, align, undot) no venv criado por `setup`. Antes de rodar, confere o commit e o sha256 do script e do common.py; roda em modo isolado, sem shell, com stdin vazio e pasta privada. É um skill de Claude Code ou Codex: o comando não roda o skill nem chama o Renoise. O uso do skill exige login no Renoise pela sua conta e gasta créditos pagos.
 
 positional arguments:
-  args        clone [dir] | where | status
+  args        clone [dir] | where | status | setup | run SCRIPT [--forcar] [--bruto] [-- argumentos]
 
 options:
   -h, --help  show this help message and exit
@@ -462,6 +467,16 @@ exemplos:
   simplicio-video matchcut clone
   simplicio-video matchcut where
   simplicio-video matchcut status
+  simplicio-video matchcut setup
+  simplicio-video matchcut run music -- analyze faixa.wav --bpm 150 --json compassos.json
+  simplicio-video matchcut run music -- cut montage.json
+  simplicio-video matchcut run mix -- montage.json mix/
+  simplicio-video matchcut run qc -- sheet clipe.mp4 folha.jpg 0 48 3
+  simplicio-video matchcut run render -- montage.json render/ --draft s01 s02
+  simplicio-video matchcut run assemble -- montage.json render/ --draft
+  simplicio-video matchcut run align -- still.png alinhado.png 12 8 1.3
+  simplicio-video matchcut run undot -- tela.mp4 limpo.mp4 100,100,900,500
+todas as formas de cada script, com exemplos: simplicio-video matchcut help
 ```
 
 ## simplicio-video mcp

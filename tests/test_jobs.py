@@ -75,7 +75,15 @@ def stub_spawn(monkeypatch):
 # ---------------------------------------------------------------- lista fechada e quem pode gastar
 
 def test_tipos_fechados():
-    assert set(jobs.KINDS) == {"swap-run", "voice", "rea-video", "moneyprinter"}
+    assert set(jobs.KINDS) == {"swap-run", "voice", "rea-video", "moneyprinter", "montage-tool"}  # montage-tool: run-tool, gate estrito pelo MCP (T2c)
+
+
+def test_cada_tipo_aparece_na_ajuda_e_na_docstring_do_modulo():
+    # moneyprinter entrou no registro sem entrar na ajuda nem na docstring: este teste pega o próximo tipo que faltar
+    linhas = [linha.strip() for linha in jobs.HELP_DESC.splitlines()]
+    for kind in jobs.KINDS:
+        assert any(linha.startswith(f"{kind} ") for linha in linhas), f"{kind} falta em HELP_DESC"
+        assert f"`{kind}`" in jobs.__doc__, f"{kind} falta na docstring do módulo"
 
 
 def test_tipo_desconhecido_recusado(stub_spawn):

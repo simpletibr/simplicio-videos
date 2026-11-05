@@ -20,6 +20,14 @@ simplicio-video voice contract.yaml --provider voicestudio
 
 Calls `POST /v1/audio/speech` (OpenAI-compatible, `response_format=wav`). Takes are kept in `<file.dir>/voicestudio/line-NN.wav`.
 
+## Criar o job de dublagem no app
+
+```bash
+simplicio-video voicestudio dub create video.mp4 [--source-lang pt] [--audio] [--job-id ID] --json
+```
+
+Só o upload e o preparo (`POST /dub/upload`); o app não expõe um comando único de dublar. Transcrição, tradução e geração rodam no app. Voz de pessoa real só com consentimento registrado.
+
 ## Exportar uma dublagem pronta, com o fundo preservado
 
 ```bash
