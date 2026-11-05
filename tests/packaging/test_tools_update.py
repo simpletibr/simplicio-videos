@@ -12,14 +12,18 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
 from simplicio_video import hostos, paths, tools, tools_lock, tools_update
+
 from simplicio_video.cli import main
 from simplicio_video.commands import doctor as doctor_cmd
 from simplicio_video.commands import update as update_cmd
+
+REAL_GIT = tools._git  # the hermetic fixture swaps tools._git for a refusal in every test
 
 SHA_OLD = "a" * 40
 SHA_NEW = "b" * 40
@@ -557,3 +561,60 @@ def collect_tools(ambiente: Path) -> dict:
     (row,) = report["checks"]
     assert row["name"] == "tools"
     return row
+
+
+# --- a read that times out takes its whole process tree with it ---------------------------------------------------------------
+
+
+def _vivo(pid: int) -> bool:
+    """True while the process exists and is not a zombie (a container's init may never reap the orphans)."""
+    estado = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    return bool(estado) and not estado.startswith("Z")
+
+
+def _espera_morrer(pid: int, limite_s: float = 5.0) -> bool:
+    fim = time.monotonic() + limite_s
+    while time.monotonic() < fim:
+        if not _vivo(pid):
+            return True
+        time.sleep(0.05)
+    return not _vivo(pid)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="process groups (taskkill /T on Windows: UNVERIFIED)")
+def test_leitura_com_tempo_esgotado_nao_deixa_descendente_vivo(tmp_path, monkeypatch):
+    """`git ls-remote` runs `git-remote-https` as a child. subprocess.run(timeout=) kills only the parent: the child stays alive (a proxy
+    that accepts and never answers left 8 of them). The read runs in its own session and the whole group is killed."""
+    pidfile = tmp_path / "neto.pid"
+    script = tmp_path / "falso-git"
+    script.write_text(f"#!/bin/sh\nsleep 300 &\necho $! > '{pidfile}'\nwait\n", encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.setattr(tools_update, "READ_TIMEOUT_S", 1)
+    with pytest.raises(subprocess.TimeoutExpired):
+        tools_update._run_leitura([str(script), "ls-remote"])
+    neto = int(pidfile.read_text().strip())
+    try:
+        assert _espera_morrer(neto), f"o processo {neto} (filho do git) continua vivo depois do tempo esgotado"
+    finally:
+        if _vivo(neto):
+            os.kill(neto, 9)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="process groups")
+def test_git_com_limite_mata_o_grupo_e_vira_toolerror(tmp_path, monkeypatch):
+    """tools._git(timeout=) is what the doctor uses on a local checkout: a git that hangs is a ToolError, and leaves nothing running."""
+    pidfile = tmp_path / "neto.pid"
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    script = bin_ / "git"
+    script.write_text(f"#!/bin/sh\nsleep 300 &\necho $! > '{pidfile}'\nwait\n", encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_}{os.pathsep}{os.environ['PATH']}")
+    with pytest.raises(tools.ToolError, match="tempo"):
+        REAL_GIT("rev-parse", "HEAD", cwd=tmp_path, timeout=1)
+    neto = int(pidfile.read_text().strip())
+    try:
+        assert _espera_morrer(neto)
+    finally:
+        if _vivo(neto):
+            os.kill(neto, 9)

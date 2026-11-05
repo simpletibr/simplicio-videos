@@ -242,9 +242,18 @@ else
 fi
 
 echo "> checando o ambiente (simplicio-video doctor)"
-if ! "$SV" doctor; then
-  echo "dev_install.sh: o doctor apontou falhas acima. Corrija a correção indicada e rode $SV doctor."
-  exit 1
+rc_doctor=0
+saida_doctor="$("$SV" doctor 2>&1)" || rc_doctor=$?
+printf '%s\n' "$saida_doctor"
+if [ "$rc_doctor" -ne 0 ]; then
+  # uma trilha externa é opcional: quebrada, é aviso aqui (a linha trilhas diz a correção). Qualquer outra falha, ou uma saída
+  # sem a linha trilhas (não se sabe a causa), para a instalação
+  nucleo="$(grep -E '^  fail ' <<< "$saida_doctor" | grep -vE '^  fail +trilhas ' || true)"
+  if [ -n "$nucleo" ] || ! grep -qE '^  fail +trilhas ' <<< "$saida_doctor"; then
+    echo "dev_install.sh: o doctor apontou falhas acima. Corrija a correção indicada e rode $SV doctor."
+    exit 1
+  fi
+  echo "dev_install.sh: aviso: uma trilha externa opcional está quebrada (linha trilhas acima); a instalação segue. Rode $SV doctor trilhas para ver a correção."
 fi
 
 cat <<PROXIMOS

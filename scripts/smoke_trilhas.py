@@ -422,10 +422,13 @@ def _core_doctor() -> Resultado:
         return Resultado("core", "doctor --json", FAIL, f"rc {saida.rc}, sem JSON: {_resumo(saida.texto)}", "cli", cmd,
                          saida.segundos)
     checks = dados.get("checks") or []
-    falhas = [c.get("name", "?") for c in checks if c.get("status") == "fail"]
+    falhas = [c.get("name", "?") for c in checks if c.get("status") == "fail" and c.get("name") != "trilhas"]
+    trilha_quebrada = any(c.get("name") == "trilhas" and c.get("status") == "fail" for c in checks)
     avisos = sum(1 for c in checks if c.get("status") == "warn")
-    if saida.rc == 0 and not falhas:
-        return Resultado("core", "doctor --json", OK, f"{len(checks)} checagens, {avisos} aviso(s)", "cli", cmd, saida.segundos)
+    # uma trilha externa é opcional: quebrada, é uma nota (a linha trilhas diz a correção); só falha do núcleo reprova
+    if not falhas and (saida.rc == 0 or trilha_quebrada):
+        nota = "; trilha externa quebrada (simplicio-video doctor trilhas)" if trilha_quebrada else ""
+        return Resultado("core", "doctor --json", OK, f"{len(checks)} checagens, {avisos} aviso(s){nota}", "cli", cmd, saida.segundos)
     return Resultado("core", "doctor --json", FAIL, f"rc {saida.rc}; falhas: {', '.join(falhas) or '-'}", "cli", cmd,
                      saida.segundos)
 

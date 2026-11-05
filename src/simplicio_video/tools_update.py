@@ -18,7 +18,9 @@ import json
 import os
 import re
 import shutil
+import contextlib
 import subprocess
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -29,13 +31,35 @@ from . import hostos, tools, tools_lock
 MODES = ("follow", "pin")
 PYPI_JSON = "https://pypi.org/pypi/{name}/json"
 MAX_JSON = 5 * 1024 * 1024
+READ_TIMEOUT_S = 20  # one read of the network (ls-remote, npm view): past it, the track is reported, the doctor goes on
 _HEAD_REF = re.compile(r"ref: refs/heads/([A-Za-z0-9._/-]{1,100})\s+HEAD")
 _HEAD_SHA = re.compile(r"([0-9a-f]{40})\s+HEAD")
 _NPM_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]{1,40})?")
 _PIP_VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){1,3}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 # what a track failure can raise: the tools errors, the OS (a missing program, a dead network), and bad answers from the network
-FAILURES = (tools.ToolError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
+FAILURES = (tools.ToolError, hostos.SemCasa, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
+
+
+_PRAZO = threading.local()
+
+
+@contextlib.contextmanager
+def prazo_de_leitura(fim: float):
+    """Inside this block every read of the network of THIS thread ends by `fim` (a time.monotonic() instant) at the latest, whatever
+    READ_TIMEOUT_S says. The doctor gives its reads a deadline shorter than its budget, so that a read kills its own process group
+    before the budget is over (a thread still waiting at the end would be left behind by the exit)."""
+    antes = getattr(_PRAZO, "fim", None)
+    _PRAZO.fim = fim
+    try:
+        yield
+    finally:
+        _PRAZO.fim = antes
+
+
+def _limite_de_leitura() -> float:
+    fim = getattr(_PRAZO, "fim", None)
+    return READ_TIMEOUT_S if fim is None else max(0.1, min(READ_TIMEOUT_S, fim - time.monotonic()))
 
 
 def _offline() -> bool:
@@ -47,21 +71,35 @@ def _fetch_json(url: str) -> Any:
     if not url.startswith("https://"):
         raise ValueError(f"recusando uma url que não é https: {url}")
     request = urllib.request.Request(url, headers={"User-Agent": "simplicio-video-update", "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=60) as response:
+    with urllib.request.urlopen(request, timeout=_limite_de_leitura()) as response:
         raw = response.read(MAX_JSON + 1)
     if len(raw) > MAX_JSON:
         raise ValueError("a resposta do PyPI é grande demais")
     return json.loads(raw.decode("utf-8"))
 
 
+def _run_leitura(argv, cwd=None):
+    """One read of the network (git ls-remote, npm view): bounded in time, and never asking for a password on the terminal.
+    A read past READ_TIMEOUT_S raises subprocess.TimeoutExpired, which the callers count as a failure of that track."""
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        return hostos.run_limitado(argv, cwd=cwd, env=env, timeout=_limite_de_leitura())  # a timeout kills git AND its git-remote-https
+    except OSError as exc:
+        return subprocess.CompletedProcess(list(argv), 127, "", str(exc))
+
+
 class Io:
-    """The side effects of an update: the commands (`run`, a subprocess-like runner), the PyPI document (`fetch_json`), the clock,
-    the lookup of a program (`which`), and whether the network may be used at all. The tests pass fakes for all of them."""
+    """The side effects of an update: the commands (`run`, a subprocess-like runner; `read` for the reads of the upstream, bounded in
+    time), the PyPI document (`fetch_json`), the clock, the lookup of a program (`which`), and whether the network may be used at all.
+    The tests pass fakes for all of them. A fake `run` also serves the reads, unless `read` is given."""
 
     def __init__(self, *, network: bool = True, run: Optional[Callable] = None, fetch_json: Optional[Callable] = None,
-                 now: Optional[Callable[[], int]] = None, which: Optional[Callable] = None) -> None:
+                 now: Optional[Callable[[], int]] = None, which: Optional[Callable] = None,
+                 read: Optional[Callable] = None) -> None:
         self.network = network
         self.run = run or tools._run_subprocess
+        self.read = read or (run if run is not None else _run_leitura)
         self.fetch_json = fetch_json or _fetch_json
         self.now = now or (lambda: int(time.time()))
         self.which = which or shutil.which
@@ -89,7 +127,7 @@ def _must(done, what: str):
 def resolve_git(t: tools.Tool, io: Io) -> dict:
     """{ref: the commit of the default branch, branch: its name} from one read of the remote (no clone)."""
     _need_network(io, f"git ls-remote {t.source}")
-    done = _must(io.run(["git", "ls-remote", "--symref", t.source, "HEAD"], None), f"git ls-remote {t.source}")
+    done = _must(io.read(["git", "ls-remote", "--symref", t.source, "HEAD"], None), f"git ls-remote {t.source}")
     branch, sha = None, None
     for line in (done.stdout or "").splitlines():
         line = line.strip()
@@ -109,7 +147,7 @@ def resolve_npm(t: tools.Tool, io: Io) -> dict:
     npm = io.which("npm")
     if not npm:
         raise tools.ToolError("npm não encontrado no PATH (Node >= 18)")
-    done = _must(io.run([npm, "view", t.source, "version"], None), f"npm view {t.source}")
+    done = _must(io.read([npm, "view", t.source, "version"], None), f"npm view {t.source}")
     version = (done.stdout or "").strip()
     if not _NPM_VERSION.fullmatch(version):
         raise tools.ToolError(f"npm view {t.source} não devolveu uma versão: {version[:40]!r}")
@@ -160,10 +198,10 @@ def pin_target(t: tools.Tool) -> dict:
 def checkout_for(t: tools.Tool) -> Path:
     """Where a git track lives. video-use's checkout is kept by data/tools/video-use/setup.sh (VIDEO_USE_DIR, else ~/.cache), not the
     tools cache: the update moves that one, and the registry marker tells it apart. VIDEO_USE_DIR is taken as it is, as bash takes it
-    in setup.sh (no ~ expansion inside a variable's value); the default is ~/.cache/simplicio/video-use under hostos.home_dir (HOME
-    first), the same home the lock uses."""
+    in setup.sh (no ~ expansion inside a variable's value); the default is ~/.cache/simplicio/video-use under hostos.home_absoluta (HOME
+    first), the same home the lock uses; with no usable home it raises hostos.SemCasa (a relative `~` would make a folder in the cwd)."""
     if t.name == "video-use":
-        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_dir(os.environ) / ".cache" / "simplicio" / "video-use")
+        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_absoluta("VIDEO_USE_DIR") / ".cache" / "simplicio" / "video-use")
     return tools.checkout_dir(t)
 
 
@@ -284,7 +322,7 @@ def apply_all(doc: dict, mode: str, io: Io, lock_file: Optional[Path] = None) ->
             lines.append(f"  {t.name:<13} em dia: {entry['ref']}")
     try:
         tools_lock.write_lock({"schema": tools_lock.SCHEMA, "updated_at": now, "tools": tracks}, lock_file)
-    except (OSError, tools_lock.LockInvalid) as exc:
+    except (OSError, hostos.SemCasa, tools_lock.LockInvalid) as exc:
         lines.append(f"  o lock não foi gravado ({exc}); a saída acima é o que aconteceu")
     return lines, failed
 

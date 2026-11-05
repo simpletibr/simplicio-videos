@@ -4,7 +4,8 @@ JSON (stdout with --json):
   {"schema": "simplicio.doctor/v1", "status": "ok|warn|fail" (the worst), "version": str,
    "checks": [{"name": str, "status": "ok|warn|fail", "summary": str, "fix": str|null, "detail": {...}}, ...]}
 Sections, in order: update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY,
-setup. Exit 1 only when a check is `fail`. A missing workspace and a missing GEMINI_API_KEY are `warn`.
+setup, tools, trilhas (one row for the twelve external tracks: test_doctor_trilhas.py has their own contract). Exit 1 only when a
+check is `fail`. A missing workspace, a missing GEMINI_API_KEY and a track that is not installed are `warn`.
 No token is ever printed.
 
 Environment (fixture `saude`): HOME, PATH and the workspace are sealed under tmp_path (see _caixa.py); `node` and `ffmpeg`
@@ -32,7 +33,7 @@ simula_so = _caixa.simula_so
 
 GB = 1024**3
 SECOES = ["update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
-          "GEMINI_API_KEY", "setup", "tools"]  # `tools`: the lock of the external tracks (issue #150)
+          "GEMINI_API_KEY", "setup", "tools", "trilhas"]  # `tools`: the lock of the external tracks (issue #150); `trilhas`: their state
 
 
 def _tira(saude, nome):
@@ -85,10 +86,11 @@ def test_o_status_geral_e_o_pior_dos_checks(saude, capsys):
     assert rel["status"] == max((c["status"] for c in rel["checks"]), key=ordem.get)
 
 
-def test_ambiente_saudavel_fica_ok_sem_nenhum_aviso(saude, capsys):
+def test_ambiente_saudavel_so_avisa_sobre_as_trilhas_nao_instaladas(saude, capsys):
+    """No external track is installed in this machine: `trilhas` warns (with the command of each one) and nothing fails."""
     rc, rel, _, _ = _json(capsys)
-    assert rc == 0 and rel["status"] == "ok"
-    assert [c["name"] for c in rel["checks"] if c["status"] != "ok"] == []
+    assert rc == 0 and rel["status"] == "warn"
+    assert [c["name"] for c in rel["checks"] if c["status"] != "ok"] == ["trilhas"]
 
 
 # --- fail ------------------------------------------------------------------------------------------------------------
@@ -290,7 +292,7 @@ def test_texto_tem_o_layout_do_loop_com_resumo_em_portugues(saude, capsys):
     exige_registrado("doctor", capsys, main)
     rc, out, err = executa(["doctor"], capsys, main)
     linhas = out.splitlines()
-    assert linhas[0] == "simplicio-video doctor: ok"
+    assert linhas[0] == "simplicio-video doctor: warn"  # the trilhas are not installed in this machine
     assert any(l.startswith("  ok    python") for l in linhas), out
     assert any(l.startswith("  ok    update") for l in linhas), out
     saida_cp1252(out, err)
@@ -414,7 +416,7 @@ def test_cache_do_update_invalido_e_aviso_com_a_dica_e_nunca_excecao(saude, nome
 def test_o_doctor_inteiro_sobrevive_ao_cache_invalido_em_texto_e_em_json(saude, capsys, nome):
     _escreve_cache(saude, CACHES_INVALIDOS[nome])
     rc, rel, out, err = _json(capsys)
-    assert rc == 0 and len(rel["checks"]) == 12, "the twelve checks must not be lost to one corrupt cache"
+    assert rc == 0 and len(rel["checks"]) == 13, "the thirteen checks must not be lost to one corrupt cache"
     assert _linha(rel, "update")["status"] == "warn" and erros_de_schema("doctor", rel) == []
     rc, out, err = executa(["doctor"], capsys, main)
     assert rc == 0 and "Traceback" not in out + err and "\x1b" not in out + err and "warn  update" in out

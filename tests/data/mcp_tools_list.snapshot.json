@@ -179,7 +179,7 @@
    "name": "video.clone"
   },
   {
-   "description": "Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace (all, --online for network checks). Read-only. MCP subcommands: none (flags only, in argv or args).",
+   "description": "Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace and the external tracks (`trilhas`: installed, pin, setup, system dependencies and the exact fix of each gap; `all` adds it as one row). --online adds the network checks (also the upstream of each track). Read-only. MCP subcommands: none (flags only, in argv or args).",
    "inputSchema": {
     "properties": {
      "args": {
