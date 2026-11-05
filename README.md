@@ -29,7 +29,7 @@ Who it is for: people who make ads and short videos with voice, subtitles, and c
 | Reverse-engineer a reference video | `rea-video` | Ready on the pinned commit; installs on demand. A synthetic clip was tested end to end, real footage was not | Local by default. With `--vlm`, frames go to a vision model you configure |
 | MCP server | `simplicio-video-mcp` | 31 `video.*` tools | No `swap run` spending, no software removal |
 | Audio cleanup | not available yet | In a PR, not on main yet | not applicable |
-| Dubbing with preserved background | `voicestudio dub-export` | Exports a finished dubbing job from the VoiceStudio app, with music and effects, provided the job was made with background separation turned on in the app | The dub is made in the app; the CLI only exports the finished job |
+| Dubbing with preserved background | `voicestudio dub create` and `dub-export` | Uploads the video to the app and exports the finished job, with music and effects, provided background separation was on in the app | The dub itself runs in the app |
 
 ## Installation
 
@@ -117,7 +117,7 @@ Not on main yet. This section gets the commands when the audio cleanup PR is mer
 - **Excluded on purpose, for safety:**
   - `swap run`: spends credits;
   - `install --uninstall` and `--prune-project-copies`: remove software;
-  - `montage` with subcommands other than `clone`, `doctor`, `hyperframes-doctor`, `preflight`;
+  - `montage` with subcommands other than `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `status`, the registry reads, and `run-tool` (only the four reviewed tools, as a job);
   - `auth` with an action other than `status`.
   - Source: `src/simplicio_video/mcp_server.py`.
 - **Clients:** the Claude Code and Codex configuration was not verified. `claude` is installed on this Mac, but I did not run `claude mcp add` so as not to change its configuration. Codex is not installed.
@@ -148,18 +148,18 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
 ## Incorporated projects (external tracks)
 
-The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), or a PyPI version with a sha256 (yt-dlp); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`.
+The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), or a PyPI version with a sha256 (yt-dlp); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all twelve tracks.
 
 | Project | License | Command | MCP |
 |---|---|---|---|
-| [OpenMontage](https://github.com/calesthio/OpenMontage) | AGPL-3.0 | `montage` | `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `status`, and the reads `pipelines`, `tools`, `envelope`, `estimate` |
+| [OpenMontage](https://github.com/calesthio/OpenMontage) | AGPL-3.0 | `montage` | `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `status`, the registry reads, and `run-tool` for four reviewed tools, as a job |
 | [OpenCut](https://github.com/OpenCut-app/opencut-classic) (opencut-classic) | MIT | `opencut` | `clone`, `status`, `where`, `help` |
 | [Hypit AI](https://github.com/hypit-ai/hypit) | Hypit license (modified Apache-2.0) | `clone` | closed list of commands and of `media` |
 | [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | `toonflow` | `status`, `mcp`, `where`, `clone` |
 | [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | MIT | `moneyprinter` | `where`, `clone`, `status`, and `generate` and `run` as a job |
-| [match-cut](https://github.com/Sac-Y/match-cut) | MIT | `matchcut` | `where`, `clone`, `status` |
-| [instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) | MIT | `instagram` | `skills`, `where`, `status`, `run` |
-| [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (local HTTP only) | `voicestudio` | all subcommands |
+| [match-cut](https://github.com/Sac-Y/match-cut) | MIT | `matchcut` | `where`, `status`, `run` (seven scripts, absolute paths) |
+| [instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) | MIT | `instagram` | `skills`, `skill NAME`, `where`, `status`, `run` |
+| [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (local HTTP only) | `voicestudio` | all subcommands; absolute new outputs |
 | [video-use](https://github.com/browser-use/video-use) | MIT | `edit` | all except `transcribe-batch`; absolute outputs |
 | [rea-video](https://github.com/JuneYaooo/rea-video) | MIT (declared in `pyproject.toml`) | `rea-video` | `where`, `status`, `clone`, `summary`, `probe`, `tiles`, `review`, `apply-review`, `remake-plan`; `decompose` and `stems` as a job |
 | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense | `media fetch` | `fetch` only with `--autorizo`; `--info` open |
@@ -169,11 +169,12 @@ The engine does not import any of these projects. Each one runs as a separate pr
 
 [calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) · AGPL-3.0
 
-Agentic video production: pipelines and tools from OpenMontage (the Backlot interface), running as a separate program. `montage setup` creates the venv with the dependencies (needs network). `pipelines`, `tools`, `envelope`, and `estimate` read the pipeline and tool registry; `estimate` shows cost and time without running the tool.
+Agentic video production: pipelines and tools from OpenMontage (the Backlot interface), running as a separate program. `montage setup` creates the venv with the dependencies (needs network). `pipelines`, `tools`, `envelope`, and `estimate` read the registry; `estimate` shows cost and time without running the tool. `run-tool` runs one registry tool through the engine.
 
-- **Command:** `montage setup [--remotion] [--piper]`, `montage status --json`, `montage pipelines list|show NAME`, `montage tools list [--runtime R]|info NAME`, `montage envelope [--full]`, `montage estimate NAME --input '{}'`, `montage clone [folder]`, `montage open` (default), `montage serve --port 8000`, `montage doctor`, `montage demo`.
-- **MCP:** `clone` (default folder), `doctor`, `hyperframes-doctor`, `preflight`, `status`, and the reads `pipelines`, `tools`, `envelope`, and `estimate`. Over MCP, `estimate` takes `input` as an object, `status` skips the live probes, and `envelope` comes summarized unless `--full` is passed.
-- **Terminal only:** `setup` (installs packages with pip and npm), `open`, `serve`, and `demo` (they start an interface that never ends, or render with the pipelines), `clone` with a folder (the agent does not choose where the checkout is written), and any other argument, which runs Python code chosen by the caller.
+- **Command:** `montage setup [--remotion] [--piper]`, `montage status --json`, `montage pipelines list|show NAME`, `montage tools list [--runtime R]|info NAME`, `montage envelope [--full]`, `montage estimate NAME --input '{}'`, `montage run-tool NAME --input JSON [--yes] [--timeout SEC]`, `montage clone [folder]`, `montage open` (default), `montage serve --port 8000`, `montage doctor`, `montage demo`.
+- **`run-tool` in the terminal:** runs any tool. Anything that is not local, costs money, has an unknown cost, or needs the network requires `--yes`, after the estimate. The publishing tool never runs.
+- **MCP:** `clone` (default folder), `doctor`, `hyperframes-doctor`, `preflight`, `status`, and the reads `pipelines`, `tools`, `envelope`, and `estimate` (`estimate` takes `input` as an object; `status` skips the live probes; `envelope` comes summarized without `--full`). `run-tool NAME` with `input` becomes a background job (follow it with `video.jobs`), only for the four tools reviewed in the code, which are local, free, and offline: `video_trimmer` (only `cut` and `speed`), `audio_probe`, `frame_sampler`, and `scene_detect`. Anything else is refused.
+- **Terminal only:** `setup` (installs packages with pip and npm), `open`, `serve`, and `demo` (they start an interface that never ends, or render with the pipelines), `clone` with a folder (the agent does not choose where the checkout is written), `run-tool` for a tool outside that list or one that asks for `--yes`, and any other argument, which runs Python code chosen by the caller.
 - **Example:** `simplicio-video montage pipelines list --json`
 
 ### OpenCut (`opencut`)
@@ -228,12 +229,12 @@ Generates a short video from a topic: an LLM script, a synthesized voice, and cl
 
 [Sac-Y/match-cut](https://github.com/Sac-Y/match-cut) · MIT
 
-An agent skill (Claude Code or Codex) for product films in the match-cut relay style. The engine downloads the pinned commit and shows where the `SKILL.md` is. It does not run the skill and does not call Renoise. Using the skill requires signing in to Renoise with your own account and spends paid credits.
+An agent skill (Claude Code or Codex) for product films in the match-cut relay style. The engine downloads the pinned commit, shows where the `SKILL.md` is, and runs only seven local scripts of the skill (music, mix, qc, render, assemble, align, undot) in its own venv. Before it runs one, it checks the sha256 of the script and of `common.py`, and it validates the `montage.json` the scripts read. The engine does not call Renoise; using the skill requires signing in to Renoise with your own account and spends paid credits.
 
-- **Command:** `matchcut clone [folder]`, `where`, `status`.
-- **MCP:** `where`, `status`, and `clone` (default folder).
-- **Terminal only:** `clone` with a folder.
-- **Example:** `simplicio-video matchcut where`
+- **Command:** `matchcut clone [folder]`, `where`, `status`, `setup` (creates the venv; checks the sha256 of `requirements.txt` and installs the dependencies from pip without hashes, because the upstream has no lock; needs network), and `run SCRIPT [--forcar] [--bruto] [-- script arguments]`. `--forcar`, which overwrites an output that already exists, is terminal only.
+- **MCP:** `where`, `status`, and `run SCRIPT ...`, with the arguments as a list. Every path must be absolute; an existing output is never overwritten; nothing is written inside the checkout or in a system folder.
+- **Terminal only:** `clone`, `setup`, and `--forcar`.
+- **Example:** `simplicio-video matchcut run music -- analyze faixa.wav --bpm 150 --json compassos.json`
 
 ### instagram-agent-skill (`instagram`)
 
@@ -241,8 +242,8 @@ An agent skill (Claude Code or Codex) for product films in the match-cut relay s
 
 Thirteen agent skills for Instagram (Reels, captions, and others) and six local scripts that use only the standard library: `hookscore`, `beats`, `caption`, `humanize`, `detect`, and `swipe`. The engine runs only these scripts, after checking the sha256 of each one. The skills are prompts, not code, and none of this posts. The heuristics are in English: in Portuguese they score badly or are ignored.
 
-- **Command:** `instagram clone`, `skills`, `where [--skills]`, `status`, `run <tool> -- <arguments>`.
-- **MCP:** `skills`, `where`, `status`, and `run` for `hookscore`, `beats`, `caption`, `detect`, and `humanize`, with the text in the `texto` parameter. The output comes back marked as third-party text.
+- **Command:** `instagram clone`, `skills`, `skill NAME` (the body of the `SKILL.md` of a listed skill), `where [--skills]`, `status`, `run <tool> -- <arguments>`.
+- **MCP (read-only):** `skills`, `skill NAME` (the `SKILL.md` text comes back in `untrusted_conteudo`, as third-party text, cut at 64 KiB with `truncado`; the name must be one `skills` lists, never a path), `where`, `status`, and `run` for `hookscore`, `beats`, `caption`, `detect`, and `humanize`, with the text in the `texto` parameter. The output comes back marked as third-party text.
 - **Terminal only:** `clone` (downloads third-party code from the network), `swipe`, and writing to a file (`--out`).
 - **Example:** `simplicio-video instagram run caption -- legenda.txt`
 
@@ -250,12 +251,14 @@ Thirteen agent skills for Instagram (Reels, captions, and others) and six local 
 
 [debpalash/VoiceStudio](https://github.com/debpalash/VoiceStudio) · AGPL-3.0; the engine talks to the app only over local HTTP and never vendors it.
 
-A local voice app: TTS, transcription, voice cloning and design, and dubbing export. You install and open the app; the engine only talks to it over local HTTP, at `http://127.0.0.1:3900` by default; the `VOICESTUDIO_URL` and `OMNIVOICE_URL` variables point to another base.
+A local voice app: TTS, transcription, voice cloning and design, and dubbing. You install and open the app. The engine talks to it over local HTTP, at `http://127.0.0.1:3900` by default; the `VOICESTUDIO_URL` and `OMNIVOICE_URL` variables point to another base. Sending a file (`dub create`, `transcribe`, `clone`) goes only to an app on loopback (127.0.0.0/8, ::1, or localhost).
 
-- **Command:** `voicestudio status`, `voices`, `languages`, `personalities`, `tts`, `transcribe`, `clone`, `describe`, `design`, `dub-export`, and `mcp`.
-- **Consent:** cloning a real person's voice requires that person's recorded consent, as `AGENTS.md` requires. The command does not check this.
-- **`dub-export`:** exports a dubbing job that already exists in the app, with music and effects, provided the job was made with background separation turned on in the app (without it, the app answers 409 and the command refuses). It does not create the dub.
-- **MCP:** `video.voicestudio` passes the subcommands through. For now the outputs (`-o`, `--out`) are not required to be absolute paths; this changes when PR #167 reaches main.
+- **Command:** `voicestudio status`, `voices`, `languages`, `personalities`, `tts`, `transcribe`, `clone`, `describe`, `design`, `dub create VIDEO`, `dub-export --job ID --lang LANG -o OUTPUT.mp4`, and `mcp`.
+- **`dub create`:** uploads the video (or audio, with `--audio`) to the app and creates the dubbing job. It does not transcribe, translate, or generate the voice; that runs in the app.
+- **`dub-export`:** exports a dubbing job that already exists in the app, with music and effects, provided the job was made with background separation turned on in the app (without it, the app answers 409 and the command refuses). It does not generate the voice.
+- **Result:** the command returns the result as JSON (`result`), the exit code (`rc`), and, if it fails, `error`.
+- **Consent:** cloning or dubbing a real person's voice requires that person's recorded consent, as `AGENTS.md` requires. The command does not check this.
+- **MCP:** `video.voicestudio`, with the same subcommands. The outputs of `tts` and `dub-export` (`--out`/`-o`) are required, absolute, new files in an existing folder, outside system and hidden folders. The input files of `dub create`, `transcribe`, and `clone` are absolute media paths.
 - **Terminal only:** nothing, on main.
 - **Example:** `simplicio-video voicestudio status`
 
@@ -344,7 +347,7 @@ It uses your own API keys for LLM, TTS and stock services, typed in its WebUI or
 **Known gaps:**
 - Audio cleanup: in a PR, not on main yet.
 - Voice and background separation: no command.
-- Dubbing with preserved background: the dub is made in the VoiceStudio app today; `voicestudio dub-export` exports the finished job.
+- Dubbing with preserved background: the dub itself runs in the VoiceStudio app; `voicestudio dub create` uploads the video and `dub-export` exports the finished job.
 
 ### rea-video (`rea-video`)
 
