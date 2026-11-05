@@ -45,7 +45,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import tools
+from . import childio, tools
 
 try:
     import resource  # POSIX only: the CPU limit of the child
@@ -552,41 +552,32 @@ def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, b
     """Run by argument list: no shell, closed environment, stdin from a file (or nothing), output to temporary files so the
     size can be watched while it runs. Past TIMEOUT_S or the output cap the whole process group is killed and the call fails."""
     extra = {"preexec_fn": _limites_do_filho(max(1, int(TIMEOUT_S) + CPU_FOLGA_S))} if resource is not None and os.name == "posix" else {}
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as inp:
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as inp, contextlib.ExitStack() as guard:
         if entrada is not None:
             inp.write(entrada)
             inp.seek(0)
-        proc = None
-        chegaram: list[int] = []  # SIGTERM/SIGHUP that arrive while Popen is starting the child: acted on once it has returned
         try:
-            anteriores = _troca_sinais_de_parada(lambda signum, frame: chegaram.append(signum))
+            # a stop signal that lands while Popen starts the child is held until the child exists, then it is killed with the
+            # engine's exit; one that lands later (or Ctrl+C) kills the group on the way out of the block (childio.guarded_child)
+            proc = guard.enter_context(childio.guarded_child(
+                argv, stdin=inp if entrada is not None else subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd,
+                env=_ambiente(), start_new_session=True, **extra))
+        except (OSError, subprocess.SubprocessError) as e:
+            raise InstagramError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
+        limite_tempo = time.monotonic() + TIMEOUT_S
+        motivo = None
+        while True:
             try:
-                proc = subprocess.Popen(argv, stdin=inp if entrada is not None else subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd,
-                                        env=_ambiente(), start_new_session=True, **extra)
-            except (OSError, subprocess.SubprocessError) as e:
-                raise InstagramError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
-            finally:
-                _devolve_sinais(anteriores)
-            if chegaram:  # it came in the gap between fork and return: the child exists now, so it is ended like any other
-                raise SystemExit(128 + chegaram[0])
-            limite_tempo = time.monotonic() + TIMEOUT_S
-            motivo = None
-            while True:
-                try:
-                    proc.wait(timeout=POLL_S)
-                    break
-                except subprocess.TimeoutExpired:
-                    pass
-                if os.fstat(out.fileno()).st_size > MAX_OUTPUT_BYTES or os.fstat(err.fileno()).st_size > MAX_STDERR_BYTES:
-                    motivo = "tamanho"
-                    break
-                if time.monotonic() >= limite_tempo:
-                    motivo = "tempo"
-                    break
-        except BaseException:  # Ctrl+C, SIGTERM, SIGHUP: the child lives in its own session and would keep running after the engine is gone
-            if proc is not None:  # None only when no child exists yet; a signal in the spawn gap is raised here, with proc set
-                _matar(proc)
-            raise
+                proc.wait(timeout=POLL_S)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if os.fstat(out.fileno()).st_size > MAX_OUTPUT_BYTES or os.fstat(err.fileno()).st_size > MAX_STDERR_BYTES:
+                motivo = "tamanho"
+                break
+            if time.monotonic() >= limite_tempo:
+                motivo = "tempo"
+                break
         if motivo:
             _matar(proc)
         if motivo == "tempo":

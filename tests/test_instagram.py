@@ -1137,7 +1137,9 @@ def test_the_module_imports_nothing_that_talks_to_the_network_or_posts():
     tops = {n.split(".")[0] for n in names if not n.startswith(".")}
     assert not tops & NETWORK, tops & NETWORK
     relatives = {n.lstrip(".") for n in names if n.startswith(".")}
-    assert relatives <= {"tools"}, relatives  # no busca, social, realoficial, publish, remote, swap, openverse, toonflow
+    assert relatives <= {"tools", "childio"}, relatives  # no busca, social, realoficial, publish, remote, swap, openverse, toonflow
+    # childio (the child that dies with the engine) is the one shared helper allowed: it must itself reach nothing on the network
+    assert not {n.split(".")[0] for n in imported(ROOT / "src" / "simplicio_video" / "childio.py") if not n.startswith(".")} & NETWORK
     source = MODULE.read_text(encoding="utf8")
     tree = ast.parse(source)
     calls = {ast.unparse(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
