@@ -29,7 +29,7 @@ Para quem é: quem produz anúncios e vídeos curtos com voz, legenda e cortes, 
 | Engenharia reversa de vídeo de referência | `rea-video` | Pronto no commit fixado; instala sob demanda. Clipe sintético testado de ponta a ponta; vídeo real, não | Local por padrão. Com `--vlm`, os quadros vão a um modelo de visão que você configura |
 | Servidor MCP | `simplicio-video-mcp` | 31 tools `video.*` | Sem gasto em `swap run` nem remoção de software |
 | Limpeza de áudio | não há ainda | Em PR, não está no main | não se aplica |
-| Dublagem com fundo preservado | `voicestudio dub-export` | Exporta um job de dublagem pronto do app VoiceStudio, com música e efeitos | A dublagem é feita no app; o CLI só exporta o job pronto |
+| Dublagem com fundo preservado | `voicestudio dub-export` | Exporta um job de dublagem pronto do app VoiceStudio, com música e efeitos, desde que o job tenha sido feito com a separação de fundo ligada no app | A dublagem é feita no app; o CLI só exporta o job pronto |
 
 ## Instalação
 
@@ -172,7 +172,7 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 - **Ficam de fora por segurança:**
   - `swap run`: gasta créditos;
   - `install --uninstall` e `--prune-project-copies`: removem software;
-  - `montage` com subcomandos além de `clone`, `doctor`, `hyperframes-doctor`, `preflight` e `help`;
+  - `montage` com subcomandos além de `clone`, `doctor`, `hyperframes-doctor` e `preflight`;
   - `auth` com ação diferente de `status`.
   - Fonte: `src/simplicio_video/mcp_server.py`.
 - **Clientes:** a configuração para Claude Code e Codex não foi verificada. O `claude` está instalado neste Mac, mas não rodei `claude mcp add` para não alterar a configuração dele. O Codex não está instalado.
@@ -193,11 +193,11 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 
 ## Projetos incorporados (trilhas externas)
 
-O motor não importa nenhum destes projetos. Cada um roda como programa separado, instalado sob demanda numa versão fixada: um commit, ou uma versão do npm ou do PyPI com sha256 (as versões estão na tabela de licenças mais abaixo). Duas exceções: o TinyFish CLI você instala, e o app do VoiceStudio você abre. O CLI `simplicio-video` chama cada um; vários comandos aceitam `--json`; e o servidor MCP expõe cada um até o ponto dito no item. Nenhum comando do motor posta ou publica. Para ver o estado no seu computador, rode `simplicio-video tools` (instalada ou não, versão fixada, licença) ou `simplicio-video status --json`.
+O motor não importa nenhum destes projetos. Cada um roda como programa separado, instalado sob demanda numa versão fixada: um commit (git), uma versão do npm (Hypit, TinyFish) ou uma versão do PyPI com sha256 (yt-dlp); as versões estão na tabela de licenças mais abaixo. Duas exceções: o TinyFish CLI você instala, e o app do VoiceStudio você abre. O CLI `simplicio-video` chama cada um; vários comandos aceitam `--json`; e o servidor MCP expõe cada um até o ponto dito no item. Nenhum comando do motor posta ou publica. Para ver o estado no seu computador, rode `simplicio-video tools` (instalada ou não, versão fixada, licença) ou `simplicio-video status --json`.
 
 | Projeto | Licença | Comando | MCP |
 |---|---|---|---|
-| [OpenMontage](https://github.com/calesthio/OpenMontage) | AGPL-3.0 | `montage` | `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `status`, `help`, e a leitura `pipelines`, `tools`, `envelope`, `estimate` |
+| [OpenMontage](https://github.com/calesthio/OpenMontage) | AGPL-3.0 | `montage` | `clone`, `doctor`, `hyperframes-doctor`, `preflight`, `status`, e a leitura `pipelines`, `tools`, `envelope`, `estimate` |
 | [OpenCut](https://github.com/OpenCut-app/opencut-classic) (opencut-classic) | MIT | `opencut` | `clone`, `status`, `where`, `help` |
 | [Hypit AI](https://github.com/hypit-ai/hypit) | Licença Hypit (Apache-2.0 modificada) | `clone` | lista fechada de comandos e de `media` |
 | [Toonflow](https://github.com/HBAI-Ltd/Toonflow-app) | MIT | `toonflow` | `status`, `mcp`, `where`, `clone` |
@@ -217,7 +217,7 @@ O motor não importa nenhum destes projetos. Cada um roda como programa separado
 Produção de vídeo com agentes: pipelines e ferramentas do OpenMontage (interface Backlot), rodando como programa separado. `montage setup` cria o venv com as dependências (precisa de rede). `pipelines`, `tools`, `envelope` e `estimate` leem o registro de pipelines e de ferramentas; `estimate` mostra custo e tempo sem executar a ferramenta.
 
 - **Comando:** `montage setup [--remotion] [--piper]`, `montage status --json`, `montage pipelines list|show NOME`, `montage tools list [--runtime R]|info NOME`, `montage envelope [--full]`, `montage estimate NOME --input '{}'`, `montage clone [pasta]`, `montage open` (padrão), `montage serve --port 8000`, `montage doctor`, `montage demo`.
-- **MCP:** `clone` (pasta padrão), `doctor`, `hyperframes-doctor`, `preflight`, `status`, `help` e a leitura `pipelines`, `tools`, `envelope` e `estimate`. Pelo MCP, `estimate` recebe `input` como objeto, `status` não faz as sondagens ao vivo e `envelope` sai resumido, a menos que venha `--full`.
+- **MCP:** `clone` (pasta padrão), `doctor`, `hyperframes-doctor`, `preflight`, `status` e a leitura `pipelines`, `tools`, `envelope` e `estimate`. Pelo MCP, `estimate` recebe `input` como objeto, `status` não faz as sondagens ao vivo e `envelope` sai resumido, a menos que venha `--full`.
 - **Só no terminal:** `setup` (instala pacotes com pip e npm), `open`, `serve` e `demo` (sobem uma interface que não termina, ou renderizam com os pipelines), `clone` com pasta (o agente não escolhe onde o checkout é gravado) e qualquer outro argumento, que roda código Python de quem chama.
 - **Exemplo:** `simplicio-video montage pipelines list --json`
 
@@ -237,11 +237,11 @@ Editor de vídeo no navegador para o acabamento manual de um MP4 que o CLI já g
 
 [hypit-ai/hypit](https://github.com/hypit-ai/hypit) · pacote npm `@hypit/hypit` · Licença Hypit (Apache-2.0 modificada): proíbe redistribuição comercial e serviço multi-inquilino sem permissão por escrito. O motor não o empacota.
 
-Clonagem de vídeo com agentes. `simplicio-video clone` repassa os argumentos ao Hypit pelo `npx`, na versão fixada. Precisa de Node.
+Clonagem de vídeo com agentes. `simplicio-video clone` repassa os argumentos ao Hypit: usa primeiro um `hypit` no PATH; sem ele, roda `npx --yes @hypit/hypit@0.2.17`. Precisa de Node.
 
 - **Comando:** `simplicio-video clone <comando> [argumentos]`, por exemplo `clone status`.
 - **MCP:** `video.clone` só aceita uma lista fechada: `help`, `version`, `doctor`, `check`, `plan`, `pricing`, `status`, `builds`, `history`, `activity`, `inspect`, `logs`, `paths` e `vocabulary`; `get <build> --output <nome> --to <caminho absoluto>`; e `media probe|frames|tile|tiles|boundaries|cut`, com caminhos absolutos, sem `..` e sem `--watch`. O resto é recusado.
-- **Só no terminal:** `build` (pode gastar em provedores), `studio` (não termina), `auth`, `runtime up|down`, `packages`, `capture`, `transcribe` e `measure` (usam provedores), `media fetch` (use `simplicio-video media fetch --autorizo`) e `--watch`.
+- **Só no terminal:** `build` (pode gastar em provedores), `studio` (não termina), `auth` (lê um segredo da entrada padrão), `runtime up|down|init|use|unset` (mexe em processos do runtime), `packages` (instala código de terceiros), `capture` (baixa um navegador e abre páginas), `transcribe` e `measure` (usam provedores), `cancel`, `programs`, `result edit` e `snapshot`, `media fetch` (use `simplicio-video media fetch --autorizo`) e `--watch`.
 - **Exemplo:** `simplicio-video clone status`
 
 ### Toonflow (`toonflow`)
@@ -284,7 +284,7 @@ Skill de agente (Claude Code ou Codex) para filmes de produto no estilo match-cu
 
 [Jakeschincariol/instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) · MIT (Jake Schincariol)
 
-Treze skills de agente para Instagram (Reels, legendas e outras) e seis scripts locais da biblioteca padrão: `hookscore`, `beats`, `caption`, `humanize`, `detect` e `swipe`. O motor roda só esses scripts, depois de conferir o sha256 de cada um. As skills são prompts, não código, e nada disso posta. As heurísticas são em inglês: em português, as notas são só um indício grosseiro.
+Treze skills de agente para Instagram (Reels, legendas e outras) e seis scripts locais da biblioteca padrão: `hookscore`, `beats`, `caption`, `humanize`, `detect` e `swipe`. O motor roda só esses scripts, depois de conferir o sha256 de cada um. As skills são prompts, não código, e nada disso posta. As heurísticas são em inglês: em português elas pontuam mal ou ignoram.
 
 - **Comando:** `instagram clone`, `skills`, `where [--skills]`, `status`, `run <ferramenta> -- <argumentos>`.
 - **MCP:** `skills`, `where`, `status` e `run` de `hookscore`, `beats`, `caption`, `detect` e `humanize`, com o texto no parâmetro `texto`. A saída volta marcada como texto de terceiros.
@@ -295,12 +295,12 @@ Treze skills de agente para Instagram (Reels, legendas e outras) e seis scripts 
 
 [debpalash/VoiceStudio](https://github.com/debpalash/VoiceStudio) · AGPL-3.0; o motor só fala com o app por HTTP local e nunca o vendoriza.
 
-App local de voz: TTS, transcrição, clonagem e desenho de vozes, e exportação de dublagem. Quem instala e abre o app é você; o motor só fala com ele em `http://127.0.0.1:3900`.
+App local de voz: TTS, transcrição, clonagem e desenho de vozes, e exportação de dublagem. Quem instala e abre o app é você; o motor só fala com ele por HTTP local, por padrão em `http://127.0.0.1:3900`; as variáveis `VOICESTUDIO_URL` e `OMNIVOICE_URL` apontam outra base.
 
 - **Comando:** `voicestudio status`, `voices`, `languages`, `personalities`, `tts`, `transcribe`, `clone`, `describe`, `design`, `dub-export` e `mcp`.
 - **Consentimento:** clonar a voz de uma pessoa real só com o consentimento dela registrado, como manda o `AGENTS.md`. O comando não confere isso.
-- **`dub-export`:** exporta um job de dublagem que já existe no app, com música e efeitos. Não cria a dublagem.
-- **MCP:** `video.voicestudio`, com os mesmos subcomandos.
+- **`dub-export`:** exporta um job de dublagem que já existe no app, com música e efeitos, desde que o job tenha sido feito com a separação de fundo ligada no app (sem ela, o app responde 409 e o comando recusa). Não cria a dublagem.
+- **MCP:** `video.voicestudio` repassa os subcomandos. Por enquanto as saídas (`-o`, `--out`) não são obrigadas a ser caminho absoluto; isso muda quando a PR #167 entrar no main.
 - **Só no terminal:** nada, no main.
 - **Exemplo:** `simplicio-video voicestudio status`
 
@@ -324,7 +324,7 @@ Analisa um vídeo de referência plano a plano (filmagem real, IA, 3D ou render 
 - **Comando:** `rea-video clone`, `setup`, `where`, `status` e o repasse de qualquer comando do upstream (`decompose`, `summary`, `review`, `apply-review`, `remake-plan` e outros).
 - **Rede:** sem `--vlm`, só o download de modelos. Com `--vlm`, os quadros vão ao provedor de modelo de visão que você configura, um terceiro.
 - **MCP:** `where`, `status`, `clone` (pasta padrão), `summary`, `probe`, `tiles` (com `-o` novo), `review`, `apply-review` e `remake-plan`, com lista fechada de flags e caminhos absolutos. `decompose` e `stems` viram tarefa em segundo plano (acompanhe com `video.jobs`); o `decompose` sempre roda sem o modelo de visão. Em `review` e `apply-review`, quem olha os quadros é o agente que chama, então nenhum quadro vai a terceiros.
-- **Só no terminal:** `setup` (instala dependências), `remake-run` (gasta), `capsule-draft` (roda código de uma pasta), `prefs`, `correct`, `memory`, `--vlm`, `--env-file` e `clone` com pasta.
+- **Só no terminal:** `setup` (instala dependências), `remake-run` (gasta), `capsule-draft` (roda código de uma pasta), `prefs`, `correct`, `memory`, `eval`, `capsule`, `assemble`, `--vlm`, `--env-file` e `clone` com pasta.
 - **Exemplo:** `simplicio-video rea-video decompose ref.mp4 -o out/ref --no-stems`
 
 ### yt-dlp (`media fetch`)
