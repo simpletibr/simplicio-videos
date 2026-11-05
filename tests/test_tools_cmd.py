@@ -111,7 +111,7 @@ def test_help_is_complete(capsys):
 
 def test_video_use_is_the_edit_command():
     assert tools.command(tools.TOOLS["video-use"]) == "simplicio-video edit"
-    assert tools.TOOLS["video-use"].ref == "b877063"
+    assert tools.TOOLS["video-use"].ref.startswith("b877063")  # the full VU_REF of the packaged setup.sh
 
 
 def test_video_use_checkout_where_setup_puts_it_is_installed_and_reads_its_commit(_isolated, monkeypatch, capsys):

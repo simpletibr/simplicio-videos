@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
+import re
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from simplicio_video import tools, tools_lock, tools_update
+from simplicio_video import hostos, paths, tools, tools_lock, tools_update
 from simplicio_video.cli import main
 from simplicio_video.commands import doctor as doctor_cmd
 from simplicio_video.commands import update as update_cmd
@@ -309,18 +312,91 @@ def test_uma_falha_com_checkout_anterior_guarda_o_ref_no_lock(ambiente):
     assert entry["status"] == "failed" and entry["ref"] == SHA_OLD and entry["branch"] == "main"
 
 
-def test_pin_curto_do_video_use_vira_o_commit_completo_e_nao_refaz_o_checkout(ambiente):
-    """video-use's registry pin is a short commit: the update fetches the branches and names the full commit inside the checkout."""
+def _vu_ref_do_setup() -> str:
+    """The commit the packaged setup.sh pins (VU_REF): the one `edit setup` checks out."""
+    text = (paths.DATA_DIR / "tools" / "video-use" / "setup.sh").read_text(encoding="utf8")
+    found = re.search(r"^VU_REF=([0-9a-f]{40})\b", text, re.MULTILINE)
+    assert found, "o setup.sh empacotado não tem VU_REF de 40 caracteres"
+    return found.group(1)
+
+
+def test_pin_do_video_use_e_o_vu_ref_do_setup_e_nao_refaz_o_checkout_no_lugar(ambiente):
+    """video-use's pin is the full VU_REF of the packaged setup.sh: a pin update moves the checkout there once, then leaves it in place."""
+    vu_ref = _vu_ref_do_setup()
     d = str(_checkout(ambiente, "video-use"))
     fake = Fake()
     lock = ambiente / "data" / tools_lock.LOCK_FILE
     lines, failed = tools_update.apply_all(tools_lock.empty(), "pin", fake.io(), lock)
     assert failed == 0, lines
-    assert fake.ran("fetch", "--quiet", "origin") and not fake.ran("fetch", "--quiet", "origin", tools.get("video-use").ref)
-    assert fake.ran("checkout", "--detach", SHA_NEW, d)
+    assert fake.ran("checkout", "--detach", vu_ref, d), fake.calls
     fake.calls.clear()
     lines, failed = tools_update.apply_all(tools_lock.read_lock(lock), "pin", fake.io(), lock)
-    assert failed == 0 and not fake.ran("checkout", d), "o pin curto já está no lugar: nenhum checkout de novo"
+    assert failed == 0 and not fake.ran("checkout", d), "o pin já está no lugar: nenhum checkout de novo"
+
+
+def test_video_use_nao_segue_a_main_e_fica_no_vu_ref_do_setup(ambiente):
+    """`update` in follow mode never moves video-use to upstream: its pin is VU_REF of the packaged setup.sh, the commit that
+    `edit setup` checks out again. After an update the lock, the checkout and setup.sh must name the same commit."""
+    vu_ref = _vu_ref_do_setup()
+    fake = Fake()  # the remote's HEAD of every track is SHA_NEW, video-use included
+    lock = ambiente / "data" / tools_lock.LOCK_FILE
+    lines, failed = tools_update.apply_all(tools_lock.empty(), "follow", fake.io(), lock)
+    assert failed == 0, lines
+    assert not fake.ran("ls-remote", tools.get("video-use").source), "o update não deve consultar a main do video-use"
+    d = str(_checkout(ambiente, "video-use"))
+    doc = tools_lock.read_lock(lock)
+    assert doc["tools"]["video-use"]["mode"] == "pin" and doc["tools"]["video-use"]["ref"] == vu_ref
+    assert fake.heads[d] == vu_ref, "o checkout fica no commit do setup.sh"
+    assert doc["tools"]["opencut"]["ref"] == SHA_NEW, "as outras trilhas continuam seguindo a main"
+
+
+def test_check_nao_consulta_a_main_do_video_use(ambiente):
+    fake = Fake()
+    lines = tools_update.report("follow", fake.io(), dry=True)
+    assert not fake.ran("ls-remote", tools.get("video-use").source)
+    assert any(line.lstrip().startswith("video-use") and "pin" in line for line in lines), lines
+
+
+def test_o_pin_do_video_use_e_o_vu_ref_do_setup_sh():
+    assert tools.get("video-use").ref == _vu_ref_do_setup()
+
+
+def _vu_dir_do_setup(env: dict) -> str:
+    """The checkout directory setup.sh computes: its VU_DIR line, run by bash with the given environment."""
+    line = next(ln for ln in (paths.DATA_DIR / "tools" / "video-use" / "setup.sh").read_text(encoding="utf8").splitlines()
+                if ln.startswith("VU_DIR="))
+    done = subprocess.run(["bash", "-c", line + '\nprintf %s "$VU_DIR"'], env=env, capture_output=True, text=True,
+                          stdin=subprocess.DEVNULL, check=True)
+    return done.stdout
+
+
+def test_checkout_padrao_do_video_use_e_o_do_setup_sh(tmp_path, monkeypatch):
+    """Without VIDEO_USE_DIR the checkout is ~/.cache/simplicio/video-use, the same folder setup.sh computes from $HOME."""
+    if shutil.which("bash") is None:
+        pytest.skip("setup.sh roda em bash")
+    home = tmp_path / "home"
+    monkeypatch.delenv("VIDEO_USE_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    expected = home / ".cache" / "simplicio" / "video-use"
+    assert tools_update.checkout_for(tools.get("video-use")) == expected
+    assert Path(_vu_dir_do_setup({"HOME": str(home), "PATH": os.environ.get("PATH", "")})) == expected
+
+
+def test_video_use_dir_com_til_vai_como_esta_como_no_setup_sh(tmp_path, monkeypatch):
+    """bash does not expand ~ inside VIDEO_USE_DIR: the Python side must not either, or the two would pick different folders."""
+    if shutil.which("bash") is None:
+        pytest.skip("setup.sh roda em bash")
+    monkeypatch.setenv("VIDEO_USE_DIR", "~/vu")
+    env = {"HOME": str(tmp_path), "PATH": os.environ.get("PATH", ""), "VIDEO_USE_DIR": "~/vu"}
+    assert tools_update.checkout_for(tools.get("video-use")) == Path(_vu_dir_do_setup(env)) == Path("~/vu")
+
+
+def test_checkout_padrao_vem_da_home_do_hostos(tmp_path, monkeypatch):
+    """The default home comes from hostos.home_dir, the repo's rule (tools_lock uses it too), not from Path.home()."""
+    monkeypatch.delenv("VIDEO_USE_DIR", raising=False)
+    casa = tmp_path / "casa"
+    monkeypatch.setattr(hostos, "home_dir", lambda environ=None: casa)
+    assert tools_update.checkout_for(tools.get("video-use")) == casa / ".cache" / "simplicio" / "video-use"
 
 
 def test_marcador_ausente_no_commit_novo_volta_ao_anterior(ambiente):
