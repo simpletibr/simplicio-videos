@@ -35,7 +35,7 @@ def _fake_ytdlp(tmp_path: Path, body: str) -> Path:
         "import json, os, sys, time\n"
         "args = sys.argv[1:]\n"
         "url = args[-1]\n"
-        "tpl = args[args.index('-o') + 1]\n"
+        "tpl = args[args.index('-o') + 1] if '-o' in args else ''\n"
         "out = os.path.dirname(tpl)\n"
         + body,
         encoding="utf8")
@@ -237,7 +237,7 @@ def test_yt_dlp_error_is_reported_in_one_line(tmp_path, monkeypatch):
 def test_media_fetch_through_the_cli_passes_the_consent_and_the_options(tmp_path, monkeypatch):
     seen = {}
 
-    def fake_fetch(url, dest, autorizo, max_mb, timeout):
+    def fake_fetch(url, dest, autorizo, max_mb, timeout, **opcoes):
         seen.update(url=url, dest=dest, autorizo=autorizo, max_mb=max_mb, timeout=timeout)
         return {"sha256": "x"}
 
@@ -246,6 +246,264 @@ def test_media_fetch_through_the_cli_passes_the_consent_and_the_options(tmp_path
                           "--timeout", "90"])
     assert rc == 0
     assert seen == {"url": "https://example.com/v.mp4", "dest": tmp_path / "v.mp4", "autorizo": True, "max_mb": 7, "timeout": 90}
+
+
+# ------------------------------------------------------------------------------------- T10: --info, --subs, --section, --audio-only
+
+def _argv_logger(tmp_path: Path) -> tuple[Path, Path]:
+    """A fake yt-dlp that records its argv and writes a media file (and subtitles when asked)."""
+    seen = tmp_path / "argv.json"
+    fake = _fake_ytdlp(tmp_path, (
+        f"open({str(seen)!r}, 'w').write(json.dumps(args))\n"
+        "ext = 'm4a' if '-x' in args else 'mp4'\n"
+        "open(os.path.join(out, 'x.' + ext), 'wb').write(b'media')\n"
+        "if '--write-subs' in args:\n"
+        "    lang = args[args.index('--sub-langs') + 1]\n"
+        "    open(os.path.join(out, 'x.' + lang + '.srt'), 'w').write('1\\n00:00:00,000 --> 00:00:01,000\\noi\\n')\n"
+        "print(json.dumps({'id': 'x', 'ext': ext, 'extractor_key': 'Generic', 'title': 'T', 'uploader': 'U', 'duration': 3.0}))\n"
+    ))
+    return fake, seen
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_fetch_section_passes_download_sections_and_records_it(tmp_path, monkeypatch):
+    fake, seen = _argv_logger(tmp_path)
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    doc = download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True, section="0-3")
+    args = json.loads(seen.read_text(encoding="utf8"))
+    assert args[args.index("--download-sections") + 1] == "*0-3"
+    assert doc["secao"] == {"inicio_s": 0.0, "fim_s": 3.0}
+    assert json.loads((tmp_path / "v.fetch.json").read_text(encoding="utf8")) == doc
+
+
+@pytest.mark.parametrize("section", ["3-1", "3-3", "abc", "1-", "-5", "1-2-3", "0-3;rm", "", "0--3"])
+def test_fetch_section_rejects_bad_ranges_before_the_downloader(tmp_path, monkeypatch, section):
+    monkeypatch.setattr(download, "_binario", lambda: pytest.fail("não deve baixar"))
+    with pytest.raises(download.DownloadError, match="--section"):
+        download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True, section=section)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_fetch_without_options_keeps_the_old_argv_and_record_keys(tmp_path, monkeypatch):
+    fake, seen = _argv_logger(tmp_path)
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    doc = download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True)
+    args = json.loads(seen.read_text(encoding="utf8"))
+    for flag in ("--download-sections", "--write-subs", "--write-auto-subs", "-x"):
+        assert flag not in args
+    assert "secao" not in doc and "legendas" not in doc and "somente_audio" not in doc
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_fetch_subs_downloads_creator_subtitles_as_srt_and_records_them(tmp_path, monkeypatch):
+    fake, seen = _argv_logger(tmp_path)
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    doc = download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True, subs="pt")
+    args = json.loads(seen.read_text(encoding="utf8"))
+    assert "--write-subs" in args and "--write-auto-subs" not in args
+    assert args[args.index("--sub-langs") + 1] == "pt"
+    assert args[args.index("--convert-subs") + 1] == "srt"
+    srt = tmp_path / "v.pt.srt"
+    assert srt.read_text(encoding="utf8").startswith("1\n")
+    assert (tmp_path / "v.mp4").read_bytes() == b"media"
+    assert doc["legendas"] == {"idioma": "pt", "automaticas": False, "arquivos": [
+        {"arquivo": "v.pt.srt", "sha256": hashlib.sha256(srt.read_bytes()).hexdigest()}]}
+    assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".fetch-")] == []
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_fetch_auto_subs_only_when_explicit(tmp_path, monkeypatch):
+    fake, seen = _argv_logger(tmp_path)
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    doc = download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True, subs="en", auto_subs=True)
+    args = json.loads(seen.read_text(encoding="utf8"))
+    assert "--write-subs" in args and "--write-auto-subs" in args
+    assert doc["legendas"]["automaticas"] is True
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_fetch_subs_missing_is_not_fatal_and_is_recorded_empty(tmp_path, monkeypatch):
+    fake = _fake_ytdlp(tmp_path, (
+        "open(os.path.join(out, 'x.mp4'), 'wb').write(b'media')\n"
+        "print(json.dumps({'id': 'x', 'ext': 'mp4'}))\n"))
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    doc = download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True, subs="pt")
+    assert doc["legendas"]["arquivos"] == []
+    assert [p.name for p in tmp_path.iterdir() if p.suffix == ".srt"] == []
+
+
+def test_fetch_auto_subs_without_subs_and_bad_lang_are_refused(tmp_path, monkeypatch):
+    monkeypatch.setattr(download, "_binario", lambda: pytest.fail("não deve baixar"))
+    with pytest.raises(download.DownloadError, match="--auto-subs"):
+        download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True, auto_subs=True)
+    for lang in ("--exec", "pt,en", "p t", "", "x" * 30):
+        with pytest.raises(download.DownloadError, match="--subs"):
+            download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True, subs=lang)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_fetch_subs_refuses_to_overwrite_an_existing_srt(tmp_path, monkeypatch):
+    monkeypatch.setattr(download, "_binario", lambda: pytest.fail("não deve baixar"))
+    (tmp_path / "v.pt.srt").write_text("x", encoding="utf8")
+    with pytest.raises(download.DownloadError, match="não sobrescrevo"):
+        download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=True, subs="pt")
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_fetch_audio_only_extracts_audio_and_records_it(tmp_path, monkeypatch):
+    fake, seen = _argv_logger(tmp_path)
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    dest = tmp_path / "a.m4a"
+    doc = download.fetch("https://example.com/v.mp4", dest, autorizo=True, audio_only=True)
+    args = json.loads(seen.read_text(encoding="utf8"))
+    assert "-x" in args and args[args.index("--audio-format") + 1] == "m4a"
+    assert args[args.index("-f") + 1] == "bestaudio/best"
+    assert dest.read_bytes() == b"media" and (tmp_path / "a.fetch.json").exists()
+    assert doc["somente_audio"] is True and doc["arquivo"] == "a.m4a"
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_fetch_audio_only_wav_and_name_rules(tmp_path, monkeypatch):
+    monkeypatch.setattr(download, "_binario", lambda: pytest.fail("não deve baixar"))
+    with pytest.raises(download.DownloadError, match=r"\.m4a ou \.wav"):
+        download.fetch("https://example.com/v.mp4", tmp_path / "a.mp4", autorizo=True, audio_only=True)
+    fake = _fake_ytdlp(tmp_path, (
+        "assert args[args.index('--audio-format') + 1] == 'wav'\n"
+        "open(os.path.join(out, 'x.wav'), 'wb').write(b'riff')\n"
+        "print(json.dumps({'id': 'x', 'ext': 'wav'}))\n"))
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    download.fetch("https://example.com/v.mp4", tmp_path / "a.wav", autorizo=True, audio_only=True)
+    assert (tmp_path / "a.wav").read_bytes() == b"riff"
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_fetch_options_combine_and_keep_every_safety_flag(tmp_path, monkeypatch):
+    fake, seen = _argv_logger(tmp_path)
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    doc = download.fetch("https://example.com/v.mp4", tmp_path / "a.m4a", autorizo=True, audio_only=True, section="1.5-4", subs="pt")
+    args = json.loads(seen.read_text(encoding="utf8"))
+    for flag in ("--ignore-config", "--no-playlist", "--no-cache-dir"):
+        assert flag in args
+    assert not any("cookies" in a or a in ("--username", "--password", "--netrc") for a in args)
+    assert args[-1] == "https://example.com/v.mp4"
+    assert doc["secao"] == {"inicio_s": 1.5, "fim_s": 4.0} and doc["somente_audio"] is True and doc["legendas"]["idioma"] == "pt"
+
+
+def test_new_options_still_need_autorizo(tmp_path, monkeypatch):
+    monkeypatch.setattr(download, "_binario", lambda: pytest.fail("não pode rodar sem --autorizo"))
+    for opcao in ({"subs": "pt"}, {"section": "0-3"}, {"audio_only": True}):
+        with pytest.raises(download.DownloadError, match="--autorizo"):
+            download.fetch("https://example.com/v.mp4", tmp_path / "v.mp4", autorizo=False, **opcao)
+
+
+_INFO_JSON = {
+    "id": "abc", "extractor_key": "Youtube", "title": "Aula", "uploader": "Canal", "duration": 61.5, "license": "Creative Commons",
+    "formats": [{"format_id": "18", "ext": "mp4", "height": 360, "vcodec": "avc1", "acodec": "mp4a", "filesize": 1000,
+                 "url": "https://x/secret?sig=1"},
+                {"format_id": "140", "ext": "m4a", "vcodec": "none", "acodec": "mp4a", "filesize_approx": 500}],
+    "subtitles": {"pt": [{"ext": "vtt"}], "en": [{"ext": "vtt"}]},
+    "automatic_captions": {"pt": [{"ext": "vtt"}], "de": [{"ext": "vtt"}]},
+}
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_info_runs_json_skip_download_and_summarises(tmp_path, monkeypatch):
+    seen = tmp_path / "argv.json"
+    fake = _fake_ytdlp(tmp_path, (
+        f"open({str(seen)!r}, 'w').write(json.dumps(args))\n"
+        f"print({json.dumps(_INFO_JSON)!r})\n"))
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    doc = download.info("https://example.com/watch?v=abc&token=zzz#t")
+    args = json.loads(seen.read_text(encoding="utf8"))
+    assert "-J" in args and "--skip-download" in args
+    for flag in ("--ignore-config", "--no-playlist", "--no-cache-dir"):
+        assert flag in args
+    assert args[-1] == "https://example.com/watch?v=abc&token=zzz#t" and "-o" not in args
+    assert doc["schema"] == download.INFO_SCHEMA
+    assert doc["origem"] == "https://example.com/watch"
+    assert doc["untrusted_titulo"] == "Aula" and doc["untrusted_autor"] == "Canal"
+    assert doc["duracao_s"] == 61.5 and doc["licenca"] == "Creative Commons" and doc["extrator"] == "Youtube"
+    assert doc["legendas"] == ["en", "pt"] and doc["legendas_automaticas"] == ["de", "pt"]
+    assert doc["formatos"][0] == {"id": "18", "ext": "mp4", "altura": 360, "video": True, "audio": True, "bytes": 1000}
+    assert doc["formatos"][1]["video"] is False and doc["formatos"][1]["bytes"] == 500
+    assert "secret" not in json.dumps(doc)
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_info_license_is_none_when_absent_and_errors_are_one_line(tmp_path, monkeypatch):
+    fake = _fake_ytdlp(tmp_path, "print(json.dumps({'id': 'a', 'title': 't'}))\n")
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    doc = download.info("https://example.com/v.mp4")
+    assert doc["licenca"] is None and doc["formatos"] == [] and doc["legendas"] == []
+    fake2 = _fake_ytdlp(tmp_path, "sys.stderr.write('ERROR: [x] private video\\n')\nsys.exit(1)\n")
+    monkeypatch.setattr(download, "_binario", lambda: fake2)
+    with pytest.raises(download.DownloadError, match="private video"):
+        download.info("https://example.com/v.mp4")
+
+
+def test_info_validates_the_url_first(monkeypatch):
+    monkeypatch.setattr(download, "_binario", lambda: pytest.fail("não deve rodar"))
+    with pytest.raises(download.DownloadError):
+        download.info("https://user:pw@example.com/v.mp4")
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_media_fetch_info_needs_no_autorizo_and_writes_nothing_without_o(tmp_path, monkeypatch, capsys):
+    fake = _fake_ytdlp(tmp_path, f"print({json.dumps(_INFO_JSON)!r})\n")
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    rc = media.run_media(["fetch", "https://example.com/v.mp4", "--info"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["untrusted_titulo"] == "Aula"
+    assert list(work.iterdir()) == []
+
+
+@pytest.mark.skipif(not POSIX, reason="o teste usa um script com shebang")
+def test_media_fetch_info_with_o_writes_only_that_json_and_never_overwrites(tmp_path, monkeypatch):
+    fake = _fake_ytdlp(tmp_path, f"print({json.dumps(_INFO_JSON)!r})\n")
+    monkeypatch.setattr(download, "_binario", lambda: fake)
+    out = tmp_path / "out" / "info.json"
+    assert media.run_media(["fetch", "https://example.com/v.mp4", "--info", "-o", str(out)]) == 0
+    assert json.loads(out.read_text(encoding="utf8"))["schema"] == download.INFO_SCHEMA
+    assert sorted(p.name for p in out.parent.iterdir()) == ["info.json"]
+    with pytest.raises(media.MediaError, match="não sobrescrevo"):
+        media.run_media(["fetch", "https://example.com/v.mp4", "--info", "-o", str(out)])
+
+
+def test_media_fetch_info_rejects_download_options(tmp_path, monkeypatch):
+    monkeypatch.setattr(download, "_binario", lambda: pytest.fail("não deve rodar"))
+    for extra in (["--subs", "pt"], ["--section", "0-3"], ["--audio-only"]):
+        with pytest.raises(media.MediaError, match="--info"):
+            media.run_media(["fetch", "https://example.com/v.mp4", "--info", *extra])
+
+
+def test_media_fetch_cli_passes_the_new_options(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_fetch(url, dest, autorizo, max_mb, timeout, **opcoes):
+        seen.update(opcoes)
+        return {"sha256": "x"}
+
+    monkeypatch.setattr(download, "fetch", fake_fetch)
+    rc = media.run_media(["fetch", "https://example.com/v.mp4", "-o", str(tmp_path / "a.m4a"), "--autorizo", "--subs", "pt",
+                          "--auto-subs", "--section", "0-3", "--audio-only"])
+    assert rc == 0
+    assert seen == {"subs": "pt", "auto_subs": True, "section": "0-3", "audio_only": True}
+
+
+def test_media_fetch_without_autorizo_is_still_refused_for_new_options(tmp_path):
+    with pytest.raises(media.MediaError, match="--autorizo"):
+        media.run_media(["fetch", "https://example.com/v.mp4", "-o", str(tmp_path / "v.mp4"), "--section", "0-3"])
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_media_help_documents_the_new_fetch_options():
+    for token in ("--info", "--subs LANG", "--auto-subs", "--section START-END", "--audio-only"):
+        assert token in media.HELP
+    assert "media fetch https://example.com/aula.mp4 --info" in media.HELP
 
 
 @pytest.mark.integration
