@@ -1,12 +1,13 @@
-"""`simplicio-video montage run-tool NAME --input JSON`: one OpenMontage tool through the bridge (T2c, review round 2).
+"""`simplicio-video montage run-tool NAME --input JSON`: one OpenMontage tool through the bridge (T2c, review round 3).
 
 Terminal: any tool, but a tool that is not local, costs money (or the cost is unknown or not finite) or needs network runs
 only with --yes, after its estimate is printed. The publish tier never runs.
 
-MCP (`video.montage run-tool NAME`, `input` as an object): only a tool on the reviewed allowlist (MCP_ALLOWLIST) that is also
-local, free, offline and on absolute paths with new outputs (no link on the way, not under the run folder or the checkout),
-and no URL or scheme anywhere in the input. It runs as the job `montage-tool`, which re-runs the strict gate in its own
-process. Its result comes back in a file (no 64 KiB limit on the job's output line).
+MCP (`video.montage run-tool NAME`, `input` as an object): only a tool on the reviewed allowlist (MCP_ALLOWLIST), its allowed
+operations only, local, free, offline, on absolute regular-file inputs and on new outputs that are not under a system folder,
+the engine's data, the checkout, the engine's code, a venv or site-packages. No URL and no protocol prefix in the input.
+Its children run with -I, the checkout's .env neutralized and a minimal environment, under a timeout that does not wait for
+a grandchild that escaped the process group. A job runs the same gate again in its own process, from its origin.
 
 Hermetic: a fake checkout with a fake registry (the venv Python is a wrapper around the test interpreter). No network,
 no real tool, no real OpenMontage.
@@ -33,8 +34,26 @@ FAKE_REGISTRY = '''\
 import os
 import pathlib
 import shutil
+import subprocess
 import sys
 import time
+
+
+def _load_dotenv():  # the same rule as the upstream base_tool: a key already in the environment (even empty) is kept
+    env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
 
 
 class Result:
@@ -57,6 +76,7 @@ SCHEMA = {
         "output_path": {"type": "string"},
         "times": {"type": "integer", "minimum": 1},
         "tamanho": {"type": "integer", "minimum": 0},
+        "operation": {"type": "string"},
     },
 }
 SCHEMA_NO_OUT = {"type": "object", "required": ["input_path"], "properties": {"input_path": {"type": "string"}}}
@@ -74,7 +94,8 @@ class Tool:
         return {"name": self.name, "runtime": self.runtime, "tier": self.tier, "capability": "cap", "provider": "fake",
                 "status": "available", "stability": "production", "input_schema": self.schema, "resource_profile": rp,
                 "dependencies": list(self.deps), "isolado": sys.flags.isolated,
-                "ambiente": sorted(k for k in ("OPENAI_API_KEY",) if k in os.environ)}
+                "ambiente": sorted(k for k in ("OPENAI_API_KEY",) if os.environ.get(k)),
+                "ffreport": os.environ.get("FFREPORT", "<unset>")}
 
     def dry_run(self, inputs):
         est = self.cost
@@ -88,8 +109,16 @@ class Tool:
         if self.mode == "sleep":
             time.sleep(60)
             return Result(True)
+        if self.mode == "neto":  # a grandchild that leaves the process group and keeps the output open
+            g = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(40)"], start_new_session=True)
+            pid_file = os.environ.get("FAKE_NETO_PID")
+            if pid_file:
+                pathlib.Path(pid_file).write_text(str(g.pid), encoding="utf8")
+            time.sleep(40)
+            return Result(True)
         if self.mode == "env":
-            return Result(True, {"env": sorted(k for k in ("OPENAI_API_KEY",) if k in os.environ)})
+            return Result(True, {"env": sorted(k for k in ("OPENAI_API_KEY",) if os.environ.get(k)),
+                                 "ffreport": os.environ.get("FFREPORT", "<unset>")})
         if self.mode == "isolated":
             return Result(True, {"isolado": sys.flags.isolated})
         if self.mode == "probe":
@@ -116,6 +145,7 @@ class Registry:
                   Tool("falha", mode="fail"), Tool("quebra", mode="raise"),
                   Tool("relativo", mode="relative", schema=SCHEMA_NO_OUT),
                   Tool("nan", cost=float("nan")), Tool("inf", cost=float("inf")), Tool("dorme", mode="sleep"),
+                  Tool("dorme_neto", mode="neto", schema=SCHEMA_NO_OUT),
                   Tool("ambiente", mode="env", deps=("env:OPENAI_API_KEY",), schema=SCHEMA_NO_OUT),
                   Tool("isolado", mode="isolated")):
             self._tools[t.name] = t
@@ -135,16 +165,16 @@ registry = Registry()
 
 # the fake tools that the strict tests reach through the allowlist (copia is deliberately NOT here: it is free and local,
 # and the allowlist must still refuse it over MCP)
-FAKE_ALLOWED = ("relativo", "pago", "rede", "sem_meta", "custo_cota", "publica", "gpu", "nan", "inf", "dorme", "ambiente",
-                "isolado", "falha", "quebra")
-
-
-NO_OUTPUT_FAKES = ("relativo", "ambiente", "isolado")
+FAKE_ALLOWED = ("relativo", "pago", "rede", "sem_meta", "custo_cota", "publica", "gpu", "nan", "inf", "dorme", "dorme_neto",
+                "ambiente", "isolado", "falha", "quebra")
+NO_OUTPUT_FAKES = ("relativo", "ambiente", "isolado", "dorme_neto")
+NEUTRAL_FFREPORT = "file=/dev/null"
 
 
 @pytest.fixture(autouse=True)
 def _allowlist_with_fakes(monkeypatch):
-    extra = {n: {"outputs": () if n in NO_OUTPUT_FAKES else ("output_path",), "why": "fake de teste"} for n in FAKE_ALLOWED}
+    extra = {n: {"outputs": () if n in NO_OUTPUT_FAKES else ("output_path",), "why": "fake de teste (pastas laterais: nenhuma)"}
+             for n in FAKE_ALLOWED}
     monkeypatch.setattr(montage, "MCP_ALLOWLIST", {**REAL_ALLOWLIST, **extra}, raising=False)
 
 
@@ -191,6 +221,11 @@ def rt(capsys, name, inputs, *extra, json_out=True):
     c = capsys.readouterr()
     data = strict_json(c.out) if json_out and c.out.strip() else None
     return code, data, c.err
+
+
+def VT(**kw):
+    """The inputs of a cut of the video_trimmer (the only operation the MCP allows), with the given keys."""
+    return {"operation": "cut", **kw}
 
 
 # ---- terminal: the run and its result ------------------------------------------------------------------------------
@@ -398,6 +433,25 @@ def test_timeout_ends_a_run_that_does_not_end(om, capsys):
     assert "tempo" in capsys.readouterr().err
 
 
+def test_mcp_timeout_does_not_wait_for_a_grandchild_that_escaped(om, monkeypatch, tmp_path, capsys):
+    """The grandchild is in its own session and keeps the output open: the run must still end near its time limit."""
+    pid_file = tmp_path / "neto.pid"
+    monkeypatch.setenv("FAKE_NETO_PID", str(pid_file))
+    monkeypatch.setenv("SIMPLICIO_MCP", "1")
+    t0 = time.monotonic()
+    try:
+        code = montage.main(["run-tool", "dorme_neto", "--input", json.dumps({"input_path": "/x"}), "--timeout", "2"])
+        elapsed = time.monotonic() - t0
+    finally:
+        if pid_file.exists():
+            try:
+                os.kill(int(pid_file.read_text()), 9)
+            except (OSError, ValueError):
+                pass
+    assert code == 1 and elapsed <= 2 + 3, elapsed
+    assert "tempo" in capsys.readouterr().err
+
+
 def test_upstream_children_run_isolated(om, capsys):
     code, data, _ = rt(capsys, "isolado", {"input_path": "/x"}, "--yes")
     assert code == 0 and data["data"]["isolado"] == 1
@@ -424,13 +478,34 @@ def test_registry_child_gets_no_provider_key_under_mcp(om, monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["ambiente"] == []
 
 
+def test_checkout_dotenv_is_neutralized_for_mcp_children_only(om, monkeypatch, capsys):
+    """Upstream loads <checkout>/.env into the environment of every child; under MCP its keys are emptied first, so the
+    upstream keeps the empty value (it skips keys already present), and FFREPORT points at /dev/null."""
+    (om / ".env").write_text("OPENAI_API_KEY=sk-do-env\nFFREPORT=file=/tmp/vazou.log\n", encoding="utf8")
+    montage.main(["tools", "info", "copia", "--json"])
+    terminal = json.loads(capsys.readouterr().out)
+    assert terminal["ambiente"] == ["OPENAI_API_KEY"] and terminal["ffreport"] == "file=/tmp/vazou.log"
+    monkeypatch.setenv("SIMPLICIO_MCP", "1")
+    montage.main(["tools", "info", "copia", "--json"])
+    under_mcp = json.loads(capsys.readouterr().out)
+    assert under_mcp["ambiente"] == []
+    assert under_mcp["ffreport"] == NEUTRAL_FFREPORT
+
+
+def test_checkout_dotenv_does_not_reach_a_strict_run(om, tmp_path):
+    (om / ".env").write_text("OPENAI_API_KEY=sk-do-env\n", encoding="utf8")
+    plan = montage.run_tool_plan("ambiente", {"input_path": "/x"}, strict=True, yes=False)
+    res = montage.run_tool_execute(plan, {"input_path": "/x"}, tmp_path)
+    assert res["data"]["env"] == [] and res["data"]["ffreport"] == NEUTRAL_FFREPORT
+
+
 def test_spends_is_true_for_a_non_local_runtime(om, src, tmp_path):
     plan = montage.run_tool_plan("gpu", {"input_path": str(src), "output_path": str(tmp_path / "g")}, strict=False, yes=True)
     assert plan["spends"] is True and plan["needs_yes"] is True
 
 
 def test_large_result_is_printed_whole_in_the_terminal(om, src, tmp_path, capsys):
-    code, data, _ = rt(capsys, "video_trimmer", {"input_path": str(src), "tamanho": 1_000_000})
+    code, data, _ = rt(capsys, "video_trimmer", VT(input_path=str(src), tamanho=1_000_000))
     assert code == 0 and len(data["data"]["texto"]) == 1_000_000
 
 
@@ -441,11 +516,13 @@ def _plan(name, inputs, **kw):
 
 
 def test_allowlist_is_reviewed_and_explains_each_entry():
-    assert set(REAL_ALLOWLIST) == {"video_trimmer", "audio_probe", "frame_sampler", "scene_detect", "silence_cutter"}
+    assert set(REAL_ALLOWLIST) == {"video_trimmer", "audio_probe", "frame_sampler", "scene_detect"}
     for name, entry in REAL_ALLOWLIST.items():
         assert entry["why"].strip(), name
+        assert "lateral" in entry["why"], name  # the side folders were checked, and the text says so
         assert isinstance(entry["outputs"], tuple), name
-    for barred in ("math_animate", "screen_recorder", "cap_recorder", "video_compose", "hyperframes_compose",
+    assert REAL_ALLOWLIST["video_trimmer"]["operations"] == ("cut", "speed")
+    for barred in ("silence_cutter", "math_animate", "screen_recorder", "cap_recorder", "video_compose", "hyperframes_compose",
                    "remotion_caption_burn", "diagram_gen", "threejs_world", "export_bundle", "auto_reframe", "video_analyzer"):
         assert barred not in REAL_ALLOWLIST, barred
 
@@ -456,8 +533,14 @@ def test_strict_refuses_a_free_local_tool_that_is_not_reviewed(om, src, tmp_path
 
 
 def test_strict_accepts_a_reviewed_free_local_tool_with_absolute_paths(om, src, tmp_path):
-    plan = _plan("video_trimmer", {"input_path": str(src), "output_path": str(tmp_path / "ok.txt")})
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(tmp_path / "ok.txt")))
     assert plan["refusal"] is None and plan["needs_yes"] is False and plan["spends"] is False
+
+
+def test_strict_refuses_video_trimmer_concat_over_mcp(om, src, tmp_path):
+    """concat writes and deletes a side folder (.concat_tmp next to the output): not on the MCP."""
+    plan = _plan("video_trimmer", {"operation": "concat", "input_path": str(src), "output_path": str(tmp_path / "c.mp4")})
+    assert plan["refusal"] and "concat" in plan["refusal"] and "terminal" in plan["refusal"]
 
 
 def test_strict_accepts_a_reviewed_tool_with_no_output_declared(om, src):
@@ -477,19 +560,19 @@ def test_strict_refuses_the_publish_tier_even_with_yes(om, src, tmp_path):
 
 @pytest.mark.parametrize("value", ["in.txt", "clips/in.txt", "./in.txt", "../in.txt"])
 def test_strict_refuses_relative_paths_including_bare_file_names(om, tmp_path, value):
-    plan = _plan("video_trimmer", {"input_path": value, "output_path": str(tmp_path / "x")})
+    plan = _plan("video_trimmer", VT(input_path=value, output_path=str(tmp_path / "x")))
     assert plan["refusal"] and "absolut" in plan["refusal"] and "terminal" in plan["refusal"]
 
 
 def test_strict_refuses_a_relative_output_path(om, src):
-    plan = _plan("video_trimmer", {"input_path": str(src), "output_path": "saida.txt"})
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path="saida.txt"))
     assert plan["refusal"] and "absolut" in plan["refusal"]
 
 
 def test_strict_refuses_an_output_that_already_exists(om, src, tmp_path):
     existing = tmp_path / "ja.txt"
     existing.write_text("nao sobrescrever", encoding="utf8")
-    plan = _plan("video_trimmer", {"input_path": str(src), "output_path": str(existing)})
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(existing)))
     assert plan["refusal"] and "já existe" in plan["refusal"] and "terminal" in plan["refusal"]
 
 
@@ -497,7 +580,7 @@ def test_strict_refuses_an_output_that_is_a_symlink(om, src, tmp_path):
     target = tmp_path / "alvo.txt"
     link = tmp_path / "link.txt"
     link.symlink_to(target)  # even a dangling link is refused: writing through it would land elsewhere
-    plan = _plan("video_trimmer", {"input_path": str(src), "output_path": str(link)})
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(link)))
     assert plan["refusal"] and "terminal" in plan["refusal"]
 
 
@@ -505,7 +588,7 @@ def test_strict_refuses_an_output_under_a_symlinked_folder(om, src, tmp_path):
     real = tmp_path / "pasta_real"
     real.mkdir()
     (tmp_path / "pasta_link").symlink_to(real)
-    plan = _plan("video_trimmer", {"input_path": str(src), "output_path": str(tmp_path / "pasta_link" / "out.txt")})
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(tmp_path / "pasta_link" / "out.txt")))
     assert plan["refusal"] and "link" in plan["refusal"] and "terminal" in plan["refusal"]
 
 
@@ -514,19 +597,57 @@ def test_strict_refuses_an_output_under_an_intermediate_symlink(om, src, tmp_pat
     (real / "sub").mkdir(parents=True)
     (tmp_path / "ok").mkdir()
     (tmp_path / "ok" / "meio").symlink_to(real)  # the link is in the middle of the path, not the last component
-    plan = _plan("video_trimmer", {"input_path": str(src), "output_path": str(tmp_path / "ok" / "meio" / "sub" / "out.txt")})
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(tmp_path / "ok" / "meio" / "sub" / "out.txt")))
     assert plan["refusal"] and "link" in plan["refusal"]
 
 
 def test_strict_refuses_an_output_under_the_run_folder_or_the_checkout(om, src, tmp_path):
     run_dir = montage.data_dir() / "run"
     run_dir.mkdir(parents=True, exist_ok=True)
-    assert "terminal" in _plan("video_trimmer", {"input_path": str(src), "output_path": str(run_dir / "x.txt")})["refusal"]
-    assert "terminal" in _plan("video_trimmer", {"input_path": str(src), "output_path": str(om / "x.txt")})["refusal"]
+    assert "terminal" in _plan("video_trimmer", VT(input_path=str(src), output_path=str(run_dir / "x.txt")))["refusal"]
+    assert "terminal" in _plan("video_trimmer", VT(input_path=str(src), output_path=str(om / "x.txt")))["refusal"]
+
+
+def test_strict_refuses_an_output_in_site_packages(om, src, tmp_path):
+    """A .pth file in site-packages runs at every start of the venv's Python: never an output."""
+    pth = tmp_path / "venv" / "lib" / "python3.12" / "site-packages" / "evil.pth"
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(pth)))
+    assert plan["refusal"] and "site-packages" in plan["refusal"] and "terminal" in plan["refusal"]
+
+
+def test_strict_refuses_an_output_in_a_venv_folder(om, src, tmp_path):
+    (tmp_path / "outra").mkdir()
+    (tmp_path / "outra" / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf8")
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(tmp_path / "outra" / "x.txt")))
+    assert plan["refusal"] and "venv" in plan["refusal"]
+
+
+def test_strict_refuses_an_output_in_the_engine_data_folder(om, src):
+    """The jobs folder (and so ~/.simplicio-video/jobs in a normal install) is the engine's own state."""
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(jobs.jobs_dir() / "fora.txt")))
+    assert plan["refusal"] and "dados do motor" in plan["refusal"] and "terminal" in plan["refusal"]
+
+
+def test_strict_refuses_an_output_in_a_system_folder(om, src):
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path="/etc/simplicio-teste.txt"))
+    assert plan["refusal"] and "sistema" in plan["refusal"] and "terminal" in plan["refusal"]
+
+
+def test_strict_refuses_an_output_in_a_hidden_folder_of_the_home(om, src, tmp_path, monkeypatch):
+    casa = tmp_path / "casa"
+    (casa / ".ssh").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(casa))
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(casa / ".ssh" / "x.txt")))
+    assert plan["refusal"] and "oculta" in plan["refusal"]
+
+
+def test_strict_refuses_an_output_in_the_engine_code(om, src):
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(Path(montage.__file__).parent / "saida.txt")))
+    assert plan["refusal"] and "código do motor" in plan["refusal"]
 
 
 def test_strict_needs_an_output_path_when_the_tool_has_one(om, src):
-    plan = _plan("video_trimmer", {"input_path": str(src)})
+    plan = _plan("video_trimmer", VT(input_path=str(src)))
     assert plan["refusal"] and "output_path" in plan["refusal"] and "terminal" in plan["refusal"]
 
 
@@ -537,20 +658,46 @@ def test_strict_does_not_ask_for_an_output_when_the_tool_has_none(om, src):
 
 def test_strict_refuses_the_input_limit(om, src, tmp_path):
     with pytest.raises(montage.MontageError, match="KB"):
-        _plan("video_trimmer", {"input_path": str(src), "output_path": str(tmp_path / "x"), "texto": "y" * 200_000})
+        _plan("video_trimmer", VT(input_path=str(src), output_path=str(tmp_path / "x"), texto="y" * 200_000))
 
 
-@pytest.mark.parametrize("value", ["https://exemplo.org/clip.mp4", "file:/etc/passwd", "data:text/plain,x"])
-def test_strict_refuses_urls_and_schemes_under_any_key(om, src, tmp_path, value):
-    plan = _plan("video_trimmer", {"input_path": str(src), "output_path": str(tmp_path / "u"), "legenda": value})
-    assert plan["refusal"] and "terminal" in plan["refusal"]
-    plan2 = _plan("video_trimmer", {"input_path": value, "output_path": str(tmp_path / "u2")})
-    assert plan2["refusal"] and "terminal" in plan2["refusal"]
+@pytest.mark.parametrize("value", [
+    "https://exemplo.org/clip.mp4", "HTTP://x/a.mp4", "rtsp://h/x", "file:/etc/passwd", "data:text/plain,x",
+    "concat:/a|/b", "pipe:0", "fd:3", "tcp:h:80", "subfile,,start,0,end,1,,:/x", "  file:x",
+])
+def test_strict_refuses_urls_and_protocol_prefixes_under_any_key(om, src, tmp_path, value):
+    plan = _plan("video_trimmer", VT(input_path=str(src), output_path=str(tmp_path / "u"), legenda=value))
+    assert plan["refusal"] and "terminal" in plan["refusal"], value
+    plan2 = _plan("video_trimmer", VT(input_path=value, output_path=str(tmp_path / "u2")))
+    assert plan2["refusal"] and "terminal" in plan2["refusal"], value
+
+
+@pytest.mark.parametrize("value", ["/abs/with:colon.mp4", "/abs/my clip: final.mp4", "/abs/x.mp4?x=file:y"])
+def test_absolute_paths_with_colons_are_admitted(om, tmp_path, value):
+    plan = _plan("video_trimmer", VT(input_path=value, output_path=str(tmp_path / "ok-colon.mp4")))
+    assert plan["refusal"] is None, value
 
 
 def test_strict_refusal_for_a_url_says_it_is_a_url(om, src, tmp_path):
-    plan = _plan("video_trimmer", {"input_path": "https://exemplo.org/clip.mp4", "output_path": str(tmp_path / "u")})
-    assert "URL" in plan["refusal"] or "endereço" in plan["refusal"]
+    plan = _plan("video_trimmer", VT(input_path="https://exemplo.org/clip.mp4", output_path=str(tmp_path / "u")))
+    assert "endereço" in plan["refusal"] or "URL" in plan["refusal"]
+
+
+def test_strict_refuses_a_device_node_as_input(om, tmp_path):
+    plan = _plan("audio_probe", {"input_path": "/dev/null"})
+    assert plan["refusal"] and "arquivo comum" in plan["refusal"] and "terminal" in plan["refusal"]
+
+
+def test_strict_refuses_a_named_pipe_as_input(om, tmp_path):
+    fifo = tmp_path / "fila"
+    os.mkfifo(fifo)
+    plan = _plan("audio_probe", {"input_path": str(fifo)})
+    assert plan["refusal"] and "arquivo comum" in plan["refusal"]
+
+
+def test_strict_refuses_a_folder_as_input(om, tmp_path):
+    plan = _plan("audio_probe", {"input_path": str(tmp_path)})
+    assert plan["refusal"] and "arquivo comum" in plan["refusal"]
 
 
 def test_strict_refusal_of_a_nan_cost_names_the_terminal(om, src, tmp_path):
@@ -562,17 +709,17 @@ def test_strict_refusal_of_a_nan_cost_names_the_terminal(om, src, tmp_path):
 def test_mcp_run_tool_submits_a_job_and_returns_its_id(om, src, tmp_path, monkeypatch):
     monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: os.getpid())
     out = tmp_path / "mcp.txt"
-    r = mcp_server.video_montage("run-tool video_trimmer", input={"operation": "cut", "input_path": str(src), "output_path": str(out)})
+    r = mcp_server.video_montage("run-tool video_trimmer", input=VT(input_path=str(src), output_path=str(out)))
     assert r["ok"] is True and r["job"]["kind"] == "montage-tool" and r["job"]["id"]
     st = jobs.status(r["job"]["id"])
     assert st["params"]["name"] == "video_trimmer" and st["params"]["strict"] is True
-    assert st["params"]["input"] == {"operation": "cut", "input_path": str(src), "output_path": str(out)}
+    assert st["params"]["input"] == VT(input_path=str(src), output_path=str(out))
     argv = jobs.build_argv("montage-tool", st["params"])
     assert argv[:4] == ["montage", "run-tool", "video_trimmer", "--input"] and "--sob-mcp" in argv and "--yes" in argv and "--json" in argv
 
 
 def test_job_argv_is_ascii_so_the_argv_limit_is_known(om, src, tmp_path):
-    params = {"name": "video_trimmer", "input": {"input_path": str(src), "texto": "çãé — 名"}, "strict": True}
+    params = {"name": "video_trimmer", "input": VT(input_path=str(src), texto="çãé — 名"), "strict": True}
     argv = jobs.build_argv("montage-tool", params)
     assert all(ord(ch) < 128 for a in argv for ch in a)
 
@@ -586,7 +733,7 @@ def test_mcp_refusal_is_an_error_with_the_terminal_command_and_no_job(om, src, t
 
 def test_mcp_refuses_extra_flags_and_a_yes(om, src, tmp_path):
     for args in ("run-tool video_trimmer --yes", "run-tool video_trimmer extra"):
-        r = mcp_server.video_montage(args, input={"input_path": str(src), "output_path": str(tmp_path / "f")})
+        r = mcp_server.video_montage(args, input=VT(input_path=str(src), output_path=str(tmp_path / "f")))
         assert r["ok"] is False and "terminal" in r["error"], args
 
 
@@ -612,7 +759,7 @@ def test_video_jobs_description_mentions_montage_tool():
     assert "montage-tool" in mcp_server.DESC_video_jobs
 
 
-# ---- the job: the same gate again, and results that are not cut ----------------------------------------------------------
+# ---- the job: the same gate again, from its origin, and results that are not cut ------------------------------------------
 
 def _run_job(jid):
     asyncio.run(asyncio.wait_for(jobs._runner(jid), timeout=180))
@@ -623,7 +770,7 @@ def test_job_kind_runs_the_tool_in_its_own_process_to_done(om, src, tmp_path, mo
     """The MCP job: the runner starts `python -m simplicio_video montage run-tool ... --sob-mcp`; the result carries sha256."""
     monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: os.getpid())
     out = tmp_path / "job.txt"
-    r = mcp_server.video_montage("run-tool video_trimmer", input={"operation": "cut", "input_path": str(src), "output_path": str(out)})
+    r = mcp_server.video_montage("run-tool video_trimmer", input=VT(input_path=str(src), output_path=str(out)))
     jid = r["job"]["id"]
     st = _run_job(jid)
     assert st["state"] == "done", st
@@ -635,8 +782,8 @@ def test_job_kind_runs_the_tool_in_its_own_process_to_done(om, src, tmp_path, mo
 @pytest.mark.parametrize("tamanho", [70_000, 1_000_000])
 def test_job_result_is_not_cut_at_64_kib(om, src, tmp_path, monkeypatch, tamanho):
     monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: os.getpid())
-    r = mcp_server.video_montage("run-tool video_trimmer", input={"input_path": str(src), "tamanho": tamanho,
-                                                                  "output_path": str(tmp_path / f"grande{tamanho}.txt")})
+    r = mcp_server.video_montage("run-tool video_trimmer", input=VT(input_path=str(src), tamanho=tamanho,
+                                                                   output_path=str(tmp_path / f"grande{tamanho}.txt")))
     jid = r["job"]["id"]
     st = _run_job(jid)
     assert st["state"] == "done", st
@@ -647,11 +794,28 @@ def test_job_result_is_not_cut_at_64_kib(om, src, tmp_path, monkeypatch, tamanho
 def test_job_regate_refuses_a_tampered_spec(om, src, tmp_path, monkeypatch):
     """A job whose stored name was changed to a tool off the allowlist (paid here) must fail in its own process."""
     monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: os.getpid())
-    r = mcp_server.video_montage("run-tool video_trimmer", input={"operation": "cut", "input_path": str(src),
-                                                                  "output_path": str(tmp_path / "t.txt")})
+    r = mcp_server.video_montage("run-tool video_trimmer", input=VT(input_path=str(src), output_path=str(tmp_path / "t.txt")))
     jid = r["job"]["id"]
     jobs.update(jid, params={"name": "pago", "input": {"input_path": str(src), "output_path": str(tmp_path / "t.txt")},
                              "strict": True})
     st = _run_job(jid)
     assert st["state"] == "failed", st
     assert not (tmp_path / "t.txt").exists()
+
+
+def test_job_regate_follows_the_origin_not_the_spec_flag(om, src, tmp_path, monkeypatch):
+    """A spec with strict False, submitted from MCP (origin mcp), and SIMPLICIO_MCP unset: the job still runs the MCP gate."""
+    monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: os.getpid())
+    monkeypatch.delenv("SIMPLICIO_MCP", raising=False)
+    r = mcp_server.video_montage("run-tool video_trimmer", input=VT(input_path=str(src), output_path=str(tmp_path / "o.txt")))
+    jid = r["job"]["id"]
+    jobs.update(jid, origin="mcp", params={"name": "pago", "input": {"input_path": str(src), "output_path": str(tmp_path / "o.txt")},
+                                           "strict": False, "origin": "mcp"})
+    st = _run_job(jid)
+    assert st["state"] == "failed", st
+    assert not (tmp_path / "o.txt").exists()
+
+
+def test_montage_tool_argv_from_mcp_origin_is_always_strict(om):
+    argv = jobs.build_argv("montage-tool", {"name": "video_trimmer", "input": {}, "strict": False, "origin": "mcp"})
+    assert "--sob-mcp" in argv
