@@ -21,7 +21,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import tools
+from . import hostos, tools
 from .childio import run_child, under_mcp
 
 
@@ -47,7 +47,7 @@ def default_openmontage_dir() -> Path:
     if os.environ.get("SIMPLICIO_TOOLS_DIR"):
         return tools.tools_dir() / name
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return base / "tools" / name
 
 
@@ -78,11 +78,11 @@ def clone_openmontage(target_dir: Path | None = None) -> Path:
             "modo offline (SIMPLICIO_OFFLINE=1): não vou clonar o OpenMontage. "
             "Instale fora do modo offline com `simplicio-video montage clone` ou aponte OPENMONTAGE_DIR para um checkout."
         )
-    target = Path(target_dir).expanduser() if target_dir is not None else default_openmontage_dir()
     try:
+        target = Path(target_dir).expanduser() if target_dir is not None else default_openmontage_dir()
         with _checkout_at(target):
             return Path(tools.install("openmontage"))
-    except tools.ToolError as e:
+    except tools.ToolError as e:  # hostos.SemCasa goes up to cli.main: one clean message, exit 2
         raise MontageError(str(e)) from None
 
 
@@ -195,7 +195,7 @@ def data_dir() -> Path:
                   "use um caminho absoluto.", file=sys.stderr)
         return path.resolve()
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return (base / "openmontage-data").resolve()
 
 

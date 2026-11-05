@@ -192,7 +192,10 @@ def _run_setup(argv: list) -> int:
 
 
 def _setup_done() -> bool:
-    workspace = paths.workspace_dir()
+    try:
+        workspace = paths.workspace_dir()
+    except hostos.SemCasa:  # no home, no workspace to look at: the setup is not done, and the install is not the one to fail
+        return False
     return hostos.is_file(workspace / "workspace.yaml") and hostos.is_file(workspace / "policy.yaml")
 
 

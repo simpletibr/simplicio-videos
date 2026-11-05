@@ -928,7 +928,9 @@ def video_status(contrato: str | None = None) -> dict:
     return _cli(["status", "--json", *([contrato] if contrato else [])])
 
 
-DESC_video_doctor = "Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace (all, --online for network checks). Read-only." + _SEM_SUBCOMANDO
+DESC_video_doctor = ("Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace and the external tracks "
+                     "(`trilhas`: installed, pin, setup, system dependencies and the exact fix of each gap; `all` adds it as one row). "
+                     "--online adds the network checks (also the upstream of each track). Read-only.") + _SEM_SUBCOMANDO
 @_erro_de_argumentos
 def video_doctor(args: list[str] | str = "", argv: list[str] | None = None) -> dict:
     """Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports and workspace. args may be `all`, and

@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import childio, paths
+from . import childio, hostos, paths
 
 
 class CloneVoiceError(SystemExit):
@@ -49,7 +49,7 @@ def openvoice(S: dict, text: str, dst: Path, ref: Path | None, base_take) -> Non
     if ref is None:
         raise CloneVoiceError("provider=openvoice: set voz.providers.openvoice.reference_audio (a clean 10-30 s clip of an authorized speaker)")
     py = os.environ.get("OPENVOICE_PY")
-    ckpt = os.environ.get("OPENVOICE_CHECKPOINTS") or str(Path.home() / ".local/share/simplicio-tts/openvoice/checkpoints_v2")
+    ckpt = os.environ.get("OPENVOICE_CHECKPOINTS") or str(hostos.home_dir() / ".local/share/simplicio-tts/openvoice/checkpoints_v2")
     if not py or not Path(py).exists():
         raise CloneVoiceError("provider=openvoice: set OPENVOICE_PY to a Python with OpenVoice installed (see voices/openvoice.md)")
     if not (Path(ckpt) / "converter" / "checkpoint.pth").is_file():

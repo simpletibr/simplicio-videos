@@ -18,7 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import tools
+from . import hostos, tools
 
 TOONFLOW_REPO = tools.get("toonflow").source
 # Fixed in the Toonflow server (apps/server/src/index.ts). The server listens on every interface with no login,
@@ -71,7 +71,7 @@ def data_dir() -> Path:
     if explicit:
         return Path(explicit).expanduser().resolve()
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return (base / "toonflow-data").resolve()
 
 
