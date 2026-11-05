@@ -1,6 +1,6 @@
 """Módulo `busca` (`simplicio-video busca consulta|pagina|status|log`): hermético, sem rede e sem o binário real.
 
-O CLI `tinyfish` (npm `@tiny-fish/cli`, 0.50.1) é trocado por um executável FALSO que o próprio teste escreve numa pasta
+O CLI `tinyfish` (npm `@tiny-fish/cli`, 0.57.0) é trocado por um executável FALSO que o próprio teste escreve numa pasta
 temporária e que é o único `tinyfish` no PATH do teste. Ele devolve as saídas reais sanitizadas de tests/fixtures/busca/
 (duas chamadas de fumaça de 2026-10-16) ou o que o teste mandar: erro, JSON inválido, demora, saída gigante, texto hostil.
 Ele também registra o argv e o ambiente que recebeu, para provar que nada além da lista fechada é repassado.
@@ -83,7 +83,7 @@ sys.exit(spec.get("exit", 0))
 """
 
 DEFAULTS = {
-    "version": {"stdout": "0.50.1\n"},
+    "version": {"stdout": "0.57.0\n"},
     "search": {"stdout": CONSULTA_RAW},
     "fetch": {"stdout": PAGINA_RAW},
     "auth": {"stdout": jt({"source": "config", "key_preview": "sk-tinyfish-AAAA...WXYZ", "authenticated": True})},
@@ -202,7 +202,7 @@ def test_consulta_feliz_aplica_o_limite_e_chama_o_binario_so_por_lista(env, hoje
     assert r["schema"] == "simplicio.busca-consulta/v1"
     assert r["total_cli"] == 10 and r["mostrados"] == 5 and len(r["resultados"]) == 5 and r["limite"] == 5
     assert [x["posicao"] for x in r["resultados"]] == [1, 2, 3, 4, 5]
-    assert r["do_cache"] is False and r["consultado_em"] == "2026-10-16T12:00:00Z" and r["cli_versao"] == "0.50.1"
+    assert r["do_cache"] is False and r["consultado_em"] == "2026-10-16T12:00:00Z" and r["cli_versao"] == "0.57.0"
     assert r["chamadas_hoje"] == 1 and r["teto_dia"] == 20
     primeiro = r["resultados"][0]
     esperado = CONSULTA["results"][0]
@@ -743,7 +743,7 @@ def test_registro_de_procedencia_tem_hash_do_conteudo_devolvido(env, hoje):
     bruto = CONSULTA_RAW.encode("utf8")
     assert reg["schema"] == "simplicio.busca-registro/v1" and reg["comando"] == "consulta" and reg["canal"] == "terminal"
     assert reg["em"] == "2026-10-16T12:00:00Z" and reg["consulta"] == TEXTO and reg["idioma"] == "pt" and reg["excluir"] == ["pinterest.com"]
-    assert reg["dominios"] == [] and reg["url"] is None and reg["cli_versao"] == "0.50.1" and reg["do_cache"] is False
+    assert reg["dominios"] == [] and reg["url"] is None and reg["cli_versao"] == "0.57.0" and reg["do_cache"] is False
     assert reg["conteudo_sha256"] == hashlib.sha256(bruto).hexdigest() and reg["conteudo_bytes"] == len(bruto)
     assert reg["urls_resultados"] == [x["url"] for x in CONSULTA["results"][:5]] and reg["n_resultados"] == 10 and reg["n_mostrados"] == 5
     assert re.fullmatch(r"[0-9a-f]{64}", reg["entregue_sha256"]) and reg["entregue_bytes"] > 0 and re.fullmatch(r"[0-9a-f]{64}", reg["chave_cache"])
@@ -989,7 +989,7 @@ def test_o_codigo_nao_tem_shell_nem_rede_nem_llm():
 def test_status_completo_nao_mostra_o_pedaco_da_chave(env, hoje):
     r = env.b.status()
     assert r["schema"] == "simplicio.busca-status/v1"
-    assert r["binario"]["encontrado"] is True and r["binario"]["versao"] == "0.50.1" and r["binario"]["versao_testada"] == "0.50.1"
+    assert r["binario"]["encontrado"] is True and r["binario"]["versao"] == "0.57.0" and r["binario"]["versao_testada"] == "0.57.0"
     assert r["binario"]["versao_confere"] is True and r["binario"]["caminho"] == str(env.fake.exe)
     assert r["chave"] == {"configurada": True, "origem": "config", "formato_valido": True, "variavel_ambiente": "TINYFISH_API_KEY"}
     assert r["hoje"] == {"dia": "2026-10-16", "chamadas": 0, "teto": 20, "restantes": 20}
@@ -1022,7 +1022,7 @@ def test_status_versao_diferente_da_testada_avisa_mas_nao_bloqueia(env):
     env.fake.set(version={"stdout": "0.49.3\n"})
     r = env.b.status()
     assert r["binario"]["versao"] == "0.49.3" and r["binario"]["versao_confere"] is False and r["pronto"] is True
-    assert any("0.50.1" in a and "0.49.3" in a for a in r["avisos"])
+    assert any("0.57.0" in a and "0.49.3" in a for a in r["avisos"])
 
 
 def test_status_com_saida_estranha_do_binario_nao_quebra(env):
@@ -1055,7 +1055,7 @@ def test_status_json_pelo_cli(env, capsys):
 def test_status_geral_lista_o_tinyfish_e_a_busca(env, capsys):
     rep = status.report()
     nomes = {t["name"]: t for t in rep["tools"]}
-    assert nomes["tinyfish"]["installed"] is True and nomes["tinyfish"]["version"] == "0.50.1" and nomes["tinyfish"]["pinned"] == "0.50.1"
+    assert nomes["tinyfish"]["installed"] is True and nomes["tinyfish"]["version"] == "0.57.0" and nomes["tinyfish"]["pinned"] == "0.57.0"
     assert rep["busca"]["chamadas_hoje"] == 0 and rep["busca"]["teto"] == 20 and rep["busca"]["variavel_da_chave_definida"] is False
     assert rep["busca"]["variavel_da_chave"] == "TINYFISH_API_KEY"
     assert "busca" in status.text(rep) and "tinyfish" in status.text(rep)
@@ -1066,7 +1066,7 @@ def test_status_geral_lista_o_tinyfish_e_a_busca(env, capsys):
 
 def test_tinyfish_esta_registrado_com_versao_fixada():
     t = tools.get("tinyfish")
-    assert t.kind == "npm" and t.source == "@tiny-fish/cli" and t.ref == "0.50.1"
+    assert t.kind == "npm" and t.source == "@tiny-fish/cli" and t.ref == "0.57.0"
     assert "not declared" in t.license.lower()
     assert "tinyfish" in status.ENGINE_TOOLS
 
@@ -1195,7 +1195,7 @@ def test_dados_do_pacote_batem_com_os_schemas_e_tem_fonte_e_data():
     base = paths.data_dir() / "busca"
     doc = json.loads((base / "tinyfish.json").read_text(encoding="utf8"))
     jsonschema.validate(doc, json.loads((base / "tinyfish.schema.json").read_text(encoding="utf8")))
-    assert doc["pacote"] == "@tiny-fish/cli" and doc["versao_testada"] == tools.get("tinyfish").ref == "0.50.1"
+    assert doc["pacote"] == "@tiny-fish/cli" and doc["versao_testada"] == tools.get("tinyfish").ref == "0.57.0"
     assert doc["variavel_ambiente"] == "TINYFISH_API_KEY" and doc["fatos"]
     for f in doc["fatos"]:
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", f["read_on"]) and f["fonte"] and f["confidence"] in {"official", "observed", "UNVERIFIED"}, f
@@ -1277,7 +1277,7 @@ def test_status_geral_nao_repassa_chaves_ao_tinyfish_e_ainda_mostra_a_versao(env
     assert main(["status", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["tools"][0]["name"] == "openmontage"
     linha = {t["name"]: t for t in rep["tools"]}["tinyfish"]
-    assert linha["installed"] is True and linha["version"] == "0.50.1"
+    assert linha["installed"] is True and linha["version"] == "0.57.0"
     chamadas = env.fake.chamadas()
     assert len(chamadas) == 2 and all(c["argv"] == ["--version"] for c in chamadas)  # status geral só lê a versão
     for chamada in chamadas:
@@ -1674,7 +1674,7 @@ def test_host_que_so_contem_o_sufixo_no_meio_continua_valendo(env, host):
 def test_status_offline_roda_so_version_e_auth_status_locais(env):
     env.mp.setenv("SIMPLICIO_OFFLINE", "1")
     r = env.b.status()
-    assert r["binario"]["versao"] == "0.50.1" and r["chave"]["origem"] == "config"
+    assert r["binario"]["versao"] == "0.57.0" and r["chave"]["origem"] == "config"
     assert sorted(c["argv"] for c in env.fake.chamadas()) == [["--version"], ["auth", "status"]]
 
 

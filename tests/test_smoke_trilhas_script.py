@@ -244,7 +244,7 @@ def test_clone_status_json_entra_na_checagem_local(smoke, monkeypatch):
     def cli(argv):
         chamadas.append(list(argv))
         if argv[1:] == ["status", "--json"]:
-            return smoke.Saida(0, '{"ok": true, "source": "npx", "pinned": "0.2.17"}', "")
+            return smoke.Saida(0, '{"ok": true, "source": "npx", "pinned": "0.3.1"}', "")
         return smoke.Saida(0, AJUDA_CLONE_MOTOR, "")
 
     monkeypatch.setattr(smoke, "_rodar_cli", cli)

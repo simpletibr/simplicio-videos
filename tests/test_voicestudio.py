@@ -742,7 +742,9 @@ def test_split_args_keeps_windows_backslashes():
     from simplicio_video import mcp_server
     assert mcp_server._split_args(r"tts oi --out C:\tmp\a.wav", windows=True) == ["tts", "oi", "--out", r"C:\tmp\a.wav"]
     assert mcp_server._split_args('tts "olá mundo" -o "C:\\a b\\x.wav"', windows=True) == ["tts", "olá mundo", "-o", "C:\\a b\\x.wav"]
-    assert mcp_server._split_args(r"tts a\ b", windows=False) == ["tts", "a b"]
+    # sem aspas a linha é só separada em espaços (review rev177, F4): a barra não escapa o espaço; para um espaço, use aspas ou argv
+    assert mcp_server._split_args(r"tts a\ b", windows=False) == ["tts", "a\\", "b"]
+    assert mcp_server._split_args(r'tts "a b"', windows=False) == ["tts", "a b"]
 
 
 def test_mcp_none_and_a_job_value_that_looks_like_an_option_do_not_crash_or_misparse(served, mcp_tool, tmp_path):
