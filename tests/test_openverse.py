@@ -1356,6 +1356,28 @@ def test_export_recusa_cc_by_sem_autor_ou_sem_licenca(env, aprovado):
     assert not dest.exists() or not list(dest.iterdir())
 
 
+@pytest.mark.parametrize("url", [
+    "https://creativecommons.org/licenses/by-nd/2.0/",
+    "https://creativecommons.org/licenses/by-sa/2.0/",
+    "https://creativecommons.org/publicdomain/zero/1.0/",
+], ids=["by-com-url-by-nd", "by-com-url-by-sa", "by-com-url-cc0"])
+def test_licenca_by_com_url_de_outra_licenca_e_recusada_no_export_e_no_portao(env, aprovado, url):
+    """F4: a licença é conferida pelo id E pela URL: `by` com a URL de outra licença é registro incoerente, não sai nem passa no portão."""
+    _mudar_e_reaprovar(env, aprovado["id"], licenca_url=url)
+    with pytest.raises(ov.OpenverseError, match="URL da licença"):
+        ov.export(aprovado["id"], PEDIDO, para=env.tmp / "saida")
+    r = ov.verify_asset(env.lib / aprovado["arquivo"], {"id": aprovado["id"], "pedido": PEDIDO})
+    assert r["ok"] is False and any("URL da licença" in e for e in r["erros"]), r["erros"]
+
+
+@pytest.mark.parametrize("lic", sorted(ov._licenses()))
+def test_url_modelo_de_cada_licenca_passa_na_checagem_de_direitos(lic):
+    """Guarda: a URL modelo da tabela de licenças é a da própria licença (a coerência id x URL não recusa o que a tabela ensina)."""
+    rec = {"licenca": lic, "licenca_versao": None, "licenca_url": ov._licenses()[lic]["url_modelo"], "autor": "Autora",
+           "origem_url": "https://example.org/obra"}
+    ov._check_export_rights(rec, aceito_restricao=True)
+
+
 def test_export_de_cc0_sem_autor_e_permitido_e_o_credito_diz_que_nao_ha_autor(env, aprovado):
     _mudar_e_reaprovar(env, aprovado["id"], licenca="cc0", licenca_versao="1.0", licenca_url="https://creativecommons.org/publicdomain/zero/1.0/",
                        autor=None, autor_url=None)

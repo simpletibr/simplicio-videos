@@ -23,7 +23,7 @@ import yaml
 
 from audio_medida import freq_dominante, le_wav, potencia_banda_db
 from conftest import have_render_tools
-from simplicio_video import compiler, contract as ct, openverse as ov, render, voice
+from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract as oc, render, trilha, voice
 from test_openverse import PEDIDO, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, env, midia
 
 needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
@@ -230,6 +230,173 @@ def test_manifesto_e_creditos_levam_a_trilha(env, trilha_aprovada, mini, manifes
     assert ativo["id"] == trilha_aprovada["id"] and ativo["destino"] == f"assets/audio/trilha/origem/{nome}"
     cred = (dst.parent / "mini.CREDITS-openverse.md").read_text(encoding="utf8")
     assert trilha_aprovada["sha256"] in cred and trilha_aprovada["id"] in cred
+
+
+def _creditos_do_video(contrato) -> str:
+    """Os créditos que o render grava ao lado do MP4, com a composição compilada de verdade (ffmpeg real, sem o node)."""
+    wd = contrato.parent / "wd"
+    compiler.compile_project(ct.load(contrato), wd, None)
+    files = render.tree_hash(wd)[1]
+    dst = contrato.parent / "out" / "mini.mp4"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_bytes(b"mp4-falso")
+    oc.deliver(ct.load(contrato), dst, files)
+    return (dst.parent / "mini.CREDITS-openverse.md").read_text(encoding="utf8")
+
+
+NOTA_MODIFICADO = "áudio modificado/adaptado pelo simplicio-video (cortes, crossfade, filtro, ducking)"
+INDICE_ILEGIVEL = "{ isto nao e json"
+
+
+# ------------------------------------------------------------------------------------------------ F1/F2: sem bloco, a trilha não passa pelo índice
+
+@needs_ffmpeg
+def test_trilha_sem_bloco_com_indice_ilegivel_e_copia_da_biblioteca_e_recusada(env, trilha_aprovada, mini):
+    """F1: sem o índice, a trilha copiada à mão passava com um aviso só; o arranjo muda os bytes, então o render não a pegava."""
+    nome = _exportar_trilha(mini, trilha_aprovada)
+    _copia_para_trilha(mini, nome)
+    (env.lib / "index.json").write_text(INDICE_ILEGIVEL, encoding="utf8")
+    rep = ct.validate(ct.load(mini))
+    erros = [e for e in rep.errors if e.startswith("openverse:")]
+    assert not rep.ok and erros and "trilha/fundo.wav" in erros[0] and "mesmos bytes" in erros[0], rep.errors
+
+
+@needs_ffmpeg
+def test_trilha_sem_bloco_com_indice_ilegivel_e_arquivo_dentro_da_biblioteca_e_recusada(env, trilha_aprovada, mini):
+    """F1: um arquivo que mora na biblioteca não se confere sem o índice: recusa, em vez de seguir com um aviso."""
+    _sem_voz(mini)
+    arquivo = env.lib / trilha_aprovada["arquivo"]
+    _edit(mini, lambda d: d["trilha"]["music"].update(arquivo=str(arquivo)))
+    (env.lib / "index.json").write_text(INDICE_ILEGIVEL, encoding="utf8")
+    rep = ct.validate(ct.load(mini))
+    assert not rep.ok and any(e.startswith("openverse:") and "dentro da biblioteca" in e for e in rep.errors), rep.errors
+
+
+@needs_ffmpeg
+def test_trilha_de_arquivo_comum_com_indice_ilegivel_segue_com_aviso(env, mini):
+    """Guarda: uma trilha que não é da biblioteca continua valida, com o aviso de que não deu para conferir (como antes)."""
+    _sem_voz(mini)
+    (mini.parent / "trilha").mkdir()
+    _wav_tom(mini.parent / "trilha" / "fundo.wav", freq=440)
+    _edit(mini, lambda d: d["trilha"]["music"].update(arquivo="trilha/fundo.wav"))
+    env.lib.mkdir(parents=True)
+    (env.lib / "index.json").write_text(INDICE_ILEGIVEL, encoding="utf8")
+    rep = ct.validate(ct.load(mini))
+    assert rep.ok and any("biblioteca" in w for w in rep.warnings), (rep.errors, rep.warnings)
+
+
+@needs_ffmpeg
+def test_copia_a_mao_da_trilha_e_recusada_sem_os_arquivos_da_biblioteca(env, trilha_aprovada, mini):
+    """F2: o índice lista o sha256 e a fonte bate: é da biblioteca mesmo sem o arquivo em files/ (o tamanho só contava arquivos existentes)."""
+    nome = _exportar_trilha(mini, trilha_aprovada)
+    _copia_para_trilha(mini, nome)
+    shutil.rmtree(env.lib / "files")
+    rep = ct.validate(ct.load(mini))
+    erros = [e for e in rep.errors if e.startswith("openverse:")]
+    assert erros and "mesmos bytes" in erros[0], rep.errors
+
+
+# ------------------------------------------------------------------------------------------------ F3: o crédito da trilha diz que o áudio foi modificado
+
+@needs_ffmpeg
+def test_creditos_da_trilha_dizem_que_o_audio_foi_modificado(env, trilha_aprovada, mini):
+    """F3 (CC BY 4.0 §3(a)(1)(B)): o crédito da trilha indica a modificação feita pelo motor."""
+    _exportar_trilha(mini, trilha_aprovada)
+    _sem_voz(mini)
+    cred = _creditos_do_video(mini)
+    assert NOTA_MODIFICADO in cred, cred
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("licenca, url", [
+    ("by-sa", "https://creativecommons.org/licenses/by-sa/4.0/"),
+    ("by-nc", "https://creativecommons.org/licenses/by-nc/4.0/"),
+    ("by-nc-sa", "https://creativecommons.org/licenses/by-nc-sa/4.0/"),
+])
+def test_creditos_da_trilha_repetem_o_aviso_da_licenca_com_restricao(env, mini, tmp_path, licenca, url):
+    """F3: com by-sa, by-nc ou by-nc-sa o crédito da trilha repete o aviso da licença (mesma licença ou uso não comercial)."""
+    item = baixar(env, tipo="audio", body=_wav_tom(tmp_path / "tom.wav"))
+    _mudar_e_reaprovar(env, item["id"], licenca=licenca, licenca_url=url, licenca_versao="4.0")
+    _exportar_trilha(mini, item, aceito=True)
+    _sem_voz(mini)
+    cred = _creditos_do_video(mini)
+    aviso = ov._licenses()[licenca]["aviso"]
+    assert NOTA_MODIFICADO in cred and aviso in cred, cred
+
+
+@needs_ffmpeg
+def test_creditos_da_trilha_cc_by_nao_repetem_aviso_de_licenca(env, trilha_aprovada, mini):
+    """Guarda: CC BY não tem aviso de licença; o crédito da trilha só ganha a nota de modificação."""
+    _exportar_trilha(mini, trilha_aprovada)
+    _sem_voz(mini)
+    cred = _creditos_do_video(mini)
+    assert NOTA_MODIFICADO in cred and "Aviso da licença" not in cred, cred
+
+
+@needs_ffmpeg
+def test_nota_de_audio_modificado_so_vai_a_trilha_e_nao_a_asset(env, trilha_aprovada, mini):
+    """Guarda: um áudio da biblioteca usado como asset comum (não como trilha) não ganha a nota de modificação."""
+    nome = Path(ov.export(trilha_aprovada["id"], PEDIDO, contrato=mini)["arquivo"]).name
+    _sem_voz(mini)
+    _edit(mini, lambda d: d.setdefault("assets", []).append({"arquivo": f"assets/openverse/{nome}", "destino": f"assets/openverse/{nome}",
+                                                             "openverse": {"id": trilha_aprovada["id"], "pedido": PEDIDO}}))
+    cred = _creditos_do_video(mini)
+    assert trilha_aprovada["id"] in cred and "modificado/adaptado" not in cred, cred
+
+
+# ------------------------------------------------------------------------------------------------ F5: um destino, um arquivo (a cópia da trilha entra)
+
+@needs_ffmpeg
+def test_asset_no_destino_da_copia_aprovada_da_trilha_nao_passa(env, trilha_aprovada, mini):
+    """F5: o compilador grava a cópia aprovada da trilha em assets/audio/trilha/origem/; um asset ali seria trocado em silêncio."""
+    nome = _exportar_trilha(mini, trilha_aprovada)
+    _sem_voz(mini)
+    (mini.parent / "assets" / "cliente").mkdir(parents=True)
+    _wav_tom(mini.parent / "assets" / "cliente" / "sfx.wav", freq=880)
+    destino = f"assets/audio/trilha/origem/{nome}"
+    _edit(mini, lambda d: d.setdefault("assets", []).append({"arquivo": "assets/cliente/sfx.wav", "destino": destino}))
+    rep = ct.validate(ct.load(mini))
+    dup = [e for e in rep.errors if "duplicated destino" in e]
+    assert dup and destino in dup[0] and "trilha.music" in dup[0], rep.errors
+
+
+@needs_ffmpeg
+def test_asset_no_destino_do_arranjo_da_trilha_nao_passa(env, mini):
+    """F5: o compilador grava o arranjo em assets/audio/trilha/arranjo.wav; um asset com esse destino seria trocado em silêncio."""
+    _sem_voz(mini)
+    (mini.parent / "trilha").mkdir()
+    _wav_tom(mini.parent / "trilha" / "fundo.wav", freq=440)
+    (mini.parent / "assets" / "cliente").mkdir(parents=True)
+    _wav_tom(mini.parent / "assets" / "cliente" / "sfx.wav", freq=880)
+
+    def fn(d):
+        d["trilha"]["music"]["arquivo"] = "trilha/fundo.wav"
+        d.setdefault("assets", []).append({"arquivo": "assets/cliente/sfx.wav", "destino": trilha.ARRANJO_REL})
+    _edit(mini, fn)
+    rep = ct.validate(ct.load(mini))
+    dup = [e for e in rep.errors if "duplicated destino" in e]
+    assert dup and trilha.ARRANJO_REL in dup[0], rep.errors
+
+
+# ------------------------------------------------------------------------------------------------ F6: mensagens
+
+@needs_ffmpeg
+def test_licenca_que_nao_permite_modificacao_na_trilha_lista_todas_as_que_permitem(env, mini, tmp_path):
+    """F6a: a recusa da trilha lista as licenças que o motor aceita (by-nc e by-nc-sa também), não só CC0, PDM, CC BY e CC BY-SA."""
+    item = baixar(env, tipo="audio", body=_wav_tom(tmp_path / "tom.wav"))
+    _mudar_e_reaprovar(env, item["id"], licenca="by-nd", licenca_url="https://creativecommons.org/licenses/by-nd/4.0/", licenca_versao="4.0")
+    _exportar_trilha(mini, item, aceito=True)
+    erros = _ov_erros(mini)
+    assert erros and "não permite modificação" in erros[0], erros
+    permitidas = [r["nome"] for r in ov._licenses().values() if r["permite_modificacao"]]
+    assert permitidas and all(n in erros[0] for n in permitidas), erros
+
+
+@needs_ffmpeg
+def test_arranjo_com_bytes_da_biblioteca_manda_declarar_o_bloco_da_trilha(env, trilha_aprovada):
+    """F6c: quem tem os bytes da biblioteca na composição é a trilha: o conserto é o bloco em trilha.music, não um asset."""
+    erros = oc.check_workdir(None, {trilha.ARRANJO_REL: trilha_aprovada["sha256"]}, ver=oc.Verification())
+    assert len(erros) == 1 and "mesmos bytes" in erros[0] and "trilha.music.openverse" in erros[0] and "assets[]" not in erros[0], erros
 
 
 # ------------------------------------------------------------------------------------------------ mix (build de verdade, sem HyperFrames)

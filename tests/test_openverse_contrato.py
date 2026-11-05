@@ -325,6 +325,21 @@ def test_ativo_declarado_fora_de_assets_openverse_e_recusado(env, aprovado, mini
     assert len(erros) == 1 and "assets/openverse/" in erros[0], erros
 
 
+def test_link_simbolico_em_assets_openverse_diz_que_e_link(env, aprovado, mini):
+    """F6b: um link dentro de assets/openverse para fora da pasta é recusado dizendo que é um link, não que o arquivo 'não está lá'."""
+    nome = _exportar(mini, aprovado)
+    pasta = mini.parent / "assets" / "openverse"
+    fora = env.tmp / "fora" / nome
+    fora.parent.mkdir()
+    shutil.copy2(pasta / nome, fora)
+    (pasta / nome).unlink()
+    (pasta / nome).symlink_to(fora)
+    _edit(mini, lambda d: d.setdefault("assets", []).append({"arquivo": f"assets/openverse/{nome}", "destino": f"assets/openverse/{nome}",
+                                                             "openverse": {"id": aprovado["id"], "pedido": PEDIDO}}))
+    erros = _ov_erros(mini)
+    assert erros and any("link simbólico" in e for e in erros), erros
+
+
 def test_cada_recusa_nao_esconde_as_outras(env, midia, aprovado, mini):
     nome = _declarar(mini, aprovado)
     _arquivo(mini, nome).write_bytes(PNG_B)
