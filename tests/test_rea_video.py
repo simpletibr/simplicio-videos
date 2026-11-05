@@ -2,8 +2,10 @@
 Nothing here touches the network: clone, pip and the upstream command are stubbed."""
 from __future__ import annotations
 
+import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -412,7 +414,7 @@ def test_mcp_reads_and_refuses_setup_and_the_analysis(checkout, monkeypatch):
     assert mcp_server.video_rea_video("status")["ok"] is True
     assert mcp_server.video_rea_video("clone /tmp/x")["ok"] is False  # the default folder only, over MCP
     assert mcp_server.video_rea_video("where extra")["ok"] is False
-    for refused in ("setup", "decompose ref.mp4 -o out/ref", "remake-run jobs.json"):
+    for refused in ("setup", "remake-run jobs.json"):
         r = mcp_server.video_rea_video(refused)
         assert r["ok"] is False and "terminal" in r["error"], refused
 
@@ -421,3 +423,256 @@ def test_module_never_imports_the_upstream_package_nor_uses_a_machine_path():
     src = Path(rea_video.__file__).read_text(encoding="utf8")
     assert "import rea_video" not in src and "from rea_video" not in src
     assert "/home/" not in src and "/Users/" not in src
+
+
+# ---- MCP: the open commands, a closed list of flags, a private cwd (T5) ---------------------------------------------
+
+class _Exec:
+    """Stands in for rea_video._mcp_exec (the one place the MCP path starts the upstream): records (argv, cwd, env)."""
+
+    def __init__(self, rc: int = 0, out: str = "ok"):
+        self.rc, self.out, self.calls, self.cwd_seen = rc, out, [], []
+
+    def __call__(self, argv, cwd, env):
+        self.calls.append((list(argv), Path(cwd), dict(env)))
+        self.cwd_seen.append((Path(cwd).is_dir(), sorted(p.name for p in Path(cwd).iterdir())))
+        return self.rc, self.out
+
+
+@pytest.fixture
+def fake(tmp_path, monkeypatch):
+    _rea_video_bin(tmp_path)
+    ex = _Exec()
+    monkeypatch.setattr(rea_video, "_mcp_exec", ex)
+    return ex
+
+
+@pytest.fixture
+def media(tmp_path):
+    video = tmp_path / "ref.mp4"
+    video.write_bytes(b"x")
+    out = tmp_path / "out"
+    out.mkdir()
+    bd = out / "breakdown.json"
+    bd.write_text("{}", encoding="utf8")
+    ans = out / "answers.json"
+    ans.write_text("{}", encoding="utf8")
+    return {"video": str(video), "out": str(out), "bd": str(bd), "ans": str(ans), "dir": tmp_path}
+
+
+def _mcp(arg_list):
+    return mcp_server.video_rea_video(arg_list)
+
+
+def test_mcp_open_commands_reach_the_upstream_with_exactly_the_given_flags(fake, media):
+    v, o, bd, ans = media["video"], str(media["dir"] / "t.jpg"), media["bd"], media["ans"]
+    cases = [
+        (["summary", bd], ["summary", bd]),
+        (["probe", v, "--tags"], ["probe", v, "--tags"]),
+        (["tiles", v, "-o", o, "--start", "1", "--end", "3.5", "--every", "0.5", "--cols", "4", "--cell", "200", "--max", "10"],
+         ["tiles", v, "-o", o, "--start", "1", "--end", "3.5", "--every", "0.5", "--cols", "4", "--cell", "200", "--max", "10"]),
+        (["tiles", v, f"--out={o}"], ["tiles", v, "--out", o]),
+        (["stems", v, "-o", media["out"]], ["stems", v, "-o", media["out"]]),
+        (["review", media["out"], "--force"], ["review", media["out"], "--force"]),
+        (["apply-review", media["out"], ans, "--by", "claude"], ["apply-review", media["out"], ans, "--by", "claude"]),
+        (["remake-plan", bd, "--capsule-root", str(media["dir"]), "--engine", "seedance2.0", "--mode", "image_to_video",
+          "--labels", "ai_video,cg_3d"],
+         ["remake-plan", bd, "--capsule-root", str(media["dir"]), "--engine", "seedance2.0", "--mode", "image_to_video",
+          "--labels", "ai_video,cg_3d"]),
+    ]
+    for given, want in cases:
+        fake.calls.clear()
+        r = _mcp(given)
+        assert r["ok"] is True, (given, r)
+        assert len(fake.calls) == 1 and fake.calls[0][0][1:] == want, given
+        assert Path(fake.calls[0][0][0]).name == "rea-video"
+
+
+def test_mcp_accepts_a_quoted_string_with_a_path_that_has_spaces(fake, tmp_path):
+    d = tmp_path / "meu video"
+    d.mkdir()
+    f = d / "a.mp4"
+    f.write_bytes(b"x")
+    assert _mcp(f'probe "{f}"')["ok"] is True
+    assert fake.calls[0][0][2] == str(f)
+
+
+def test_mcp_children_run_in_a_private_empty_cwd_not_the_callers(fake, media, monkeypatch, tmp_path):
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    (caller / ".env").write_text("REA_VLM_API_KEY=sk-should-never-be-read\n", encoding="utf8")
+    monkeypatch.chdir(caller)
+    assert _mcp(["summary", media["bd"]])["ok"] is True
+    cwd = fake.calls[0][1]
+    assert cwd != caller and not (cwd / ".env").exists()
+    assert fake.cwd_seen[0] == (True, [])  # existed and was empty while the child ran
+    assert not cwd.exists()  # and is gone afterwards
+
+
+def test_mcp_exec_uses_stdin_devnull_and_the_private_cwd(tmp_path, monkeypatch):
+    seen = {}
+
+    def run(argv, **kw):
+        seen.update(kw, argv=argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="saida", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    rc, out = rea_video._mcp_exec(["x", "summary"], tmp_path, {"A": "1"})
+    assert (rc, "saida" in out) == (0, True)
+    assert seen["stdin"] is subprocess.DEVNULL and seen["cwd"] == tmp_path and seen["env"] == {"A": "1"}
+    assert seen["timeout"] and seen["capture_output"] is True
+
+
+def test_mcp_children_never_see_the_vlm_settings_of_the_caller(fake, media, monkeypatch):
+    for k in ("REA_VLM_API_KEY", "REA_VLM_BASE_URL", "VIDEO_ANALYSIS_API_KEY", "VIDEO_ANALYSIS_BASE_URL", "GEMINI3_API_KEY"):
+        monkeypatch.setenv(k, "segredo-" + k)
+    monkeypatch.setenv("REA_VIDEO_HOME", "/h")
+    assert _mcp(["summary", media["bd"]])["ok"] is True
+    env = fake.calls[0][2]
+    assert not [k for k in env if k.startswith(("REA_VLM_", "VIDEO_ANALYSIS_", "GEMINI3_"))]
+    assert env["REA_VIDEO_HOME"] == "/h" and "REA_VIDEO_MODELS" in env  # state and models stay where the user has them
+
+
+@pytest.mark.parametrize("given", [
+    ["setup"], ["remake-run", "/x/jobs.json"], ["remake-run", "/x/jobs.json", "--dry-run"], ["capsule-draft", "/x/b.json"],
+    ["prefs"], ["prefs", "vlm", "on"], ["correct", "/x"], ["memory"], ["eval", "/x/l.yaml"],
+])
+def test_mcp_terminal_only_commands_are_refused(fake, given):
+    r = _mcp(given)
+    assert r["ok"] is False and "terminal" in r["error"], given
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("extra", [["--vlm"], ["--env-file", "/x/.env"], ["--env-file=/x/.env"], ["--vl"], ["--no-such"]])
+def test_mcp_refuses_vlm_env_file_and_unknown_flags_on_every_open_command(fake, media, extra):
+    base = {"summary": [media["bd"]], "probe": [media["video"]], "review": [media["out"]],
+            "apply-review": [media["out"]], "remake-plan": [media["bd"]],
+            "tiles": [media["video"], "-o", str(media["dir"] / "t.jpg")], "stems": [media["video"], "-o", media["out"]],
+            "decompose": [media["video"], "-o", media["out"]]}
+    for cmd, pos in base.items():
+        r = _mcp([cmd, *pos, *extra])
+        assert r["ok"] is False and "terminal" in r["error"], (cmd, extra, r)
+    assert fake.calls == []
+
+
+def test_mcp_refuses_global_upstream_flags_before_the_command(fake, media):
+    for given in (["--env-file", "/x/.env", "summary", media["bd"]], ["-v", "summary", media["bd"]]):
+        r = _mcp(given)
+        assert r["ok"] is False and "terminal" in r["error"]
+    assert fake.calls == []
+
+
+def test_mcp_paths_must_be_absolute_and_exist(fake, media, tmp_path):
+    for given in (["summary", "breakdown.json"], ["probe", "~/a.mp4"], ["review", "out/ref"],
+                  ["tiles", media["video"], "-o", "t.jpg"], ["tiles", media["video"]],  # -o is required, and absolute
+                  ["stems", media["video"]], ["stems", media["video"], "-o", "out/stems"],
+                  ["remake-plan", media["bd"], "--capsule-root", "capsule"],
+                  ["summary", str(tmp_path / "nao-existe.json")], ["probe", str(tmp_path / "nao-existe.mp4")]):
+        r = _mcp(given)
+        assert r["ok"] is False and r["error"], given
+    assert fake.calls == []
+
+
+def test_mcp_flag_values_are_checked(fake, media):
+    v = media["video"]
+    o = str(media["dir"] / "t.jpg")
+    for given in (["tiles", v, "-o", o, "--cols", "x"], ["tiles", v, "-o", o, "--start"], ["tiles", v, "-o", o, "--max", "-1"],
+                  ["remake-plan", media["bd"], "--mode", "anything"], ["review", media["out"], "--force", "--force"],
+                  ["summary", media["bd"], media["bd"]], ["summary"], ["tiles", v, "-o", o, "--every", "--vlm"],
+                  ["apply-review", media["out"], media["ans"], "extra"]):
+        r = _mcp(given)
+        assert r["ok"] is False and r["error"], given
+    assert fake.calls == []
+
+
+def test_mcp_reports_the_upstream_exit_code_and_output(fake, media):
+    fake.rc, fake.out = 3, "boom"
+    r = _mcp(["summary", media["bd"]])
+    assert r["ok"] is False and r["result"] == 3 and "boom" in r["log"]
+
+
+def test_mcp_without_the_venv_says_to_run_setup(media, monkeypatch):
+    monkeypatch.setattr(rea_video, "_mcp_exec", lambda *a: pytest.fail("não devia rodar"))
+    r = _mcp(["summary", media["bd"]])
+    assert r["ok"] is False and "setup" in r["error"]
+
+
+def test_mcp_where_status_clone_still_work_as_before(checkout, monkeypatch):
+    monkeypatch.setattr(tools, "_git", lambda *a, cwd=None: REF)
+    assert _mcp(["where"])["ok"] is True and _mcp("status")["ok"] is True
+    assert _mcp(["clone", "/tmp/x"])["ok"] is False
+
+
+# ---- MCP: decompose as a background job ----------------------------------------------------------------------------
+
+@pytest.fixture
+def stub_spawn(monkeypatch):
+    from simplicio_video import jobs
+    calls = []
+    monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: calls.append(jid) or os.getpid())
+    return calls
+
+
+def test_jobs_has_the_rea_video_kind():
+    from simplicio_video import jobs
+    assert "rea-video" in jobs.KINDS
+
+
+def test_mcp_decompose_submits_a_job_and_always_says_no_vlm(fake, media, stub_spawn):
+    from simplicio_video import jobs
+    out = str(media["dir"] / "dec")
+    r = _mcp(["decompose", media["video"], "-o", out, "--no-stems", "--no-ocr", "--workers", "2", "--ocr-lang", "ja"])
+    assert r["ok"] is True and r["job"]["kind"] == "rea-video" and r["job"]["state"] == "queued", r
+    assert fake.calls == [] and stub_spawn == [r["job"]["id"]]  # submitted, not run inline
+    st = jobs.status(r["job"]["id"])
+    args = st["params"]["args"]
+    assert args[0] == "decompose" and "--no-vlm" in args and "--vlm" not in args and "-o" in args
+    assert Path(st["cwd"]) != Path.cwd() and Path(st["cwd"]).is_dir()  # the runner starts the child in a private folder
+    assert jobs.build_argv("rea-video", st["params"])[0] == "rea-video"
+
+
+@pytest.mark.parametrize("extra", [["--vlm"], ["--env-file", "/x/.env"], ["--env-file=/x/.env"]])
+def test_mcp_decompose_refuses_vlm_and_env_file(fake, media, stub_spawn, extra):
+    r = _mcp(["decompose", media["video"], "-o", str(media["dir"] / "dec"), *extra])
+    assert r["ok"] is False and "terminal" in r["error"] and stub_spawn == []
+
+
+def test_mcp_decompose_needs_an_absolute_out(fake, media, stub_spawn):
+    for given in (["decompose", media["video"]], ["decompose", media["video"], "-o", "out/ref"]):
+        assert _mcp(given)["ok"] is False
+    assert stub_spawn == []
+
+
+def test_jobs_submit_validates_the_same_way_whatever_the_origin(media, stub_spawn):
+    from simplicio_video import jobs
+    for origin in ("mcp", "terminal"):
+        with pytest.raises(jobs.JobError, match="terminal"):
+            jobs.submit("rea-video", {"args": ["decompose", media["video"], "-o", media["out"], "--vlm"]}, origin=origin)
+        with pytest.raises(jobs.JobError):
+            jobs.submit("rea-video", {"args": ["summary", media["bd"]]}, origin=origin)  # only decompose is a job
+        with pytest.raises(jobs.JobError):
+            jobs.submit("rea-video", {"args": ["decompose", media["video"], "-o", media["out"]], "x": 1}, origin=origin)
+    assert stub_spawn == []
+
+
+def test_rea_video_job_result_summarises_the_breakdown(tmp_path):
+    from simplicio_video import jobs
+    out = tmp_path / "dec"
+    out.mkdir()
+    (out / "breakdown.json").write_text(json.dumps({"summary": {"verdict": "ai", "shots": 4, "confidence": 0.8, "vlm": "off"}}),
+                                        encoding="utf8")
+    (out / "report.html").write_text("<html>", encoding="utf8")
+    params = {"args": ["decompose", "/v.mp4", "-o", str(out), "--no-vlm"]}
+    res = jobs.KINDS["rea-video"]["result"](params, None)
+    assert res["out"] == str(out) and res["breakdown"] == str(out / "breakdown.json")
+    assert res["report"] == str(out / "report.html") and res["verdict"] == "ai" and res["shots"] == 4
+    assert len(res["breakdown_sha256"]) == 64
+    (out / "breakdown.json").unlink()
+    assert jobs.KINDS["rea-video"]["result"](params, None) is None
+
+
+def test_mcp_description_names_what_is_open_and_what_stays_in_the_terminal():
+    d = mcp_server.DESC_video_rea_video
+    for word in ("summary", "probe", "tiles", "stems", "review", "apply-review", "remake-plan", "decompose", "job", "terminal"):
+        assert word in d, word
+    assert "--vlm" in d
