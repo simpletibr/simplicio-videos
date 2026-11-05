@@ -702,6 +702,13 @@ MCP_ALLOWLIST: dict[str, dict] = {
                                                          "pasta lateral (conferido)"},
 }
 
+def _mcp_allowlist_text() -> str:
+    """The MCP allowlist as the run-tool help names it, read from MCP_ALLOWLIST itself so the help cannot drift from the
+    list: `video_trimmer (cut, speed), audio_probe, frame_sampler, scene_detect`."""
+    return ", ".join(f"{name} ({', '.join(info['operations'])})" if info.get("operations") else name
+                     for name, info in MCP_ALLOWLIST.items())
+
+
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,79}$")
 _PATH_KEY = re.compile(r"(^|_)(path|paths|file|files|dir|dirs|folder|folders|src|source|dst|dest|destination|input|output|out|"
                        r"video|videos|audio|image|images|clip|clips)$", re.I)
@@ -1239,9 +1246,8 @@ def _run_tool_parser() -> argparse.ArgumentParser:
         prog=prog, formatter_class=fmt,
         description=("Roda UMA tool do OpenMontage (os nomes estão em `montage tools list`). No terminal: qualquer tool; o que não "
                      "é local, custa dinheiro, tem custo não estimado ou usa rede pede --yes, depois da estimativa. A tool de "
-                     "publicação nunca roda. Pelo MCP (video.montage run-tool) só roda uma tool revisada (video_trimmer, "
-                     "audio_probe, frame_sampler, scene_detect, silence_cutter), local, gratuita e sem rede, como tarefa em segundo "
-                     "plano."),
+                     f"publicação nunca roda. Pelo MCP (video.montage run-tool) só roda uma tool revisada ({_mcp_allowlist_text()}), "
+                     "local, gratuita e sem rede, como tarefa em segundo plano."),
         epilog=("exemplos:\n"
                 f"  {prog} audio_probe --input '{{\"input_path\": \"/abs/clip.mp4\"}}' --json\n"
                 f"  {prog} video_trimmer --input "
