@@ -105,6 +105,29 @@ RUNTIMES = ("local", "local_gpu", "api", "hybrid")
 _CHILD_TIMEOUT = 300
 _OPEN_DIAG_TIMEOUT = 8
 _WARNED_RELATIVE: set[str] = set()
+_HELP_WORDS = ("help", "-h", "--help")  # the engine's own help: never the upstream (`python -m help` was the bug)
+
+# What `montage help` prints, in the terminal and over MCP. Each registry command has its own help: `montage help <comando>`.
+USAGE = "\n".join([
+    f"OpenMontage ({OPENMONTAGE_REPO})",
+    "uso: simplicio-video montage <comando> [args]",
+    "",
+    "registro (só leitura; `simplicio-video montage help <comando>` mostra a ajuda do comando):",
+    "  simplicio-video montage pipelines list|show NOME [--json]     pipelines de pipeline_defs/*.yaml",
+    "  simplicio-video montage tools list [--runtime R] [--json]     tools do registro; `tools info NOME` mostra o contrato",
+    "  simplicio-video montage envelope [--json] [--full]            o que cada tool declara e o estado ao vivo",
+    "  simplicio-video montage estimate NOME --input JSON [--json]   custo e tempo estimados (não executa a tool)",
+    "  simplicio-video montage status [--json]                       checkout, pino, venv, módulos que faltam",
+    "  simplicio-video montage run-tool NOME --input JSON [--yes]    roda uma tool como tarefa (`run-tool --help`)",
+    "instalação (precisa de rede):",
+    "  simplicio-video montage clone [dir]                           clona o checkout no commit fixado",
+    "  simplicio-video montage setup [--remotion] [--piper]          cria o venv e instala as dependências",
+    "outros (open, serve e demo só no terminal):",
+    "  simplicio-video montage open | serve [args]                   sobe o board (backlot); não termina sozinho",
+    "  simplicio-video montage demo [args]                           render_demo.py do checkout",
+    "  simplicio-video montage doctor | preflight                    checagens do checkout",
+    "outro argumento vai ao Python do venv (`-m MÓDULO` ou ARQUIVO.py), com o checkout como pasta de trabalho; só no terminal.",
+])
 
 # Runs inside the child (cwd = checkout, PYTHONPATH = checkout). Upstream chatter on stdout is sent to stderr so the
 # single JSON document on the real stdout stays parseable.
@@ -552,8 +575,32 @@ def _run_registry(ns: argparse.Namespace) -> int:
     return 0
 
 
+def _help(topic: list[str]) -> int:
+    """`montage help [comando]`: the engine's own help, read-only, and never the upstream. run-tool and the registry commands
+    print the help of their own parser (the same text as `montage <comando> --help`); anything else prints USAGE. Without the
+    checkout, USAGE is followed by how to get it."""
+    try:
+        if topic and topic[0] == "run-tool":
+            run_tool_cli(["--help"])
+        elif topic and topic[0] in REGISTRY_COMMANDS:
+            run_registry([*topic, "--help"])
+        else:
+            print(USAGE)
+            if find_openmontage_dir() is None:
+                print("\nOpenMontage não foi encontrado localmente.\n"
+                      "Para clonar e inicializar, execute:\n"
+                      "  simplicio-video montage clone [diretório]\n"
+                      "  ou defina OPENMONTAGE_DIR apontando para o checkout.\n"
+                      f"Local padrão: {default_openmontage_dir()} ($SIMPLICIO_VIDEO_DATA/tools/openmontage).")
+    except SystemExit as e:  # argparse printed the help and ends with its code (0; 2 for a word it does not know)
+        return e.code if isinstance(e.code, int) else 0
+    return 0
+
+
 def run_montage(args: list[str], cwd: Path | None = None) -> int:
     """Execute OpenMontage with arguments."""
+    if args and args[0] in _HELP_WORDS:
+        return _help(args[1:])
     if args and args[0] == "run-tool":
         return run_tool_cli(args[1:])
     if args and args[0] in REGISTRY_COMMANDS:
@@ -566,16 +613,8 @@ def run_montage(args: list[str], cwd: Path | None = None) -> int:
 
     om_dir = find_openmontage_dir()
     if om_dir is None:
-        if not args or args[0] in ("-h", "--help", "help"):
-            print(
-                f"OpenMontage ({OPENMONTAGE_REPO})\n\n"
-                "OpenMontage não foi encontrado localmente.\n"
-                "Para clonar e inicializar, execute:\n"
-                "  simplicio-video montage clone [diretório]\n"
-                "  ou defina OPENMONTAGE_DIR apontando para o checkout.\n"
-                f"Local padrão: {default_openmontage_dir()} ($SIMPLICIO_VIDEO_DATA/tools/openmontage).\n"
-            )
-            return 0
+        if not args:
+            return _help([])  # sem checkout, `montage` sozinho mostra a ajuda e diz como obter o checkout
         om_dir = ensure_openmontage_dir()
 
     workdir = cwd or om_dir
