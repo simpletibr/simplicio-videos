@@ -1494,7 +1494,7 @@ def _caso_aleatorio(rnd, disjunto):
 
 def test_s1_fuzz_uniao_das_ocorrencias_nenhum_pedaco_de_3_sobrevive_e_fluxo_igual_ao_texto_inteiro():
     rnd = random.Random(20260506)
-    casos = vazamentos = sobrepostos = 0
+    casos = sobrepostos = 0
     for k in range(20000):
         disjunto = k % 2 == 0
         segredos, formas, texto = _caso_aleatorio(rnd, disjunto)
