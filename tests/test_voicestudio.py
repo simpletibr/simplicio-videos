@@ -35,6 +35,9 @@ class Fake:
         self.sse = False
         self.dub_calls = []
         self.dub_response = (200, {"Content-Type": "video/mp4"}, MP4)
+        self.upload_calls = []
+        self.upload_response = (202, {"Content-Type": "application/json"},
+                                json.dumps({"job_id": "ab12cd34", "task_id": "prep_ab12cd34", "filename": "clip.mp4"}).encode())
 
     def __call__(self, method, url, body, headers, timeout):
         # Only the MCP lane is JSON-RPC: the REST lane carries multipart bytes.
@@ -45,6 +48,9 @@ class Fake:
             if self.well_known_status != 200:
                 return self.well_known_status, {}, b"not found"
             return 200, {"Content-Type": "application/json"}, json.dumps(self.well_known).encode()
+        if url.endswith(getattr(vs, "DUB_UPLOAD_PATH", "/dub/upload")):  # POST /dub/upload: multipart, the app answers 202 {job_id, task_id, filename}
+            self.upload_calls.append({"method": method, "url": url, "body": body, "headers": dict(headers), "timeout": timeout})
+            return self.upload_response
         if vs.DUB_DOWNLOAD_PATH in url:
             self.dub_calls.append({"method": method, "url": url, "headers": dict(headers), "timeout": timeout})
             return self.dub_response
@@ -391,3 +397,191 @@ def test_cli_dub_export_app_error_is_exit_1_with_the_message(fake, tmp_path, cap
 def test_cli_dub_export_needs_job_lang_and_output(fake, capsys):
     rc, _, err = _run(["dub-export", "--job", "j9"], capsys)
     assert rc == 2 and "--lang" in err and fake.dub_calls == []
+
+
+# ---- dub create (spike: POST /dub/upload at the pinned release; the app has no MCP/HTTP "one call" dub) ---------------
+
+def _clip(tmp_path, name="clip.mp4", data=b"fake-video-bytes"):
+    f = tmp_path / name
+    f.write_bytes(data)
+    return f
+
+
+def test_dub_create_uploads_multipart_and_returns_the_job(fake, tmp_path):
+    clip = _clip(tmp_path)
+    r = vs.VoiceStudio().dub_create(clip, source_lang="pt")
+    call = fake.upload_calls[0]
+    assert call["method"] == "POST" and call["url"] == "http://127.0.0.1:3900/dub/upload"
+    assert call["headers"]["Content-Type"].startswith("multipart/form-data; boundary=")
+    assert call["headers"]["X-OmniVoice-Client-Id"] == vs.CLIENT_ID
+    body = call["body"]
+    assert b'name="video"; filename="clip.mp4"' in body and b"fake-video-bytes" in body
+    assert b'name="input_type"\r\n\r\nvideo' in body and b'name="source_lang"\r\n\r\npt' in body
+    assert r["job"] == "ab12cd34" and r["task"] == "prep_ab12cd34" and r["filename"] == "clip.mp4" and r["input_type"] == "video"
+    assert fake.tools == []  # the upload is plain HTTP; the MCP session is never opened
+
+
+def test_dub_create_audio_and_explicit_job_id(fake, tmp_path):
+    clip = _clip(tmp_path, "fala.wav")
+    vs.VoiceStudio().dub_create(clip, input_type="audio", job_id="meu-job_1")
+    body = fake.upload_calls[0]["body"]
+    assert b'name="input_type"\r\n\r\naudio' in body and b'name="job_id"\r\n\r\nmeu-job_1' in body
+    assert b"source_lang" not in body
+
+
+def test_dub_create_sends_the_api_key(fake, tmp_path, monkeypatch):
+    monkeypatch.setenv("VOICESTUDIO_API_KEY", "k-123")
+    vs.VoiceStudio().dub_create(_clip(tmp_path))
+    assert fake.upload_calls[0]["headers"]["Authorization"] == "Bearer k-123"
+
+
+@pytest.mark.parametrize("kwargs", [{"job_id": "../x"}, {"job_id": "a b"}, {"job_id": "x" * 65}, {"source_lang": "pt br"},
+                                    {"input_type": "gif"}])
+def test_dub_create_validates_before_any_call(fake, tmp_path, kwargs):
+    with pytest.raises(vs.VoiceStudioError):
+        vs.VoiceStudio().dub_create(_clip(tmp_path), **kwargs)
+    assert fake.calls == []
+
+
+def test_dub_create_missing_or_empty_file_is_an_error(fake, tmp_path):
+    with pytest.raises(vs.VoiceStudioError, match="não encontrado"):
+        vs.VoiceStudio().dub_create(tmp_path / "nao-existe.mp4")
+    with pytest.raises(vs.VoiceStudioError, match="vazio"):
+        vs.VoiceStudio().dub_create(_clip(tmp_path, "vazio.mp4", b""))
+    assert fake.calls == []
+
+
+def test_dub_create_refuses_a_file_over_the_cap_without_reading_it(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(vs, "MAX_DUB_UPLOAD_BYTES", 4)
+    with pytest.raises(vs.VoiceStudioError, match="grande"):
+        vs.VoiceStudio().dub_create(_clip(tmp_path, data=b"12345"))
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("status,detail,expect", [
+    (409, "This job ID is already in use.", "já existe"),
+    (415, "Unsupported video type", "formato"),
+    (400, "Invalid job_id", "recusou"),
+    (403, "forbidden", "VOICESTUDIO_API_KEY"),
+])
+def test_dub_create_turns_an_app_error_into_a_clear_message(fake, tmp_path, status, detail, expect):
+    fake.upload_response = (status, {"Content-Type": "application/json"}, json.dumps({"detail": detail}).encode())
+    with pytest.raises(vs.VoiceStudioError, match=expect):
+        vs.VoiceStudio().dub_create(_clip(tmp_path), job_id="j1")
+
+
+def test_dub_create_refuses_an_answer_without_a_job_id(fake, tmp_path):
+    fake.upload_response = (202, {"Content-Type": "application/json"}, b'{"ok": true}')
+    with pytest.raises(vs.VoiceStudioError, match="job_id"):
+        vs.VoiceStudio().dub_create(_clip(tmp_path))
+
+
+def test_cli_dub_create_json(fake, tmp_path, capsys):
+    clip = _clip(tmp_path)
+    rc, out, _ = _run(["dub", "create", str(clip), "--source-lang", "en", "--json"], capsys)
+    data = json.loads(out)
+    assert rc == 0 and data["job"] == "ab12cd34" and data["task"] == "prep_ab12cd34"
+    assert "dub-export" in data["next"]  # tells where the job goes from here (the rest happens in the app)
+
+
+def test_cli_dub_create_text_and_audio_flag(fake, tmp_path, capsys):
+    rc, out, _ = _run(["dub", "create", str(_clip(tmp_path, "a.wav")), "--audio"], capsys)
+    assert rc == 0 and "ab12cd34" in out and b'name="input_type"\r\n\r\naudio' in fake.upload_calls[0]["body"]
+
+
+def test_cli_dub_create_app_closed_is_exit_1(monkeypatch, tmp_path, capsys):
+    def closed(*a, **k):
+        raise vs.VoiceStudioError("não consegui falar com o VoiceStudio")
+    monkeypatch.setattr(vs, "default_transport", closed)
+    rc, _, err = _run(["dub", "create", str(_clip(tmp_path))], capsys)
+    assert rc == 1 and err.startswith("voicestudio: ")
+
+
+def test_cli_dub_needs_a_subcommand_and_help_mentions_create(fake, capsys):
+    rc, _, _ = _run(["dub"], capsys)
+    assert rc == 1
+    rc, out, _ = _run(["--help"], capsys)
+    assert "dub create" in out and "dub" in vs.SUBCOMMANDS
+
+
+# ---- MCP tool: absolute --out, parsed JSON ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mcp_tool():
+    from simplicio_video import mcp_server
+    return mcp_server.video_voicestudio
+
+
+@pytest.fixture
+def served(fake):
+    fake.results["check_health"] = _text({"status": "ok", "gpu": "cuda:0"})
+    fake.results["list_voices"] = _text([{"id": "v1", "name": "Ana"}])
+    fake.results["list_languages"] = _text({"total": 2, "popular": ["pt-BR", "en"]})
+    fake.results["generate_speech"] = _text({"wav_base64": base64.b64encode(WAV).decode(), "audio_id": "a1"})
+    return fake
+
+
+@pytest.mark.parametrize("args", ["tts oi --out fala.wav", "tts oi -o fala.wav", "tts oi --out=fala.wav", "tts oi --out ./fala.wav",
+                                  "tts oi --out ../fala.wav", "tts oi --out ~/fala.wav", "dub-export --job j1 --lang pl -o d.mp4"])
+def test_mcp_refuses_a_relative_out_before_any_call(served, mcp_tool, args, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    r = mcp_tool(args)
+    assert r["ok"] is False and "absolut" in r["error"] and "--out" in r["error"]
+    assert served.calls == [] and list(tmp_path.iterdir()) == []
+
+
+def test_mcp_accepts_an_absolute_out_and_returns_the_parsed_json(served, mcp_tool, tmp_path):
+    out = tmp_path / "fala.wav"
+    r = mcp_tool(f"tts oi --out {out}")
+    assert r["ok"] is True and r["rc"] == 0
+    assert isinstance(r["result"], dict) and r["result"]["out"] == str(out.resolve()) and r["result"]["audio_id"] == "a1"
+    assert out.read_bytes() == WAV
+
+
+def test_mcp_returns_parsed_json_without_asking_for_it(served, mcp_tool):
+    r = mcp_tool("voices")
+    assert r["ok"] is True and r["result"] == [{"id": "v1", "name": "Ana"}]
+    r = mcp_tool("status")
+    assert r["result"]["health"]["gpu"] == "cuda:0" and r["result"]["url"] == "http://127.0.0.1:3900"
+    assert mcp_tool("languages --json")["result"]["total"] == 2  # an explicit --json is not doubled
+
+
+def test_mcp_mcp_subcommand_returns_the_config_block(served, mcp_tool):
+    r = mcp_tool("mcp")
+    assert r["ok"] is True and r["result"]["mcpServers"]["voicestudio"]["url"].endswith("/mcp/")
+
+
+def test_mcp_failure_carries_the_cli_error_message(fake, mcp_tool, monkeypatch):
+    def closed(*a, **k):
+        raise vs.VoiceStudioError("não consegui falar com o VoiceStudio")
+    monkeypatch.setattr(vs, "default_transport", closed)
+    r = mcp_tool("status")
+    assert r["ok"] is False and r["rc"] == 1 and r["result"] is None
+    assert "não consegui falar com o VoiceStudio" in r["error"]
+
+
+def test_mcp_argparse_error_is_a_result_not_an_exception(served, mcp_tool):
+    r = mcp_tool("tts")
+    assert r["ok"] is False and r["rc"] == 2 and "texto" in r["error"]
+
+
+def test_mcp_keeps_quoted_arguments_together(served, mcp_tool, tmp_path):
+    mcp_tool(f'tts "olá mundo cruel" --out {tmp_path / "a.wav"}')
+    assert served.tools[0][1]["text"] == "olá mundo cruel"
+    r = mcp_tool("tts 'aspas abertas")
+    assert r["ok"] is False and "aspas" in r["error"].lower()
+
+
+def test_mcp_dub_create_and_dub_export_over_the_tool(served, mcp_tool, tmp_path):
+    clip = _clip(tmp_path)
+    r = mcp_tool(f"dub create {clip} --source-lang pt")
+    assert r["ok"] is True and r["result"]["job"] == "ab12cd34"
+    out = tmp_path / "d.mp4"
+    r = mcp_tool(f"dub-export --job ab12cd34 --lang pl -o {out}")
+    assert r["ok"] is True and r["result"]["bytes"] == len(MP4) and out.read_bytes() == MP4
+
+
+def test_mcp_description_names_dub_create_and_the_absolute_out():
+    from simplicio_video import mcp_server
+    d = mcp_server.DESC_video_voicestudio
+    assert "dub create" in d and "absolut" in d.lower()
