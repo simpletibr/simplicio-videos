@@ -49,16 +49,24 @@ def is_macos() -> bool:
 
 
 def home_dir(environ: Optional[Mapping[str, str]] = None) -> Path:
-    """The user's home: HOME, then USERPROFILE, then Path.home(), on EVERY system.
+    """The user's home: HOME, then USERPROFILE, then Path.home(), on EVERY system. Without `environ` it reads os.environ, so every
+    caller sees the same home (a Windows USERPROFILE included).
 
     This is the order the Runtime reads it (runtime_auth.rs `auth_file`) and the loop too (simplicio-loop auth.py `_home`). The Runtime's copy
     in ~/.simplicio/bin is found through it: with USERPROFILE first on Windows this program would look in another folder than
-    the Runtime does (MSYS2, Cygwin, a HOME set by hand). A blank value is skipped, as in the loop."""
-    if environ is not None:
-        for name in ("HOME", "USERPROFILE"):
-            value = (environ.get(name) or "").strip()
-            if value:
-                return Path(value)
+    the Runtime does (MSYS2, Cygwin, a HOME set by hand). A blank value is skipped, as in the loop. A blank HOME with nothing else
+    is no home: Python answers `/` for it, and the relative `~` (a path that finds nothing) is returned instead."""
+    if environ is None:
+        environ = os.environ
+    blank_home = False
+    for name in ("HOME", "USERPROFILE"):
+        value = (environ.get(name) or "").strip()
+        if value:
+            return Path(value)
+        if name == "HOME" and name in environ:
+            blank_home = True
+    if blank_home:
+        return Path("~")
     try:
         return Path.home()
     except (RuntimeError, KeyError):  # no HOME and no passwd entry: a path that finds nothing, not a traceback
@@ -69,11 +77,14 @@ class SemCasa(RuntimeError):
     """No home folder that can be used (no HOME, no passwd entry): the tools and the clones would land in the folder you are in."""
 
 
-def home_absoluta() -> Path:
-    """The home as an absolute path, or SemCasa. A relative home is never used for the tools or the clones."""
+def home_absoluta(escolha: Optional[str] = "SIMPLICIO_TOOLS_DIR") -> Path:
+    """The home as an absolute path, or SemCasa. A relative home (`~`) or the root of the disk is never used for the tools, the data
+    or the clones. `escolha` names the variable that chooses THAT folder without a home (it is in the message): the tools folder
+    is SIMPLICIO_TOOLS_DIR, the video-use checkout is VIDEO_USE_DIR, the data is SIMPLICIO_VIDEO_DATA; None names only HOME."""
     casa = home_dir(os.environ)  # the environment, as every other reader of the home does: HOME, then USERPROFILE
-    if not casa.is_absolute():
-        raise SemCasa("não sei onde fica o seu home: defina HOME ou SIMPLICIO_TOOLS_DIR (a pasta das trilhas)")
+    if not casa.is_absolute() or casa == Path(casa.anchor):
+        ou = f" ou {escolha} (a pasta escolhida direto)" if escolha else ""
+        raise SemCasa(f"não sei onde fica o seu home: defina HOME{ou}")
     return casa
 
 
@@ -97,7 +108,10 @@ def run_limitado(argv, *, timeout: float, cwd=None, env=None) -> "subprocess.Com
     """subprocess.run(capture_output, text, stdin=DEVNULL, timeout=) whose timeout kills the WHOLE process tree. subprocess.run kills
     only the child: `git ls-remote` keeps its `git-remote-https` alive (a proxy that never answers left eight of them running
     minutes after the CLI had exited). The command runs in its own session (POSIX) or process group (Windows), which is what
-    is killed. Raises subprocess.TimeoutExpired like subprocess.run, and OSError when the program cannot be started."""
+    is killed. Raises subprocess.TimeoutExpired like subprocess.run, and OSError when the program cannot be started.
+
+    Limit: a descendant that leaves the group on its own (`setsid`, `setpgid`, a daemon that double-forks) escapes the kill; git and
+    npm do not do that, and nothing here can reach such a process short of a cgroup."""
     flags: dict = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP") else {"start_new_session": True}
     proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", env=env, **flags)

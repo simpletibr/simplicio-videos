@@ -178,7 +178,7 @@ def checkout_for(t: tools.Tool) -> Path:
     in setup.sh (no ~ expansion inside a variable's value); the default is ~/.cache/simplicio/video-use under hostos.home_absoluta (HOME
     first), the same home the lock uses; with no usable home it raises hostos.SemCasa (a relative `~` would make a folder in the cwd)."""
     if t.name == "video-use":
-        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_absoluta() / ".cache" / "simplicio" / "video-use")
+        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_absoluta("VIDEO_USE_DIR") / ".cache" / "simplicio" / "video-use")
     return tools.checkout_dir(t)
 
 

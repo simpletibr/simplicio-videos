@@ -40,7 +40,10 @@ from .status import ENV_FERRAMENTA
 SCHEMA = "simplicio.doctor-trilhas/v1"
 _RANK = {"ok": 0, "warn": 1, "fail": 2}
 _VERSAO = re.compile(r"\d+\.\d+\.\d+")
-_CONTROLE = re.compile("[\x00-\x1f\x7f-\x9f\u061c\u2028\u2029\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")  # controls, bidi, zero-width, BOM, ALM
+# controls, soft hyphen, ALM, Mongolian vowel separator, line/paragraph separators, zero-width and bidi marks, word joiner and the
+# invisible operators, isolates, the interlinear annotations, the BOM and the tag characters. The emoji selector U+FE0F is left alone.
+_CONTROLE = re.compile("[\x00-\x1f\x7f-\x9f\u00ad\u061c\u180e\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069"
+                       "\ufeff\ufff9-\ufffb\U000e0000-\U000e007f]")
 MAX_ARQUIVO_FIXADO = 1024 * 1024  # the pinned files are a few KB; a bigger one is not the pinned one
 LIMITE_LOCAL_S = 5.0  # each local program the doctor runs (git rev-parse, `<exe> --version`): a hung one is a finding, not a wait
 ORCAMENTO_ONLINE_S = 25.0  # the whole --online: every upstream read together. A proxy that never answers costs this, once
@@ -172,6 +175,10 @@ def _ref_em_uso(t: tools.Tool) -> tuple[str, str, Optional[str]]:
     valor = os.environ.get(nome_var)
     if valor:
         if _ref_valida(t, valor):
+            if t.kind == "pip" and valor != t.ref:  # install refuses it: the sha256 of the registry is the pinned version's alone
+                return t.ref, "override-invalido", (f"{nome_var} pede uma versão que não é a fixada no registro: o sha256 do registro é só "
+                                                    "o da versão fixada, então `install` recusa a outra (nenhum comando roda); "
+                                                    "o doctor compara com o pin do registro")
             return valor, "override", None
         return t.ref, "override-invalido", (f"{nome_var} não é um commit (git) nem uma versão (npm, pip): `install` e `clone` recusam esse valor "
                                            "(nenhum comando roda); o doctor compara com o pin do registro")
@@ -571,7 +578,7 @@ def _avalia(t: tools.Tool, online_jobs: Optional[list]) -> dict:
         rows += linhas
         detalhe = f"versão {version}" if version else ""
     if problema:  # the pin in use is the registry's: the one `pin` row says the override was refused, and no other `pin` row is shown
-        rows = [_row("pin", "warn", problema, f"apague SIMPLICIO_{t.name.upper()}_REF ou defina um commit (git) ou uma versão (npm, pip)")
+        rows = [_row("pin", "warn", problema, f"apague SIMPLICIO_{t.name.upper()}_REF ou defina um commit (git) ou uma versão (npm; pip só a fixada)")
                 ] + [r for r in rows if r["name"] != "pin"]
     rows += _deps(t)
     track = {
@@ -612,7 +619,7 @@ def _fecha_upstream(job: tuple, upstream: dict, linhas: list) -> None:
     track["summary"] = _limpa(_resumo(installed, _limpa(detalhe, 80), track["checks"]))
 
 
-def _em_paralelo(trabalhos: dict, orcamento_s: float) -> dict:
+def _em_paralelo(trabalhos: dict, orcamento_s: float, nome: str = "upstream") -> dict:
     """Runs each callable in its own daemon thread and waits at most `orcamento_s` for all of them together. Returns
     {key: (True, value) | (False, exc)} for the ones that finished; the others are not in it. Daemon threads on purpose: a read
     that never answers must not keep the process alive at exit (a ThreadPoolExecutor would wait for it)."""
@@ -630,7 +637,7 @@ def _em_paralelo(trabalhos: dict, orcamento_s: float) -> dict:
     fim = time.monotonic() + max(0.0, orcamento_s)
     fios = []
     for chave, fn in trabalhos.items():
-        fio = threading.Thread(target=roda, args=(chave, fn), name=f"doctor-upstream-{chave}", daemon=True)
+        fio = threading.Thread(target=roda, args=(chave, fn), name=f"doctor-{nome}-{chave}", daemon=True)
         fio.start()
         fios.append(fio)
     for fio in fios:
@@ -639,14 +646,14 @@ def _em_paralelo(trabalhos: dict, orcamento_s: float) -> dict:
         return dict(resultados)
 
 
-def _fecha_upstreams(jobs: list, io, orcamento_s: float) -> None:
+def _fecha_upstreams(jobs: list, io, orcamento_s: float, total_s: Optional[float] = None) -> None:
     """Reads the upstream of every track together, inside one budget. A track that did not answer in time says so."""
     trabalhos = {i: functools.partial(_upstream, t, ref, fonte, io) for i, (_track, t, ref, fonte, _inst, _det) in enumerate(jobs)}
     resultados = _em_paralelo(trabalhos, orcamento_s)
     for i, job in enumerate(jobs):
         if i not in resultados:
             upstream = {"pin_only": False, "latest": None, "newer": None, "error": "tempo esgotado"}
-            linhas = [_row("upstream", "warn", f"tempo esgotado: o upstream não respondeu em {orcamento_s:g} s no total", None)]
+            linhas = [_row("upstream", "warn", f"tempo esgotado: o upstream não respondeu em {(total_s if total_s is not None else orcamento_s):g} s no total", None)]
         else:
             ok, valor = resultados[i]
             if ok:
@@ -666,10 +673,34 @@ def _avalia_seguro(t: tools.Tool, online_jobs: Optional[list]) -> dict:
         motivo = _limpa(f"{type(exc).__name__}: {exc}", 300)
         fix = ("defina HOME ou SIMPLICIO_TOOLS_DIR e rode `simplicio-video doctor trilhas` de novo" if isinstance(exc, RuntimeError)
                else "simplicio-video doctor trilhas")
-        linha = _row("instalada", "warn", f"não consegui checar esta trilha ({motivo})", fix)
-        return {"name": t.name, "command": f"simplicio-video {tools.COMMANDS.get(t.name, t.name)}", "status": "warn",
-                "summary": _limpa(f"não consegui checar ({motivo})"), "installed": False, "version": None, "pin": t.ref,
-                "pin_source": "pin", "pin_registry": t.ref, "pin_match": None, "upstream": None, "checks": [linha]}
+        return _trilha_com_aviso(t, motivo, fix)
+
+
+def _trilha_com_aviso(t: tools.Tool, motivo: str, fix: str) -> dict:
+    """A track that could not be checked: one warning row that names why (an error, or the budget that ran out)."""
+    linha = _row("instalada", "warn", f"não consegui checar esta trilha ({motivo})", fix)
+    return {"name": t.name, "command": f"simplicio-video {tools.COMMANDS.get(t.name, t.name)}", "status": "warn",
+            "summary": _limpa(f"não consegui checar ({motivo})"), "installed": False, "version": None, "pin": t.ref,
+            "pin_source": "pin", "pin_registry": t.ref, "pin_match": None, "upstream": None, "checks": [linha]}
+
+
+def _avalia_todas(online: bool, orcamento_s: float) -> tuple[list, list]:
+    """(tracks, upstream jobs): every track checked together, each in its own thread, inside `orcamento_s` in total. The local probes
+    (git rev-parse, `<exe> --version`) of the tracks do not add up one after the other: a hung program costs one LIMITE_LOCAL_S for
+    everybody. A track that did not finish says so in its row."""
+    listas = {t.name: ([] if online else None) for t in tools.TOOLS.values()}
+    trabalhos = {t.name: functools.partial(_avalia_seguro, t, listas[t.name]) for t in tools.TOOLS.values()}
+    resultados = _em_paralelo(trabalhos, orcamento_s, "local")
+    tracks: list = []
+    jobs: list = []
+    for t in tools.TOOLS.values():
+        if t.name in resultados and resultados[t.name][0]:
+            tracks.append(resultados[t.name][1])
+            jobs += listas[t.name] or []
+        else:
+            tracks.append(_trilha_com_aviso(t, f"tempo esgotado: as checagens locais passaram de {orcamento_s:g} s no total",
+                                            "simplicio-video doctor trilhas"))
+    return tracks, jobs
 
 
 def collect(*, online: bool = False, io: Optional[Any] = None, orcamento_s: float = ORCAMENTO_ONLINE_S) -> dict:
@@ -679,10 +710,10 @@ def collect(*, online: bool = False, io: Optional[Any] = None, orcamento_s: floa
     if online and io is None:
         io = tools_update.live_io()
     _MEMO.clear()
-    jobs = [] if online else None
-    tracks = [_avalia_seguro(t, jobs) for t in tools.TOOLS.values()]
-    if online:
-        _fecha_upstreams(jobs, io, orcamento_s)
+    fim = time.monotonic() + max(0.0, orcamento_s)
+    tracks, jobs = _avalia_todas(online, orcamento_s)
+    if online:  # the upstream reads get what the local probes left of the same budget
+        _fecha_upstreams(jobs, io, max(0.0, fim - time.monotonic()), orcamento_s)
     return {"schema": SCHEMA, "status": _pior(t["status"] for t in tracks), "online": bool(online), "tracks": tracks}
 
 

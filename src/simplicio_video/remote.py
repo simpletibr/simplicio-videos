@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from . import paths
+from . import hostos, paths
 from .contract import Contract
 from .render import build_bundle, write_manifest
 
@@ -69,7 +69,7 @@ def kaggle_username(explicit: str | None = None) -> str:
     """KAGGLE_USERNAME, else the `username` field of ~/.kaggle/kaggle.json (the key itself is never read here)."""
     if explicit or os.environ.get("KAGGLE_USERNAME"):
         return explicit or os.environ["KAGGLE_USERNAME"]
-    cfg = Path(os.environ.get("KAGGLE_CONFIG_DIR", Path.home() / ".kaggle")) / "kaggle.json"
+    cfg = Path(os.environ.get("KAGGLE_CONFIG_DIR", hostos.home_dir() / ".kaggle")) / "kaggle.json"
     if cfg.is_file():
         try:
             u = json.loads(cfg.read_text()).get("username")

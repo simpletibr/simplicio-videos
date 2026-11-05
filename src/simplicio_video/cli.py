@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from . import (CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, matchcut, moneyprinter, montage, opencut,
-               paths, media, qc, rea_video, shorts, toonflow, voicestudio)
+               hostos, paths, media, qc, rea_video, shorts, toonflow, voicestudio)
 from .aio import positive_int
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
@@ -649,6 +649,16 @@ def _json_global(ap, args_list: list[str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """The CLI. Every command that needs a home folder and has none (no HOME, no passwd entry) ends here with ONE clean message and exit 2,
+    never a traceback and never a folder named `~` in the cwd (hostos.SemCasa is raised before anything is created)."""
+    try:
+        return _main(argv)
+    except hostos.SemCasa as exc:
+        print(f"simplicio-video: {exc}", file=sys.stderr)
+        return 2
+
+
+def _main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
     args_list = _json_global(ap, args_list)

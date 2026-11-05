@@ -340,7 +340,10 @@ def collect(*, online: bool = False, environ: Optional[dict] = None,
             git: Optional[Callable] = None) -> dict:
     env = dict(os.environ) if environ is None else environ
     installed = installed or __version__
-    state_dir = state_dir or update.default_state_dir()
+    try:
+        state_dir = state_dir or update.default_state_dir()
+    except hostos.SemCasa:  # no home: nothing to read or write there (a path under /dev/null can be neither)
+        state_dir = Path(os.devnull) / "sem-home"
     wanted = [only] if only else list(SECTIONS)
     kind = kind or distribution.kind()
     fetch = fetch or update.fetch_latest_tag

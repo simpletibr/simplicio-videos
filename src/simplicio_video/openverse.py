@@ -50,7 +50,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode, urljoin, urlparse
 
-from . import __version__, paths
+from . import __version__, hostos, paths
 from .swap_providers import http as _api_http
 
 __all__ = ["OpenverseError", "search", "get", "library_list", "library_show", "review_sheet", "review", "review_status", "export",
@@ -194,7 +194,7 @@ def library_dir() -> Path:
     if explicit:
         return Path(explicit).expanduser().resolve()
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return (base / "openverse-library").resolve()
 
 

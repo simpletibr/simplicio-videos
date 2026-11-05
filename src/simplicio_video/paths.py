@@ -51,7 +51,7 @@ def workspace_dir() -> Path:
             return Path(env).expanduser()
         except RuntimeError:  # `~someone` of a user that does not exist: the text is used as it is
             return Path(env)
-    return hostos.home_dir() / ".simplicio-video" / "workspaces" / "default"
+    return hostos.home_absoluta("SIMPLICIO_WORKSPACE") / ".simplicio-video" / "workspaces" / "default"
 
 
 def data_dir() -> Path:
@@ -68,12 +68,12 @@ def schema_path(d: Path | None = None) -> Path:
 
 def tts_python() -> str:
     """Python with kokoro-onnx/soundfile for the local provider."""
-    return os.environ.get("SIMPLICIO_TTS_PY", str(Path.home() / ".local/share/simplicio-tts/cbvenv/bin/python"))
+    return os.environ.get("SIMPLICIO_TTS_PY", str(hostos.home_dir() / ".local/share/simplicio-tts/cbvenv/bin/python"))
 
 
 def node_env() -> dict:
     env = dict(os.environ)
-    extra = Path.home() / ".local/node22/bin"
+    extra = hostos.home_dir() / ".local/node22/bin"
     if extra.is_dir():
         env["PATH"] = f"{extra}{os.pathsep}{env.get('PATH', '')}"
     ff = env.get("SIMPLICIO_FFMPEG_DIR")  # pinned ffmpeg toolchain (ADR-0003): HyperFrames + master.sh + build.mjs use it

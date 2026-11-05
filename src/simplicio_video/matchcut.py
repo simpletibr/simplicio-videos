@@ -51,7 +51,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import childio, tools
+from . import childio, hostos, tools
 from .toonflow import _offline
 
 MATCHCUT_REPO = tools.get("matchcut").source
@@ -417,7 +417,7 @@ def data_dir() -> Path:
     if explicit:
         return Path(explicit).expanduser().resolve()
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return (base / "matchcut-data").resolve()
 
 

@@ -46,7 +46,7 @@ def default_data_dir() -> Path:
     """The same folder `update --check` uses for its cache: $SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video. Without a usable home it
     raises hostos.SemCasa: a relative `~` would make a folder named `~` in the cwd."""
     explicit = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    return Path(explicit) if explicit else hostos.home_absoluta() / ".simplicio-video"
+    return Path(explicit) if explicit else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
 
 
 def lock_path(data_dir: Optional[Path] = None) -> Path:

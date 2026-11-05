@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import paths
+from . import hostos, paths
 
 __all__ = ["SocialError", "providers_report", "limits_table", "make_plan", "check_plan", "recipe", "recipe_text", "run_social"]
 
@@ -381,7 +381,7 @@ def _rel(path: Path, base: Path) -> str:
 def _accept_key_path() -> Path:
     """Local key (32 random bytes, 0600) of whoever ran `plan --aceito-unverified` on this machine. It is nobody's credential
     and never goes into the plan: it only signs the acceptance, so that editing the JSON cannot forge it."""
-    return Path.home() / ".config" / "simplicio-video" / "social-accept.key"
+    return hostos.home_absoluta(None) / ".config" / "simplicio-video" / "social-accept.key"
 
 
 def _read_accept_key(kp: Path) -> bytes | None:

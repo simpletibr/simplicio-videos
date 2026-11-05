@@ -47,7 +47,7 @@ def default_openmontage_dir() -> Path:
     if os.environ.get("SIMPLICIO_TOOLS_DIR"):
         return tools.tools_dir() / name
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return base / "tools" / name
 
 
@@ -195,7 +195,7 @@ def data_dir() -> Path:
                   "use um caminho absoluto.", file=sys.stderr)
         return path.resolve()
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return (base / "openmontage-data").resolve()
 
 

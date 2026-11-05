@@ -50,7 +50,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import tools
+from . import hostos, tools
 from .busca_ajuda import HELP_DESC, HELP_EPILOG, TETO_PADRAO
 
 __all__ = ["BuscaError", "consulta", "pagina", "status", "log", "status_summary", "run_busca", "scrub", "UNTRUSTED_NOTICE"]
@@ -286,7 +286,7 @@ def _brt(stamp: str) -> str:
 def pasta() -> Path:
     """<SIMPLICIO_VIDEO_DATA or ~/.simplicio-video>/busca: cache/, busca.registro.jsonl and busca.contador.json."""
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else Path.home() / ".simplicio-video"
+    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
     return (base / "busca").resolve()
 
 
