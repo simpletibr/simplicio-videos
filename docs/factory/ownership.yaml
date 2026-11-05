@@ -686,6 +686,10 @@ issues:
       - "tests/packaging/test_skills_empacotadas.py"
       - "tests/test_dados_pacote.py"
       - "tests/packaging/test_skills_conteudo.py"
+      - "src/simplicio_video/data/skills/simplicio-video-trilhas/**"  # skill guarda-chuva das trilhas (#181, #185): sem dono antes; é da trilha de skills
+      - "skills/simplicio-video-trilhas/**"
+      - "tests/packaging/test_skill_trilhas.py"  # a #43 também cobre tests/packaging/**; sobreposição declarada
+      - "tests/test_mcp_registration.py"  # só o teste da descrição do video.media (#185); sem dono antes
       - ".gitignore"
       - "AGENTS.md#Mapa"
       - "CHANGELOG.md#Unreleased"
