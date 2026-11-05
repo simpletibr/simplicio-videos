@@ -250,6 +250,26 @@ def pip_binary(name: str) -> Path | None:
     return exe if exe.is_file() else None
 
 
+def pip_version(name: str) -> str | None:
+    """The version pip installed in the venv of a pip tool: the Version of its dist-info, read as a file (no process starts)."""
+    t = get(name)
+    venv = checkout_dir(t) / "venv"
+    if t.kind != "pip" or not venv.is_dir():
+        return None
+    sites = [venv / "Lib" / "site-packages"] if os.name == "nt" else sorted((venv / "lib").glob("python*/site-packages"))
+    stem = t.name.replace("-", "_")
+    for site in sites:
+        for info in sorted(site.glob(f"{stem}-*.dist-info")):
+            try:
+                metadata = (info / "METADATA").read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for line in metadata.splitlines():
+                if line.startswith("Version:"):
+                    return line.partition(":")[2].strip() or None
+    return None
+
+
 def _run_subprocess(argv, cwd=None) -> "subprocess.CompletedProcess":
     """The default runner: a missing program is a failed command (rc 127), never an OSError out of here."""
     try:

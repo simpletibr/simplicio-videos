@@ -4,7 +4,7 @@ Ferramentas: todas as trilhas do `tools.py` (TOOLS) com a versão fixada de lá;
 só são detectados (sem versão fixada). Detecção por shutil.which (existe no PATH; trilha pip: o executável do venv da trilha) e leitura da versão
 (`--version` / `-version`, ou o commit do checkout para ferramentas git; o `tinyfish`, de terceiros, roda com o ambiente
 fechado do `busca`: nenhuma chave do shell chega a ele). Nada de rede e nada de sockets:
-a versão só é lida de um executável que já está no PATH, e uma ferramenta ausente vira installed false.
+a versão só é lida de um executável que já está no PATH (trilha pip: do dist-info do venv, sem abrir o processo), e uma ferramenta ausente vira installed false.
 
 Estado do render: o render.manifest.json ao lado do contrato. Sem manifesto, rendered false.
 """
@@ -71,11 +71,10 @@ def _ferramenta_do_motor(name: str) -> dict:
             except tools.ToolError:
                 version = None
         return _linha(name, d is not None, version, pinned, fonte)
-    if t.kind == "pip":  # o executável fica no venv da trilha (tools.pip_binary), nunca no PATH
-        exe = tools.pip_binary(name)
-        exe = str(exe) if exe else None
-    else:
-        exe = shutil.which(t.name)  # npm: o binário no PATH (ou o npx do motor, que não é checado aqui)
+    if t.kind == "pip":  # o executável e a versão vêm do venv da trilha (nunca do PATH); a versão é o dist-info, sem abrir o processo
+        installed = tools.pip_binary(name) is not None
+        return _linha(name, installed, tools.pip_version(name) if installed else None, pinned, fonte)
+    exe = shutil.which(t.name)  # npm: o binário no PATH (ou o npx do motor, que não é checado aqui)
     if exe and name == "tinyfish":
         from . import busca  # binário de terceiros: só o ambiente fechado do `busca` (nenhuma chave do shell) e sem telemetria
         version = busca._versao_cli(exe)
