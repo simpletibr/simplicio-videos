@@ -11,6 +11,9 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 - **Skills `deep-news`, `deep-service` e `deep-product`** (#141, “vídeo deep”): `deep-news` apura com fonte e data por que um post ou notícia viralizou e disseca por mecanismo (com estudos); `deep-service` e `deep-product` aplicam o mesmo método à venda de serviço e de produto (digital ou físico), só na versão honesta e com copy da coleta. As três terminam num roteiro curto 9:16 que a skill `simplicio-video` transforma em contrato e MP4. Chegam aos hosts pelo `simplicio-video install`.
 - **Template `news-tech`** (#140): skeleton e **padrão de movimento `news-caption`** (proposto): notícia de tecnologia em 90 s sem footage, com legenda palavra a palavra em blocos curtos.
 
+### Mudanças
+- **Pins npm atualizados**: `@hypit/hypit` 0.2.17 → 0.3.1 (a LICENSE é a mesma; `engines` Node >= 22.15, igual) e `@tiny-fish/cli` 0.50.1 → 0.57.0 (continua sem licença declarada; `engines` Node >= 24, igual). **Sem teste nas versões novas**: nenhum binário novo foi executado. O `busca status` ainda chama o pin de `testada`, e os fatos de `data/busca/tinyfish.json` seguem lidos na 0.50.1, com a data de leitura.
+
 ## 0.6.0 — 2026-10-31
 
 Reúne o que entrou na `main` depois da 0.5.0 (2026-10-17): PRs #119 a #136, todas mescladas. Esta versão sai como tag, GitHub Release e pacote no PyPI, publicado em 2026-10-31 a partir da tag v0.6.0.
