@@ -511,7 +511,7 @@
    "name": "video.moneyprinter"
   },
   {
-   "description": "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, and the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json). Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed, and paths inside `input` must be absolute. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only.",
+   "description": "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json) and run-tool NAME with `input` as an object: one local, free, offline tool, run as a background job (the answer is the job id; video.jobs result ID gives the outputs with sha256). Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed, paths inside `input` must be absolute and outputs must be new files. run-tool refuses everything else (paid, networked, not local, publishing); the terminal runs a paid or networked tool with --yes, after the estimate. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only.",
    "inputSchema": {
     "type": "object",
     "properties": {

@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -92,8 +94,8 @@ def ensure_openmontage_dir(target_dir: Path | None = None) -> Path:
 # upstream code (AGPL), so they run in a child process and only parsed JSON comes back. Never imported by the engine.
 # ---------------------------------------------------------------------------------------------------------------------
 
-REGISTRY_COMMANDS = ("pipelines", "tools", "envelope", "estimate", "setup", "status")
-READ_ONLY_COMMANDS = ("pipelines", "tools", "envelope", "estimate", "status")  # what the MCP tool may run
+REGISTRY_COMMANDS = ("pipelines", "tools", "envelope", "estimate", "setup", "status", "run-tool")  # run-tool: see the run-tool section
+READ_ONLY_COMMANDS = ("pipelines", "tools", "envelope", "estimate", "status")  # what the MCP tool may run (run-tool is a job there)
 RUNTIMES = ("local", "local_gpu", "api", "hybrid")
 _CHILD_TIMEOUT = 300
 _OPEN_DIAG_TIMEOUT = 8
@@ -543,6 +545,8 @@ def _run_registry(ns: argparse.Namespace) -> int:
 
 def run_montage(args: list[str], cwd: Path | None = None) -> int:
     """Execute OpenMontage with arguments."""
+    if args and args[0] == "run-tool":
+        return run_tool_cli(args[1:])
     if args and args[0] in REGISTRY_COMMANDS:
         return run_registry(args)
 
@@ -612,6 +616,314 @@ def main(argv: list[str] | None = None) -> int:
     except MontageError as e:
         print(f"montage: {e}", file=sys.stderr)
         return 1
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# run-tool (T2c): ONE upstream tool through the bridge. The gate reads the upstream metadata (tier, runtime,
+# resource_profile.network_required) and the estimate; what the metadata does not say counts as the riskier case.
+#   terminal: any tool. A runtime other than local, a cost above zero, an unknown cost or a network need run only with
+#             --yes, after the estimate is printed. The publish tier never runs.
+#   MCP (strict): only a local, free, offline tool, with absolute paths and new outputs (not links). It runs as the job
+#             `montage-tool` in its own process, with --sob-mcp, so the strict gate runs again right before the tool.
+# The upstream code runs only in the venv's Python, through _RUN_CHILD, which keeps the JSON result alone on the real stdout.
+# ---------------------------------------------------------------------------------------------------------------------
+
+RUN_TOOL_MAX_INPUT = 100_000  # bytes of the --input JSON: a job passes it as one argv item (Linux caps one at 128 KiB)
+_TOOL_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,79}$")
+_PATH_KEY = re.compile(r"(^|_)(path|paths|file|files|dir|dirs|folder|folders|src|source|dst|dest|destination|input|output|out|"
+                       r"video|videos|audio|image|images|clip|clips)$", re.I)
+_OUT_KEY = re.compile(r"(^|_)(output|out|dest|destination|dst)(s|_path|_paths|_dir|_file|_folder)?$", re.I)
+_RUN_DIR = "run"  # under data_dir(): the working folder of the strict runs, never the caller's cwd
+
+# Runs with the venv's Python (cwd = the caller's folder, or the run folder under MCP). Same stdout trick as _CHILD: the
+# result is written to the real fd 1 and everything the upstream prints goes to stderr.
+_RUN_CHILD = r"""
+import json, os, sys
+real = os.fdopen(os.dup(1), "w", encoding="utf-8")
+os.dup2(2, 1)
+sys.stdout = sys.stderr
+name, inputs = sys.argv[1], json.loads(sys.argv[2])
+def emit(d):
+    real.write(json.dumps(d, default=str, ensure_ascii=False)); real.flush()
+try:
+    from tools.tool_registry import registry
+    registry.discover()
+    tool = registry.get(name)
+    if tool is None:
+        emit({"ok": False, "kind": "not_found", "error": "tool desconhecido: " + name}); sys.exit(0)
+    try:
+        res = tool.execute(inputs)
+        if hasattr(res, "success"):
+            data = {"success": bool(res.success), "data": res.data, "artifacts": [str(a) for a in (res.artifacts or [])],
+                    "error": res.error, "cost_usd": res.cost_usd, "duration_seconds": res.duration_seconds,
+                    "seed": res.seed, "model": res.model}
+        else:
+            data = {"success": False, "error": "a tool não devolveu um ToolResult (devolveu " + type(res).__name__ + ")",
+                    "data": {}, "artifacts": []}
+    except Exception as e:  # the tool failed: that is a failed result, not a crash of the bridge
+        data = {"success": False, "error": f"{type(e).__name__}: {e}", "data": {}, "artifacts": []}
+    emit({"ok": True, "result": data})
+except ImportError as e:
+    emit({"ok": False, "kind": "import", "missing": [e.name or str(e)], "error": str(e)})
+except Exception as e:
+    emit({"ok": False, "kind": "upstream", "error": f"{type(e).__name__}: {e}"})
+"""
+
+
+def _network_flag(info: dict) -> bool | None:
+    net = (info.get("resource_profile") or {}).get("network_required")
+    return net if isinstance(net, bool) else None  # None: the metadata does not say
+
+
+def _cost(estimate: dict | None) -> float | None:
+    c = (estimate or {}).get("estimated_cost_usd")
+    return float(c) if isinstance(c, (int, float)) and not isinstance(c, bool) else None  # None: quote required, unknown
+
+
+def _spend_reasons(runtime, network: bool | None, cost: float | None) -> list[str]:
+    """Why a run needs --yes; empty means local, offline and free. What the metadata does not say counts as the riskier case.
+    The early MCP check passes cost=0.0, so only the runtime and network reasons come back there."""
+    out = []
+    if runtime != "local":
+        out.append(f"runtime {runtime}")
+    if network is not False:
+        out.append("rede" if network else "rede (o metadado não diz)")
+    if cost is None:
+        out.append("custo não estimado")
+    elif cost > 0:
+        out.append(f"custa US$ {cost:.2f}")
+    return out
+
+
+def _path_values(value, key: str = ""):
+    """(key, text) for each string that looks like a path: under a path-named key (`input_path: "clip.mp4"` has no slash,
+    so the estimate check alone would let it through) or with a slash, no spaces and no URL (`_relative_paths`)."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield from _path_values(v, str(k))
+    elif isinstance(value, list):
+        for v in value:
+            yield from _path_values(v, key)
+    elif isinstance(value, str) and value and "://" not in value:
+        if (key and _PATH_KEY.search(key)) or _relative_paths(value):
+            yield key, value
+
+
+def _strict_path_refusal(inputs: dict, schema: dict | None) -> str | None:
+    """Over MCP: every path absolute, every output a new file that is not a link, and an output the tool takes must be given."""
+    for key, text in _path_values(inputs):
+        if not os.path.isabs(text):
+            return f"os caminhos precisam ser absolutos ({key}: {text!r})"
+        if _OUT_KEY.search(key):
+            if os.path.islink(text):
+                return f"a saída {key} é um link simbólico ({text}); a saída tem que ser um arquivo novo"
+            if os.path.lexists(text):
+                return f"a saída {key} já existe ({text}); a saída tem que ser um arquivo novo"
+    for prop in ((schema or {}).get("properties") or {}):
+        if _OUT_KEY.search(prop) and not inputs.get(prop):
+            return f"a tool tem uma saída ({prop}) e, sem ela, escolhe o destino; dê um caminho absoluto e novo em {prop}"
+    return None
+
+
+def _schema_errors(name: str, schema: dict, inputs: dict) -> list[str]:
+    """The input against the upstream input_schema (jsonschema is a core dependency). A schema that does not check is an error:
+    without it the input cannot be validated, so nothing runs."""
+    import jsonschema
+
+    if not schema:
+        return []
+    try:
+        cls = jsonschema.validators.validator_for(schema)
+        cls.check_schema(schema)
+    except jsonschema.exceptions.SchemaError as e:
+        raise MontageError(f"o schema de entrada de {name} é inválido ({e.message}); sem ele não valido a entrada, então não rodo")
+    errs = sorted(cls(schema).iter_errors(inputs), key=lambda e: [str(p) for p in e.path])
+    return [f"{'.'.join(str(p) for p in e.path) or 'entrada'}: {e.message}" for e in errs]
+
+
+def _refuse(plan: dict, msg: str, *, yes_hint: bool = False, hint: bool = True) -> dict:
+    """Sets the refusal. Over MCP it names the terminal command that does the same run, except for the publish tier."""
+    if plan["strict"] and hint:
+        cmd = f"simplicio-video montage run-tool {plan['tool']} --input JSON" + (" --yes" if yes_hint else "")
+        msg = f"{msg}. Pelo MCP esta tool não roda; no terminal: `{cmd}`"
+    plan["refusal"] = msg
+    return plan
+
+
+def run_tool_plan(name, inputs, *, strict: bool, yes: bool) -> dict:
+    """Read-only: what `run-tool` would do. {tool, tier, runtime, network, estimate, cost, needs_yes, spends, refusal, strict}.
+    A `refusal` is the gate's decision and its reason; a bad name or input and an upstream failure raise MontageError."""
+    if not isinstance(name, str) or not _TOOL_NAME.match(name):
+        raise MontageError(f"nome de tool inválido: {name!r} (veja `simplicio-video montage tools list`)")
+    if not isinstance(inputs, dict):
+        raise MontageError("o input precisa ser um objeto JSON ({...})")
+    size = len(json.dumps(inputs, ensure_ascii=False).encode("utf-8"))
+    if size > RUN_TOOL_MAX_INPUT:
+        raise MontageError(f"o input tem {size} bytes e passa do limite de {RUN_TOOL_MAX_INPUT // 1000} KB")
+    info = _child("info", {"name": name})["info"]  # an unknown name raises here, with the way to list the tools
+    tier, runtime, network = info.get("tier"), info.get("runtime"), _network_flag(info)
+    plan = {"tool": name, "tier": tier, "runtime": runtime, "network": network, "estimate": None, "cost": None,
+            "needs_yes": False, "spends": False, "refusal": None, "strict": strict}
+    if tier == "publish":
+        return _refuse(plan, f"a tool {name} é de publicação (tier publish): o simplicio-video não publica, nem no terminal e "
+                             "nem com --yes", hint=False)
+    if _offline() and network is not False:
+        return _refuse(plan, f"modo offline (SIMPLICIO_OFFLINE=1): {name} precisa de rede, ou o metadado não diz")
+    if strict:
+        msg = _strict_path_refusal(inputs, info.get("input_schema"))
+        if msg:
+            return _refuse(plan, msg)
+        early = _spend_reasons(runtime, network, cost=0.0)  # runtime and network need no estimate: refuse before any upstream call
+        if early:
+            return _refuse(plan, f"{name}: {', '.join(early)}; pelo MCP só roda tool local, sem rede e sem custo", yes_hint=True)
+    errs = _schema_errors(name, info.get("input_schema") or {}, inputs)
+    if errs:
+        raise MontageError(f"entrada inválida para {name}: " + "; ".join(errs[:5]))
+    estimate = _child("estimate", {"name": name, "input": inputs})["estimate"]
+    cost = _cost(estimate)
+    plan.update(estimate=estimate, cost=cost, spends=cost is None or cost > 0)
+    reasons = _spend_reasons(runtime, network, cost)
+    plan["needs_yes"] = bool(reasons)
+    if strict:
+        if reasons:
+            return _refuse(plan, f"{name}: {', '.join(reasons)}; pelo MCP só roda tool local, sem rede e sem custo", yes_hint=True)
+        return plan
+    if reasons and not yes:
+        plan["refusal"] = (f"{name} precisa de --yes ({', '.join(reasons)}): a estimativa acima mostra o custo; "
+                           "rode de novo com --yes para executar")
+    return plan
+
+
+def _output_entry(path: str, base: Path) -> dict:
+    p = Path(path) if os.path.isabs(path) else base / path
+    entry: dict = {"path": str(p), "bytes": None, "sha256": None}
+    if p.is_file():
+        h = hashlib.sha256()
+        with p.open("rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        entry.update(bytes=p.stat().st_size, sha256=h.hexdigest())
+    return entry
+
+
+def run_tool_execute(plan: dict, inputs: dict, cwd: Path) -> dict:
+    """Runs the tool (the caller has checked the plan). Returns {ok, tool, status (done|failed), outputs, duration_s, ...}."""
+    t0 = time.monotonic()
+    om_dir = _require_checkout()
+    py = upstream_python()
+    env = _upstream_env(om_dir)
+    env["PYTHONIOENCODING"] = "utf-8"
+    if plan["strict"]:
+        env["npm_config_offline"] = "true"
+    stream = not under_mcp()  # in a terminal the upstream's progress is shown; under the MCP server it goes to stderr, captured
+    try:
+        p = subprocess.run([py, "-c", _RUN_CHILD, plan["tool"], json.dumps(inputs, ensure_ascii=False)], cwd=cwd, env=env,
+                           stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=None if stream else subprocess.PIPE,
+                           text=True, encoding="utf-8", errors="replace")
+    except OSError as e:
+        raise MontageError(f"não consegui rodar o Python do venv ({py}): {e}") from None
+    if not stream and p.stderr:
+        sys.stderr.write(p.stderr)
+    try:
+        data = json.loads(p.stdout)
+    except ValueError:
+        raise MontageError(f"o OpenMontage terminou sem resultado ao rodar {plan['tool']} (código {p.returncode})") from None
+    if not data.get("ok"):
+        if data.get("kind") == "import":
+            missing = ", ".join(data.get("missing") or ["?"])
+            raise MontageError(f"faltam dependências do OpenMontage no venv ({py}): {missing}. Rode `simplicio-video montage setup`.")
+        raise MontageError(f"o OpenMontage falhou: {data.get('error')}")
+    res = data["result"]
+    ok = bool(res.get("success"))
+    return {"ok": ok, "tool": plan["tool"], "status": "done" if ok else "failed",
+            "outputs": [_output_entry(a, cwd) for a in res.get("artifacts") or []],
+            "duration_s": round(time.monotonic() - t0, 2), "tool_duration_s": res.get("duration_seconds"),
+            "cost_usd": res.get("cost_usd"), "estimate": plan["estimate"], "data": res.get("data") or {},
+            "error": None if ok else (res.get("error") or "a tool falhou sem mensagem")}
+
+
+def _run_dir() -> Path:
+    d = data_dir() / _RUN_DIR
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _run_tool_parser() -> argparse.ArgumentParser:
+    fmt = argparse.RawDescriptionHelpFormatter
+    prog = "simplicio-video montage run-tool"
+    ap = argparse.ArgumentParser(
+        prog=prog, formatter_class=fmt,
+        description=("Roda UMA tool do OpenMontage (os nomes estão em `montage tools list`). No terminal: qualquer tool; o que não "
+                     "é local, custa dinheiro, tem custo não estimado ou usa rede pede --yes, depois da estimativa. A tool de "
+                     "publicação nunca roda. Pelo MCP (video.montage run-tool) só roda tool local, gratuita e sem rede, como tarefa "
+                     "em segundo plano."),
+        epilog=("exemplos:\n"
+                f"  {prog} audio_probe --input '{{\"input_path\": \"/abs/clip.mp4\"}}' --json\n"
+                f"  {prog} video_trimmer --input "
+                "'{\"operation\": \"cut\", \"input_path\": \"/abs/in.mp4\", \"output_path\": \"/abs/out.mp4\", \"start_seconds\": 0, "
+                "\"end_seconds\": 2}' --json\n"
+                f"  {prog} NOME --input '{{...}}' --yes      (tool que custa, usa rede ou não é local)"))
+    ap.add_argument("name", metavar="NOME", help="o nome da tool (montage tools list)")
+    ap.add_argument("--input", default="{}", metavar="JSON", help="entradas da tool, um objeto JSON (padrão: {}); caminhos absolutos")
+    ap.add_argument("--yes", action="store_true", help="confirma o que custa, usa rede ou não é local (depois da estimativa)")
+    ap.add_argument("--json", action="store_true", help="saída JSON para máquinas")
+    ap.add_argument("--sob-mcp", action="store_true", dest="sob_mcp", help=argparse.SUPPRESS)  # the MCP job passes it: strict gate
+    return ap
+
+
+def _parse_input(text: str) -> dict:
+    try:
+        inputs = json.loads(text)
+    except ValueError as e:
+        raise MontageError(f"--input não é JSON válido: {e}") from None
+    if not isinstance(inputs, dict):
+        raise MontageError("--input precisa ser um objeto JSON ({...})")
+    return inputs
+
+
+def _say_estimate(plan: dict) -> None:
+    e = plan["estimate"]
+    cost = e.get("estimated_cost_usd")
+    custo = f"US$ {cost}" if cost is not None else "não estimado (cota)"
+    rede = "não" if plan["network"] is False else ("sim" if plan["network"] else "o metadado não diz")
+    print(f"estimativa de {plan['tool']}: custo {custo}, runtime {plan['runtime']}, tier {plan['tier']}, rede {rede}",
+          file=sys.stderr, flush=True)
+
+
+def _say_result(res: dict) -> None:
+    if res["status"] == "refused":
+        print(f"montage run-tool: {res['error']}", file=sys.stderr)
+    elif not res["ok"]:
+        print(f"montage run-tool: {res['tool']} falhou: {res['error']}", file=sys.stderr)
+    else:
+        print(f"{res['tool']}: done em {res['duration_s']} s")
+        for o in res["outputs"]:
+            print(f"saída: {o['path']}  {o['bytes']} bytes  sha256 {o['sha256']}")
+
+
+def run_tool_cli(args: list[str]) -> int:
+    """`simplicio-video montage run-tool NOME --input JSON [--yes] [--json]`. Exit 0 only when the tool ran and succeeded."""
+    ns = _run_tool_parser().parse_args(args)
+    try:
+        inputs = _parse_input(ns.input)
+        strict = bool(ns.sob_mcp) or under_mcp()
+        plan = run_tool_plan(ns.name, inputs, strict=strict, yes=ns.yes)
+        if plan["estimate"] is not None:
+            _say_estimate(plan)
+        if plan["refusal"]:
+            res = {"ok": False, "tool": plan["tool"], "status": "refused", "error": plan["refusal"], "outputs": [],
+                   "estimate": plan["estimate"]}
+        else:
+            res = run_tool_execute(plan, inputs, _run_dir() if strict else Path.cwd())
+    except MontageError as e:
+        if ns.json:
+            _print({"ok": False, "tool": ns.name, "status": "failed", "error": str(e), "outputs": []}, True)
+        raise
+    if ns.json:
+        _print(res, True)
+    else:
+        _say_result(res)
+    return 0 if res["ok"] else 1
 
 
 if __name__ == "__main__":

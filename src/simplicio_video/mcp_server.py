@@ -164,14 +164,17 @@ def video_clone(args: str = "") -> dict:
     return _cli(["clone", *argv])
 
 
-DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, and the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json). Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed, and paths inside `input` must be absolute. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only."
+DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json) and run-tool NAME with `input` as an object: one local, free, offline tool, run as a background job (the answer is the job id; video.jobs result ID gives the outputs with sha256). Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed, paths inside `input` must be absolute and outputs must be new files. run-tool refuses everything else (paid, networked, not local, publishing); the terminal runs a paid or networked tool with --yes, after the estimate. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only."
 def video_montage(args: str = "", input: dict | None = None) -> dict:
     """OpenMontage over MCP: `clone` into the default folder, `doctor`, `preflight`, `status`, help and the read-only registry
     (`pipelines`, `tools`, `envelope`, `estimate`). `setup` installs a venv with pip/npm; `open` (the default with no args) and
     `serve` start an interface that never ends; `demo` renders with OpenMontage pipelines; `clone <dir>` picks where the checkout is
-    written, and any other argument (a script, `-c` or `-m`) would run Python code of the client's choice: all of that is terminal-only."""
+    written, and any other argument (a script, `-c` or `-m`) would run Python code of the client's choice: all of that is terminal-only.
+    `run-tool NOME` with `input` submits one local, free, offline tool as a job (see _montage_run_tool)."""
     from . import montage
     argv = _argv(args)
+    if argv[:1] == ["run-tool"]:
+        return _montage_run_tool(argv[1:], input)
     if input is not None:  # a structured object: `args` is split on spaces, which would break a JSON with spaces or quotes
         if argv[:1] != ["estimate"]:
             return {"ok": False, "error": "video.montage: `input` só vale com `estimate NOME` (as entradas da tool, como objeto)"}
@@ -187,6 +190,26 @@ def video_montage(args: str = "", input: dict | None = None) -> dict:
     if not argv or argv[0] in ("open", "serve"):
         return _so_terminal("montage open|serve", "montage open e serve sobem uma interface que não termina")
     return _so_terminal(f"montage {argv[0]}", f"montage {argv[0]} roda outra coisa do OpenMontage que o MCP não aceita")
+
+
+def _montage_run_tool(rest: list[str], inputs) -> dict:
+    """`run-tool NOME` over MCP: nothing runs in this process. The strict gate and the run are the job `montage-tool`, and the
+    answer is its id (`video.jobs` with `status` or `result` follows it). Only the name and `input` (an object) are accepted:
+    there is no --yes over MCP."""
+    from . import jobs, montage
+    if len(rest) != 1:
+        return _so_terminal("montage run-tool NOME --input JSON --yes",
+                            "pelo MCP, run-tool recebe só o nome da tool e `input` como objeto")
+    if inputs is None:
+        inputs = {}
+    if not isinstance(inputs, dict):
+        return {"ok": False, "error": "video.montage: `input` precisa ser um objeto JSON ({...})"}
+    try:
+        st = jobs.submit("montage-tool", {"name": rest[0], "input": inputs}, confirm_yes=False, origin="mcp")
+    except (jobs.JobError, montage.MontageError) as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "job": jobs.summary(st),
+            "note": "tarefa em segundo plano: acompanhe com video.jobs (status, ou result com o id); o resultado traz as saídas e o sha256"}
 
 
 DESC_video_opencut = "OpenCut editor for manual finishing (https://github.com/OpenCut-app/OpenCut): clone (default folder) and where. dev (a server that never ends) and a folder for clone are terminal-only."

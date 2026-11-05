@@ -75,7 +75,7 @@ def stub_spawn(monkeypatch):
 # ---------------------------------------------------------------- lista fechada e quem pode gastar
 
 def test_tipos_fechados():
-    assert set(jobs.KINDS) == {"swap-run", "voice"}
+    assert set(jobs.KINDS) == {"swap-run", "voice", "montage-tool"}  # montage-tool: run-tool, gate estrito pelo MCP (T2c)
 
 
 def test_tipo_desconhecido_recusado(stub_spawn):

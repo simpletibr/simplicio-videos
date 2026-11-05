@@ -492,6 +492,38 @@ def _result_voice(p: dict, last_json: dict | None) -> dict | None:
 _register("voice", prepare=_prepare_voice, argv=_argv_voice, result=_result_voice)
 
 
+# ------------------------------------------------------------------------------------------ montage-tool (T2c)
+
+def _prepare_montage_tool(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    """`montage run-tool` as a task. Submitted over MCP (origin mcp) it passes the STRICT gate (local, free, offline, absolute
+    paths, new outputs), so nothing that spends or uses the network is queued from there. The terminal submits with its own gate."""
+    from . import montage
+    _check_keys(params, {"name", "input"})
+    name, inputs = params.get("name"), params.get("input", {})
+    strict = origin != "terminal"
+    try:
+        plan = montage.run_tool_plan(name if isinstance(name, str) else "", inputs, strict=strict, yes=confirm_yes)
+    except montage.MontageError as e:
+        raise JobError(str(e)) from None
+    if plan["refusal"]:
+        raise JobError(plan["refusal"])
+    p = {"name": name, "input": inputs, "strict": strict}
+    extra = {"estimate_usd": plan["cost"], "confirmed": {"yes": True, "at": now_iso()} if plan["needs_yes"] else None}
+    return p, plan["spends"], extra
+
+
+def _argv_montage_tool(p: dict) -> list[str]:
+    a = ["montage", "run-tool", p["name"], "--input", json.dumps(p["input"], ensure_ascii=False), "--yes", "--json"]
+    return a + (["--sob-mcp"] if p.get("strict") else [])
+
+
+def _result_montage_tool(p: dict, last_json: dict | None) -> dict | None:
+    return last_json if isinstance(last_json, dict) and last_json.get("tool") == p.get("name") else None
+
+
+_register("montage-tool", prepare=_prepare_montage_tool, argv=_argv_montage_tool, result=_result_montage_tool)
+
+
 def build_argv(kind: str, params: dict) -> list[str]:
     return KINDS[kind]["argv"](params)
 
