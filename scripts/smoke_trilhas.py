@@ -29,10 +29,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import io
 import json
 import os
 import platform
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -98,7 +100,7 @@ MCP_LEITURA: dict[str, ChamadaMcp] = {
     "moneyprinter": ChamadaMcp("video_moneyprinter", {"args": "status"}, precisa=True),
     "matchcut": ChamadaMcp("video_matchcut", {"args": "status"}, precisa=True),
     "instagram": ChamadaMcp("video_instagram", {"acao": "status"}, precisa=True),
-    "voicestudio": ChamadaMcp("video_voicestudio", {"args": "status"}, precisa=True),
+    "voicestudio": ChamadaMcp("video_voicestudio", {"args": "status"}, precisa=False),
     "video-use": ChamadaMcp("video_edit", {"args": "--help"}, precisa=False),
     "tinyfish": ChamadaMcp("video_busca", {"acao": "status"}, precisa=True),
     "yt-dlp": ChamadaMcp("video_media", {"args": ["fetch"]}, precisa=False, espera="recusa"),
@@ -107,6 +109,10 @@ MCP_LEITURA: dict[str, ChamadaMcp] = {
 
 # A subcommand that must refuse without its arguments (checked with no URL, so nothing is downloaded).
 CLI_RECUSA = {"yt-dlp": "fetch"}
+
+# Desktop apps: their status asks the app over its local API, so it runs even with no checkout here. The app decides the answer
+# (OK when it answers, SKIP "app fechado" when it does not); a missing checkout is not a reason to skip the question.
+APP_LOCAL = {"voicestudio"}
 
 
 # ---------------------------------------------------------------- running the CLI and the MCP functions
@@ -120,18 +126,38 @@ def _comando_cli() -> list[str]:
     return [sys.executable, "-m", "simplicio_video"]
 
 
+def _matar_arvore(proc: subprocess.Popen) -> None:
+    """Kills the child and everything it started: on POSIX its whole process group (it was started in a new session)."""
+    try:
+        if os.name == "posix":
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.kill()
+    except OSError:
+        pass  # the group already ended
+
+
 def _rodar_cli(argv: list[str]) -> Saida:
-    """One command of the CLI as a child process, with a 30 s limit. The child runs offline (SIMPLICIO_OFFLINE=1)."""
+    """One command of the CLI as a child process, with a 30 s limit. The child runs offline (SIMPLICIO_OFFLINE=1). On timeout
+    the child's whole process group is killed, so a grandchild that holds the pipes does not outlive the check."""
     inicio = time.monotonic()
     env = {**os.environ, "SIMPLICIO_OFFLINE": "1"}
     try:
-        p = subprocess.run([*_comando_cli(), *argv], capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=TIMEOUT_S, env=env, cwd=str(REPO))
-    except subprocess.TimeoutExpired:
-        return Saida(124, "", f"sem resposta em {TIMEOUT_S} s", timeout=True, segundos=time.monotonic() - inicio)
+        proc = subprocess.Popen([*_comando_cli(), *argv], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                encoding="utf-8", errors="replace", env=env, cwd=str(REPO),
+                                start_new_session=os.name == "posix")
     except OSError as exc:
         return Saida(127, "", str(exc), segundos=time.monotonic() - inicio)
-    return Saida(p.returncode, p.stdout or "", p.stderr or "", segundos=time.monotonic() - inicio)
+    try:
+        out, err = proc.communicate(timeout=TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        _matar_arvore(proc)
+        try:
+            out, err = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            out, err = "", ""  # a pipe is still held by a process that left the group: give up on its output
+        return Saida(124, out or "", f"sem resposta em {TIMEOUT_S} s", timeout=True, segundos=time.monotonic() - inicio)
+    return Saida(proc.returncode, out or "", err or "", segundos=time.monotonic() - inicio)
 
 
 @contextlib.contextmanager
@@ -150,15 +176,18 @@ def _ambiente_mcp():
                 os.environ[k] = valor
 
 
-def _chamar_mcp(funcao: str, kwargs: dict) -> tuple[dict | None, str]:
-    """One video_* function of mcp_server, in-process, with a 30 s limit. It runs in a daemon thread, so a call that never
-    ends does not hold the script. Returns (answer, "") or (None, reason)."""
-    fn = getattr(mcp_server, funcao)
+def _com_limite(fn) -> tuple[object, str]:
+    """Runs fn() in a daemon thread with a TIMEOUT_S limit, with the MCP environment. Returns (value, "") or (None, reason).
+
+    A call that never ends can stay inside contextlib.redirect_stdout/redirect_stderr (as the CLI wrapper of mcp_server does),
+    which points sys.stdout at an abandoned buffer: on timeout both streams and the environment come back as they were, so the
+    table and the JSON still reach the terminal. The thread itself is a daemon and is left behind."""
+    stdout, stderr = sys.stdout, sys.stderr
     caixa: dict = {}
 
     def alvo():
         try:
-            caixa["resposta"] = fn(**kwargs)
+            caixa["valor"] = fn()
         except Exception as exc:  # noqa: BLE001 - the check reports the failure and the script goes on
             caixa["erro"] = f"{type(exc).__name__}: {exc}"
 
@@ -167,12 +196,32 @@ def _chamar_mcp(funcao: str, kwargs: dict) -> tuple[dict | None, str]:
         fio.start()
         fio.join(TIMEOUT_S)
     if fio.is_alive():
+        sys.stdout, sys.stderr = stdout, stderr
         return None, f"sem resposta em {TIMEOUT_S} s"
     if "erro" in caixa:
         return None, caixa["erro"]
-    resposta = caixa.get("resposta")
+    return caixa.get("valor"), ""
+
+
+def _chamar_mcp(funcao: str, kwargs: dict) -> tuple[dict | None, str]:
+    """One video_* function of mcp_server, in-process, with a 30 s limit. Returns (answer, "") or (None, reason).
+
+    Some tools print their message to stderr instead of the log (VoiceStudio's "app fechado"): that text is taken as the
+    log when the answer has none, so the check can still read it."""
+    fn = getattr(mcp_server, funcao)
+    erro_saida = io.StringIO()
+
+    def chamada():
+        with contextlib.redirect_stderr(erro_saida):
+            return fn(**kwargs)
+
+    resposta, erro = _com_limite(chamada)
+    if erro:
+        return None, erro
     if not isinstance(resposta, dict):
         return None, f"resposta inesperada: {type(resposta).__name__}"
+    if not resposta.get("log") and erro_saida.getvalue().strip():
+        resposta = {**resposta, "log": erro_saida.getvalue().strip()}
     return resposta, ""
 
 
@@ -242,15 +291,15 @@ def _checar_ajuda(nome: str, top: str, saida: Saida) -> Resultado:
     return Resultado(nome, "cli --help", FAIL, f"rc {saida.rc}: {_resumo(saida.texto)}", "cli", cmd, saida.segundos)
 
 
-def _checar_sub_cli(nome: str, top: str, sub: str, subs: set[str], instalada: bool, comando_ausente: bool) -> Resultado:
-    """`where` and `status` of a track, when its --help lists them. `status` asks for --json and reads the text when the
-    track has no --json."""
+def _checar_sub_cli(nome: str, top: str, sub: str, subs: set[str], pode_rodar: bool, comando_ausente: bool) -> Resultado:
+    """`where` and `status` of a track, when its --help lists them. `pode_rodar` is False when the track is not installed (and
+    is not asked over a local app). `status` asks for --json and reads the text when the track has no --json."""
     checagem = f"cli {sub}"
     if comando_ausente:
         return Resultado(nome, checagem, SKIP, "comando ausente no CLI", "cli", f"simplicio-video {top} {sub}")
     if sub not in subs:
         return Resultado(nome, checagem, SKIP, "subcomando ausente no --help", "cli", f"simplicio-video {top} {sub}")
-    if not instalada:
+    if not pode_rodar:
         return Resultado(nome, checagem, SKIP, NAO_INSTALADO, "cli", f"simplicio-video {top} {sub}")
     argv = [top, sub, "--json"] if sub == "status" else [top, sub]
     saida = _rodar_cli(argv)
@@ -327,9 +376,9 @@ def checar_trilha(nome: str) -> list[Resultado]:
     ajuda = _rodar_cli([top, "--help"])
     ausente = ajuda.rc != 0 and "invalid choice" in ajuda.err
     subs = subcomandos(ajuda.out) if ajuda.rc == 0 else set()
-    resultados = [_checar_ajuda(nome, top, ajuda)]
-    for sub in ("where", "status"):
-        resultados.append(_checar_sub_cli(nome, top, sub, subs, instalada, ausente))
+    resultados = [_checar_ajuda(nome, top, ajuda),
+                  _checar_sub_cli(nome, top, "where", subs, instalada, ausente),
+                  _checar_sub_cli(nome, top, "status", subs, instalada or nome in APP_LOCAL, ausente)]
     if nome in CLI_RECUSA:
         resultados.append(_checar_recusa_cli(nome, top, CLI_RECUSA[nome], ausente))
     resultados.append(_checar_mcp(nome, instalada))
@@ -390,16 +439,26 @@ def _core_validate() -> Resultado:
                      saida.segundos)
 
 
-def _core_mcp_lista() -> Resultado:
-    cmd = "build_server().list_tools()"
+def _contar_tools_mcp() -> int | str:
+    """How many tools the MCP server lists, or the reason it cannot be built (the SDK is missing)."""
     try:
         servidor = mcp_server.build_server()
     except SystemExit as exc:  # the MCP SDK is not installed (extra `mcp`): a missing feature, not a failure
-        return Resultado("core", "mcp tools/list", SKIP, _curto(str(exc.code or "SDK mcp ausente")), "mcp", cmd)
+        return str(exc.code or "SDK mcp ausente")
+    return len(asyncio.run(servidor.list_tools()))
+
+
+def _core_mcp_lista() -> Resultado:
+    cmd = "build_server().list_tools()"
     inicio = time.monotonic()
-    n = len(asyncio.run(servidor.list_tools()))
-    registro = len(mcp_server.TOOLS)
+    valor, erro = _com_limite(_contar_tools_mcp)
     segundos = time.monotonic() - inicio
+    if erro:
+        return Resultado("core", "mcp tools/list", FAIL, erro, "mcp", cmd, segundos)
+    if isinstance(valor, str):
+        return Resultado("core", "mcp tools/list", SKIP, _curto(valor), "mcp", cmd, segundos)
+    n = int(valor or 0)
+    registro = len(mcp_server.TOOLS)
     if n and n == registro:
         return Resultado("core", "mcp tools/list", OK, f"{n} tools, igual ao registro", "mcp", cmd, segundos)
     return Resultado("core", "mcp tools/list", FAIL, f"{n} tools no servidor, {registro} no registro", "mcp", cmd, segundos)
