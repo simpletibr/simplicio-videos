@@ -447,7 +447,7 @@
    "name": "video.instagram"
   },
   {
-   "description": "Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies are terminal-only. MCP subcommands: none (flags only, in argv or args).",
+   "description": "Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies (abbreviations too) are terminal-only. MCP subcommands: none (flags only, in argv or args).",
    "inputSchema": {
     "properties": {
      "args": {
@@ -578,10 +578,8 @@
    "name": "video.list"
   },
   {
-   "name": "video.matchcut",
    "description": "match-cut agent skill for product films (MIT): where (path of SKILL.md), status, and run of one of its seven LOCAL scripts (music, mix, qc, render, assemble, align, undot; a closed list, each checked against a pinned sha256 before it runs, in the skill venv with no shell, no stdin and no key). `args` is a list such as [\"run\", \"qc\", \"sheet\", \"/abs/clip.mp4\", \"/abs/sheet.jpg\"]; every path-like argument must be absolute, an existing output file is never overwritten, and nothing is written into the checkout or a system folder. setup (the venv, needs network) and clone are terminal-only: simplicio-video matchcut setup|clone. The engine never calls Renoise; using the skill itself needs the person's own Renoise sign-in and paid credits (https://github.com/Sac-Y/match-cut). MCP subcommands (cmd): where, status, run.",
    "inputSchema": {
-    "type": "object",
     "properties": {
      "args": {
       "anyOf": [
@@ -631,8 +629,10 @@
       "title": "Cmd"
      }
     },
-    "title": "video_matchcutArguments"
-   }
+    "title": "video_matchcutArguments",
+    "type": "object"
+   },
+   "name": "video.matchcut"
   },
   {
    "description": "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Writes new files with -o. MCP subcommands (cmd): fetch, probe, audio, sheet, subs, burn, mask, replace-audio, voice-track.",
@@ -749,25 +749,11 @@
   {
    "description": "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json) and run-tool NAME with `input` as an object: one of the reviewed local, free, offline tools (video_trimmer with operation cut or speed, audio_probe, frame_sampler, scene_detect), run as a background job (the answer is the job id; video.jobs result ID gives the outputs with sha256). Its inputs must be absolute regular files, its outputs new files outside system, engine and venv folders, and no URL, URI scheme or protocol prefix (file:, data:, concat:, subfile,) may appear in `input`. Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed. run-tool refuses everything else (paid, networked, not local, not reviewed, publishing); the terminal runs a paid or networked tool with --yes, after the estimate. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only. MCP subcommands (cmd): clone, doctor, hyperframes-doctor, preflight, help, pipelines, tools, envelope, estimate, status, run-tool.",
    "inputSchema": {
-    "type": "object",
     "properties": {
      "args": {
       "default": "",
       "title": "Args",
       "type": "string"
-     },
-     "input": {
-      "anyOf": [
-       {
-        "additionalProperties": true,
-        "type": "object"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "default": null,
-      "title": "Input"
      },
      "argv": {
       "anyOf": [
@@ -808,9 +794,23 @@
       ],
       "default": null,
       "title": "Cmd"
+     },
+     "input": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Input"
      }
     },
-    "title": "video_montageArguments"
+    "title": "video_montageArguments",
+    "type": "object"
    },
    "name": "video.montage"
   },
@@ -1046,7 +1046,9 @@
      "cmd": {
       "anyOf": [
        {
-        "const": "congelado",
+        "enum": [
+         "congelado"
+        ],
         "type": "string"
        },
        {

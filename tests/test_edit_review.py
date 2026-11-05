@@ -60,7 +60,7 @@ def test_output_values_is_the_single_parser():
 
 @pytest.mark.parametrize("filt", [
     "eq=contrast=1.05:saturation=0.95",
-    "curves=master='0/0 0.25/0.23 0.75/0.77 1/1',eq=contrast=1.1",
+    "curves=master=0/0 0.25/0.23 0.75/0.77 1/1,eq=contrast=1.1",  # sem aspas: o ffmpeg aceita o espaço, e aspas agora são recusadas
     "colorbalance=rs=0.02:bs=-0.03;hue=s=0.9",
     "lutrgb=r=val*1.02,vibrance=intensity=0.2",
 ])

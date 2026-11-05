@@ -33,5 +33,5 @@
 | `video.status` | Installed tools, pinned versions and, with a contract, the render state. Read-only. |
 | `video.doctor` | Diagnosis: update, runtime, Python, Node 22, ffmpeg with libass, disk, ports, workspace (all, --online for network checks). Read-only. MCP subcommands: none (flags only, in argv or args). |
 | `video.setup` | First run: creates the workspace (theme, language, L1 autonomy, zero budgets). Pass --yes to accept the defaults; without a terminal it refuses instead of asking. Writes no credential. MCP subcommands: none (flags only, in argv or args). |
-| `video.install` | Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies are terminal-only. MCP subcommands: none (flags only, in argv or args). |
+| `video.install` | Copies the packaged skills into the agent hosts (--global for the home folder). --check, --dry-run and --verify only read; --uninstall and --prune-project-copies (abbreviations too) are terminal-only. MCP subcommands: none (flags only, in argv or args). |
 | `video.update` | Checks for a newer version (--check or --dry-run). Installing it is terminal-only: it changes the installed package. MCP subcommands: none (flags only, in argv or args). |
