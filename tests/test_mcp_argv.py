@@ -68,10 +68,13 @@ def _cmds_do_schema(fn):
 
 
 def _enum(prop):
-    """O enum de uma propriedade do schema, direto ou dentro de anyOf (Literal | None)."""
+    """Os valores aceitos por uma propriedade do schema: enum, ou const quando há um só valor (o SDK faz assim com Literal de um
+    item), direto ou dentro de anyOf (Literal | None)."""
     if "enum" in prop:
         return tuple(prop["enum"])
-    return tuple(next(x["enum"] for x in prop["anyOf"] if "enum" in x))
+    if "const" in prop:
+        return (prop["const"],)
+    return _enum(next(x for x in prop["anyOf"] if x.get("type") != "null"))
 
 
 # ---------------------------------------------------------------------------------- quais tools e quais subcomandos
