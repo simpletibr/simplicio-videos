@@ -315,7 +315,7 @@
               "render",
               "batch"
             ],
-            "description": "intake: questionnaire state/validation (intake/intake.schema.json); brief: intake -> brief + spec; template: pick/list sector templates; patterns: list motion library; voices: list providers; new: scaffold video from template; compose: mount motion blocks from spec; voice: generate/cached TTS; edit (OPTIONAL, only when the user asks for editing help: cut to N seconds, reorder, trim footage, captions, cut review): video-use via tools/video-use (pinned), agent writes edl.json after the user confirms the plan, execution is deterministic; handoff: prompt for Opus 5.5 authoring; check/render/batch: deterministic build."
+            "description": "intake: questionnaire state/validation (intake/intake.schema.json); brief: intake -> brief + spec; template: pick/list sector templates; patterns: list motion library; voices: list providers; new: scaffold video from template; compose: mount motion blocks from spec; voice: generate/cached TTS; edit (OPTIONAL, only when the user asks for editing help: cut to N seconds, reorder, trim footage, captions, cut review): video-use bundled in the package (data/tools/video-use, pinned), agent writes edl.json after the user confirms the plan, execution is deterministic; handoff: prompt for Opus 5.5 authoring; check/render/batch: deterministic build."
           },
           "client": {
             "type": "string",
@@ -359,7 +359,7 @@
           },
           "edl": {
             "type": "string",
-            "description": "video-use EDL json (op=edit); see tools/video-use/README.md"
+            "description": "video-use EDL json (op=edit); see src/simplicio_video/data/tools/video-use/README.md"
           },
           "rows": {
             "type": "string",
@@ -1247,7 +1247,7 @@
     },
     {
       "verb": "video.edit",
-      "description": "video-use EDL editing over any MP4 from HyperFrames/OpenMontage/OpenCut: setup, transcribe, pack, render, verify.",
+      "description": "video-use EDL editing over any MP4 from HyperFrames/OpenMontage/OpenCut: setup, transcribe, pack, render, verify, grade (colour: auto, --preset, --analyze). Over MCP every output (-o/--out/--output) must be an absolute path, grade --filter takes only colour filters, and batch transcription (transcribe-batch, ElevenLabs Scribe, a paid third party) is terminal-only.",
       "argv": [
         "simplicio-video",
         "edit",

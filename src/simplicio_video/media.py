@@ -28,6 +28,15 @@ HELP = """media (audio-visual on any MP4: ffmpeg/ffprobe, deterministic; fetch u
   fetch URL -o OUT.mp4 --autorizo [--max-mb 500] [--timeout 600]
                                                    download one public video page to a new MP4 and write
                                                    OUT.fetch.json (source, sha256, yt-dlp version, time); needs --autorizo
+  fetch URL --info [-o info.json] [--timeout 600]  metadata only (title, duration, uploader, license, formats, subtitle
+                                                   languages); downloads and saves nothing, so no --autorizo
+  fetch URL -o OUT.mp4 --autorizo --subs LANG [--auto-subs]
+                                                   also save the creator's subtitles as OUT.LANG.srt (auto-generated
+                                                   ones only with --auto-subs); recorded in OUT.fetch.json
+  fetch URL -o OUT.mp4 --autorizo --section START-END
+                                                   only that range, in seconds (e.g. 0-3, 12.5-30); recorded
+  fetch URL -o OUT.m4a|OUT.wav --autorizo --audio-only
+                                                   extract the audio instead of the MP4; recorded
   probe FONTE [-o info.json]                       metadata: duration, size, fps, audio
   audio FONTE -o OUT.wav [--rate 16000]            mono PCM track (for transcription or a voice reference)
   sheet FONTE -o SHEET.jpg [--every 4] [--cols 8]  contact sheet of frames, to review on-screen text
@@ -48,7 +57,13 @@ The "audio" key is used only by voice-track. Times are seconds.
 
 Examples:
   simplicio-video media fetch https://www.instagram.com/veramundopet/reel/DfDdh8ugFWN/ -o reel.mp4 --autorizo
+  simplicio-video media fetch https://example.com/aula.mp4 --info
+  simplicio-video media fetch https://example.com/aula.mp4 -o aula.mp4 --autorizo --subs pt
+  simplicio-video media fetch https://example.com/aula.mp4 -o trecho.mp4 --autorizo --section 0-3
+  simplicio-video media fetch https://example.com/aula.mp4 -o aula.m4a --autorizo --audio-only
   simplicio-video media probe reel.mp4
+  simplicio-video media audio reel.mp4 -o reel.wav --rate 16000
+  simplicio-video media sheet reel.mp4 -o sheet.jpg --every 4
   simplicio-video media mask reel.mp4 --box 150,622,430,104 -o clean.mp4
   simplicio-video media subs cues.json -o subs.ass --style band
   simplicio-video media burn clean.mp4 subs.ass -o final.mp4
@@ -74,7 +89,7 @@ def _need(exe: str) -> str:
 
 
 def _run(cmd: list[str]) -> None:
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if r.returncode != 0:
         raise MediaError((r.stderr or r.stdout).strip().splitlines()[-1] if (r.stderr or r.stdout).strip() else "ffmpeg falhou")
 
@@ -252,7 +267,7 @@ def voice_filter(plano: list[dict], duration: float) -> str:
 def _clip_seconds(path: Path) -> float:
     ffprobe = _need("ffprobe")
     r = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(path)],
-                       capture_output=True, text=True)
+                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
     try:
         return float(r.stdout.strip())
     except ValueError:
@@ -260,7 +275,7 @@ def _clip_seconds(path: Path) -> float:
 
 
 def _has_filter(name: str) -> bool:
-    r = subprocess.run([_need("ffmpeg"), "-hide_banner", "-filters"], capture_output=True, text=True)
+    r = subprocess.run([_need("ffmpeg"), "-hide_banner", "-filters"], stdin=subprocess.DEVNULL, capture_output=True, text=True)
     return any(re.match(r"\s*\S+\s+%s\s" % re.escape(name), linha) for linha in r.stdout.splitlines())
 
 
@@ -268,7 +283,7 @@ def _parse(args: list[str]) -> tuple[list[str], dict[str, str]]:
     pos: list[str] = []
     vals: dict[str, str] = {}
     i = 0
-    flags_sem_valor = {"--keep-length", "--autorizo"}
+    flags_sem_valor = {"--keep-length", "--autorizo", "--info", "--audio-only", "--auto-subs"}
     while i < len(args):
         a = args[i]
         if a in flags_sem_valor:
@@ -320,15 +335,37 @@ def _out(vals: dict[str, str], cmd: str) -> Path:
     return dest
 
 
+def _write_new_json(dest: Path, doc: dict) -> None:
+    """The only file `fetch --info` may write, and only when -o is given; never over an existing file."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with dest.open("x", encoding="utf8") as f:
+            f.write(json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
+    except FileExistsError:
+        raise MediaError(f"{dest.name} já existe: não sobrescrevo; escolha outro -o") from None
+
+
 def cmd_fetch(pos, vals) -> dict:
     if not pos:
         raise MediaError("fetch: informe a URL pública do vídeo")
+    if "--info" in vals:
+        # Metadata only: nothing is downloaded, so there is no use to authorise. -o (a .json) is the single optional output.
+        if any(k in vals for k in ("--subs", "--auto-subs", "--section", "--audio-only", "--autorizo", "--max-mb")):
+            raise MediaError("fetch --info só lê metadados: não combina com --subs, --auto-subs, --section, --audio-only, --autorizo nem --max-mb")
+        try:
+            doc = download.info(pos[0], timeout=_int(vals, "--timeout", download.DEFAULT_TIMEOUT_S))
+        except download.DownloadError as e:
+            raise MediaError(str(e)) from None
+        if "-o" in vals:
+            _write_new_json(Path(vals["-o"]).expanduser(), doc)
+        return doc
     if "--autorizo" not in vals:
         raise MediaError("fetch: confirme que você pode usar este vídeo com --autorizo (o motor não verifica o direito de uso)")
     dest = _out(vals, "fetch")
     try:
         return download.fetch(pos[0], dest, autorizo=True, max_mb=_int(vals, "--max-mb", download.DEFAULT_MAX_MB),
-                              timeout=_int(vals, "--timeout", download.DEFAULT_TIMEOUT_S))
+                              timeout=_int(vals, "--timeout", download.DEFAULT_TIMEOUT_S), subs=vals.get("--subs"),
+                              auto_subs="--auto-subs" in vals, section=vals.get("--section"), audio_only="--audio-only" in vals)
     except download.DownloadError as e:
         raise MediaError(str(e)) from None
 
@@ -471,6 +508,24 @@ DISPATCH = {
 }
 
 
+def sub_help(name: str) -> str:
+    """The HELP block of one subcommand (its usage lines) plus its examples, cut from HELP so the two never drift."""
+    linhas = HELP.split("\n")
+    uso: list[str] = []
+    for i, ln in enumerate(linhas):
+        if ln.startswith(f"  {name} "):
+            uso.append(ln)
+            for cont in linhas[i + 1:]:
+                if not cont.startswith("    "):
+                    break
+                uso.append(cont)
+            break
+    exemplos = [ln for ln in linhas if ln.startswith(f"  simplicio-video media {name} ")]
+    extra = ["", 'Cues file: {"schema": "simplicio.media-cues/v1", "cues": [{"start": 0.0, "end": 2.5, "text": "...", "audio": "clip.wav"}]}'] \
+        if name in ("subs", "voice-track") else []
+    return "\n".join([f"media {name}", "", *uso, *extra, "", "Exemplos:", *exemplos])
+
+
 def run_media(args: list[str]) -> int:
     first = args[0] if args else "help"
     if first in ("-h", "--help", "help"):
@@ -478,6 +533,10 @@ def run_media(args: list[str]) -> int:
         return 0
     if first not in DISPATCH:
         raise MediaError(f"subcomando desconhecido: {first} ({'|'.join(SUBCOMMANDS)})")
+    antes_do_traco = args[1:args.index("--")] if "--" in args else args[1:]
+    if any(h in antes_do_traco for h in ("-h", "--help")):
+        print(sub_help(first))
+        return 0
     pos, vals = _parse(args[1:])
     resultado = DISPATCH[first](pos, vals)
     print(json.dumps(resultado, ensure_ascii=False, indent=2))

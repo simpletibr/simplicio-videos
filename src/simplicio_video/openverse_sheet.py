@@ -35,7 +35,7 @@ def _bin(name: str) -> str:
 
 def _run(cmd: list[str], binary: bool = False) -> subprocess.CompletedProcess:
     try:
-        r = subprocess.run(cmd, capture_output=True, timeout=TOOL_TIMEOUT_S)
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, timeout=TOOL_TIMEOUT_S)
     except FileNotFoundError:
         raise OpenverseError(f"{Path(cmd[0]).name} não encontrado: instale o ffmpeg (ffmpeg e ffprobe no PATH) para gerar a folha") from None
     except subprocess.TimeoutExpired:

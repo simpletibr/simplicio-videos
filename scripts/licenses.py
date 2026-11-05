@@ -136,6 +136,58 @@ def _modules(dist, name: str) -> tuple[str, ...]:
     return mods or (norm(name).replace("-", "_"),)
 
 
+SCAN_EXTRAS = ("test",)  # a tabela do doc: dependências base do produto + o extra do gate
+_ENV_MARKER = re.compile(r"\b(python_version|python_full_version|sys_platform|platform_\w+|os_name|implementation_\w+)\b")
+
+
+def _active(req: str, extra: str) -> bool:
+    """A exigência vale para o `extra` pedido ("" = dependência base)? Exigência com marcador de AMBIENTE (versão do Python,
+    plataforma, implementação) nunca vale aqui: a tabela tem de ser igual em qualquer Python e sistema. O gate de licença
+    cobre essas dependências quando estão instaladas (scan(todos_os_extras=True))."""
+    if ";" not in req:
+        return True
+    marker = req.split(";", 1)[1]
+    if _ENV_MARKER.search(marker):
+        return False
+    m = re.search(r"extra\s*==\s*[\"']([^\"']+)", marker)
+    return (m.group(1) == extra) if m else True
+
+
+def _closure(dists) -> tuple[list, dict[str, list[str]]]:
+    """Distribuições alcançáveis a partir do produto (deps base + SCAN_EXTRAS) por exigências sem marcador de ambiente, e quem
+    exige cada uma. Só alimenta a tabela do doc: extras instalados por fora (mcp...), o pip e deps condicionadas ao ambiente não a
+    mudam. Sem o produto instalado (testes com distribuições falsas), vale tudo o que está instalado."""
+    by_name = {}
+    for dist in dists:
+        by_name.setdefault(norm(dist.metadata.get("Name") or getattr(dist, "name", "") or "?"), dist)
+    root = by_name.get(norm(PRODUCT))
+    if root is None:
+        return list(dists), _parents(dists)
+    parents: dict[str, list[str]] = {}
+    seen: dict[str, set[str]] = {norm(PRODUCT): set()}
+    pending = [(root, ("",) + SCAN_EXTRAS)]
+    while pending:
+        dist, extras = pending.pop()
+        parent = dist.metadata.get("Name") or getattr(dist, "name", "") or "?"
+        for req in dist.metadata.get_all("Requires-Dist") or []:
+            m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[([^\]]*)\])?", req)
+            if not m:
+                continue
+            on = [e for e in extras if _active(req, e)]
+            if not on:
+                continue
+            child = norm(m.group(1))
+            label = parent if "" in on else f"{parent}[{on[0]}]"
+            if child in by_name:
+                parents.setdefault(child, []).append(label)
+                pedidos = {x.strip() for x in (m.group(2) or "").split(",") if x.strip()}  # dep[extra]
+                novos = ({""} | pedidos) - seen.get(child, set())
+                if novos:
+                    seen.setdefault(child, set()).update(novos)
+                    pending.append((by_name[child], tuple(sorted(novos))))
+    return [d for n, d in by_name.items() if n in seen], parents
+
+
 def _parents(dists) -> dict[str, list[str]]:
     """Quem exige cada distribuição (Requires-Dist), com [extra] quando a exigência é de um extra."""
     parents: dict[str, list[str]] = {}
@@ -152,10 +204,13 @@ def _parents(dists) -> dict[str, list[str]]:
     return parents
 
 
-def scan(exceptions_path: Path = EXCEPTIONS) -> list[Entry]:
+def scan(exceptions_path: Path = EXCEPTIONS, todos_os_extras: bool = False) -> list[Entry]:
     exc = load_exceptions(exceptions_path)
     dists = list(importlib.metadata.distributions())
-    parents = _parents(dists)
+    if todos_os_extras:  # o gate: tudo o que está instalado, declarado ou não
+        parents = _parents(dists)
+    else:  # a tabela do doc
+        dists, parents = _closure(dists)
 
     entries: list[Entry] = []
     seen: set[tuple[str, str]] = set()
@@ -209,7 +264,7 @@ def render_table(entries: list[Entry]) -> str:
         "",
         "<!-- Gerado por scripts/licenses.py --write (make licenses-write). Não edite à mão. -->",
         "",
-        "Scan das distribuições instaladas (`importlib.metadata`). Allowlist: MIT, Apache-2.0, BSD, ISC, "
+        "Scan das distribuições instaladas (`importlib.metadata`), limitado ao fecho das dependências base e do extra `test` (extras instalados por fora não entram). Allowlist: MIT, Apache-2.0, BSD, ISC, "
         "PSF-2.0, MPL-2.0 (nível de arquivo). Exceções com justificativa: `docs/licenses-exceptions.yaml`. "
         "Regras e como atualizar: `docs/host/licenses.md`.",
         "",
@@ -296,12 +351,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        entries = scan(EXCEPTIONS)
+        entries = scan(EXCEPTIONS)  # a tabela do doc: base + test, sem marcador de ambiente, estável
+        completo = scan(EXCEPTIONS, todos_os_extras=True)  # o gate: toda distribuição instalada (extras, deps de ambiente, não declaradas)
     except ValueError as exc:
         print(f"licenses: {exc}", file=sys.stderr)
         return 2
 
-    bad = denied(entries)
+    bad = denied(completo)
     if args.write:
         DOC.write_text(render_table(entries), encoding="utf-8")
         print(f"licenses: {_rel(DOC)} gerado ({len(entries)} linhas)")
@@ -317,7 +373,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"licenses: não é diretório: {d}", file=sys.stderr)
                 return 2
             files += sorted(p for p in base.rglob("*.py") if "__pycache__" not in p.parts)
-        problems = import_violations(files, entries)
+        problems = import_violations(files, completo)
         for line in problems:
             print(f"licenses: {line}", file=sys.stderr)
         if problems:

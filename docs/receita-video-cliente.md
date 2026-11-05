@@ -59,7 +59,7 @@ simplicio-video run <contrato.yaml> --provider gemini --backend local   # voz + 
 - `render.manifest.json`: hash do contrato e de cada input, versões, hash dos frames/áudio, loudness (alvo −14 LUFS, pico ≤ −1,5) e tempos.
 - Com ativos do Openverse: o manifesto traz a chave `openverse` (procedência de cada ativo) e os créditos saem em `<video>.CREDITS-openverse.md` ao lado do MP4; cole-os onde a licença pede.
 - STT: faster-whisper no MP4 deve reconhecer todas as falas; gere prévia 720p + contact sheet em `preview/`.
-- Edição de footage/cortes (opcional, só a pedido): [`tools/video-use`](../tools/video-use/README.md).
+- Edição de footage/cortes (opcional, só a pedido): [`video-use`](../src/simplicio_video/data/tools/video-use/README.md).
 
 ## 6. Entrega no Google Drive
 - Caminho: `simplicio-video/clientes/NOME_CLIENTE/ANO/CAMPANHA`

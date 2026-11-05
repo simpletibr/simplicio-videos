@@ -110,7 +110,7 @@ def _real_probe(path: Path) -> dict:
            "stream=codec_type,codec_name,width,height,avg_frame_rate,r_frame_rate:format=duration,format_name", "-of", "json",
            "file:" + os.path.abspath(path)]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     except FileNotFoundError:
         raise SocialError("ffprobe não encontrado: instale o ffmpeg (ffmpeg e ffprobe no PATH)") from None
     if r.returncode != 0:

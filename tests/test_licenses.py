@@ -62,6 +62,11 @@ class FakeDist:
     def read_text(self, filename):
         return self._top_level if filename == "top_level.txt" else None
 
+    def requires(self, *reqs):
+        for req in reqs:
+            self.metadata["Requires-Dist"] = req
+        return self
+
 
 def _use_dists(monkeypatch, *dists):
     """Troca o conjunto de distribuições instaladas que importlib.metadata enxerga."""
@@ -88,6 +93,86 @@ def test_dist_agpl_falso_reprova_o_scan(monkeypatch, tmp_path):
     bad = lic.denied(entries)
     assert [e.name for e in bad] == ["fake-agpl-lib"]
     assert bad[0].status == "denied"
+
+
+# (a2) o scan é determinístico: só a base declarada do produto + o extra `test`; extras instalados e pip não entram
+def test_scan_se_limita_ao_fecho_das_deps_base_e_do_extra_test(monkeypatch, tmp_path):
+    lic = _lic()
+
+    def d(name, *reqs):
+        return FakeDist(name, "1.0", "MIT", top_level=[name.replace("-", "_")]).requires(*reqs)
+
+    produto = d("simplicio-video", "base-lib>=1", 'pytest>=8; extra == "test"', 'mcp>=1; extra == "mcp"',
+                'win-only; sys_platform == "win32"')
+    dists = [produto, d("base-lib", "transitiva"), d("transitiva"), d("pytest", 'dev-extra; extra == "dev"'),
+             d("dev-extra"), d("mcp", "starlette"), d("starlette"), d("pip"), d("win-only")]
+    _use_dists(monkeypatch, *dists)
+
+    entries = lic.scan(exceptions_path=_exceptions(tmp_path, []))
+
+    assert [e.name for e in entries] == ["base-lib", "pytest", "simplicio-video", "transitiva"]
+    assert {e.name: e.used_by for e in entries}["transitiva"] == "base-lib"
+
+
+# (a3) a tabela é estável, mas o gate de licença olha também o fecho de todo extra declarado que esteja instalado
+def test_scan_de_todos_os_extras_reprova_licenca_negada_fora_da_tabela(monkeypatch, tmp_path):
+    lic = _lic()
+    produto = FakeDist("simplicio-video", "1.0", "MIT").requires("base-lib", 'pacote-ruim>=1; extra == "mcp"',
+                                                                 'nao-instalado; extra == "remote"')
+    produto.metadata["Provides-Extra"] = "mcp"
+    produto.metadata["Provides-Extra"] = "remote"
+    ruim = FakeDist("pacote-ruim", "1.0", "AGPL-3.0-only", top_level=["pacote_ruim"])
+    _use_dists(monkeypatch, produto, FakeDist("base-lib", "1.0", "MIT"), ruim)
+    exc = _exceptions(tmp_path, [])
+
+    assert [e.name for e in lic.scan(exceptions_path=exc)] == ["base-lib", "simplicio-video"]
+    todos = lic.scan(exceptions_path=exc, todos_os_extras=True)
+    assert [e.name for e in lic.denied(todos)] == ["pacote-ruim"]
+    assert {e.name: e.used_by for e in todos}["pacote-ruim"] == "simplicio-video[mcp]"
+
+
+# (a4) `dep[extra]` puxa as exigências do extra da dependência (ex.: PyJWT[crypto] -> cryptography)
+def test_scan_segue_o_extra_pedido_a_uma_dependencia(monkeypatch, tmp_path):
+    lic = _lic()
+    produto = FakeDist("simplicio-video", "1.0", "MIT").requires("jwt-lib[crypto]>=2")
+    jwt = FakeDist("jwt-lib", "1.0", "MIT").requires('crypto-lib; extra == "crypto"', 'outro; extra == "docs"')
+    _use_dists(monkeypatch, produto, jwt, FakeDist("crypto-lib", "1.0", "MIT"), FakeDist("outro", "1.0", "MIT"))
+
+    nomes = [e.name for e in lic.scan(exceptions_path=_exceptions(tmp_path, []))]
+
+    assert nomes == ["crypto-lib", "jwt-lib", "simplicio-video"]
+
+
+# (a5) a tabela do doc não lista dependência condicionada ao ambiente (python_version, plataforma...): é igual em qualquer Python.
+# O gate de licença continua vendo a dependência quando ela está instalada.
+def test_tabela_ignora_dependencia_com_marcador_de_ambiente_mas_o_gate_ve(monkeypatch, tmp_path):
+    lic = _lic()
+    produto = FakeDist("simplicio-video", "1.0", "MIT").requires("base-lib")
+    base = FakeDist("base-lib", "1.0", "MIT").requires("typing-ext; python_version < '3.13'", "tomli; python_full_version < '3.11'",
+                                                      "colorama; sys_platform == 'win32' and extra == 'test'")
+    outras = [FakeDist(n, "1.0", "MIT") for n in ("typing-ext", "tomli", "colorama")]
+    _use_dists(monkeypatch, produto, base, *outras)
+    exc = _exceptions(tmp_path, [])
+
+    assert [e.name for e in lic.scan(exceptions_path=exc)] == ["base-lib", "simplicio-video"]
+    assert [e.name for e in lic.scan(exceptions_path=exc, todos_os_extras=True)] == [
+        "base-lib", "colorama", "simplicio-video", "tomli", "typing-ext"]
+
+
+# (a6) pacote instalado mas não declarado (GPL) importado pelo código continua reprovado: o gate olha tudo o que está instalado
+def test_pacote_gpl_instalado_e_nao_declarado_importado_reprova(monkeypatch, tmp_path):
+    lic = _lic()
+    produto = FakeDist("simplicio-video", "1.0", "MIT").requires("base-lib")
+    gpl = FakeDist("undecl-gpl", "1.0", "GPL-2.0-only", top_level=["undeclgpl"])
+    _use_dists(monkeypatch, produto, FakeDist("base-lib", "1.0", "MIT"), gpl)
+    exc = _exceptions(tmp_path, [])
+
+    entries = lic.scan(exceptions_path=exc, todos_os_extras=True)
+    arquivo = tmp_path / "usa_gpl.py"
+    arquivo.write_text("import undeclgpl\n", encoding="utf-8")
+
+    assert [e.name for e in lic.denied(entries)] == ["undecl-gpl"]
+    assert len(lic.import_violations([arquivo], entries)) == 1
 
 
 # (b) a mesma licença, com exceção justificada, passa
@@ -130,7 +215,7 @@ def test_scan_do_ambiente_real_sem_licenca_negada():
     """O gate em si: as distribuições do .venv passam pela allowlist ou por exceção justificada."""
     lic = _lic()
 
-    assert lic.denied(lic.scan()) == []
+    assert lic.denied(lic.scan(todos_os_extras=True)) == []
 
 
 def test_docs_licenses_md_desatualizado_ou_ausente_falha(monkeypatch, tmp_path):

@@ -75,7 +75,7 @@ def stub_spawn(monkeypatch):
 # ---------------------------------------------------------------- lista fechada e quem pode gastar
 
 def test_tipos_fechados():
-    assert set(jobs.KINDS) == {"swap-run", "voice"}
+    assert set(jobs.KINDS) == {"swap-run", "voice", "rea-video", "moneyprinter"}
 
 
 def test_tipo_desconhecido_recusado(stub_spawn):
