@@ -81,6 +81,10 @@ def fake_checkout(monkeypatch, tmp_path):
     d = tmp_path / "openmontage"
     (d / "backlot").mkdir(parents=True)
     monkeypatch.setenv("OPENMONTAGE_DIR", str(d))
+    monkeypatch.setenv("OPENMONTAGE_DATA_DIR", str(tmp_path / "omdata"))
+    py = montage.venv_python()  # upstream commands run in the OpenMontage venv; a stand-in file is enough here
+    py.parent.mkdir(parents=True)
+    py.write_text("", encoding="utf8")
     return d
 
 
@@ -98,7 +102,7 @@ def test_montage_run_demo_list(monkeypatch, fake_checkout):
 
 def test_montage_run_open_subcommand(monkeypatch, fake_checkout):
     recorded = []
-    monkeypatch.setattr("subprocess.call", lambda cmd, cwd=None, env=None: recorded.append((cmd, cwd)) or 0)
+    monkeypatch.setattr(montage, "_run_open", lambda cmd, cwd=None, env=None: recorded.append((cmd, cwd)) or 0)  # open streams its output
     ret = montage.run_montage(["open", "proj-123"])
     assert ret == 0
     assert len(recorded) == 1

@@ -246,16 +246,26 @@ def video_clone(args: str = "") -> dict:
     return _cli(["clone", *argv])
 
 
-DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight and help. open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only."
-def video_montage(args: str = "") -> dict:
-    """OpenMontage over MCP: `clone` into the default folder, `doctor`, `preflight` and help. `open` (the default with no args) and
+DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, and the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json). Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed, and paths inside `input` must be absolute. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only."
+def video_montage(args: str = "", input: dict | None = None) -> dict:
+    """OpenMontage over MCP: `clone` into the default folder, `doctor`, `preflight`, `status`, help and the read-only registry
+    (`pipelines`, `tools`, `envelope`, `estimate`). `setup` installs a venv with pip/npm; `open` (the default with no args) and
     `serve` start an interface that never ends; `demo` renders with OpenMontage pipelines; `clone <dir>` picks where the checkout is
     written, and any other argument (a script, `-c` or `-m`) would run Python code of the client's choice: all of that is terminal-only."""
+    from . import montage
     argv = _argv(args)
+    if input is not None:  # a structured object: `args` is split on spaces, which would break a JSON with spaces or quotes
+        if argv[:1] != ["estimate"]:
+            return {"ok": False, "error": "video.montage: `input` só vale com `estimate NOME` (as entradas da tool, como objeto)"}
+        argv += ["--input", json.dumps(input, ensure_ascii=False, separators=(",", ":"))]
     if argv[:1] == ["clone"] and len(argv) > 1:
         return _so_terminal("montage clone <dir>", "clonar o OpenMontage num diretório escolhido")
+    if argv[:1] and argv[0] in montage.READ_ONLY_COMMANDS:
+        return _cli(["montage", *argv])
     if argv[:1] in (["clone"], ["doctor"], ["hyperframes-doctor"], ["preflight"], ["--help"], ["-h"], ["help"]) or argv == ["clone"]:
         return _cli(["montage", *argv])
+    if argv[:1] == ["setup"]:
+        return _so_terminal("montage setup", "montage setup cria o venv e instala dependências com pip e npm")
     if not argv or argv[0] in ("open", "serve"):
         return _so_terminal("montage open|serve", "montage open e serve sobem uma interface que não termina")
     return _so_terminal(f"montage {argv[0]}", f"montage {argv[0]} roda outra coisa do OpenMontage que o MCP não aceita")

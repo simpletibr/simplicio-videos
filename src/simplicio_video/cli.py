@@ -249,7 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("montage", formatter_class=Fmt, help="trilha Montage (OpenMontage): produção de vídeo com agentes de IA",
         description="Invoca o OpenMontage (https://github.com/calesthio/OpenMontage) para pipelines e agentes de produção de vídeo (Backlot, Remotion, HyperFrames).",
-        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000")
+        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000\n  simplicio-video montage setup [--remotion] [--piper]\n  simplicio-video montage status --json\n  simplicio-video montage pipelines list --json\n  simplicio-video montage tools list --runtime api --json\n  simplicio-video montage envelope --json\n  simplicio-video montage estimate NOME --input '{}' --json")
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao OpenMontage")
 
     p = sub.add_parser("edit", formatter_class=Fmt, help="edição por EDL com video-use sobre qualquer MP4",
@@ -647,6 +647,9 @@ def main(argv: list[str] | None = None) -> int:
         # `clone --help` is Hypit's help; the engine's own is `clone --engine-help`
         ajuda_do_motor = args_list[0] == "clone" and "--engine-help" in antes_do_traco
         ajuda_do_upstream = ajuda_do_upstream or (args_list[0] == "clone" and not ajuda_do_motor)
+        # `montage tools --help` etc. have their own argparse (with examples) inside montage.py
+        ajuda_propria = args_list[0] == "montage" and args_list[1:2] and args_list[1] in montage.REGISTRY_COMMANDS
+        ajuda_do_upstream = ajuda_do_upstream or bool(ajuda_propria)
         if ajuda_do_motor or (not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and any(h in antes_do_traco for h in ("-h", "--help"))):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0

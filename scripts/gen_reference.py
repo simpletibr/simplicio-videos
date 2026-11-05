@@ -61,6 +61,8 @@ DESCRIPTIONS = {
     "OPENVERSE_CLIENT_ID": "Credencial OAuth2 opcional da API do Openverse (par com `OPENVERSE_CLIENT_SECRET`; sobe o limite de requisições e o tamanho da página). Só no ambiente; nunca em argumento, índice, cache ou saída.",
     "OPENVERSE_CLIENT_SECRET": "Segredo OAuth2 opcional da API do Openverse (par com `OPENVERSE_CLIENT_ID`). Só no ambiente; nunca em argumento, índice, cache ou saída.",
     "OPENVERSE_LIBRARY_DIR": "Pasta da biblioteca do Openverse: `index.json`, `files/<sha256>`, `cache/` e `sheets/` (padrão: `~/.simplicio-video/openverse-library`).",
+    "BACKLOT_PORT": "Porta do board (Backlot) do OpenMontage; o `montage open` e o `montage serve` a repassam ao upstream.",
+    "OPENMONTAGE_DATA_DIR": "Pasta do venv do OpenMontage (padrão: `~/.simplicio-video/openmontage-data`); um caminho relativo vira absoluto a partir da pasta atual, com aviso.",
     "OPENMONTAGE_DIR": "Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage.",
     "OPENVOICE_CHECKPOINTS": "Pasta dos checkpoints do OpenVoice (provider `openvoice`).",
     "OPENVOICE_PY": "Python com o OpenVoice instalado (provider `openvoice`).",
