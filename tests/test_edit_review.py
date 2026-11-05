@@ -81,6 +81,10 @@ def test_mcp_grade_filter_allows_colour_filters(filt, monkeypatch):
     "hue=filename=x",
     "lutrgb=stats_file=/tmp/x",
     "eq=result=/tmp/x",
+    # ffmpeg drops the backslash and the quotes before it matches the option names: psfile in all three
+    r"curves=ps\file=/etc/hostname",
+    "curves='psfile'=/etc/hostname",
+    'curves="psfile"=/etc/hostname',
 ])
 @pytest.mark.parametrize("forma", ["--filter", "--filt", "--filter="])
 def test_mcp_grade_filter_refuses_anything_else_and_names_the_terminal(filt, forma, monkeypatch):

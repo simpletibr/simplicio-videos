@@ -68,12 +68,11 @@ def _cmds_do_schema(fn):
 
 
 def _enum(prop):
-    """Os valores aceitos por uma propriedade do schema: enum, ou const quando há um só valor (o SDK faz assim com Literal de um
-    item), direto ou dentro de anyOf (Literal | None)."""
+    """Os valores aceitos por uma propriedade do schema, sempre como `enum`, inclusive com um valor só (o SDK escreve `const` para
+    um Literal de um item, e o schema de cmd não usa isso), direto ou dentro de anyOf (Literal | None)."""
+    assert "const" not in prop, f"const em vez de enum: {prop}"
     if "enum" in prop:
         return tuple(prop["enum"])
-    if "const" in prop:
-        return (prop["const"],)
     return _enum(next(x for x in prop["anyOf"] if x.get("type") != "null"))
 
 
@@ -186,7 +185,8 @@ def test_args_no_windows_le_com_shlex_sem_comer_a_barra(monkeypatch):
     assert mcp_server._argv(r'probe "C:\dir\a b.mp4"', None) == ["probe", r"C:\dir\a b.mp4"]
     assert mcp_server._argv(r"probe C:\dir\a.mp4", None) == ["probe", r"C:\dir\a.mp4"]
     monkeypatch.setattr(hostos, "is_windows", lambda: False)
-    assert mcp_server._argv(r"probe C:\dir\a.mp4", None) == ["probe", "C:dira.mp4"]
+    # sem aspas a linha é só separada em espaços (como antes do shlex): a barra de um caminho fica
+    assert mcp_server._argv(r"probe C:\dir\a.mp4", None) == ["probe", r"C:\dir\a.mp4"]
 
 
 @pytest.mark.parametrize("chamada", [
@@ -226,4 +226,87 @@ def test_argv_tem_de_ser_lista_e_nao_texto(cli):
 def test_cmd_recusado_ou_inventado_e_erro_limpo_e_nada_roda(cli, nome, recusado):
     r = FUNCOES[nome](cmd=recusado)
     assert r["ok"] is False and "cmd" in r["error"], r
+    assert cli == []
+
+
+@pytest.fixture
+def voicestudio_gravado(monkeypatch):
+    """O voicestudio não passa por _cli: grava o argv que chegaria ao app, sem falar com ele."""
+    from simplicio_video import voicestudio
+    vistos = []
+    monkeypatch.setattr(voicestudio, "run_voicestudio", lambda argv, mcp=False: vistos.append(list(argv)) or 0)
+    return vistos
+
+
+@pytest.mark.parametrize("nome", list(CMD_POR_TOOL))
+def test_cmd_repetido_em_argv_e_erro_claro_e_nada_roda(cli, voicestudio_gravado, nome):
+    """`cmd="probe"` com argv=["probe", ...] repetiria o subcomando (probe probe ...): é recusado antes de rodar, com o motivo."""
+    cmd = CMD_POR_TOOL[nome][0]
+    r = FUNCOES[nome](cmd=cmd, argv=[cmd])
+    assert r["ok"] is False and "cmd" in r["error"], r
+    assert cli == [] and voicestudio_gravado == []
+
+
+# ---------------------------------------------------------------------------------- install: guardas e --target
+
+@pytest.mark.parametrize("extra", ["--uninst", "--unins", "--uninstall=1", "--prune", "--prune-proj", "--prune-project-copies=x"])
+def test_install_recusa_abreviacao_e_forma_igual_das_opcoes_de_remocao(cli, extra):
+    """argparse aceita abreviação e `--opt=valor`: o MCP recusa as duas, ainda que venha --check (que não escreve)."""
+    r = mcp_server.video_install(args=f"--check {extra} --target /abs/proj")
+    assert r["ok"] is False and "terminal" in r["error"], r
+    assert cli == []
+    r = mcp_server.video_install(argv=["--check", extra, "--target", "/abs/proj"])
+    assert r["ok"] is False and cli == []
+
+
+@pytest.mark.parametrize("kwargs", [{"args": "--target"}, {"argv": ["--global", "--target"]}, {"args": "--check --target"}])
+def test_install_com_target_sem_caminho_e_erro_limpo(cli, kwargs):
+    assert mcp_server.video_install(**kwargs) == {"ok": False, "error": "install: --target precisa de um caminho"}
+    assert cli == []
+
+
+def test_install_com_target_relativo_na_forma_igual_e_recusado(cli):
+    """A forma `--target X` já era recusada; a `--target=X` passava e o prune usaria o caminho relativo."""
+    r = mcp_server.video_install(argv=["--global", "--target=relativo"])
+    assert r["ok"] is False and cli == [], r
+
+
+def test_install_help_nao_passa_pelas_guardas_de_escrita(cli):
+    """`--help` não escreve: não pode ser recusado pedindo --global ou --target."""
+    r = mcp_server.video_install(argv=["--help"])
+    assert r["ok"] is True and cli == [["install", "--help"]], r
+
+
+def test_update_help_nao_e_recusado_como_instalacao(cli):
+    r = mcp_server.video_update(argv=["--help"])
+    assert r["ok"] is True and cli == [["update", "--help"]], r
+
+
+# ---------------------------------------------------------------------------------- --help: uma regra para as tools
+
+@pytest.mark.parametrize("nome", [n for n in COM_ARGS if n != "video.rea-video"])
+def test_help_em_argv_e_respondido_pela_tool(cli, voicestudio_gravado, nome):
+    """`--help` / `-h` em argv pede a ajuda do comando. Cada tool com args responde, menos o rea-video (o --help global dele é só do
+    terminal, por decisão do próprio comando)."""
+    r = FUNCOES[nome](argv=["--help"])
+    assert r["ok"] is True, (nome, r)
+
+
+def test_instrucoes_do_servidor_documentam_o_help():
+    assert "--help" in mcp_server.INSTRUCTIONS and "-h" in mcp_server.INSTRUCTIONS
+
+
+# ---------------------------------------------------------------------------------- args: tamanho e barra final
+
+def test_args_com_aspas_e_barra_no_fim_diz_a_barra_e_nao_as_aspas(cli):
+    r = mcp_server.video_media('probe "/abs/a b.mp4" \\')
+    assert r["ok"] is False and "barra" in r["error"] and "aspas sem fechar" not in r["error"], r
+    assert cli == []
+
+
+@pytest.mark.parametrize("args", ["probe /abs/" + "a" * 70_000 + ".mp4", 'probe "' + "a" * 70_000 + '"'])
+def test_args_de_mais_de_64_KiB_e_recusado_com_erro_claro(cli, args):
+    """Uma linha de 1 MB demora ~20 s no shlex: passa do limite, recusa antes de ler, e manda usar `argv`."""
+    r = mcp_server.video_media(args)
+    assert r["ok"] is False and "64 KiB" in r["error"] and "argv" in r["error"], r
     assert cli == []
