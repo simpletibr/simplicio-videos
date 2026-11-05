@@ -146,23 +146,26 @@ def _require_checkout() -> Path:
     return om_dir
 
 
-def list_pipelines(om_dir: Path | None = None) -> list[dict]:
-    """Every pipeline_defs/*.yaml of the checkout as {file, doc} (safe loader; the file stem is the fallback name)."""
+def list_pipelines(om_dir: Path | None = None) -> tuple[list[dict], list[dict]]:
+    """(entries, erros): every pipeline_defs/*.yaml as {file, doc} (safe loader; the file stem is the fallback name),
+    and the files that could not be read as {arquivo, motivo}. A broken file never hides the others."""
     import yaml  # lazy: cli imports this module and the install path must work before PyYAML exists
 
     om_dir = om_dir or _require_checkout()
-    out = []
+    out: list[dict] = []
+    erros: list[dict] = []
     for f in sorted((om_dir / "pipeline_defs").glob("*.yaml")):
         try:
             doc = yaml.safe_load(f.read_text(encoding="utf8"))
         except (yaml.YAMLError, OSError, UnicodeDecodeError) as e:
-            first = (str(e).splitlines() or [type(e).__name__])[0]
-            raise MontageError(f"pipeline_defs/{f.name} ilegível: {first}") from None
+            erros.append({"arquivo": f.name, "motivo": (str(e).splitlines() or [type(e).__name__])[0]})
+            continue
         if not isinstance(doc, dict):
-            raise MontageError(f"pipeline_defs/{f.name} não é um mapa YAML")
+            erros.append({"arquivo": f.name, "motivo": "não é um mapa YAML"})
+            continue
         doc.setdefault("name", f.stem)
         out.append({"file": f.name, "doc": doc})
-    return out
+    return out, erros
 
 
 def pipeline_summary(entry: dict) -> dict:
@@ -173,10 +176,13 @@ def pipeline_summary(entry: dict) -> dict:
 
 
 def show_pipeline(name: str, om_dir: Path | None = None) -> dict:
-    entries = list_pipelines(om_dir)
+    entries, erros = list_pipelines(om_dir)
     for e in entries:  # only names found in the listing match, so `name` never becomes a path
         if name in (e["doc"]["name"], Path(e["file"]).stem):
             return e["doc"]
+    for er in erros:
+        if name == Path(er["arquivo"]).stem:
+            raise MontageError(f"pipeline_defs/{er['arquivo']} ilegível: {er['motivo']}")
     raise MontageError(f"pipeline desconhecido: {name!r}. Disponíveis: {', '.join(str(e['doc']['name']) for e in entries) or '(nenhum)'}")
 
 
@@ -266,10 +272,13 @@ def run_registry(args: list[str]) -> int:
 def _run_registry(ns: argparse.Namespace) -> int:
     if ns.cmd == "pipelines":
         if ns.sub == "list":
-            rows = [pipeline_summary(e) for e in list_pipelines()]
+            entries, erros = list_pipelines()
+            rows = [pipeline_summary(e) for e in entries]
             if ns.json:
-                _print({"ok": True, "pipelines": rows}, True)
+                _print({"ok": True, "pipelines": rows, "erros": erros}, True)
             else:
+                for er in erros:
+                    print(f"montage: aviso: pipeline_defs/{er['arquivo']} ignorado: {er['motivo']}", file=sys.stderr)
                 for r in rows:
                     print(f"{r['name']:<24} {r['category'] or '-':<12} {r['stability'] or '-':<12} {r['description'][:70]}")
         else:
