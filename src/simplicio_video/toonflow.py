@@ -209,7 +209,7 @@ def _compose_cmd() -> list[str] | None:
     docker = shutil.which("docker")
     if docker:
         with contextlib.suppress(OSError, subprocess.SubprocessError):
-            if subprocess.run([docker, "compose", "version"], capture_output=True, timeout=15).returncode == 0:
+            if subprocess.run([docker, "compose", "version"], stdin=subprocess.DEVNULL, capture_output=True, timeout=15).returncode == 0:
                 return [docker, "compose"]
     legacy = shutil.which("docker-compose")
     return [legacy] if legacy else None
@@ -227,7 +227,7 @@ def _docker_up(d: Path) -> list[str]:
 
 def _bun_version(bun: str) -> str | None:
     try:
-        r = subprocess.run([bun, "--version"], capture_output=True, text=True, timeout=10)
+        r = subprocess.run([bun, "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
         return None
     return (r.stdout.strip() or None) if r.returncode == 0 else None
