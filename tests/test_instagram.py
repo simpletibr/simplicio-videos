@@ -576,6 +576,7 @@ def test_the_child_environment_is_a_closed_list_without_any_key(ig, capsys, monk
 
 # ------------------------------------------------------------------------------------------------ limits: time and size
 
+@pytest.mark.slow
 def test_a_script_that_runs_too_long_is_killed(ig, capsys, monkeypatch, tmp_path):
     monkeypatch.setattr(instagram, "TIMEOUT_S", 1.0)
     pidfile = tmp_path / "pid"
@@ -820,6 +821,7 @@ def test_sigterm_and_sighup_to_the_engine_kill_the_child_and_remove_the_private_
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
+@pytest.mark.slow
 def test_a_script_that_burns_cpu_is_ended_by_the_kernel_even_if_the_engine_is_killed(ig, tmp_path):
     """SIGKILL cannot be handled: the CPU limit set on the child is what ends it (it limits CPU time, not wall time)."""
     pidfile = tmp_path / "pid"
@@ -838,6 +840,7 @@ def test_a_script_that_burns_cpu_is_ended_by_the_kernel_even_if_the_engine_is_ki
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
+@pytest.mark.slow
 def test_the_child_has_a_cpu_limit_a_little_over_the_wall_clock_one(ig, monkeypatch, tmp_path):
     monkeypatch.setattr(instagram, "TIMEOUT_S", 20)
     monkeypatch.setattr(instagram, "CPU_FOLGA_S", -19)  # 1 s of CPU
@@ -857,6 +860,7 @@ def test_the_signal_handlers_are_restored_and_a_thread_still_runs_the_tool(ig):
     assert saida and saida[0]["ok"] is True
 
 
+@pytest.mark.slow
 def test_a_timeout_kills_the_whole_process_group_including_a_grandchild(ig, capsys, monkeypatch, tmp_path):
     monkeypatch.setattr(instagram, "TIMEOUT_S", 1.5)
     pidfile = tmp_path / "grandchild"
@@ -1110,6 +1114,7 @@ def test_the_cli_only_loads_the_module_when_the_command_is_used():
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr
 
 
+@pytest.mark.slow
 def test_the_engine_keeps_working_when_the_module_is_blocked(mini, tmp_path):
     codigo = ("import sys\n"
               "sys.modules['simplicio_video.instagram'] = None\n"

@@ -2138,6 +2138,7 @@ def test_batch_manifest_is_capped_before_it_is_read(checkout, spawn, tmp_path):
     assert spawn.calls == []
 
 
+@pytest.mark.slow
 def test_stopping_run_takes_the_upstream_process_group_down_within_the_grace(tmp_path):
     fake = tmp_path / "fake_cli.py"
     fake.write_text("import os, signal, sys, time\nsignal.signal(signal.SIGINT, signal.SIG_IGN)\n"

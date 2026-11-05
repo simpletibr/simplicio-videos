@@ -326,6 +326,7 @@ def test_mcp_capture_is_safe_under_concurrent_tool_calls():
 
 
 # ---- per-call sinks instead of a global lock ----
+@pytest.mark.slow
 def test_slow_captured_call_does_not_delay_another_tool(monkeypatch):
     from simplicio_video import mcp_server
     started = threading.Event()
@@ -405,6 +406,7 @@ def test_failing_child_reason_reaches_the_tool_result(monkeypatch):
     assert not r["ok"] and "kokoro exploded" in r["log"] and "kokoro exploded" in r["error"]
 
 
+@pytest.mark.slow
 def test_timeout_writes_the_partial_output_then_raises(monkeypatch):
     import subprocess
     monkeypatch.setenv("SIMPLICIO_MCP", "1")

@@ -235,6 +235,7 @@ def test_mcp_description_states_the_limits():
 
 # ---- F7: the `open` diagnosis ---------------------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_open_diagnosis_kills_a_server_that_stays_up(env, monkeypatch, tmp_path, capsys):
     pid_file = tmp_path / "serve.pid"
     monkeypatch.setenv("FAKE_SERVE", "sleep")

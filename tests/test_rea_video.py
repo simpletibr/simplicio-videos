@@ -515,6 +515,7 @@ def test_mcp_exec_uses_stdin_devnull_and_the_private_cwd(tmp_path):
     assert rc == 0 and out.split() == [str(tmp_path), "''", "1"]
 
 
+@pytest.mark.slow
 def test_mcp_exec_timeout_kills_the_whole_process_group(tmp_path, monkeypatch):
     monkeypatch.setattr(rea_video, "MCP_TIMEOUT", 1)
     code = ("import subprocess,sys,time;"

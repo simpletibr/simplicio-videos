@@ -127,6 +127,7 @@ def test_preview_filter_takes_watermark_and_credit_from_marca(tmp_path):
     assert not (tmp_path / "end2.txt").exists()  # no end_url in the chrome -> no second end-card line
 
 
+@pytest.mark.slow
 def test_make_preview_encodes_with_and_without_end_card(tmp_path):
     from simplicio_video import render
     src = _preview_src(tmp_path)

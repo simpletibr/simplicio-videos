@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from simplicio_video import contract as ct
@@ -38,6 +36,7 @@ def _take_with_air_leadin(dst, air_s=0.25, tone_s=0.25):
                     "-ac", "1", str(dst)], check=True)
 
 
+@pytest.mark.slow
 def test_overlong_take_retries_tight_trim_without_time_stretch(mini):
     """Lead-in air made the take overflow its slot: the tight trim removes only the air (speech intact, no speed-up)."""
     take = mini.parent / "vo" / "line-01.wav"

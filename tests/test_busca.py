@@ -700,7 +700,9 @@ def test_pagina_perde_html_ativo_e_comentarios_e_link_perigoso(env):
     assert "\n\n\n" not in c
 
 
-@pytest.mark.parametrize("hostil", ["[a](" * 100_000, "[" * 200_000, "<script" * 50_000, "<!--" * 100_000, "<a " * 130_000, "[a](" + "(x)" * 130_000])
+# Guarda de ReDoS do gate: cinco variantes medem 0,2 a 0,35 s. A de 200 mil colchetes leva ~1 s: fica no check-full (slow).
+@pytest.mark.parametrize("hostil", ["[a](" * 100_000, pytest.param("[" * 200_000, marks=pytest.mark.slow), "<script" * 50_000,
+                                    "<!--" * 100_000, "<a " * 130_000, "[a](" + "(x)" * 130_000])
 def test_texto_feito_para_travar_regex_e_limpo_em_poucos_segundos(env, hostil):
     env.fake.set(fetch={"stdout": jt({"results": [{"url": "https://example.com", "final_url": None, "title": hostil, "format": "markdown", "text": hostil}],
                                       "errors": []})},
@@ -1024,6 +1026,7 @@ def test_status_versao_diferente_da_testada_avisa_mas_nao_bloqueia(env):
     assert any("0.57.0" in a and "0.49.3" in a for a in r["avisos"])
 
 
+@pytest.mark.slow
 def test_status_com_saida_estranha_do_binario_nao_quebra(env):
     env.fake.set(version={"stdout": "lixo sem numero\n"}, auth={"stdout": "isto nao e json"})
     r = env.b.status()
@@ -1212,6 +1215,7 @@ def test_as_fixtures_reais_passam_pelo_normalizador(env):
     assert p["untrusted_conteudo"] == json.loads(PAGINA_RAW)["results"][0]["text"]
 
 
+@pytest.mark.slow
 def test_variaveis_de_ambiente_novas_estao_descritas_na_referencia():
     sys.path.insert(0, str(ROOT / "scripts"))
     try:
@@ -1511,6 +1515,26 @@ def test_mais_invisiveis_saem_do_texto_e_recusam_a_consulta(env, invisivel):
 
 # ------------------------------------------------------------------------------------------------ (7) ReDoS com amplificador
 
+def test_amplificador_cresce_em_linha_reta(env):
+    """Guarda de ReDoS no gate. Com colchetes sem fechar e tags aninhadas, dobrar o texto tem de dobrar o tempo (razão ~2).
+    Uma regressão quadrática de custo comparável ao linear leva a razão a ~4 (o limite é 3). Melhor de três medidas por tamanho,
+    para o ruído do host não decidir. Regressões de custo pequeno ficam com o teto absoluto abaixo."""
+    def melhor(n):
+        hostil = "<<<<<b>b>b>b>b>" + "[" * n
+        tempos = []
+        for _ in range(3):
+            t0 = time.perf_counter()
+            env.b._texto_pagina(hostil, 20480)
+            env.b._linha(hostil, 1000)
+            tempos.append(time.perf_counter() - t0)
+        return min(tempos)
+
+    t_n, t_2n = melhor(50_000), melhor(100_000)
+    assert t_2n / t_n < 3.0, f"o tempo cresceu {t_2n / t_n:.2f}x ao dobrar o texto ({t_n:.3f} s -> {t_2n:.3f} s): ficou quadrático"
+
+
+# Teto absoluto (1 milhão de colchetes, ~1,3 s): já estava no gate da main. A razão acima pega o crescimento quadrático de custo
+# comparável ao linear; esta medida pega o de custo pequeno (ele vira centenas de segundos com 1 milhão).
 def test_amplificador_de_tags_com_um_milhao_de_colchetes_fica_abaixo_de_3_s(env):
     hostil = "<<<<<b>b>b>b>b>" + "[" * 1_000_000
     t0 = time.monotonic()

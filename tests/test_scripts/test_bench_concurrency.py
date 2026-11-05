@@ -25,6 +25,7 @@ def load():
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_bench_mede_serial_contra_paralelo_com_saida_identica():
     bench = load()
     rep = bench.run(chunks=3, voice_lines=4, latency=0.15, repeat=1)
@@ -48,6 +49,7 @@ def test_bench_nao_toca_a_rede():
 
 
 @needs_ffmpeg
+@pytest.mark.slow
 def test_bench_cli_json():
     r = subprocess.run([sys.executable, str(SCRIPT), "--chunks", "3", "--voice-lines", "3", "--latency", "0.1", "--repeat", "1",
                         "--json"], capture_output=True, text=True, cwd=ROOT, env={**os.environ, "SIMPLICIO_OFFLINE": "1"})

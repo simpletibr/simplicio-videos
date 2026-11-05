@@ -468,6 +468,7 @@ def test_receita_manda_reconferir_o_plano_e_lembra_a_regra_do_consentimento(vide
 
 # ------------------------------------------------------------------------------------------------ CLI
 
+@pytest.mark.slow
 def test_cli_providers_json_e_texto():
     r = run_cli("social", "providers", "--json")
     assert r.returncode == 0, r.stderr

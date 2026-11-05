@@ -10,6 +10,7 @@
 #   PR_LABELS        labels do PR (tdd-exempt dispensa a checagem de TDD)
 #   PYTHON           interpretador (padrão: .venv/bin/python, senão python3)
 #   CHECK_BUDGET_S   orçamento em segundos; passar disso só avisa (padrão: 60)
+#   CHECK_JOBS       workers do pytest-xdist (padrão: auto; 1 = serial; sem o xdist instalado roda serial)
 #
 # Exemplos:
 #   make check
@@ -67,7 +68,13 @@ fi
 
 # ---------------------------------------------------------------- testes
 step "testes (sem slow, render, integration, ui; sockets bloqueados)"
-SIMPLICIO_OFFLINE=1 "$py" -m pytest -q -p no:cacheprovider -m "not slow and not render and not integration and not ui"
+# Com o pytest-xdist (extra `test`) a suíte roda em paralelo, um módulo por worker (loadscope: o fixture de módulo não se repete).
+# Sem ele, ou com CHECK_JOBS=1, roda em série, como antes.
+jobs=()
+if [ "${CHECK_JOBS:-auto}" != 1 ] && "$py" -c "import xdist" 2>/dev/null; then
+  jobs=(-n "${CHECK_JOBS:-auto}" --dist loadscope)
+fi
+SIMPLICIO_OFFLINE=1 "$py" -m pytest -q -p no:cacheprovider ${jobs[@]+"${jobs[@]}"} -m "not slow and not render and not integration and not ui"
 
 # ---------------------------------------------------------------- ownership e TDD
 issue="${ISSUE:-}"
