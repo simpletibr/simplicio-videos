@@ -14,6 +14,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 POSIX = os.name == "posix"
 SINAIS = [n for n in ("SIGTERM", "SIGHUP", "SIGINT") if hasattr(signal, n)]
 
@@ -88,3 +90,77 @@ def sinaliza_no_popen(monkeypatch, pidfile: Path, sinal: int, *, so_se: str | No
 
     monkeypatch.setattr(subprocess, "Popen", PopenQueSinaliza)
     return ganchos
+
+
+def estado_dos_sinais() -> dict:
+    return {n: signal.getsignal(getattr(signal, n)) for n in SINAIS}
+
+
+@pytest.fixture
+def sinais_padrao():
+    """The engine as a shell starts it: the stop signals at their defaults (pytest may run under nohup, which ignores SIGHUP, and
+    the engine keeps ignored signals ignored on purpose). Use with @pytest.mark.usefixtures("sinais_padrao")."""
+    antes = estado_dos_sinais()
+    for n in SINAIS:
+        signal.signal(getattr(signal, n), signal.default_int_handler if n == "SIGINT" else signal.SIG_DFL)
+    yield
+    for n, h in antes.items():
+        signal.signal(getattr(signal, n), h)
+
+
+def parada_esperada(nome: str):
+    """(exception class, exit code) a stop signal must turn into."""
+    return (KeyboardInterrupt, None) if nome == "SIGINT" else (SystemExit, 128 + getattr(signal, nome))
+
+
+# ---- an engine in its own process: for the modules that never had a stop-signal handler (the default action ends the engine) ----
+
+PRELUDIO = r"""
+import json, os, signal, subprocess, sys, threading, time
+cfg = json.loads(os.environ["ORFAO_CFG"])
+for _n in ("SIGTERM", "SIGHUP"):  # as a shell starts the engine (pytest may run under nohup, which ignores SIGHUP)
+    if hasattr(signal, _n):
+        signal.signal(getattr(signal, _n), signal.SIG_DFL)
+_sinal = getattr(signal, cfg["sinal"])
+
+def _pid():
+    for _ in range(600):
+        try:
+            t = open(cfg["pidfile"]).read().strip()
+        except OSError:
+            t = ""
+        if t:
+            return int(t)
+        time.sleep(0.05)
+    raise SystemExit("the child never started")
+
+if cfg["quando"] == "popen":  # the signal lands INSIDE Popen, with the child already running: the gap
+    _real = subprocess.Popen
+    class _P(_real):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            argv = a[0] if a else k.get("args")
+            if cfg["so_se"] in " ".join(map(str, argv)):
+                _pid()
+                os.kill(os.getpid(), _sinal)
+    subprocess.Popen = _P
+else:  # the signal lands while the engine waits for the child
+    threading.Thread(target=lambda: (_pid(), os.kill(os.getpid(), _sinal)), daemon=True).start()
+"""
+
+
+def roda_motor(tmp_path: Path, corpo: str, pidfile: Path, sinal: str, quando: str, *, so_se: str | None = None, tmpd: Path | None = None,
+               extra_env: dict | None = None, timeout: float = 90) -> subprocess.CompletedProcess:
+    """Run `corpo` (Python source that calls the module under test) in a separate engine process. `quando` is "popen" (the signal
+    lands inside Popen, once the child that wrote `pidfile` runs) or "espera" (while the engine waits for the child). The caller
+    asserts on the exit code, the child (pid in `pidfile`) and the private folders under `tmpd`."""
+    from conftest import ROOT, offline_env
+
+    cfg = {"pidfile": str(pidfile), "sinal": sinal, "quando": quando, "so_se": so_se or str(pidfile)}
+    env = offline_env(ORFAO_CFG=__import__("json").dumps(cfg), **(extra_env or {}))
+    env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])
+    if tmpd is not None:
+        tmpd.mkdir(exist_ok=True)
+        env["TMPDIR"] = str(tmpd)
+    return subprocess.run([sys.executable, "-c", PRELUDIO + corpo], env=env, capture_output=True, text=True, timeout=timeout,
+                          stdin=subprocess.DEVNULL, cwd=tmp_path)
