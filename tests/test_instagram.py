@@ -820,6 +820,31 @@ def test_sigterm_and_sighup_to_the_engine_kill_the_child_and_remove_the_private_
         proc.stderr.close()
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+def test_a_signal_right_after_the_script_starts_still_kills_it(ig, monkeypatch, tmp_path):
+    """The child is armed for the kill only after Popen returns: a SIGTERM that lands in that gap raised SystemExit past the kill,
+    so the script outlived the engine (its private folder was already gone). Here the signal arrives once the child is running."""
+    pidfile = tmp_path / "pid"
+    popen_real = subprocess.Popen
+
+    class PopenQueSinalizaComOFilhoJaRodando(popen_real):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            assert espera(lambda: pidfile.exists() and pidfile.read_text()), "the child never started"
+            os.kill(os.getpid(), signal.SIGTERM)  # the engine's handler runs here, before Popen gives the child back
+
+    monkeypatch.setattr(subprocess, "Popen", PopenQueSinalizaComOFilhoJaRodando)
+    try:
+        with pytest.raises(SystemExit) as saida:
+            instagram.run_tool("hookscore", ["--hook", f"TRIGGER:SLEEP:{pidfile}"])
+        assert saida.value.code == 143
+        pid = int(pidfile.read_text())
+        assert espera(lambda: not vivo(pid), 10), "the script outlived the engine"
+    finally:
+        if pidfile.exists() and pidfile.read_text() and vivo(int(pidfile.read_text())):
+            os.kill(int(pidfile.read_text()), signal.SIGKILL)
+
+
 @pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
 @pytest.mark.slow
 def test_a_script_that_burns_cpu_is_ended_by_the_kernel_even_if_the_engine_is_killed(ig, tmp_path):
