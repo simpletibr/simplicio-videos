@@ -27,11 +27,20 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import hostos, tools_lock
+from . import hostos, paths, tools_lock
 
 
 class ToolError(Exception):
     pass
+
+
+def _video_use_pin() -> str:
+    """The pin of video-use: VU_REF of the packaged setup.sh, the file that `edit setup` runs (the single source of it)."""
+    text = (paths.DATA_DIR / "tools" / "video-use" / "setup.sh").read_text(encoding="utf8")
+    found = re.search(r"^VU_REF=([0-9a-f]{40})\b", text, re.MULTILINE)
+    if not found:
+        raise RuntimeError("data/tools/video-use/setup.sh sem VU_REF de 40 caracteres")
+    return found.group(1)
 
 
 @dataclass(frozen=True)
@@ -100,9 +109,9 @@ TOOLS: dict[str, Tool] = {
                               "`bun install && bun run dev` (this pin clones that source checkout). Loopback needs no "
                               "credential; the app is only reached over local HTTP (AGPL-3.0, never vendored)"),
     "video-use": Tool("video-use", "git", "https://github.com/browser-use/video-use",
-                        "b877063", "MIT",
+                        _video_use_pin(), "MIT",
                         "EDL editing over any MP4: word-accurate cuts, subtitles, overlays and filmstrip review; "
-                        "the agent decides the EDL, ffmpeg executes it", marker="render.py",
+                        "the agent decides the EDL, ffmpeg executes it", marker="helpers/render.py",
                         note="pinned by the video-use setup.sh (data/tools/video-use) (23/09/2026); the checkout lives in "
                              "~/.cache/simplicio/video-use, not in the tools cache"),
     "tinyfish": Tool("tinyfish", "npm", "@tiny-fish/cli", "0.50.1", "not declared in the npm package (no license field, no LICENSE file; read 2026-10-16)",
@@ -199,6 +208,9 @@ def tools_dir() -> Path:
 
 
 def checkout_dir(t: Tool) -> Path:
+    if t.name == "video-use":  # setup.sh keeps it outside the tools cache: the resolution lives in tools_update (lazy: it imports us)
+        from . import tools_update
+        return tools_update.checkout_for(t)
     env = os.environ.get(f"{t.name.upper()}_DIR") or os.environ.get(f"SIMPLICIO_{t.name.upper()}_DIR")
     return Path(env).expanduser() if env else tools_dir() / t.name
 
@@ -236,6 +248,26 @@ def pip_binary(name: str) -> Path | None:
         return None
     exe = checkout_dir(t) / "venv" / PIP_BIN_DIR / (f"{t.name}.exe" if os.name == "nt" else t.name)
     return exe if exe.is_file() else None
+
+
+def pip_version(name: str) -> str | None:
+    """The version pip installed in the venv of a pip tool: the Version of its dist-info, read as a file (no process starts)."""
+    t = get(name)
+    venv = checkout_dir(t) / "venv"
+    if t.kind != "pip" or not venv.is_dir():
+        return None
+    sites = [venv / "Lib" / "site-packages"] if os.name == "nt" else sorted((venv / "lib").glob("python*/site-packages"))
+    stem = t.name.replace("-", "_")
+    for site in sites:
+        for info in sorted(site.glob(f"{stem}-*.dist-info")):
+            try:
+                metadata = (info / "METADATA").read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for line in metadata.splitlines():
+                if line.startswith("Version:"):
+                    return line.partition(":")[2].strip() or None
+    return None
 
 
 def _run_subprocess(argv, cwd=None) -> "subprocess.CompletedProcess":
