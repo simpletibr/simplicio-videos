@@ -280,10 +280,27 @@ def render_table(entries: list[Entry]) -> str:
     return "\n".join(lines)
 
 
+def _sem_coluna_versao(texto: str) -> list[str]:
+    """Tabela sem a coluna Versão: o que o gate decide (pacote, licença, status, uso). Pipes escapados (\\|) não contam como separador."""
+    saida = []
+    for linha in texto.splitlines():
+        if linha.startswith("|"):
+            celulas = re.split(r"(?<!\\)\|", linha)
+            if len(celulas) > 3:
+                del celulas[2]
+            linha = "|".join(celulas)
+        saida.append(linha)
+    return saida
+
+
 def check_generated(path: Path, entries: list[Entry]) -> list[str]:
+    """A versão é informativa: uma dependência sem pin que ganha patch não reprova o doc (bug de main com ruff 0.17.4).
+    Reprovam: arquivo ausente, pacote novo ou sumido, licença ou status diferentes. `make licenses-write` atualiza a versão."""
     if not path.exists():
         return [f"{_rel(path)}: ausente (rode make licenses-write)"]
-    if path.read_text(encoding="utf-8") != render_table(entries):
+    atual = path.read_text(encoding="utf-8")
+    esperado = render_table(entries)
+    if atual != esperado and _sem_coluna_versao(atual) != _sem_coluna_versao(esperado):
         return [f"{_rel(path)}: desatualizado (rode make licenses-write)"]
     return []
 
