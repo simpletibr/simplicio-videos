@@ -112,7 +112,8 @@ def ensure_env_local(d: Path) -> bool:
     return True
 
 
-def _dev(d: Path, args: list[str]) -> int:
+def _dev_steps(d: Path, args: list[str]) -> list[tuple[list[str], Path]]:
+    """Validate the flags, create .env.local, announce the address and return the commands dev runs, in order."""
     extra = [a for a in args if a != LAN_FLAG]
     if extra:
         raise OpenCutError(f"dev aceita só {LAN_FLAG} (a porta é {PORT}); recebi: {' '.join(extra)}")
@@ -126,11 +127,9 @@ def _dev(d: Path, args: list[str]) -> int:
     if lan:
         print(f"opencut: {LAN_FLAG}: escutando em 0.0.0.0:{PORT}, a rede toda alcança o editor.")
     print(f"OpenCut em http://{LOOPBACK if not lan else 'localhost'}:{PORT} (config: {d / ENV_FILE}). Ctrl+C para parar.")
-    if subprocess.call([bun, "install"], cwd=d) != 0:
-        return 1
     # `next dev` straight from apps/web (what `turbo run dev --filter=@opencut/web` runs): turbo rejects --hostname, and bun
     # strips the `--` that would pass it through.
-    return subprocess.call([bun, "run", "dev", "--hostname", host], cwd=d / "apps" / "web")
+    return [([bun, "install"], d), ([bun, "run", "dev", "--hostname", host], d / "apps" / "web")]
 
 
 def status() -> dict:
@@ -193,4 +192,8 @@ def run_opencut(args: list[str]) -> int:
     if first == "where":
         print(d)
         return 0
-    return _dev(d, args[1:])
+    # dev never ends and the MCP refuses it, so these calls stay bare (tests/test_childio.py allowlist).
+    (install, install_cwd), (serve, serve_cwd) = _dev_steps(d, args[1:])
+    if subprocess.call(install, cwd=install_cwd) != 0:
+        return 1
+    return subprocess.call(serve, cwd=serve_cwd)

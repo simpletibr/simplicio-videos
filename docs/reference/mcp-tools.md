@@ -13,7 +13,7 @@
 | `video.clone` | Clone videos using Hypit AI (https://github.com/hypit-ai/hypit). |
 | `video.montage` | Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight and help. open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only. |
 | `video.edit` | video-use EDL editing over any MP4 (setup\|transcribe\|pack\|render\|verify). |
-| `video.opencut` | OpenCut editor for manual finishing (https://github.com/OpenCut-app/OpenCut): clone (default folder) and where. dev (a server that never ends) and a folder for clone are terminal-only. |
+| `video.opencut` | OpenCut editor for manual finishing, pinned to opencut-classic (https://github.com/OpenCut-app/opencut-classic, archived upstream): clone (default folder), status (checkout, pin, bun, node_modules, .env.local, port; never prints values) and where. dev (a server that never ends) and a folder for clone are terminal-only. |
 | `video.formats` | Library of 50 ad formats from the Drive swipe file: list (objetivo), show (id), prompt (id + copia) to adapt a copy to a format. |
 | `video.swap` | Character swap, read-only: providers (adapters, capabilities, price, confidence) and estimate (cost before spending). Never runs a paid swap; run is terminal-only. |
 | `video.jobs` | Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file\|local\|voxcpm\|openvoice}). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes). |
