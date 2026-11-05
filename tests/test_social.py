@@ -1501,14 +1501,14 @@ def test_redacao_sem_afirmar_ausencia_e_com_a_data_do_bloqueio_do_reddit():
     assert "bloqueia as chamadas do app da Zernio para todos os clientes Zernio" in zr
     arquivos = [ROOT / "docs" / "recursos.md", ROOT / "docs" / "realoficial.md", ROOT / "skills" / "simplicio-video-social" / "SKILL.md",
                 paths.data_dir() / "social" / "providers.json"]
-    # negação sobre Reddit ou Snapchat só com fonte na mesma linha (URL ou data de leitura); F1 proibido em qualquer lugar
-    negacao = re.compile(r"\bnão (aparece|lista|publica|é destino|está entre|tem|aprovou|bloqueia)\b|\bnenhum provedor (confirmado )?publica\b", re.I)
-    fonte = re.compile(r"https://|lida em \d{4}-\d{2}-\d{2}", re.I)
+    # negação sobre Reddit ou Snapchat só com fonte (URL ou data de leitura) na mesma linha; F1 proibido em qualquer lugar
     for arq in arquivos:
         for n, linha_txt in enumerate(arq.read_text(encoding="utf8").splitlines(), 1):
             assert "não aparece entre os destinos" not in linha_txt and "não lista como destino" not in linha_txt, f"{arq}:{n}"
-            if re.search(r"reddit|snapchat", linha_txt, re.I) and negacao.search(linha_txt):
-                assert fonte.search(linha_txt), f"{arq}:{n}: negação sem fonte: {linha_txt.strip()[:160]}"
+        achados = _negacoes_sem_fonte(arq.read_text(encoding="utf8"))
+        assert not achados, f"{arq}: " + " | ".join(achados)
+    achados = _negacoes_em_notas_da_tabela() + _negacoes_em_folhas_do_providers()
+    assert not achados, " | ".join(achados)
 
 
 def test_providers_em_texto_marca_nao_confirmado_com_fonte_e_data(capsys):
@@ -1557,7 +1557,7 @@ def test_linha_do_limite_cita_o_escopo_e_mede_a_legenda_e_o_titulo_em_caracteres
     with pytest.raises(social.SocialError) as e:
         plano(video, targets=["snapchat"], caption="a" * 161, force=True)
     msg = str(e.value)
-    assert "caption_max_chars limite 160 (Spotlight" in msg and "a legenda tem 161 caracteres" in msg
+    assert "caption_max_chars limite 160 caracteres (Spotlight" in msg and "a legenda tem 161 caracteres" in msg
     assert "o vídeo tem" not in msg
     with pytest.raises(social.SocialError) as e:
         plano(video, targets=["reddit"], title="t" * 301, force=True)
@@ -1568,8 +1568,9 @@ def test_linha_do_limite_cita_o_escopo_e_mede_a_legenda_e_o_titulo_em_caracteres
 
 def test_linha_de_duracao_diz_o_tamanho_do_video_em_segundos(video, monkeypatch):
     monkeypatch.setattr(social, "_probe", lambda p: {**PROBE_OK, "duration_s": 61.0})
-    with pytest.raises(social.SocialError, match="o vídeo tem 61.0 s"):
+    with pytest.raises(social.SocialError) as e:
         plano(video, targets=["snapchat"], force=True)
+    assert "duration_max_s limite 60 s" in str(e.value) and "o vídeo tem 61.0 s" in str(e.value)
 
 
 RO_SEM_CONFIRMACAO = ["instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky"]
@@ -1626,3 +1627,59 @@ def test_skill_cita_os_escopos_dos_limites_e_o_espelho_e_identico():
         assert trecho in sk, trecho
     espelho = ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video-social" / "SKILL.md"
     assert (ROOT / "skills" / "simplicio-video-social" / "SKILL.md").read_bytes() == espelho.read_bytes()
+
+
+# ------------------------------------------------------------------------------------------------ terceira revisão: guarda de redação
+
+NEGACAO_FACTUAL = re.compile(r"\bn(ão|unca)\b(?!\s+confirmad)|\bnenhum\b", re.I)  # "não confirmado" é marca de incerteza, não negação
+FONTE_NA_LINHA = re.compile(r"https://|lida em \d{4}-\d{2}-\d{2}", re.I)
+
+
+def _negacoes_sem_fonte(texto):
+    """Linhas que citam Reddit ou Snapchat, afirmam ausência (não, nunca, nenhum) e não trazem URL nem data de leitura."""
+    return [linha.strip()[:160] for linha in texto.splitlines()
+            if re.search(r"reddit|snapchat", linha, re.I) and NEGACAO_FACTUAL.search(linha) and not FONTE_NA_LINHA.search(linha)]
+
+
+def _negacoes_em_notas_da_tabela():
+    """Notas das linhas de Reddit e Snapchat em limits.json: a própria nota traz a fonte (URL ou data de leitura)."""
+    return [f"{r['network']}:{r['field']}: {r['note'][:120]}" for r in social.limits_table()["rows"]
+            if r["network"] in ("reddit", "snapchat") and NEGACAO_FACTUAL.search(r["note"]) and not FONTE_NA_LINHA.search(r["note"])]
+
+
+def _negacoes_em_folhas_do_providers():
+    """Textos de sem_provedor: a negação vale se a própria frase traz a fonte ou se a entrada traz a chave fonte ao lado."""
+    achados = []
+
+    def anda(no, pai):
+        if isinstance(no, dict):
+            for valor in no.values():
+                anda(valor, no)
+        elif isinstance(no, str) and NEGACAO_FACTUAL.search(no) and not FONTE_NA_LINHA.search(no) and not (pai and "fonte" in pai):
+            achados.append(no[:120])
+
+    anda(social._providers_doc()["sem_provedor"], None)
+    return achados
+
+
+@pytest.mark.parametrize("frase", ["O Snapchat não está aprovado pela Snap.", "Não há provedor para o Reddit.",
+                                   "Reddit: nenhum provedor publica.", "O Snapchat nunca foi aprovado."])
+def test_guarda_de_redacao_pega_negacao_sem_fonte(frase):
+    assert _negacoes_sem_fonte(frase), frase
+
+
+@pytest.mark.parametrize("frase", ["O Snapchat não está aprovado pela Snap (https://docs.zernio.com/platforms/snapchat).",
+                                   "Reddit: nenhum provedor publica (lida em 2026-11-05).",
+                                   "Reddit e Snapchat: sem provedor confirmado (não confirmado).", "O Reddit exige título obrigatório."])
+def test_guarda_de_redacao_deixa_passar_negacao_com_fonte_e_o_nao_confirmado(frase):
+    assert not _negacoes_sem_fonte(frase), frase
+
+
+def test_plan_aceito_mostra_cada_violacao_com_escopo_medida_e_limite(video, capsys):
+    assert social.run_social(["plan", "--video", str(video), "--caption", "a" * 161, "--title", "t" * 394, "--target", "snapchat",
+                              "--target", "reddit", "--aceito-unverified"]) == 0
+    texto = capsys.readouterr().out
+    assert "violação UNVERIFIED aceita: snapchat: caption_max_chars limite 160 caracteres (Spotlight" in texto
+    assert "a legenda tem 161 caracteres" in texto
+    assert "reddit: title_max_chars limite 300 caracteres (post: título obrigatório), o título tem 394 caracteres" in texto
+    assert "violações UNVERIFIED aceitas:" not in texto
