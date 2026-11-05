@@ -38,10 +38,11 @@ e2e = _carrega()
 class SondasFalsas:
     """A máquina de mentira: o que existe, quais portas abrem, quais chaves estão no ambiente."""
 
-    def __init__(self, *, achados=("npx", "ffmpeg", "docker", "tinyfish"), portas=(), chaves=(), node=(22, 23, 4),
-                 mp=False, toonflow=False, config_tinyfish=False):
+    def __init__(self, *, achados=("node", "npx", "ffmpeg", "docker", "tinyfish"), portas=(), chaves=(), node=(22, 23, 4),
+                 mp=False, toonflow=False, config_tinyfish=False, pacote=True):
         self.achados, self.portas, self.chaves = set(achados), set(portas), dict(chaves)
         self.node, self.mp, self.toonflow, self.config_tinyfish = node, mp, toonflow, config_tinyfish
+        self._pacote = pacote
 
     def achar(self, nome):
         return f"/bin/{nome}" if nome in self.achados else None
@@ -75,7 +76,7 @@ class SondasFalsas:
         return Path("/x/toonflow") if self.toonflow else None
 
     def pacote(self):
-        return True
+        return self._pacote
 
 
 class Gravador:
@@ -354,6 +355,16 @@ def test_preparar_contrato_alarga_so_a_copia_e_nao_mexe_no_fixture(tmp_path):
 def test_versao_do_node_precisa_ser_22_15_ou_mais():
     assert e2e.node_ok((22, 15, 0)) and e2e.node_ok((23, 0, 0))
     assert not e2e.node_ok((22, 14, 9)) and not e2e.node_ok(None)
+
+
+def test_sem_o_pacote_so_o_smoke_de_so_continua_planejado(tmp_path, capsys):
+    sondas = SondasFalsas(pacote=False, chaves={"GEMINI_API_KEY": CHAVE_FALSA})
+    rc, out, grav = _roda(tmp_path, capsys, ["--json"], sondas=sondas)
+    doc = json.loads(out)
+    assert rc == 0 and grav.chamadas == []
+    assert _item(doc, "smoke-so")["estado"] == "PLANO"
+    for id_ in ("smoke-trilhas", "voice-gemini", "swap-estimate"):
+        assert _item(doc, id_)["estado"] == "SKIP" and "pacote" in _item(doc, id_)["motivo"], id_
 
 
 def test_custo_do_swap_aparece_no_plano_com_os_segundos_do_sintetico(tmp_path, capsys):

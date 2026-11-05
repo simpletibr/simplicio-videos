@@ -94,6 +94,8 @@ python scripts/smoke_so.py                         # fumaça multiplataforma em 
 python -m pytest                                   # schema, validate, --help, determinismo (render curto)
 ```
 
+Teste real ponta a ponta com as suas chaves e apps (gasta só com `--sim-gastar`, com teto; fora do `make check`): [docs/how-to/e2e-real.md](docs/how-to/e2e-real.md) · `make e2e-real`.
+
 ## Mapa (todas as pastas)
 
 | Pasta | O quê | Entrada principal |
