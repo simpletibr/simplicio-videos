@@ -563,6 +563,8 @@ class _Morto:
 
 
 class _Vivo:
+    pid = os.getpid()  # processo de mentira com pid real: o dono da porta lê a árvore a partir dele
+
     def poll(self):
         return None
 
@@ -866,7 +868,8 @@ SEG_FORMAS = {
 
 
 def _formas_de(seg):
-    return {seg, json.dumps(seg)[1:-1], json.dumps(seg, ensure_ascii=False)[1:-1], repr(seg)[1:-1]} - {""}
+    return {seg, json.dumps(seg)[1:-1], json.dumps(seg, ensure_ascii=False)[1:-1], repr(seg)[1:-1],
+            ascii(seg)[1:-1], json.dumps(json.dumps(seg))[1:-1]} - {""}
 
 
 def _porta_livre():
@@ -1205,3 +1208,168 @@ def test_n7_pasta_que_nao_pode_ser_criada_da_rc_2_antes_de_qualquer_sonda(capsys
         e2e.main(["--sim-gastar", "--pasta", "/proc/nao-cria-aqui/sub"], sondas=Sondas(), runner=Gravador())
     assert exc.value.code == 2
     assert chamadas == [], chamadas
+
+
+import io  # noqa: E402
+
+# ------------------------------------------------------- quinta revisão (revisor 5): itens 1 a 7
+# 1. prefixo do segredo no fim do fluxo
+@pytest.mark.parametrize("k", range(1, len(SEG_CORTE)))
+def test_r5_prefixo_do_segredo_no_fim_do_fluxo_nao_sai_cru(k):
+    seg = SEG_CORTE
+    r = e2e.Redator([seg])
+    saida = r.alimentar("fim " + seg[:k]) + r.finalizar()
+    assert not saida.endswith(seg[:k]) and seg[:k] not in saida, saida
+
+
+@pytest.mark.parametrize("k", [1, 5, 20, 34])
+def test_r5_prefixo_do_segredo_no_fim_do_fluxo_pelo_cauda_e_pelo_drenar(tmp_path, k):
+    seg = SEG_CORTE
+    cauda = e2e._Cauda(io.BytesIO(("linha " + seg[:k]).encode("utf-8")), [seg]).texto()
+    assert seg[:k] not in cauda, cauda
+    log = tmp_path / "serve.log"
+    e2e._drenar(io.StringIO("linha " + seg[:k]), log, [seg])
+    assert seg[:k] not in log.read_text(encoding="utf-8")
+
+
+def test_r5_prefixo_no_fim_com_pedacos_de_qualquer_tamanho():
+    seg = SEG_CORTE
+    for tam in (1, 2, 7):
+        for k in range(1, len(seg)):
+            texto = "xy " + seg[:k]
+            r = e2e.Redator([seg])
+            saida = "".join(r.alimentar(texto[i:i + tam]) for i in range(0, len(texto), tam)) + r.finalizar()
+            assert seg[:k] not in saida, (tam, k, saida)
+
+
+# 2. valor numérico num campo de segredo do config.toml (tomllib e regex)
+CASOS_NUMERICOS = [
+    ("numero", "llm_api_key = 1234567890\n", "1234567890"),
+    ("decimal", "[app]\ntoken = 3.14159\n", "3.14159"),
+    ("lista_de_numeros", "[app]\ntokens = [1111, 2222]\n", "2222"),
+]
+
+
+@pytest.mark.parametrize("nome,texto,esperado", CASOS_NUMERICOS, ids=[c[0] for c in CASOS_NUMERICOS])
+def test_r5_numero_em_campo_de_segredo_do_config_com_tomllib(tmp_path, nome, texto, esperado):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(texto, encoding="utf-8")
+    assert esperado in e2e._valores_do_config(cfg)
+
+
+@pytest.mark.parametrize("nome,texto,esperado", CASOS_NUMERICOS, ids=[c[0] for c in CASOS_NUMERICOS])
+def test_r5_numero_em_campo_de_segredo_do_config_sem_tomllib(tmp_path, monkeypatch, nome, texto, esperado):
+    monkeypatch.setitem(sys.modules, "tomllib", None)
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(texto, encoding="utf-8")
+    assert esperado in e2e._valores_do_config(cfg)
+
+
+# 3. formas ascii() e JSON dentro de JSON
+@pytest.mark.parametrize("nome", list(SEG_FORMAS))
+def test_r5_formas_ascii_e_json_em_json_redigidas(nome):
+    seg, _ = SEG_FORMAS[nome]
+    for forma in (ascii(seg)[1:-1], json.dumps(json.dumps(seg))[1:-1]):
+        texto = "pre " + forma + " pos"
+        assert forma not in e2e.redigir(texto, [seg]), forma
+        r = e2e.Redator([seg])
+        saida = "".join(r.alimentar(texto[i:i + 5]) for i in range(0, len(texto), 5)) + r.finalizar()
+        assert forma not in saida, forma
+
+
+# 4. nomes com KEY no meio de outra palavra; valores de 1 ou 2 caracteres
+def test_r5_variavel_com_key_em_outra_palavra_nao_redige_o_valor():
+    env = {"KEYBOARD_LAYOUT": "layout-br", "MONKEY_MODE": "modo-banana", "DEBUG_TOKEN": "tok-0123456"}
+    sondas = SondasFalsas(chaves=env)
+    amb = e2e.detectar(sondas, sondar=False)
+    segredos = e2e._segredos(sondas, amb)
+    assert "tok-0123456" in segredos
+    assert "layout-br" not in segredos and "modo-banana" not in segredos
+    assert e2e.redigir("layout-br e modo-banana", segredos) == "layout-br e modo-banana"
+
+
+def test_r5_valor_de_segredo_com_dois_caracteres_nao_e_redigido_e_o_de_tres_e():
+    sondas = SondasFalsas(chaves={"GEMINI_API_KEY": "ab", "FAL_KEY": "abc"})
+    amb = e2e.detectar(sondas, sondar=False)
+    segredos = e2e._segredos(sondas, amb)
+    assert "ab" not in segredos and "abc" in segredos
+
+
+def test_r5_chave_do_config_com_keyboard_nao_e_campo_de_segredo():
+    assert e2e._valores_por_regex('keyboard = "layout-br"\n') == set()
+    assert e2e._valores_por_regex('monkey_mode = "modo-banana"\n') == set()
+
+
+# 5. mensagem do dono da porta diz o que aconteceu
+def test_r5_dono_fora_da_arvore_com_docker_indisponivel_nao_diz_sem_proc(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(e2e, "_porta_ocupada", lambda p: False)
+    monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: 200)
+    monkeypatch.setattr(e2e, "_iniciar_servidor", lambda argv, **kw: (_Vivo(), _Leitor()))
+    monkeypatch.setattr(e2e, "_parar_processo", lambda proc, espera_s=120: None)
+    monkeypatch.setattr(e2e, "JANELA_VIVO_S", 0)
+    monkeypatch.setattr(e2e, "_inodes_escutando", lambda p: {"555"})
+    monkeypatch.setattr(e2e, "_inodes_dos_processos", lambda pids: set())
+    monkeypatch.setattr(e2e, "_docker_publica", lambda p: None)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    item = _item(json.loads(out), "toonflow")
+    texto = item["motivo"] + item["detalhe"]
+    assert item["estado"] == "SKIP" and "UNVERIFIED" in texto, item
+    assert "sem /proc" not in texto and "árvore" in texto, texto
+
+
+# 6. nenhuma exceção escapa da checagem do dono
+@LINUX_SEM_PROC
+def test_r5_linha_malformada_do_proc_net_tcp_nao_derruba_a_leitura(monkeypatch):
+    hdr = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"
+    ruim = "   0: 0100007F:ZZZZ 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000  0 4242 1 0000000000000000\n"
+    boa = "   1: 0100007F:0BB8 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000  0 4343 1 0000000000000000\n"
+    monkeypatch.setattr(e2e.Path, "read_text", lambda self, *a, **k: hdr + ruim + boa if str(self) == "/proc/net/tcp" else "")
+    assert e2e._inodes_escutando(3000) == {"4343"}
+
+
+@pytest.mark.parametrize("saida", ['[{"State":"running","Publishers":5}]', '[{"State":"running","Publishers":true}]'])
+def test_r5_compose_com_publishers_fora_do_formato_da_false_sem_excecao(tmp_path, monkeypatch, saida):
+    from simplicio_video import toonflow as tf
+    monkeypatch.setattr(tf, "find_toonflow_dir", lambda: tmp_path)
+    monkeypatch.setattr(tf, "_compose_cmd", lambda: ["docker", "compose"])
+    monkeypatch.setattr(e2e.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, saida, ""))
+    assert e2e._docker_publica(3000) is False
+
+
+def test_r5_dono_da_porta_nunca_levanta_excecao(monkeypatch):
+    monkeypatch.setattr(e2e, "_inodes_escutando", lambda p: {"1"})
+
+    def falha(pid):
+        raise PermissionError("/proc")
+
+    monkeypatch.setattr(e2e, "_pids_da_arvore", falha)
+    monkeypatch.setattr(e2e, "_docker_publica", lambda p: None)
+    assert e2e._dono_da_porta(_Vivo(), 3000) is None
+
+
+# 7. a porta é verificada de novo logo antes de subir o serve
+@pytest.mark.allow_hosts(["127.0.0.1", "localhost"])
+def test_r5_porta_ocupada_durante_o_toonflow_status_nao_sobe_o_serve(tmp_path, capsys, monkeypatch):
+    porta = _porta_livre()
+    ocupantes = []
+
+    def status(argv_):
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.bind(("127.0.0.1", porta))
+        srv.listen(1)
+        ocupantes.append(srv)
+        return e2e.Saida(0, "{}", "")
+
+    lancados = []
+    monkeypatch.setattr(e2e, "PORTA_TOONFLOW", porta)
+    monkeypatch.setattr(e2e, "_iniciar_servidor", lambda argv, **kw: (lancados.append(argv), (_Morto(), _Leitor()))[1])
+    try:
+        _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                          sondas=SondasFalsas(toonflow=True), gravador=Gravador({"toonflow status": status}))
+    finally:
+        for srv in ocupantes:
+            srv.close()
+    item = _item(json.loads(out), "toonflow")
+    assert item["estado"] == "FAIL" and "ocupad" in item["detalhe"], item
+    assert lancados == [], "com a porta ocupada depois do status o serve não pode subir"
