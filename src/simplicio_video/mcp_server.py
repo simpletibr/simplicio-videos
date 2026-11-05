@@ -485,49 +485,39 @@ def video_rea_video(args: str = "") -> dict:
     return out
 
 
-DESC_video_voicestudio = "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub create (sobe um vídeo ao app e cria o job de dublagem: só o upload e o preparo; transcrever, traduzir e gerar a dublagem rodam no app), dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. `args` é a linha de comando (aspas valem). --out/-o precisa ser um caminho absoluto: um relativo é recusado. Devolve `result` com o JSON do comando (a tool acrescenta --json), `rc` e, se falhar, `error`. Clonar ou dublar a voz de uma pessoa real só com o consentimento registrado dela. Exige o app aberto; fora do render determinístico."
+DESC_video_voicestudio = "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub create (sobe um vídeo ao app e cria o job de dublagem: só o upload e o preparo; transcrever, traduzir e gerar a dublagem rodam no app), dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. `args` é a linha de comando (aspas valem). Regras do MCP: tts e dub-export exigem --out/-o absoluto, de arquivo novo (se já existe, é recusado: o MCP não sobrescreve) numa pasta que já existe e fora de pastas do sistema e ocultas; os arquivos de entrada (dub create, transcribe, clone) são caminhos absolutos de um arquivo de mídia (links são seguidos e o destino é que conta). Dub create, transcribe e clone enviam o arquivo e só falam com um app em loopback (127.0.0.0/8, ::1, localhost). Devolve `result` com o JSON do comando (a tool acrescenta --json), `rc` (o código de saída; antes `result` era o rc) e, se falhar, `error`. Clonar ou dublar a voz de uma pessoa real só com o consentimento registrado dela. Exige o app aberto; fora do render determinístico."
 
 
-def _voicestudio_out_relativo(argv: list[str]) -> str | None:
-    """The first --out/-o value that is not an absolute path (argparse also takes -oVALOR, --out=VALOR and a prefix like --ou), or None."""
-    i = 0
-    while i < len(argv):
-        tok = argv[i]
-        valor = None
-        if tok.startswith("--"):
-            nome, eq, resto = tok.partition("=")
-            if len(nome) >= 3 and "--out".startswith(nome):
-                valor = resto if eq else (argv[i + 1] if i + 1 < len(argv) else "")
-        elif tok == "-o":
-            valor = argv[i + 1] if i + 1 < len(argv) else ""
-        elif tok.startswith("-o") and len(tok) > 2:
-            valor = tok[2:]
-        if valor is not None and not os.path.isabs(valor):
-            return valor
-        i += 1
-    return None
+def _split_args(args, windows: bool | None = None) -> list[str]:
+    """The command line of a tool as a list: shlex (quotes count). On Windows shlex runs in non-POSIX mode so a backslash in
+    C:\\dir\\file stays, and the surrounding quotes are then removed."""
+    if args is None:
+        return []
+    if not isinstance(args, str):
+        return [str(x) for x in args]
+    import shlex
+    if windows is None:
+        windows = os.name == "nt"
+    if not windows:
+        return shlex.split(args)
+    return [t[1:-1] if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'" else t for t in shlex.split(args, posix=False)]
 
 
 def video_voicestudio(args: str = "") -> dict:
     """VoiceStudio over MCP: status, listas, TTS, transcrição, perfis e jobs de dublagem, pela API/MCP local do app em :3900.
-    `mcp` devolve o bloco de configuração; nada aqui instala ou inicia o app. --out/-o tem de ser absoluto."""
-    import shlex
-
+    `mcp` devolve o bloco de configuração; nada aqui instala ou inicia o app. Pelo MCP: --out/-o obrigatório, absoluto, novo e numa
+    pasta que já existe; arquivos de entrada absolutos e de mídia."""
     from . import voicestudio
     try:
-        argv = shlex.split(args) if isinstance(args, str) else [str(x) for x in args]
+        argv = _split_args(args)
     except ValueError as e:
         return {"ok": False, "rc": 2, "result": None, "error": f"aspas não fechadas nos argumentos: {e}"}
-    relativo = _voicestudio_out_relativo(argv)
-    if relativo is not None:
-        return {"ok": False, "rc": 2, "result": None,
-                "error": f"--out precisa ser um caminho absoluto (recebi {relativo!r}): o servidor MCP não sabe em que pasta o cliente está."}
     if argv and not any(t in ("--json", "-h", "--help", "help") for t in argv):
         argv.append("--json")
     out, err = io.StringIO(), io.StringIO()
     try:
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            rc = voicestudio.run_voicestudio(argv)
+            rc = voicestudio.run_voicestudio(argv, mcp=True)
     except SystemExit as e:  # argparse ends with a code (2 on a usage error)
         rc = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
     except Exception as e:  # noqa: BLE001 - report, don't kill the server

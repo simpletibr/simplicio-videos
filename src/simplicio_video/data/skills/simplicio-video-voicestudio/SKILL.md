@@ -65,7 +65,7 @@ simplicio-video voicestudio dub-export --job ID --lang pl --bed-level 0.7 -o dub
 
 `dub create` cria o job no app (`POST /dub/upload`) e devolve `job` e `task`; o app não tem um comando único de dublar (nem tool MCP de dublagem), então a transcrição, a tradução e a geração são feitas na tela do app, onde se escolhem os falantes e as vozes. Dublar ou clonar a voz de uma pessoa real só com o consentimento registrado dela.
 
-Pelo MCP (`video.voicestudio`) a linha de comando vai em `args` (aspas valem), `--out`/`-o` tem de ser caminho **absoluto** (relativo é recusado) e `result` já vem como JSON.
+Pelo MCP (`video.voicestudio`) a linha de comando vai em `args` (aspas valem). `result` é o JSON do comando e `rc` é o código de saída (antes `result` era o `rc`); em falha vem `error`. `tts` e `dub-export` exigem `--out`/`-o` absoluto, de arquivo novo (se existe, recusa; o MCP não sobrescreve nem cria pastas) e fora de pastas do sistema e ocultas; os arquivos de entrada (`dub create`, `transcribe`, `clone`) são caminhos absolutos de mídia (links são seguidos e o destino é que conta). Quem envia arquivo só fala com o app em loopback (127.0.0.0/8, `::1`, `localhost`).
 
 A geração (transcrição, tradução, voz) continua no app e pede modelos pesados e GPU. Se o app responder que o fundo não está disponível, refaça a dublagem no app com a separação de fundo ligada; não tente contornar.
 
