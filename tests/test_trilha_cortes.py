@@ -75,7 +75,6 @@ def test_duracao_da_saida_com_crossfade_de_8_ms(arranjo):
     assert abs(info["duracao_s"] - DURACAO_ESPERADA) <= 0.001
 
 
-@pytest.mark.slow
 def test_ordem_dos_trechos_pela_frequencia_dominante_por_janela(arranjo):
     _, _, sr, x = arranjo
     # centro de cada trecho na saída, longe das zonas de crossfade (7.992 s, 15.984 s)

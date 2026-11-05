@@ -327,7 +327,6 @@ def test_chave_na_saida_da_tarefa_nao_vai_para_o_log(mini, monkeypatch):
     assert FAKE_KEY not in json.dumps(jobs.status(st["id"]))
 
 
-@pytest.mark.slow
 def test_voz_local_em_segundo_plano(mini):
     r = mcp_server.video_jobs("submit", kind="voice", params={"contrato": str(mini), "provider": "file"})
     assert r["ok"], r

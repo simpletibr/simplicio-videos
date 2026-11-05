@@ -143,7 +143,7 @@ def test_manifesto_registra_latencia_por_pedaco_e_ganho(longo):
     for c in m["chunks"]:
         assert {"upload_s", "queue_s", "generation_s", "download_s", "total_s"} <= set(c["latency"])
         # generation_s conta a partir do primeiro poll que vê "running": sob carga esse poll atrasa, então o piso é folgado
-        assert c["latency"]["total_s"] >= c["latency"]["generation_s"] >= 0.1
+        assert c["latency"]["total_s"] >= c["latency"]["generation_s"] >= 0.2
     t = m["timing"]
     assert set(t) == {"wall_s", "sum_chunks_s", "speedup", "saved_s"}
     assert t["sum_chunks_s"] == pytest.approx(sum(c["latency"]["total_s"] for c in m["chunks"]), abs=0.01)

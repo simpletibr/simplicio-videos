@@ -292,7 +292,6 @@ def test_verify_com_host_desconhecido_sai_1(falso, capsys):
     assert rc == 1 and "host desconhecido" in out + err
 
 
-@pytest.mark.slow
 def test_verify_global_confere_o_home_e_nao_o_alvo(falso, capsys):
     assert executa(["install", "--verify", "--global"], capsys, main)[0] == 1
     executa(["install", "--global"], capsys, main)
@@ -332,7 +331,6 @@ def test_uninstall_com_json_imprime_um_documento(falso, capsys):
     assert rc == 1 and doc["status"] == "error" and erros_de_schema("install-plan", doc) == []
 
 
-@pytest.mark.slow
 def test_uninstall_global_diz_o_que_fica_fora_do_recibo(falso, capsys):
     executa(["install", "--global"], capsys, main)
     rc, out, err = executa(["install", "--uninstall", "--global"], capsys, main)
@@ -426,7 +424,6 @@ def test_global_nao_apaga_arquivo_do_usuario_dentro_da_pasta_da_skill_nem_nas_co
     assert "minhas-notas.md" in out, "it says it left the user's file alone"
 
 
-@pytest.mark.slow
 def test_uninstall_global_remove_so_o_nosso_nas_onze_pastas(falso, capsys):
     foreign = write(falso.home / ".grok" / "skills" / "simplicio-video" / "SKILL.md", "do usuário\n")
     executa(["install", "--global"], capsys, main)
@@ -445,7 +442,6 @@ def test_global_em_dia_sai_0_no_check_mesmo_com_hosts_instalados(falso, capsys):
     assert executa(["install", "--global", "--check"], capsys, main)[0] == 0
 
 
-@pytest.mark.slow
 def test_global_prune_remove_as_copias_do_projeto_e_diz_quantas(falso, capsys):
     assert executa(["install", "--target", str(falso.alvo)], capsys, main)[0] == 0  # the project copy, with its receipt
     obsoleta = falso.alvo / SKILL

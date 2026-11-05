@@ -1799,7 +1799,6 @@ def test_dois_ids_com_os_mesmos_bytes_aprovar_um_nao_aprova_o_outro(env, midia):
 
 
 @needs_ffmpeg
-@pytest.mark.slow
 def test_get_atualizar_com_os_mesmos_bytes_e_outro_autor_pede_nova_revisao(env, midia):
     a = baixar(env, idx=0, body=midia["nitida"])
     ov.review_sheet(a["id"], PEDIDO)
