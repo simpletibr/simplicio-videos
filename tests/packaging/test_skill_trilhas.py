@@ -694,7 +694,7 @@ def test_o_online_do_doctor_trilhas_nao_regrava_o_cache_do_update():
     secao = _secao_doctor()
     assert "regrava" not in secao and "update-check" not in secao
     assert "cache do `update --check`" not in secao
-    assert "não grava nada no diretório de dados do motor" in secao and "~/.npm" in secao
+    assert "não grava nada no diretório de dados do motor" in secao and "cache do próprio npm" in secao
 
 
 def test_a_secao_do_doctor_trilhas_descreve_as_falhas_como_o_codigo_as_da():
