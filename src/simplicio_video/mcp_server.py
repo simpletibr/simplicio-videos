@@ -638,21 +638,55 @@ def video_rea_video(args: str = "") -> dict:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-DESC_video_voicestudio = "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. Exige o app aberto; fora do render determinístico."
+DESC_video_voicestudio = "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub create (sobe um vídeo ao app e cria o job de dublagem: só o upload e o preparo; transcrever, traduzir e gerar a dublagem rodam no app), dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. `args` é a linha de comando (aspas valem). Regras do MCP: tts e dub-export exigem --out/-o absoluto, de arquivo novo (se já existe, é recusado: o MCP não sobrescreve) numa pasta que já existe e fora de pastas do sistema e ocultas; os arquivos de entrada (dub create, transcribe, clone) são caminhos absolutos de um arquivo de mídia (links são seguidos e o destino é que conta). Dub create, transcribe e clone enviam o arquivo e só falam com um app em loopback (127.0.0.0/8, ::1, localhost). Devolve `result` com o JSON do comando (a tool acrescenta --json), `rc` (o código de saída; antes `result` era o rc) e, se falhar, `error`. Clonar ou dublar a voz de uma pessoa real só com o consentimento registrado dela. Exige o app aberto; fora do render determinístico."
+
+
+def _split_args(args, windows: bool | None = None) -> list[str]:
+    """The command line of a tool as a list: shlex (quotes count). On Windows shlex runs in non-POSIX mode so a backslash in
+    C:\\dir\\file stays, and the surrounding quotes are then removed."""
+    if args is None:
+        return []
+    if not isinstance(args, str):
+        return [str(x) for x in args]
+    import shlex
+    if windows is None:
+        windows = os.name == "nt"
+    if not windows:
+        return shlex.split(args)
+    return [t[1:-1] if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'" else t for t in shlex.split(args, posix=False)]
+
+
 def video_voicestudio(args: str = "") -> dict:
-    """VoiceStudio over MCP: status, listas, TTS, transcrição e perfis, pela API/MCP local do app em :3900.
-    `mcp` devolve o bloco de configuração; nada aqui instala ou inicia o app."""
+    """VoiceStudio over MCP: status, listas, TTS, transcrição, perfis e jobs de dublagem, pela API/MCP local do app em :3900.
+    `mcp` devolve o bloco de configuração; nada aqui instala ou inicia o app. Pelo MCP: --out/-o obrigatório, absoluto, novo e numa
+    pasta que já existe; arquivos de entrada absolutos e de mídia."""
     from . import voicestudio
-    argv = args.split() if isinstance(args, str) else list(args)
-    buf = io.StringIO()
     try:
-        with childio.capture(buf, buf):
-            rc = voicestudio.run_voicestudio(argv)
-        out = {"ok": rc == 0, "result": rc}
+        argv = _split_args(args)
+    except ValueError as e:
+        return {"ok": False, "rc": 2, "result": None, "error": f"aspas não fechadas nos argumentos: {e}"}
+    if argv and not any(t in ("--json", "-h", "--help", "help") for t in argv):
+        argv.append("--json")
+    out, err = io.StringIO(), io.StringIO()
+    try:
+        with childio.capture(out, err):
+            rc = voicestudio.run_voicestudio(argv, mcp=True)
+    except SystemExit as e:  # argparse ends with a code (2 on a usage error)
+        rc = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
     except Exception as e:  # noqa: BLE001 - report, don't kill the server
-        out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    out["log"] = buf.getvalue().strip()[-8000:]
-    return out
+        return {"ok": False, "rc": 1, "result": None, "error": f"{type(e).__name__}: {e}"}
+    texto, erro = out.getvalue().strip(), err.getvalue().strip()
+    result = None
+    if texto[:1] in ("{", "["):
+        with contextlib.suppress(ValueError):
+            result = json.loads(texto)
+    res: dict[str, Any] = {"ok": rc == 0, "rc": rc, "result": result}
+    if rc != 0:
+        res["error"] = (erro or texto or f"saiu com o código {rc}")[-2000:]
+    log = "\n".join(p for p in ([erro] if rc == 0 else []) + ([texto] if result is None else []) if p)
+    if log:
+        res["log"] = log[-8000:]
+    return res
 
 
 DESC_video_shorts = "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; only new files are written."
