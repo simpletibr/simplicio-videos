@@ -777,8 +777,11 @@ def test_lexicon_and_hooks_paths_are_inputs_with_the_same_rules_as_any_input(ig,
 # ------------------------------------------------------------------------------------------------ the engine dies: the child must not outlive it
 
 RUNNER = r"""
-import json, sys
+import json, signal, sys
 from simplicio_video import instagram, tools
+for nome in ("SIGTERM", "SIGHUP"):  # as a shell starts the engine: pytest may run under nohup, which ignores SIGHUP, and the engine keeps ignored signals ignored on purpose
+    if hasattr(signal, nome):
+        signal.signal(getattr(signal, nome), signal.SIG_DFL)
 cfg = json.loads(sys.argv[1])
 instagram.PINNED_SHA256 = cfg["sha"]
 instagram.TIMEOUT_S = cfg.get("timeout", instagram.TIMEOUT_S)
