@@ -2045,3 +2045,45 @@ def test_link_simbolico_no_cache_nao_conta_e_nao_e_apagado(env, tmp_path):
 def test_lista_de_nomes_internos_so_guarda_nome_que_a_forma_do_host_deixa_passar(env):
     """B6: _url_http só aceita host com ponto (_HOST_RE); um nome de rótulo único nunca chega à lista."""
     assert sorted(n for n in env.b._NOMES_INTERNOS if "." not in n) == []
+
+
+# ------------------------------------------------------------------------------------------------ (#113 revisão 2) F1, F2, F4, F6
+
+def test_log_json_nao_depende_do_texto_e_aceita_registro_incompleto(env, capsys):
+    """F1: o texto do `busca log` só é montado no terminal; um registro sem campos que o texto usa não derruba o --json."""
+    env.b._registrar(_procedencia(1))  # o registro de teste não tem "consulta" nem os contadores de resultado
+    assert main(["busca", "log", "--json"]) == 0
+    r = json.loads(capsys.readouterr().out)
+    assert r["mostrados"] == 1 and r["registros"][0]["comando"] == "consulta"
+    assert main(["busca", "log"]) == 0
+    assert "registro de procedência" in capsys.readouterr().out
+
+
+def test_contagem_do_cache_nao_conta_link_simbolico(env, tmp_path):
+    """F4: a contagem de entradas do cache conta arquivo regular; link simbólico (e o alvo dele) fica de fora."""
+    cache = env.pasta / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    (cache / "0000.json").write_text("{}", encoding="utf8")
+    (cache / "0001.json").write_text("{}", encoding="utf8")
+    alvo = tmp_path / "fora.json"
+    alvo.write_text("{}", encoding="utf8")
+    (cache / "0002.json").symlink_to(alvo)
+    assert env.b._numero_cache() == 2
+
+
+def test_falha_da_trava_no_log_diz_registro_e_nao_ler(env):
+    """F6: a mensagem de falha do registro é genérica: a trava também falha por permissão, não só a leitura."""
+    def trava_negada():
+        raise OSError(13, "negado pelo teste")
+
+    env.patch("_trava", trava_negada)
+    with pytest.raises(env.b.BuscaError, match="não consegui usar o registro de procedência"):
+        env.b.log()
+
+
+def test_changelog_registra_as_tools_que_o_plugin_anuncia():
+    """F2: plugin.json passou de 28 para 31 tools do MCP (e2236ef acrescentou video.rea-video, video.matchcut e video.qc); a nota de
+    Unreleased tem de dizer isso, porque o plugin é o que as ferramentas externas leem."""
+    texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
+    secao = texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    assert "plugin.json passa a anunciar as 31 tools do MCP" in secao
