@@ -847,3 +847,358 @@ def test_swap_provider_e_fonte_paga_invalidos_da_rc_2_antes_de_detectar(monkeypa
         with pytest.raises(SystemExit) as exc:
             e2e.main(argv, sondas=SondasFalsas(), runner=Gravador())
         assert exc.value.code == 2, argv
+
+
+# ------------------------------------------------------------------ quarta revisão (revisor 4): B1, B2, B3, N1 a N7
+import http.server  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
+
+SEG_CORTE = "SEGREDO-NA-FRONTEIRA-0123456789-ABC"  # 35 caracteres, sem "." nem "*" (o enchimento do teste é ".")
+SEG_FORMAS = {
+    "aspas": ('pw"SEGREDO-aspas', ["SEGREDO-aspas"]),
+    "quebra": ("linha-um-SEG\nlinha-dois-SEG", ["linha-um-SEG", "linha-dois-SEG"]),
+    "nao_ascii": ("senha-ção-123", ["senha-", "u00e7"]),
+    "barra": ("caminho\\SEGREDO-barra", ["SEGREDO-barra"]),
+}
+
+
+def _formas_de(seg):
+    return {seg, json.dumps(seg)[1:-1], json.dumps(seg, ensure_ascii=False)[1:-1], repr(seg)[1:-1]} - {""}
+
+
+def _porta_livre():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    porta = s.getsockname()[1]
+    s.close()
+    return porta
+
+
+LINUX_SEM_PROC = pytest.mark.skipif(not Path("/proc/net/tcp").exists(), reason="dono da porta pelo /proc (Linux)")
+
+
+# B1 ------------------------------------------------------------------------------------------------------------
+@pytest.mark.parametrize("k", [1, 10, 25, 34])
+def test_b1_segredo_na_fronteira_do_corte_de_1mib_nao_deixa_sufixo_no_log_nem_no_passo(tmp_path, k):
+    seg = SEG_CORTE
+    assert len(seg) == 35
+    # a saída bruta tem TETO+1000+k caracteres: o corte de 1 MiB cai k caracteres dentro do segredo
+    codigo = ("import os,sys; sys.stdout.write('.' * 1000 + os.environ['ECO_SEG'] + '.' * (%d)); sys.stdout.flush()"
+              % (e2e.TETO_CAUDA - len(seg) + k))
+    env = dict(os.environ, ECO_SEG=seg)
+    (tmp_path / "run").mkdir()
+    ctx = e2e.Ctx(tmp_path / "run", None, lambda argv, **kw: e2e._rodar(argv, segredos=[seg], **kw), env, None,
+                  [seg], 1.0)
+    p = ctx.passo("eco", [sys.executable, "-c", codigo], 120)
+    log = Path(p.log).read_text(encoding="utf-8")
+    assert p.rc == 0
+    for j in range(1, len(seg)):
+        assert seg[j:] not in log, (j, "log")
+        assert seg[j:] not in p.saida, (j, "passo")
+    assert "***" in p.saida
+
+
+def test_b1_rodar_redige_a_cauda_antes_de_cortar(tmp_path):
+    seg = SEG_CORTE
+    codigo = ("import os,sys; sys.stdout.write('.' * 1000 + os.environ['ECO_SEG'] + '.' * %d); sys.stdout.flush()"
+              % (e2e.TETO_CAUDA - len(seg) + 10))
+    saida = e2e._rodar([sys.executable, "-c", codigo], env=dict(os.environ, ECO_SEG=seg), cwd=Path(e2e.REPO), timeout=120,
+                       segredos=[seg])
+    assert all(seg[j:] not in saida.out for j in range(1, len(seg)))
+
+
+# B2 ------------------------------------------------------------------------------------------------------------
+@pytest.mark.parametrize("nome", list(SEG_FORMAS))
+def test_b2_forma_escapada_do_json_e_redigida(nome):
+    seg, _ = SEG_FORMAS[nome]
+    textos = [json.dumps({"erro": seg}), json.dumps({"erro": seg}, ensure_ascii=False), "repr: " + repr(seg)]
+    for texto in textos:
+        redigido = e2e.redigir(texto, [seg])
+        assert not any(f in redigido for f in _formas_de(seg)), (texto, redigido)
+
+
+@pytest.mark.parametrize("nome", list(SEG_FORMAS))
+def test_b2_forma_escapada_partida_em_qualquer_corte_do_redator(nome):
+    seg, _ = SEG_FORMAS[nome]
+    texto = "antes " + json.dumps({"erro": seg}) + " depois"
+    for i in range(len(texto) + 1):
+        r = e2e.Redator([seg])
+        saida = r.alimentar(texto[:i]) + r.alimentar(texto[i:]) + r.finalizar()
+        assert not any(f in saida for f in _formas_de(seg)), (i, saida)
+        assert "antes" in saida and "depois" in saida
+
+
+_IMPRIME_FORMAS = ("import os, json, sys; s = os.environ['ECO_SEG']; "
+                   "print(json.dumps({'erro': s})); print(json.dumps({'erro': s}, ensure_ascii=False)); "
+                   "print(repr(s)); sys.stderr.write(json.dumps(s) + chr(10))")
+
+
+@pytest.mark.parametrize("nome", list(SEG_FORMAS))
+def test_b2_log_do_passo_nao_tem_forma_escapada(tmp_path, nome):
+    seg, pedacos = SEG_FORMAS[nome]
+    (tmp_path / "run").mkdir()
+    env = dict(os.environ, ECO_SEG=seg)
+    ctx = e2e.Ctx(tmp_path / "run", None, lambda argv, **kw: e2e._rodar(argv, segredos=[seg], **kw), env, None,
+                  [seg], 1.0)
+    p = ctx.passo("imprime", [sys.executable, "-c", _IMPRIME_FORMAS], 120)
+    log = Path(p.log).read_text(encoding="utf-8")
+    for texto in (log, p.saida, p.erro):
+        assert not any(f in texto for f in _formas_de(seg)), texto
+        assert not any(t in texto for t in pedacos), texto
+
+
+@pytest.mark.parametrize("nome", list(SEG_FORMAS))
+def test_b2_serve_log_nao_tem_forma_escapada(tmp_path, nome):
+    seg, pedacos = SEG_FORMAS[nome]
+    log = tmp_path / "serve.log"
+    proc, leitor = e2e._iniciar_servidor([sys.executable, "-c", _IMPRIME_FORMAS], env=dict(os.environ, ECO_SEG=seg),
+                                         log=log, segredos=[seg])
+    assert proc.wait(timeout=60) == 0
+    leitor.join(timeout=60)
+    texto = log.read_text(encoding="utf-8")
+    assert not any(f in texto for f in _formas_de(seg)), texto
+    assert not any(t in texto for t in pedacos), texto
+
+
+@pytest.mark.parametrize("nome", list(SEG_FORMAS))
+def test_b2_json_e_tabela_do_main_nao_tem_forma_escapada(tmp_path, capsys, nome):
+    seg, pedacos = SEG_FORMAS[nome]
+    # a última linha vira o detalhe da tabela e do JSON: é nela que a forma escapada do JSON precisa sair redigida
+    corpo = repr(seg) + "\n" + json.dumps({"erro": seg}, ensure_ascii=False) + "\n" + json.dumps({"erro": seg})
+    grav = Gravador({"smoke_so.py": e2e.Saida(0, corpo, json.dumps(seg))})
+    rc = e2e.main(["--pasta", str(tmp_path / "e2e"), "--sim-gastar", "--json", "--apenas", "smoke-so"],
+                  sondas=SondasFalsas(chaves={"GEMINI_API_KEY": seg}), runner=grav)
+    captura = capsys.readouterr()
+    assert rc == 0
+    for texto in (captura.out, captura.err):
+        assert not any(t in texto for t in pedacos), texto
+        assert not any(f in texto for f in _formas_de(seg)), texto
+
+
+# B3, N1, N3, N4 -------------------------------------------------------------------------------------------------
+def _toonflow_mocks(monkeypatch, *, porta=None, esperar=200, dono=True, vivo=None, janela=0):
+    monkeypatch.setattr(e2e, "_porta_ocupada", lambda p: False)
+    monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: esperar)
+    monkeypatch.setattr(e2e, "_iniciar_servidor", lambda argv, **kw: (vivo or _Vivo(), _Leitor()))
+    monkeypatch.setattr(e2e, "_parar_processo", lambda proc, espera_s=120: None)
+    monkeypatch.setattr(e2e, "JANELA_VIVO_S", janela)
+    monkeypatch.setattr(e2e, "_dono_da_porta", lambda proc, p: dono, raising=False)
+    if porta is not None:
+        monkeypatch.setattr(e2e, "PORTA_TOONFLOW", porta)
+
+
+@pytest.mark.parametrize("codigo", [500, 404])
+def test_n3_http_de_erro_do_serve_nao_da_pass(tmp_path, capsys, monkeypatch, codigo):
+    _toonflow_mocks(monkeypatch, esperar=codigo, dono=True)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    item = _item(json.loads(out), "toonflow")
+    assert item["estado"] == "FAIL" and str(codigo) in item["detalhe"], item
+
+
+@pytest.mark.parametrize("codigo", [200, 302])
+def test_n3_2xx_e_3xx_com_dono_confirmado_da_pass(tmp_path, capsys, monkeypatch, codigo):
+    _toonflow_mocks(monkeypatch, esperar=codigo, dono=True)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    assert _item(json.loads(out), "toonflow")["estado"] == "PASS"
+
+
+def test_b3_sem_como_confirmar_o_dono_da_porta_da_skip_e_nunca_pass(tmp_path, capsys, monkeypatch):
+    _toonflow_mocks(monkeypatch, esperar=200, dono=None)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    item = _item(json.loads(out), "toonflow")
+    assert item["estado"] == "SKIP" and "UNVERIFIED" in item["motivo"] + item["detalhe"], item
+
+
+def test_b3_dono_recusado_da_fail_com_o_outro_processo(tmp_path, capsys, monkeypatch):
+    _toonflow_mocks(monkeypatch, esperar=200, dono=False)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    assert _item(json.loads(out), "toonflow")["estado"] == "FAIL"
+
+
+def test_n4_serve_que_morre_depois_do_200_diz_que_ele_morreu(tmp_path, capsys, monkeypatch):
+    _toonflow_mocks(monkeypatch, esperar=200, dono=True, vivo=_Morto(), janela=3.0)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    item = _item(json.loads(out), "toonflow")
+    assert item["estado"] == "FAIL"
+    assert "outro processo" not in item["detalhe"] and ("saiu" in item["detalhe"] or "morr" in item["detalhe"]), item
+
+
+CODIGO_SERVE_MORRE_1S = """
+import http.server, os, threading
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.send_header('Content-Length', '2'); self.end_headers(); self.wfile.write(b'ok')
+        threading.Timer(1.0, lambda: os._exit(0)).start()
+    def log_message(self, *a):
+        pass
+http.server.ThreadingHTTPServer(('127.0.0.1', PORTA), H).serve_forever()
+"""
+
+
+@pytest.mark.allow_hosts(["127.0.0.1", "localhost"])
+def test_n1_sem_janela_explicita_serve_que_morre_1s_apos_o_200_da_fail(tmp_path, capsys, monkeypatch):
+    porta = _porta_livre()
+    codigo = CODIGO_SERVE_MORRE_1S.replace("PORTA", str(porta))
+    monkeypatch.setattr(e2e, "PORTA_TOONFLOW", porta)
+    monkeypatch.setattr(e2e, "_py", lambda *a: [sys.executable, "-c", "print('{}')"] if a[:2] == ("toonflow", "status")
+                        else [sys.executable, "-c", codigo])
+    assert e2e.JANELA_VIVO_S == 3.0  # o teste não troca a janela: é a janela padrão que decide
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    assert _item(json.loads(out), "toonflow")["estado"] == "FAIL"
+
+
+def _listener_em_outro_processo(porta):
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Length", "5")
+            self.end_headers()
+            self.wfile.write(b"outro")
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", porta), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+@LINUX_SEM_PROC
+@pytest.mark.allow_hosts(["127.0.0.1", "localhost"])
+def test_b3_outro_processo_que_ouve_a_porta_depois_do_precheck_nao_da_pass(tmp_path, capsys, monkeypatch):
+    porta = _porta_livre()
+    servidores = []
+
+    def precheck(p):  # o outro processo começa a ouvir DEPOIS do pré-check
+        if not servidores:
+            servidores.append(_listener_em_outro_processo(porta))
+        return False
+
+    monkeypatch.setattr(e2e, "PORTA_TOONFLOW", porta)
+    monkeypatch.setattr(e2e, "_porta_ocupada", precheck)
+    monkeypatch.setattr(e2e, "_docker_publica", lambda p: False, raising=False)  # o docker não publica a porta para o serve lançado
+    monkeypatch.setattr(e2e, "_py", lambda *a: [sys.executable, "-c", "print('{}')"] if a[:2] == ("toonflow", "status")
+                        else [sys.executable, "-c", "import time; time.sleep(60)"])  # vivo, nunca escuta
+    try:
+        _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                          sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    finally:
+        for srv in servidores:
+            srv.shutdown()
+            srv.server_close()
+    item = _item(json.loads(out), "toonflow")
+    assert item["estado"] == "FAIL", item
+
+
+@LINUX_SEM_PROC
+@pytest.mark.allow_hosts(["127.0.0.1", "localhost"])
+def test_b3_dono_da_porta_confirma_o_filho_que_ouve(monkeypatch):
+    porta = _porta_livre()
+    codigo = (f"import socket,time; s=socket.socket(); s.bind(('127.0.0.1',{porta})); s.listen(1); "
+              "print('ok', flush=True); time.sleep(60)")
+    proc = subprocess.Popen([sys.executable, "-c", codigo], stdout=subprocess.PIPE, text=True)
+    try:
+        assert proc.stdout.readline().strip() == "ok"
+        monkeypatch.setattr(e2e, "_docker_publica", lambda p: None, raising=False)  # a árvore basta: o docker não é consultado
+        assert e2e._dono_da_porta(proc, porta) is True
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+@LINUX_SEM_PROC
+@pytest.mark.allow_hosts(["127.0.0.1", "localhost"])
+def test_b3_dono_da_porta_recusa_quem_so_ouve_de_fora(monkeypatch):
+    porta = _porta_livre()
+    srv = _listener_em_outro_processo(porta)
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        monkeypatch.setattr(e2e, "_docker_publica", lambda p: False, raising=False)
+        assert e2e._dono_da_porta(proc, porta) is False
+        monkeypatch.setattr(e2e, "_docker_publica", lambda p: None, raising=False)
+        assert e2e._dono_da_porta(proc, porta) is None
+    finally:
+        proc.kill()
+        proc.wait()
+        srv.shutdown()
+        srv.server_close()
+
+
+# N2 -----------------------------------------------------------------------------------------------------------
+def test_n2_serve_log_e_gravado_enquanto_o_filho_vive(tmp_path):
+    log = tmp_path / "serve.log"
+    filho = [sys.executable, "-c", "import time; print('linha-1-visivel', flush=True); time.sleep(4); "
+                                   "print('linha-2', flush=True)"]
+    proc, leitor = e2e._iniciar_servidor(filho, env=dict(os.environ), log=log, segredos=[])
+
+    def conteudo():
+        return log.read_text(encoding="utf-8") if log.exists() else ""
+
+    try:
+        limite = time.monotonic() + 3
+        while time.monotonic() < limite and "linha-1-visivel" not in conteudo():
+            time.sleep(0.1)
+        assert proc.poll() is None, "o filho saiu antes da checagem: o teste não prova nada"
+        assert "linha-1-visivel" in conteudo()
+    finally:
+        proc.wait(timeout=60)
+        leitor.join(timeout=60)
+    assert "linha-2" in conteudo()
+
+
+# N5 -----------------------------------------------------------------------------------------------------------
+CASOS_CONFIG = [
+    ("C1 lista numa linha", 'pexels_api_keys = ["lista-a-1111", "lista-b-2222"]\n', "lista-b-2222"),
+    ("C2 lista multilinha", 'pexels_api_keys = [\n    "multi-c-3333",\n    "multi-d-4444",\n]\n', "multi-d-4444"),
+    ("C3 string em [app]", '[app]\nllm_api_key = "str-e-5555"\n', "str-e-5555"),
+    ("C4 array de tabelas", '[[providers]]\napi_key = "aot-f-6666"\n', "aot-f-6666"),
+    ("C5 aspas simples", "'literal_token' = 'lit-g-7777'\n", "lit-g-7777"),
+    ("C6 tabela aninhada", '[tts.azure]\nspeech_key = "nest-h-8888"\n', "nest-h-8888"),
+    ("C7 escape no valor", 'password = "pa\\"ss-i-9999"\n', 'pa"ss-i-9999'),
+    ("C8 tabela inline", 'tts = { api_key = "inline-j-1010" }\n', "inline-j-1010"),
+    ("C9 lista aspas simples", "wavespeed_keys = ['sq-k-1212']\n", "sq-k-1212"),
+    ("C10 nome nao secreto", 'name = "nao-secreto-zz"\n', None),
+]
+
+
+@pytest.mark.parametrize("nome,texto,esperado", CASOS_CONFIG, ids=[c[0] for c in CASOS_CONFIG])
+def test_n5_config_do_moneyprinter_com_tomllib(tmp_path, nome, texto, esperado):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(texto, encoding="utf-8")
+    achados = e2e._valores_do_config(cfg)
+    assert (esperado in achados) if esperado else not achados, achados
+
+
+@pytest.mark.parametrize("nome,texto,esperado", CASOS_CONFIG, ids=[c[0] for c in CASOS_CONFIG])
+def test_n5_config_do_moneyprinter_sem_tomllib(tmp_path, monkeypatch, nome, texto, esperado):
+    monkeypatch.setitem(sys.modules, "tomllib", None)  # Python 3.10: o caminho por leitura
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(texto, encoding="utf-8")
+    achados = e2e._valores_do_config(cfg)
+    assert (esperado in achados) if esperado else not achados, achados
+
+
+# N7 -----------------------------------------------------------------------------------------------------------
+def test_n7_pasta_que_nao_pode_ser_criada_da_rc_2_antes_de_qualquer_sonda(capsys):
+    chamadas = []
+
+    class Sondas(SondasFalsas):
+        def versao(self, argv):
+            chamadas.append(("versao", argv))
+            return super().versao(argv)
+
+        def porta_aberta(self, host, porta):
+            chamadas.append(("porta", porta))
+            return False
+
+    with pytest.raises(SystemExit) as exc:
+        e2e.main(["--sim-gastar", "--pasta", "/proc/nao-cria-aqui/sub"], sondas=Sondas(), runner=Gravador())
+    assert exc.value.code == 2
+    assert chamadas == [], chamadas
