@@ -327,7 +327,10 @@ def _sha(dados: bytes | str) -> str:
 
 @contextlib.contextmanager
 def _trava():
-    """Cross-process lock for the counter and the registry (each open() has its own lock, so threads exclude each other too)."""
+    """Cross-process lock for the counter and the registry (each open() has its own lock, so threads exclude each other too).
+
+    NOT reentrant: flock is per open file, so a second `with _trava()` in the same thread waits on the first one forever. Whoever holds
+    it must not call _registrar or _reservar, nor log() (log holds it for the whole read). test_log_nao_aninha_a_trava checks that."""
     pasta().mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
         import fcntl
@@ -1083,8 +1086,9 @@ def _estado_chave(exe: str) -> dict:
 
 
 def _numero_cache() -> int:
+    """Entradas de cache/: só arquivo regular. Um link simbólico não conta, nem o alvo dele."""
     try:
-        return len(list((pasta() / "cache").glob("*.json")))
+        return sum(1 for p in (pasta() / "cache").glob("*.json") if p.is_file() and not p.is_symlink())
     except OSError:
         return 0
 
@@ -1200,7 +1204,7 @@ def log(ultimos=20) -> dict:
                         else:
                             invalidas += 1
     except OSError as e:
-        raise BuscaError(f"não consegui ler o registro: {e.strerror}") from None
+        raise BuscaError(f"não consegui usar o registro de procedência ({e.strerror})") from None
     recentes.reverse()
     mostrados = [_registro_view(r) for r in recentes]
     return {"schema": SCHEMA_LOG, "aviso_untrusted": UNTRUSTED_NOTICE, "arquivo": str(_caminho_registro()), "arquivos": lidos,
@@ -1252,8 +1256,9 @@ def _parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _emit(obj, as_json: bool, texto: str) -> None:
-    print(json.dumps(obj, ensure_ascii=False, indent=2) if as_json else texto)
+def _emit(obj, as_json: bool, texto) -> None:
+    """`texto` is a function that renders the terminal text. It runs only without --json, so a --json run never depends on the text."""
+    print(json.dumps(obj, ensure_ascii=False, indent=2) if as_json else texto())
 
 
 def _u(item: dict, *campos: str) -> str:
@@ -1320,11 +1325,12 @@ def _log_text(r: dict) -> str:
     lines = [f"registro de procedência: {r['arquivo']} | mostrando {r['mostrados']} registro(s), lidos de {len(r['arquivos'])} arquivo(s), "
              f"{r['invalidas']} linha(s) inválida(s) entre as lidas",
              f"AVISO {UNTRUSTED_NOTICE}"]
-    for x in r["registros"]:
-        alvo = json.dumps(x["consulta"], ensure_ascii=False) if x["comando"] == "consulta" else _u(x, "url")
-        lines.append(f"[{x['em']}] {x['comando']} {alvo} | {'cache' if x['do_cache'] else 'chamada'} | tinyfish {x.get('cli_versao') or '?'} | "
-                     f"{x['n_resultados']} resultado(s), {x['n_mostrados']} mostrado(s) | conteudo sha256 {x['conteudo_sha256'][:12]} ({x['conteudo_bytes']} bytes) | "
-                     f"canal {x['canal']} | id {x['id']}")
+    for x in r["registros"]:  # .get: um registro incompleto (editado à mão) mostra lacunas, não derruba o texto
+        alvo = json.dumps(x.get("consulta"), ensure_ascii=False) if x.get("comando") == "consulta" else _u(x, "url")
+        sha = str(x.get("conteudo_sha256") or "")[:12]
+        lines.append(f"[{x.get('em')}] {x.get('comando')} {alvo} | {'cache' if x.get('do_cache') else 'chamada'} | "
+                     f"tinyfish {x.get('cli_versao') or '?'} | {x.get('n_resultados')} resultado(s), {x.get('n_mostrados')} mostrado(s) | "
+                     f"conteudo sha256 {sha} ({x.get('conteudo_bytes')} bytes) | canal {x.get('canal')} | id {x.get('id')}")
         lines.append(f"    {_u(x, 'urls_resultados')}")
     return "\n".join(lines)
 
@@ -1332,16 +1338,16 @@ def _log_text(r: dict) -> str:
 def _run(a) -> int:
     if a.cmd == "consulta":
         r = consulta(" ".join(a.texto), a.dominios, a.excluir, a.idioma, a.limite, a.atualizar, a.max_chamadas_dia, a.permitir_dado_pessoal)
-        _emit(r, a.json, _consulta_text(r))
+        _emit(r, a.json, lambda: _consulta_text(r))
     elif a.cmd == "pagina":
         r = pagina(a.url, a.max_bytes, a.atualizar, a.max_chamadas_dia, a.permitir_dado_pessoal)
-        _emit(r, a.json, _pagina_text(r))
+        _emit(r, a.json, lambda: _pagina_text(r))
     elif a.cmd == "status":
         s = status()
-        _emit(s, a.json, _status_text(s))
+        _emit(s, a.json, lambda: _status_text(s))
     else:
         r = log(a.ultimos)
-        _emit(r, a.json, _log_text(r))
+        _emit(r, a.json, lambda: _log_text(r))
     return 0
 
 

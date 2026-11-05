@@ -947,7 +947,8 @@ def test_erro_inesperado_no_mcp_nao_ecoa_a_chave(env):
 
 
 def test_chamada_sem_shell_e_metacaracteres_chegam_como_um_argumento(env, tmp_path):
-    marca = tmp_path / "invadido"
+    env.mp.chdir(tmp_path)  # a marca é relativa: um TMPDIR longo não estoura MAX_CONSULTA_CHARS (300)
+    marca = Path("invadido")
     texto = f"a; touch {marca} && $(touch {marca}) | cat '\"x\"'"
     assert len(texto) < 280
     espiao = []
@@ -959,7 +960,7 @@ def test_chamada_sem_shell_e_metacaracteres_chegam_como_um_argumento(env, tmp_pa
         return real(args, *a, **k)
     env.mp.setattr(subprocess, "Popen", popen)
     env.b.consulta(texto)
-    assert not marca.exists()
+    assert not (tmp_path / "invadido").exists()
     assert env.fake.chamadas("search")[0]["argv"] == ["search", "query", "--", texto]
     assert espiao and all(isinstance(a, list) and not k.get("shell") and k.get("stdin") == subprocess.DEVNULL for a, k in espiao)
     assert all(a[0] == str(env.fake.exe) for a, _ in espiao)
@@ -2079,6 +2080,15 @@ def test_falha_da_trava_no_log_diz_registro_e_nao_ler(env):
     env.patch("_trava", trava_negada)
     with pytest.raises(env.b.BuscaError, match="não consegui usar o registro de procedência"):
         env.b.log()
+
+
+def test_log_nao_aninha_a_trava(env):
+    """F5: _trava() não é reentrante. log() segura a trava na leitura inteira, então o corpo dele não pode pegar a trava de novo
+    (_registrar, _reservar) nem pegá-la duas vezes: isso trava o próprio processo, sem erro."""
+    arvore = ast.parse(inspect.getsource(env.b.log))
+    chamadas = [n.func.id for n in ast.walk(arvore) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+    assert chamadas.count("_trava") == 1
+    assert not {"_registrar", "_reservar"} & set(chamadas), sorted({"_registrar", "_reservar"} & set(chamadas))
 
 
 def test_changelog_registra_as_tools_que_o_plugin_anuncia():

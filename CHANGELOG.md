@@ -14,8 +14,11 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 - **Skills `deep-news`, `deep-service` e `deep-product`** (#141, “vídeo deep”): `deep-news` apura com fonte e data por que um post ou notícia viralizou e disseca por mecanismo (com estudos); `deep-service` e `deep-product` aplicam o mesmo método à venda de serviço e de produto (digital ou físico), só na versão honesta e com copy da coleta. As três terminam num roteiro curto 9:16 que a skill `simplicio-video` transforma em contrato e MP4. Chegam aos hosts pelo `simplicio-video install`.
 - **Template `news-tech`** (#140): skeleton e **padrão de movimento `news-caption`** (proposto): notícia de tecnologia em 90 s sem footage, com legenda palavra a palavra em blocos curtos.
 
+### Mudanças
+- **plugin.json passa a anunciar as 31 tools do MCP** (antes 28): entram `video.rea-video`, `video.matchcut` e `video.qc`.
+
 ### Correções
-- **Busca, revisão da #113 (rodada 2):** `busca log` lê sob a mesma trava da gravação, então um registro que gira no meio da leitura não repete linhas nem falha com "No such file"; um registro interrompido sem a quebra de linha final fica isolado numa linha própria e o próximo não cola nela; a gravação repete até sair a linha inteira; a poda de `cache/` só desconta arquivo que saiu de fato, apaga `.tmp` órfão de mais de 1 h, conta `.tmp` recente no teto de bytes e ignora links simbólicos (o alvo não conta nem é apagado); nomes internos sem ponto saem da lista, que já os recusava pela forma do host.
+- **Busca, revisão da #113 (rodada 2):** `busca log` lê sob a mesma trava da gravação, então um registro que gira no meio da leitura não repete linhas nem falha com "No such file"; um registro interrompido sem a quebra de linha final fica isolado numa linha própria e o próximo não cola nela; a gravação repete até sair a linha inteira; a poda de `cache/` só desconta arquivo que saiu de fato, apaga `.tmp` órfão de mais de 1 h, conta `.tmp` recente no teto de bytes e ignora links simbólicos (o alvo não conta nem é apagado); nomes internos sem ponto saem da lista, que já os recusava pela forma do host; `busca log --json` não depende mais do texto (um registro incompleto não derruba a saída), a contagem de entradas do cache ignora link simbólico e a falha do registro diz "registro de procedência" (não só "ler").
 
 ## 0.6.0 — 2026-10-31
 
