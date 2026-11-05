@@ -18,7 +18,9 @@ a folder cannot be searched (a PATH folder with mode 0000, a `~/.simplicio` of a
 from __future__ import annotations
 
 import os
+import signal
 import stat
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -69,10 +71,49 @@ class SemCasa(RuntimeError):
 
 def home_absoluta() -> Path:
     """The home as an absolute path, or SemCasa. A relative home is never used for the tools or the clones."""
-    casa = home_dir()
+    casa = home_dir(os.environ)  # the environment, as every other reader of the home does: HOME, then USERPROFILE
     if not casa.is_absolute():
         raise SemCasa("não sei onde fica o seu home: defina HOME ou SIMPLICIO_TOOLS_DIR (a pasta das trilhas)")
     return casa
+
+
+def _mata_arvore(proc: "subprocess.Popen") -> None:
+    """Kills `proc` and every process it started. POSIX: the group (the child was started in its own session). Windows: taskkill /T.
+    Never raises: a process that is already gone is not an error."""
+    try:
+        if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):  # the REAL interpreter's system, not the simulated one
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
+        else:
+            os.killpg(proc.pid, signal.SIGKILL)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
+def run_limitado(argv, *, timeout: float, cwd=None, env=None) -> "subprocess.CompletedProcess":
+    """subprocess.run(capture_output, text, stdin=DEVNULL, timeout=) whose timeout kills the WHOLE process tree. subprocess.run kills
+    only the child: `git ls-remote` keeps its `git-remote-https` alive (a proxy that never answers left eight of them running
+    minutes after the CLI had exited). The command runs in its own session (POSIX) or process group (Windows), which is what
+    is killed. Raises subprocess.TimeoutExpired like subprocess.run, and OSError when the program cannot be started."""
+    flags: dict = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP") else {"start_new_session": True}
+    proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", env=env, **flags)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _mata_arvore(proc)
+        try:
+            proc.communicate(timeout=5)  # a descendant that left the group could hold the pipes: do not wait for it
+        except subprocess.TimeoutExpired:
+            pass
+        raise subprocess.TimeoutExpired(list(argv), timeout) from None
+    except BaseException:  # Ctrl-C: the child is in another session and would not get the signal
+        _mata_arvore(proc)
+        raise
+    return subprocess.CompletedProcess(list(argv), proc.returncode, out, err)
 
 
 def say(text: str) -> None:

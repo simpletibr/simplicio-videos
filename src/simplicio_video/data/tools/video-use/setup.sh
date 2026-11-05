@@ -7,6 +7,11 @@
 set -euo pipefail
 VU_REPO=https://github.com/browser-use/video-use
 VU_REF=b877063835e6ea6e457124da7e28a0ae26691dc3   # 2026-09-23; bump deliberately, re-run the video-02 cutdown example
+# without HOME (a container with no passwd entry) the defaults below have no home: say what to set, create nothing
+if [ -z "${HOME:-}" ] && { [ -z "${VIDEO_USE_DIR:-}" ] || [ -z "${SIMPLICIO_TTS_PY:-}" ]; }; then
+  echo "defina HOME (ou VIDEO_USE_DIR e SIMPLICIO_TTS_PY): sem home não sei onde ficam o checkout e o python" >&2
+  exit 1
+fi
 VU_DIR="${VIDEO_USE_DIR:-$HOME/.cache/simplicio/video-use}"
 PY="${SIMPLICIO_TTS_PY:-$HOME/.local/share/simplicio-tts/cbvenv/bin/python}"
 QUIET="${1:-}"

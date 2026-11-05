@@ -98,7 +98,7 @@ def _grava(caminho: Path, arquivos: dict) -> None:
         alvo.write_text(texto, encoding="utf-8")
 
 
-def _falso_git(*args, cwd=None):
+def _falso_git(*args, cwd=None, timeout=None):
     """tools._git without git (the suite is hermetic): `rev-parse HEAD` answers the commit written in <checkout>/.fake-head;
     `--show-toplevel` answers <checkout>/.fake-toplevel (default: the folder itself); `cat-file` fails when the folder has
     .fake-sem-objeto. A folder without .fake-head is not a repository."""
@@ -780,11 +780,12 @@ def test_leitura_da_rede_tem_limite_de_tempo_e_nao_pede_senha(monkeypatch):
         chamadas.append(kw)
         return subprocess.CompletedProcess(argv, 0, "", "")
 
-    monkeypatch.setattr(tools_update.subprocess, "run", falso_run)
+    # the read runs through hostos.run_limitado (stdin is /dev/null there; its timeout kills the whole process tree)
+    monkeypatch.setattr(tools_update.hostos, "run_limitado", falso_run)
     tools_update._run_leitura(["git", "ls-remote", "https://exemplo.invalid/r", "HEAD"])
     kw = chamadas[0]
     assert 0 < kw["timeout"] <= 60
-    assert kw["env"]["GIT_TERMINAL_PROMPT"] == "0" and kw["stdin"] == subprocess.DEVNULL
+    assert kw["env"]["GIT_TERMINAL_PROMPT"] == "0"
 
 
 def test_consulta_da_rede_que_estoura_o_tempo_vira_aviso_e_nao_trava(ambiente, monkeypatch):

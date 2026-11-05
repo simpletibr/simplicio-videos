@@ -218,11 +218,19 @@ def checkout_dir(t: Tool) -> Path:
     return Path(env).expanduser() if env else tools_dir() / t.name
 
 
-def _git(*args: str, cwd: Path | None = None) -> str:
+def _git(*args: str, cwd: Path | None = None, timeout: float | None = None) -> str:
+    """One git command. With `timeout` (seconds) a git that hangs is a ToolError and its whole process tree is killed; without it
+    the command runs as long as it takes (a clone)."""
     git = shutil.which("git")
     if not git:
         raise ToolError("git não encontrado no PATH")
-    r = subprocess.run([git, *args], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    if timeout is None:
+        r = subprocess.run([git, *args], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    else:
+        try:
+            r = hostos.run_limitado([git, *args], cwd=cwd, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise ToolError(f"git {' '.join(args[:2])}: tempo esgotado ({timeout:g} s)") from None
     if r.returncode:
         raise ToolError(f"git {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
     return r.stdout.strip()
@@ -313,7 +321,7 @@ def _install_pip(t: Tool) -> str:
     """A pip tool at the version in use (the lock's, when followed; the registry's otherwise), with its sha256 checked."""
     version, digest, source = effective_pip(t)
     if source == "override" and version != t.ref:
-        raise ToolError(f"{t.name}: o override de versão ({version}) não tem hash neste registro; a versão e o sha256 andam juntos em tools.py")
+        raise ToolError(f"{t.name}: o override de versão (SIMPLICIO_{t.name.upper()}_REF) não tem hash neste registro; a versão e o sha256 andam juntos em tools.py")
     return install_pip_version(t, version, digest)
 
 

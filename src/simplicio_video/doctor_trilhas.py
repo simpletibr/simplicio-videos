@@ -40,8 +40,9 @@ from .status import ENV_FERRAMENTA
 SCHEMA = "simplicio.doctor-trilhas/v1"
 _RANK = {"ok": 0, "warn": 1, "fail": 2}
 _VERSAO = re.compile(r"\d+\.\d+\.\d+")
-_CONTROLE = re.compile(r"[\x00-\x1f\x7f-\x9f  ​-‏‪-‮⁦-⁩﻿]")
+_CONTROLE = re.compile("[\x00-\x1f\x7f-\x9f\u061c\u2028\u2029\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")  # controls, bidi, zero-width, BOM, ALM
 MAX_ARQUIVO_FIXADO = 1024 * 1024  # the pinned files are a few KB; a bigger one is not the pinned one
+LIMITE_LOCAL_S = 5.0  # each local program the doctor runs (git rev-parse, `<exe> --version`): a hung one is a finding, not a wait
 ORCAMENTO_ONLINE_S = 25.0  # the whole --online: every upstream read together. A proxy that never answers costs this, once
 NODE_TINYFISH = (24,)  # the @tiny-fish/cli package declares Node >= 24
 NODE_HYPIT = tools.NODE_MIN  # (22, 15): @hypit/hypit "engines"
@@ -131,8 +132,7 @@ def _node_versao_sonda() -> Optional[tuple]:
     if caminho is None:
         return None
     try:
-        r = subprocess.run([caminho, "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace",
-                           timeout=15, env=_ambiente())
+        r = hostos.run_limitado([caminho, "--version"], timeout=LIMITE_LOCAL_S, env=_ambiente())
     except (OSError, subprocess.SubprocessError):
         return None
     achado = re.match(r"\s*v?(\d+)\.(\d+)\.(\d+)", (r.stdout or "")[:200]) if r.returncode == 0 else None
@@ -173,7 +173,8 @@ def _ref_em_uso(t: tools.Tool) -> tuple[str, str, Optional[str]]:
     if valor:
         if _ref_valida(t, valor):
             return valor, "override", None
-        return t.ref, "override-invalido", f"{nome_var} não é um commit (git) nem uma versão (npm, pip): o pin do registro vale"
+        return t.ref, "override-invalido", (f"{nome_var} não é um commit (git) nem uma versão (npm, pip): `install` e `clone` recusam esse valor "
+                                           "(nenhum comando roda); o doctor compara com o pin do registro")
     ref, fonte = tools.effective(t)
     return ref, fonte, None
 
@@ -209,17 +210,17 @@ def _leitura_do_checkout(pasta: Path) -> tuple[Optional[str], str]:
     """(commit, why): the commit of the checkout at `pasta`, or None and the reason. Git walks up to a parent repository when the
     folder's own .git is not valid, so the top of the repository must be the folder itself, and HEAD must name a commit that exists."""
     try:
-        topo = tools._git("rev-parse", "--show-toplevel", cwd=pasta)
+        topo = tools._git("rev-parse", "--show-toplevel", cwd=pasta, timeout=LIMITE_LOCAL_S)
     except tools.ToolError:
         return None, "o git não lê a pasta como repositório"
     if Path(topo).resolve() != pasta.resolve():
         return None, "o .git dela não é válido: o git lê outro repositório em volta"
     try:
-        tools._git("cat-file", "-e", "HEAD^{commit}", cwd=pasta)
+        tools._git("cat-file", "-e", "HEAD^{commit}", cwd=pasta, timeout=LIMITE_LOCAL_S)
     except tools.ToolError:
         return None, "o HEAD não aponta para um commit que existe no repositório"
     try:
-        return tools._git("rev-parse", "HEAD", cwd=pasta), ""
+        return tools._git("rev-parse", "HEAD", cwd=pasta, timeout=LIMITE_LOCAL_S), ""
     except tools.ToolError:
         return None, "o HEAD não se lê"
 
@@ -361,8 +362,7 @@ def _roda_versao(exe: str) -> tuple[bool, Optional[str]]:
     """(runs, version) of `exe --version`, with the closed environment of `status`. A binary that does not run is a broken install.
     Its output is read in part (4 KB) and cleaned: it is text from a program we did not write."""
     try:
-        r = subprocess.run([exe, "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace",
-                           timeout=15, env=_ambiente())
+        r = hostos.run_limitado([exe, "--version"], timeout=LIMITE_LOCAL_S, env=_ambiente())
     except (OSError, subprocess.SubprocessError):
         return False, None
     if r.returncode != 0:

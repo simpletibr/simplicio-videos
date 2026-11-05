@@ -36,7 +36,7 @@ _NPM_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]{1,40})?")
 _PIP_VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){1,3}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 # what a track failure can raise: the tools errors, the OS (a missing program, a dead network), and bad answers from the network
-FAILURES = (tools.ToolError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
+FAILURES = (tools.ToolError, hostos.SemCasa, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
 
 
 def _offline() -> bool:
@@ -61,8 +61,7 @@ def _run_leitura(argv, cwd=None):
     env = dict(os.environ)
     env["GIT_TERMINAL_PROMPT"] = "0"
     try:
-        return subprocess.run([str(a) for a in argv], cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, capture_output=True,
-                              text=True, encoding="utf-8", errors="replace", timeout=READ_TIMEOUT_S, env=env)
+        return hostos.run_limitado(argv, cwd=cwd, env=env, timeout=READ_TIMEOUT_S)  # a timeout kills git AND its git-remote-https
     except OSError as exc:
         return subprocess.CompletedProcess(list(argv), 127, "", str(exc))
 
@@ -176,10 +175,10 @@ def pin_target(t: tools.Tool) -> dict:
 def checkout_for(t: tools.Tool) -> Path:
     """Where a git track lives. video-use's checkout is kept by data/tools/video-use/setup.sh (VIDEO_USE_DIR, else ~/.cache), not the
     tools cache: the update moves that one, and the registry marker tells it apart. VIDEO_USE_DIR is taken as it is, as bash takes it
-    in setup.sh (no ~ expansion inside a variable's value); the default is ~/.cache/simplicio/video-use under hostos.home_dir (HOME
-    first), the same home the lock uses."""
+    in setup.sh (no ~ expansion inside a variable's value); the default is ~/.cache/simplicio/video-use under hostos.home_absoluta (HOME
+    first), the same home the lock uses; with no usable home it raises hostos.SemCasa (a relative `~` would make a folder in the cwd)."""
     if t.name == "video-use":
-        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_dir(os.environ) / ".cache" / "simplicio" / "video-use")
+        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_absoluta() / ".cache" / "simplicio" / "video-use")
     return tools.checkout_dir(t)
 
 
@@ -300,7 +299,7 @@ def apply_all(doc: dict, mode: str, io: Io, lock_file: Optional[Path] = None) ->
             lines.append(f"  {t.name:<13} em dia: {entry['ref']}")
     try:
         tools_lock.write_lock({"schema": tools_lock.SCHEMA, "updated_at": now, "tools": tracks}, lock_file)
-    except (OSError, tools_lock.LockInvalid) as exc:
+    except (OSError, hostos.SemCasa, tools_lock.LockInvalid) as exc:
         lines.append(f"  o lock não foi gravado ({exc}); a saída acima é o que aconteceu")
     return lines, failed
 
