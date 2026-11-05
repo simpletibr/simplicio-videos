@@ -576,6 +576,7 @@ class _Leitor:
 
 
 def test_toonflow_pass_so_com_o_serve_vivo_quando_responde(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(e2e, "JANELA_VIVO_S", 0)
     monkeypatch.setattr(e2e, "_porta_ocupada", lambda porta: False)
     monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: 200)
     monkeypatch.setattr(e2e, "_iniciar_servidor", lambda argv, **kw: (_Vivo(), _Leitor()))
@@ -676,3 +677,164 @@ def test_chave_do_config_do_moneyprinter_entra_na_redacao(tmp_path):
     segredos = e2e._segredos(sondas, amb)
     assert "chave-config-mp-0123" in segredos
     assert "" not in segredos
+
+
+# ----------------------------------------------------------------------- terceira revisão: vazamento, listas,
+# redator, limites de saída, janela do Toonflow, --pasta em arquivo e validação antes da máquina
+
+NOMES_SEGREDO_EXTRA = ["VOICESTUDIO_API_KEY", "XAI_API_KEY", "ELEVENLABS_API_KEY", "GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY",
+                       "OMNIVOICE_API_KEY", "ACME_PASSWORD_X"]
+
+
+def test_segredos_inclui_toda_variavel_com_key_token_secret_ou_password_e_so_essas():
+    ambiente = {n: f"valor-{i}-{n.lower()}" for i, n in enumerate(NOMES_SEGREDO_EXTRA)}
+    ambiente["ORDINARIA_SEM_SEGREDO"] = "nao-mexer-1234"
+    sondas = SondasFalsas(chaves=ambiente)
+    amb = e2e.detectar(sondas, sondar=False)
+    segredos = e2e._segredos(sondas, amb)
+    assert set(ambiente[n] for n in NOMES_SEGREDO_EXTRA) <= set(segredos)
+    assert "nao-mexer-1234" not in segredos
+
+
+@pytest.mark.parametrize("nome", NOMES_SEGREDO_EXTRA)
+def test_filho_que_ecoa_cada_variavel_secreta_nao_vaza_no_log(tmp_path, nome):
+    valor = f"valor-secreto-{nome.lower()}-0123"
+    ambiente = dict(os.environ)
+    ambiente[nome] = valor
+    sondas = SondasFalsas(chaves={nome: valor})
+    amb = e2e.detectar(sondas, sondar=False)
+    segredos = e2e._segredos(sondas, amb)
+    log = tmp_path / f"{nome}.log"
+    filho = [sys.executable, "-c", f"import os; print('eco', os.environ[{nome!r}], 'fim', flush=True)"]
+    proc, leitor = e2e._iniciar_servidor(filho, env=ambiente, log=log, segredos=segredos)
+    assert proc.wait(timeout=60) == 0
+    leitor.join(timeout=60)
+    texto = log.read_text(encoding="utf-8")
+    assert valor not in texto and "eco" in texto and "***" in texto
+
+
+def test_listas_do_config_do_moneyprinter_entram_na_redacao(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('[app]\npexels_api_keys = ["lista-um-0001", "lista-dois-0002"]\n', encoding="utf-8")
+    sondas = SondasFalsas(config_mp=cfg)
+    amb = e2e.detectar(sondas, sondar=False)
+    assert {"lista-um-0001", "lista-dois-0002"} <= set(e2e._segredos(sondas, amb))
+
+
+def test_listas_do_config_pelo_caminho_por_linha():
+    texto = 'pexels_api_keys = ["lista-a-0001", "lista-b-0002"]\nname = "nao-secreto"\n'
+    achados = e2e._valores_por_regex(texto)
+    assert {"lista-a-0001", "lista-b-0002"} <= achados
+    assert "nao-secreto" not in achados
+
+
+def test_redator_nao_deixa_sair_um_segredo_que_cruza_o_corte():
+    r = e2e.Redator(["ABCD", "CDX"])
+    assert r.alimentar("ABCD") + r.finalizar() == "***"
+
+
+def test_redator_3mb_de_abab_termina_rapido_e_retem_no_maximo_3_bytes():
+    import time
+    r = e2e.Redator(["abab"])
+    texto = "ab" * (3 * 1024 * 1024 // 2) + "a"  # 3 MB, termina num começo de segredo
+    inicio = time.perf_counter()
+    saida = r.alimentar(texto)
+    decorrido = time.perf_counter() - inicio
+    assert decorrido < 2.0, f"{decorrido:.2f} s"
+    assert len(r.resto) <= 3, len(r.resto)
+    saida += r.finalizar()
+    assert "abab" not in saida and saida.count("***") > 0
+
+
+def test_redator_equivale_a_redigir_o_texto_inteiro_quando_nao_ha_sobreposicao():
+    import random
+    rnd = random.Random(20260505)
+    segredos = ["chave-a-01", "zz9-segredo"]  # nenhum começa com pedaço do outro: não há sobreposição entre eles
+    alfabeto = "chave-a-01zz9segredo xyz\n"
+    for _ in range(300):
+        texto = "".join(rnd.choice(alfabeto) for _ in range(rnd.randint(0, 200)))
+        for _ in range(rnd.randint(0, 3)):
+            pos = rnd.randint(0, len(texto))
+            texto = texto[:pos] + rnd.choice(segredos) + texto[pos:]
+        cortes = sorted(rnd.sample(range(len(texto) + 1), min(len(texto) + 1, rnd.randint(0, 10))))
+        pedacos = [texto[a:b] for a, b in zip([0] + cortes, cortes + [len(texto)])]
+        r = e2e.Redator(segredos)
+        saida = "".join(r.alimentar(p) for p in pedacos) + r.finalizar()
+        assert saida == e2e.redigir(texto, segredos)
+
+
+def test_redator_nunca_deixa_um_segredo_inteiro_sair_mesmo_com_sobreposicao():
+    import random
+    rnd = random.Random(7)
+    segredos = ["aba", "bab", "ab"]
+    for _ in range(400):
+        texto = "".join(rnd.choice("abx") for _ in range(rnd.randint(0, 120)))
+        cortes = sorted(rnd.sample(range(len(texto) + 1), min(len(texto) + 1, rnd.randint(0, 8))))
+        pedacos = [texto[a:b] for a, b in zip([0] + cortes, cortes + [len(texto)])]
+        r = e2e.Redator(segredos)
+        saida = "".join(r.alimentar(p) for p in pedacos) + r.finalizar()
+        assert not any(s in saida for s in segredos), (texto, pedacos, saida)
+
+
+def test_saida_de_processo_e_limitada_a_uma_cauda():
+    argv = [sys.executable, "-c", "import sys; sys.stdout.write('x' * (3 * 1024 * 1024)); sys.stdout.write('FIM'); "
+                                  "sys.stderr.write('e' * 10)"]
+    saida = e2e._rodar(argv, env=dict(os.environ), cwd=Path(e2e.REPO), timeout=120)
+    assert saida.rc == 0
+    assert len(saida.out) <= e2e.TETO_CAUDA + 500
+    assert saida.out.endswith("FIM")
+
+
+def test_log_do_servidor_guarda_so_a_cauda_redigida(tmp_path):
+    log = tmp_path / "serve.log"
+    filho = [sys.executable, "-c", "import sys; sys.stdout.write('y' * (3 * 1024 * 1024) + '\\nfim\\n'); sys.stdout.flush()"]
+    proc, leitor = e2e._iniciar_servidor(filho, env=dict(os.environ), log=log, segredos=[])
+    proc.wait(timeout=120)
+    leitor.join(timeout=120)
+    texto = log.read_text(encoding="utf-8")
+    assert len(texto) <= e2e.TETO_CAUDA + 500
+    assert texto.rstrip().endswith("fim")
+
+
+def _toonflow_com_processo_real(monkeypatch, codigo_filho, janela):
+    real = e2e._iniciar_servidor
+    monkeypatch.setattr(e2e, "_porta_ocupada", lambda porta: False)
+    monkeypatch.setattr(e2e, "esperar_http", lambda *a, **k: 200)
+    monkeypatch.setattr(e2e, "JANELA_VIVO_S", janela)
+    monkeypatch.setattr(e2e, "_iniciar_servidor",
+                        lambda argv, **kw: real([sys.executable, "-c", codigo_filho], **kw))
+
+
+def test_toonflow_que_morre_dentro_da_janela_da_fail(tmp_path, capsys, monkeypatch):
+    _toonflow_com_processo_real(monkeypatch, "import time; time.sleep(0.5)", janela=2.0)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    item = _item(json.loads(out), "toonflow")
+    assert item["estado"] == "FAIL", item
+
+
+def test_toonflow_que_sobrevive_a_janela_da_pass(tmp_path, capsys, monkeypatch):
+    _toonflow_com_processo_real(monkeypatch, "import time; time.sleep(60)", janela=0.5)
+    _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--json", "--apenas", "toonflow"],
+                      sondas=SondasFalsas(toonflow=True), gravador=Gravador())
+    assert _item(json.loads(out), "toonflow")["estado"] == "PASS"
+
+
+@pytest.mark.parametrize("flags", [[], ["--sim-gastar"]], ids=["plano", "execucao"])
+def test_pasta_dentro_de_arquivo_da_rc_2_sem_traceback(tmp_path, flags):
+    arquivo = tmp_path / "arquivo.txt"
+    arquivo.write_text("x", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        e2e.main([*flags, "--pasta", str(arquivo / "sub")], sondas=SondasFalsas(), runner=Gravador())
+    assert exc.value.code == 2
+
+
+def test_swap_provider_e_fonte_paga_invalidos_da_rc_2_antes_de_detectar(monkeypatch):
+    def detectar_proibido(*args, **kwargs):
+        raise AssertionError("detectar chamado antes da validação dos argumentos")
+
+    monkeypatch.setattr(e2e, "detectar", detectar_proibido)
+    for argv in (["--swap-provider", "nao-existe"], ["--moneyprinter-fonte", "pexels"]):
+        with pytest.raises(SystemExit) as exc:
+            e2e.main(argv, sondas=SondasFalsas(), runner=Gravador())
+        assert exc.value.code == 2, argv
