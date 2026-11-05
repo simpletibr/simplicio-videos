@@ -18,7 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import hostos, tools
+from . import childio, hostos, tools
 
 TOONFLOW_REPO = tools.get("toonflow").source
 # Fixed in the Toonflow server (apps/server/src/index.ts). The server listens on every interface with no login,
@@ -147,15 +147,16 @@ def _parar(proc: subprocess.Popen) -> None:
 
 def _run_server(bun: str, d: Path, data: Path) -> int:
     """`bun build/server/index.js`, the command upstream's Dockerfile runs: one process, in its own group."""
-    proc = subprocess.Popen([bun, "build/server/index.js"], cwd=d,
-                            env={**os.environ, "TOONFLOW_DATA_DIR": str(data)}, start_new_session=True)
+    proc = None
     try:
-        return proc.wait()
-    except KeyboardInterrupt:  # Ctrl+C or a stop signal is how the user stops the server: not an error
-        _parar(proc)
+        # a stop signal that lands while Popen starts the server is held until it exists, then the server is stopped like on Ctrl+C
+        with childio.guarded_child([bun, "build/server/index.js"], stop=childio.stop_as_interrupt, kill=_parar, cwd=d,
+                                   env={**os.environ, "TOONFLOW_DATA_DIR": str(data)}, start_new_session=True) as proc:
+            return proc.wait()
+    except KeyboardInterrupt:  # Ctrl+C or a stop signal is how the user stops the server (already stopped by the guard): not an error
         return 0
     finally:
-        if proc.poll() is None:  # the wait was cut short by something else: never leave the server running
+        if proc is not None and proc.poll() is None:  # the wait was cut short by something else: never leave the server running
             _parar(proc)
 
 

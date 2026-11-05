@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 import pytest
+from _orfao import SINAIS, espera, espera_pid, mata_o_que_sobrou, roda_motor, vivo
 
 from simplicio_video import cli, mcp_server, rea_video, tools
 
@@ -513,6 +515,30 @@ def test_mcp_exec_uses_stdin_devnull_and_the_private_cwd(tmp_path):
     code = "import os,sys;print(os.getcwd(), repr(sys.stdin.read()), os.environ.get('A'))"
     rc, out = rea_video._mcp_exec([sys.executable, "-c", code], tmp_path, {"A": "1"})
     assert rc == 0 and out.split() == [str(tmp_path), "''", "1"]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.parametrize("quando", ["popen", "espera"])
+@pytest.mark.parametrize("nome", SINAIS)
+def test_a_stop_signal_does_not_orphan_the_upstream_nor_leave_the_private_folder(tmp_path, nome, quando):
+    """No SIGTERM/SIGHUP handler existed (the default action ends the engine on the spot: the upstream, in its own session, and the
+    `rea-video-cwd-*` folder stay) and the kill was armed only after Popen returned (a signal in that gap left an orphan)."""
+    pidfile = tmp_path / "pid"
+    exe = tmp_path / "rea-video"
+    exe.write_text(f"#!/bin/sh\necho $$ > {pidfile}\nexec sleep 120\n")
+    exe.chmod(0o755)
+    tmpd = tmp_path / "tmpd"
+    corpo = ("from pathlib import Path\nfrom simplicio_video import rea_video\n"
+             f"rea_video._rea_video_exe = lambda: Path({str(exe)!r})\n"
+             "rea_video.mcp_command = lambda args: ['summary', '/x']\n"
+             "sys.exit(rea_video.mcp_run(['summary', '/x'])[0])\n")
+    try:
+        res = roda_motor(tmp_path, corpo, pidfile, nome, quando, so_se=str(exe), tmpd=tmpd)
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 8), f"the upstream outlived the engine (rc {res.returncode})\n{res.stderr[-400:]}"
+        assert not list(tmpd.glob("rea-video-cwd-*")), "the private folder was left behind"
+        assert res.returncode in (128 + getattr(signal, nome), -getattr(signal, nome), 1), res.returncode
+    finally:
+        mata_o_que_sobrou(pidfile)
 
 
 @pytest.mark.slow
