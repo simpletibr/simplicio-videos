@@ -21,7 +21,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import hostos, tools
+from . import childio, hostos, tools
 from .toonflow import _offline
 
 REA_VIDEO_REPO = tools.get("rea_video").source
@@ -517,23 +517,27 @@ def _mcp_env() -> dict[str, str]:
 def _mcp_exec(argv: list[str], cwd, env: dict[str, str]) -> tuple[int, str]:
     """Run the upstream to completion with no stdin, in `cwd`, capturing what it prints. The one place the MCP path starts
     it. It leads its own process group, so a timeout kills the upstream and everything it started."""
-    try:
-        proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                errors="replace", cwd=cwd, env=env, start_new_session=(os.name != "nt"))
-    except OSError as e:
-        raise ReaVideoError(f"não consegui rodar {argv[0]}: {e}") from None
     timed_out = False
-    try:
-        so, se = proc.communicate(timeout=MCP_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        with contextlib.suppress(OSError):
-            os.killpg(proc.pid, 9) if os.name != "nt" else proc.kill()
-        so, se = proc.communicate()
-    finally:
-        if proc.poll() is None:
+    # SIGTERM, SIGHUP and Ctrl+C (also the one that lands while Popen starts the child) kill the upstream's group on the way out
+    # and end the engine the usual way, so mcp_run removes its private folder (childio.guarded_child)
+    with contextlib.ExitStack() as guard:
+        try:
+            proc = guard.enter_context(childio.guarded_child(
+                argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace",
+                cwd=cwd, env=env, start_new_session=(os.name != "nt")))
+        except OSError as e:
+            raise ReaVideoError(f"não consegui rodar {argv[0]}: {e}") from None
+        try:
+            so, se = proc.communicate(timeout=MCP_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            timed_out = True
             with contextlib.suppress(OSError):
                 os.killpg(proc.pid, 9) if os.name != "nt" else proc.kill()
+            so, se = proc.communicate()
+        finally:
+            if proc.poll() is None:
+                with contextlib.suppress(OSError):
+                    os.killpg(proc.pid, 9) if os.name != "nt" else proc.kill()
     text = "\n".join(x.strip() for x in (so, se) if x and x.strip())
     if timed_out:
         return 124, f"{text}\nrea-video passou de {MCP_TIMEOUT} s e foi encerrado".strip()

@@ -118,6 +118,7 @@ ALLOW = {
 SPAWNERS = {  # module -> functions that start a child (run/call/Popen style: judged by their keywords)
     "subprocess": {"call", "run", "Popen", "check_call", "check_output"},
     "asyncio": {"create_subprocess_exec", "create_subprocess_shell"},
+    "childio": {"guarded_child", "start_child"},  # the guarded Popen: same stdin/capture rule as Popen itself
 }
 ALWAYS_BAD = {  # no way to pass stdin/capture, or they replace the process / fork it
     "subprocess": {"getoutput", "getstatusoutput"},
@@ -152,7 +153,9 @@ def _bare_calls_src(src: str, rel: str = "<src>"):
     def visit(node, fn, called=False):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             fn = node.name
-        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module in TRACKED:
+        if isinstance(node, ast.ImportFrom) and (
+                (node.level == 0 and node.module in TRACKED)
+                or (node.level > 0 and node.module == "childio" and any(a.name in SPAWNERS["childio"] for a in node.names))):
             found.append((rel, fn, node.lineno))  # `from subprocess import run [as r]` would hide the call from this lint
         if isinstance(node, ast.Call):
             f = node.func

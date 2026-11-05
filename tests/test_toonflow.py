@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from _orfao import SINAIS, espera, espera_pid, mata_o_que_sobrou, sinaliza_no_popen, sinais_padrao, vivo  # noqa: F401
 
 from simplicio_video import cli, mcp_server, tools, toonflow
 
@@ -264,6 +265,29 @@ def test_serve_sighup_para_o_servidor_como_ctrl_c_e_restaura_depois(checkout, bu
     with pytest.raises(KeyboardInterrupt):
         handler(signal.SIGHUP, None)
     assert signal.getsignal(signal.SIGHUP) is before
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.usefixtures("sinais_padrao")
+@pytest.mark.parametrize("nome", SINAIS)
+def test_a_stop_signal_inside_popen_does_not_leave_the_server_running(checkout, calls, monkeypatch, tmp_path, nome):
+    """The handler (KeyboardInterrupt) ran inside Popen, before `proc` existed and outside the try: the server was never stopped
+    and kept listening on 0.0.0.0:3000 with nobody to stop it. Now it is stopped like Ctrl+C: `serve` ends with 0."""
+    pidfile = tmp_path / "pid"
+    fake_bun = tmp_path / "bun"
+    fake_bun.write_text(f"#!/bin/sh\necho $$ > {pidfile}\nexec sleep 120\n")
+    fake_bun.chmod(0o755)
+    monkeypatch.setattr("shutil.which", lambda cmd: str(fake_bun) if cmd == "bun" else None)
+    sinaliza_no_popen(monkeypatch, pidfile, getattr(signal, nome), so_se=str(fake_bun))
+    try:
+        try:
+            rc = toonflow.run_toonflow(["serve", "--lan"])
+        except KeyboardInterrupt:
+            rc = "KeyboardInterrupt escaped"
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 8), "the server outlived the engine"
+        assert rc == 0, rc
+    finally:
+        mata_o_que_sobrou(pidfile)
 
 
 @pytest.mark.skipif(not Path("/proc").is_dir(), reason="o teste lê /proc (Linux)")

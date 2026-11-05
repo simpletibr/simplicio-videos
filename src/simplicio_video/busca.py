@@ -50,7 +50,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import hostos, tools
+from . import childio, hostos, tools
 from .busca_ajuda import HELP_DESC, HELP_EPILOG, TETO_PADRAO
 
 __all__ = ["BuscaError", "consulta", "pagina", "status", "log", "status_summary", "run_busca", "scrub", "UNTRUSTED_NOTICE"]
@@ -622,29 +622,29 @@ def _matar(proc: subprocess.Popen) -> None:
 def _rodar(exe: str, args: list[str], timeout: float, max_saida: int) -> tuple[int, bytes, bytes]:
     """Run the binary by argument list, no shell, no stdin, closed environment, output to temporary files so the size can be
     watched while it runs: past `max_saida` or `timeout` the whole process group is killed and the call fails."""
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, contextlib.ExitStack() as guard:
         try:
-            proc = subprocess.Popen([exe, *args], stdin=subprocess.DEVNULL, stdout=out, stderr=err, env=_ambiente_filho(), start_new_session=True)
+            # Ctrl+C, SIGTERM, SIGHUP: the child lives in its own session and would keep running (and being billed) after the engine
+            # is gone, so it is killed on the way out of the block, and a signal that lands while Popen starts it is held until the
+            # child exists (childio.guarded_child)
+            proc = guard.enter_context(childio.guarded_child([exe, *args], stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                                                             env=_ambiente_filho(), start_new_session=True))
         except OSError as e:
             raise BuscaError(f"não consegui executar o tinyfish: {e.strerror or type(e).__name__}") from None
         limite_tempo = time.monotonic() + timeout
         motivo = None
-        try:
-            while True:
-                try:
-                    proc.wait(timeout=POLL_S)
-                    break
-                except subprocess.TimeoutExpired:
-                    pass
-                if os.fstat(out.fileno()).st_size > max_saida or os.fstat(err.fileno()).st_size > MAX_STDERR_BYTES:
-                    motivo = "tamanho"
-                    break
-                if time.monotonic() >= limite_tempo:
-                    motivo = "tempo"
-                    break
-        except BaseException:  # Ctrl+C: the child lives in its own session and would keep running (and being billed) after the engine is gone
-            _matar(proc)
-            raise
+        while True:
+            try:
+                proc.wait(timeout=POLL_S)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if os.fstat(out.fileno()).st_size > max_saida or os.fstat(err.fileno()).st_size > MAX_STDERR_BYTES:
+                motivo = "tamanho"
+                break
+            if time.monotonic() >= limite_tempo:
+                motivo = "tempo"
+                break
         if motivo:
             _matar(proc)
         if motivo == "tempo":
