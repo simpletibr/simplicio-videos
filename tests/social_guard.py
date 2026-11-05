@@ -58,7 +58,7 @@ def violacoes_de_codigo(src: str) -> list[str]:
                 out.append(f"atributo {n.attr}")
             if isinstance(n.value, ast.Name) and n.value.id == "os" and n.attr.startswith(PREFIXOS_OS_PROIBIDOS):
                 out.append(f"os.{n.attr}")
-            if isinstance(n.value, ast.Name) and n.value.id == "subprocess" and n.attr != "run":
+            if isinstance(n.value, ast.Name) and n.value.id == "subprocess" and n.attr not in ("run", "DEVNULL"):  # DEVNULL: ffprobe never reads the MCP stdin (childio)
                 out.append(f"subprocess.{n.attr}")
         elif isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value in TEXTOS_PROIBIDOS:
             out.append(f"texto {n.value!r} (getattr/importação por nome)")

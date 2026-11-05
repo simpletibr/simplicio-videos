@@ -51,7 +51,7 @@ DESCRIPTIONS = {
     "MONEYPRINTER_DIR": "Checkout do MoneyPrinterTurbo (alternativa a `SIMPLICIO_TOOLS_DIR/moneyprinter`).",
     "INSTAGRAM_DIR": "Checkout do instagram-agent-skill (alternativa a `SIMPLICIO_TOOLS_DIR/instagram`). O `instagram run` avisa quando ele está em uso e confere o sha256 de cada script do mesmo jeito.",
     "MATCHCUT_DIR": "Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`).",
-    "VIDEO_USE_DIR": "Checkout do video-use (trilha `edit`), mantido por tools/video-use/setup.sh; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`).",
+    "VIDEO_USE_DIR": "Checkout do video-use (trilha `edit`), mantido pelo setup.sh em data/tools/video-use; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`).",
     "REA_VIDEO_DATA_DIR": "Pasta de dados da trilha rea-video: o venv próprio e o estado do upstream (padrão: `~/.simplicio-video/rea-video-data`, fora do checkout).",
     "REA_VIDEO_DIR": "Checkout do rea-video (alternativa a `SIMPLICIO_TOOLS_DIR/rea_video`).",
     "REA_VIDEO_HOME": "Memória e preferências do rea-video. A trilha aponta para a pasta de dados dela (`.../rea-video-data/home`) só se a variável não estiver definida.",
@@ -61,6 +61,8 @@ DESCRIPTIONS = {
     "OPENVERSE_CLIENT_ID": "Credencial OAuth2 opcional da API do Openverse (par com `OPENVERSE_CLIENT_SECRET`; sobe o limite de requisições e o tamanho da página). Só no ambiente; nunca em argumento, índice, cache ou saída.",
     "OPENVERSE_CLIENT_SECRET": "Segredo OAuth2 opcional da API do Openverse (par com `OPENVERSE_CLIENT_ID`). Só no ambiente; nunca em argumento, índice, cache ou saída.",
     "OPENVERSE_LIBRARY_DIR": "Pasta da biblioteca do Openverse: `index.json`, `files/<sha256>`, `cache/` e `sheets/` (padrão: `~/.simplicio-video/openverse-library`).",
+    "BACKLOT_PORT": "Porta do board (Backlot) do OpenMontage; o `montage open` e o `montage serve` a repassam ao upstream.",
+    "OPENMONTAGE_DATA_DIR": "Pasta do venv do OpenMontage (padrão: `~/.simplicio-video/openmontage-data`); um caminho relativo vira absoluto a partir da pasta atual, com aviso.",
     "OPENMONTAGE_DIR": "Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage.",
     "OPENVOICE_CHECKPOINTS": "Pasta dos checkpoints do OpenVoice (provider `openvoice`).",
     "OPENVOICE_PY": "Python com o OpenVoice instalado (provider `openvoice`).",
@@ -118,6 +120,33 @@ def _subcommands(parser) -> list[str]:
     return sorted(action.choices)
 
 
+# O argparse do 3.12 mede a coluna de ajuda dos subcomandos com o recuo do pai; o do 3.13 (e a referência commitada) mede cada
+# um com o seu, e imprime `-t, --template X` uma vez só (3.13) em vez de repetir o metavar por opção (3.12). O filho roda por este invólucro, que impõe a regra do 3.13 em qualquer Python, para o cli.md não depender da versão.
+_CHILD = """
+import argparse, runpy, sys
+def add_argument(self, action):
+    if action.help is not argparse.SUPPRESS:
+        get = self._format_action_invocation
+        lengths = [len(get(action)) + self._current_indent]
+        for sub in self._iter_indented_subactions(action):
+            lengths.append(len(get(sub)) + self._current_indent)
+        self._action_max_length = max(self._action_max_length, max(lengths))
+        self._add_item(self._format_action, [action])
+def invocation(self, action):
+    if not action.option_strings:
+        default = self._get_default_metavar_for_positional(action)
+        return " ".join(self._metavar_formatter(action, default)(1))
+    if action.nargs == 0:
+        return ", ".join(action.option_strings)
+    default = self._get_default_metavar_for_optional(action)
+    return ", ".join(action.option_strings) + " " + self._format_args(action, default)
+argparse.HelpFormatter.add_argument = add_argument
+argparse.HelpFormatter._format_action_invocation = invocation
+sys.argv[0] = "simplicio_video"
+runpy.run_module("simplicio_video", run_name="__main__", alter_sys=True)
+"""
+
+
 def _help(args: list[str]) -> str:
     env = {
         "PATH": os.environ.get("PATH", ""),
@@ -127,8 +156,9 @@ def _help(args: list[str]) -> str:
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONIOENCODING": "utf-8",
     }
+    flag = "--engine-help" if args == ["clone"] else "--help"  # `clone --help` is Hypit's own help (npx), not the engine's
     result = subprocess.run(
-        [sys.executable, "-m", "simplicio_video", *args, "--help"],
+        [sys.executable, "-c", _CHILD, *args, flag],
         capture_output=True,
         text=True,
         cwd=str(ROOT),

@@ -26,7 +26,7 @@ Qualquer tarefa de áudio ou vídeo (legendar, traduzir texto da tela, dublar, t
 | Edição por EDL, transcrição local (faster-whisper) | `simplicio-video edit setup\|transcribe\|pack\|render\|verify` | [`skills/simplicio-video-edit`](skills/simplicio-video-edit/SKILL.md) |
 | Contrato YAML → MP4 (render HyperFrames) | `simplicio-video init\|validate\|voice\|render\|run` | [`skills/simplicio-video`](skills/simplicio-video/SKILL.md) |
 | Redes sociais (plano, sem postar) | `simplicio-video social` | [`skills/simplicio-video-social`](skills/simplicio-video-social/SKILL.md) |
-| Análise de vídeo de referência (real, IA, 3D ou código, com relatório e plano de remake): trilha `rea-video` | `simplicio-video rea-video clone\|setup\|where\|status` e os comandos do upstream (`decompose`, `review`, `apply-review`, `summary`, `remake-plan`) | [rea-video, skill do upstream no commit fixado](https://github.com/JuneYaooo/rea-video/blob/36e02ddf1ffc287bd760d816c132027598f2e4c0/skills/rea-video/SKILL.md) |
+| Análise de vídeo de referência (real, IA, 3D ou código, com relatório e plano de remake): trilha `rea-video` | `simplicio-video rea-video clone\|setup\|where\|status` e os comandos do upstream (`decompose`, `review`, `apply-review`, `summary`, `remake-plan`); pelo MCP: `summary`, `probe`, `review`, `apply-review`, `remake-plan` (estes dois gravam na pasta de análise) e `tiles` (arquivo novo), mais `decompose` e `stems` como tarefa (`video.jobs`), sem `--vlm`; saídas só em caminho novo e absoluto | [rea-video, skill do upstream no commit fixado](https://github.com/JuneYaooo/rea-video/blob/36e02ddf1ffc287bd760d816c132027598f2e4c0/skills/rea-video/SKILL.md) |
 
 ### Receita: vídeo de um creator em outro idioma (legenda, texto na tela e voz)
 
@@ -75,14 +75,14 @@ simplicio-video clone [args]                            # Hypit AI: clonagem de 
 simplicio-video montage [clone|open|serve|demo|args]   # OpenMontage: produção de vídeo com agentes (https://github.com/calesthio/OpenMontage)
 simplicio-video mcp                                 # servidor MCP stdio (pip install -e .[mcp])
 simplicio-video list templates|motion|voices
-simplicio-video edit setup|transcribe|pack|render|verify   # edição por EDL com video-use (tools/video-use)
+simplicio-video edit setup|transcribe|pack|render|verify   # edição por EDL com video-use (src/simplicio_video/data/tools/video-use)
 simplicio-video opencut clone|dev|where            # editor OpenCut para acabamento manual
 simplicio-video swap providers|estimate|run|status # troca o personagem de um vídeo por um avatar (agnóstico de fornecedor); run exige --autorizo, gasta só com --yes e abaixo de --max-usd
-simplicio-video jobs submit|status|list|cancel|result|clean   # tarefas em segundo plano (swap-run, voice) num processo separado, sem daemon nem porta; swap-run só pelo terminal com --yes; MCP só submete voz local
+simplicio-video jobs submit|status|list|cancel|result|clean   # tarefas em segundo plano (swap-run, voice, rea-video) num processo separado, sem daemon nem porta; swap-run só pelo terminal com --yes; MCP submete voz local e rea-video (decompose sem --vlm, stems)
 simplicio-video social providers|plan|check|recipe  # redes sociais SEM postar: provedores (realoficial padrão, zernio), plano com limites por rede e receita de chamadas MCP; o motor não posta
 simplicio-video openverse search|get|library list|show|review|export|credits|verify   # imagens e áudio do Openverse revisados POR PEDIDO: search cacheada, get seguro, folha de revisão, veredito por par (ativo, pedido), export só do aprovado + créditos, verify confere sem rede os ativos declarados num contrato (bloco openverse: {id, pedido}); a licença vem das fontes, não é parecer jurídico
 simplicio-video busca consulta|pagina|status|log    # pesquisa e leitura de páginas na internet pelo CLI `tinyfish` (TinyFish): fonte e data por resultado (`busca.registro.jsonl`), teto de chamadas por dia, cache; a consulta é enviada a um terceiro (sem dado pessoal nem segredo); sem agent, browser nem monitor
-simplicio-video toonflow clone|serve|where         # Toonflow (MIT): estúdio de séries e vídeos com IA; serve exige --lan (escuta em 0.0.0.0:3000 sem login)
+simplicio-video toonflow clone|serve|where|status|mcp   # Toonflow (MIT): estúdio de séries e vídeos com IA; serve exige --lan (escuta em 0.0.0.0:3000 sem login) ou --docker (127.0.0.1:3000, não combina com mcp); status e mcp (bloco stdio, nunca o token) também pelo MCP
 simplicio-video moneyprinter clone|setup|serve|where|status   # MoneyPrinterTurbo (MIT): tema vira vídeo curto; trilha externa de apoio, como toonflow e opencut; serve só em 127.0.0.1, --lan abre para a rede
 simplicio-video instagram clone|where|status|skills|run FERRAMENTA [--forcar] [-- args]   # instagram-agent-skill (MIT, Jake Schincariol): 13 skills de agente e 6 scripts locais (hookscore, beats, caption, humanize, detect, swipe), conferidos por sha256 antes de rodar; heurísticas em inglês; o comando não posta
 simplicio-video status [--json] [contrato]         # ferramentas instaladas, versões fixadas e estado do render
@@ -171,10 +171,10 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 - Padrão novo: `motion/patterns/<id>/pattern.json` + `block.html` → `bash motion/scripts/preview.sh <id>` (lint + preview) → `node motion/scripts/catalog.mjs` (regenera catálogo e tabela do README). Só vira `pronto` com lint limpo e preview.
 - Inspiração externa: descreva e **reimplemente** com link da fonte; nunca copie código com licença restrita.
 
-**Edição com video-use (etapa 6, OPCIONAL)** ([tools/video-use/README.md](tools/video-use/README.md) · avaliação em [docs/video-use-integracao.md](docs/video-use-integracao.md))
+**Edição com video-use (etapa 6, OPCIONAL)** ([src/simplicio_video/data/tools/video-use/README.md](src/simplicio_video/data/tools/video-use/README.md) · avaliação em [docs/video-use-integracao.md](docs/video-use-integracao.md))
 - Só quando o usuário pede ajuda de edição (cortar para X s, reordenar, aparar footage, legendas, revisar cortes) ou há footage real. Vídeo novo/motion = HyperFrames direto (o LLM/template compõe).
-- Setup: `bash tools/video-use/setup.sh` (commit fixado, fora do repo). Exemplo completo: `clients/wjr-informatica-games/video-02-videouse/` (`run.sh`, `edit/edl.json`, `edit/project.md`).
-- Transcrição sem chave: `tools/video-use/transcribe_local.py` (faster-whisper → formato Scribe, `--script spec.json` para narração nossa). Fala real → Scribe (`ELEVENLABS_API_KEY`).
+- Setup: `bash src/simplicio_video/data/tools/video-use/setup.sh` (commit fixado, fora do repo). Exemplo completo: `clients/wjr-informatica-games/video-02-videouse/` (`run.sh`, `edit/edl.json`, `edit/project.md`).
+- Transcrição sem chave: `src/simplicio_video/data/tools/video-use/transcribe_local.py` (faster-whisper → formato Scribe, `--script spec.json` para narração nossa). Fala real → Scribe (`ELEVENLABS_API_KEY`).
 - Texto que depende de contexto na fonte (contador, "passo 2"): gere variante pelo spec (`source.variables.json`), não mascare.
 - Overlays HyperFrames sempre `--format mov` (WebM perde o alfa no `render.py`); loudness pelo nosso `master.sh` (`--no-loudnorm`).
 - Estratégia de corte confirmada com o usuário antes do EDL; autoavaliação com `timeline_view` no corte antes de mostrar.

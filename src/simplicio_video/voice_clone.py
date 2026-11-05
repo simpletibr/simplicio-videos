@@ -9,13 +9,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import paths
+from . import childio, paths
 
 
 class CloneVoiceError(SystemExit):
@@ -42,7 +41,7 @@ def voxcpm(S: dict, text: str, dst: Path, ref: Path | None) -> None:
     # and in the cache key only; the take is not bit-reproducible, as voices/voxcpm.md says.
     if os.environ.get("VOXCPM_DEVICE"):  # e.g. mps on Apple silicon; `auto` picked cpu there, ~20x slower
         cmd += ["--device", os.environ["VOXCPM_DEVICE"]]
-    subprocess.run(cmd, check=True)
+    childio.check_child(cmd)
 
 
 def openvoice(S: dict, text: str, dst: Path, ref: Path | None, base_take) -> None:
@@ -59,7 +58,7 @@ def openvoice(S: dict, text: str, dst: Path, ref: Path | None, base_take) -> Non
     with tempfile.TemporaryDirectory() as td:
         base = Path(td) / "base.wav"
         base_take(text, base)
-        subprocess.run([py, str(paths.ENGINE_DIR / "openvoice_convert.py"), ckpt, str(base), str(ref), str(dst)], check=True)
+        childio.check_child([py, str(paths.ENGINE_DIR / "openvoice_convert.py"), ckpt, str(base), str(ref), str(dst)])
 
 
 def voicestudio_url() -> str:
@@ -97,4 +96,4 @@ def audio8(S: dict, text: str, dst: Path, ref: Path | None) -> None:
             cmd += ["--reference-text", S["reference_text"]]
     if S.get("device"):
         cmd += ["--device", S["device"]]
-    subprocess.run(cmd, check=True)
+    childio.check_child(cmd)

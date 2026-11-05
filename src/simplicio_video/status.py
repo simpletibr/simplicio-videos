@@ -38,7 +38,7 @@ ENV_FERRAMENTA = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")  # the only variab
 def _primeira_linha(cmd: list[str]) -> str | None:
     env = {k: os.environ[k] for k in ENV_FERRAMENTA if k in os.environ}
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, env=env)
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15, env=env)
     except (OSError, subprocess.SubprocessError):
         return None
     linhas = (r.stdout or r.stderr or "").strip().splitlines()
@@ -81,7 +81,12 @@ def _ferramenta_do_motor(name: str) -> dict:
         version = busca._versao_cli(exe)
     else:
         version = _primeira_linha([exe, "--version"]) if exe else None
-    return _linha(name, exe is not None, version, pinned, fonte)
+    linha = _linha(name, exe is not None, version, pinned, fonte)
+    if tools.install_source(t) == "npx":  # no binary, but npx + Node >= 22.15 run the pinned package (checked offline)
+        linha.update(installed=True, source="npx")
+    elif exe:
+        linha["source"] = "path"
+    return linha
 
 
 def _ferramenta_simples(name: str) -> dict:

@@ -190,7 +190,7 @@ def _checa_node(environ: Optional[dict]) -> dict:
         return _row("node", "fail", "node não encontrado no PATH", fix)
     detail = {"path": caminho}
     try:
-        r = subprocess.run([caminho, "--version"], capture_output=True, encoding="utf-8", errors="replace", timeout=15)
+        r = subprocess.run([caminho, "--version"], stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace", timeout=15)
     except (OSError, subprocess.SubprocessError) as e:
         return _row("node", "fail", f"node não executa: {e}", fix, detail)
     m = re.match(r"\s*v?(\d+)", r.stdout or "")
@@ -212,7 +212,7 @@ def _checa_ffmpeg(environ: Optional[dict]) -> list[dict]:
         return [_row("ffmpeg", "fail", "ffmpeg não encontrado no PATH", fix)]
     detail = {"path": caminho}
     try:
-        r = subprocess.run([caminho, "-version"], capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+        r = subprocess.run([caminho, "-version"], stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace", timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
         return [_row("ffmpeg", "fail", f"ffmpeg não executa: {e}", fix, detail)]
     saida = (r.stdout or "") + (r.stderr or "")

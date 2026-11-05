@@ -17,7 +17,7 @@ Decisão de produto: [ADR-0001](decisoes/ADR-0001-visao-plugin.md). Resumo: o pl
       │
  5 VOZ ─────────── voices/ (gemini | elevenlabs | xai | local | file) → WAVs + manifest.json (cache por hash)
       │
- 6 EDIÇÃO (opc.) ─ tools/video-use/ — só se o usuário pedir edição (cortar p/ X s, reordenar, aparar footage, legendas, revisão) → edl.json versionado
+ 6 EDIÇÃO (opc.) ─ src/simplicio_video/data/tools/video-use/ — só se o usuário pedir edição (cortar p/ X s, reordenar, aparar footage, legendas, revisão) → edl.json versionado
       │
  7 RENDER ──────── build.mjs (trilha/SFX/mix) → HyperFrames render --strict-variables → master.sh (−14 LUFS, TP ≤ −1,5)
       │
@@ -52,7 +52,7 @@ Decisão de produto: [ADR-0001](decisoes/ADR-0001-visao-plugin.md). Resumo: o pl
 | 3 Template | 1 pronto (assistência técnica/games), 6 skeleton |
 | 4 Composição | 19 blocos prontos (12 extraídos do video-01 + 7 destilados de pesquisa), 19 propostos; video-01 ainda tem a coreografia inline (fonte da extração) |
 | 5 Voz | Gemini (via `file`) em produção; Chatterbox/Kokoro locais; ElevenLabs/xAI implementados e desligados (sem chave); rota API do Gemini escrita, não testada |
-| 6 video-use (opcional) | ferramenta em [`tools/video-use/`](../tools/video-use/README.md) (setup fixado, quando usar × HyperFrames direto); provado no `clients/wjr-informatica-games/video-02-videouse` (cutdown 11,5 s: transcrição local formato Scribe, EDL, overlay MOV do HyperFrames, autoavaliação). Detalhes: [video-use-integracao.md](video-use-integracao.md). Falta footage real do cliente |
+| 6 video-use (opcional) | ferramenta em [`src/simplicio_video/data/tools/video-use/`](../src/simplicio_video/data/tools/video-use/README.md) (setup fixado, quando usar × HyperFrames direto); provado no `clients/wjr-informatica-games/video-02-videouse` (cutdown 11,5 s: transcrição local formato Scribe, EDL, overlay MOV do HyperFrames, autoavaliação). Detalhes: [video-use-integracao.md](video-use-integracao.md). Falta footage real do cliente |
 | 7 Render | produção no video-01 (20 s, −14 LUFS). QA extra testado (critério de "tempo congelado" do [motion-video-kit](https://github.com/echris6/motion-video-kit), `frozen-time.sh`, MIT): video-01 ≈0,5 s quase parado em 20 s, video-02 ≈0,2 s — dentro da meta (≤ ~1 s por 30 s, nenhuma pausa > 0,6 s). Ainda não é script do repo |
 
 ## Comandos da esteira hoje (por etapa)

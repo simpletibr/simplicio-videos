@@ -9,9 +9,9 @@ How it works, in a few rules:
 - The runner is detached (`start_new_session`), runs the task as a child in ANOTHER process group (like toonflow's
   `_stop_group`): cancel = SIGTERM to the runner, which sends SIGINT to the task group, waits a grace period, then
   SIGKILL, then sweeps the group. No port is opened and nothing stays running after the task ends.
-- A closed list of tasks (`KINDS`): `swap-run` and `voice`. `swap-run` spends money, so it is confirmed at submission
+- A closed list of tasks (`KINDS`): `swap-run`, `voice` and `rea-video` (decompose without the vision model, and stems; MCP can submit it). `swap-run` spends money, so it is confirmed at submission
   (`--yes` and `--autorizo`, after the same checks as `swap run`) and can only be submitted from the terminal. Over MCP
-  only `voice` with a LOCAL provider can be submitted; status, list, result and cancel work for every task.
+  only `voice` with a LOCAL provider and `rea-video` (decompose without the vision model, stems) can be submitted; status, list, result and cancel work for every task.
 - If the runner dies without writing a final state, the next status/list marks the task `lost` and kills what it left
   (orphan recovery). Finished tasks older than a week are removed on submit and by `jobs clean`.
 - No API key is ever written: the key stays in the environment of the runner and the task. Submitting arguments that
@@ -178,7 +178,7 @@ PROC = Path("/proc")
 def _ps(field: str, pid: int) -> str | None:
     """`ps -o <field>= -p PID` (macOS and other systems without /proc). None when ps is missing or the pid is gone."""
     try:
-        r = subprocess.run(["ps", "-o", f"{field}=", "-p", str(int(pid))], capture_output=True, text=True, timeout=5,
+        r = subprocess.run(["ps", "-o", f"{field}=", "-p", str(int(pid))], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5,
                            env={**os.environ, "LC_ALL": "C", "LANG": "C"})
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
@@ -361,6 +361,14 @@ def _no_secret(params: dict) -> None:
         raise JobError("recusado: os argumentos contêm uma chave de API. A chave só entra pela variável de ambiente do provedor.")
 
 
+KINDS: dict[str, dict] = {}
+
+
+def _register(kind: str, *, prepare, argv, result) -> None:
+    """Add a task kind to the closed list. Each kind calls this right after its own functions, so adding one touches no shared block."""
+    KINDS[kind] = {"prepare": prepare, "argv": argv, "result": result}
+
+
 def _check_keys(params: dict, allowed: set[str]) -> None:
     extra = sorted(set(params) - allowed)
     if extra:
@@ -467,6 +475,9 @@ def _result_swap(p: dict, last_json: dict | None) -> dict | None:
     return last_json
 
 
+_register("swap-run", prepare=_prepare_swap, argv=_argv_swap, result=_result_swap)
+
+
 def _result_voice(p: dict, last_json: dict | None) -> dict | None:
     lock = Path(p["contrato"]).parent / "timing.lock.json"
     try:
@@ -478,10 +489,87 @@ def _result_voice(p: dict, last_json: dict | None) -> dict | None:
             "lock_sha256": hashlib.sha256(lock.read_bytes()).hexdigest()}
 
 
-KINDS = {
-    "swap-run": {"prepare": _prepare_swap, "argv": _argv_swap, "result": _result_swap},
-    "voice": {"prepare": _prepare_voice, "argv": _argv_voice, "result": _result_voice},
-}
+_register("voice", prepare=_prepare_voice, argv=_argv_voice, result=_result_voice)
+
+
+def _prepare_rea_video(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    """rea-video `decompose` (WITHOUT the vision model) or `stems`: nothing leaves the machine and nothing is spent, so MCP
+    may submit them. The arguments pass the same closed list as the MCP call (--vlm and --env-file are refused whatever the
+    origin; --no-vlm is always added). The child starts in a private empty folder, so the upstream never reads a stray .env."""
+    from . import rea_video
+    _check_keys(params, {"args"})
+    try:
+        args = rea_video.job_args(params.get("args"))
+        if rea_video._rea_video_exe() is None:
+            raise rea_video.ReaVideoError("rea-video não está instalado no venv: `simplicio-video rea-video clone` e "
+                                          "depois `setup` (setup só pelo terminal)")
+    except rea_video.ReaVideoError as e:
+        raise JobError(str(e)) from None
+    cwd = rea_video.make_job_cwd()
+    return {"args": args, "cwd": cwd}, False, {"cwd": cwd, "estimate_usd": None, "confirmed": None}
+
+
+def _argv_rea_video(p: dict) -> list[str]:
+    """Checked again here, in the runner, so state edited on disk after the submit cannot add --vlm or --env-file."""
+    from . import rea_video
+    return ["rea-video", *rea_video.job_args(p["args"])]
+
+
+def _result_rea_video(p: dict, last_json: dict | None) -> dict | None:
+    import hashlib
+
+    from . import rea_video
+    rea_video.drop_job_cwd(p.get("cwd"))
+    args = p["args"]
+    out = Path(args[args.index("-o" if "-o" in args else "--out") + 1])
+    if args[0] == "stems":
+        files = {n: out / "stems" / f"{n}.wav" for n in ("original", "vocals", "music")}
+        if not files["original"].is_file():
+            return None
+        return {"out": str(out), **{n: str(f) for n, f in files.items() if f.is_file()}}
+    bd = out / "breakdown.json"
+    try:
+        raw = bd.read_bytes()
+        summ = json.loads(raw).get("summary") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    report = out / "report.html"
+    return {"out": str(out), "breakdown": str(bd), "breakdown_sha256": hashlib.sha256(raw).hexdigest(),
+            "report": str(report) if report.is_file() else None, "verdict": summ.get("verdict"), "shots": summ.get("shots"),
+            "confidence": summ.get("confidence"), "vlm": summ.get("vlm")}
+
+
+_register("rea-video", prepare=_prepare_rea_video, argv=_argv_rea_video, result=_result_rea_video)
+
+
+# moneyprinter (T4): a free MoneyPrinterTurbo run (supplied script, local material, Edge voice) in the background. It never
+# spends, so MCP may submit it; anything that would spend is refused here and runs in the terminal with `moneyprinter run --yes`.
+MONEYPRINTER_KEYS = {"out", "upstream"}
+
+
+def _prepare_moneyprinter(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    from . import moneyprinter
+    _check_keys(params, MONEYPRINTER_KEYS)
+    if confirm_yes:
+        raise JobError("moneyprinter em segundo plano nunca leva --yes: o que gasta roda no terminal, com `simplicio-video moneyprinter run --yes`")
+    try:
+        p = moneyprinter.job_params(params)
+    except moneyprinter.MoneyPrinterError as e:
+        raise JobError(str(e)) from None
+    return p, False, {"estimate_usd": None, "confirmed": None}
+
+
+def _argv_moneyprinter(p: dict) -> list[str]:
+    from . import moneyprinter
+    return moneyprinter.job_argv(p)
+
+
+def _result_moneyprinter(p: dict, last_json: dict | None) -> dict | None:
+    from . import moneyprinter
+    return moneyprinter.job_result(p, last_json)
+
+
+_register("moneyprinter", prepare=_prepare_moneyprinter, argv=_argv_moneyprinter, result=_result_moneyprinter)
 
 
 def build_argv(kind: str, params: dict) -> list[str]:
@@ -746,6 +834,7 @@ HELP_DESC = (
     "Lista fechada de tarefas:\n"
     "  swap-run    swap run em segundo plano. Gasta dinheiro: confirmado AQUI, com --autorizo e --yes (as mesmas checagens\n"
     "              do swap run: estimativa abaixo de --max-usd, chave no ambiente, saída livre). Só pelo terminal\n"
+    "  rea-video   rea-video decompose (sem --vlm) ou stems em segundo plano; só pelo MCP (video.rea-video), nada sai da máquina\n"
     "  voice       voice em segundo plano. Provedor local (file, local, voxcpm, openvoice) não gasta; provedor de rede\n"
     "              (gemini) pede --yes\n\n"
     "Subcomandos:\n"
@@ -755,7 +844,7 @@ HELP_DESC = (
     "  result ID         o resultado de uma tarefa terminada (sai com 2 se ainda roda)\n"
     "  cancel ID         SIGINT no grupo da tarefa, SIGKILL depois da tolerância; o swap cancela limpo e grava o manifesto\n"
     "  clean             remove tarefas terminadas há mais de 7 dias (--older-than-days); `submit` também limpa\n\n"
-    "Pelo MCP (tool video.jobs): list, status, result, cancel e submit só de voz com provedor local. swap-run nunca.\n"
+    "Pelo MCP (tool video.jobs): list, status, result, cancel e submit de voz com provedor local e de rea-video (decompose sem --vlm, stems). swap-run nunca.\n"
     "A chave de API fica só no ambiente: argumentos com chave são recusados e nada vai para o estado nem para o log."
 )
 HELP_EPILOG = (

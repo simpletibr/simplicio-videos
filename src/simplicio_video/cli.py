@@ -34,7 +34,7 @@ Fluxo completo:
   formats      biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy a um formato
   swap         troca o personagem de um vídeo por um avatar de referência (gemini, fal, wavespeed, kie, alibaba); gasta só com --autorizo --yes
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
-  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan (https://github.com/HBAI-Ltd/Toonflow-app)
+  toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan ou --docker, status e mcp (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; só baixa o commit fixado, o uso exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
@@ -244,18 +244,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("clone", formatter_class=Fmt, help="trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA",
         description="Invoca o Hypit AI (https://github.com/hypit-ai/hypit) para clonar vídeos de referência e gerar fluxos de trabalho completos.",
-        epilog="exemplos:\n  simplicio-video clone --help\n  simplicio-video clone video.mp4")
+        epilog="exemplos:\n  simplicio-video clone --help             # a ajuda do Hypit (--engine-help mostra esta)\n  simplicio-video clone status --json      # npx/binário, versão fixada, Node >= 22.15\n  simplicio-video clone video.mp4")
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao CLI do Hypit AI")
 
     p = sub.add_parser("montage", formatter_class=Fmt, help="trilha Montage (OpenMontage): produção de vídeo com agentes de IA",
         description="Invoca o OpenMontage (https://github.com/calesthio/OpenMontage) para pipelines e agentes de produção de vídeo (Backlot, Remotion, HyperFrames).",
-        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000")
+        epilog="exemplos:\n  simplicio-video montage --help\n  simplicio-video montage clone\n  simplicio-video montage open\n  simplicio-video montage serve --port 8000\n  simplicio-video montage setup [--remotion] [--piper]\n  simplicio-video montage status --json\n  simplicio-video montage pipelines list --json\n  simplicio-video montage tools list --runtime api --json\n  simplicio-video montage envelope --json\n  simplicio-video montage estimate NOME --input '{}' --json")
     p.add_argument("args", nargs=argparse.REMAINDER, help="argumentos repassados ao OpenMontage")
 
     p = sub.add_parser("edit", formatter_class=Fmt, help="edição por EDL com video-use sobre qualquer MP4",
-        description="Encadeia tools/video-use (https://github.com/browser-use/video-use): setup, transcribe, pack, render, verify. A decisão de corte fica no edl.json versionado.",
-        epilog="exemplos:\n  simplicio-video edit setup\n  simplicio-video edit render edit/edl.json -o out/final.raw.mp4")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="setup | transcribe | pack | render | verify")
+        description="Encadeia o video-use (https://github.com/browser-use/video-use, arquivos no pacote): setup, transcribe, transcribe-batch (só no terminal), pack, render, verify, grade (cor: auto, --preset, --analyze). A decisão de corte fica no edl.json versionado.",
+        epilog="exemplos:\n  simplicio-video edit setup\n  simplicio-video edit render edit/edl.json -o out/final.raw.mp4\n  simplicio-video edit grade --analyze fonte.mp4")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="setup | transcribe | transcribe-batch | pack | render | verify | grade (edit <sub> --help)")
 
     p = sub.add_parser("shorts", formatter_class=Fmt, help="cortes verticais 9:16 de um vídeo longo (determinístico, só ffmpeg)",
         description="Vídeo longo -> N cortes 1080x1920 a partir da transcrição (a mesma do edit transcribe). "
@@ -275,25 +275,27 @@ def build_parser() -> argparse.ArgumentParser:
     qc.adiciona_acoes(p)
 
     p = sub.add_parser("opencut", formatter_class=Fmt, help="editor OpenCut (open-source) para acabamento manual",
-        description="Clona e sobe o OpenCut (https://github.com/OpenCut-app/OpenCut, MIT; usa o opencut-classic até o rewrite ter API).",
-        epilog="exemplos:\n  simplicio-video opencut clone\n  simplicio-video opencut dev")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | dev | where")
+        description="Clona e sobe o OpenCut (MIT), fixado no opencut-classic (https://github.com/OpenCut-app/opencut-classic, arquivado no upstream; o rewrite ainda não tem API). dev escuta só em 127.0.0.1; --lan abre em 0.0.0.0. status mostra checkout, pin, bun, node_modules, .env.local e porta.",
+        epilog="exemplos:\n  simplicio-video opencut clone\n  simplicio-video opencut dev\n  simplicio-video opencut dev --lan\n  simplicio-video opencut status --json")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | dev [--lan] | status [--json] | where")
 
     p = sub.add_parser("toonflow", formatter_class=Fmt, help="Toonflow (MIT): estúdio de séries e vídeos com IA, app web local",
         description="Clona e sobe o Toonflow (https://github.com/HBAI-Ltd/Toonflow-app, MIT) no commit fixado em tools.py. "
-                    "Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan. "
+                    "Precisa de Bun. O serve escuta em 0.0.0.0:3000 sem login, por isso só sobe com --lan; serve --docker usa o compose do upstream em 127.0.0.1:3000 "
+                    "(não combina com `mcp`: o arquivo de runtime fica no volume). status mostra checkout, pin, bun, build e o modo do arquivo de runtime do MCP; "
+                    "mcp imprime o bloco de config MCP stdio (nunca o token). "
                     "Fica fora do render determinístico.",
-        epilog="exemplos:\n  simplicio-video toonflow clone\n  simplicio-video toonflow serve --lan\n  simplicio-video toonflow where")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | serve --lan | where")
+        epilog="exemplos:\n  simplicio-video toonflow clone\n  simplicio-video toonflow serve --lan\n  simplicio-video toonflow serve --docker\n  simplicio-video toonflow status --json\n  simplicio-video toonflow mcp --json\n  simplicio-video toonflow where")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | serve --lan|--docker | status [--json] | mcp [--port N] [--json] | where")
 
     p = sub.add_parser("moneyprinter", formatter_class=Fmt, help="MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio",
         description="Clona, prepara e sobe o MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo, MIT) no commit fixado em tools.py. "
                     "Exige Python 3.11 ou mais novo; o setup cria um venv isolado e copia o config.toml sem chave nenhuma. "
-                    "O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080 ou --api-port) e só abre para a rede com --lan. O generate sobe a API por trás e traz o MP4 com hash. "
+                    "O upstream escuta em 0.0.0.0 por padrão na API; o serve força 127.0.0.1 (WebUI 8501, API 8080 ou --api-port) e só abre para a rede com --lan. O generate sobe a API por trás e traz o MP4 com hash; o run repassa flags do cli.py do upstream (lista fechada, etapas, legendas, música, lote) e copia o MP4 com sha256: o que gasta (LLM, fonte paga, voz de rede, --confirm-*-charge) só no terminal e só com --yes. "
                     "As chaves de API nunca são impressas. "
                     "Fica fora do render determinístico.",
-        epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api --api-port 8090\n  simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/ --json\n  simplicio-video moneyprinter status")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | where | status")
+        epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api --api-port 8090\n  simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/ --json\n  simplicio-video moneyprinter run --out out/ -- --video-script \"Texto do vídeo.\" --video-source local --video-materials clip.mp4 --voice-name pt-BR-FranciscaNeural-Female\n  simplicio-video moneyprinter run --yes --out out/ -- --video-subject tema --stop-at script   # LLM: só com --yes\n  simplicio-video moneyprinter status")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | generate ... | run [--yes] --out DIR -- <flags do upstream> | where | status")
 
     p = sub.add_parser("matchcut", formatter_class=Fmt, help="match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta",
         description="Baixa o match-cut (https://github.com/Sac-Y/match-cut, MIT) no commit fixado em tools.py e mostra onde está o SKILL.md. "
@@ -602,14 +604,55 @@ def _render_json(a) -> int:
     return 0
 
 
+# Subcommands handled before argparse that take the global --json (their own parsers accept it). The hand-parsed ones
+# accept it only on some sub-subcommands, so the global one is passed on only there, right after the sub-subcommand
+# (never at the end, where it could become the value of an option); everywhere else it is a usage error (exit 2).
+_PASSTHROUGH_JSON = ("busca", "qc", "voicestudio", "swap", "jobs", "social", "openverse", "formats")
+_JSON_SO_EM = {"instagram": ("where", "status", "skills"), "moneyprinter": ("generate",)}
+
+
+def _json_global(ap, args_list: list[str]) -> list[str]:
+    """Moves a leading global `--json` (repeated ones collapse) to the subcommand that has its own; exit 2 if it has none."""
+    if not args_list or args_list[0] != "--json":
+        return args_list
+    resto = args_list[1:]
+    while resto and resto[0] == "--json":
+        resto = resto[1:]
+    if not resto:
+        return ["--json"]
+    cmd = resto[0]
+    if cmd in _JSON_SO_EM:
+        sub = resto[1] if len(resto) > 1 else ""
+        if sub not in _JSON_SO_EM[cmd]:
+            ap.error(f"--json não vale para `{cmd} {sub}`".rstrip() + f" (só em {', '.join(_JSON_SO_EM[cmd])})")
+        return [cmd, sub, "--json", *resto[2:]]
+    if cmd in _PASSTHROUGH_JSON:
+        corpo = resto[1:]
+        fim = corpo.index("--") if "--" in corpo else len(corpo)  # after `--` everything is a value
+        return [cmd, *corpo[:fim], "--json", *corpo[fim:]]
+    return ["--json", *resto]  # argparse decides: it accepts it where the subcommand has --json, else exit 2
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
+    args_list = _json_global(ap, args_list)
+    argv = args_list if argv is not None else None
+    if argv is None and args_list != sys.argv[1:]:
+        argv = args_list
     if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "qc", "toonflow", "moneyprinter", "matchcut", "instagram", "rea-video", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
         antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
         # `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this parser
         ajuda_do_upstream = args_list[0] == "rea-video" and rea_video.repassa(args_list[1:])
-        if not ajuda_do_upstream and any(h in antes_do_traco for h in ("-h", "--help")):
+        ajuda_do_media = args_list[0] == "media" and len(args_list) > 1 and args_list[1] in media.SUBCOMMANDS  # `media burn --help`
+        ajuda_do_edit = args_list[0] == "edit" and len(args_list) > 1 and args_list[1] in edit.SUBCOMMANDS  # `edit grade --help`
+        # `clone --help` is Hypit's help; the engine's own is `clone --engine-help`
+        ajuda_do_motor = args_list[0] == "clone" and "--engine-help" in antes_do_traco
+        ajuda_do_upstream = ajuda_do_upstream or (args_list[0] == "clone" and not ajuda_do_motor)
+        # `montage tools --help` etc. have their own argparse (with examples) inside montage.py
+        ajuda_propria = args_list[0] == "montage" and args_list[1:2] and args_list[1] in montage.REGISTRY_COMMANDS
+        ajuda_do_upstream = ajuda_do_upstream or bool(ajuda_propria)
+        if ajuda_do_motor or (not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and any(h in antes_do_traco for h in ("-h", "--help"))):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
         cmd = args_list[0]
@@ -723,6 +766,10 @@ def main(argv: list[str] | None = None) -> int:
     if not a.cmd:
         ap.print_help()
         return 0
+    if a.ver_json:  # the global --json before a subcommand that has its own --json
+        if not hasattr(a, "json"):
+            ap.error(f"--json não vale para `{a.cmd}` (esse subcomando não tem saída JSON)")
+        a.json = True
 
     if a.cmd == "install":
         from .commands import install
