@@ -1,0 +1,103 @@
+"""childio.run_child: under the MCP stdio server a child must never touch fds 0/1 (JSON-RPC stream)."""
+import ast
+import contextlib
+import io
+import os
+import sys
+from pathlib import Path
+
+import pytest
+
+from simplicio_video import childio
+
+SRC = Path(__file__).resolve().parents[1] / "src" / "simplicio_video"
+CHILD = "import sys; print('child-out'); print('child-err', file=sys.stderr); sys.stdin.read(); sys.exit(7)"
+
+
+def _run(env_mcp: bool, monkeypatch):
+    if env_mcp:
+        monkeypatch.setenv("SIMPLICIO_MCP", "1")
+    else:
+        monkeypatch.delenv("SIMPLICIO_MCP", raising=False)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        rc = childio.run_child([sys.executable, "-c", CHILD])
+    return rc, out.getvalue(), err.getvalue()
+
+
+def test_mcp_mode_never_touches_fd1_and_does_not_read_stdin(capfd, monkeypatch):
+    rc, out, err = _run(True, monkeypatch)
+    cap = capfd.readouterr()
+    assert cap.out == "" and cap.err == ""  # nothing reached the real fds
+    assert rc == 7  # stdin was /dev/null: read() returned at once
+    assert "child-out" in out and "child-err" in err  # re-emitted through Python's streams, which _cli captures
+
+
+def test_mcp_mode_forwards_cwd_and_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("SIMPLICIO_MCP", "1")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        rc = childio.run_child([sys.executable, "-c", "import os; print(os.getcwd(), os.environ['XV'])"],
+                               cwd=tmp_path, env={**os.environ, "XV": "ok"})
+    assert rc == 0 and out.getvalue().split() == [str(tmp_path.resolve()), "ok"]
+
+
+def test_terminal_mode_inherits_the_terminal(capfd, monkeypatch):
+    monkeypatch.delenv("SIMPLICIO_MCP", raising=False)
+    rc = childio.run_child([sys.executable, "-c", "import sys; print('child-out'); sys.exit(3)"])
+    assert rc == 3
+    assert capfd.readouterr().out == "child-out\n"  # straight to fd 1, as subprocess.call
+
+
+def test_build_server_sets_the_mcp_flag(monkeypatch):
+    pytest.importorskip("mcp")
+    from simplicio_video import mcp_server
+    monkeypatch.delenv("SIMPLICIO_MCP", raising=False)
+    mcp_server.build_server()
+    assert os.environ.get("SIMPLICIO_MCP") == "1"
+    monkeypatch.delenv("SIMPLICIO_MCP", raising=False)  # build_server set it behind monkeypatch's back: keep tests isolated
+
+
+# ---- lint: no bare subprocess.call/run in modules reachable from MCP tools ----
+SCAN = ["clone.py", "edit.py", "montage.py", "rea_video.py", "toonflow.py", "moneyprinter.py", "opencut.py",
+        "commands/install.py", "commands/update.py"]
+# (module, function) -> why a bare call is safe. Everything else must pass stdin=/capture_output= or use childio.run_child.
+ALLOW = {
+    ("rea_video.py", "_setup"): "setup is terminal-only: video.rea-video accepts where|status|clone",
+    ("rea_video.py", "_run_upstream"): "analysis commands are terminal-only: video.rea-video refuses them",
+    ("rea_video.py", "_ocr_state"): "the probe is `python -c` that prints nothing and never reads stdin",
+    ("toonflow.py", "_serve"): "serve never ends and is refused by video.toonflow",
+    ("moneyprinter.py", "_setup"): "setup/serve are terminal-only (video.moneyprinter refuses them)",
+    ("opencut.py", "run_opencut"): "dev never ends and is refused by video.opencut",
+    ("commands/install.py", "_run_setup"): "interactive setup runs only with a TTY (_tty guard); MCP refuses it",
+    ("commands/update.py", "_run"): "installing an update is terminal-only; MCP only does --check/--dry-run",
+}
+
+
+def _bare_calls(rel: str):
+    tree = ast.parse((SRC / rel).read_text(encoding="utf-8"))
+    found = []
+
+    def visit(node, fn):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            fn = node.name
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("call", "run")
+                and isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"):
+            kws = {k.arg for k in node.keywords}
+            if not ({"stdin", "capture_output"} & kws or {"stdout", "stderr"} <= kws):
+                found.append((rel, fn, node.lineno))
+        for ch in ast.iter_child_nodes(node):
+            visit(ch, fn)
+    visit(tree, None)
+    return found
+
+
+@pytest.mark.parametrize("rel", SCAN)
+def test_no_bare_subprocess_in_mcp_reachable_modules(rel):
+    bad = [(r, fn, ln) for r, fn, ln in _bare_calls(rel) if (r, fn) not in ALLOW]
+    assert not bad, f"use childio.run_child (or stdin=/capture_output=): {bad}"
+
+
+def test_allowlist_has_no_stale_entries():
+    live = {(r, fn) for rel in SCAN for r, fn, _ in _bare_calls(rel)}
+    assert set(ALLOW) <= live, f"stale allowlist entries: {set(ALLOW) - live}"
