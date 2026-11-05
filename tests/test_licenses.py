@@ -62,6 +62,11 @@ class FakeDist:
     def read_text(self, filename):
         return self._top_level if filename == "top_level.txt" else None
 
+    def requires(self, *reqs):
+        for req in reqs:
+            self.metadata["Requires-Dist"] = req
+        return self
+
 
 def _use_dists(monkeypatch, *dists):
     """Troca o conjunto de distribuições instaladas que importlib.metadata enxerga."""
@@ -88,6 +93,25 @@ def test_dist_agpl_falso_reprova_o_scan(monkeypatch, tmp_path):
     bad = lic.denied(entries)
     assert [e.name for e in bad] == ["fake-agpl-lib"]
     assert bad[0].status == "denied"
+
+
+# (a2) o scan é determinístico: só a base declarada do produto + o extra `test`; extras instalados e pip não entram
+def test_scan_se_limita_ao_fecho_das_deps_base_e_do_extra_test(monkeypatch, tmp_path):
+    lic = _lic()
+
+    def d(name, *reqs):
+        return FakeDist(name, "1.0", "MIT", top_level=[name.replace("-", "_")]).requires(*reqs)
+
+    produto = d("simplicio-video", "base-lib>=1", 'pytest>=8; extra == "test"', 'mcp>=1; extra == "mcp"',
+                'win-only; sys_platform == "win32"')
+    dists = [produto, d("base-lib", "transitiva"), d("transitiva"), d("pytest", 'dev-extra; extra == "dev"'),
+             d("dev-extra"), d("mcp", "starlette"), d("starlette"), d("pip"), d("win-only")]
+    _use_dists(monkeypatch, *dists)
+
+    entries = lic.scan(exceptions_path=_exceptions(tmp_path, []))
+
+    assert [e.name for e in entries] == ["base-lib", "pytest", "simplicio-video", "transitiva"]
+    assert {e.name: e.used_by for e in entries}["transitiva"] == "base-lib"
 
 
 # (b) a mesma licença, com exceção justificada, passa
