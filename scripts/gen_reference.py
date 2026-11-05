@@ -118,6 +118,33 @@ def _subcommands(parser) -> list[str]:
     return sorted(action.choices)
 
 
+# O argparse do 3.12 mede a coluna de ajuda dos subcomandos com o recuo do pai; o do 3.13 (e a referência commitada) mede cada
+# um com o seu, e imprime `-t, --template X` uma vez só (3.13) em vez de repetir o metavar por opção (3.12). O filho roda por este invólucro, que impõe a regra do 3.13 em qualquer Python, para o cli.md não depender da versão.
+_CHILD = """
+import argparse, runpy, sys
+def add_argument(self, action):
+    if action.help is not argparse.SUPPRESS:
+        get = self._format_action_invocation
+        lengths = [len(get(action)) + self._current_indent]
+        for sub in self._iter_indented_subactions(action):
+            lengths.append(len(get(sub)) + self._current_indent)
+        self._action_max_length = max(self._action_max_length, max(lengths))
+        self._add_item(self._format_action, [action])
+def invocation(self, action):
+    if not action.option_strings:
+        default = self._get_default_metavar_for_positional(action)
+        return " ".join(self._metavar_formatter(action, default)(1))
+    if action.nargs == 0:
+        return ", ".join(action.option_strings)
+    default = self._get_default_metavar_for_optional(action)
+    return ", ".join(action.option_strings) + " " + self._format_args(action, default)
+argparse.HelpFormatter.add_argument = add_argument
+argparse.HelpFormatter._format_action_invocation = invocation
+sys.argv[0] = "simplicio_video"
+runpy.run_module("simplicio_video", run_name="__main__", alter_sys=True)
+"""
+
+
 def _help(args: list[str]) -> str:
     env = {
         "PATH": os.environ.get("PATH", ""),
@@ -128,7 +155,7 @@ def _help(args: list[str]) -> str:
         "PYTHONIOENCODING": "utf-8",
     }
     result = subprocess.run(
-        [sys.executable, "-m", "simplicio_video", *args, "--help"],
+        [sys.executable, "-c", _CHILD, *args, "--help"],
         capture_output=True,
         text=True,
         cwd=str(ROOT),
