@@ -169,7 +169,7 @@ def _conferir(caminho: Path) -> None:
         raise DownloadError("o ffprobe é necessário para conferir o arquivo baixado (instale o ffmpeg)")
     try:
         r = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", str(caminho)],
-                           capture_output=True, text=True, timeout=60)
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
         dados = json.loads(r.stdout or "{}")
         duracao = float((dados.get("format") or {}).get("duration") or 0)
     except (subprocess.TimeoutExpired, ValueError):
@@ -343,7 +343,7 @@ def info(url: str, timeout: int = DEFAULT_TIMEOUT_S) -> dict:
     cmd = [str(Path(exe).absolute()), "--ignore-config", "--no-plugin-dirs", "--no-playlist", "--flat-playlist", "--no-cache-dir",
            "--no-progress", "-J", "--skip-download", url]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=_ambiente())
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout, env=_ambiente())
     except subprocess.TimeoutExpired:
         raise DownloadError(f"yt-dlp passou de {timeout} s e foi interrompido") from None
     if r.returncode:
