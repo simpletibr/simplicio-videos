@@ -162,5 +162,10 @@ def roda_motor(tmp_path: Path, corpo: str, pidfile: Path, sinal: str, quando: st
     if tmpd is not None:
         tmpd.mkdir(exist_ok=True)
         env["TMPDIR"] = str(tmpd)
-    return subprocess.run([sys.executable, "-c", PRELUDIO + corpo], env=env, capture_output=True, text=True, timeout=timeout,
-                          stdin=subprocess.DEVNULL, cwd=tmp_path)
+    # Files, not pipes: an orphan that inherited a pipe would keep the read open and hang the test instead of failing it.
+    with open(tmp_path / "motor.out", "w+") as out, open(tmp_path / "motor.err", "w+") as err:
+        rc = subprocess.run([sys.executable, "-c", PRELUDIO + corpo], env=env, stdout=out, stderr=err, timeout=timeout,
+                            stdin=subprocess.DEVNULL, cwd=tmp_path).returncode
+        out.seek(0)
+        err.seek(0)
+        return subprocess.CompletedProcess([], rc, out.read(), err.read())
