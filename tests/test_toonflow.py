@@ -528,7 +528,7 @@ def test_serve_docker_runs_the_upstream_compose_in_the_checkout(checkout, monkey
     monkeypatch.setattr(toonflow, "_compose_cmd", lambda: ["/usr/bin/docker", "compose"])
     assert toonflow.run_toonflow(["serve", "--docker"]) == 0
     cmd, cwd, _data = recorded[-1]
-    assert cmd == ["/usr/bin/docker", "compose", "up", "--build"] and cwd == checkout.resolve()
+    assert cmd == ["/usr/bin/docker", "compose", "-f", str(checkout.resolve() / "compose.yaml"), "up", "--build"] and cwd == checkout.resolve()
 
 
 def test_serve_docker_without_docker_is_a_clean_error(checkout, monkeypatch, calls):
@@ -607,3 +607,91 @@ def test_mcp_server_still_refuses_every_serve_variant(checkout, args):
 def test_mcp_server_description_lists_the_allowed_verbs():
     d = mcp_server.DESC_video_toonflow
     assert "status" in d and "mcp" in d and "terminal" in d
+
+
+# --- T3 review fixes -----------------------------------------------------------------------------------------------------
+
+def test_mcp_refuses_a_symlinked_runtime_file_and_never_shows_the_target(built, tmp_path):
+    secret = tmp_path / "fake_id_rsa"
+    secret.write_text("PRIVATE-KEY-CONTENTS")
+    secret.chmod(0o600)
+    d = toonflow.data_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    link = d / "mcpRuntime10588.json"
+    link.symlink_to(secret)
+    with pytest.raises(toonflow.ToonflowError) as e:
+        toonflow.mcp_config()
+    assert "link simbólico" in str(e.value) and str(link) in str(e.value)
+    assert "PRIVATE-KEY" not in str(e.value) and "fake_id_rsa" not in str(e.value)
+    row = toonflow.status()["mcp_runtime"][0]
+    assert row["ok"] is False and row["path"] == str(link)
+
+
+def test_mcp_refuses_a_runtime_entry_that_is_not_a_regular_file(built):
+    d = toonflow.data_dir()
+    (d / "mcpRuntime10588.json").mkdir(parents=True)
+    with pytest.raises(toonflow.ToonflowError):
+        toonflow.mcp_config()
+
+
+@pytest.mark.parametrize("port", ["²", "٣", "0", "65536", "123456", "-1", "x"])
+def test_mcp_port_flag_rejects_bad_ports_with_a_toonflow_error(built, port):
+    _runtime()
+    with pytest.raises(toonflow.ToonflowError):
+        toonflow.run_toonflow(["mcp", "--port", port])
+
+
+def test_runtime_name_only_accepts_ascii_digits(built):
+    d = toonflow.data_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "mcpRuntime٣.json").write_text("{}")
+    assert toonflow.status()["mcp_runtime"] == []
+
+
+def test_mcp_refuses_a_runtime_file_of_another_owner_and_says_chown_not_chmod(built, monkeypatch):
+    f = _runtime()
+    monkeypatch.setattr(os, "getuid", lambda: f.stat().st_uid + 1)
+    with pytest.raises(toonflow.ToonflowError) as e:
+        toonflow.mcp_config()
+    msg = str(e.value)
+    assert "dono" in msg and "chown" in msg and "chmod 600" not in msg
+    assert toonflow.status()["mcp_runtime"][0]["ok"] is False
+
+
+def test_serve_docker_pins_the_checkout_compose_file_and_drops_compose_env(checkout, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(toonflow, "_compose_cmd", lambda: ["docker", "compose"])
+    monkeypatch.setenv("COMPOSE_FILE", "/tmp/evil.yaml")
+    monkeypatch.setenv("COMPOSE_PROFILES", "x")
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "x")
+
+    def fake(cmd, cwd=None, env=None):
+        seen.update(cmd=list(cmd), cwd=cwd, env=env)
+        return 0
+
+    monkeypatch.setattr("subprocess.call", fake)
+    assert toonflow.run_toonflow(["serve", "--docker"]) == 0
+    assert seen["cmd"] == ["docker", "compose", "-f", str(checkout.resolve() / "compose.yaml"), "up", "--build"]
+    assert seen["env"] is not None
+    assert not [k for k in seen["env"] if k.startswith("COMPOSE_")]
+
+
+def test_usage_and_mcp_error_say_docker_and_mcp_do_not_work_together(built, capsys):
+    toonflow.run_toonflow(["help"])
+    usage = capsys.readouterr().out
+    assert "--docker" in usage and "toonflow mcp" in usage and "volume" in usage
+    with pytest.raises(toonflow.ToonflowError) as e:
+        toonflow.mcp_config()
+    assert "--docker" in str(e.value)
+
+
+@pytest.mark.parametrize("args", ["", "help", "bogus", "clone /x", "clone a b", "where extra", "serve", "status --evil"])
+def test_mcp_server_uses_an_allow_list(checkout, args):
+    r = mcp_server.video_toonflow(args)
+    assert r["ok"] is False
+
+
+@pytest.mark.parametrize("args", ["where", "status", "status --json", "mcp --json"])
+def test_mcp_server_allow_list_lets_the_read_verbs_through(built, args):
+    _runtime()
+    assert mcp_server.video_toonflow(args)["ok"] is True
