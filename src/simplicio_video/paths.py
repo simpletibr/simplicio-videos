@@ -54,6 +54,11 @@ def workspace_dir() -> Path:
     return hostos.home_absoluta("SIMPLICIO_WORKSPACE") / ".simplicio-video" / "workspaces" / "default"
 
 
+def user_home(escolha: str | None = None) -> Path:
+    """The home as an absolute path, or hostos.SemCasa (a RuntimeError): for the modules that may import nothing but `paths`."""
+    return hostos.home_absoluta(escolha)
+
+
 def data_dir() -> Path:
     """Dados do motor: os do pacote, ou os do checkout apontado por SIMPLICIO_VIDEO_HOME."""
     env = os.environ.get("SIMPLICIO_VIDEO_HOME")

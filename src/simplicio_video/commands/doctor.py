@@ -294,7 +294,10 @@ def _estado(caminho: Path) -> str:
 
 def _checa_setup() -> dict:
     """warn when `setup` never ran (a file is missing); fail when a file is there and invalid or cannot be read."""
-    ws = paths.workspace_dir()
+    try:
+        ws = paths.workspace_dir()
+    except hostos.SemCasa as exc:  # a diagnostic answers: with no home there is no workspace to look at
+        return _row("setup", "warn", f"não sei onde fica o workspace: {exc}", "defina HOME ou SIMPLICIO_WORKSPACE e rode `simplicio-video setup`")
     wsp, pol = ws / "workspace.yaml", ws / "policy.yaml"
     estados = {"workspace.yaml": _estado(wsp), "policy.yaml": _estado(pol)}
     detail = {"workspace": str(ws), "workspace_yaml": estados["workspace.yaml"] == "ok",
