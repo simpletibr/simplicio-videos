@@ -225,11 +225,6 @@ def test_quem_baixa_codigo_pelo_mcp_tem_secao_com_a_versao_fixada():
         assert trecho in secao, f"a seção 'Quem baixa código pelo MCP' não cita {trecho!r}"
 
 
-def test_a_receita_a_roda_o_decompose_sem_modelo_de_visao():
-    """Outside the MCP nothing adds --no-vlm: a recipe that means "no third party" must say it."""
-    assert "--no-vlm" in _recipe_section("a")
-
-
 def test_o_fetch_json_vem_do_download_e_nao_do_decompose():
     passo1, _, _ = _recipe_section("a").partition("rea-video decompose")
     assert ".fetch.json" in passo1
@@ -259,11 +254,6 @@ def test_a_regra_de_gasto_e_envio_pede_o_sim_do_usuario():
     assert "--yes" in regras and "--atualizar" in regras and "sim do usuário" in regras
 
 
-def test_assemble_e_so_ffmpeg_e_a_justificativa_diz_isso():
-    secao = " ".join(_secao("Só no terminal, e por quê").split())
-    assert re.search(r"assemble[^\n]*ffmpeg", secao), "rea-video assemble only runs ffmpeg: say so, not 'runs code'"
-
-
 def test_o_serve_do_moneyprinter_tem_host_e_o_do_toonflow_nao():
     secao = " ".join(_secao("Só no terminal, e por quê").split())
     assert "moneyprinter serve --host" in secao
@@ -280,3 +270,93 @@ def test_o_gitignore_tem_a_skill_de_trilhas():
     from _comum import ROOT as RAIZ
 
     assert ".claude/skills/simplicio-video-trilhas/" in (RAIZ / ".gitignore").read_text(encoding="utf-8").splitlines()
+
+
+def _faltas_na_linha_decompose(texto: str) -> list:
+    """TDD stub (review round 3): the real check reads the `rea-video decompose` line of recipe (a). Returns the flags it lacks."""
+    return []
+
+
+def test_a_linha_de_decompose_da_receita_a_tem_no_vlm():
+    """The recipe's command line, not a substring of the section: `--no-vlm` on the decompose line itself."""
+    assert _faltas_na_linha_decompose(TEXTO) == []
+
+
+def test_a_checagem_da_linha_pega_o_no_vlm_que_falta():
+    """Mutation: without `--no-vlm` on that line the check must name it (a section-wide substring would still pass)."""
+    assert _faltas_na_linha_decompose(TEXTO.replace(" --no-vlm", "")) == ["--no-vlm"]
+
+
+def test_a_versao_e_o_pin_por_padrao_com_update_e_status_qualificados():
+    texto = " ".join(TEXTO.split())
+    assert "nunca flutuante" not in texto
+    assert "pin por padrão" in texto and "update --pin" in texto
+    assert "tools --json" in texto and "effective_source" in texto
+
+
+def test_quem_baixa_codigo_lista_hyperframes_edit_helpers_e_pesos():
+    secao = " ".join(_secao("Quem baixa código pelo MCP").split())
+    for trecho in ("hyperframes@0.8.97", "video.render", "video.run", "setup.sh", "faster-whisper", "primeiro uso"):
+        assert trecho in secao, f"'Quem baixa código pelo MCP' does not list {trecho!r}"
+    assert "fora dessa lista" not in " ".join(TEXTO.split())
+
+
+def test_a_primeira_consulta_gasta_uma_chamada_e_envia_o_texto():
+    texto = " ".join(TEXTO.split())
+    assert "primeira consulta" in texto and "gasta 1 chamada" in texto and "envia o texto" in texto
+    assert "sem o sim do usuário, não pesquise" in texto
+
+
+def test_media_sobrescreve_o_o_nao_arquivo_novo():
+    texto = " ".join(TEXTO.split())
+    assert "cada saída é arquivo novo" not in texto
+    linha = next(linha for linha in _tabela() if linha[1].startswith("núcleo de mídia"))
+    assert "sobrescreve" in linha[4], "the media row must say that -o overwrites an existing file"
+
+
+def test_a_regra_de_gasto_e_envio_nomeia_cada_comando():
+    regras = " ".join(_secao("Regras").split())
+    for trecho in ("swap run", "--autorizo", "voice --provider gemini", "--backend kaggle", "colab", "Edge", "openverse search",
+                   "sim do usuário"):
+        assert trecho in regras, f"the spend-and-send rule does not name {trecho!r}"
+
+
+def test_exit_1_com_traceback_e_falha_nao_ponto_de_revisao():
+    secao = _secao_da_receita(TEXTO, "f")
+    assert "Traceback" in secao and "erros" in secao
+    assert "não uma falha" not in " ".join(TEXTO.split())
+
+
+def test_assemble_roda_localmente_com_ffmpeg_e_opencv():
+    """The upstream assemble uses ffmpeg AND OpenCV (cv2): the text must not promise ffmpeg alone."""
+    secao = " ".join(_secao("Só no terminal, e por quê").split())
+    linha = next(linha for linha in secao.split("- ") if "assemble" in linha)
+    for trecho in ("localmente", "ffmpeg", "OpenCV"):
+        assert trecho in linha, f"the assemble bullet does not say {trecho!r}"
+
+
+def test_a_receita_d_avisa_que_o_voice_track_acelera_ate_o_limite():
+    secao = _secao_da_receita(TEXTO, "d")
+    assert "--max-stretch" in secao and "1,25" in secao
+
+
+def test_o_setup_do_video_use_so_avisa_o_faster_whisper():
+    assert "só avisa" in " ".join(TEXTO.split())
+
+
+def test_o_hypit_usa_o_path_antes_do_pin_e_o_node_so_e_checado_no_status():
+    linha = next(linha for linha in _secao("Trilha que falta").splitlines() if linha.startswith("- **Hypit:**"))
+    assert "PATH" in linha and "vence" in linha
+    assert "clone status" in linha and "22.15" in linha
+
+
+ABSOLUTOS_FALSOS = ("nunca flutuante", "a voz nunca é acelerada", "nenhum quadro vai a terceiro", "envia nada", "fora dessa lista",
+                    "não uma falha", "cada saída é arquivo novo", "só medem o texto", "Nada de chave", "Sem chave e sem LLM",
+                    "O motor nunca instala o TinyFish", "nunca a imprime", "nunca são instrução", "sempre na versão fixada",
+                    "não instala nada", "Chave nunca em argumento", "nunca roda", "Nada é publicado. O motor gera o arquivo e para nele")
+
+
+def test_as_afirmacoes_absolutas_que_eram_falsas_sairam():
+    texto = " ".join(TEXTO.split())
+    presentes = [trecho for trecho in ABSOLUTOS_FALSOS if trecho in texto]
+    assert not presentes, f"absolute claims that the code contradicts are still in the skill: {presentes}"
