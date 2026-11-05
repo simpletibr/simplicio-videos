@@ -49,13 +49,17 @@ def test_terminal_mode_inherits_the_terminal(capfd, monkeypatch):
     assert capfd.readouterr().out == "child-out\n"  # straight to fd 1, as subprocess.call
 
 
-def test_build_server_sets_the_mcp_flag(monkeypatch):
-    pytest.importorskip("mcp")
+def test_main_sets_the_mcp_flag(monkeypatch):
     from simplicio_video import mcp_server
-    monkeypatch.delenv("SIMPLICIO_MCP", raising=False)
-    mcp_server.build_server()
-    assert os.environ.get("SIMPLICIO_MCP") == "1"
-    monkeypatch.delenv("SIMPLICIO_MCP", raising=False)  # build_server set it behind monkeypatch's back: keep tests isolated
+
+    class Stub:
+        def run(self, transport):
+            seen.append((transport, os.environ.get("SIMPLICIO_MCP")))
+    seen = []
+    monkeypatch.setenv("SIMPLICIO_MCP", "0")  # restored on teardown, so the flag does not leak into other tests
+    monkeypatch.setattr(mcp_server, "build_server", lambda: Stub())
+    mcp_server.main()
+    assert seen == [("stdio", "1")]
 
 
 # ---- lint: no bare subprocess.call/run in modules reachable from MCP tools ----

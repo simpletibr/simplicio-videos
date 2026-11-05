@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -608,6 +609,7 @@ def build_server():
 
 
 def main() -> None:
+    os.environ["SIMPLICIO_MCP"] = "1"  # childio.run_child: children get no stdin and no inherited stdout under the stdio server
     build_server().run("stdio")
 
 
