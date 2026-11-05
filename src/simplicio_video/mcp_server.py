@@ -271,9 +271,9 @@ def video_montage(args: str = "", input: dict | None = None) -> dict:
     return _so_terminal(f"montage {argv[0]}", f"montage {argv[0]} roda outra coisa do OpenMontage que o MCP não aceita")
 
 
-DESC_video_opencut = "OpenCut editor for manual finishing (https://github.com/OpenCut-app/OpenCut): clone (default folder) and where. dev (a server that never ends) and a folder for clone are terminal-only."
+DESC_video_opencut = "OpenCut editor for manual finishing, pinned to opencut-classic (https://github.com/OpenCut-app/opencut-classic, archived upstream): clone (default folder), status (checkout, pin, bun, node_modules, .env.local, port; never prints values) and where. dev (a server that never ends) and a folder for clone are terminal-only."
 def video_opencut(args: str = "") -> dict:
-    """OpenCut over MCP: `clone` into the default folder, `where`, `--help`. `dev` starts a server that never ends, and
+    """OpenCut over MCP: `clone` into the default folder, `status [--json]`, `where`, `--help`. `dev` starts a server that never ends, and
     `clone <dir>` picks where the checkout is written: both run in the terminal."""
     argv = _argv(args)
     if argv[:1] == ["dev"]:

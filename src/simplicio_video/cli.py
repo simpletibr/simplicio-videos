@@ -275,9 +275,9 @@ def build_parser() -> argparse.ArgumentParser:
     qc.adiciona_acoes(p)
 
     p = sub.add_parser("opencut", formatter_class=Fmt, help="editor OpenCut (open-source) para acabamento manual",
-        description="Clona e sobe o OpenCut (https://github.com/OpenCut-app/OpenCut, MIT; usa o opencut-classic até o rewrite ter API).",
-        epilog="exemplos:\n  simplicio-video opencut clone\n  simplicio-video opencut dev")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | dev | where")
+        description="Clona e sobe o OpenCut (MIT), fixado no opencut-classic (https://github.com/OpenCut-app/opencut-classic, arquivado no upstream; o rewrite ainda não tem API). dev escuta só em 127.0.0.1; --lan abre em 0.0.0.0. status mostra checkout, pin, bun, node_modules, .env.local e porta.",
+        epilog="exemplos:\n  simplicio-video opencut clone\n  simplicio-video opencut dev\n  simplicio-video opencut dev --lan\n  simplicio-video opencut status --json")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | dev [--lan] | status [--json] | where")
 
     p = sub.add_parser("toonflow", formatter_class=Fmt, help="Toonflow (MIT): estúdio de séries e vídeos com IA, app web local",
         description="Clona e sobe o Toonflow (https://github.com/HBAI-Ltd/Toonflow-app, MIT) no commit fixado em tools.py. "

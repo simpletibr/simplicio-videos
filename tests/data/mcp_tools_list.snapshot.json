@@ -539,7 +539,7 @@
    "name": "video.montage"
   },
   {
-   "description": "OpenCut editor for manual finishing (https://github.com/OpenCut-app/OpenCut): clone (default folder) and where. dev (a server that never ends) and a folder for clone are terminal-only.",
+   "description": "OpenCut editor for manual finishing, pinned to opencut-classic (https://github.com/OpenCut-app/opencut-classic, archived upstream): clone (default folder), status (checkout, pin, bun, node_modules, .env.local, port; never prints values) and where. dev (a server that never ends) and a folder for clone are terminal-only.",
    "inputSchema": {
     "properties": {
      "args": {
