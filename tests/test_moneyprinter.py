@@ -12,6 +12,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from _orfao import (SINAIS, SLEEPER_CODE, espera, espera_pid, mata_o_que_sobrou, sinaliza_no_popen,  # noqa: F401
+                    sinais_padrao, vivo)
 
 from simplicio_video import cli, mcp_server, moneyprinter, tools
 
@@ -2136,6 +2138,81 @@ def test_batch_manifest_is_capped_before_it_is_read(checkout, spawn, tmp_path):
     with pytest.raises(moneyprinter.MoneyPrinterError, match="100"):
         _run(tmp_path, "--batch-file", str(many), "--voice-name", EDGE)
     assert spawn.calls == []
+
+
+# ---- a stop signal inside Popen (the child already runs, `procs` / `proc` do not know it yet) must not orphan the server ----
+
+_GAP = [pytest.mark.skipif(os.name != "posix", reason="POSIX signals"), pytest.mark.usefixtures("sinais_padrao"),
+        pytest.mark.parametrize("nome", SINAIS)]
+
+
+def _fake_server_exe(tmp_path, pidfile):
+    exe = tmp_path / "fake-python"
+    exe.write_text(f"#!/bin/sh\necho $$ > {pidfile}\nexec sleep 120\n")
+    exe.chmod(0o755)
+    return exe
+
+
+def _gap_marks(fn):
+    for m in reversed(_GAP):
+        fn = m(fn)
+    return fn
+
+
+@_gap_marks
+def test_serve_a_stop_signal_inside_popen_does_not_leave_the_server_listening(checkout, monkeypatch, tmp_path, nome):
+    """The handler (KeyboardInterrupt) ran inside Popen, before `procs.append`: `procs` was empty, `_stop_all` stopped nothing and
+    the WebUI kept running in its own session with nobody to stop it."""
+    pidfile = tmp_path / "pid"
+    exe = _fake_server_exe(tmp_path, pidfile)
+    monkeypatch.setattr(moneyprinter, "venv_python", lambda: exe)
+    sinaliza_no_popen(monkeypatch, pidfile, getattr(signal, nome), so_se=str(exe))
+    try:
+        rc = moneyprinter.run_moneyprinter(["serve"])
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 8), "the server outlived the engine"
+        assert rc == 0  # stopped like Ctrl+C: not an error
+    finally:
+        mata_o_que_sobrou(pidfile)
+
+
+@_gap_marks
+def test_generate_a_stop_signal_inside_popen_does_not_leave_the_api_running(checkout, monkeypatch, tmp_path, nome):
+    pidfile = tmp_path / "pid"
+    exe = _fake_server_exe(tmp_path, pidfile)
+    fd = os.open(os.devnull, os.O_RDONLY)
+
+    class Listener(_FakeListener):
+        def fileno(self):
+            return fd
+
+    monkeypatch.setattr(moneyprinter, "venv_python", lambda: exe)
+    monkeypatch.setattr(moneyprinter, "_listen_socket", lambda port: Listener(port or 45678))
+    sinaliza_no_popen(monkeypatch, pidfile, getattr(signal, nome), so_se=str(exe))
+    script, clip = _generate_inputs(tmp_path)
+    try:
+        rc = moneyprinter.run_moneyprinter(_generate_argv(script, clip, tmp_path / "o"))
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 8), "the API outlived the engine"
+        assert rc == 130
+    finally:
+        mata_o_que_sobrou(pidfile)
+        os.close(fd)
+
+
+@_gap_marks
+def test_run_a_stop_signal_inside_popen_does_not_leave_the_upstream_cli_running(monkeypatch, tmp_path, nome):
+    """`_spawn_cli`: `proc` was None in the gap, so the `except BaseException` had nothing to stop."""
+    from simplicio_video.toonflow import _on_term
+
+    pidfile = tmp_path / "pid"
+    for n in ("SIGTERM", "SIGHUP"):  # what `run` installs before calling it
+        signal.signal(getattr(signal, n), _on_term)
+    sinaliza_no_popen(monkeypatch, pidfile, getattr(signal, nome), so_se=str(pidfile))
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            moneyprinter._spawn_cli([sys.executable, "-c", SLEEPER_CODE, str(pidfile)], tmp_path, dict(os.environ))
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 8), "the upstream cli.py outlived the engine"
+    finally:
+        mata_o_que_sobrou(pidfile)
 
 
 @pytest.mark.slow
