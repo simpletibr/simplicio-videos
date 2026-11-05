@@ -295,6 +295,7 @@ def test_no_checkout_says_how_to_clone(tmp_path, monkeypatch):
 
 def test_without_the_venv_run_says_to_run_setup(mc, monkeypatch):
     monkeypatch.undo()  # drops the venv_python stub (and the env of the fixture): rebuild only what is needed
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
     monkeypatch.setenv("HOME", str(mc.tmp / "h"))
     monkeypatch.setenv("MATCHCUT_DIR", str(mc.dir))
     monkeypatch.setenv("MATCHCUT_DATA_DIR", str(mc.tmp / "data"))
@@ -533,6 +534,7 @@ def setup_calls(mc, monkeypatch):
 
     monkeypatch.setattr(matchcut, "_call", fake_call)
     monkeypatch.undo()  # setup must use the real venv_python()/data_dir(), not the interpreter stub
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)  # make check runs with it set; the undo above brought it back
     monkeypatch.setenv("HOME", str(mc.tmp / "h"))
     monkeypatch.setenv("MATCHCUT_DIR", str(mc.dir))
     monkeypatch.setenv("MATCHCUT_DATA_DIR", str(mc.tmp / "data"))
@@ -666,3 +668,10 @@ def test_mcp_status_and_where_still_work_and_take_no_arguments(mc):
     assert mcp_server.video_matchcut("where")["ok"] is True
     assert mcp_server.video_matchcut("status")["ok"] is True
     assert mcp_server.video_matchcut("status now")["ok"] is False
+
+
+def test_matchcut_does_not_import_the_instagram_module():
+    tree = ast.parse(Path(matchcut.__file__).read_text(encoding="utf8"))
+    imported = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
+    imported |= {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    assert not any("instagram" in (m or "") for m in imported)

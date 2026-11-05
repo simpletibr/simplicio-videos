@@ -456,19 +456,29 @@
    "name": "video.list"
   },
   {
-   "description": "match-cut agent skill for product films (MIT): clone the pinned commit into the default folder, where (path of SKILL.md) and status. It never runs the skill or calls Renoise; using the skill needs the person's own Renoise sign-in and paid credits (https://github.com/Sac-Y/match-cut).",
+   "name": "video.matchcut",
+   "description": "match-cut agent skill for product films (MIT): where (path of SKILL.md), status, and run of one of its seven LOCAL scripts (music, mix, qc, render, assemble, align, undot; a closed list, each checked against a pinned sha256 before it runs, in the skill venv with no shell, no stdin and no key). `args` is a list such as [\"run\", \"qc\", \"sheet\", \"/abs/clip.mp4\", \"/abs/sheet.jpg\"]; every path-like argument must be absolute, an existing output file is never overwritten, and nothing is written into the checkout or a system folder. setup (the venv, needs network) and clone are terminal-only: simplicio-video matchcut setup|clone. The engine never calls Renoise; using the skill itself needs the person's own Renoise sign-in and paid credits (https://github.com/Sac-Y/match-cut).",
    "inputSchema": {
+    "type": "object",
     "properties": {
      "args": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "string"
+       }
+      ],
       "default": "",
-      "title": "Args",
-      "type": "string"
+      "title": "Args"
      }
     },
-    "title": "video_matchcutArguments",
-    "type": "object"
-   },
-   "name": "video.matchcut"
+    "title": "video_matchcutArguments"
+   }
   },
   {
    "description": "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Writes new files with -o.",
