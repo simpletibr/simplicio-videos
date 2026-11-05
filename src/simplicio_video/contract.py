@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 from jsonschema import Draft202012Validator
 
-from . import paths
+from . import paths, trilha  # trilha não importa o contrato: sem ciclo
 
 EPS = 1e-6
 
@@ -189,6 +189,11 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
         onde.setdefault(posixpath.normpath(logo["destino"]), []).append("marca.logo")
     for slot in d.get("placas_video", []):
         onde.setdefault(posixpath.normpath(slot["file"]), []).append(f"placas_video[{slot['id']}].file")
+    music = (d.get("trilha") or {}).get("music") or {}
+    if music.get("arquivo"):  # the compiler writes the music bed's files too: the approved copy of a library audio and the arranged WAV
+        for destino in (trilha.origem_destino(music), trilha.ARRANJO_REL):
+            if destino:
+                onde.setdefault(posixpath.normpath(destino), []).append("trilha.music")
     for destino, quem in onde.items():
         if len(quem) > 1:
             rep.errors.append(f"assets: duplicated destino {destino} ({', '.join(quem)}): the last copy wins; give each file its own destino")
@@ -228,12 +233,10 @@ def validate(c: Contract, need_lock: bool = False) -> Report:
                 if not c.rel(m["file"]).is_file():
                     rep.errors.append(f"voice: {l['id']} file missing: {m['file']}")
     # ---- trilha de arquivo (etapa 1 BRASA): arquivo existe, cortes conferidos (em_s), arranjo cobre o vídeo ----
-    music = (d.get("trilha") or {}).get("music") or {}
     if music.get("arquivo"):
         if not c.rel(music["arquivo"]).is_file():
             rep.errors.append(f"trilha: arquivo não encontrado: {music['arquivo']}")
         if music.get("cortes"):
-            from . import trilha  # sem ciclo: trilha não importa o contrato
             cf = float(music.get("crossfade_ms", trilha.CROSSFADE_PADRAO_MS))
             try:
                 trilha.valida_cortes(music["cortes"], cf)
