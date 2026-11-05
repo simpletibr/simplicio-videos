@@ -26,16 +26,37 @@ def _run(cmd: list[str]) -> int:
     return subprocess.call(cmd)
 
 
+def _tem_saida(rest: list[str]) -> bool:
+    """True if the output option is there in any spelling the upstream argparse takes: -o X, -oX, --output X, --out X, --o=X..."""
+    for r in rest[1:] if rest and not rest[0].startswith("-") else rest:
+        if r == "--":
+            break
+        if r.startswith("-o") and not r.startswith("--"):
+            return True
+        if r.startswith("--") and len(r) > 2 and r.split("=", 1)[0] in ("--output", "--outpu", "--outp", "--out", "--ou", "--o"):
+            return True
+    return False
+
+
 def run_edit(args: list[str]) -> int:
     first = args[0] if args else "help"
     rest = args[1:]
     if first in ("-h", "--help", "help"):
         print("video-use (https://github.com/browser-use/video-use) sobre qualquer MP4/MOV\n"
               "  edit setup                                  # clona no commit fixado; imprime helpers/\n"
-              "  edit transcribe FONTE.mp4 [-o OUT] [--script spec.json]   # local (faster-whisper)\n"
+              "  edit transcribe FONTE.mp4 -o OUT.json [--script spec.json]   # local (faster-whisper)\n"
               "  edit pack EDIT_DIR                          # transcrições -> takes_packed.md\n"
               "  edit render EDL.json -o OUT.mp4 [args]      # EDL -> MP4 (sem loudnorm; use master.sh)\n"
               "  edit verify VIDEO T0 T1 -o PNG [--transcript words.json]   # filmstrip do corte")
+        return 0
+    if first == "transcribe" and not any(h in rest for h in ("-h", "--help")):
+        if not rest:
+            raise EditError("transcribe: informe FONTE.mp4 -o OUT.json")
+        if not _tem_saida(rest):
+            raise EditError("transcribe: -o OUT.json é obrigatório (como em render e verify)")
+    if first == "transcribe" and any(h in rest for h in ("-h", "--help")):
+        print("edit transcribe FONTE.mp4 -o OUT.json [--model M] [--lang L] [--fixes F.json] [--script spec.json]\n"
+              "  transcrição local (faster-whisper); -o (ou --out/--output) é obrigatório, como em render e verify")
         return 0
     h = helpers_dir()
     if first == "setup":
@@ -44,8 +65,6 @@ def run_edit(args: list[str]) -> int:
     py = paths.tts_python()
     tools = paths.home() / "tools" / "video-use"
     if first == "transcribe":
-        if not rest:
-            raise EditError("transcribe: informe FONTE.mp4")
         return _run([py, str(tools / "transcribe_local.py"), *rest])
     if first == "pack":
         if len(rest) != 1:

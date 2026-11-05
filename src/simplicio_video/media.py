@@ -49,6 +49,8 @@ The "audio" key is used only by voice-track. Times are seconds.
 Examples:
   simplicio-video media fetch https://www.instagram.com/veramundopet/reel/DfDdh8ugFWN/ -o reel.mp4 --autorizo
   simplicio-video media probe reel.mp4
+  simplicio-video media audio reel.mp4 -o reel.wav --rate 16000
+  simplicio-video media sheet reel.mp4 -o sheet.jpg --every 4
   simplicio-video media mask reel.mp4 --box 150,622,430,104 -o clean.mp4
   simplicio-video media subs cues.json -o subs.ass --style band
   simplicio-video media burn clean.mp4 subs.ass -o final.mp4
@@ -471,6 +473,24 @@ DISPATCH = {
 }
 
 
+def sub_help(name: str) -> str:
+    """The HELP block of one subcommand (its usage lines) plus its examples, cut from HELP so the two never drift."""
+    linhas = HELP.split("\n")
+    uso: list[str] = []
+    for i, ln in enumerate(linhas):
+        if ln.startswith(f"  {name} "):
+            uso.append(ln)
+            for cont in linhas[i + 1:]:
+                if not cont.startswith("    "):
+                    break
+                uso.append(cont)
+            break
+    exemplos = [ln for ln in linhas if ln.startswith(f"  simplicio-video media {name} ")]
+    extra = ["", 'Cues file: {"schema": "simplicio.media-cues/v1", "cues": [{"start": 0.0, "end": 2.5, "text": "...", "audio": "clip.wav"}]}'] \
+        if name in ("subs", "voice-track") else []
+    return "\n".join([f"media {name}", "", *uso, *extra, "", "Exemplos:", *exemplos])
+
+
 def run_media(args: list[str]) -> int:
     first = args[0] if args else "help"
     if first in ("-h", "--help", "help"):
@@ -478,6 +498,10 @@ def run_media(args: list[str]) -> int:
         return 0
     if first not in DISPATCH:
         raise MediaError(f"subcomando desconhecido: {first} ({'|'.join(SUBCOMMANDS)})")
+    antes_do_traco = args[1:args.index("--")] if "--" in args else args[1:]
+    if any(h in antes_do_traco for h in ("-h", "--help")):
+        print(sub_help(first))
+        return 0
     pos, vals = _parse(args[1:])
     resultado = DISPATCH[first](pos, vals)
     print(json.dumps(resultado, ensure_ascii=False, indent=2))
