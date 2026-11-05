@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from . import tools
@@ -242,13 +243,22 @@ def _upstream_env() -> dict[str, str]:
     return env
 
 
+def _vlm_free(args: list[str]) -> bool:
+    """True when this call cannot reach the vision model: --no-vlm, or a command that never calls it (and no --vlm,
+    no --env-file). Then the upstream does not receive the VLM settings at all."""
+    if "--vlm" in args or any(a == "--env-file" or a.startswith("--env-file=") for a in args):
+        return False
+    cmd = next((a for a in args if not a.startswith("-")), "")
+    return "--no-vlm" in args or cmd in NO_VLM_COMMANDS
+
+
 def _run_upstream(args: list[str]) -> int:
     exe = _rea_video_exe()
     if exe is None:
         raise ReaVideoError("rea-video não está instalado no venv: rode `simplicio-video rea-video clone` e depois "
                             "`simplicio-video rea-video setup`.")
     try:
-        return subprocess.call([str(exe), *args], env=_upstream_env())
+        return subprocess.call([str(exe), *args], env=_mcp_env() if _vlm_free(args) else _upstream_env())
     except KeyboardInterrupt:  # Ctrl+C reaches the upstream too; it decides how to stop
         return 130
     except OSError as e:
@@ -297,7 +307,10 @@ def run_rea_video(args: list[str]) -> int:
 # writes jobs.json (it never runs the capsule-cinema folder). `--vlm` and `--env-file` are never accepted here, and the
 # upstream prefs (vlm=on) cannot turn the vision model back on: decompose always gets `--no-vlm`.
 
-MCP_TIMEOUT = 900  # s; `stems` may download a 67 MB model and run it
+MCP_TIMEOUT = 300  # s; the slow commands (decompose, stems) are jobs, not inline calls
+JOB_JOBS = ("decompose", "stems")  # the commands that run as background jobs
+JOB_CWD_PREFIX = "rea-video-job-"
+NO_VLM_COMMANDS = ("stems", "probe", "summary", "review", "apply-review", "remake-plan", "tiles")  # never call the vision model
 TERMINAL_ONLY = ("setup", "remake-run", "capsule-draft", "prefs", "correct", "memory", "eval", "capsule", "assemble")
 VLM_ENV_PREFIXES = ("REA_VLM_", "VIDEO_ANALYSIS_", "GEMINI3_")
 _NUM = re.compile(r"^\d+$")
@@ -308,14 +321,14 @@ _FLOAT = re.compile(r"^\d+(\.\d+)?$")
 _SPECS: dict[str, tuple[list[tuple[str, bool]], dict[str, object], tuple[str, ...]]] = {
     "summary": ([("file", True)], {}, ()),
     "probe": ([("file", True)], {"--tags": "bool"}, ()),
-    "tiles": ([("file", True)], {"--start": "float", "--end": "float", "--every": "float", "--cols": "int", "--cell": "int",
-                                 "--max": "int", "-o": "abs", "--out": "abs"}, ("out",)),
-    "stems": ([("file", True)], {"-o": "abs", "--out": "abs"}, ("out",)),
-    "review": ([("dir", True)], {"--force": "bool"}, ()),
-    "apply-review": ([("dir", True), ("file", False)], {"--by": "text"}, ()),
-    "remake-plan": ([("file", True)], {"--capsule-root": "abs", "--engine": "text", "--labels": "text",
+    "tiles": ([("file", True)], {"--start": "float", "--end": "float", "--every": "pfloat", "--cols": "int", "--cell": "int",
+                                 "--max": "int", "-o": "outfile", "--out": "outfile"}, ("out",)),
+    "stems": ([("file", True)], {"-o": "outdir", "--out": "outdir"}, ("out",)),
+    "review": ([("adir", True)], {"--force": "bool"}, ()),
+    "apply-review": ([("adir", True), ("file", False)], {"--by": "text"}, ()),
+    "remake-plan": ([("breakdown", True)], {"--capsule-root": "abs", "--engine": "text", "--labels": "text",
                                        "--mode": ("choice", "first_last_frame", "image_to_video", "text_to_video")}, ()),
-    "decompose": ([("file", True)], {"-o": "abs", "--out": "abs", "--no-vlm": "bool", "--no-whole": "bool", "--no-ocr": "bool",
+    "decompose": ([("file", True)], {"-o": "outdir", "--out": "outdir", "--no-vlm": "bool", "--no-whole": "bool", "--no-ocr": "bool",
                                       "--ocr-lang": ("choice", "zh", "ja"), "--no-packaging": "bool", "--no-stems": "bool",
                                       "--workers": "int", "--engine": "text", "--meta": "file"}, ("out",)),
 }
@@ -328,6 +341,35 @@ def _terminal(what: str) -> ReaVideoError:
                          "com review e apply-review.")
 
 
+def _plain_path(value: str, label: str) -> Path:
+    """Absolute, no '..', and no component that is a symlink: an MCP path cannot be steered somewhere else."""
+    if not os.path.isabs(value):
+        raise ReaVideoError(f"{label}: caminho absoluto, recebi {value!r} (pelo MCP a pasta de trabalho é privada)")
+    path = Path(value)
+    if ".." in path.parts:
+        raise ReaVideoError(f"{label}: sem '..' no caminho: {value}")
+    cur = Path(path.parts[0])
+    for part in path.parts[1:]:
+        cur = cur / part
+        if cur.is_symlink():
+            raise ReaVideoError(f"{label}: {cur} é um link simbólico; pelo MCP só caminho real")
+    return path
+
+
+def _analysis_dir(d: Path, label: str) -> None:
+    """A folder an earlier `decompose` wrote: it holds a real breakdown.json and none of its entries is a link
+    (the commands that rewrite files there would otherwise follow a link to somewhere else)."""
+    bd = d / "breakdown.json"
+    if not bd.is_file() or bd.is_symlink():
+        raise ReaVideoError(f"{label}: {d} não é uma pasta de análise (falta o breakdown.json do decompose)")
+    for entry in d.iterdir():
+        if entry.is_symlink():
+            raise ReaVideoError(f"{label}: {entry} é um link simbólico dentro da pasta de análise")
+    rj = d / "remake" / "jobs.json"
+    if rj.is_symlink():
+        raise ReaVideoError(f"{label}: {rj} é um link simbólico")
+
+
 def _check_value(kind, value: str, label: str) -> str:
     if "\0" in value or not value:
         raise ReaVideoError(f"{label}: valor inválido")
@@ -337,19 +379,39 @@ def _check_value(kind, value: str, label: str) -> str:
     elif kind == "int":
         if not _NUM.match(value) or int(value) < 1:
             raise ReaVideoError(f"{label}: inteiro maior que zero, recebi {value!r}")
-    elif kind == "float":
-        if not _FLOAT.match(value):
-            raise ReaVideoError(f"{label}: número em segundos (sem sinal), recebi {value!r}")
+    elif kind in ("float", "pfloat"):
+        if not _FLOAT.match(value) or (kind == "pfloat" and float(value) <= 0):
+            raise ReaVideoError(f"{label}: número em segundos{' maior que zero' if kind == 'pfloat' else ''} (sem sinal), recebi {value!r}")
     elif kind == "text":
         if value.startswith("-") or len(value) > 300:
             raise ReaVideoError(f"{label}: texto simples, sem começar com '-'")
-    else:  # file | dir | abs
-        if not os.path.isabs(value):
-            raise ReaVideoError(f"{label}: caminho absoluto, recebi {value!r} (pelo MCP a pasta de trabalho é privada)")
-        if kind == "file" and not os.path.isfile(value):
-            raise ReaVideoError(f"{label}: arquivo não encontrado: {value}")
-        if kind == "dir" and not os.path.isdir(value):
-            raise ReaVideoError(f"{label}: pasta não encontrada: {value}")
+    else:  # file | abs | adir | breakdown | outfile | outdir
+        path = _plain_path(value, label) if kind != "file" else Path(value)
+        if kind == "file":
+            if not os.path.isabs(value):
+                raise ReaVideoError(f"{label}: caminho absoluto, recebi {value!r} (pelo MCP a pasta de trabalho é privada)")
+            if not path.is_file():
+                raise ReaVideoError(f"{label}: arquivo não encontrado: {value}")
+        elif kind == "adir":
+            if not path.is_dir():
+                raise ReaVideoError(f"{label}: pasta não encontrada: {value}")
+            _analysis_dir(path, label)
+        elif kind == "breakdown":
+            if path.name != "breakdown.json" or not path.is_file():
+                raise ReaVideoError(f"{label}: use o breakdown.json de uma pasta de análise: {value}")
+            _analysis_dir(path.parent, label)
+        elif kind == "outfile":
+            if os.path.lexists(path):
+                raise ReaVideoError(f"{label}: {value} já existe; pelo MCP não se sobrescreve arquivo")
+            if not path.parent.is_dir():
+                raise ReaVideoError(f"{label}: a pasta {path.parent} precisa existir")
+            derived = re.compile(re.escape(path.stem) + r"_\d+" + re.escape(path.suffix) + "$")
+            clash = [e.name for e in path.parent.iterdir() if derived.match(e.name)]
+            if clash:
+                raise ReaVideoError(f"{label}: já existe {clash[0]} ao lado; o tiles grava {path.stem}_N{path.suffix}")
+        elif kind == "outdir":
+            if os.path.lexists(path) and (not path.is_dir() or any(path.iterdir())):
+                raise ReaVideoError(f"{label}: {value} já existe e não está vazia; pelo MCP a saída vai para uma pasta nova ou vazia")
     return value
 
 
@@ -371,6 +433,7 @@ def mcp_command(args) -> list[str]:
     positionals: list[str] = []
     out: list[str] = []
     seen: set[str] = set()
+    checks: list[tuple] = []  # values are checked after every token: a terminal-only flag is named before a path problem
     i = 0
     while i < len(rest):
         tok = rest[i]
@@ -378,7 +441,8 @@ def mcp_command(args) -> list[str]:
         if not tok.startswith("-"):
             if len(positionals) >= len(pos_spec):
                 raise ReaVideoError(f"{cmd}: argumento a mais: {tok}")
-            positionals.append(_check_value(pos_spec[len(positionals)][0], tok, f"{cmd} {tok[:40]}"))
+            checks.append((pos_spec[len(positionals)][0], tok, f"{cmd} {tok[:40]}"))
+            positionals.append(tok)
             continue
         name, eq, inline = tok.partition("=") if tok.startswith("--") else (tok, "", "")
         if name in ("--vlm", "--env-file"):
@@ -401,7 +465,10 @@ def mcp_command(args) -> list[str]:
             value, i = rest[i], i + 1
         else:
             raise ReaVideoError(f"{cmd}: {name} precisa de um valor")
-        out += [name, _check_value(kind, value, f"{cmd} {name}")]
+        checks.append((kind, value, f"{cmd} {name}"))
+        out += [name, value]
+    for kind, value, label in checks:
+        _check_value(kind, value, label)
     for n, (_, req) in enumerate(pos_spec):
         if req and n >= len(positionals):
             raise ReaVideoError(f"{cmd}: faltou o argumento {n + 1}")
@@ -414,12 +481,32 @@ def mcp_command(args) -> list[str]:
     return argv
 
 
-def decompose_args(args) -> list[str]:
-    """The canonical `decompose` arguments for a background job (raises ReaVideoError for anything else)."""
+def job_args(args) -> list[str]:
+    """The canonical arguments of a background job: `decompose` or `stems` (raises ReaVideoError for anything else)."""
     argv = mcp_command(args)
-    if argv[0] != "decompose":
-        raise ReaVideoError(f"só decompose roda como tarefa; recebi {argv[0]}")
+    if argv[0] not in JOB_JOBS:
+        raise ReaVideoError(f"só {' e '.join(JOB_JOBS)} rodam como tarefa; recebi {argv[0]}")
     return argv
+
+
+def make_job_cwd() -> str:
+    """A private empty folder for a job child. Folders of jobs that ended without a result (failed, cancelled, lost) and
+    are older than a week are swept here, on the next submit; rmdir only removes an empty one."""
+    base = Path(tempfile.gettempdir())
+    cutoff = time.time() - 7 * 86400
+    for old in base.glob(JOB_CWD_PREFIX + "*"):
+        with contextlib.suppress(OSError):
+            if old.stat().st_mtime < cutoff:
+                old.rmdir()
+    return tempfile.mkdtemp(prefix=JOB_CWD_PREFIX)
+
+
+def drop_job_cwd(path) -> None:
+    """Remove the private folder of a finished job (only ours: under the temp folder, with our prefix, empty)."""
+    p = Path(str(path or ""))
+    if p.name.startswith(JOB_CWD_PREFIX) and p.parent == Path(tempfile.gettempdir()):
+        with contextlib.suppress(OSError):
+            p.rmdir()
 
 
 def _mcp_env() -> dict[str, str]:
@@ -428,22 +515,36 @@ def _mcp_env() -> dict[str, str]:
 
 
 def _mcp_exec(argv: list[str], cwd, env: dict[str, str]) -> tuple[int, str]:
-    """Run the upstream to completion with no stdin, in `cwd`, capturing what it prints. The one place the MCP path starts it."""
+    """Run the upstream to completion with no stdin, in `cwd`, capturing what it prints. The one place the MCP path starts
+    it. It leads its own process group, so a timeout kills the upstream and everything it started."""
     try:
-        r = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace",
-                           cwd=cwd, env=env, timeout=MCP_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        return 124, f"rea-video passou de {MCP_TIMEOUT} s e foi encerrado"
+        proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                errors="replace", cwd=cwd, env=env, start_new_session=(os.name != "nt"))
     except OSError as e:
         raise ReaVideoError(f"não consegui rodar {argv[0]}: {e}") from None
-    return r.returncode, "\n".join(s.strip() for s in (r.stdout, r.stderr) if s and s.strip())
+    timed_out = False
+    try:
+        so, se = proc.communicate(timeout=MCP_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        with contextlib.suppress(OSError):
+            os.killpg(proc.pid, 9) if os.name != "nt" else proc.kill()
+        so, se = proc.communicate()
+    finally:
+        if proc.poll() is None:
+            with contextlib.suppress(OSError):
+                os.killpg(proc.pid, 9) if os.name != "nt" else proc.kill()
+    text = "\n".join(x.strip() for x in (so, se) if x and x.strip())
+    if timed_out:
+        return 124, f"{text}\nrea-video passou de {MCP_TIMEOUT} s e foi encerrado".strip()
+    return proc.returncode, text
 
 
 def mcp_run(args) -> tuple[int, str]:
     """Run one open command (not decompose: that is a job) in a private empty folder; returns (exit code, output)."""
     argv = mcp_command(args)
-    if argv[0] == "decompose":
-        raise ReaVideoError("decompose roda como tarefa em segundo plano (video.jobs); envie pelo video.rea-video")
+    if argv[0] in JOB_JOBS:
+        raise ReaVideoError(f"{argv[0]} roda como tarefa em segundo plano; envie pelo video.rea-video")
     exe = _rea_video_exe()
     if exe is None:
         raise ReaVideoError("rea-video não está instalado no venv: `simplicio-video rea-video clone` e depois `setup` "

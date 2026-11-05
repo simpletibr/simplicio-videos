@@ -365,7 +365,7 @@
    "name": "video.install"
   },
   {
-   "description": "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes).",
+   "description": "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}) and rea-video (kind=rea-video, params={args: [decompose|stems, ...]}, no vision model; usually sent through video.rea-video). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes).",
    "inputSchema": {
     "properties": {
      "acao": {
@@ -714,7 +714,7 @@
    "name": "video.qc"
   },
   {
-   "description": "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake (https://github.com/JuneYaooo/rea-video). Over MCP, with absolute paths and a closed list of flags per command: where, status, clone (default folder); summary, probe, tiles (-o required), stems, review, apply-review, remake-plan; decompose runs as a background job (job id back; follow it with video.jobs status/result), always without the vision model. review and apply-review let YOU act as the vision model, so no frame goes to a third party. --vlm, --env-file, setup, remake-run (bills), capsule-draft (runs code of a folder), prefs, correct and memory are terminal only. Children run with no stdin in a private empty folder.",
+   "description": "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake (https://github.com/JuneYaooo/rea-video). Over MCP, with absolute paths and a closed list of flags per command: where, status, clone (default folder); summary, probe, tiles (-o required, a new file), review, apply-review, remake-plan (these two write beside an existing analysis folder); decompose and stems run as background jobs (job id back; follow it with video.jobs status/result), decompose always without the vision model. review and apply-review let YOU act as the vision model, so no frame goes to a third party. --vlm, --env-file, setup, remake-run (bills), capsule-draft (runs code of a folder), prefs, correct and memory are terminal only. Children run with no stdin in a private empty folder.",
    "inputSchema": {
     "properties": {
      "args": {

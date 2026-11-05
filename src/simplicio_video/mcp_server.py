@@ -234,7 +234,7 @@ def video_swap(acao: str = "providers", provider: str | None = None, video: str 
         return {"ok": False, "error": str(e)}
 
 
-DESC_video_jobs = "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes)."
+DESC_video_jobs = "Background tasks: list, status, result, cancel; submit only for voice with a LOCAL provider (kind=voice, params={contrato, provider: file|local|voxcpm|openvoice}) and rea-video (kind=rea-video, params={args: [decompose|stems, ...]}, no vision model; usually sent through video.rea-video). Never spends: swap-run and network voice are submitted in the terminal (jobs submit ... --yes)."
 def video_jobs(acao: str = "list", id: str | None = None, kind: str | None = None, params: dict | None = None,
                state: str | None = None) -> dict:
     """Background tasks over MCP: `list`, `status`, `result`, `cancel` for any task, and `submit` ONLY for `voice` with a
@@ -460,7 +460,7 @@ def video_instagram(acao: str = "status", ferramenta: str | None = None, texto: 
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-DESC_video_rea_video = "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake (https://github.com/JuneYaooo/rea-video). Over MCP, with absolute paths and a closed list of flags per command: where, status, clone (default folder); summary, probe, tiles (-o required), stems, review, apply-review, remake-plan; decompose runs as a background job (job id back; follow it with video.jobs status/result), always without the vision model. review and apply-review let YOU act as the vision model, so no frame goes to a third party. --vlm, --env-file, setup, remake-run (bills), capsule-draft (runs code of a folder), prefs, correct and memory are terminal only. Children run with no stdin in a private empty folder."
+DESC_video_rea_video = "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake (https://github.com/JuneYaooo/rea-video). Over MCP, with absolute paths and a closed list of flags per command: where, status, clone (default folder); summary, probe, tiles (-o required, a new file), review, apply-review, remake-plan (these two write beside an existing analysis folder); decompose and stems run as background jobs (job id back; follow it with video.jobs status/result), decompose always without the vision model. review and apply-review let YOU act as the vision model, so no frame goes to a third party. --vlm, --env-file, setup, remake-run (bills), capsule-draft (runs code of a folder), prefs, correct and memory are terminal only. Children run with no stdin in a private empty folder."
 def video_rea_video(args: str = "") -> dict:
     """rea-video over MCP. Open: `where`, `status`, `clone` (default folder), `summary`, `probe`, `tiles`, `stems`, `review`,
     `apply-review`, `remake-plan` (a closed list of flags each, absolute paths) and `decompose` (a background job without the
@@ -487,7 +487,7 @@ def video_rea_video(args: str = "") -> dict:
         out["log"] = buf.getvalue().strip()[-8000:]
         return out
     try:
-        if argv[:1] == ["decompose"]:
+        if argv[:1] in (["decompose"], ["stems"]):
             st = jobs.submit("rea-video", {"args": argv}, origin="mcp")
             return {"ok": True, "job": jobs.summary(st),
                     "next": "video.jobs status/result with this job id; the result holds breakdown.json and report.html"}
