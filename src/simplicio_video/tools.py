@@ -27,11 +27,20 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import hostos, tools_lock
+from . import hostos, paths, tools_lock
 
 
 class ToolError(Exception):
     pass
+
+
+def _video_use_pin() -> str:
+    """The pin of video-use: VU_REF of the packaged setup.sh, the file that `edit setup` runs (the single source of it)."""
+    text = (paths.DATA_DIR / "tools" / "video-use" / "setup.sh").read_text(encoding="utf8")
+    found = re.search(r"^VU_REF=([0-9a-f]{40})\b", text, re.MULTILINE)
+    if not found:
+        raise RuntimeError("data/tools/video-use/setup.sh sem VU_REF de 40 caracteres")
+    return found.group(1)
 
 
 @dataclass(frozen=True)
@@ -100,7 +109,7 @@ TOOLS: dict[str, Tool] = {
                               "`bun install && bun run dev` (this pin clones that source checkout). Loopback needs no "
                               "credential; the app is only reached over local HTTP (AGPL-3.0, never vendored)"),
     "video-use": Tool("video-use", "git", "https://github.com/browser-use/video-use",
-                        "b877063", "MIT",
+                        _video_use_pin(), "MIT",
                         "EDL editing over any MP4: word-accurate cuts, subtitles, overlays and filmstrip review; "
                         "the agent decides the EDL, ffmpeg executes it", marker="helpers/render.py",
                         note="pinned by the video-use setup.sh (data/tools/video-use) (23/09/2026); the checkout lives in "

@@ -136,6 +136,6 @@ def test_video_use_checkout_where_setup_puts_it_is_installed_and_reads_its_commi
     rep = status.tool_status("video-use")
     assert rep["installed"] is True
     assert rep["version"] == "b877063835e6"  # the checkout's HEAD, read with git in that checkout
-    assert rep["pinned"] == "b877063"
+    assert rep["pinned"].startswith("b877063")  # the full VU_REF of the packaged setup.sh
     assert git_calls[-1] == (("rev-parse", "--short=12", "HEAD"), checkout.resolve())
     assert tools.checkout_dir(tools.get("opencut")) == _isolated / "tools" / "opencut"
