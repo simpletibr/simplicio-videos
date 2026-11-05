@@ -823,29 +823,102 @@ def test_sigterm_and_sighup_to_the_engine_kill_the_child_and_remove_the_private_
         proc.stderr.close()
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
-def test_a_signal_right_after_the_script_starts_still_kills_it(ig, monkeypatch, tmp_path):
-    """The child is armed for the kill only after Popen returns: a SIGTERM that lands in that gap raised SystemExit past the kill,
-    so the script outlived the engine (its private folder was already gone). Here the signal arrives once the child is running."""
-    pidfile = tmp_path / "pid"
+GANCHO_SLEEP = ("import os, sys, time\n"
+                "open(sys.argv[1], 'w').write(str(os.getpid()))\n"
+                "time.sleep(60)\n")
+
+
+def _sinal_no_intervalo_do_popen(monkeypatch, pidfile, sinal):
+    """Makes Popen report `sinal` to this process once the child is running, before Popen returns (the gap)."""
     popen_real = subprocess.Popen
 
     class PopenQueSinalizaComOFilhoJaRodando(popen_real):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             assert espera(lambda: pidfile.exists() and pidfile.read_text()), "the child never started"
-            os.kill(os.getpid(), signal.SIGTERM)  # the engine's handler runs here, before Popen gives the child back
+            os.kill(os.getpid(), sinal)  # the engine's handler runs here, before Popen gives the child back
 
     monkeypatch.setattr(subprocess, "Popen", PopenQueSinalizaComOFilhoJaRodando)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.parametrize("sinal,codigo", [(signal.SIGTERM, 143), (getattr(signal, "SIGHUP", 1), 129)], ids=["SIGTERM", "SIGHUP"])
+def test_a_signal_right_after_the_script_starts_still_kills_it(ig, monkeypatch, tmp_path, sinal, codigo):
+    """The child is armed for the kill only after Popen returns: a SIGTERM or SIGHUP that lands in that gap raised SystemExit past
+    the kill, so the script outlived the engine (its private folder was already gone). Here the signal arrives once the child is
+    running. A test-side handler is in place first, so a missing engine handler fails the test instead of killing pytest."""
+    pidfile = tmp_path / "pid"
+    antes = signal.getsignal(sinal)
+    protegido = lambda signum, frame: None  # noqa: E731  (swallows the signal when the engine did not install its own)
+    signal.signal(sinal, protegido)
+    _sinal_no_intervalo_do_popen(monkeypatch, pidfile, sinal)
     try:
         with pytest.raises(SystemExit) as saida:
             instagram.run_tool("hookscore", ["--hook", f"TRIGGER:SLEEP:{pidfile}"])
-        assert saida.value.code == 143
+        assert saida.value.code == codigo
+        assert signal.getsignal(sinal) is protegido, "the engine did not put back the handler it found"
         pid = int(pidfile.read_text())
         assert espera(lambda: not vivo(pid), 10), "the script outlived the engine"
     finally:
+        signal.signal(sinal, antes if antes is not None else signal.SIG_DFL)
         if pidfile.exists() and pidfile.read_text() and vivo(int(pidfile.read_text())):
             os.kill(int(pidfile.read_text()), signal.SIGKILL)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.parametrize("nome", ["SIGTERM", "SIGHUP"])
+def test_executa_gives_back_the_handlers_after_a_signal_in_the_gap(tmp_path, monkeypatch, nome):
+    """Called directly (run_tool's own context manager would hide a missing restore): the handler found before is the one after."""
+    sinal = getattr(signal, nome)
+    pidfile = tmp_path / "pid"
+    antes = signal.getsignal(sinal)
+    protegido = lambda signum, frame: None  # noqa: E731
+    signal.signal(sinal, protegido)
+    _sinal_no_intervalo_do_popen(monkeypatch, pidfile, sinal)
+    try:
+        with pytest.raises(SystemExit):
+            instagram._executa([sys.executable, "-c", GANCHO_SLEEP, str(pidfile)], None, str(tmp_path))
+        assert signal.getsignal(sinal) is protegido
+    finally:
+        signal.signal(sinal, antes if antes is not None else signal.SIG_DFL)
+        if pidfile.exists() and pidfile.read_text() and vivo(int(pidfile.read_text())):
+            os.kill(int(pidfile.read_text()), signal.SIGKILL)
+
+
+@pytest.mark.xfail(strict=True, reason="known orphan: SIGINT in the Popen gap raises KeyboardInterrupt before `proc` is assigned in "
+                                       "instagram._executa, so `_matar` never runs and the child lives on; a fix flips this to XPASS")
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+def test_sigint_in_the_spawn_gap_does_not_orphan_the_child(tmp_path, monkeypatch):
+    pidfile = tmp_path / "pid"
+    _sinal_no_intervalo_do_popen(monkeypatch, pidfile, signal.SIGINT)
+    pid = None
+    try:
+        try:
+            instagram._executa([sys.executable, "-c", GANCHO_SLEEP, str(pidfile)], None, str(tmp_path))
+        except BaseException:  # the KeyboardInterrupt (or whatever a fix raises) is not what this test is about
+            pass
+        pid = int(pidfile.read_text())
+        assert espera(lambda: not vivo(pid), 5), "the child outlived the engine"
+    finally:
+        if pid is not None and vivo(pid):
+            os.kill(pid, signal.SIGKILL)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+def test_the_signal_handlers_are_given_back_when_the_spawn_fails(tmp_path, monkeypatch):
+    """Popen raises FileNotFoundError: _executa turns it into InstagramError and the handlers it swapped are put back."""
+    nomes = [n for n in ("SIGTERM", "SIGHUP") if hasattr(signal, n)]
+    antes = {n: signal.getsignal(getattr(signal, n)) for n in nomes}
+    protegidos = {n: (lambda signum, frame: None) for n in nomes}  # noqa: E731
+    for n in nomes:
+        signal.signal(getattr(signal, n), protegidos[n])
+    try:
+        with pytest.raises(instagram.InstagramError, match="não consegui executar"):
+            instagram._executa([str(tmp_path / "nao-existe")], None, str(tmp_path))
+        assert {n: signal.getsignal(getattr(signal, n)) for n in nomes} == protegidos
+    finally:
+        for n in nomes:
+            signal.signal(getattr(signal, n), antes[n] if antes[n] is not None else signal.SIG_DFL)
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
