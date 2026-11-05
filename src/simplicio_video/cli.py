@@ -36,7 +36,7 @@ Fluxo completo:
   jobs         tarefas em segundo plano (swap run, voice) num processo separado: submit, status, list, cancel, result
   toonflow     Toonflow (MIT): estúdio open-source de séries e vídeos com IA; serve pede --lan ou --docker, status e mcp (https://github.com/HBAI-Ltd/Toonflow-app)
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
-  matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; só baixa o commit fixado, o uso exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
+  matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; baixa o commit fixado e roda 7 scripts locais dele (setup, run), o uso do skill exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
   rea-video    rea-video (MIT): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake; instala o commit fixado num venv próprio e repassa os comandos dele (https://github.com/JuneYaooo/rea-video)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
@@ -297,12 +297,23 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video moneyprinter clone\n  simplicio-video moneyprinter setup\n  simplicio-video moneyprinter serve --api --api-port 8090\n  simplicio-video moneyprinter generate --script roteiro.txt --material clip.mp4 --out out/ --json\n  simplicio-video moneyprinter run --out out/ -- --video-script \"Texto do vídeo.\" --video-source local --video-materials clip.mp4 --voice-name pt-BR-FranciscaNeural-Female\n  simplicio-video moneyprinter run --yes --out out/ -- --video-subject tema --stop-at script   # LLM: só com --yes\n  simplicio-video moneyprinter status")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | serve [--webui] [--api] [--lan] [--host H] | generate ... | run [--yes] --out DIR -- <flags do upstream> | where | status")
 
-    p = sub.add_parser("matchcut", formatter_class=Fmt, help="match-cut (MIT): skill de agente para vídeo de produto, só baixa e aponta",
-        description="Baixa o match-cut (https://github.com/Sac-Y/match-cut, MIT) no commit fixado em tools.py e mostra onde está o SKILL.md. "
+    p = sub.add_parser("matchcut", formatter_class=Fmt, help="match-cut (MIT): skill de agente para vídeo de produto; baixa, aponta e roda 7 scripts locais",
+        description="Baixa o match-cut (https://github.com/Sac-Y/match-cut, MIT) no commit fixado em tools.py, mostra onde está o SKILL.md e roda, e só eles, "
+                    "sete scripts locais dele (music, mix, qc, render, assemble, align, undot) no venv criado por `setup`. "
+                    "Antes de rodar, confere o commit e o sha256 do script e do common.py; roda em modo isolado, sem shell, com stdin vazio e pasta privada. "
                     "É um skill de Claude Code ou Codex: o comando não roda o skill nem chama o Renoise. "
                     "O uso do skill exige login no Renoise pela sua conta e gasta créditos pagos.",
-        epilog="exemplos:\n  simplicio-video matchcut clone\n  simplicio-video matchcut where\n  simplicio-video matchcut status")
-    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | where | status")
+        epilog="exemplos:\n  simplicio-video matchcut clone\n  simplicio-video matchcut where\n  simplicio-video matchcut status\n  simplicio-video matchcut setup\n"
+               "  simplicio-video matchcut run music -- analyze faixa.wav --bpm 150 --json compassos.json\n"
+               "  simplicio-video matchcut run music -- cut montage.json\n"
+               "  simplicio-video matchcut run mix -- montage.json mix/\n"
+               "  simplicio-video matchcut run qc -- sheet clipe.mp4 folha.jpg 0 48 3\n"
+               "  simplicio-video matchcut run render -- montage.json render/ --draft s01 s02\n"
+               "  simplicio-video matchcut run assemble -- montage.json render/ --draft\n"
+               "  simplicio-video matchcut run align -- still.png alinhado.png 12 8 1.3\n"
+               "  simplicio-video matchcut run undot -- tela.mp4 limpo.mp4 100,100,900,500\n"
+               "todas as formas de cada script, com exemplos: simplicio-video matchcut help")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | where | status | setup | run SCRIPT [--forcar] [--bruto] [-- argumentos]")
 
     p = sub.add_parser("instagram", formatter_class=Fmt, help="instagram-agent-skill (MIT): skills de agente e scripts locais para Reels e legenda; não posta",
         description="Baixa o instagram-agent-skill (https://github.com/Jakeschincariol/instagram-agent-skill, MIT, Jake Schincariol) no commit fixado em tools.py, "
