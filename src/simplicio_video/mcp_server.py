@@ -470,17 +470,23 @@ def video_busca(acao: str = "status", consulta: str | None = None, pagina: str |
         return {"ok": False, "error": busca.scrub(f"{type(e).__name__}: {e}")}
 
 
-DESC_video_toonflow = "Toonflow open-source AI studio for short dramas and videos: clone into the default folder, where (serve runs in the terminal with --lan) (https://github.com/HBAI-Ltd/Toonflow-app)."
+DESC_video_toonflow = "Toonflow open-source AI studio for short dramas and videos: status (checkout, pin, bun, build, MCP runtime file mode; read-only), mcp (stdio MCP config block for a host agent; never prints the token), where, clone into the default folder; serve (--lan or --docker) runs in the terminal (https://github.com/HBAI-Ltd/Toonflow-app)."
 def video_toonflow(args: str = "") -> dict:
-    """Toonflow over MCP: `where` and `clone` into the default folder only. `serve` runs a server that never ends, and
-    `clone <dir>` is refused because an agent does not choose where a git checkout is written. Captures its own output
+    """Toonflow over MCP: `status`, `mcp`, `where` and `clone` into the default folder only. `serve` runs a server that
+    never ends, and `clone <dir>` is refused because an agent does not choose where a git checkout is written. `status`
+    and `mcp` only stat the MCP runtime file: the token inside is never read. Captures its own output
     instead of using _capture: the clone runs git with captured output, so nothing reaches the MCP stdio channel."""
     from . import toonflow
     argv = args.split() if isinstance(args, str) else list(args)
     if argv[:1] == ["serve"]:
-        return {"ok": False, "error": f"toonflow serve sobe um servidor local que não termina; rode `simplicio-video toonflow serve {toonflow.LAN_FLAG}` no terminal"}
+        return {"ok": False, "error": f"toonflow serve sobe um servidor local que não termina; rode `simplicio-video toonflow serve {toonflow.LAN_FLAG}` (ou `serve --docker`, só em 127.0.0.1) no terminal"}
     if argv[:1] == ["clone"] and len(argv) > 1:
         return {"ok": False, "error": "toonflow clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão"}
+    # Allow-list: anything not named here (help, a new upstream verb, extra operands) is terminal-only.
+    shapes = (["clone"], ["where"], ["status"], ["status", "--json"], ["mcp"], ["mcp", "--json"])
+    port_shape = len(argv) in (3, 4) and argv[:2] == ["mcp", "--port"] and argv[3:] in ([], ["--json"])
+    if argv not in shapes and not port_shape:
+        return {"ok": False, "error": "toonflow pelo MCP aceita `status [--json]`, `mcp [--port N] [--json]`, `where` e `clone` (pasta padrão); o resto é pelo terminal"}
     buf = io.StringIO()
     try:
         with childio.capture(buf, buf):
