@@ -13,11 +13,16 @@ must say:
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
+from pathlib import Path
 
 import pytest
 
-from _comum import ROOT
+from _comum import ROOT, executa, instantanea
+from simplicio_video.cli import main
+from simplicio_video.commands import doctor as doctor_cmd
 
 SKILL = ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video-trilhas" / "SKILL.md"
 TEXTO = SKILL.read_text(encoding="utf-8")
@@ -662,3 +667,116 @@ def test_o_voicestudio_nao_diz_que_nao_ha_setup_sem_explicar_o_doctor():
     assert "Não há setup do motor" not in linha
     assert "instalador próprio" in linha and "doctor trilhas" in linha and "não instalada" in linha and "git clone" in linha
     assert "código-fonte" in linha and "127.0.0.1:3900" in linha
+
+
+# --- third review of PR #185: the section about `doctor trilhas`, checked against what the command really does -------------------------
+
+
+def _secao_doctor() -> str:
+    return " ".join(_secao("Ver o que falta: doctor trilhas").split())
+
+
+def _casa_vazia(tmp_path, monkeypatch):
+    """A temp HOME, offline, and the data dir the conftest gives every test (the engine writes nothing outside them)."""
+    casa = tmp_path / "casa"
+    casa.mkdir()
+    monkeypatch.setenv("HOME", str(casa))
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    dados = Path(os.environ["SIMPLICIO_VIDEO_DATA"])
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(dados / "tools"))  # where the checkouts of the tracks are looked for
+    monkeypatch.setenv("VIDEO_USE_DIR", str(dados / "video-use"))
+    monkeypatch.setattr(doctor_cmd, "porta_livre", lambda porta, *a, **kw: True)  # pytest-socket blocks the bind of the ports check
+    return casa, dados
+
+
+def test_o_online_do_doctor_trilhas_nao_regrava_o_cache_do_update():
+    """Measured: `doctor trilhas --online` asks git ls-remote, npm view and PyPI and writes no update-check.json (npm writes its own cache
+    in ~/.npm). The section said it rewrote the cache of `update --check`: that was false."""
+    secao = _secao_doctor()
+    assert "regrava" not in secao and "update-check" not in secao
+    assert "cache do `update --check`" not in secao
+    assert "não grava no diretório de dados do motor" in secao and "~/.npm" in secao
+
+
+def test_a_secao_do_doctor_trilhas_descreve_as_falhas_como_o_codigo_as_da():
+    """`fail` comes from a broken install and also from a changed pinned file (matchcut) and from a venv without its program. The section
+    must not say only a broken install fails."""
+    secao = _secao_doctor()
+    assert "só instalação quebrada falha" not in secao
+    assert "arquivo fixado alterado" in secao and "venv sem o programa" in secao
+
+
+def test_o_doctor_trilhas_offline_tem_o_schema_e_as_chaves_que_a_skill_cita(tmp_path, monkeypatch, capsys):
+    casa, dados = _casa_vazia(tmp_path, monkeypatch)
+    antes, antes_dados = instantanea(casa), instantanea(dados)
+    rc, out, err = executa(["doctor", "trilhas", "--json"], capsys, main)
+    assert rc == 0, "nothing installed is a warning: the exit code stays 0"
+    doc = json.loads(out)
+    assert doc["schema"] == "simplicio.doctor-trilhas/v1" and "status" in doc and "tracks" in doc
+    assert len(doc["tracks"]) == 12 and all(isinstance(t["checks"], list) and t["checks"] for t in doc["tracks"])
+    assert doc["status"] == "warn" and doc["online"] is False
+    assert instantanea(casa) == antes and instantanea(dados) == antes_dados, "offline: nothing is written"
+
+
+def test_o_doctor_trilhas_com_instalacao_quebrada_sai_com_1_e_o_doctor_tambem(tmp_path, monkeypatch, capsys):
+    casa, dados = _casa_vazia(tmp_path, monkeypatch)
+    pasta = dados / "tools" / "opencut"
+    pasta.mkdir(parents=True)
+    (pasta / "README.md").write_text("sobra de um clone interrompido\n", encoding="utf-8")
+    rc, out, err = executa(["doctor", "trilhas"], capsys, main)
+    assert rc == 1 and out.splitlines()[0] == "simplicio-video doctor trilhas: fail"
+    rc, out, err = executa(["doctor"], capsys, main)
+    assert rc == 1, "a broken optional track makes `doctor` exit 1"
+
+
+def test_o_doctor_sem_argumento_traz_uma_linha_trilhas(tmp_path, monkeypatch, capsys):
+    _casa_vazia(tmp_path, monkeypatch)
+    rc, out, err = executa(["doctor"], capsys, main)
+    assert rc == 0
+    assert len([linha for linha in out.splitlines() if re.match(r"^\s+\w+\s+trilhas\s", linha)]) == 1, out
+
+
+def test_o_video_doctor_do_mcp_com_args_trilhas_devolve_o_schema(tmp_path, monkeypatch):
+    from simplicio_video import mcp_server
+
+    _casa_vazia(tmp_path, monkeypatch)
+    r = mcp_server.video_doctor(args="trilhas")
+    assert r["ok"] is True and r["result"]["schema"] == "simplicio.doctor-trilhas/v1" and len(r["result"]["tracks"]) == 12
+    assert "video.doctor(args=\"trilhas\")" in TEXTO and 'args="trilhas"' in _secao_doctor()
+
+
+def test_tools_e_status_nao_instalam_nem_gravam(tmp_path, monkeypatch, capsys):
+    """The table says `tools` downloads and installs nothing; the status line of `status` is read only too."""
+    casa, dados = _casa_vazia(tmp_path, monkeypatch)
+    antes, antes_dados = instantanea(casa), instantanea(dados)
+    assert executa(["tools", "--json"], capsys, main)[0] == 0
+    assert executa(["status", "--json"], capsys, main)[0] == 0
+    assert instantanea(casa) == antes and instantanea(dados) == antes_dados
+
+
+def test_o_mcp_recusa_packages_e_measure_do_hypit():
+    from simplicio_video import mcp_server
+
+    for verbo in ("packages", "measure"):
+        r = mcp_server.video_clone(args=verbo)
+        assert r["ok"] is False and "terminal" in r.get("error", ""), verbo
+
+
+@pytest.mark.parametrize("caminho", COPIAS)
+def test_a_linha_do_hypit_nao_afirma_que_o_pin_nao_tem_packages_nem_measure(caminho):
+    """Not confirmed here: the `npx` run of the pinned package was refused in the session that checked it. The engine's own refusal texts
+    call them terminal verbs (`packages` installs third-party code, `measure` uses providers), so the skill must not state "não existem"."""
+    linhas = caminho.read_text(encoding="utf-8").splitlines()
+    inicio = next(i for i, linha in enumerate(linhas) if linha.startswith("| Pedido"))
+    limites = " ".join(next(linha for linha in linhas[inicio + 2:] if "| Hypit" in linha).split()).strip("|").split("|")[-1]
+    assert "não existem" not in limites and "Unknown help topic" not in limites
+    assert "o MCP recusa `packages` e `measure`" in limites and "não foi conferido" in limites
+
+
+@pytest.mark.parametrize("caminho", COPIAS)
+def test_o_voicestudio_nao_diz_que_o_motor_nao_tem_clone_quando_o_clone_clona_voz(caminho):
+    """`simplicio-video voicestudio clone` exists and clones a voice; the line must not say the engine has no `clone` at all."""
+    linha = " ".join(next(l for l in _secao_do("Trilha que falta", caminho.read_text(encoding="utf-8")).splitlines()
+                          if l.startswith("- **VoiceStudio:**")).split())
+    assert "não tem `clone` nem `setup` dele" not in linha
+    assert "`voicestudio clone` clona uma voz" in linha and "não o app" in linha
