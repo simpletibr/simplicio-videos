@@ -8,6 +8,9 @@ command that fixes it, in this order:
   runtime        the Simplicio Runtime (optional, always ok)
   python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY (presence only, never the value)
   setup          the workspace: a warning when `simplicio-video setup` never ran, a failure when it is there and invalid
+  tools          the lock of the external tracks (offline)
+  trilhas        one row for the twelve external tracks (installed, pin, setup, dependencies, the fix of each gap); the full
+                 table, with its own schema, is `simplicio-video doctor trilhas` (doctor_trilhas.py)
 
 Output: `simplicio-video doctor: <status>`, then one line per check (`  ok    name   summary` and `        fix: ...`);
 with --json, {"schema": "simplicio.doctor/v1", "status", "version", "checks": [{name, status, summary, fix, detail}]}.
@@ -35,13 +38,13 @@ from typing import Any, Callable, Optional
 
 import yaml
 
-from .. import __version__, distribution, hostos, paths, tools_lock
+from .. import __version__, distribution, doctor_trilhas, hostos, paths, tools_lock
 from . import update
 from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA
 
 SCHEMA = "simplicio.doctor/v1"
 SECTIONS = ("update", "distribution", "runtime", "python", "node", "ffmpeg", "ffmpeg-libass", "disk", "ports",
-            "GEMINI_API_KEY", "setup", "tools")
+            "GEMINI_API_KEY", "setup", "tools", "trilhas")
 RUNTIME_DIR = ".simplicio"  # the Runtime's own copy, when its installer put it in ~/.simplicio/bin
 _RUNTIME_VERSION = re.compile(r"simplicio\s+v?(\d+\.\d+\.\d+)")
 _RANK = {"ok": 0, "warn": 1, "fail": 2}
@@ -291,7 +294,10 @@ def _estado(caminho: Path) -> str:
 
 def _checa_setup() -> dict:
     """warn when `setup` never ran (a file is missing); fail when a file is there and invalid or cannot be read."""
-    ws = paths.workspace_dir()
+    try:
+        ws = paths.workspace_dir()
+    except hostos.SemCasa as exc:  # a diagnostic answers: with no home there is no workspace to look at
+        return _row("setup", "warn", f"não sei onde fica o workspace: {exc}", "defina HOME ou SIMPLICIO_WORKSPACE e rode `simplicio-video setup`")
     wsp, pol = ws / "workspace.yaml", ws / "policy.yaml"
     estados = {"workspace.yaml": _estado(wsp), "policy.yaml": _estado(pol)}
     detail = {"workspace": str(ws), "workspace_yaml": estados["workspace.yaml"] == "ok",
@@ -337,7 +343,10 @@ def collect(*, online: bool = False, environ: Optional[dict] = None,
             git: Optional[Callable] = None) -> dict:
     env = dict(os.environ) if environ is None else environ
     installed = installed or __version__
-    state_dir = state_dir or update.default_state_dir()
+    try:
+        state_dir = state_dir or update.default_state_dir()
+    except hostos.SemCasa:  # no home: nothing to read or write there (a path under /dev/null can be neither)
+        state_dir = Path(os.devnull) / "sem-home"
     wanted = [only] if only else list(SECTIONS)
     kind = kind or distribution.kind()
     fetch = fetch or update.fetch_latest_tag
@@ -366,6 +375,7 @@ def collect(*, online: bool = False, environ: Optional[dict] = None,
         "GEMINI_API_KEY": lambda: _checa_credencial(env),
         "setup": _checa_setup,
         "tools": lambda: _tools_lock(state_dir),
+        "trilhas": lambda: doctor_trilhas.linha_do_doctor(doctor_trilhas.collect(online=online)),
     }
     checks = [makers[name]() for name in wanted]
     worst = max((check["status"] for check in checks), key=_RANK.__getitem__, default="ok")
@@ -382,7 +392,10 @@ def _texto(doc: dict) -> str:
 
 
 def run(a) -> int:
-    only = None if a.what == "all" else a.what
-    doc = collect(online=a.online, only=only)
+    if a.what == "trilhas":  # the full table of the twelve tracks, with its own schema
+        doc = doctor_trilhas.collect(online=a.online)
+        hostos.say(json.dumps(doc, sort_keys=True) if a.json else doctor_trilhas.texto(doc))  # ensure_ascii: valid on any console
+        return 1 if doc["status"] == "fail" else 0
+    doc = collect(online=a.online)
     hostos.say(json.dumps(doc, sort_keys=True) if a.json else _texto(doc))  # ensure_ascii: valid on any console
     return 1 if doc["status"] == "fail" else 0

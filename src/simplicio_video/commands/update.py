@@ -310,7 +310,7 @@ def _motivo(done: "subprocess.CompletedProcess") -> str:
 def default_state_dir() -> Path:
     """$SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video (the same folder the other tracks use)."""
     explicit = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    return Path(explicit) if explicit else hostos.home_dir() / ".simplicio-video"
+    return Path(explicit) if explicit else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
 
 
 class CheckInvalid(ValueError):
@@ -350,7 +350,10 @@ def read_check(state_dir: Optional[Path] = None) -> Optional[dict]:
     """The answer of the last `update --check` (only the keys of the schema, validated), or None when there is none.
 
     Raises CheckInvalid when the file is there and is not usable: the `doctor` shows that as a warning, never as a traceback."""
-    path = (state_dir or default_state_dir()) / CHECK_FILE
+    try:
+        path = (state_dir or default_state_dir()) / CHECK_FILE
+    except hostos.SemCasa:  # no home, no cache to read
+        return None
     try:
         raw = hostos.read_regular(path, MAX_CHECK_BYTES)  # O_NONBLOCK and fstat: a FIFO there must not hang the doctor
     except (FileNotFoundError, NotADirectoryError):
@@ -371,7 +374,10 @@ def read_check(state_dir: Optional[Path] = None) -> Optional[dict]:
 def write_check(info: dict, state_dir: Optional[Path] = None) -> None:
     """Best effort and atomic: a temp file in the same folder, then os.replace. A cache that cannot be written never fails an
     update, never leaves a half-written file where the doctor reads, and never leaves its temp file behind."""
-    directory = state_dir or default_state_dir()
+    try:
+        directory = state_dir or default_state_dir()
+    except hostos.SemCasa:  # no home: the cache is not written (never a `~` folder in the cwd)
+        return
     tmp = None
     try:
         directory.mkdir(parents=True, exist_ok=True)

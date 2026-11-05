@@ -197,9 +197,18 @@ if (Test-Path -LiteralPath "web\package.json") {
 }
 
 Write-Output "> checando o ambiente (simplicio-video doctor)"
-& $Sv doctor
-if ($LASTEXITCODE -ne 0) {
-    Fail "o doctor apontou falhas acima. Corrija a correção indicada e rode $Sv doctor."
+$saidaDoctor = & $Sv doctor
+$rcDoctor = $LASTEXITCODE
+$saidaDoctor | ForEach-Object { Write-Output $_ }
+if ($rcDoctor -ne 0) {
+    # uma trilha externa é opcional: quebrada, é aviso aqui (a linha trilhas diz a correção); só falha do núcleo para a instalação
+    # uma saída sem a linha trilhas não diz a causa: também para
+    $nucleo = @($saidaDoctor | Where-Object { $_ -match '^  fail ' -and $_ -notmatch '^  fail +trilhas ' })
+    $trilhas = @($saidaDoctor | Where-Object { $_ -match '^  fail +trilhas ' })
+    if ($nucleo.Count -gt 0 -or $trilhas.Count -eq 0) {
+        Fail "o doctor apontou falhas acima. Corrija a correção indicada e rode $Sv doctor."
+    }
+    Write-Output "aviso: uma trilha externa opcional está quebrada (linha trilhas acima); a instalação segue. Rode $Sv doctor trilhas para ver a correção."
 }
 
 Write-Output ""
