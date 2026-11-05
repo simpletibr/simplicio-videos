@@ -62,20 +62,49 @@ def test_main_sets_the_mcp_flag(monkeypatch):
     assert seen == [("stdio", "1")]
 
 
-# ---- lint: no bare subprocess.call/run in modules reachable from MCP tools ----
-SCAN = ["clone.py", "edit.py", "montage.py", "rea_video.py", "toonflow.py", "moneyprinter.py", "opencut.py",
-        "commands/install.py", "commands/update.py"]
-# (module, function) -> why a bare call is safe. Everything else must pass stdin=/capture_output= or use childio.run_child.
+# ---- lint: no bare child process in any module reachable from the MCP server ----
+def _imports(rel: str) -> set[str]:
+    """Package-internal modules `rel` imports (at module level or inside functions), as paths relative to SRC."""
+    tree = ast.parse((SRC / rel).read_text(encoding="utf-8"))
+    pkg = list(Path(rel).parent.parts)
+    out = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom) and n.level:
+            base = pkg[:len(pkg) - (n.level - 1)]
+            mod = n.module.split(".") if n.module else []
+            if mod:
+                out.add("/".join(base + mod))
+            out.update("/".join(base + mod + [a.name]) for a in n.names)
+    return out
+
+
+def _reachable() -> list[str]:
+    seen, todo = set(), ["mcp_server.py"]
+    while todo:
+        rel = todo.pop()
+        if rel in seen:
+            continue
+        seen.add(rel)
+        for m in _imports(rel):
+            todo += [c for c in (m + ".py", m + "/__init__.py") if (SRC / c).exists()]
+    return sorted(seen - {"childio.py"})
+
+
+# Computed from mcp_server's imports (mcp_server runs cli.main, so the whole CLI is in): a new module is covered at once.
+SCAN = _reachable()
+# (module, function) -> why a bare call is safe. Everything else must pass stdin= and capture stdout/stderr, or use run_child.
 ALLOW = {
     ("rea_video.py", "_setup"): "setup is terminal-only: video.rea-video accepts where|status|clone",
     ("rea_video.py", "_run_upstream"): "analysis commands are terminal-only: video.rea-video refuses them",
     ("rea_video.py", "_ocr_state"): "the probe is `python -c` that prints nothing and never reads stdin",
     ("toonflow.py", "_serve"): "serve never ends and is refused by video.toonflow",
     ("moneyprinter.py", "_setup"): "setup/serve are terminal-only (video.moneyprinter refuses them)",
+    ("moneyprinter.py", "_serve"): "serve never ends and is refused by video.moneyprinter",
     ("opencut.py", "run_opencut"): "dev never ends and is refused by video.opencut",
     ("commands/install.py", "_run_setup"): "interactive setup runs only with a TTY (_tty guard); MCP refuses it",
     ("commands/update.py", "_run"): "installing an update is terminal-only; MCP only does --check/--dry-run",
 }
+SUBPROCESS_FUNCS = {"call", "run", "Popen", "check_call", "check_output"}
 
 
 def _bare_calls(rel: str):
@@ -85,21 +114,35 @@ def _bare_calls(rel: str):
     def visit(node, fn):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             fn = node.name
-        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("call", "run")
-                and isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"):
+        if isinstance(node, ast.ImportFrom) and node.module in ("subprocess", "os") and node.level == 0:
+            found.append((rel, fn, node.lineno))  # `from subprocess import run` would hide the call from this lint
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            owner, attr = node.func.value.id, node.func.attr
             kws = {k.arg for k in node.keywords}
-            if not ({"stdin", "capture_output"} & kws or {"stdout", "stderr"} <= kws):
+            is_sub = (owner == "subprocess" and attr in SUBPROCESS_FUNCS) or (
+                owner == "asyncio" and attr in ("create_subprocess_exec", "create_subprocess_shell"))
+            if owner == "os" and attr in ("system", "popen", "spawnv", "spawnvp", "execv", "execvp"):
                 found.append((rel, fn, node.lineno))
+            elif is_sub:
+                captured = "capture_output" in kws or {"stdout", "stderr"} <= kws or (attr == "check_output" and "stderr" in kws)
+                if None in kws or not (captured and ({"stdin", "input"} & kws)):
+                    found.append((rel, fn, node.lineno))
         for ch in ast.iter_child_nodes(node):
             visit(ch, fn)
     visit(tree, None)
     return found
 
 
+def test_scan_follows_mcp_server_imports():
+    assert {"voice.py", "voice_clone.py", "cli.py", "media.py", "render.py", "commands/doctor.py"} <= set(SCAN)
+    # mcp_server imports voice lazily inside a tool function: the walk must see function-level imports too
+    assert "voice.py" in {m + ".py" for m in _imports("mcp_server.py")}
+
+
 @pytest.mark.parametrize("rel", SCAN)
 def test_no_bare_subprocess_in_mcp_reachable_modules(rel):
     bad = [(r, fn, ln) for r, fn, ln in _bare_calls(rel) if (r, fn) not in ALLOW]
-    assert not bad, f"use childio.run_child (or stdin=/capture_output=): {bad}"
+    assert not bad, f"use childio.run_child (or stdin=subprocess.DEVNULL plus captured stdout/stderr): {bad}"
 
 
 def test_allowlist_has_no_stale_entries():
