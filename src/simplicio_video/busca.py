@@ -119,10 +119,15 @@ _NOME_SEGREDO_RE = re.compile(r"(?i)(?:^|_)(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD)(
 _PARAM_CREDENCIAL_RE = re.compile(r"(?:^|[-_.])(?:api[-_]?key|key|token|auth|authorization|secret|credentials?|password|passwd|pwd|sig|signature|"
                                   r"session|session[-_]?id|jwt|bearer|code)$")
 _CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
-# Names that resolve to a private or local address (the fetch is made by the third party, so this protects what the name reveals,
-# not your network): a short list, not a guarantee. A public name that points to a private IP still passes.
-_TLDS_INTERNOS = frozenset({"internal", "local", "lan", "localdomain", "localhost"})
-_SUFIXOS_COM_IP = (".nip.io", ".sslip.io")
+# Names that refer to this machine, the local network or a cloud metadata service BY THEIR OWN TEXT (no DNS is asked here: the fetch is
+# made by the third party, so this protects what the name reveals, not your network). A short static list, not a guarantee: a public
+# name that points to a private IP is caught only by the DNS check of `pagina` (_confere_destino), when it runs.
+_TLDS_INTERNOS = frozenset({"internal", "local", "lan", "localdomain", "localhost"})  # and any *.localhost
+_NOMES_INTERNOS = frozenset({"home.arpa", "localhost.localdomain", "ip6-localhost", "ip6-loopback", "metadata", "metadata.google.internal",
+                             "lvh.me", "localtest.me"})  # the last two always answer 127.0.0.1
+_SUFIXOS_INTERNOS = (".home.arpa",)  # RFC 8375: the reserved home-network domain
+# wildcard DNS names: an IP written in the name comes back as that address (nip.io, sslip.io, xip.io), or the name is loopback (lvh.me)
+_SUFIXOS_COM_IP = (".nip.io", ".sslip.io", ".xip.io", ".lvh.me", ".localtest.me")
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 _CPF_FMT_RE = re.compile(r"(?<!\d)\d{3}\.\d{3}\.\d{3}-\d{2}(?!\d)")
 _CNPJ_FMT_RE = re.compile(r"(?<!\d)\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}(?!\d)")
@@ -408,8 +413,9 @@ def _idioma(valor) -> str | None:
 
 
 def _url_http(valor) -> str | None:
-    """The URL when it is http(s), has a public-looking host name (no IP, no localhost, no internal suffix such as .local, .lan,
-    .internal, .localdomain, nip.io or sslip.io, no user:password@), no space, control or hidden character and a sane size; None otherwise."""
+    """The URL when it is http(s), has a public-looking host name (no IP in any form, no IPv6 literal in brackets, no localhost, no
+    internal suffix such as .local, .lan, .internal, .localdomain or .home.arpa, no wildcard DNS name such as nip.io, sslip.io,
+    xip.io, lvh.me or localtest.me, no user:password@), no space, control or hidden character and a sane size; None otherwise."""
     if not isinstance(valor, str) or not valor or len(valor) > MAX_URL_CHARS or not _utf8_ok(valor):
         return None
     if any(ord(c) <= 32 or ord(c) == 127 for c in valor) or _CONTROLE_RE.search(valor) or _INVISIVEIS_RE.search(valor):
@@ -417,13 +423,16 @@ def _url_http(valor) -> str | None:
     m = _URL_RE.fullmatch(valor)
     if not m:
         return None
+    if m.group(2).startswith("["):  # IPv6 literal (loopback, ULA, link-local, mapped to IPv4): never fetched
+        return None
     host, _, porta = m.group(2).partition(":")
     if porta and not (porta.isdigit() and 0 < int(porta) < 65536):
         return None
-    if not _HOST_RE.fullmatch(host):
+    if not _HOST_RE.fullmatch(host):  # also refuses every IPv4 literal: the last label of a name must start with a letter
         return None
     nome = host.lower()
-    return None if nome.rsplit(".", 1)[-1] in _TLDS_INTERNOS or nome.endswith(_SUFIXOS_COM_IP) else valor
+    recusado = (nome.rsplit(".", 1)[-1] in _TLDS_INTERNOS or nome in _NOMES_INTERNOS or nome.endswith(_SUFIXOS_INTERNOS + _SUFIXOS_COM_IP))
+    return None if recusado else valor
 
 
 def _credencial_na_url(url: str) -> bool:
@@ -447,8 +456,9 @@ def _url_do_usuario(url) -> str:
         raise BuscaError("URL com usuário:senha é recusada: ela é enviada a um terceiro e nunca deve carregar credencial")
     ok = _url_http(url)
     if ok is None:
-        raise BuscaError(f"URL inválida: use http ou https, um nome de host público (nada de IP, localhost, nem sufixo interno como .local, .lan, "
-                         f".internal, .localdomain, nip.io ou sslip.io), sem espaço, até {MAX_URL_CHARS} caracteres")
+        raise BuscaError(f"URL inválida: use http ou https, um nome de host público (nada de IP, v4 ou v6, localhost, nem sufixo interno como "
+                         f".local, .lan, .internal, .localdomain ou .home.arpa, nem nip.io, sslip.io, xip.io, lvh.me ou localtest.me), "
+                         f"sem espaço, até {MAX_URL_CHARS} caracteres")
     if _credencial_na_url(ok):
         raise BuscaError("a URL leva credencial na query ou no fragmento (chave, token, senha, assinatura ou código): ela é enviada a um "
                          "terceiro, nada foi enviado")

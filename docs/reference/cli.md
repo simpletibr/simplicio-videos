@@ -132,8 +132,9 @@ Subcomandos:
   consulta "<texto>"   busca na web (`tinyfish search query`). --dominios a.com,b.com e --excluir c.com (até 10), --idioma pt,
                        --limite N (padrão 5, até 20, aplicado aqui), --atualizar ignora o cache e gasta 1 chamada
   pagina <url>         lê UMA página (`tinyfish fetch content get <url> --format markdown`): só http/https de host com nome público
-                       (nada de IP, localhost, nem sufixo .internal, .local, .lan, .localdomain, .localhost, nip.io ou sslip.io: lista
-                       curta, não garantia), sem usuário:senha nem chave, token, assinatura ou código na query ou no fragmento. Se a
+                       (nada de IP, v4 ou IPv6, nem localhost, metadata, sufixo .internal, .local, .lan, .localdomain, .localhost ou
+                       .home.arpa, nem nip.io, sslip.io, xip.io, lvh.me ou localtest.me: lista curta, não garantia), sem usuário:senha
+                       nem chave, token, assinatura ou código na query ou no fragmento. Se a
                        página redirecionar para uma URL que o motor recusa, o conteúdo não é entregue (fica o registro). --max-bytes N
                        limita o texto (padrão 20 KB, de 1000 a 200000)
   status               o binário foi achado? versão? há chave? quanto do teto de hoje foi usado? Roda `tinyfish --version` e
