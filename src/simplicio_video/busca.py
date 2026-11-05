@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import errno
 import hashlib
 import html
 import ipaddress
@@ -41,6 +42,7 @@ import re
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -56,7 +58,7 @@ __all__ = ["BuscaError", "consulta", "pagina", "status", "log", "status_summary"
 SCHEMA_CONSULTA = "simplicio.busca-consulta/v1"
 SCHEMA_PAGINA = "simplicio.busca-pagina/v1"
 SCHEMA_STATUS = "simplicio.busca-status/v1"
-SCHEMA_LOG = "simplicio.busca-log/v1"
+SCHEMA_LOG = "simplicio.busca-log/v2"  # v2: `total` saiu e `arquivos` entrou (v1 foi publicado na 0.6.0)
 SCHEMA_REGISTRO = "simplicio.busca-registro/v1"
 SCHEMA_CACHE = "simplicio.busca-cache/v1"
 SCHEMA_CONTADOR = "simplicio.busca-contador/v1"
@@ -93,6 +95,7 @@ MAX_STDERR_BYTES = 64 * 1024
 STALE_DAYS = 7  # a cached answer older than this carries a warning
 CACHE_MAX_ARQUIVOS = 500  # teto de arquivos em cache/; ao gravar um a mais, saem os mais antigos por mtime
 CACHE_MAX_BYTES = 100 * 1024 * 1024  # teto de bytes de cache/ (somado aos arquivos); passou, saem os mais antigos também
+CACHE_TMP_ORFAO_S = 3600  # um .tmp de _atomic_write com mais de 1 h é sobra de gravação interrompida; mais novo pode estar em uso
 REGISTRO_MAX_BYTES = 5 * 1024 * 1024  # o busca.registro.jsonl ativo gira antes de passar disso; uma linha nunca é cortada
 REGISTRO_ARQUIVOS_ANTIGOS = 3  # guarda busca.registro.jsonl.1 a .3; o .3 antigo sai na rotação seguinte
 POLL_S = 0.02
@@ -123,8 +126,9 @@ _CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 # made by the third party, so this protects what the name reveals, not your network). A short static list, not a guarantee: a public
 # name that points to a private IP is caught only by the DNS check of `pagina` (_confere_destino), when it runs.
 _TLDS_INTERNOS = frozenset({"internal", "local", "lan", "localdomain", "localhost"})  # and any *.localhost
-_NOMES_INTERNOS = frozenset({"home.arpa", "localhost.localdomain", "ip6-localhost", "ip6-loopback", "metadata", "metadata.google.internal",
-                             "lvh.me", "localtest.me"})  # the last two always answer 127.0.0.1
+# A bare name (no dot) never gets here: _url_http takes only a host with a dot (_HOST_RE), so `metadata` is refused by that.
+_NOMES_INTERNOS = frozenset({"home.arpa", "localhost.localdomain", "metadata.google.internal", "lvh.me",
+                             "localtest.me"})  # the last two always answer 127.0.0.1
 _SUFIXOS_INTERNOS = (".home.arpa",)  # RFC 8375: the reserved home-network domain
 # wildcard DNS names: an IP written in the name comes back as that address (nip.io, sslip.io, xip.io), or the name is loopback (lvh.me)
 _SUFIXOS_COM_IP = (".nip.io", ".sslip.io", ".xip.io", ".lvh.me", ".localtest.me")
@@ -767,25 +771,44 @@ def _gravar_cache(chave: str, doc: dict) -> None:
 
 
 def _poda_cache(manter: Path) -> None:
-    """Keeps cache/ within CACHE_MAX_ARQUIVOS files and CACHE_MAX_BYTES bytes: the oldest by mtime go first. `manter` (the file just
-    written) never goes. Only cache/ is touched: the registry and the counter are outside it."""
-    vivos = []
-    for p in (pasta() / "cache").glob("*.json"):
-        try:
-            st = p.stat()
-        except OSError:  # sumiu entre o glob e o stat (outro processo)
+    """Keeps cache/ within CACHE_MAX_ARQUIVOS files and CACHE_MAX_BYTES bytes: the oldest *.json by mtime go first, and `manter` (the file
+    just written) never goes. A .tmp of _atomic_write older than CACHE_TMP_ORFAO_S is an orphan and goes; a newer one may be a write in
+    progress, so it counts but is not removed here. Symlinks and folders are skipped and a link's target is neither counted nor touched
+    (lstat). Only cache/ is touched: the registry and the counter are outside it."""
+    cache = pasta() / "cache"
+    if not cache.is_dir():
+        return
+    agora = time.time()
+    arquivos = []  # (mtime_ns, nome, caminho, bytes) de cada arquivo do cache que ainda está lá
+    for p in cache.iterdir():
+        tmp = p.name.startswith(".") and p.name.endswith(".tmp")
+        if not (tmp or p.name.endswith(".json")):
             continue
-        vivos.append((st.st_mtime_ns, p.name, p, st.st_size))
-    vivos.sort()
-    excesso = len(vivos) - CACHE_MAX_ARQUIVOS
-    bytes_total = sum(tam for *_, tam in vivos)
-    for _, _, p, tam in vivos:
+        try:
+            st = p.lstat()
+        except OSError:  # sumiu entre o listar e o lstat (outro processo)
+            continue
+        if not stat.S_ISREG(st.st_mode):  # link simbólico, pasta ou outra coisa: não é arquivo do cache
+            continue
+        if tmp and st.st_mtime < agora - CACHE_TMP_ORFAO_S:
+            try:
+                p.unlink()
+                continue
+            except OSError:  # não saiu: continua ocupando espaço e entra na conta
+                pass
+        arquivos.append((st.st_mtime_ns, p.name, p, st.st_size))
+    arquivos.sort()
+    excesso = len(arquivos) - CACHE_MAX_ARQUIVOS
+    bytes_total = sum(tam for *_, tam in arquivos)
+    for _, nome, p, tam in arquivos:
         if excesso <= 0 and bytes_total <= CACHE_MAX_BYTES:
             break
-        if p == manter:
+        if p == manter or not nome.endswith(".json"):
             continue
-        with contextlib.suppress(OSError):
+        try:
             p.unlink()
+        except OSError:  # ficou no cache: não desconta do excesso nem dos bytes
+            continue
         excesso -= 1
         bytes_total -= tam
 
@@ -811,21 +834,39 @@ def _gira_registro() -> None:
             os.replace(arquivos[i - 1], arquivos[i])
 
 
+def _ultimo_byte(caminho: Path) -> bytes:
+    with caminho.open("rb") as f:
+        f.seek(-1, os.SEEK_END)
+        return f.read(1)
+
+
+def _escreve_tudo(fd: int, dados: bytes) -> None:
+    """os.write may take less than it was given (a signal, a full disk): the rest goes in the next call, or it fails."""
+    resto = memoryview(dados)
+    while resto:
+        escritos = os.write(fd, resto)
+        if escritos <= 0:
+            raise OSError(errno.EIO, "a gravação não avançou")
+        resto = resto[escritos:]
+
+
 def _registrar(rec: dict) -> str:
     """Append one provenance line under the lock (O_APPEND, fsync). The registry turns over between lines once it passes
-    REGISTRO_MAX_BYTES. Returns the line's id. Without the line there is no delivery."""
+    REGISTRO_MAX_BYTES. A line left without its newline by an interrupted write is closed first, so it stays a line of its own.
+    Returns the line's id. Without the line there is no delivery."""
     try:
         with _trava():
             ativo = _caminho_registro()
             tamanho = ativo.stat().st_size if ativo.exists() else 0
-            linha, id_ = _linha_registro(rec, tamanho)
-            if tamanho and tamanho + len(linha) > REGISTRO_MAX_BYTES:
+            quebra = b"\n" if tamanho and _ultimo_byte(ativo) != b"\n" else b""
+            linha, id_ = _linha_registro(rec, tamanho + len(quebra))
+            if tamanho and tamanho + len(quebra) + len(linha) > REGISTRO_MAX_BYTES:
                 _gira_registro()
-                tamanho = 0
+                tamanho, quebra = 0, b""
                 linha, id_ = _linha_registro(rec, tamanho)
             fd = os.open(ativo, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
             try:
-                os.write(fd, linha)
+                _escreve_tudo(fd, quebra + linha)
                 os.fsync(fd)
             finally:
                 os.close(fd)
@@ -1136,27 +1177,28 @@ def log(ultimos=20) -> dict:
     lidos: list[str] = []
     invalidas = 0
     try:
-        for caminho in _arquivos_do_registro():
-            if len(recentes) >= n:
-                break
-            if not caminho.exists():
-                continue
-            lidos.append(str(caminho))
-            with contextlib.closing(_linhas_do_fim(caminho)) as linhas:
-                for bruta in linhas:
-                    if not bruta.strip():
-                        continue
-                    try:
-                        rec = json.loads(bruta.decode("utf8", errors="replace"))
-                    except (ValueError, RecursionError):
-                        invalidas += 1
-                        continue
-                    if isinstance(rec, dict) and rec.get("schema") == SCHEMA_REGISTRO and rec.get("comando") in ("consulta", "pagina"):
-                        recentes.append(rec)
-                        if len(recentes) >= n:
-                            break
-                    else:
-                        invalidas += 1
+        with _trava():  # a gravação gira o registro sob esta mesma trava: sem ela, o arquivo lido pode mudar de nome no meio
+            for caminho in _arquivos_do_registro():
+                if len(recentes) >= n:
+                    break
+                if not caminho.exists():
+                    continue
+                lidos.append(str(caminho))
+                with contextlib.closing(_linhas_do_fim(caminho)) as linhas:
+                    for bruta in linhas:
+                        if not bruta.strip():
+                            continue
+                        try:
+                            rec = json.loads(bruta.decode("utf8", errors="replace"))
+                        except (ValueError, RecursionError):
+                            invalidas += 1
+                            continue
+                        if isinstance(rec, dict) and rec.get("schema") == SCHEMA_REGISTRO and rec.get("comando") in ("consulta", "pagina"):
+                            recentes.append(rec)
+                            if len(recentes) >= n:
+                                break
+                        else:
+                            invalidas += 1
     except OSError as e:
         raise BuscaError(f"não consegui ler o registro: {e.strerror}") from None
     recentes.reverse()

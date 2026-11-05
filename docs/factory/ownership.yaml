@@ -654,6 +654,7 @@ issues:
       - "plugin.json"   # na lista `generated`, mas a remoção do verbo video.publish é edição manual: não há gerador no repo
       - "src/simplicio_video/status.py#ENV_FERRAMENTA,_primeira_linha"   # #113 2: só a sonda de versão; o resto do status é de motor-status
       - "tests/test_status_json.py#sonda de versao (#113 2)"
+      - "CHANGELOG.md#Unreleased"   # #113 B4: a nota da quebra do busca log (mudança quebrante) e as correções da busca
   # ------------------------------------------------------------------ skills deep (#141)
   141:
     track: skills

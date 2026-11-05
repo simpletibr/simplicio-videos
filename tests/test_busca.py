@@ -1867,7 +1867,8 @@ def test_help_da_busca_explica_o_registro_o_cache_e_o_log(env):
 
 # ------------------------------------------------------------------------------------------------ (#113 4) nomes e endereços internos
 
-# o apex de xip.io passa, como o de nip.io (test_host_que_so_contem_o_sufixo_no_meio_continua_valendo): só o nome com IP dentro é recusado
+# o apex de nip.io e o de xip.io passam (test_host_que_so_contem_o_sufixo_no_meio_continua_valendo); subdomínios de nip.io, sslip.io,
+# xip.io, lvh.me e localtest.me são recusados pelo sufixo, com IP ou sem; lvh.me, localtest.me e home.arpa (o apex) estão em _NOMES_INTERNOS
 NOMES_INTERNOS_NOVOS = ["lvh.me", "app.lvh.me", "localtest.me", "x.localtest.me", "127.0.0.1.xip.io", "home.arpa", "roteador.home.arpa",
                         "metadata", "ip6-localhost", "ip6-loopback"]
 ENDERECOS_INTERNOS = ["http://169.254.169.254/latest/meta-data/", "http://[fd00:ec2::254]/latest/", "http://[fe80::1]/a",

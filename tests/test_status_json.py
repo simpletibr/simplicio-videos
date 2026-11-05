@@ -202,15 +202,12 @@ with open({log!r}, "a") as f:
     f.write(json.dumps({{"nome": os.path.basename(sys.argv[0]), "env": dict(os.environ)}}) + "\\n")
 print({linha!r})
 """
-# o que a sonda de versão pode receber: a lista fechada do busca (sem chave do shell), com proxy e certificados
-AMBIENTE_DA_SONDA = {"PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy",
-                     "https_proxy", "no_proxy", "ALL_PROXY", "all_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR",
-                     "NODE_USE_ENV_PROXY"}
-
-
 def test_sonda_de_versao_do_ffmpeg_e_do_node_recebe_ambiente_fechado_com_proxy(tmp_path, monkeypatch, ambiente):
     """#113 (2): `status` geral roda ffmpeg e node com um ambiente fechado (sem as chaves do shell), mas com o proxy e os
     certificados do usuário, como o `busca` já faz com o tinyfish."""
+    from simplicio_video import busca  # a lista da sonda sai da do busca (sem a chave do TinyFish) mais LC_CTYPE: uma deriva quebra aqui
+    permitido = set(status.ENV_FERRAMENTA)
+    assert permitido == (set(busca.ENV_REPASSADO) - {busca.ENV_CHAVE}) | {"LC_CTYPE"}
     log = tmp_path / "sonda.jsonl"
     for nome, linha in (("ffmpeg", "ffmpeg version 6.1.1-test"), ("node", "v22.23.4")):
         exe = ambiente / nome
@@ -224,7 +221,7 @@ def test_sonda_de_versao_do_ffmpeg_e_do_node_recebe_ambiente_fechado_com_proxy(t
     chamadas = [json.loads(linha) for linha in log.read_text(encoding="utf8").splitlines()]
     assert sorted(c["nome"] for c in chamadas) == ["ffmpeg", "node"]
     for c in chamadas:
-        assert set(c["env"]) <= AMBIENTE_DA_SONDA, sorted(set(c["env"]) - AMBIENTE_DA_SONDA)
+        assert set(c["env"]) <= permitido, sorted(set(c["env"]) - permitido)
         assert c["env"]["HTTPS_PROXY"] == "http://proxy.local:3128", c["nome"]
         assert c["env"]["SSL_CERT_FILE"] == "/etc/ssl/certs/ca.pem", c["nome"]
         assert "gem-segredo-113" not in c["env"].values() and "ghp_segredo113113113113" not in c["env"].values()
