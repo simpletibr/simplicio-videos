@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -472,7 +473,6 @@ def test_mcp_open_commands_reach_the_upstream_with_exactly_the_given_flags(fake,
         (["tiles", v, "-o", o, "--start", "1", "--end", "3.5", "--every", "0.5", "--cols", "4", "--cell", "200", "--max", "10"],
          ["tiles", v, "-o", o, "--start", "1", "--end", "3.5", "--every", "0.5", "--cols", "4", "--cell", "200", "--max", "10"]),
         (["tiles", v, f"--out={o}"], ["tiles", v, "--out", o]),
-        (["stems", v, "-o", media["out"]], ["stems", v, "-o", media["out"]]),
         (["review", media["out"], "--force"], ["review", media["out"], "--force"]),
         (["apply-review", media["out"], ans, "--by", "claude"], ["apply-review", media["out"], ans, "--by", "claude"]),
         (["remake-plan", bd, "--capsule-root", str(media["dir"]), "--engine", "seedance2.0", "--mode", "image_to_video",
@@ -509,18 +509,29 @@ def test_mcp_children_run_in_a_private_empty_cwd_not_the_callers(fake, media, mo
     assert not cwd.exists()  # and is gone afterwards
 
 
-def test_mcp_exec_uses_stdin_devnull_and_the_private_cwd(tmp_path, monkeypatch):
-    seen = {}
+def test_mcp_exec_uses_stdin_devnull_and_the_private_cwd(tmp_path):
+    code = "import os,sys;print(os.getcwd(), repr(sys.stdin.read()), os.environ.get('A'))"
+    rc, out = rea_video._mcp_exec([sys.executable, "-c", code], tmp_path, {"A": "1"})
+    assert rc == 0 and out.split() == [str(tmp_path), "''", "1"]
 
-    def run(argv, **kw):
-        seen.update(kw, argv=argv)
-        return subprocess.CompletedProcess(argv, 0, stdout="saida", stderr="")
 
-    monkeypatch.setattr(subprocess, "run", run)
-    rc, out = rea_video._mcp_exec(["x", "summary"], tmp_path, {"A": "1"})
-    assert (rc, "saida" in out) == (0, True)
-    assert seen["stdin"] is subprocess.DEVNULL and seen["cwd"] == tmp_path and seen["env"] == {"A": "1"}
-    assert seen["timeout"] and seen["capture_output"] is True
+def test_mcp_exec_timeout_kills_the_whole_process_group(tmp_path, monkeypatch):
+    monkeypatch.setattr(rea_video, "MCP_TIMEOUT", 1)
+    code = ("import subprocess,sys,time;"
+            "p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);print(p.pid,flush=True);time.sleep(60)")
+    rc, out = rea_video._mcp_exec([sys.executable, "-c", code], tmp_path, {})
+    assert rc == 124
+    pid = int(out.split()[0])
+    import time
+    for _ in range(50):  # the grandchild must be gone (or at most a zombie waiting for its reaper)
+        try:
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+        except OSError:
+            state = "gone"
+        if state in ("gone", "Z"):
+            break
+        time.sleep(0.1)
+    assert state in ("gone", "Z"), state
 
 
 def test_mcp_children_never_see_the_vlm_settings_of_the_caller(fake, media, monkeypatch):
@@ -676,3 +687,161 @@ def test_mcp_description_names_what_is_open_and_what_stays_in_the_terminal():
     for word in ("summary", "probe", "tiles", "stems", "review", "apply-review", "remake-plan", "decompose", "job", "terminal"):
         assert word in d, word
     assert "--vlm" in d
+
+
+# ---- review round 1: output paths cannot clobber, stems is a job, job hygiene ---------------------------------------
+
+@pytest.fixture(autouse=True)
+def _private_tmp(tmp_path, monkeypatch):
+    t = tmp_path / "systmp"
+    t.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(t))
+    return t
+
+
+def test_mcp_tiles_never_overwrites_an_existing_file_or_a_symlink(fake, media):
+    v, d = media["video"], media["dir"]
+    victim = d / "victim.png"
+    victim.write_text("keep", encoding="utf8")
+    link = d / "link.jpg"
+    link.symlink_to(d / "alvo.txt")
+    real = d / "real"
+    real.mkdir()
+    (d / "viaLink").symlink_to(real)
+    (d / "t_2.jpg").write_text("keep", encoding="utf8")  # a derived name (t_1.jpg, t_2.jpg ...) that already exists
+    for target in (victim, link, d / "viaLink" / "x.jpg", d / "real" / ".." / "x.jpg", d / "t.jpg", d / "sem-pai" / "x.jpg"):
+        r = _mcp(["tiles", v, "-o", str(target)])
+        assert r["ok"] is False and r["error"], target
+    assert fake.calls == [] and victim.read_text() == "keep"
+    assert _mcp(["tiles", v, "-o", str(d / "novo.jpg")])["ok"] is True
+
+
+def test_mcp_output_folders_must_be_new_or_empty_and_not_symlinks(fake, media, stub_spawn):
+    v, d = media["video"], media["dir"]
+    empty = d / "vazia"
+    empty.mkdir()
+    (d / "alvo").mkdir()
+    (d / "lnk").symlink_to(d / "alvo")
+    for cmd in ("decompose", "stems"):
+        for bad in (media["out"], str(d / "lnk"), str(d / "real" / ".." / "x")):  # non-empty, symlink, '..'
+            r = _mcp([cmd, v, "-o", bad])
+            assert r["ok"] is False and r["error"], (cmd, bad)
+    assert stub_spawn == []
+    assert _mcp(["decompose", v, "-o", str(empty)])["ok"] is True
+    assert _mcp(["stems", v, "-o", str(d / "nova")])["ok"] is True
+
+
+def test_mcp_review_and_apply_review_need_a_real_analysis_folder(fake, media):
+    d = media["dir"]
+    vazio = d / "vazio"
+    vazio.mkdir()
+    (d / "lnk").symlink_to(media["out"])
+    ruim = d / "ruim"
+    ruim.mkdir()
+    (ruim / "breakdown.json").write_text("{}", encoding="utf8")
+    (ruim / "review_answers.json").symlink_to(d / "alvo.txt")
+    for cmd in ("review", "apply-review"):
+        for bad in (vazio, d / "lnk", ruim, d):
+            r = _mcp([cmd, str(bad)])
+            assert r["ok"] is False and r["error"], (cmd, bad)
+        assert _mcp([cmd, media["out"]])["ok"] is True
+
+
+def test_mcp_remake_plan_writes_only_beside_a_real_breakdown(fake, media):
+    d = media["dir"]
+    solto = d / "outro.json"
+    solto.write_text("{}", encoding="utf8")
+    out2 = d / "out2"
+    out2.mkdir()
+    (out2 / "breakdown.json").write_text("{}", encoding="utf8")
+    (out2 / "remake").symlink_to(d / "alvo")
+    for bad in (str(solto), str(out2 / "breakdown.json")):
+        assert _mcp(["remake-plan", bad])["ok"] is False
+    assert _mcp(["remake-plan", media["bd"]])["ok"] is True
+
+
+def test_mcp_tiles_every_must_be_positive(fake, media):
+    o = str(media["dir"] / "t.jpg")
+    for bad in ("0", "0.0"):
+        assert _mcp(["tiles", media["video"], "-o", o, "--every", bad])["ok"] is False
+    assert fake.calls == []
+
+
+def test_mcp_stems_is_a_job_and_summary_is_not(fake, media, stub_spawn):
+    from simplicio_video import jobs
+    r = _mcp(["stems", media["video"], "-o", str(media["dir"] / "st")])
+    assert r["ok"] is True and r["job"]["kind"] == "rea-video" and fake.calls == [] and len(stub_spawn) == 1
+    assert jobs.status(r["job"]["id"])["params"]["args"][0] == "stems"
+    with pytest.raises(jobs.JobError):
+        jobs.submit("rea-video", {"args": ["summary", media["bd"]]}, origin="mcp")
+
+
+def test_stems_job_result_lists_the_stems(tmp_path):
+    from simplicio_video import jobs
+    st = tmp_path / "st" / "stems"
+    st.mkdir(parents=True)
+    for n in ("original", "vocals", "music"):
+        (st / f"{n}.wav").write_bytes(b"x")
+    res = jobs.KINDS["rea-video"]["result"]({"args": ["stems", "/v.mp4", "-o", str(tmp_path / "st")]}, None)
+    assert res["original"] == str(st / "original.wav") and res["vocals"] == str(st / "vocals.wav")
+    assert res["music"] == str(st / "music.wav")
+
+
+def test_job_private_cwd_is_under_the_temp_dir_and_removed_when_the_job_ends(fake, media, stub_spawn, _private_tmp):
+    from simplicio_video import jobs
+    out = media["dir"] / "dec2"
+    r = _mcp(["decompose", media["video"], "-o", str(out)])
+    st = jobs.status(r["job"]["id"])
+    cwd = Path(st["cwd"])
+    assert cwd.parent == _private_tmp and cwd.is_dir()
+    (out).mkdir()
+    (out / "breakdown.json").write_text(json.dumps({"summary": {}}), encoding="utf8")
+    assert jobs.KINDS["rea-video"]["result"](st["params"], None) is not None
+    assert not cwd.exists()
+
+
+def test_stale_private_cwds_are_swept_on_the_next_submit(fake, media, stub_spawn, _private_tmp):
+    old = _private_tmp / "rea-video-job-velho"
+    old.mkdir()
+    os.utime(old, (1, 1))
+    busy = _private_tmp / "rea-video-job-cheio"
+    busy.mkdir()
+    (busy / "x").write_text("a", encoding="utf8")
+    os.utime(busy, (1, 1))
+    assert _mcp(["decompose", media["video"], "-o", str(media["dir"] / "dec3")])["ok"] is True
+    assert not old.exists() and busy.exists()
+
+
+def test_the_runner_revalidates_the_stored_args_before_exec(media):
+    from simplicio_video import jobs
+    good = {"args": ["decompose", media["video"], "-o", str(media["dir"] / "d"), "--no-vlm"]}
+    assert jobs.build_argv("rea-video", good)[0] == "rea-video"
+    for bad in (["decompose", media["video"], "-o", str(media["dir"] / "d"), "--vlm"],
+                ["decompose", media["video"], "-o", str(media["dir"] / "d"), "--env-file", "/x"], ["setup"]):
+        with pytest.raises(Exception, match="terminal|tarefa"):
+            jobs.build_argv("rea-video", {"args": bad})
+
+
+def test_no_vlm_runs_do_not_hand_the_vlm_settings_to_the_upstream(tmp_path, monkeypatch):
+    _rea_video_bin(tmp_path)
+    for k in ("REA_VLM_API_KEY", "REA_VLM_BASE_URL", "VIDEO_ANALYSIS_API_KEY", "GEMINI3_API_KEY"):
+        monkeypatch.setenv(k, "segredo")
+    calls = _Calls()
+    monkeypatch.setattr(subprocess, "call", calls)
+    assert rea_video.run_rea_video(["decompose", "/v.mp4", "-o", "/o", "--no-vlm"]) == 0
+    assert not [k for k in calls.calls[0][1]["env"] if k.startswith(("REA_VLM_", "VIDEO_ANALYSIS_", "GEMINI3_"))]
+    assert rea_video.run_rea_video(["stems", "/v.mp4", "-o", "/o"]) == 0
+    assert "REA_VLM_API_KEY" not in calls.calls[1][1]["env"]
+    # a terminal decompose without --no-vlm keeps them: the person may want the vision model (prefs, --vlm)
+    assert rea_video.run_rea_video(["decompose", "/v.mp4", "--vlm"]) == 0
+    assert calls.calls[2][1]["env"]["REA_VLM_API_KEY"] == "segredo"
+
+
+def test_docs_say_what_mcp_can_submit():
+    root = Path(__file__).resolve().parents[1]
+    assert "stems" in mcp_server.DESC_video_rea_video and "job" in mcp_server.DESC_video_rea_video
+    assert "rea-video" in mcp_server.DESC_video_jobs
+    from simplicio_video import jobs
+    assert "rea-video" in jobs.HELP_DESC and "stems" in jobs.HELP_DESC
+    agents = (root / "AGENTS.md").read_text(encoding="utf8")
+    assert "só os de leitura" not in agents
