@@ -131,6 +131,18 @@ def test_scan_de_todos_os_extras_reprova_licenca_negada_fora_da_tabela(monkeypat
     assert {e.name: e.used_by for e in todos}["pacote-ruim"] == "simplicio-video[mcp]"
 
 
+# (a4) `dep[extra]` puxa as exigências do extra da dependência (ex.: PyJWT[crypto] -> cryptography)
+def test_scan_segue_o_extra_pedido_a_uma_dependencia(monkeypatch, tmp_path):
+    lic = _lic()
+    produto = FakeDist("simplicio-video", "1.0", "MIT").requires("jwt-lib[crypto]>=2")
+    jwt = FakeDist("jwt-lib", "1.0", "MIT").requires('crypto-lib; extra == "crypto"', 'outro; extra == "docs"')
+    _use_dists(monkeypatch, produto, jwt, FakeDist("crypto-lib", "1.0", "MIT"), FakeDist("outro", "1.0", "MIT"))
+
+    nomes = [e.name for e in lic.scan(exceptions_path=_exceptions(tmp_path, []))]
+
+    assert nomes == ["crypto-lib", "jwt-lib", "simplicio-video"]
+
+
 # (b) a mesma licença, com exceção justificada, passa
 def test_excecao_justificada_deixa_o_agpl_passar(monkeypatch, tmp_path):
     lic = _lic()
