@@ -763,7 +763,7 @@ def video_rea_video(args: str = "", argv: list[str] | None = None, cmd: Literal[
 
 _CMD_VIDEO_TO_SKILL = video_to_skill.MCP_VERBS
 DESC_video_video_to_skill = ("video-to-skill (MIT, Breno Epics, https://github.com/brenoepics/video-to-skill): turns a video into an installable agent skill with the pinned local extractor "
-                             "vts-extract 0.3.0. Local, closed list of verbs; writes only into new folders you name: status and where (JSON, never download anything), check (read-only; "
+                             "vts-extract 0.3.0. Local, closed list of verbs. Writes: extract into a NEW folder you name (plus `<folder>.extract.json` beside it), compile into a NEW folder, frame-at and clip under rewatch/ of an existing bundle you extracted, nothing else. status and where (JSON, never download anything), check (read-only; "
                              "--print-downloads lists what the upstream would fetch), skill (the pinned SKILL.md, third-party text in untrusted_conteudo, cut at 64 KiB), "
                              "extract (a LOCAL absolute file into a NEW absolute folder: it takes minutes, so it becomes a job, followed with video.jobs status|result; "
                              "a URL is terminal-only and needs --autorizo, the engine does not verify that you may use the video), frame-at and clip (read a bundle "

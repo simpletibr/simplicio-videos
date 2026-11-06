@@ -155,7 +155,8 @@ USAGE = (
     "antes de cada uso; entre conferir e executar, um processo do mesmo usuário pode trocar o arquivo (a pasta é 0755 e o arquivo 0700; se\n"
     "SIMPLICIO_TOOLS_DIR for gravável pelo grupo, o motor não confere o dono). O sha256 da fonte, no registro de procedência, é o que o\n"
     "próprio extrator pôs no manifesto: o motor não calcula o hash da entrada. As variáveis de proxy repassadas numa extração de URL podem\n"
-    "conter credenciais. `--out` precisa de uma pasta-mãe que já existe (como nas outras trilhas): `mkdir -p out/excel` antes.\n"
+    "conter credenciais. Um extract cancelado ou morto deixa a pasta parcial em `--out` (saída do upstream), sem registro de procedência:\n"
+    "apague a pasta antes de repetir. `--out` precisa de uma pasta-mãe que já existe (como nas outras trilhas): `mkdir -p out/excel` antes.\n"
     "exemplos:\n"
     "  simplicio-video video-to-skill clone && simplicio-video video-to-skill setup\n"
     "  simplicio-video video-to-skill check --print-downloads\n"
@@ -989,7 +990,7 @@ def plan(verb: str, rest: list[str], canal: str) -> dict:
         raise _fix_yes_error()
     if verb in ("clone", "setup"):
         for tok in rest:
-            if not isinstance(tok, str) or tok.startswith("-") or "\0" in tok:
+            if not isinstance(tok, str) or not tok or tok.startswith("-") or "\0" in tok:
                 raise VideoToSkillError(f"{verb}: opção ou argumento não permitido: {_ascii(tok)} "
                                         f"({'só aceita uma pasta, que não começa com `-`' if verb == 'clone' else 'não recebe argumentos'})")
         return {"verb": verb, "argv": list(rest)}
@@ -1324,9 +1325,12 @@ def _write_provenance(p: dict) -> str | None:
             source["sha256"] = original_sha
     else:
         source = {"kind": "file", "name": os.path.basename(argv[1]), "sha256": original_sha}
+    origin = os.environ.get("SIMPLICIO_JOB_ORIGIN")  # set by the jobs runner: the CLI of a job knows who submitted it
+    channel = "job" if origin in ("mcp", "terminal") else "terminal"
     rec = {"schema": PROVENANCE_SCHEMA, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-           "extractor_version": _version(), "pin_tag": _pins()["tag"], "pin_commit": _pins()["commit"], "channel": "terminal",
+           "extractor_version": _version(), "pin_tag": _pins()["tag"], "pin_commit": _pins()["commit"], "channel": channel,
            "source": source, "autorizo": bool(p["autorizo"]), "engine_checked_rights": False,
+           **({"submitted_via": origin} if channel == "job" else {}),
            "bundle": out, "manifest_sha256": digest,
            "note": "o motor não verifica o direito de uso do vídeo; a autorização é de quem passou --autorizo"}
     path = _sidecar(out)
@@ -1354,27 +1358,30 @@ def _extract(p: dict) -> int:
 
 
 def _install(p: dict) -> int:
+    """The plan comes first, in the same invocation, before anything is written. The real extractor prints its plan only at the END of
+    an apply (after the writes), so the plan shown is the one of `--dry-run`, streamed (sanitised) before the apply starts. With --yes the
+    apply runs next, its output is held, and only the lines the plan did not already show are printed (a deterministic rule: the plan is
+    never shown twice). A failing dry run applies nothing."""
     b = _require_binary()
     plan_argv = list(p["argv"])
     cwd = os.getcwd() if p["scope"] == "project" else None
-    yes = p["yes"]
-    if not yes:
-        print("Plano da instalação (o vts-extract mostra, e nada foi gravado ainda):")
-    # the dry run always runs first: with --yes it only checks that the plan is valid (its text is the same the apply prints, shown once)
-    res = _spawn(b.path, [*plan_argv, "--dry-run"], verb="install", env=_env(), cwd=cwd,
-                 on_out=None if yes else _stream_out, on_err=None if yes else _stream_err)
+    print("Plano da instalação (o vts-extract mostra, e nada foi gravado ainda):")
+    res = _spawn(b.path, [*plan_argv, "--dry-run"], verb="install", env=_env(), cwd=cwd, on_out=_stream_out, on_err=_stream_err)
     if res["rc"] != 0:
-        if yes:
-            sys.stdout.write(visivel(res["stdout"].decode("utf-8", errors="replace")))
-            sys.stderr.write(visivel(res["stderr"].decode("utf-8", errors="replace")))
         return _exit_code(res["rc"])
-    if not yes:
+    if not p["yes"]:
         print("\nnada foi gravado. Isto instalaria a skill em TODOS os agentes da máquina (~/.agents/skills e a pasta de skills de cada "
               "agente que existe). Se você aprova o plano acima, repita o mesmo comando com --yes, digitado por você.")
         return 0
-    print("ATENÇÃO: --yes grava a skill em todos os agentes que o plano abaixo lista (o vts-extract o mostra uma vez, ao gravar). O "
-          "conteúdo veio de um vídeo (dado de terceiros).")
-    res = _spawn(b.path, [*plan_argv, "--yes"], verb="install", env=_env(), cwd=cwd, on_out=_stream_out, on_err=_stream_err)
+    shown = set(res["stdout"].decode("utf-8", errors="replace").splitlines())
+    print("\nATENÇÃO: --yes grava a skill em todos os agentes que o plano acima lista. O conteúdo veio de um vídeo (dado de terceiros).")
+    res = _spawn(b.path, [*plan_argv, "--yes"], verb="install", env=_env(), cwd=cwd)
+    new = [line for line in res["stdout"].decode("utf-8", errors="replace").splitlines() if line.strip() and line not in shown]
+    if new:
+        sys.stdout.write(visivel("\n".join(new) + "\n"))
+    sys.stderr.write(visivel(res["stderr"].decode("utf-8", errors="replace")))
+    if res["rc"] == 0:
+        print("instalação gravada (o plano acima é o que foi gravado).")
     return _exit_code(res["rc"])
 
 

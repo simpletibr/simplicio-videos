@@ -438,7 +438,8 @@ def test_the_job_private_folder_is_swept_when_the_result_is_read(env):
 
 # ------------------------------------------------------------------------------------------------- review of PR #207
 
-def test_the_job_private_folder_is_private_and_never_shared():
+def test_the_job_private_folder_is_private_and_never_shared(tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # the folders land in the test's own tmp, not in the real /tmp
     a, b = v2s.make_job_cwd(), v2s.make_job_cwd()
     assert a != b
     for d in (a, b):
