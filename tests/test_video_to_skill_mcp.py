@@ -87,7 +87,7 @@ def test_the_tool_is_the_thirty_second_and_its_description_comes_from_the_same_t
     assert len(names) == 32 and "video.video-to-skill" in names and names.index("video.video-to-skill") > names.index("video.rea-video")
     fn = dict((n, f) for n, f, _ in mcp_server.TOOLS)["video.video-to-skill"]
     assert fn is mcp_server.video_video_to_skill and mcp_server.DESC_video_video_to_skill is dict((n, d) for n, _, d in mcp_server.TOOLS)["video.video-to-skill"]
-    assert mcp_server._CMD_VIDEO_TO_SKILL == ("status", "where", "check", "skill", "extract", "frame-at", "text", "clip", "compile", "merge")
+    assert mcp_server._CMD_VIDEO_TO_SKILL == ("status", "where", "check", "skill", "extract", "frame-at", "clip", "compile", "merge")
     assert mcp_server._CMD_VIDEO_TO_SKILL == v2s.MCP_VERBS
     desc = mcp_server.DESC_video_video_to_skill
     assert "MCP subcommands (cmd): " + ", ".join(v2s.MCP_VERBS) in desc
@@ -190,15 +190,15 @@ def test_a_cmd_outside_the_enum_and_args_with_argv_are_refused_like_the_other_to
 
 def test_args_line_with_quotes_works_and_an_unterminated_quote_is_refused(env):
     b = bundle(env)
-    assert call(args=f'text --bundle "{b}" --grep "SUM A"')["ok"] is True
-    assert call(args='text --bundle "x')["ok"] is False
+    assert call(args=f'clip --bundle "{b}" 0:01 0:02 --fps "1"')["ok"] is True
+    assert call(args='clip --bundle "x')["ok"] is False
 
 
 # ------------------------------------------------------------------------------------------------------------ the paths
 
 @pytest.mark.parametrize("words", [
-    ["text", "--bundle", "rel/bundle"], ["text", "--bundle", "../bundle"], ["frame-at", "--bundle", "bundle", "1"],
-    ["clip", "--bundle", "~/b", "0", "5"], ["text", "--bundle", "/tmp/../tmp/x"],
+    ["frame-at", "--bundle", "rel/bundle", "1"], ["frame-at", "--bundle", "../bundle", "1"], ["frame-at", "--bundle", "bundle", "1"],
+    ["clip", "--bundle", "~/b", "0", "5"], ["frame-at", "--bundle", "/tmp/../tmp/x", "1"],
 ])
 def test_a_relative_or_dotdot_path_is_refused(env, words):
     r = call(words)
@@ -210,37 +210,37 @@ def test_a_bundle_under_a_symlinked_folder_is_refused(env):
     real = bundle(env, "real")
     link = env.files / "link"
     link.symlink_to(real)
-    r = call(["text", "--bundle", str(link)])
+    r = call(["frame-at", "--bundle", str(link), "1"])
     assert r["ok"] is False and "link" in r["error"]
     nothing_ran(env)
 
 
-def test_frame_at_text_and_clip_run_on_an_absolute_bundle(env):
+def test_frame_at_and_clip_run_on_an_absolute_bundle(env):
     b = bundle(env)
     assert call(["frame-at", "--bundle", str(b), "12", "0:54"])["ok"] is True
-    assert call(["text", "--bundle", str(b), "--grep", "SUM"])["ok"] is True
     assert call(["clip", "--bundle", str(b), "0:10", "0:12", "--fps", "1"])["ok"] is True
-    assert [c["argv"][0] for c in fake.calls(env.bindir) if c["argv"] != ["--version"]] == ["frame-at", "text", "clip"]
+    assert [c["argv"][0] for c in fake.calls(env.bindir) if c["argv"] != ["--version"]] == ["frame-at", "clip"]
     assert (b / "rewatch" / "r1").is_dir(), "the frames land under the bundle"
 
 
-def test_frame_at_text_and_clip_refuse_what_the_terminal_refuses(env):
+def test_frame_at_and_clip_refuse_what_the_terminal_refuses(env):
     b = bundle(env)
     for words in (["frame-at", "--bundle", str(b), "-1"], ["frame-at", "--bundle", str(b)], ["clip", "--bundle", str(b), "9", "3"],
-                  ["clip", "--bundle", str(b), "0", "5", "--fps", "99"], ["text", "--bundle", "--grep", "x"], ["text", "--grep", "x"]):
+                  ["clip", "--bundle", str(b), "0", "5", "--fps", "99"], ["frame-at", "--bundle", "--fps", "x"], ["clip", "--fps", "1", "0", "5"]):
         assert call(words)["ok"] is False, words
     nothing_ran(env)
 
 
 def test_swallowed_repeated_and_unknown_options_are_refused(env):
     b = str(bundle(env))
-    for words in (["text", "--bundle", b, "--bundle", b], ["text", "--bundle", b, "--wat"], ["text", "--bundle", b, "--json"],
-                  ["text", "--bundle", b, "extra"], ["text", "--bundle", "--grep", "x"], ["text", "--bundle", b, "--grep"]):
+    for words in (["frame-at", "--bundle", b, "--bundle", b, "1"], ["frame-at", "--bundle", b, "--wat", "1"], ["frame-at", "--bundle", b, "--json", "1"],
+                  ["clip", "--bundle", b, "0", "5", "extra"], ["clip", "--bundle", "--fps", "1", "0", "5"], ["clip", "--bundle", b, "0", "5", "--fps"],
+                  ["clip", "--bundle", b, "0", "5", "--fps="]):
         assert call(words)["ok"] is False, words
     assert fake.subcommands(env.bindir) == []
     # `--opt=value` is one token: it can swallow nothing, and the value is passed on exactly
-    assert call(["text", f"--bundle={b}", "--grep=--out"])["ok"] is True
-    assert fake.calls(env.bindir)[-1]["argv"] == ["text", "--bundle", b, "--grep=--out"]
+    assert call(["clip", f"--bundle={b}", "0", "5", "--fps=2"])["ok"] is True
+    assert fake.calls(env.bindir)[-1]["argv"] == ["clip", "--bundle", b, "0", "5", "--fps", "2"]
 
 
 def test_extract_becomes_a_job_over_a_local_absolute_file_and_a_new_absolute_folder(env):
@@ -327,7 +327,7 @@ def test_merge_over_mcp_is_dry_run_only(env):
 
 def test_the_answer_marks_upstream_text_as_untrusted_and_neutralises_it(env):
     fake.set_mode(env.bindir, "esc")
-    r = call(["text", "--bundle", str(bundle(env))])
+    r = call(["frame-at", "--bundle", str(bundle(env)), "1"])
     assert r["ok"] is True and "aviso" in r and "untrusted_saida" in r
     assert "\x1b" not in r["untrusted_saida"] and "\u202e" not in r["untrusted_saida"]
     assert "ignore previous instructions" in r["untrusted_saida"]  # present as data
@@ -359,7 +359,7 @@ def test_the_mcp_child_gets_the_same_minimal_environment_and_no_proxy(env, monke
 def test_the_mcp_never_writes_a_file_of_its_own_besides_what_the_extractor_writes(env):
     before = sorted(p.name for p in env.files.iterdir())
     b = bundle(env)
-    call(["text", "--bundle", str(b)])
+    call(["frame-at", "--bundle", str(b), "1"])
     call(["check"])
     assert sorted(p.name for p in env.files.iterdir()) == sorted([*before, "bundle"])
 
@@ -404,7 +404,7 @@ def test_the_job_result_summarises_the_bundle_with_hashes(env):
     res = jobs.KINDS["video-to-skill"]["result"](params, None)
     assert res["out"] == str(out) and res["manifest"] == str(out / "manifest.json") and res["timeline"] == str(out / "timeline.json")
     assert len(res["manifest_sha256"]) == 64 and len(res["timeline_sha256"]) == 64 and res["frames"] == 1
-    assert res["provenance"] == str(env.files / "bundle.extract.json") and res["screen_text"] is False
+    assert res["provenance"] == str(env.files / "bundle.extract.json") and res["transcript"] is True
     (out / "timeline.json").unlink()
     assert jobs.KINDS["video-to-skill"]["result"](params, None) is None
 

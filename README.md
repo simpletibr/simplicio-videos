@@ -24,10 +24,11 @@ Who it is for: people who make ads and short videos with voice, subtitles, and c
 | Social planning | `social` | Ready | Never posts. Publishing belongs to another layer |
 | Openverse library | `openverse` | Ready | Review per request. The license comes from the source |
 | Web research | `busca` | Ready | Needs TinyFish and a key. Daily call cap |
-| External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `edit`, `rea-video` | Installed on demand, pinned version | Licenses differ; see the tracks table |
+| External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `edit`, `rea-video`, `video-to-skill` | Installed on demand, pinned version | Licenses differ; see the tracks table |
 | Instagram agent skills and scripts | `instagram` | Ready on the pinned commit; installs on demand. The six scripts ran for real; no agent was run with the skills | Local, no key, no LLM. The heuristics are in English and score Portuguese badly. It never posts |
+| Video to agent skill | `video-to-skill` | New. Ready on the pinned release (tag v0.3.0); `clone` and `setup` install on demand. The extractor ran for real on a synthetic 4 s clip; no real tutorial was processed | Local. The extractor is a downloaded binary checked by sha256. Transcription needs voice models that only you download. Verifying a generated skill is not covered by the engine's guarantees |
 | Reverse-engineer a reference video | `rea-video` | Ready on the pinned commit; installs on demand. A synthetic clip was tested end to end, real footage was not | Local by default. With `--vlm`, frames go to a vision model you configure |
-| MCP server | `simplicio-video-mcp` | 31 `video.*` tools | No `swap run` spending, no software removal |
+| MCP server | `simplicio-video-mcp` | 32 `video.*` tools | No `swap run` spending, no software removal |
 | Audio cleanup | not available yet | In a PR, not on main yet | not applicable |
 | Dubbing with preserved background | `voicestudio dub create` and `dub-export` | Uploads the video to the app and exports the finished job, with music and effects, provided background separation was on in the app | The dub itself runs in the app |
 
@@ -112,7 +113,7 @@ Not on main yet. This section gets the commands when the audio cleanup PR is mer
 
 ## MCP
 
-- Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 31 `video.*` tools over the stdio protocol, `video.rea-video` and `video.instagram` among them.
+- Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 32 `video.*` tools over the stdio protocol, `video.rea-video`, `video.video-to-skill` and `video.instagram` among them.
 - Tool list: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Excluded on purpose, for safety:**
   - `swap run`: spends credits;
@@ -148,7 +149,7 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
 ## Incorporated projects (external tracks)
 
-The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), or a PyPI version with a sha256 (yt-dlp); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all twelve tracks.
+The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), or a PyPI version with a sha256 (yt-dlp); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all thirteen tracks.
 
 Which track answers each request (a table of request, track, command, MCP tool and limits) and how to chain two or more is in the skill [`simplicio-video-trilhas`](skills/simplicio-video-trilhas/SKILL.md), written in Portuguese like the other skills.
 
@@ -164,6 +165,7 @@ Which track answers each request (a table of request, track, command, MCP tool a
 | [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (local HTTP only) | `voicestudio` | all subcommands; absolute new outputs |
 | [video-use](https://github.com/browser-use/video-use) | MIT | `edit` | all except `transcribe-batch`; absolute outputs |
 | [rea-video](https://github.com/JuneYaooo/rea-video) | MIT (declared in `pyproject.toml`) | `rea-video` | `where`, `status`, `clone`, `summary`, `probe`, `tiles`, `review`, `apply-review`, `remake-plan`; `decompose` and `stems` as a job |
+| [video-to-skill](https://github.com/brenoepics/video-to-skill) | MIT | `video-to-skill` | `status`, `where`, `check`, `skill`, `frame-at`, `clip`, `compile`, `merge --dry-run`; `extract` of a local file as a job |
 | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense | `media fetch` | `fetch` only with `--autorizo`; `--info` open |
 | [TinyFish CLI](https://www.npmjs.com/package/@tiny-fish/cli) | not declared in the package | `busca` | `consulta`, `pagina`, `status`, `log` |
 
@@ -287,6 +289,34 @@ Analyzes a reference video shot by shot (live action, AI, 3D, or code render) an
 - **Terminal only:** `setup` (installs dependencies), `remake-run` (spends), `capsule-draft` (runs code from a folder), `prefs`, `correct`, `memory`, `eval`, `capsule`, `assemble`, `--vlm`, `--env-file`, and `clone` with a folder.
 - **Example:** `simplicio-video rea-video decompose ref.mp4 -o out/ref --no-stems`
 
+### video-to-skill (`video-to-skill`)
+
+[brenoepics/video-to-skill](https://github.com/brenoepics/video-to-skill) · MIT, by Breno Epics · pinned to tag v0.3.0, commit `c1a1b90`
+
+**New.** It turns a video into an installable agent skill: a tutorial becomes numbered steps, each one citing the second of the video and the frame it came from, packaged as a `SKILL.md` that an agent can load. The upstream has two parts. A local Rust extractor, `vts-extract`, does the deterministic work (demux, shot detection, keyframes, a word-timestamped transcript when its voice models are installed, compile of a skill package, merge of a second video into an existing skill, install for every agent on the machine). The agent does the reading: it looks at the keyframes and writes the `procedure.json` that the compiler turns into the package. The engine pins the commit of the upstream skill and the release of the extractor, and runs the extractor only as a separate program, never imported.
+
+```bash
+simplicio-video video-to-skill clone                          # the pinned commit: SKILL.md and references (needs network)
+simplicio-video video-to-skill setup                          # the extractor: the PATH one only if it says exactly 0.3.0, else the pinned release asset
+simplicio-video video-to-skill check --print-downloads        # read only: what the upstream would download, with URL and sha256
+simplicio-video video-to-skill extract tutorial.mp4 --out out/excel/bundle     # local file; a new or empty folder
+simplicio-video video-to-skill frame-at --bundle out/excel/bundle 0:54 1:12    # frames at those times, under the bundle
+simplicio-video video-to-skill clip --bundle out/excel/bundle 0:50 1:05 --fps 2
+simplicio-video video-to-skill compile --bundle out/excel/bundle --ir out/excel/bundle/procedure.json --out out/excel/excel-soma
+simplicio-video video-to-skill install --package out/excel/excel-soma          # prints the plan, writes nothing; add --yes yourself to install
+```
+
+- **Setup flow.** `setup` downloads the release asset of your platform from the upstream GitHub release (`linux-x86_64`, `macos-arm64`, `macos-x86_64`, `windows-x86_64`), checks its sha256 against a pinned table before extracting anything, extracts only the single executable (no path, no link, no other entry, a size cap), checks the sha256 of that file before it runs, and only then asks `--version`. A managed binary is checked against its pinned sha256 on every use. On any other platform it says so and asks you to build the upstream from source.
+- **Downloaded by whom.** The extractor comes from the upstream release, fetched by the engine. Its own dependencies (the whisper and voice-activity models from Hugging Face; ffmpeg on Windows and Apple Silicon, yt-dlp on Windows and macOS, read in the upstream source) are downloaded by the upstream `check --fix --yes`. The engine never runs it and never passes `--fix` or `--yes` to `check`: you type `<path of vts-extract> check --fix --yes` in a terminal, after reading the list above. `simplicio-video video-to-skill where --binary` prints the path. On Linux the upstream downloads no ffmpeg and no yt-dlp (measured here: `--print-downloads` lists only the two models): they must be on the PATH.
+- **What runs locally.** Extraction, frames, compile and merge run on your machine; the video never leaves it. A URL (`extract URL --out DIR --autorizo`) is terminal only: the upstream's yt-dlp downloads it, you confirm that you may use the video, and the engine does not verify that right. A provenance record (`DIR.extract.json`) is written next to the bundle. The extractor starts through the engine's guarded child (its kill is armed before the process exists), with stdin closed, its own process group, a private folder, a minimal environment (no keys or tokens), a time limit and a cap on its output.
+- **Not covered by the engine's guarantees.** Verifying a generated skill executes commands taken from the video. That is the agent's job, inside the upstream's `sandbox` (an operating-system confinement with no network), and it is outside the engine's guarantees: the engine does not expose `sandbox`, `verify`, `bench`, `observe` or `eval`. `install` writes the skill into the skills folder of every agent on the machine, so it is terminal only, prints the plan first and writes only with a `--yes` typed by you. Text that comes from the upstream or from the video is third-party data, never instructions: the terminal shows controls and bidi marks as visible characters, and over MCP it comes back in `untrusted_*` fields.
+- **MCP.** `video.video-to-skill` has a closed list: `status`, `where`, `check`, `skill`, `extract` (a local absolute file into a new folder; a job, follow it with `video.jobs`), `frame-at`, `clip`, `compile` and `merge --dry-run`, all with absolute paths. `clone`, `setup`, `install`, a real `merge`, a URL and `check --fix --yes` are terminal only.
+- **Pin.** `update` never moves this track: the extractor binary and the `SKILL.md` are pinned together in `data/video_to_skill/pins.json`.
+
+**Verified here (Linux x86_64, 2026-11-06).** The four release assets of v0.3.0 were downloaded and each sha256 equals the one the upstream publishes next to it; the pin table also holds the sha256 of each executable and of the pinned `SKILL.md` and references, checked against a clone of the pinned commit. `clone`, `setup` (a real download of 3.4 MB through the proxy), `status`, `where`, `check`, `skill`, `extract` of a synthetic 4 s clip with a tone and the text `=SUM(A1:A3)`, `frame-at`, `clip`, `compile` (one step, from an IR written by hand), `merge --dry-run` and a real `merge`, and `install` (plan, then `--yes`, in a temporary home with a fake `~/.claude/skills`) ran against the real v0.3.0 binary. The MCP functions ran in process on the same bundle. The offline tests use a fake extractor and cover the pin table, the safe extraction (traversal, links, size), a wrong sha256, a wrong version, the closed MCP list, the job, the signals and the environment.
+
+**UNVERIFIED.** A real tutorial (the clip was synthetic, 4 s, one shot) and the quality of a skill written from one. Transcription: the voice models were not downloaded here, so the extraction ran without speech and the timeline says so. The v0.3.0 extractor has no OCR and no `text` command (those came in later upstream commits), so on-screen text is read by the agent from the frames. The SLSA attestation of the release archives (it needs the GitHub CLI and a GitHub token; the check here was refused with HTTP 403). The upstream `sandbox` and `verify` (not run). `check --fix --yes` (not run: only you run it). `extract` of a URL. Windows and macOS (the pin table has their assets; nothing ran there).
+
 ### yt-dlp (`media fetch`)
 
 [yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) · Unlicense
@@ -329,6 +359,7 @@ Each version is pinned in [`src/simplicio_video/tools.py`](src/simplicio_video/t
 | TinyFish CLI | `busca` | npm `0.57.0` | latest npm version | Not declared in the package |
 | VoiceStudio | `voicestudio` | commit `beeaae08` | default branch | AGPL-3.0. Used only over local HTTP |
 | video-use | `edit` | commit `b877063` | default branch | MIT |
+| video-to-skill | `video-to-skill` | commit `c1a1b90` (tag v0.3.0); extractor `vts-extract` v0.3.0, sha256 checked per platform | none (pinned: the extractor and `SKILL.md` are pinned together) | MIT (Breno Epics). The extractor binary is not bundled: `setup` downloads it |
 | yt-dlp | `media fetch` | PyPI `2026.10.26`, sha256 checked | latest PyPI release, sha256 checked | Unlicense |
 | rea-video | `rea-video` | commit `36e02dd` | default branch | MIT, declared in `pyproject.toml`; the pinned commit has no LICENSE file |
 

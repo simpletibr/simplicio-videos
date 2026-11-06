@@ -26,3 +26,4 @@
 | src/simplicio_video/data/social/limits.schema.json | simplicio.social-limits/v1 | — |
 | src/simplicio_video/data/social/providers.schema.json | simplicio.social-providers/v1 | — |
 | src/simplicio_video/data/templates/template.schema.json | https://simplicio.dev/schemas/simplicio.video-template/v1 | A sector template: scene structure + motion patterns + voice/music defaults that turn an intake into a spec without an LLM. |
+| src/simplicio_video/data/video_to_skill/pins.schema.json | simplicio.video-to-skill-pins/v1 | Release pinada do vts-extract (video-to-skill, MIT): um asset por plataforma com o sha256 do arquivo e do executável que ele traz, e o sha256 dos arquivos de texto do commit fixado. |

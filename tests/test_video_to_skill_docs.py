@@ -28,8 +28,8 @@ def test_the_readme_counts_come_from_the_code():
     assert f"| MCP server | `simplicio-video-mcp` | {n_tools} `video.*` tools |" in README
     assert f"lists {n_tools} `video.*` tools over the stdio protocol" in README
     assert "lists all thirteen tracks" in README and "all twelve" not in README
-    assert f"| MCP server | `simplicio-video-mcp` | {n_tools} tools `video.*`" in README_PT
-    assert f"lista {n_tools} tools `video.*`" in README_PT and "31 tools" not in README_PT.split("## Histórico")[0]
+    assert f"| Servidor MCP | `simplicio-video-mcp` | {n_tools} tools `video.*`" in README_PT
+    assert f"lista {n_tools} tools `video.*`" in README_PT and "31 tools `video.*`" not in README_PT and "lists 31" not in README
 
 
 def test_the_capability_map_and_the_projects_table_list_the_new_track():
@@ -46,7 +46,7 @@ def test_the_readme_announces_the_feature_with_what_it_does_and_how_to_use_it():
     sec = _section(README, "video-to-skill (`video-to-skill`)")
     assert sec.startswith("[brenoepics/video-to-skill](https://github.com/brenoepics/video-to-skill) · MIT")
     for word in ("Breno Epics", "v0.3.0", COMMIT[:7], "new", "turns a video into", "agent skill", "vts-extract", "SKILL.md", "procedure.json",
-                 "compile", "install", "extract", "frame-at", "text", "clip", "merge", "check --print-downloads", "setup", "clone", "status",
+                 "compile", "install", "extract", "frame-at", "clip", "merge", "check --print-downloads", "setup", "clone", "status",
                  "video.video-to-skill", "job", "video.jobs"):
         assert word in sec, f"README section: {word!r}"
     for command in ("simplicio-video video-to-skill clone", "simplicio-video video-to-skill setup", "simplicio-video video-to-skill check",

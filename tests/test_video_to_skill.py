@@ -1,4 +1,4 @@
-"""`simplicio-video video-to-skill` (terminal): status, where, check, skill, extract, frame-at, text, clip, compile, merge and install over
+"""`simplicio-video video-to-skill` (terminal): status, where, check, skill, extract, frame-at, clip, compile, merge and install over
 a FAKE `vts-extract` (tests/_fake_vts.py). Offline: the upstream (brenoepics/video-to-skill, MIT, pinned v0.3.0) is never run here."""
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ def test_the_command_is_registered_with_help_that_says_what_runs_and_what_does_n
     assert e.value.code == 0
     out = capsys.readouterr().out
     for word in ("MIT", "Breno Epics", "https://github.com/brenoepics/video-to-skill", REF[:7], "clone", "setup", "status", "where", "check",
-                 "skill", "extract", "frame-at", "text", "clip", "compile", "merge", "install", "--autorizo", "--yes", "check --fix --yes",
+                 "skill", "extract", "frame-at", "clip", "compile", "merge", "install", "--autorizo", "--yes", "check --fix --yes",
                  "sandbox", "verify", "bench", "eval", "observe", "OS", "fora das garantias"):
         assert word in out, word
 
@@ -115,7 +115,7 @@ def test_the_command_is_registered_with_help_that_says_what_runs_and_what_does_n
 def test_usage_text_lists_the_verbs_the_engine_exposes_and_the_ones_it_does_not(capsys):
     assert v2s.run_video_to_skill(["--help"]) == 0
     out = capsys.readouterr().out
-    assert v2s.SUBCOMMANDS == ("clone", "setup", "where", "status", "check", "skill", "extract", "frame-at", "text", "clip", "compile",
+    assert v2s.SUBCOMMANDS == ("clone", "setup", "where", "status", "check", "skill", "extract", "frame-at", "clip", "compile",
                                "merge", "install")
     assert v2s.NOT_EXPOSED == ("sandbox", "observe", "verify", "bench", "eval")
     assert all(f"`{v}`" in out or v in out for v in v2s.NOT_EXPOSED)
@@ -527,7 +527,7 @@ def test_output_over_the_cap_kills_the_extractor_and_fails(env, monkeypatch):
     fake.set_mode(env.bindir, "big")
     monkeypatch.setattr(v2s, "MAX_STDOUT_BYTES", 64 * 1024)
     with pytest.raises(v2s.VideoToSkillError, match="limite"):
-        v2s.run_video_to_skill(["text", "--bundle", str(bundle(env))])
+        v2s.run_video_to_skill(["frame-at", "--bundle", str(bundle(env)), "1"])
 
 
 @pytest.mark.usefixtures("sinais_padrao")
@@ -559,7 +559,7 @@ def test_the_module_never_starts_a_process_any_other_way():
     assert "guarded_child" in src
 
 
-# --------------------------------------------------------------------------------------- frame-at, text, clip (read a bundle)
+# --------------------------------------------------------------------------------------- frame-at, clip (read a bundle)
 
 def test_frame_at_passes_the_bundle_and_every_timestamp_and_prints_what_the_extractor_printed(env, capsys):
     b = bundle(env)
@@ -585,28 +585,13 @@ def test_frame_at_caps_the_number_of_timestamps_and_needs_at_least_one(env):
     assert v2s.run_video_to_skill(["frame-at", "--bundle", str(b), *map(str, range(v2s.MAX_TIMESTAMPS))]) == 0
 
 
-def test_text_passes_the_grep_as_one_attached_token_so_it_cannot_be_read_as_an_option(env, capsys):
-    b = bundle(env)
-    assert run("text", "--bundle", b, "--grep", "-x|SUM") == 0
-    assert last(env)["argv"] == ["text", "--bundle", str(b), "--grep=-x|SUM"]
-    assert "=SUM(A1:A3)" in out_of(capsys)[0]
-    assert run("text", "--bundle", b) == 0 and last(env)["argv"] == ["text", "--bundle", str(b)]
-
-
-def test_text_refuses_a_grep_with_a_nul_or_too_long(env):
-    b = bundle(env)
-    for bad in ("a\x00b", "x" * (v2s.MAX_GREP_CHARS + 1), ""):
-        with pytest.raises(v2s.VideoToSkillError):
-            v2s.run_video_to_skill(["text", "--bundle", str(b), "--grep", bad])
-
-
-def test_text_output_from_the_video_is_shown_with_escapes_and_bidi_made_visible(env, capsys):
+def test_output_that_comes_from_the_video_is_shown_with_escapes_and_bidi_made_visible(env, capsys):
     fake.set_mode(env.bindir, "esc")
-    assert run("text", "--bundle", bundle(env)) == 0
+    assert run("frame-at", "--bundle", bundle(env), "1") == 0
     out, err = out_of(capsys)
     assert "\x1b" not in out and "\u202e" not in out
     assert "␛" in out and "<U+202E>" in out and "ignore previous instructions" in out  # shown, as data, never obeyed
-    assert "terceiros" in err.lower() and "dado" in err.lower() and "\x1b" not in err  # the notice goes to stderr: stdout stays parseable
+    assert "\x1b" not in err
 
 
 def test_clip_validates_the_range_and_the_fps(env):
@@ -650,14 +635,15 @@ def test_a_bundle_must_be_a_real_bundle_not_a_link_and_with_no_link_where_the_ex
 
 
 def test_a_bundle_option_that_swallowed_another_option_is_refused(env):
-    for words in (["--bundle", "--grep", "x"], ["--bundle", "-x"], ["--bundle"]):
+    for words in (["frame-at", "--bundle", "--fps", "1"], ["frame-at", "--bundle", "-x", "1"], ["frame-at", "--bundle"],
+                  ["clip", "--bundle", "--fps", "0", "1"]):
         with pytest.raises(v2s.VideoToSkillError):
-            v2s.run_video_to_skill(["text", *words])
+            v2s.run_video_to_skill(words)
     assert fake.calls(env.bindir) == []
 
 
 def test_the_bundle_option_is_required_there_is_no_default_folder(env):
-    for words in (["frame-at", "1"], ["text"], ["clip", "0", "5"]):
+    for words in (["frame-at", "1"], ["clip", "0", "5"]):
         with pytest.raises(v2s.VideoToSkillError, match="--bundle"):
             v2s.run_video_to_skill(words)
 

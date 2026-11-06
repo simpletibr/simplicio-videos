@@ -24,6 +24,7 @@ CMD_POR_TOOL = {
                           "design", "dub", "dub-export", "mcp"),
     "video.rea-video": ("clone", "where", "status", "summary", "probe", "tiles", "stems", "review", "apply-review",
                         "remake-plan", "decompose"),
+    "video.video-to-skill": ("status", "where", "check", "skill", "extract", "frame-at", "clip", "compile", "merge"),
     "video.shorts": ("inspect", "plan", "cut", "run"),
     "video.media": ("fetch", "probe", "audio", "sheet", "subs", "burn", "mask", "replace-audio", "voice-track"),
     "video.qc": ("congelado",),
@@ -40,6 +41,7 @@ RECUSADOS = {
     "video.moneyprinter": ("setup", "serve"),
     "video.matchcut": ("setup", "clone"),
     "video.rea-video": ("setup", "remake-run", "capsule-draft", "prefs", "correct", "memory"),
+    "video.video-to-skill": ("setup", "clone", "install", "sandbox", "observe", "verify", "bench", "eval"),
 }
 
 FUNCOES = {nome: fn for nome, fn, _ in mcp_server.TOOLS}
@@ -79,7 +81,7 @@ def _enum(prop):
 # ---------------------------------------------------------------------------------- quais tools e quais subcomandos
 
 def test_as_tools_com_args_sao_as_com_subcomando_mais_as_de_so_flags():
-    assert len(COM_ARGS) == 16
+    assert len(COM_ARGS) == 17
     assert set(COM_ARGS) == set(CMD_POR_TOOL) | set(SEM_SUBCOMANDO)
 
 
@@ -284,7 +286,7 @@ def test_update_help_nao_e_recusado_como_instalacao(cli):
 
 # ---------------------------------------------------------------------------------- --help: uma regra para as tools
 
-ALLOWLIST_SEM_AJUDA = ("video.toonflow", "video.moneyprinter", "video.matchcut", "video.rea-video")
+ALLOWLIST_SEM_AJUDA = ("video.toonflow", "video.moneyprinter", "video.matchcut", "video.rea-video", "video.video-to-skill")
 
 
 @pytest.mark.parametrize("nome", [n for n in COM_ARGS if n not in ALLOWLIST_SEM_AJUDA])

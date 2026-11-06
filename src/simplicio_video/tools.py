@@ -143,7 +143,7 @@ TOOLS: dict[str, Tool] = {
     "video_to_skill": Tool("video_to_skill", "git", "https://github.com/brenoepics/video-to-skill",
                            "c1a1b905da6a252077ace0657e8ea49cb785e7c3", "MIT",
                            "turns a video into an installable agent skill (by Breno Epics): an agent SKILL.md plus a local Rust extractor (`vts-extract`: "
-                           "transcript, shots, keyframes, on-screen text, skill package); the engine pins the commit and the extractor "
+                           "transcript, shots, keyframes, skill package); the engine pins the commit and the extractor "
                            "release, and runs the extractor only as a separate program", marker="SKILL.md",
                            note="pin = tag v0.3.0 (commit c1a1b90), read on 2026-11-06. The extractor binary comes from the upstream release "
                                 "(sha256 pinned per platform in data/video_to_skill/pins.json, checked before it runs); its own dependencies "

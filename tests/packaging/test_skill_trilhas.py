@@ -52,7 +52,7 @@ RECEITAS = {
     "d": ("dublagem ou tradução", ["edit transcribe", "voicestudio clone", "voicestudio tts", "media voice-track", "media replace-audio"]),
     "e": ("OpenMontage: pipelines, estimativa e ferramenta", ["montage pipelines", "montage tools", "montage estimate", "montage run-tool"]),
     "f": ("copy de Reels", ["instagram skills", "instagram run hookscore", "instagram run caption"]),
-    "g": ("vídeo vira skill", ["video-to-skill extract", "video-to-skill text", "video-to-skill frame-at", "video-to-skill clip",
+    "g": ("vídeo vira skill", ["video-to-skill extract", "video-to-skill frame-at", "video-to-skill clip",
                                "video-to-skill compile", "video-to-skill install", "procedure.json"]),
 }
 
@@ -914,7 +914,7 @@ def test_o_pin_do_video_to_skill_vem_do_codigo_e_o_texto_o_cita():
 
 def test_a_receita_g_encadeia_extract_leitura_ir_compile_e_install_com_as_travas():
     secao = " ".join(_recipe_section("g").split())
-    for trecho in ("timeline.json", "frame-at", "text --bundle", "clip --bundle", "references/ir-format.md", "compile", "--yes",
+    for trecho in ("timeline.json", "frame-at --bundle", "clip --bundle", "references/ir-format.md", "compile", "--yes",
                    "install", "untrusted", "terminal", "verify", "sandbox", "não verifica", "credencial"):
         assert trecho in secao, f"recipe (g) does not say {trecho!r}"
     ordem = [secao.index(x) for x in ("video-to-skill extract", "video-to-skill compile", "video-to-skill install")]
