@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -30,6 +31,8 @@ def env(tmp_path, monkeypatch):
     for var in ("VIDEO_TO_SKILL_DIR", "VTS_DATA_DIR", "SIMPLICIO_MCP", "HTTPS_PROXY"):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setattr(v2s, "_platform", lambda: ("Linux", "x86_64"))
+    (tmp_path / "tmpd").mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmpd"))  # the private folders of the jobs land here, not in /tmp
     bindir = tmp_path / "pathbin"
     fake.make(bindir)
     monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}/usr/bin{os.pathsep}/bin")
