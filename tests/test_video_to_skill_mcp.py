@@ -275,6 +275,16 @@ def test_extract_refuses_urls_autorizo_relative_paths_missing_inputs_and_forbidd
     nothing_ran(env)
 
 
+def test_the_planner_itself_refuses_a_url_over_mcp_even_with_autorizo(env):
+    url = "https://example.com/v.mp4"
+    for words in ([url, "--out", str(env.files / "b"), "--autorizo"], [url, "--out", str(env.files / "b")]):
+        with pytest.raises(v2s.VideoToSkillError, match="terminal"):
+            v2s.plan("extract", words, "mcp")
+        with pytest.raises(v2s.VideoToSkillError):
+            v2s.mcp_plan(["extract", *words])
+    assert v2s.plan("extract", [url, "--out", str(env.files / "b"), "--autorizo"], "terminal")["url"] is True
+
+
 def test_extract_url_error_says_it_is_terminal_only_with_autorizo_and_the_right_is_not_verified(env):
     r = call(["extract", "https://example.com/v.mp4", "--out", str(env.files / "b")])
     assert "terminal" in r["error"] and "--autorizo" in r["error"] and "não verifica" in r["error"]

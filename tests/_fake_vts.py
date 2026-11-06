@@ -7,7 +7,7 @@ whether stdin was a terminal). `MARKERS` are files it writes when it is asked to
 
 modes: ok (default) | oldversion (--version says 0.2.9) | slow (extract sleeps 60 s) | grandchild (extract leaves a sleeping child
 and records its pid in `child.pid`, then sleeps) | esc (frame-at prints terminal escapes, bidi marks and a prompt injection) | big
-(frame-at prints more than the stdout cap) | fail (check exits 3 with a message on stderr) | failextract (extract exits 7)
+(frame-at prints more than the stdout cap) | fail (check exits 3 with a message on stderr) | failextract (extract exits 7) | leaves (extract leaves a sleeping child behind and exits 0)
 """
 from __future__ import annotations
 
@@ -71,6 +71,9 @@ elif cmd == "extract":
     print("bundle created: " + str(out) + "/ (0.1s)")
     if mode == "slow":
         time.sleep(60)
+    if mode == "leaves":
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+        (here / "child.pid").write_text(str(child.pid))
     if mode == "grandchild":
         child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
         (here / "child.pid").write_text(str(child.pid))

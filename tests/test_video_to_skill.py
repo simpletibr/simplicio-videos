@@ -523,6 +523,17 @@ def test_a_timeout_kills_the_extractor_and_everything_it_started(env, monkeypatc
         mata_o_que_sobrou(pidfile)
 
 
+def test_a_child_the_extractor_leaves_running_after_a_normal_exit_is_killed_with_its_group(env):
+    fake.set_mode(env.bindir, "leaves")
+    assert run("extract", env.video, "--out", env.files / "b") == 0
+    pidfile = env.bindir / "child.pid"
+    pid = espera_pid(pidfile)
+    try:
+        assert espera(lambda: not vivo(pid), 10), "what the extractor left running outlived it"
+    finally:
+        mata_o_que_sobrou(pidfile)
+
+
 def test_output_over_the_cap_kills_the_extractor_and_fails(env, monkeypatch):
     fake.set_mode(env.bindir, "big")
     monkeypatch.setattr(v2s, "MAX_STDOUT_BYTES", 64 * 1024)
