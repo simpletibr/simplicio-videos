@@ -3,7 +3,7 @@ title: Gate local, TDD e pouso de PRs
 summary: Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
 commands: make setup, make check, make check-full, make check-web, make hooks, make regen, scripts/check_ownership.py, scripts/check_tdd.py, scripts/land.sh
 issue: 31
-last_verified: 2026-11-05
+last_verified: 2026-11-06
 ---
 
 # Gate local, TDD e pouso de PRs
@@ -97,6 +97,20 @@ Outras mudanças no conjunto de testes, sem tirar nenhum teste do release:
 - `test_voice.py`: `import json` sem uso removido (o ruff roda em todo `.py` alterado no branch).
 - `docs/licenses.md` regenerado com `make licenses-write` (pytest-xdist 3.8.0 e execnet 2.1.2, ambos MIT).
 - `pyproject.toml`: `pytest-xdist` entrou no extra `test` (fixado com `==`, versão em `docs/licenses.md`); `scripts/check.sh` usa `-n` quando o xdist está instalado (`CHECK_JOBS`).
+
+## Processos filhos e sinais de parada (`childio`)
+
+Regra para qualquer módulo que inicia um processo filho de longa duração (render, servidor, script de terceiros): **o filho não pode sobreviver ao motor por causa de um SIGTERM, SIGHUP ou Ctrl+C**, nem quando o sinal cai no intervalo entre o `fork` e o retorno do `Popen` (nesse intervalo o motor ainda não tem referência para matar). A API fica em `src/simplicio_video/childio.py`:
+
+| API | Para quê |
+|---|---|
+| `childio.guarded_child(argv, stop=, kill=, **kw)` | context manager no lugar de `subprocess.Popen(argv, **kw)`. Do `fork` até o fim do bloco, SIGTERM, SIGHUP e Ctrl+C são pegos; o que cai durante o `Popen` espera o filho existir, então o filho morre e a parada sobe (`KeyboardInterrupt` no Ctrl+C, `SystemExit(128+n)` nos outros; `stop=childio.stop_as_interrupt` faz todos virarem `KeyboardInterrupt`). Um erro do corpo também mata o filho. Saída normal devolve o filho ao chamador. Os handlers anteriores voltam ao fim, também se o `Popen` falhar |
+| `childio.start_child(argv, track=lista, **kw)` | o mesmo para servidores que o chamador para num `finally`: o filho entra em `track` antes de qualquer sinal ser tratado; depois do retorno, parar é com o chamador |
+| `childio.kill_group(proc, group=True)` | `SIGKILL` no grupo do filho (`start_new_session=True`) ou só nele, e reapa. Recusa pid <= 1, o próprio pid e o próprio grupo, e não sinaliza filho que já saiu (o pid pode ser de outro processo); `group=True` num filho sem grupo próprio mata só o filho |
+
+Detalhes que valem: sinal **ignorado** continua ignorado (semântica do `nohup`); Ctrl+C só é tomado enquanto o handler padrão do Python estiver no lugar; fora da thread principal nada é instalado e a guarda vira um `Popen` comum (o erro do corpo ainda mata o filho); um segundo sinal durante a morte do filho é só anotado, nunca corta a morte; `restore` devolve todos os handlers mesmo que um handler restaurado levante. `kill=` aceita uma parada própria (toonflow e moneyprinter param o servidor com Ctrl+C antes do `SIGKILL`). Envolva o bloco num `ExitStack` para distinguir erro de spawn de erro do corpo.
+
+Testes: `tests/test_childio_guarded.py` e o auxiliar `tests/_orfao.py` (`sinaliza_no_popen` sinaliza de dentro do `Popen`, o intervalo; `roda_motor` roda o módulo num processo de motor próprio; `limpa` mata o filho mesmo que o teste falhe cedo). Todo teste que cria um dorminhoco **espera o pid file** antes de qualquer asserção e limpa num `finally`: sob carga um teste que sai antes de o filho escrever o pid vazava dorminhocos de 120 s.
 
 ## Regra de TDD
 
