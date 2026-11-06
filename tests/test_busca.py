@@ -1524,61 +1524,102 @@ def _exige_relogio_de_cpu_fino():
         pytest.skip(f"time.thread_time tem resolução de {res * 1e3:.1f} ms: grossa demais para medir 14 ms de CPU")
 
 
-def _cpu_min(fn, reps):
-    """Menor tempo de CPU da thread em `reps` execuções. O código sob teste é Python puro em processo: o relógio de CPU não
-    anda enquanto o escalonador dá a vez a outro processo, então host carregado quase não mexe nele (o relógio de parede
-    mexia: razão 3,04 contra limite 3,0 e 5,6 s contra 3 s com load ~8). O mínimo descarta o que sobrar (cache frio, GC)."""
-    tempos = []
-    for _ in range(reps):
-        t0 = time.thread_time()
-        fn()
-        tempos.append(time.thread_time() - t0)
-    return min(tempos)
+def _cpu(fn) -> float:
+    t0 = time.thread_time()
+    fn()
+    return time.thread_time() - t0
+
+
+def _razao_cpu(pequeno, grande, limite: float, rodadas: int = 6) -> tuple[float, float, float]:
+    """Razão de CPU `grande/pequeno` (e os dois mínimos), robusta a host carregado. O código sob teste é Python puro em processo: o relógio
+    de CPU da thread não anda enquanto o escalonador dá a vez a outro, mas SMT e cache compartilhado inflam a CPU de uma execução e não da
+    outra (medido por revisor, 8 queimadores em 4 CPUs: razão linear de 4,0 foi de 3,35 a 4,72 com 5 execuções de cada tamanho em fila).
+    Por isso: (1) as execuções se intercalam (pequena, grande, grande, pequena, ...), então um pico de contenção pega os dois tamanhos;
+    (2) cada tamanho usa o mínimo de todas as suas execuções; (3) para assim que a razão dos mínimos cai abaixo de `limite` (a partir da
+    2a rodada): limpo passa em 2 rodadas, e só um quadrático gasta as `rodadas` todas e falha. Parar cedo só ajuda o limpo: um quadrático fica
+    acima do limite em toda rodada (as mutações medidas ficam 1,3x a 4x acima da razão linear)."""
+    t_p: list[float] = []
+    t_g: list[float] = []
+    for i in range(rodadas):
+        if i % 2:
+            t_g.append(_cpu(grande))
+            t_p.append(_cpu(pequeno))
+        else:
+            t_p.append(_cpu(pequeno))
+            t_g.append(_cpu(grande))
+        if i >= 1 and min(t_g) / min(t_p) < limite:
+            break
+    return min(t_g) / min(t_p), min(t_p), min(t_g)
+
+
+HOSTIL = "<<<<<b>b>b>b>b>"  # o amplificador: cada passada de `_limpa_tags_uma_vez` tira só o `<b>` de dentro
 
 
 def test_linha_cresce_em_linha_reta(env):
-    """Guarda de ReDoS no gate, para `_linha` isolada. Ela corta a entrada em max(limite*10, 2000) caracteres; com limite 5000
-    a janela tem 50 000, então 5 mil e 50 mil colchetes entram inteiros. Linear dá razão ~10 (CPU: 9,7 a 10,4, também com 4 queimadores); o limite 12,5 deixa
-    ~20% de folga e pega um quadrático que some ~25% ou mais ao custo linear em 50 mil (mutações medidas: 32 com passo 1, 13,4 a 14,3
-    com passo 8; com passo 16 deu 11,7 a 12,7, no limite e não confiável) e o puro (~100)."""
+    """Guarda de ReDoS no gate, para `_linha` isolada. Com limite 10 000 a janela de leitura é de 100 000 caracteres: 10 mil e 100 mil
+    colchetes entram inteiros. Linear dá razão ~10 (9,8 a 10,8 limpo e com 8 queimadores em 4 CPUs). Limite 14 (limpo <= 77%). Mutações
+    medidas (quadrático em Python dentro da janela): passo 1 dá 45 a 48; passo 8 dá 17,0 a 17,4; passo 64 dá 10,9 a 11,2 e NÃO é pego
+    (nem o 512). Janela maior que a de 50 mil do guarda antigo: o termo quadrático pesa 4x mais e a folga do passo 8 passou de 6% para 30%."""
     _exige_relogio_de_cpu_fino()
-    hostil = "<<<<<b>b>b>b>b>"
-    env.b._linha(hostil + "[" * 5_000, 5000)  # aquecimento: regex já compilada, alocador quente
-    t_5k = _cpu_min(lambda: env.b._linha(hostil + "[" * 5_000, 5000), 7)
-    t_50k = _cpu_min(lambda: env.b._linha(hostil + "[" * 50_000, 5000), 7)
-    assert t_50k / t_5k < 12.5, f"_linha: a CPU cresceu {t_50k / t_5k:.1f}x de 5 mil para 50 mil colchetes ({t_5k * 1e3:.1f} ms -> {t_50k * 1e3:.1f} ms)"
+    env.b._linha(HOSTIL + "[" * 5_000, 5000)  # aquecimento: regex já compilada, alocador quente
+    r, t_p, t_g = _razao_cpu(lambda: env.b._linha(HOSTIL + "[" * 10_000, 10_000), lambda: env.b._linha(HOSTIL + "[" * 100_000, 10_000), 14.0)
+    assert r < 14.0, f"_linha: a CPU cresceu {r:.1f}x de 10 mil para 100 mil colchetes ({t_p * 1e3:.1f} ms -> {t_g * 1e3:.1f} ms)"
 
 
 def test_texto_pagina_cresce_em_linha_reta(env):
-    """Guarda de ReDoS no gate, para `_texto_pagina` sozinha: quadruplicar o texto (25 mil -> 100 mil colchetes, abaixo do teto de
-    leitura de 400 mil) tem de quadruplicar a CPU (medido 3,84 a 4,17, com e sem 4 queimadores de CPU). Quadrático puro
-    dá ~16. O limite de 4,8 deixa ~15% de folga para o linear e pega um quadrático que some ~22% ou mais ao custo linear em 100
-    mil (mutação medida com passo 8: 6,0 a 6,5; com passo 64 deu 4,2 a 4,7, não pega aqui). Menos que isso só o teste seguinte pega, ou ninguém."""
+    """Guarda de ReDoS no gate, para `_texto_pagina` sozinha: 25 mil -> 400 mil colchetes (400 mil é o teto de leitura) é 16x o texto; linear dá
+    razão ~16 (15,5 a 17,1, limpo e com 8 queimadores em 4 CPUs). Limite 21 (limpo <= 81%). Quanto maior o tamanho de cima, mais o termo
+    quadrático pesa: mutações medidas (quadrático em Python): passo 8 dá 58 a 60, passo 16 dá 39 a 40, passo 64 dá 22,0 a 22,7 (colado no limite,
+    não é confiável), passo 512 dá 16,6 a 16,9 e NÃO é pego. O guarda antigo (25 mil -> 100 mil, razão 4, limite 4,8) tinha 2% de folga sobre o linear
+    em host carregado."""
     _exige_relogio_de_cpu_fino()
-    hostil = "<<<<<b>b>b>b>b>"
-    env.b._texto_pagina(hostil + "[" * 5_000, 20480)  # aquecimento
-    t_n = _cpu_min(lambda: env.b._texto_pagina(hostil + "[" * 25_000, 20480), 5)
-    t_4n = _cpu_min(lambda: env.b._texto_pagina(hostil + "[" * 100_000, 20480), 5)
-    assert t_4n / t_n < 4.8, f"_texto_pagina: a CPU cresceu {t_4n / t_n:.2f}x ao quadruplicar o texto ({t_n:.3f} s -> {t_4n:.3f} s)"
+    env.b._texto_pagina(HOSTIL + "[" * 5_000, 20480)  # aquecimento
+    r, t_p, t_g = _razao_cpu(lambda: env.b._texto_pagina(HOSTIL + "[" * 25_000, 20480), lambda: env.b._texto_pagina(HOSTIL + "[" * 400_000, 20480), 21.0)
+    assert r < 21.0, f"_texto_pagina: a CPU cresceu {r:.1f}x de 25 mil para 400 mil colchetes ({t_p:.3f} s -> {t_g:.3f} s)"
+
+
+class _ContaSub:
+    """Troca uma regex compilada por uma que conta as chamadas de `.sub` (a mesma regex, resultado idêntico)."""
+
+    def __init__(self, rx):
+        self.rx, self.n = rx, 0
+
+    def sub(self, *a, **k):
+        self.n += 1
+        return self.rx.sub(*a, **k)
+
+    def __getattr__(self, nome):
+        return getattr(self.rx, nome)
+
+
+def test_regex_de_link_roda_uma_vez_por_limpeza_mesmo_com_o_amplificador(env):
+    """Contagem determinística (imune a carga): `_limpa_html` repete só as regexes de tag; a de link, a mais cara, roda UMA vez. O amplificador
+    força as 5 passadas de tag. Uma mutação que a põe dentro do laço custa um fator constante (6,8 s contra 1,2 s no 1 milhão) que razão nenhuma vê."""
+    conta = _ContaSub(importlib.import_module("simplicio_video.busca")._MD_LINK_RE)
+    env.patch("_MD_LINK_RE", conta)
+    env.b._limpa_html(HOSTIL * 200)
+    assert conta.n == 1, f"a regex de link rodou {conta.n} vezes em uma limpeza"
+    conta.n = 0
+    env.b._linha(HOSTIL * 200, 100)
+    env.b._texto_pagina(HOSTIL * 200, 1000)
+    assert conta.n == 2
 
 
 # Entrada de 1 milhão de colchetes: o leitor corta em 400 mil (`_texto_pagina`) e a janela de `_linha` é de 10 mil. Em vez de um limite
-# absoluto em segundos (o host decide), mede-se a CPU contra a base de 100 mil, que o mesmo host mede ao lado. Linear com o corte dá
-# razão 4 (medido 3,75 a 4,24); limite 5; sem o corte seria 10; quadrático seria 16. `_linha` com o corte custa o mesmo que com 10 mil (razão ~1).
+# absoluto em segundos (o host decide), mede-se a CPU de 1 milhão contra a de 400 mil / 10 mil, que o mesmo host mede ao lado (intercaladas):
+# com o corte a razão é ~1,0 (0,96 a 1,07); sem o corte seria 2,5 (texto) e 100 (linha).
 def test_amplificador_de_tags_com_um_milhao_de_colchetes_tem_custo_limitado(env):
-    """Razões contra a base (corte de leitura, quadrático) mais tetos absolutos de CPU (custo constante a mais)."""
+    """Corte de leitura (razão contra o tamanho do corte) mais tetos absolutos de CPU (custo constante a mais)."""
     _exige_relogio_de_cpu_fino()
-    hostil = "<<<<<b>b>b>b>b>"
-    grande, base = hostil + "[" * 1_000_000, hostil + "[" * 100_000
-    env.b._texto_pagina(hostil + "[" * 5_000, 20480)  # aquecimento
-    t_base = _cpu_min(lambda: env.b._texto_pagina(base, 20480), 3)
-    t_grande = _cpu_min(lambda: env.b._texto_pagina(grande, 20480), 2)
-    assert t_grande / t_base < 5.0, f"_texto_pagina: 1 milhão custou {t_grande / t_base:.2f}x os 100 mil ({t_base:.3f} s -> {t_grande:.3f} s)"
-    l_base = _cpu_min(lambda: env.b._linha(hostil + "[" * 10_000, 1000), 5)
-    l_grande = _cpu_min(lambda: env.b._linha(grande, 1000), 5)
-    assert l_grande / l_base < 4, f"_linha: 1 milhão custou {l_grande / l_base:.2f}x os 10 mil ({l_base * 1e3:.1f} ms -> {l_grande * 1e3:.1f} ms)"
-    # Tetos absolutos de CPU (não de parede): uma razão não vê um custo constante a mais em todas as passadas (a regex de link rodando a
-    # cada passada do amplificador dá 6,8 s e 0,17 s, com razões intactas). Medido limpo, com e sem 4 queimadores: 1,15 a 1,31 s e 28 a 34 ms.
+    env.b._texto_pagina(HOSTIL + "[" * 5_000, 20480)  # aquecimento
+    base, grande = HOSTIL + "[" * 400_000, HOSTIL + "[" * 1_000_000
+    r, t_base, t_grande = _razao_cpu(lambda: env.b._texto_pagina(base, 20480), lambda: env.b._texto_pagina(grande, 20480), 1.6, rodadas=4)
+    assert r < 1.6, f"_texto_pagina: 1 milhão custou {r:.2f}x os 400 mil do corte ({t_base:.3f} s -> {t_grande:.3f} s)"
+    l_base_in, l_grande_in = HOSTIL + "[" * 10_000, HOSTIL + "[" * 1_000_000
+    rl, l_base, l_grande = _razao_cpu(lambda: env.b._linha(l_base_in, 1000), lambda: env.b._linha(l_grande_in, 1000), 2.0)
+    assert rl < 2.0, f"_linha: 1 milhão custou {rl:.2f}x os 10 mil da janela ({l_base * 1e3:.1f} ms -> {l_grande * 1e3:.1f} ms)"
+    # Tetos absolutos de CPU (não de parede): uma razão não vê um custo constante a mais em todas as passadas. Medido limpo, com e sem 8 queimadores:
+    # 1,12 a 1,22 s e 26 a 34 ms (limites em ~30% e ~25% disso).
     assert t_grande < 4.0, f"_texto_pagina: 1 milhão custou {t_grande:.2f} s de CPU (limpo: 1,2 s)"
     assert l_grande < 0.12, f"_linha: 1 milhão custou {l_grande * 1e3:.0f} ms de CPU (limpo: 30 ms)"
 
