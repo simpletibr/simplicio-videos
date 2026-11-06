@@ -6,7 +6,7 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## 0.7.0 — 2026-11-06
 
-Reúne o que entrou na `main` depois da 0.6.0 (2026-10-31): PRs #138 a #203 (59 mesclados; os outros números do intervalo são issues, e a #147 foi fechada sem merge). Esta versão sai como tag, GitHub Release e pacote no PyPI, publicado em 2026-11-06 a partir do commit d703a79; a tag `v0.7.0` e a GitHub Release estão pendentes com o dono.
+Reúne o que entrou na `main` depois da 0.6.0 (2026-10-31): PRs #138 a #203 (59 mesclados; os outros números do intervalo são issues, e a #147 foi fechada sem merge). Esta versão sai como tag, GitHub Release e pacote no PyPI, publicado em 2026-11-06 a partir do commit d703a79; a tag `v0.7.0` (commit d703a79) e a GitHub Release `v0.7.0` existem (release publicada em 2026-11-06).
 
 ### Mudança quebrante
 - **`busca log --json` troca `total` por `arquivos`** (schema `simplicio.busca-log/v2`, no lugar do `v1` publicado na 0.6.0). `total` (quantos registros válidos o arquivo tinha) saiu; `arquivos` (os arquivos do registro que o log leu, do ativo para os girados) entrou. `registros`, `mostrados` e `invalidas` mantêm o sentido. Quem lia `total` ou checava o schema `v1` precisa atualizar; a saída de texto do `busca log` também mudou.
@@ -48,7 +48,7 @@ Reúne o que entrou na `main` depois da 0.6.0 (2026-10-31): PRs #138 a #203 (59 
 - **Guarda de saída do MCP:** não cobre `run_child` e `check_child`; `os._exit` deixa as pastas privadas das tools; um neto que sai do grupo de processos escapa.
 - **Gate:** a meta de 60 s não foi atingida (ver Novidades); as medidas de tempo são de uma máquina de 4 núcleos com outras sessões rodando.
 - **Windows e macOS reais:** não rodados nesta versão.
-- **PyPI:** publicado em 2026-11-06 a partir do commit d703a79 (`pip install simplicio-video==0.7.0`). Wheel sha256 `4ad007d621f89e493a5e3c52ed7b00e03e153ea1669f23e5726d61cdbe6dbbe7`; sdist sha256 `1f099175f39ea9af1d887ba9e8766c2eeb82ed131cfa137db6c57ef5f5799624`. Instalação a partir do PyPI verificada numa venv nova: `simplicio-video --version` mostrou `simplicio-video 0.7.0 (hyperframes@0.8.97)`. A tag `v0.7.0` e a GitHub Release estão pendentes com o dono.
+- **PyPI:** publicado em 2026-11-06 a partir do commit d703a79 (`pip install simplicio-video==0.7.0`). Wheel sha256 `4ad007d621f89e493a5e3c52ed7b00e03e153ea1669f23e5726d61cdbe6dbbe7`; sdist sha256 `1f099175f39ea9af1d887ba9e8766c2eeb82ed131cfa137db6c57ef5f5799624`. Instalação a partir do PyPI verificada numa venv nova: `simplicio-video --version` mostrou `simplicio-video 0.7.0 (hyperframes@0.8.97)`. A tag `v0.7.0` (commit d703a79) e a GitHub Release `v0.7.0` existem (release publicada em 2026-11-06).
 
 ## 0.6.0 — 2026-10-31
 
