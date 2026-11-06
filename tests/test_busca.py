@@ -2075,9 +2075,9 @@ def test_log_json_troca_total_por_arquivos_no_schema_v2(env, capsys):
 
 
 def test_changelog_registra_a_quebra_do_busca_log_json():
-    """B4: a nota de Unreleased diz que `total` saiu, que `arquivos` entrou e qual é o schema novo."""
+    """B4: a nota da 0.7.0 diz que `total` saiu, que `arquivos` entrou e qual é o schema novo."""
     texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
-    secao = texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    secao = texto.split("## 0.7.0 — ", 1)[1].split("\n## ", 1)[0]  # the 0.7.0 cut moved the Unreleased notes under its heading
     assert "busca log" in secao and "`total`" in secao and "`arquivos`" in secao and "busca-log/v2" in secao
 
 
@@ -2217,8 +2217,8 @@ def test_log_nao_aninha_a_trava(env):
 
 
 def test_changelog_registra_as_tools_que_o_plugin_anuncia():
-    """F2: plugin.json passou de 28 para 31 tools do MCP (e2236ef acrescentou video.rea-video, video.matchcut e video.qc); a nota de
-    Unreleased tem de dizer isso, porque o plugin é o que as ferramentas externas leem."""
+    """F2: plugin.json passou de 28 para 31 tools do MCP (e2236ef acrescentou video.rea-video, video.matchcut e video.qc); a nota da
+    0.7.0 tem de dizer isso, porque o plugin é o que as ferramentas externas leem."""
     texto = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
-    secao = texto.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    secao = texto.split("## 0.7.0 — ", 1)[1].split("\n## ", 1)[0]  # the 0.7.0 cut moved the Unreleased notes under its heading
     assert "plugin.json passa a anunciar as 31 tools do MCP" in secao
