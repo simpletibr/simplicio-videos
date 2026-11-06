@@ -66,7 +66,9 @@ def test_a_secao_0_7_0_diz_a_faixa_de_prs_e_o_pypi_publicado():
     assert "4ad007d621f89e493a5e3c52ed7b00e03e153ea1669f23e5726d61cdbe6dbbe7" in secao  # wheel
     assert "1f099175f39ea9af1d887ba9e8766c2eeb82ed131cfa137db6c57ef5f5799624" in secao  # sdist
     assert "simplicio-video 0.7.0 (hyperframes@0.8.97)" in secao
-    assert "pendente" in secao  # a tag v0.7.0 e a GitHub Release ficam com o dono
+    assert "com o dono" not in secao  # a tag v0.7.0 e a GitHub Release já existem (2026-11-06); "independente" não conta
+    assert "tag `v0.7.0` (commit d703a79)" in secao
+    assert "GitHub Release `v0.7.0`" in secao and "publicada em 2026-11-06" in secao
 
 
 def test_a_secao_0_7_0_registra_a_mudanca_quebrante_do_busca_log():
