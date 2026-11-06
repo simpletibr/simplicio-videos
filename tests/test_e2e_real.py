@@ -737,16 +737,21 @@ def test_redator_nao_deixa_sair_um_segredo_que_cruza_o_corte():
 
 
 def test_redator_3mb_de_abab_termina_rapido_e_retem_no_maximo_3_bytes():
+    """CPU da thread, não tempo de parede: sob carga do host o relógio de parede passou de 2 s (6 de 10 runs com 8 queimadores de
+    CPU) num código que leva 0,37 s de CPU em repouso. O mínimo de 3 execuções descarta o ruído; o teto de 2 s dá ~5x de folga
+    sobre o medido. Quadrático (retenção de tudo, ~48 blocos re-varridos) estoura o teto e a retenção."""
     import time
-    r = e2e.Redator(["abab"])
     texto = "ab" * (3 * 1024 * 1024 // 2) + "a"  # 3 MB, termina num começo de segredo
-    inicio = time.perf_counter()
-    saida = r.alimentar(texto)
-    decorrido = time.perf_counter() - inicio
-    assert decorrido < 2.0, f"{decorrido:.2f} s"
-    assert len(r.resto) <= 3, len(r.resto)
-    saida += r.finalizar()
-    assert "abab" not in saida and saida.count("***") > 0
+    tempos = []
+    for _ in range(3):
+        r = e2e.Redator(["abab"])
+        inicio = time.thread_time()
+        saida = r.alimentar(texto)
+        tempos.append(time.thread_time() - inicio)
+        assert len(r.resto) <= 3, len(r.resto)
+        saida += r.finalizar()
+        assert "abab" not in saida and saida.count("***") > 0
+    assert min(tempos) < 2.0, f"CPU mínima de {min(tempos):.2f} s em 3 execuções (medido em repouso: 0,37 s)"
 
 
 def test_redator_equivale_a_redigir_o_texto_inteiro_quando_nao_ha_sobreposicao():
@@ -1691,3 +1696,21 @@ def test_s7_sem_segredo_curto_nao_ha_aviso(tmp_path, capsys):
     sondas = SondasFalsas(chaves={"GEMINI_API_KEY": CHAVE_FALSA})
     _, out, _ = _roda(tmp_path, capsys, ["--sim-gastar", "--apenas", "smoke-so"], sondas=sondas, gravador=Gravador())
     assert "menos de 3 caracteres" not in out
+
+
+# 3. lacunas conhecidas da redação (documentadas como xfail(strict=True): o dia em que forem corrigidas, o teste vira XPASS e
+# a marca sai). Nada aqui muda scripts/e2e_real.py.
+@pytest.mark.xfail(strict=True, reason="known gap: AUTHOR(?!IZ) in _NAO_SEGREDO only protects AUTHORIZ*, so AUTHORISATION (British "
+                                       "spelling of the same secret name) loses its AUTH part and is not redacted")
+def test_s3_authorisation_no_config_e_segredo(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('AUTHORISATION = "cfg-auth-5555"\n', encoding="utf-8")
+    assert "cfg-auth-5555" in e2e._valores_do_config(cfg)
+
+
+@pytest.mark.xfail(strict=True, reason="known gap: an api_key line with an unclosed quote in an invalid config.toml is not redacted: "
+                                       "tomllib refuses the file, and the regex path reads a string only up to its closing quote")
+def test_s3_api_key_com_aspas_sem_fechar_em_config_invalido_e_segredo(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('[llm]\napi_key = "cfg-aberta-7777\n', encoding="utf-8")
+    assert "cfg-aberta-7777" in e2e._valores_do_config(cfg)

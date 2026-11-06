@@ -31,7 +31,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from _orfao import SINAIS, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao  # noqa: F401
+from _orfao import SINAIS, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao, sleeper  # noqa: F401
 from conftest import ROOT, offline_env
 from simplicio_video import cli, instagram, mcp_server, tools, tools_lock, tools_update
 
@@ -871,6 +871,42 @@ def test_every_stop_signal_inside_popen_kills_the_script_and_the_private_folder_
         assert not list(tmpd.glob("simplicio-instagram-*")), "the private folder was left behind"
     finally:
         mata_o_que_sobrou(pidfile)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.parametrize("nome", ["SIGTERM", "SIGHUP"])
+def test_executa_gives_back_the_handlers_after_a_signal_in_the_gap(tmp_path, monkeypatch, nome):
+    """Called directly (run_tool's own context manager would hide a missing restore): the handler found before is the one after."""
+    sinal = getattr(signal, nome)
+    pidfile = tmp_path / "pid"
+    antes = signal.getsignal(sinal)
+    protegido = lambda signum, frame: None  # noqa: E731  (swallows the signal when the engine did not install its own)
+    signal.signal(sinal, protegido)
+    sinaliza_no_popen(monkeypatch, pidfile, sinal)
+    try:
+        with pytest.raises(SystemExit):
+            instagram._executa(sleeper(pidfile), None, str(tmp_path))
+        assert signal.getsignal(sinal) is protegido
+    finally:
+        signal.signal(sinal, antes if antes is not None else signal.SIG_DFL)
+        mata_o_que_sobrou(pidfile)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+def test_the_signal_handlers_are_given_back_when_the_spawn_fails(tmp_path):
+    """Popen raises FileNotFoundError: _executa turns it into InstagramError and the handlers it swapped are put back."""
+    nomes = [n for n in ("SIGTERM", "SIGHUP") if hasattr(signal, n)]
+    antes = {n: signal.getsignal(getattr(signal, n)) for n in nomes}
+    protegidos = {n: (lambda signum, frame: None) for n in nomes}  # noqa: E731
+    for n in nomes:
+        signal.signal(getattr(signal, n), protegidos[n])
+    try:
+        with pytest.raises(instagram.InstagramError, match="não consegui executar"):
+            instagram._executa([str(tmp_path / "nao-existe")], None, str(tmp_path))
+        assert {n: signal.getsignal(getattr(signal, n)) for n in nomes} == protegidos
+    finally:
+        for n in nomes:
+            signal.signal(getattr(signal, n), antes[n] if antes[n] is not None else signal.SIG_DFL)
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
