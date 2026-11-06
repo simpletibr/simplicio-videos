@@ -433,8 +433,6 @@ def saude(caixa, monkeypatch):
     return st
 
 
-
-
 @pytest.fixture
 def disco_de_sobra(monkeypatch):
     """The doctor's disk row measures the HOST (5 GB floor): on a host with less free space it is `fail`, and the test is

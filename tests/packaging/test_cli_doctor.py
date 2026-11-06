@@ -149,8 +149,9 @@ def test_o_piso_do_disco_e_real_falha_abaixo_de_5_gb_e_ok_acima(tmp_path):
     def linha(gb):
         return doctor_cmd.collect(only="disk", state_dir=tmp_path, kind="pip", usage=livre(gb))["checks"][0]
 
-    abaixo, acima = linha(4.9), linha(5.1)
+    abaixo, na_linha, acima = linha(4.9), linha(5.0), linha(5.1)
     assert abaixo["status"] == "fail" and abaixo["fix"] and abaixo["detail"]["free_bytes"] < abaixo["detail"]["floor_bytes"]
+    assert na_linha["status"] == "ok" and na_linha["fix"] is None, "exactly the floor is ok: the check is `<`, not `<=`"
     assert acima["status"] == "ok" and acima["fix"] is None
 
 
