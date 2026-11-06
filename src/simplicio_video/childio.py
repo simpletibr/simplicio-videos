@@ -11,7 +11,12 @@ sys.stdout/sys.stderr are small proxies that write to the sink of the *current c
 threads copy that context, so their output lands in the tool that spawned them. A thread with no sink at all (one nobody
 spawned through aio) falls back to the REAL STDERR, never to fd 1. That holds only while a capture is open: a daemon
 writer that outlives its tool call (aio's late takes) writes to whatever sys.stdout is after the last capture closed, i.e.
-the real stream. Nothing in the engine may use contextlib.redirect_std* (a test enforces it): it would swap the proxy."""
+the real stream. Nothing in the engine may use contextlib.redirect_std* (a test enforces it): it would swap the proxy.
+
+A long-lived child must also not outlive the engine because of a stop signal. `guarded_child` (a Popen whose kill is armed before
+the fork returns: SIGTERM, SIGHUP and Ctrl+C that land in the gap are held until the child exists, then it is killed and the stop
+is raised), `start_child` (the same for servers a caller stops in its own `finally`) and `kill_group` (SIGKILL of the child's group,
+refusing pid <= 1, our own group and a child that already exited) are that API; the rules and the tests are in docs/host/gate.md."""
 from __future__ import annotations
 
 import contextlib
