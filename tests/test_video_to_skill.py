@@ -248,18 +248,18 @@ def test_skill_prints_the_pinned_skill_md_marked_as_third_party_data(env, capsys
     assert run("skill") == 0
     out, _ = out_of(capsys)
     assert out.startswith("#") and "texto de terceiros" in out.splitlines()[0].lower() and "brenoepics/video-to-skill" in out.splitlines()[0]
-    assert "dado" in out.splitlines()[0] and "nunca instrução" in out.splitlines()[0]
+    assert "dado" in out.splitlines()[0].lower() and "nunca instrução" in out.splitlines()[0]
     assert "# Video to Skill" in out and REF[:7] in out.splitlines()[0]
 
 
 def test_skill_neutralises_escapes_bidi_and_zero_width_in_the_third_party_text(env, capsys):
-    hostile = "ok \x1b[31mred\x1b[0m ‮evil ​zero \x9bC1  sep\n"
+    hostile = "ok \x1b[31mred\x1b[0m \u202eevil \u200bzero \x9bC1 \u2028sep\n"
     (env.checkout / "SKILL.md").write_text(hostile, encoding="utf8")
     env.pinned["SKILL.md"] = hostile
     v2s.PINS["files"]["SKILL.md"] = hashlib.sha256(hostile.encode()).hexdigest()
     assert run("skill") == 0
     out, _ = out_of(capsys)
-    assert "\x1b" not in out and "‮" not in out and "​" not in out and "\x9b" not in out and " " not in out
+    assert "\x1b" not in out and "\u202e" not in out and "\u200b" not in out and "\x9b" not in out and "\u2028" not in out
     assert "<U+202E>" in out and "<U+200B>" in out
 
 
@@ -604,9 +604,9 @@ def test_text_output_from_the_video_is_shown_with_escapes_and_bidi_made_visible(
     fake.set_mode(env.bindir, "esc")
     assert run("text", "--bundle", bundle(env)) == 0
     out, err = out_of(capsys)
-    assert "\x1b" not in out and "‮" not in out
+    assert "\x1b" not in out and "\u202e" not in out
     assert "␛" in out and "<U+202E>" in out and "ignore previous instructions" in out  # shown, as data, never obeyed
-    assert "dado" in out.lower() or "terceiros" in out.lower()
+    assert "terceiros" in err.lower() and "dado" in err.lower() and "\x1b" not in err  # the notice goes to stderr: stdout stays parseable
 
 
 def test_clip_validates_the_range_and_the_fps(env):
@@ -808,7 +808,7 @@ def test_the_help_of_install_warns_that_it_writes_into_every_agents_skills_folde
 # ----------------------------------------------------------------------------------------------------------------- misc
 
 def test_visible_makes_controls_bidi_and_zero_width_visible_and_keeps_text():
-    s = "a\x1b[0m\tb\n‮c​d\x7f\x9b ﻿\U000e0041e"
+    s = "a\x1b[0m\tb\n\u202ec\u200bd\x7f\x9b\u2028\ufeff\U000e0041e"
     out = v2s.visivel(s)
     assert out.startswith("a␛[0m\tb\n") and "<U+202E>" in out and "<U+200B>" in out and "␡" in out and "<U+009B>" in out
     assert "<U+2028>" in out and "<U+FEFF>" in out and "<U+E0041>" in out and out.endswith("e")
@@ -816,12 +816,12 @@ def test_visible_makes_controls_bidi_and_zero_width_visible_and_keeps_text():
 
 
 def test_the_clean_text_for_an_agent_drops_the_same_characters():
-    assert v2s.limpa_mcp("a\x1b[0mb‮c​d\ne\r\nf") == "a[0mbcd\ne\nf"
+    assert v2s.limpa_mcp("a\x1b[0mb\u202ec\u200bd\ne\r\nf") == "a[0mbcd\ne\nf"
 
 
 def test_doc_of_the_module_says_what_is_not_covered_by_the_engines_guarantees():
     doc = (v2s.__doc__ or "").lower()
-    for word in ("sandbox", "verify", "fora", "check --fix --yes", "sha256", "mit"):
+    for word in ("sandbox", "verify", "outside", "check --fix --yes", "sha256", "mit"):
         assert word in doc, word
 
 

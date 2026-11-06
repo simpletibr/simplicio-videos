@@ -9,7 +9,7 @@ command that fixes it, in this order:
   python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY (presence only, never the value)
   setup          the workspace: a warning when `simplicio-video setup` never ran, a failure when it is there and invalid
   tools          the lock of the external tracks (offline)
-  trilhas        one row for the twelve external tracks (installed, pin, setup, dependencies, the fix of each gap); the full
+  trilhas        one row for the thirteen external tracks (installed, pin, setup, dependencies, the fix of each gap); the full
                  table, with its own schema, is `simplicio-video doctor trilhas` (doctor_trilhas.py)
 
 Output: `simplicio-video doctor: <status>`, then one line per check (`  ok    name   summary` and `        fix: ...`);
@@ -392,7 +392,7 @@ def _texto(doc: dict) -> str:
 
 
 def run(a) -> int:
-    if a.what == "trilhas":  # the full table of the twelve tracks, with its own schema
+    if a.what == "trilhas":  # the full table of the thirteen tracks, with its own schema
         doc = doctor_trilhas.collect(online=a.online)
         hostos.say(json.dumps(doc, sort_keys=True) if a.json else doctor_trilhas.texto(doc))  # ensure_ascii: valid on any console
         return 1 if doc["status"] == "fail" else 0

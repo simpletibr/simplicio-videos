@@ -1,6 +1,6 @@
 """Pinned versions and install location for the external tracks: `montage` (OpenMontage), `opencut` (OpenCut),
 `clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `matchcut` (match-cut), `instagram` (instagram-agent-skill), `busca` (TinyFish CLI) and
-`voicestudio` (VoiceStudio), `rea-video` (rea-video) and `media fetch` (yt-dlp). `simplicio-video tools` lists the whole registry (text or --json).
+`voicestudio` (VoiceStudio), `rea-video` (rea-video), `video-to-skill` (video-to-skill) and `media fetch` (yt-dlp). `simplicio-video tools` lists the whole registry (text or --json).
 
 The engine drives: OpenMontage, OpenCut, Hypit, Toonflow, MoneyPrinterTurbo, VoiceStudio and yt-dlp, each pinned to a known
 version.
@@ -140,6 +140,17 @@ TOOLS: dict[str, Tool] = {
                            "leaves the machine; with --vlm the frames go to the vision model provider the user configures (a third "
                            "party). The first analysis downloads about 67 MB of voice model. `setup` installs with pip without "
                            "hashes: the upstream has no lock file"),
+    "video_to_skill": Tool("video_to_skill", "git", "https://github.com/brenoepics/video-to-skill",
+                           "c1a1b905da6a252077ace0657e8ea49cb785e7c3", "MIT",
+                           "turns a video into an installable agent skill (by Breno Epics): an agent SKILL.md plus a local Rust extractor (`vts-extract`: "
+                           "transcript, shots, keyframes, on-screen text, skill package); the engine pins the commit and the extractor "
+                           "release, and runs the extractor only as a separate program", marker="SKILL.md",
+                           note="pin = tag v0.3.0 (commit c1a1b90), read on 2026-11-06. The extractor binary comes from the upstream release "
+                                "(sha256 pinned per platform in data/video_to_skill/pins.json, checked before it runs); its own dependencies "
+                                "(ffmpeg, yt-dlp, whisper and VAD models) are downloaded by the upstream `check --fix --yes`, which only you "
+                                "run in a terminal, never the engine. Verifying a generated skill runs video-derived commands: that is the "
+                                "agent's job under the upstream's OS sandbox, outside the engine's guarantees. Never followed by `update`: the "
+                                "binary and SKILL.md are pinned together"),
 }
 
 
@@ -156,6 +167,7 @@ COMMANDS: dict[str, str] = {
     "tinyfish": "busca",
     "voicestudio": "voicestudio",
     "rea_video": "rea-video",
+    "video_to_skill": "video-to-skill",
     "yt-dlp": "media fetch",
 }
 

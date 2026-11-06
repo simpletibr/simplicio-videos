@@ -804,7 +804,7 @@ def test_doctor_all_tem_uma_linha_trilhas_com_o_resumo(ambiente, capsys):
     assert len(linhas) == 1, [c["name"] for c in rel["checks"]]
     row = linhas[0]
     assert row["status"] == "warn" and row["fix"] == "simplicio-video doctor trilhas"
-    assert "0 de 12" in row["summary"]
+    assert "0 de 13" in row["summary"]
     assert [t["name"] for t in row["detail"]["tracks"]] == TRILHAS
     assert rc == 0 and "Traceback" not in out + err
 
@@ -820,7 +820,7 @@ def test_doctor_all_com_as_trilhas_em_dia_e_ok(ambiente, monkeypatch, capsys):
     monta_saudavel(ambiente, monkeypatch)
     rc, rel, out, err = _json(capsys)
     row = [c for c in rel["checks"] if c["name"] == "trilhas"][0]
-    assert row["status"] == "ok" and row["fix"] is None and "12 de 12" in row["summary"]
+    assert row["status"] == "ok" and row["fix"] is None and "13 de 13" in row["summary"]
 
 
 # --- the MCP tool video.doctor: the same command, read-only ------------------------------------------------------------

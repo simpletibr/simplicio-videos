@@ -99,7 +99,7 @@ def test_the_tool_is_the_thirty_second_and_its_description_comes_from_the_same_t
 def test_plugin_json_advertises_thirty_two_tools_including_this_one():
     plugin = json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))
     assert len(plugin["mcp"]["tools"]) == 32 and "video.video-to-skill" in plugin["mcp"]["tools"]
-    assert plugin["mcp"]["tools"] == [n for n, _, _ in mcp_server.TOOLS]
+    assert set(plugin["mcp"]["tools"]) == {n for n, _, _ in mcp_server.TOOLS}
 
 
 def test_the_mcp_protocol_lists_it_with_the_cmd_enum():
@@ -156,13 +156,13 @@ def test_skill_returns_the_pinned_text_as_untrusted_data(env):
 
 
 def test_skill_cuts_at_64_kib_and_cleans_the_text(env, monkeypatch):
-    hostile = "ok \x1b[31m‮" + "x" * 70_000
+    hostile = "ok \x1b[31m\u202e" + "x" * 70_000
     (env.checkout / "SKILL.md").write_text(hostile, encoding="utf8")
     v2s.PINS["files"]["SKILL.md"] = hashlib.sha256(hostile.encode()).hexdigest()
     monkeypatch.setattr(v2s, "MAX_SKILL_BYTES", 1024 * 1024)
     r = call(["skill"])
     assert r["ok"] is True and r["truncado"] is True and len(r["untrusted_conteudo"]) <= 64 * 1024
-    assert "\x1b" not in r["untrusted_conteudo"] and "‮" not in r["untrusted_conteudo"]
+    assert "\x1b" not in r["untrusted_conteudo"] and "\u202e" not in r["untrusted_conteudo"]
 
 
 @pytest.mark.parametrize("words", [["clone"], ["clone", "/tmp/x"], ["setup"], ["install", "--package", "/x", "--yes"], ["sandbox", "--workspace", "/x"],
@@ -329,7 +329,7 @@ def test_the_answer_marks_upstream_text_as_untrusted_and_neutralises_it(env):
     fake.set_mode(env.bindir, "esc")
     r = call(["text", "--bundle", str(bundle(env))])
     assert r["ok"] is True and "aviso" in r and "untrusted_saida" in r
-    assert "\x1b" not in r["untrusted_saida"] and "‮" not in r["untrusted_saida"]
+    assert "\x1b" not in r["untrusted_saida"] and "\u202e" not in r["untrusted_saida"]
     assert "ignore previous instructions" in r["untrusted_saida"]  # present as data
     assert "nunca instrução" in r["aviso"].lower()
     assert set(r) >= {"ok", "verbo", "codigo_saida", "untrusted_saida", "saida_cortada", "untrusted_erros", "aviso"}

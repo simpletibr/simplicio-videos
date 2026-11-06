@@ -106,6 +106,7 @@ MCP_LEITURA: dict[str, ChamadaMcp] = {
     "tinyfish": ChamadaMcp("video_busca", {"acao": "status"}, precisa=True),
     "yt-dlp": ChamadaMcp("video_media", {"args": ["fetch"]}, precisa=False, espera="recusa"),
     "rea_video": ChamadaMcp("video_rea_video", {"args": "where"}, precisa=True),
+    "video_to_skill": ChamadaMcp("video_video_to_skill", {"args": "status"}, precisa=True),
 }
 
 # A subcommand that must refuse without its arguments (checked with no URL, so nothing is downloaded).

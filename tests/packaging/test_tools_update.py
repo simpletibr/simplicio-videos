@@ -494,8 +494,10 @@ def test_check_diz_em_dia_quando_o_lock_ja_esta_no_remoto(ambiente):
 def test_check_offline_nao_consulta(ambiente):
     lines = tools_update.report("follow", Fake().io(network=False), dry=False)
     # video-use is pinned locally (its pin is the packaged setup.sh): it is not a network read, so it is "no pin", not "não consultado"
-    assert all("não consultado" in line or "fixada" in line or line.lstrip().startswith("video-use") for line in lines), lines
+    PINADAS = ("video-use", "video_to_skill")
+    assert all("não consultado" in line or "fixada" in line or line.lstrip().startswith(PINADAS) for line in lines), lines
     assert any(line.lstrip().startswith("video-use") and "no pin" in line for line in lines), lines
+    assert any(line.lstrip().startswith("video_to_skill") and "no pin" in line for line in lines), lines
 
 
 # --- the command (update through main, with the fake) -----------------------------------------------------------------

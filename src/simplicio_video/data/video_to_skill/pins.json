@@ -1,0 +1,78 @@
+{
+  "schema": "simplicio.video-to-skill-pins/v1",
+  "source": "https://github.com/brenoepics/video-to-skill",
+  "author": "Breno Epics",
+  "license": "MIT",
+  "version": "0.3.0",
+  "tag": "v0.3.0",
+  "commit": "c1a1b905da6a252077ace0657e8ea49cb785e7c3",
+  "release_url_base": "https://github.com/brenoepics/video-to-skill/releases/download/v0.3.0/",
+  "read_on": "2026-11-06",
+  "note": "sha256 of the four release assets measured on 2026-11-06 (equal to the published .sha256 sidecar of each one); member_sha256 and member_size are those of the single executable inside each archive. files: sha256 of SKILL.md and references/*.md at the pinned commit.",
+  "assets": [
+    {
+      "platform": "linux-x86_64",
+      "system": "Linux",
+      "machines": [
+        "x86_64",
+        "amd64"
+      ],
+      "file": "vts-extract-linux-x86_64.tar.gz",
+      "format": "tar.gz",
+      "member": "vts-extract",
+      "sha256": "4c97963b9c6fc97ed0529bbf6ba8847ae68d6938c24197f6fa8b76051155a45a",
+      "size": 3385113,
+      "member_sha256": "3477d8fc387df93109e919a253e356d1ee37ba22c87d946cc8fc6456b71c2f5e",
+      "member_size": 9393648
+    },
+    {
+      "platform": "macos-arm64",
+      "system": "Darwin",
+      "machines": [
+        "arm64"
+      ],
+      "file": "vts-extract-macos-arm64.tar.gz",
+      "format": "tar.gz",
+      "member": "vts-extract",
+      "sha256": "eda9d074cfb8d13c05a252ecab8bc31f811f7ec363bb10b4b80117389653d6a7",
+      "size": 3087644,
+      "member_sha256": "7a6855e22004103fca705c862fcd6435796eac291753381aeb8738c1b779534f",
+      "member_size": 8258496
+    },
+    {
+      "platform": "macos-x86_64",
+      "system": "Darwin",
+      "machines": [
+        "x86_64"
+      ],
+      "file": "vts-extract-macos-x86_64.tar.gz",
+      "format": "tar.gz",
+      "member": "vts-extract",
+      "sha256": "b0cd840e0e77f9b4242ad3911bc1d717a4caa4763acaf649e532578f5e05dae3",
+      "size": 3436135,
+      "member_sha256": "e4bb27720be8d44581d1ca37047367782d489bb87dadbf405620af1e162815fe",
+      "member_size": 9075264
+    },
+    {
+      "platform": "windows-x86_64",
+      "system": "Windows",
+      "machines": [
+        "amd64",
+        "x86_64"
+      ],
+      "file": "vts-extract-windows-x86_64.zip",
+      "format": "zip",
+      "member": "vts-extract.exe",
+      "sha256": "e23646056b585fac18cceb2f9d51683b60c589875fcedf162a32cd54e468b92e",
+      "size": 3228566,
+      "member_sha256": "0add8350b717736d1d9ee772161de34354bb81b7c1fa38b5741ce3d9d3512e94",
+      "member_size": 7570432
+    }
+  ],
+  "files": {
+    "SKILL.md": "34dd28200b585b7feb2bc34e927b065c14ae538b746b46b54db6800d02c420a9",
+    "references/analysis-method.md": "47116a23d47d9fef95b5daa50b6630536f4dc57190d87cbb1d86cbf908cb36d7",
+    "references/ir-format.md": "b95d273c2964d5476cbbb49f098ef3a1953056fedca11397b92707d074c5cd65",
+    "references/verification-protocol.md": "8f49df76adeb47705756012807061d3591255cfd6671748b60853a30e465f0ca"
+  }
+}

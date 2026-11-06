@@ -107,7 +107,7 @@ def test_the_pinned_file_table_covers_the_skill_and_its_references_with_sha256()
     files = v2s.PINS["files"]
     assert set(files) == {"SKILL.md", "references/analysis-method.md", "references/ir-format.md", "references/verification-protocol.md"}
     assert all(HEX64.match(h) for h in files.values())
-    assert files["SKILL.md"] == "34dd28200b585b7feb2bc34927b065c14ae538b746b46b54db6800d02c420a9"
+    assert files["SKILL.md"] == "34dd28200b585b7feb2bc34e927b065c14ae538b746b46b54db6800d02c420a9"
     assert files["references/ir-format.md"] == "b95d273c2964d5476cbbb49f098ef3a1953056fedca11397b92707d074c5cd65"
 
 
@@ -332,7 +332,7 @@ def test_setup_downloads_the_pinned_asset_verifies_it_and_installs_one_checked_e
     exe = v2s.managed_binary()
     assert exe.parent == tools.tools_dir() / "video-to-skill-bin" and exe.name == "vts-extract-0.3.0"
     assert exe.is_file() and os.access(exe, os.X_OK) and not exe.is_symlink()
-    assert [p.name for p in exe.parent.iterdir()] == ["vts-extract-0.3.0"], "no archive, no temp file or sidecar is left behind"
+    assert {p.name for p in exe.parent.iterdir()} - {"calls.jsonl"} == {"vts-extract-0.3.0"}, "no archive, temp file or sidecar is left behind"
     assert fake.subcommands(exe.parent) == [] and [c["argv"] for c in fake.calls(exe.parent)] == [["--version"]]
     out = capsys.readouterr().out
     assert "0.3.0" in out and "sha256" in out and "check --fix --yes" in out and "attestation" in out.lower()
@@ -431,7 +431,7 @@ def test_a_path_binary_must_say_exactly_vts_extract_0_3_0(tmp_path, monkeypatch,
     d = tmp_path / "pathbin"
     d.mkdir()
     exe = d / "vts-extract"
-    exe.write_text(f"#!/bin/sh\ncat <<'EOF'\n{line}\nEOF\n", encoding="utf8")
+    exe.write_text(f"#!/bin/sh\necho '{line}'\n", encoding="utf8")
     exe.chmod(0o755)
     monkeypatch.setenv("PATH", str(d))
     assert v2s.find_binary() is None
