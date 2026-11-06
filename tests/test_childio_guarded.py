@@ -336,13 +336,14 @@ def test_a_storm_of_stop_signals_never_orphans_the_child(tmp_path):
 
         def dispara(rajada=rajada, folgas=folgas):
             limite = time.monotonic() + 5
-            while signal.getsignal(signal.SIGTERM) is sobra and time.monotonic() < limite:  # wait until the guard is armed
+            while signal.getsignal(signal.SIGINT) is signal.default_int_handler and time.monotonic() < limite:  # armed: SIGINT is the last one it takes
                 time.sleep(0.0001)
             for sinal, folga in zip(rajada, folgas):
                 if folga:
                     time.sleep(folga)
-                os.kill(os.getpid(), sinal)
+                signal.pthread_kill(principal, sinal)  # to the main thread: a signal taken by this one would not interrupt its sleep
 
+        principal = threading.get_ident()
         hilo = threading.Thread(target=dispara)
         hilo.start()
         try:
@@ -404,8 +405,9 @@ def test_kill_group_refuses_our_own_group_and_our_own_pid(quem, sinais_enviados)
     assert sinais_enviados == [] and "kill" not in falso.chamadas
 
 
-def test_kill_group_skips_a_child_that_has_exited_and_been_reaped(sinais_enviados):
-    """The pid may belong to somebody else by now (reuse): nothing is signalled."""
+def test_kill_group_skips_a_child_that_has_exited_and_been_reaped(sinais_enviados, monkeypatch):
+    """The pid may belong to somebody else by now (reuse): nothing is signalled, even if that pid is a live group leader again."""
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)  # as if the pid had been reused by a new session leader
     proc = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
     proc.wait(30)
     childio.kill_group(proc, group=True)
@@ -413,7 +415,8 @@ def test_kill_group_skips_a_child_that_has_exited_and_been_reaped(sinais_enviado
     assert sinais_enviados == []
 
 
-def test_kill_group_skips_a_child_that_poll_says_has_exited(sinais_enviados):
+def test_kill_group_skips_a_child_that_poll_says_has_exited(sinais_enviados, monkeypatch):
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)  # a live group leader under that pid, as far as the check can tell
     falso = _Falso(os.getpid() + 100000, returncode=None, poll_rc=0)  # returncode not set yet, poll() reaps it
     childio.kill_group(falso, group=True)
     assert sinais_enviados == [] and "kill" not in falso.chamadas
