@@ -88,3 +88,37 @@ def test_a_secao_0_7_0_registra_a_mudanca_quebrante_do_busca_log():
 ])
 def test_a_secao_0_7_0_cita_o_que_entrou_depois_da_ultima_nota(trecho):
     assert trecho in _secao("0.7.0 — ")
+
+
+def test_o_produto_esta_na_0_8_0_ou_depois():
+    versao = tuple(int(n) for n in re.match(r"(\d+)\.(\d+)\.(\d+)", __version__).groups())
+    assert versao >= (0, 8, 0), f"a versão {__version__} é anterior ao corte 0.8.0"
+
+
+def test_o_changelog_tem_a_secao_0_8_0_com_data_e_o_unreleased_vazio_acima():
+    assert "## 0.8.0 — 2026-11-06" in _changelog()
+    titulos = re.findall(r"^## (.+)$", _changelog(), re.M)
+    assert titulos[:2] == ["Unreleased", "0.8.0 — 2026-11-06"], titulos[:3]
+    assert _secao("Unreleased").strip() == "", "o Unreleased fica vazio depois do corte; as notas moram na 0.8.0"
+
+
+@pytest.mark.parametrize("trecho", [
+    "video-to-skill",  # the command and the track
+    "`simplicio-video video-to-skill ",  # the CLI group
+    "video.video-to-skill",  # the MCP tool (the 32nd)
+    "32ª",  # tool count
+    "13 trilhas",  # tracks counted by doctor trilhas
+    "v0.3.0",  # the pinned upstream tag
+    "c1a1b90",  # and its commit
+    "README",  # both READMEs announce the track
+    "#207",  # the merged PR
+])
+def test_a_secao_0_8_0_cita_a_trilha_video_to_skill(trecho):
+    assert trecho in _secao("0.8.0 — ")
+
+
+def test_a_secao_0_8_0_nao_diz_que_pypi_tag_ou_release_da_0_8_0_ja_existem():
+    secao = _secao("0.8.0 — ")
+    for proibido in ("publicado no PyPI", "publicado em 2026", "tag `v0.8.0` (commit", "GitHub Release `v0.8.0`", "pip install simplicio-video==0.8.0"):
+        assert proibido not in secao, proibido
+

@@ -79,9 +79,10 @@ def test_the_portuguese_readme_announces_it_too():
         assert word in sec, f"README.pt-BR: {word!r}"
 
 
-def test_the_changelog_unreleased_records_the_track_in_portuguese_with_measured_facts():
+def test_the_changelog_records_the_track_in_portuguese_with_measured_facts():
+    # The track was announced under Unreleased; the 0.8.0 cut (this section) moved the notes unchanged.
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
-    unreleased = text.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    unreleased = text.split("## 0.8.0 — ", 1)[1].split("\n## ", 1)[0]
     assert "video-to-skill" in unreleased
     entry = next(line for line in unreleased.splitlines() if "video-to-skill" in line and line.startswith("- "))
     for word in ("Breno Epics", "MIT", COMMIT[:7], "v0.3.0", "32 tools", "13 trilhas", "check --fix --yes", "UNVERIFIED", "sha256"):
