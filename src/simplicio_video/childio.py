@@ -16,7 +16,7 @@ the real stream. Nothing in the engine may use contextlib.redirect_std* (a test 
 A long-lived child must also not outlive the engine because of a stop signal. `guarded_child` (a Popen whose kill is armed before
 the fork returns: SIGTERM, SIGHUP and Ctrl+C that land in the gap are held until the child exists, then it is killed and the stop
 is raised), `start_child` (the same for servers a caller stops in its own `finally`) and `kill_group` (SIGKILL of the child's group,
-refusing pid <= 1, our own group and a child that already exited) are that API; the rules and the tests are in docs/host/gate.md."""
+refusing pid <= 1 and our own pid and group; the group of a leader that already exited is still swept, its grandchildren outlive it) are that API; the rules and the tests are in docs/host/gate.md."""
 from __future__ import annotations
 
 import contextlib
@@ -158,19 +158,23 @@ def stop_as_interrupt(signum: int) -> BaseException:
 
 
 def kill_group(proc: subprocess.Popen, group: bool = True) -> None:
-    """SIGKILL the child's whole process group (`group`: it was started with start_new_session) or just the child, then reap it.
-    It signals nothing that may not be the child: a pid <= 1 (killpg(0) is OUR group, killpg(1) is init's), our own pid or
-    process group, and a child that has already exited (its pid may belong to somebody else by now). `group` on a child that
-    leads no group of its own (no start_new_session: killpg would name no group, or ours) kills just the child."""
+    """SIGKILL the child's whole process group (`group`: the caller started it with start_new_session, so pgid == pid) or just the
+    child, then reap it. It signals nothing that may not be the child: a pid <= 1 (killpg(0) is OUR group, killpg(1) is init's), our
+    own pid or process group. A child that has already exited and been reaped is left alone, except that its GROUP is still swept
+    when `group` says it led one: grandchildren outlive their leader, and Linux does not reuse a pid while a process group with
+    that id exists (a group that is gone is ESRCH). `group` on a child that leads no group of its own (no start_new_session:
+    killpg would name no group, or ours) kills just the child."""
     pid = proc.pid
     if pid <= 1 or pid == os.getpid() or (hasattr(os, "getpgrp") and pid == os.getpgrp()):
         return
-    if proc.poll() is not None:  # exited and reaped: nothing left to kill, and the pid is no longer ours
+    exited = proc.poll() is not None  # exited and reaped: the pid is no longer ours (reuse), only its group may remain
+    sweep = group and hasattr(os, "killpg")
+    if exited and not sweep:
         return
     with contextlib.suppress(ProcessLookupError, PermissionError):
-        if group and hasattr(os, "killpg") and os.getpgid(pid) == pid:
+        if sweep and (exited or os.getpgid(pid) == pid):  # a live child must really lead the group; a reaped one is declared by the caller
             os.killpg(pid, signal.SIGKILL)
-        else:  # no group of its own (or Windows): only the child itself
+        elif not exited:  # no group of its own (or Windows): only the child itself
             proc.kill()
     with contextlib.suppress(Exception):
         proc.wait(5)
