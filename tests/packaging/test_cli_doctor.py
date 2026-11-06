@@ -4,7 +4,7 @@ JSON (stdout with --json):
   {"schema": "simplicio.doctor/v1", "status": "ok|warn|fail" (the worst), "version": str,
    "checks": [{"name": str, "status": "ok|warn|fail", "summary": str, "fix": str|null, "detail": {...}}, ...]}
 Sections, in order: update, distribution, runtime, python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY,
-setup, tools, trilhas (one row for the twelve external tracks: test_doctor_trilhas.py has their own contract). Exit 1 only when a
+setup, tools, trilhas (one row for the thirteen external tracks: test_doctor_trilhas.py has their own contract). Exit 1 only when a
 check is `fail`. A missing workspace, a missing GEMINI_API_KEY and a track that is not installed are `warn`.
 No token is ever printed.
 

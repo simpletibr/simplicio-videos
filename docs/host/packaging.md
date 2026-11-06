@@ -113,7 +113,7 @@ As linhas saem nesta ordem. Cada uma tem `name`, `status` (`ok`, `warn` ou `fail
 
 ### doctor trilhas
 
-`simplicio-video doctor trilhas [--json] [--online]` mostra uma linha por trilha externa (as doze de `tools.py`, na ordem do registro), com cada item olhado: `instalada`, `pin` (o commit ou a versão em uso), `integridade` (os scripts fixados do match-cut, por sha256), `setup:<item>` (venv, `node_modules`, `build`, `config.toml`, `.env.local`), `dep:<nome>` (git, bun, node na versão mínima da trilha, npx, npm, ffmpeg; docker é opcional) e, com `--online`, `upstream`. Cada lacuna sai com o comando que a fecha.
+`simplicio-video doctor trilhas [--json] [--online]` mostra uma linha por trilha externa (as treze de `tools.py`, na ordem do registro), com cada item olhado: `instalada`, `pin` (o commit ou a versão em uso), `integridade` (os scripts fixados do match-cut e o `SKILL.md` e as referências do video-to-skill, por sha256), `setup:<item>` (venv, `node_modules`, `build`, `config.toml`, `.env.local`), `dep:<nome>` (git, bun, node na versão mínima da trilha, npx, npm, ffmpeg; docker é opcional) e, com `--online`, `upstream`. Cada lacuna sai com o comando que a fecha.
 
 Campos do JSON `simplicio.doctor-trilhas/v1`:
 

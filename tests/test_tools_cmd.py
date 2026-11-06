@@ -8,7 +8,7 @@ import pytest
 from simplicio_video import status, tools
 from simplicio_video.cli import main
 
-NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "tinyfish", "voicestudio", "video-use", "yt-dlp", "rea_video"}
+NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "tinyfish", "voicestudio", "video-use", "yt-dlp", "rea_video", "video_to_skill"}
 
 
 def _run(argv, capsys):

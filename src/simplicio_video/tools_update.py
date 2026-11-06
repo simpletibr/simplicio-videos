@@ -1,10 +1,11 @@
 """`simplicio-video update` for the external tracks (issue #150): follow each track's upstream, or keep the registry pins (--pin).
 
-* git (openmontage, opencut, toonflow, moneyprinter, matchcut, voicestudio): `git ls-remote --symref <repo> HEAD` gives the
+* git (openmontage, opencut, toonflow, moneyprinter, matchcut, voicestudio, ...): `git ls-remote --symref <repo> HEAD` gives the
   default branch (main or master) and its commit. The checkout is fetched and moved there, and only when the registry marker of the
   track is still in place; if it is not, the previous commit is put back.
 * video-use is pinned in every mode: its pin is VU_REF of the packaged setup.sh, the commit that `edit setup` checks out, so the
-  update never moves it to upstream and the lock records the pin (mode "pin").
+  update never moves it to upstream and the lock records the pin (mode "pin"). video_to_skill is pinned too: its extractor binary
+  (version and sha256 per platform) and its SKILL.md (sha256) are pinned together in data/video_to_skill/pins.json.
 * npm (hypit, tinyfish): `npm view <package> version` gives the latest version, checked with `npx <package>@<version> --version`.
 * pip (yt-dlp): the PyPI JSON gives the latest version and the sha256 of its universal wheel; pip checks that hash (--require-hashes).
 
@@ -174,8 +175,10 @@ def resolve_pip(t: tools.Tool, io: Io) -> dict:
 
 
 def pin_only(t: tools.Tool) -> bool:
-    """video-use never follows its upstream: the checkout must stay the commit `edit setup` makes (VU_REF of setup.sh)."""
-    return t.name == "video-use"
+    """video-use never follows its upstream: the checkout must stay the commit `edit setup` makes (VU_REF of setup.sh). video_to_skill
+    neither: the extractor binary and the SKILL.md are pinned together (data/video_to_skill/pins.json), and a newer SKILL.md may ask
+    for another extractor version."""
+    return t.name in ("video-use", "video_to_skill")
 
 
 def resolve(t: tools.Tool, io: Io) -> dict:

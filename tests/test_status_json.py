@@ -16,7 +16,7 @@ from simplicio_video.cli import main
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini" / "contract.yaml"
 TOOL_NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "voicestudio",
-              "video-use", "tinyfish", "yt-dlp", "rea_video", "ffmpeg", "node"}
+              "video-use", "tinyfish", "yt-dlp", "rea_video", "video_to_skill", "ffmpeg", "node"}
 
 
 def _run(argv, capsys):

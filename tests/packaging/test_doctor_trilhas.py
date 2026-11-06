@@ -1,13 +1,13 @@
 """Contract of `simplicio-video doctor trilhas [--json] [--online]` and of its row `trilhas` in `doctor all`.
 
-The twelve external tracks of tools.TOOLS, in the registry order. For each one: installed, the pin in use (the registry pin,
+The thirteen external tracks of tools.TOOLS, in the registry order. For each one: installed, the pin in use (the registry pin,
 the lock's or SIMPLICIO_<NAME>_REF), its own setup (venv, node_modules, build, config.toml, .env.local, scripts) and the system
 dependencies (git, bun, node, npx, npm, ffmpeg, docker), each gap with the exact command that fixes it.
 
 Status per track, like the doctor's other checks: `warn` for a track that is not installed, a gap, a pin in use that differs, a
 required dependency that is missing; `fail` only for a broken install (a folder that is not a checkout, a corrupt .git, a pinned file
 that changed, a venv without its program). Docker and the optional dependencies never warn. `--online` asks upstream (the same
-resolution as `update --check`): git ls-remote, npm view, PyPI. video-use is pin-only and never asks upstream.
+resolution as `update --check`): git ls-remote, npm view, PyPI. video-use and video_to_skill are pin-only and never ask upstream.
 
 Offline by construction: the checkouts are real git repositories under tmp_path (git is the only real program), the binaries are
 fakes on the sealed PATH, the upstream is answered by a fake, and nothing is written.
@@ -29,7 +29,7 @@ import pytest
 import _caixa
 from _caixa import _Lazy, write_fake_tool, write_git_launcher
 from _comum import executa, instantanea
-from simplicio_video import matchcut, mcp_server, tools, tools_lock, tools_update
+from simplicio_video import matchcut, mcp_server, tools, tools_lock, tools_update, video_to_skill
 from simplicio_video.cli import main
 
 REAL_GIT = tools._git  # the `ambiente` fixture swaps tools._git for a fake: this one is the real git
@@ -41,7 +41,7 @@ dt = _Lazy("simplicio_video.doctor_trilhas")
 saude = _caixa.saude
 caixa = _caixa.caixa
 
-TRILHAS = list(tools.TOOLS)  # the registry order: the twelve tracks
+TRILHAS = list(tools.TOOLS)  # the registry order: the thirteen tracks
 SCHEMA = "simplicio.doctor-trilhas/v1"
 YTDLP_FETCH = "instala na primeira vez que você usar `simplicio-video media fetch` (exige uma URL e --autorizo)"
 
@@ -62,6 +62,7 @@ FIX_DE_INSTALAR = {
     "matchcut": "simplicio-video matchcut clone",
     "instagram": "simplicio-video instagram clone",
     "rea_video": "simplicio-video rea-video clone",
+    "video_to_skill": "simplicio-video video-to-skill clone",
     "video-use": "simplicio-video edit setup",
     "tinyfish": f"npm install -g @tiny-fish/cli@{tools.get('tinyfish').ref}",
     "yt-dlp": YTDLP_FETCH,
@@ -219,6 +220,12 @@ def monta_saudavel(saude, monkeypatch) -> Path:
     _fixa(monkeypatch, "rea_video", _repo(tools_dir / "rea_video", {"rea_video/cli.py": "# falso\n"}))
     _venv(e.data / "rea-video-data" / "venv", "rea-video")
 
+    d = tools_dir / "video_to_skill"
+    pinned = {"SKILL.md": "# falso\n", **{rel: f"falso {rel}\n" for rel in video_to_skill.PINS["files"] if rel != "SKILL.md"}}
+    _fixa(monkeypatch, "video_to_skill", _repo(d, pinned))
+    monkeypatch.setattr(video_to_skill, "PINS", {**video_to_skill.PINS, "files": _sha(pinned)})
+    write_fake_tool(e.bin, "vts-extract", "vts-extract 0.3.0\n")
+
     _fixa(monkeypatch, "voicestudio", _repo(tools_dir / "voicestudio", {"package.json": "{}\n"}))
 
     _fixa(monkeypatch, "video-use", _repo(e.tmp / "video-use", {"helpers/render.py": "# falso\n"}))
@@ -274,10 +281,10 @@ def test_o_schema_e_o_da_trilhas(ambiente):
     assert dt.SCHEMA == SCHEMA
 
 
-def test_lista_as_doze_trilhas_do_registro_na_ordem_dele(ambiente):
+def test_lista_as_treze_trilhas_do_registro_na_ordem_dele(ambiente):
     doc = dt.collect()
     assert doc["schema"] == SCHEMA and doc["online"] is False
-    assert [t["name"] for t in doc["tracks"]] == TRILHAS and len(doc["tracks"]) == 12
+    assert [t["name"] for t in doc["tracks"]] == TRILHAS and len(doc["tracks"]) == 13
     chaves = {"name", "command", "status", "summary", "installed", "version", "pin", "pin_source", "pin_registry", "pin_match",
               "upstream", "checks"}
     for track in doc["tracks"]:
@@ -311,7 +318,7 @@ def test_o_status_geral_e_o_pior_das_trilhas(ambiente, monkeypatch):
 def test_sem_nenhuma_trilha_todas_avisam_e_nenhuma_falha(ambiente):
     doc = dt.collect()
     assert doc["status"] == "warn", _pendencias(doc)
-    assert [t["status"] for t in doc["tracks"]] == ["warn"] * 12
+    assert [t["status"] for t in doc["tracks"]] == ["warn"] * 13
     assert all(not t["installed"] for t in doc["tracks"])
 
 
@@ -333,7 +340,7 @@ def test_sem_git_as_trilhas_de_checkout_avisam_com_a_dependencia(ambiente):
         launcher.unlink()
     doc = dt.collect()
     for nome in ("openmontage", "opencut", "toonflow", "moneyprinter", "matchcut", "instagram", "rea_video", "voicestudio",
-                 "video-use"):
+                 "video_to_skill", "video-use"):
         assert _c(_trilha(doc, nome), "dep:git")["status"] == "warn", nome
     assert not [c for c in _trilha(doc, "yt-dlp")["checks"] if c["name"] == "dep:git"]
 
@@ -649,6 +656,65 @@ def test_upstream_mais_novo_no_npm_mostra_o_override_do_pin_e_no_pip_nao_mostra_
     assert up["status"] == "warn" and up["fix"] is None and "2026.11.01" in up["summary"]
 
 
+def test_video_to_skill_e_pin_only_e_nao_pergunta_ao_upstream(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    rede = _rede_em_dia()
+    doc = dt.collect(online=True, io=rede.io())
+    trilha = _trilha(doc, "video_to_skill")
+    assert trilha["upstream"]["pin_only"] is True
+    up = _c(trilha, "upstream")
+    assert up["status"] == "ok" and "pin" in up["summary"] and "VU_REF" not in up["summary"]
+    assert tools.get("video_to_skill").source not in rede.consultados()
+
+
+def test_video_to_skill_sem_binario_avisa_com_o_comando_do_setup(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    (ambiente.caixa.bin / "vts-extract").unlink()
+    track = _trilha(dt.collect(), "video_to_skill")
+    row = _c(track, "setup:binary")
+    assert row["status"] == "warn" and row["fix"] == "simplicio-video video-to-skill setup" and track["status"] == "warn"
+    assert track["installed"] is True
+
+
+def test_video_to_skill_com_binario_do_path_na_versao_certa_fica_ok(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    row = _c(_trilha(dt.collect(), "video_to_skill"), "setup:binary")
+    assert row["status"] == "ok" and "0.3.0" in row["summary"] and row["detail"]["source"] == "path"
+
+
+def test_video_to_skill_com_binario_do_path_em_outra_versao_avisa(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    write_fake_tool(ambiente.caixa.bin, "vts-extract", "vts-extract 0.2.9\n")
+    row = _c(_trilha(dt.collect(), "video_to_skill"), "setup:binary")
+    assert row["status"] == "warn" and row["fix"] == "simplicio-video video-to-skill setup" and "0.2.9" not in (row["fix"] or "")
+
+
+def test_video_to_skill_binario_gerenciado_confere_por_sha256_e_adulterado_falha(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    (ambiente.caixa.bin / "vts-extract").unlink()
+    exe = video_to_skill.managed_binary()
+    exe.parent.mkdir(parents=True, exist_ok=True)
+    exe.write_bytes(b"binario falso\n")
+    asset = next(a for a in video_to_skill.PINS["assets"] if a["platform"] == "linux-x86_64")
+    monkeypatch.setattr(video_to_skill, "_platform", lambda: ("Linux", "x86_64"))
+    tabela = {**video_to_skill.PINS, "assets": [{**asset, "member_sha256": hashlib.sha256(exe.read_bytes()).hexdigest()}]}
+    monkeypatch.setattr(video_to_skill, "PINS", tabela)
+    row = _c(_trilha(dt.collect(), "video_to_skill"), "setup:binary")
+    assert row["status"] == "ok" and row["detail"]["source"] == "managed" and "sha256" in row["summary"]
+    exe.write_bytes(b"adulterado\n")
+    row = _c(_trilha(dt.collect(), "video_to_skill"), "setup:binary")
+    assert row["status"] == "fail" and row["fix"] == "simplicio-video video-to-skill setup"
+
+
+def test_video_to_skill_arquivo_fixado_alterado_falha_na_integridade(ambiente, monkeypatch):
+    monta_saudavel(ambiente, monkeypatch)
+    d = ambiente.caixa.tmp / "tools" / "video_to_skill"
+    assert _c(_trilha(dt.collect(), "video_to_skill"), "integridade")["status"] == "ok"
+    (d / "SKILL.md").write_text("alterado\n", encoding="utf-8")
+    row = _c(_trilha(dt.collect(), "video_to_skill"), "integridade")
+    assert row["status"] == "fail" and "SKILL.md" in row["summary"] and row["fix"].startswith(f"git -C {d} checkout -- ")
+
+
 def test_video_use_e_pin_only_e_nao_pergunta_ao_upstream(ambiente, monkeypatch):
     monta_saudavel(ambiente, monkeypatch)
     rede = _rede_em_dia()
@@ -738,7 +804,7 @@ def test_doctor_all_tem_uma_linha_trilhas_com_o_resumo(ambiente, capsys):
     assert len(linhas) == 1, [c["name"] for c in rel["checks"]]
     row = linhas[0]
     assert row["status"] == "warn" and row["fix"] == "simplicio-video doctor trilhas"
-    assert "0 de 12" in row["summary"]
+    assert "0 de 13" in row["summary"]
     assert [t["name"] for t in row["detail"]["tracks"]] == TRILHAS
     assert rc == 0 and "Traceback" not in out + err
 
@@ -754,7 +820,7 @@ def test_doctor_all_com_as_trilhas_em_dia_e_ok(ambiente, monkeypatch, capsys):
     monta_saudavel(ambiente, monkeypatch)
     rc, rel, out, err = _json(capsys)
     row = [c for c in rel["checks"] if c["name"] == "trilhas"][0]
-    assert row["status"] == "ok" and row["fix"] is None and "12 de 12" in row["summary"]
+    assert row["status"] == "ok" and row["fix"] is None and "13 de 13" in row["summary"]
 
 
 # --- the MCP tool video.doctor: the same command, read-only ------------------------------------------------------------

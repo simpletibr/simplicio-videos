@@ -1,4 +1,4 @@
-"""`simplicio-video doctor trilhas [--json] [--online]` and the row `trilhas` of `doctor all`: the state of the twelve external tracks.
+"""`simplicio-video doctor trilhas [--json] [--online]` and the row `trilhas` of `doctor all`: the state of the thirteen external tracks.
 
 For each track of tools.TOOLS (registry order), in `checks`, one row per thing that was looked at, each `ok`, `warn` or `fail`
 with the exact command that fixes it (`fix`), like the doctor's other checks:
@@ -8,10 +8,11 @@ with the exact command that fixes it (`fix`), like the doctor's other checks:
                    its program)
   pin              the commit or version in use (registry pin, the lock's, or SIMPLICIO_<NAME>_REF) is the one installed; an
                    override that is not a commit (git) or a version (npm, pip) is not used and is reported without its value
-  integridade      matchcut's pinned scripts: their sha256 at the pinned commit; `fail` if one changed (instagram: see `instagram status`)
+  integridade      matchcut's pinned scripts and video-to-skill's SKILL.md and references: their sha256 at the pinned commit; `fail` if one
+                   changed (instagram: see `instagram status`)
   setup:<item>     the track's own setup: venv, node_modules, build, config.toml, .env.local
   dep:<name>       system dependencies: git, bun, node (version), npx, npm, ffmpeg, docker (optional), SIMPLICIO_TTS_PY (video-use)
-  upstream         only with --online: the same resolution as `update --check` (git ls-remote, npm view, PyPI); video-use is pin-only
+  upstream         only with --online: the same resolution as `update --check` (git ls-remote, npm view, PyPI); video-use and video_to_skill are pin-only
 
 Offline by default: nothing here reads the network, starts a shell or writes a file. The version of a binary is read by running
 `--version` with the closed environment of `status` (no key of the shell reaches it). Every text that comes from a child process,
@@ -58,6 +59,7 @@ CLONE = {
     "matchcut": "simplicio-video matchcut clone",
     "instagram": "simplicio-video instagram clone",
     "rea_video": "simplicio-video rea-video clone",
+    "video_to_skill": "simplicio-video video-to-skill clone",
     "video-use": "simplicio-video edit setup",
 }
 # yt-dlp is not installed by a command of its own: the first `media fetch` installs the pinned one (it needs a URL and --autorizo)
@@ -72,6 +74,7 @@ DEPS = {
     "matchcut": [("ffmpeg", True, None)],
     "instagram": [],
     "rea_video": [("ffmpeg", True, None)],
+    "video_to_skill": [("ffmpeg", False, None)],  # the upstream brings its own with `check --fix --yes`, typed by the user
     "voicestudio": [("bun", False, None)],
     "video-use": [("ffmpeg", True, None), ("SIMPLICIO_TTS_PY", True, None)],
     "tinyfish": [("node", True, NODE_TINYFISH), ("npm", True, None)],
@@ -348,6 +351,8 @@ def _setup(t: tools.Tool, pasta: Path) -> list:
     if nome == "rea_video":
         from . import rea_video
         return [_venv_row(rea_video.venv_bin("rea-video"), "simplicio-video rea-video setup")]
+    if nome == "video_to_skill":
+        return [_binary_row()]
     if nome == "opencut":
         from . import opencut
         env = pasta / opencut.ENV_FILE
@@ -369,6 +374,34 @@ def _setup(t: tools.Tool, pasta: Path) -> list:
         return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {_q(pasta)} && bun install --frozen-lockfile",
                            "node_modules ausente: as dependências do Toonflow não foram instaladas"), build]
     return []
+
+
+def _binary_row() -> dict:
+    """The extractor of video-to-skill, judged without running the engine's own probe: the managed one by the sha256 of the file against
+    the pinned table (no process starts; a changed file is `fail`), else a `vts-extract` of the PATH by its `--version` (closed
+    environment, like the other binaries here); else a gap with the exact command."""
+    from . import video_to_skill as v2s
+    fix = "simplicio-video video-to-skill setup"
+    exe = v2s.managed_binary()
+    asset = v2s.platform_asset(*v2s._platform())
+    if exe.is_file() or exe.is_symlink():
+        if asset is not None and not exe.is_symlink() and v2s._sha256_file(exe) == asset["member_sha256"]:
+            return _row("setup:binary", "ok", f"vts-extract {v2s.VERSION} gerenciado, sha256 conferido ({exe})", None,
+                        {"source": "managed", "path": str(exe), "version": v2s.VERSION})
+        return _row("setup:binary", "fail", f"{exe} não confere com o sha256 fixado (alterado, link ou outra plataforma): o motor não o usa",
+                    fix, {"source": "managed", "path": str(exe)})
+    achado = _ache("vts-extract")
+    if achado is not None:
+        funciona, versao = _roda_versao(achado)
+        if funciona and versao == v2s.VERSION:
+            return _row("setup:binary", "ok", f"vts-extract {v2s.VERSION} no PATH ({achado}); só a versão foi conferida, não o sha256", None,
+                        {"source": "path", "path": achado, "version": versao})
+        return _row("setup:binary", "warn", f"o vts-extract do PATH ({achado}) não diz {v2s.VERSION}: o motor não o usa", fix,
+                    {"source": "path", "path": achado, "version": versao})
+    if asset is None:
+        return _row("setup:binary", "warn", "sem binário pré-compilado para esta plataforma: compile o vts-extract do upstream e ponha no PATH",
+                    None, {"supported": False})
+    return _row("setup:binary", "warn", f"vts-extract {v2s.VERSION} ausente; o setup baixa e confere por sha256", fix, {"path": str(exe)})
 
 
 def _pasta_row(nome: str, caminho: Path, fix: str, ausente: str) -> dict:
@@ -531,7 +564,9 @@ def _upstream(t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
     """The same resolution as `update --check` (tools_update.resolve), compared with the commit or version in use."""
     if tools_update.pin_only(t):
         return {"pin_only": True, "latest": None, "newer": None, "error": None}, [
-            _row("upstream", "ok", "pin: o setup.sh fixa o commit (VU_REF) e o upstream não é seguido", None, {"pin_only": True})]
+            _row("upstream", "ok", ("pin: o binário (sha256 por plataforma) e o SKILL.md são fixados juntos e o upstream não é seguido"
+                                    if t.name == "video_to_skill" else
+                                    "pin: o setup.sh fixa o commit (VU_REF) e o upstream não é seguido"), None, {"pin_only": True})]
     if fonte == "override":
         return {"pin_only": False, "latest": None, "newer": None, "error": None}, [
             _row("upstream", "ok", f"fixada por SIMPLICIO_{t.name.upper()}_REF: o upstream não é seguido", None, {"override": True})]
@@ -622,6 +657,9 @@ def _tabela_fixada(nome: str) -> Optional[dict]:
     if nome == "matchcut":
         from . import matchcut
         return matchcut.PINNED_SHA256
+    if nome == "video_to_skill":
+        from . import video_to_skill
+        return video_to_skill.PINS["files"]
     return None
 
 

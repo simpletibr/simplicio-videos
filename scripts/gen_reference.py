@@ -102,6 +102,8 @@ DESCRIPTIONS = {
     "SV_QUALITY": "Qualidade do render remoto: `draft`, `looks` ou `delivery`.",
     "SV_SKIP_SETUP": "`1` pula a instalação de dependências do render remoto.",
     "SV_WORKERS": "Workers do HyperFrames no render: `auto` (padrão) ou um inteiro.",
+    "VIDEO_TO_SKILL_DIR": "Checkout do video-to-skill (alternativa a `SIMPLICIO_TOOLS_DIR/video_to_skill`). O binário `vts-extract` fica à parte, em `SIMPLICIO_TOOLS_DIR/video-to-skill-bin`.",
+    "VTS_DATA_DIR": "Pasta de dados do `vts-extract` (ffmpeg, yt-dlp e modelos que o `check --fix --yes` do upstream baixa; padrão: a pasta de dados da plataforma, em `video-to-skill`). O motor repassa a variável ao extrator, mas nunca roda o `check --fix --yes`.",
     "VOICESTUDIO_API_KEY": "Chave opcional da API local do VoiceStudio (provider `voicestudio`).",
     "VOICESTUDIO_URL": "URL da API local do VoiceStudio (padrão: `http://localhost:3900`).",
     "VOXCPM_BIN": "Executável do VoxCPM (provider `openvoice`, clonagem com clipe de referência).",

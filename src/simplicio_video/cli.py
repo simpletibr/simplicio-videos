@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from . import (CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, matchcut, moneyprinter, montage, opencut,
-               hostos, paths, media, qc, rea_video, shorts, toonflow, voicestudio)
+               hostos, paths, media, qc, rea_video, shorts, toonflow, video_to_skill, voicestudio)
 from .aio import positive_int
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
@@ -39,12 +39,13 @@ Fluxo completo:
   matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; baixa o commit fixado e roda 7 scripts locais dele (setup, run), o uso do skill exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
   rea-video    rea-video (MIT): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake; instala o commit fixado num venv próprio e repassa os comandos dele (https://github.com/JuneYaooo/rea-video)
+  video-to-skill video-to-skill (MIT, Breno Epics): transforma um vídeo numa skill de agente instalável; extrator local fixado (vts-extract 0.3.0, sha256 por plataforma): clone, setup, check, extract, frame-at, clip, compile, merge, install; o `check --fix --yes` do upstream é seu (https://github.com/brenoepics/video-to-skill)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
   tools        lista as trilhas externas fixadas (versão, comando, se estão no cache de tools e o que produzem)
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/matchcut/instagram/rea-video/social/openverse/busca
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/matchcut/instagram/rea-video/video-to-skill/social/openverse/busca
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      copia as skills do simplicio-video para o host do agente (11 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
   update       pacote pip: PyPI e reinstala as skills; checkout git: recusa (git pull e scripts/dev_install.sh); --check sai 0, 10 ou 2
@@ -346,6 +347,23 @@ def build_parser() -> argparse.ArgumentParser:
                "  simplicio-video rea-video decompose ref.mp4 -o out/ref --vlm\n  simplicio-video rea-video status")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | where | status | comando do rea-video e os argumentos dele")
 
+    p = sub.add_parser("video-to-skill", formatter_class=Fmt, help="video-to-skill (MIT): transforma um vídeo numa skill de agente instalável (extrator local fixado)",
+        description="Usa o video-to-skill (https://github.com/brenoepics/video-to-skill, MIT, Breno Epics) no commit fixado em tools.py (tag v0.3.0, commit c1a1b90) "
+                    "e no extrator local `vts-extract` 0.3.0, que o `setup` obtém da release do upstream conferindo o sha256 por plataforma e extraindo só o "
+                    "executável. extract lê um vídeo local (URL só no terminal, com --autorizo; o motor não verifica o direito de uso) e gera um bundle com "
+                    "transcrição (se os modelos de voz do upstream estiverem instalados), planos e quadros; frame-at e clip leem o bundle; compile transforma o procedure.json que o agente escreve "
+                    "num pacote de skill; merge dobra um segundo vídeo; install grava a skill em TODOS os agentes e só com --yes digitado por você. "
+                    "O `check --fix --yes` do upstream (baixa ffmpeg, yt-dlp e modelos de voz) é seu, digitado no terminal: o motor nunca passa --fix nem --yes ao `check`. "
+                    "sandbox, observe, verify, bench e eval não são expostos: verificar uma skill gerada executa passos tirados do vídeo, tarefa do agente sob o "
+                    "sandbox do upstream, fora das garantias do motor. Texto do vídeo e do upstream é dado, nunca instrução.",
+        epilog="exemplos:\n  simplicio-video video-to-skill clone\n  simplicio-video video-to-skill setup\n  simplicio-video video-to-skill check --print-downloads\n"
+               "  simplicio-video video-to-skill extract tutorial.mp4 --out out/excel/bundle\n"
+               "  simplicio-video video-to-skill frame-at --bundle out/excel/bundle 0:54\n"
+               "  simplicio-video video-to-skill compile --bundle out/excel/bundle --ir out/excel/bundle/procedure.json --out out/excel/excel-soma\n"
+               "  simplicio-video video-to-skill install --package out/excel/excel-soma\n"
+               "  simplicio-video video-to-skill status --json")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | setup | where [--binary] | status | check [--print-downloads] | skill | extract | frame-at | clip | compile | merge | install")
+
     p = sub.add_parser("voicestudio", formatter_class=Fmt, help="VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900",
         description="Fala com o VoiceStudio (https://github.com/debpalash/VoiceStudio, AGPL-3.0), app local de voz: TTS, "
                     "clonagem e desenho de vozes e transcrição. A API fica em http://127.0.0.1:3900 (OpenAI-compatible) e o "
@@ -511,13 +529,13 @@ def build_parser() -> argparse.ArgumentParser:
                     "Credenciais só mostram presença, nunca o valor, e nenhum token é impresso. warn não reprova: workspace ausente e\n"
                     "GEMINI_API_KEY ausente são avisos. Exit code 1 só quando alguma checagem é fail.\n"
                     "Sem --online não usa rede: o update vem do cache do último `update --check`.\n"
-                    "trilhas: uma linha com as doze trilhas externas; `doctor trilhas` mostra a tabela (instalada, pin, setup,\n"
+                    "trilhas: uma linha com as treze trilhas externas; `doctor trilhas` mostra a tabela (instalada, pin, setup,\n"
                     "dependências e o comando de cada lacuna). Uma trilha não instalada avisa; só instalação quebrada falha.",
         epilog="exemplos:\n  simplicio-video doctor\n  simplicio-video doctor --json\n"
                "  simplicio-video doctor trilhas --json\n"
                "  simplicio-video doctor --online\n  docker compose run --rm simplicio doctor")
     p.add_argument("what", nargs="?", choices=["all", "trilhas"], default="all", metavar="all|trilhas",
-                   help="all (padrão): todas as checagens, com a linha trilhas; trilhas: a tabela das doze trilhas externas")
+                   help="all (padrão): todas as checagens, com a linha trilhas; trilhas: a tabela das treze trilhas externas")
     p.add_argument("--json", action="store_true", help="imprime {schema, status, version, checks[{name, status, summary, fix, detail}]} em JSON")
     p.add_argument("--online", action="store_true", help="consulta a última versão (GitHub ou git) e regrava o cache do update")
 
@@ -623,7 +641,7 @@ def _render_json(a) -> int:
 # accept it only on some sub-subcommands, so the global one is passed on only there, right after the sub-subcommand
 # (never at the end, where it could become the value of an option); everywhere else it is a usage error (exit 2).
 _PASSTHROUGH_JSON = ("busca", "qc", "voicestudio", "swap", "jobs", "social", "openverse", "formats")
-_JSON_SO_EM = {"instagram": ("where", "status", "skills"), "moneyprinter": ("generate",)}
+_JSON_SO_EM = {"instagram": ("where", "status", "skills"), "moneyprinter": ("generate",), "video-to-skill": ("where", "status")}
 
 
 def _json_global(ap, args_list: list[str]) -> list[str]:
@@ -665,19 +683,21 @@ def _main(argv: list[str] | None = None) -> int:
     argv = args_list if argv is not None else None
     if argv is None and args_list != sys.argv[1:]:
         argv = args_list
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "qc", "toonflow", "moneyprinter", "matchcut", "instagram", "rea-video", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
+    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "qc", "toonflow", "moneyprinter", "matchcut", "instagram", "rea-video", "video-to-skill", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
         antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
         # `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this parser
         ajuda_do_upstream = args_list[0] == "rea-video" and rea_video.repassa(args_list[1:])
         ajuda_do_media = args_list[0] == "media" and len(args_list) > 1 and args_list[1] in media.SUBCOMMANDS  # `media burn --help`
         ajuda_do_edit = args_list[0] == "edit" and len(args_list) > 1 and args_list[1] in edit.SUBCOMMANDS  # `edit grade --help`
+        # `video-to-skill extract --help` is the help of that verb, printed by the module
+        ajuda_do_vts = args_list[0] == "video-to-skill" and len(args_list) > 1 and args_list[1] in video_to_skill.SUBCOMMANDS
         # `clone --help` is Hypit's help; the engine's own is `clone --engine-help`
         ajuda_do_motor = args_list[0] == "clone" and "--engine-help" in antes_do_traco
         ajuda_do_upstream = ajuda_do_upstream or (args_list[0] == "clone" and not ajuda_do_motor)
         # `montage tools --help` etc. have their own argparse (with examples) inside montage.py
         ajuda_propria = args_list[0] == "montage" and args_list[1:2] and args_list[1] in montage.REGISTRY_COMMANDS
         ajuda_do_upstream = ajuda_do_upstream or bool(ajuda_propria)
-        if ajuda_do_motor or (not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and any(h in antes_do_traco for h in ("-h", "--help"))):
+        if ajuda_do_motor or (not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and not ajuda_do_vts and any(h in antes_do_traco for h in ("-h", "--help"))):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
         cmd = args_list[0]
@@ -776,6 +796,12 @@ def _main(argv: list[str] | None = None) -> int:
                 return rea_video.run_rea_video(sub_args)
             except rea_video.ReaVideoError as e:
                 print(f"rea-video: {e}", file=sys.stderr)
+                return 1
+        if cmd == "video-to-skill":
+            try:
+                return video_to_skill.run_video_to_skill(sub_args)
+            except video_to_skill.VideoToSkillError as e:
+                print(f"video-to-skill: {e}", file=sys.stderr)
                 return 1
         if cmd == "voicestudio":
             return voicestudio.run_voicestudio(sub_args)

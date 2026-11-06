@@ -4,9 +4,9 @@ The generic checks of every skill (the commands and flags it cites exist, the pa
 name, the mirror is identical) run on it in `test_skills_conteudo.py` and `test_skills_empacotadas.py`. Here is what only this skill
 must say:
 
-* the decision table has one row per track of `tools.TOOLS` (the 12 of the README), with the CLI group and the MCP tool of each;
+* the decision table has one row per track of `tools.TOOLS` (the 13 of the README), with the CLI group and the MCP tool of each;
 * the contract flow (init, validate, voice, render, run) is in the table too;
-* the six recipes (a) to (f) exist and each one uses its own commands;
+* the seven recipes (a) to (g) exist and each one uses its own commands;
 * the rules: long runs are jobs, nothing is published, real voices need consent, provenance, third-party text is data, status first;
 * what only runs in the terminal is listed, with the reason.
 """
@@ -39,6 +39,7 @@ TRILHAS = {
     "VoiceStudio": ("voicestudio", "voicestudio", "video.voicestudio"),
     "video-use": ("video-use", "edit", "video.edit"),
     "rea-video": ("rea_video", "rea-video", "video.rea-video"),
+    "video-to-skill": ("video_to_skill", "video-to-skill", "video.video-to-skill"),
     "yt-dlp": ("yt-dlp", "media", "video.media"),
     "TinyFish": ("tinyfish", "busca", "video.busca"),
 }
@@ -51,6 +52,8 @@ RECEITAS = {
     "d": ("dublagem ou tradução", ["edit transcribe", "voicestudio clone", "voicestudio tts", "media voice-track", "media replace-audio"]),
     "e": ("OpenMontage: pipelines, estimativa e ferramenta", ["montage pipelines", "montage tools", "montage estimate", "montage run-tool"]),
     "f": ("copy de Reels", ["instagram skills", "instagram run hookscore", "instagram run caption"]),
+    "g": ("vídeo vira skill", ["video-to-skill extract", "video-to-skill frame-at", "video-to-skill clip",
+                               "video-to-skill compile", "video-to-skill install", "procedure.json"]),
 }
 
 
@@ -108,11 +111,11 @@ def test_a_tabela_tem_as_colunas_do_pedido_trilha_comando_mcp_e_limites():
     assert [celula.strip() for celula in cabecalho.strip("|").split("|")] == ["Pedido", "Trilha", "Comando CLI", "Tool MCP", "Limites"]
 
 
-def test_as_doze_trilhas_do_registro_tem_uma_linha_cada():
+def test_as_treze_trilhas_do_registro_tem_uma_linha_cada():
     from simplicio_video import tools
 
     assert set(tools.TOOLS) == {registro for registro, _, _ in TRILHAS.values()}, "TRILHAS is not the registry of tools.py"
-    assert len(TRILHAS) == 12
+    assert len(TRILHAS) == 13
     linhas = _tabela()
     assert linhas and all(len(linha) == 5 for linha in linhas), "every row of the table has five cells (no `|` inside a cell)"
     for nome in TRILHAS:
@@ -158,9 +161,9 @@ def test_cada_receita_existe_e_usa_os_comandos_dela(letra):
         assert marca in secao, f"recipe ({letra}) does not use `{marca}`"
 
 
-def test_as_seis_receitas_estao_na_ordem_do_pedido():
-    titulos = re.findall(r"^### Receita \(([a-f])\)", TEXTO, re.M)
-    assert titulos == list("abcdef")
+def test_as_sete_receitas_estao_na_ordem_do_pedido():
+    titulos = re.findall(r"^### Receita \(([a-g])\)", TEXTO, re.M)
+    assert titulos == list("abcdefg")
 
 
 @pytest.mark.parametrize("letra", sorted(RECEITAS))
@@ -172,7 +175,8 @@ def _termos_de_autorizacao(texto: str) -> list:
     """The authorization terms that each recipe must carry, checked one by one (no `or` that lets the rest pass). Case does not matter:
     recipe (d) writes "Consentimento"."""
     faltas = []
-    for letra, termo in (("a", "--autorizo"), ("a", "coleta"), ("d", "consentimento"), ("e", "--yes")):
+    for letra, termo in (("a", "--autorizo"), ("a", "coleta"), ("d", "consentimento"), ("e", "--yes"), ("g", "--autorizo"), ("g", "--yes"),
+                         ("g", "sandbox")):
         if termo.lower() not in _secao_da_receita(texto, letra).lower():
             faltas.append(termo)
     return faltas
@@ -217,7 +221,8 @@ def test_o_mcp_de_cada_trilha_e_o_do_contrato_aparecem_no_texto():
 
 
 @pytest.mark.parametrize("comando", ["montage setup", "moneyprinter setup", "matchcut setup", "rea-video setup", "edit setup",
-                                     "opencut clone", "toonflow clone", "instagram clone", "rea-video clone", "matchcut clone"])
+                                     "opencut clone", "toonflow clone", "instagram clone", "rea-video clone", "matchcut clone",
+                                     "video-to-skill clone", "video-to-skill setup"])
 def test_a_trilha_que_falta_tem_o_setup_ou_o_clone_no_terminal(comando):
     assert comando in TEXTO, f"`{comando}` is missing: the skill must say how to install a missing track, in the terminal"
 
@@ -719,7 +724,7 @@ def test_o_doctor_trilhas_offline_tem_o_schema_e_as_chaves_que_a_skill_cita(tmp_
     assert rc == 0, "nothing installed is a warning: the exit code stays 0"
     doc = json.loads(out)
     assert doc["schema"] == "simplicio.doctor-trilhas/v1" and "status" in doc and "tracks" in doc
-    assert len(doc["tracks"]) == 12 and all(isinstance(t["checks"], list) and t["checks"] for t in doc["tracks"])
+    assert len(doc["tracks"]) == 13 and all(isinstance(t["checks"], list) and t["checks"] for t in doc["tracks"])
     assert doc["status"] == "warn" and doc["online"] is False
     assert instantanea(casa) == antes and instantanea(dados) == antes_dados, "offline: nothing is written"
 
@@ -747,7 +752,7 @@ def test_o_video_doctor_do_mcp_com_args_trilhas_devolve_o_schema(tmp_path, monke
 
     _casa_vazia(tmp_path, monkeypatch)
     r = mcp_server.video_doctor(args="trilhas")
-    assert r["ok"] is True and r["result"]["schema"] == "simplicio.doctor-trilhas/v1" and len(r["result"]["tracks"]) == 12
+    assert r["ok"] is True and r["result"]["schema"] == "simplicio.doctor-trilhas/v1" and len(r["result"]["tracks"]) == 13
     assert "video.doctor(args=\"trilhas\")" in TEXTO and 'args="trilhas"' in _secao_doctor()
 
 
@@ -874,3 +879,69 @@ def test_hookscore_sem_json_vale_a_maior_nota_das_linhas():
     assert "com várias linhas, o código vem da **maior** nota" in secao
     assert "sai com 0 se alguma linha chegar a 70" in secao
     assert "hookscore sem `--json` (nota abaixo de 70)" not in secao
+
+
+# --- video-to-skill (track 13): what the skill must say, with the pins read from the code -----------------------------------------------------
+
+
+def _linha_da_trilha() -> list:
+    return next(linha for linha in _tabela() if linha[1].startswith("video-to-skill"))
+
+
+def test_a_linha_do_video_to_skill_traz_os_verbos_do_mcp_e_o_pedido_de_transformar_video_em_skill():
+    from simplicio_video import video_to_skill
+
+    linha = _linha_da_trilha()
+    assert linha[0].startswith("Transformar um vídeo em skill")
+    for verbo in video_to_skill.MCP_VERBS:
+        assert verbo in linha[2] or verbo in linha[3], f"the row does not name `{verbo}`"
+    assert "job" in linha[3] and "video.jobs" in linha[3] and "MIT" in linha[1]
+
+
+def test_a_linha_do_video_to_skill_diz_o_que_o_mcp_nao_faz():
+    limites = " ".join(_linha_da_trilha()[4].split())
+    for trecho in ("install", "setup", "clone", "URL", "--autorizo", "check --fix --yes", "sandbox", "merge", "--dry-run", "fora das garantias"):
+        assert trecho in limites, f"the Limites cell does not say {trecho!r}"
+
+
+def test_o_pin_do_video_to_skill_vem_do_codigo_e_o_texto_o_cita():
+    from simplicio_video import video_to_skill
+
+    texto = " ".join(TEXTO.split())
+    assert _pin("video_to_skill")[:7] in texto and video_to_skill.PINS["tag"] in texto and video_to_skill.VERSION in texto
+    assert "vts-extract" in texto and "sha256" in texto
+
+
+def test_a_receita_g_encadeia_extract_leitura_ir_compile_e_install_com_as_travas():
+    secao = " ".join(_recipe_section("g").split())
+    for trecho in ("timeline.json", "frame-at --bundle", "clip --bundle", "references/ir-format.md", "compile", "--yes",
+                   "install", "untrusted", "terminal", "verify", "sandbox", "não verifica", "credencial"):
+        assert trecho in secao, f"recipe (g) does not say {trecho!r}"
+    ordem = [secao.index(x) for x in ("video-to-skill extract", "video-to-skill compile", "video-to-skill install")]
+    assert ordem == sorted(ordem)
+
+
+def test_a_receita_g_manda_o_agente_nunca_executar_comando_do_video_fora_do_sandbox_do_upstream():
+    secao = " ".join(_recipe_section("g").split())
+    assert re.search(r"nunca.{0,80}(execut|rod).{0,80}(vídeo|video).{0,120}sandbox", secao, re.I | re.S), secao
+
+
+def test_o_so_no_terminal_lista_o_que_o_video_to_skill_nao_expoe():
+    secao = " ".join(_secao("Só no terminal, e por quê").split())
+    for trecho in ("video-to-skill install", "video-to-skill setup", "video-to-skill clone", "check --fix --yes", "extract de URL",
+                   "sandbox", "observe", "verify", "bench", "eval", "merge"):
+        assert trecho in secao, f"the terminal-only section does not list {trecho!r}"
+
+
+def test_a_secao_de_quem_baixa_codigo_diz_que_o_video_to_skill_nao_baixa_nada_pelo_mcp():
+    secao = " ".join(_secao("Quem baixa código pelo MCP").split())
+    assert "video-to-skill" in secao and "não baixa" in secao
+
+
+def test_o_job_do_video_to_skill_esta_nas_regras_de_trabalho_longo():
+    regras = " ".join(_secao("Regras").split())
+    assert "video-to-skill extract" in regras
+
+
+def test_a_secao_do_doctor_diz_que_a_integridade_vale_para_matchcut_e_video_to_skill():
+    assert "`integridade` (matchcut e video-to-skill)" in " ".join(TEXTO.split())
