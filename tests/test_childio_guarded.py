@@ -312,8 +312,9 @@ def test_a_second_stop_signal_while_the_child_is_being_killed_does_not_cut_the_k
         limpa(locals().get("proc"), pidfile)
 
 
-def test_a_storm_of_stop_signals_never_orphans_the_child(tmp_path):
-    """Randomized (seeded), short: a burst of SIGTERM/SIGHUP from another thread lands anywhere in a guarded start, wait and kill.
+def test_smoke_a_storm_of_stop_signals_never_orphans_the_child(tmp_path):
+    """SMOKE test, not a discriminator (it passes on the code without the fix: the window is a few bytecodes wide and a storm cannot
+    aim at it; the settrace tests above are the ones that fail without it). Randomized (seeded), short: a burst of SIGTERM/SIGHUP from another thread lands anywhere in a guarded start, wait and kill.
     Whatever the interleaving, the engine ends with the first stop's exit code and the child is dead and reaped."""
     rng = random.Random(20261106)
     sobra_de_sinais: list = []
@@ -405,21 +406,65 @@ def test_kill_group_refuses_our_own_group_and_our_own_pid(quem, sinais_enviados)
     assert sinais_enviados == [] and "kill" not in falso.chamadas
 
 
-def test_kill_group_skips_a_child_that_has_exited_and_been_reaped(sinais_enviados, monkeypatch):
-    """The pid may belong to somebody else by now (reuse): nothing is signalled, even if that pid is a live group leader again."""
-    monkeypatch.setattr(os, "getpgid", lambda pid: pid)  # as if the pid had been reused by a new session leader
-    proc = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+def test_kill_group_alone_does_not_signal_a_child_that_has_exited_and_been_reaped(sinais_enviados):
+    """Without a group of its own there is nothing left to kill, and the pid may belong to somebody else by now (reuse)."""
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
     proc.wait(30)
-    childio.kill_group(proc, group=True)
     childio.kill_group(proc, group=False)
     assert sinais_enviados == []
 
 
-def test_kill_group_skips_a_child_that_poll_says_has_exited(sinais_enviados, monkeypatch):
-    monkeypatch.setattr(os, "getpgid", lambda pid: pid)  # a live group leader under that pid, as far as the check can tell
+def test_kill_group_still_sweeps_the_group_of_a_leader_that_has_exited_and_been_reaped(sinais_enviados, monkeypatch):
+    """The caller says it started the child with start_new_session: the group (pgid == pid) can outlive its leader (grandchildren), and
+    Linux does not reuse a pid while a group with that id exists, so the group is still swept."""
+    proc = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+    proc.wait(30)
+    childio.kill_group(proc, group=True)
+    assert sinais_enviados == [("killpg", proc.pid, signal.SIGKILL)]
+
+
+def test_kill_group_alone_skips_a_child_that_poll_says_has_exited(sinais_enviados):
     falso = _Falso(os.getpid() + 100000, returncode=None, poll_rc=0)  # returncode not set yet, poll() reaps it
-    childio.kill_group(falso, group=True)
+    childio.kill_group(falso, group=False)
     assert sinais_enviados == [] and "kill" not in falso.chamadas
+
+
+def test_kill_group_sweeps_the_group_of_a_leader_that_poll_says_has_exited(sinais_enviados):
+    falso = _Falso(os.getpid() + 100000, returncode=None, poll_rc=0)
+    childio.kill_group(falso, group=True)
+    assert sinais_enviados == [("killpg", falso.pid, signal.SIGKILL)]
+
+
+NETO_CODE = "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(120)"
+# a leader that starts a grandchild (same group) and exits at once
+LIDER_CODE = "import subprocess, sys; subprocess.Popen([sys.executable, '-c', sys.argv[2], sys.argv[1]])"
+
+
+def test_kill_group_takes_the_grandchildren_of_a_leader_that_already_exited(tmp_path):
+    neto = tmp_path / "neto"
+    proc = subprocess.Popen([sys.executable, "-c", LIDER_CODE, str(neto), NETO_CODE], start_new_session=True)
+    try:
+        pid = espera_pid(neto)
+        proc.wait(30)  # the leader is gone and reaped; the grandchild lives in its group
+        assert vivo(pid)
+        childio.kill_group(proc, group=True)
+        assert espera(lambda: not vivo(pid), 10), "the grandchild of a reaped leader survived the group kill"
+    finally:
+        limpa(None, neto)
+
+
+def test_the_default_killer_sweeps_the_group_when_the_body_fails_after_the_leader_exited(tmp_path):
+    """The shape of instagram._executa and busca._rodar: the script exits (reaped), then the body raises (output too big)."""
+    neto = tmp_path / "neto"
+    try:
+        with pytest.raises(ZeroDivisionError):
+            with childio.guarded_child([sys.executable, "-c", LIDER_CODE, str(neto), NETO_CODE], start_new_session=True) as proc:
+                espera_pid(neto)
+                proc.wait(30)
+                1 / 0
+        assert espera(lambda: not vivo(pid_de(neto)), 10), "the background process of the script outlived the failing call"
+    finally:
+        limpa(None, neto)
 
 
 def test_kill_group_true_on_a_child_that_leads_no_group_kills_only_the_child(tmp_path):
