@@ -1557,13 +1557,13 @@ HOSTIL = "<<<<<b>b>b>b>b>"  # o amplificador: cada passada de `_limpa_tags_uma_v
 
 def test_linha_cresce_em_linha_reta(env):
     """Guarda de ReDoS no gate, para `_linha` isolada. Com limite 10 000 a janela de leitura é de 100 000 caracteres: 10 mil e 100 mil
-    colchetes entram inteiros. Linear dá razão ~10 (9,8 a 10,4 limpo e com 8 queimadores em 4 CPUs). Limite 13 (clean <= 80%). Mutações
+    colchetes entram inteiros. Linear dá razão ~10 (9,8 a 10,8 limpo e com 8 queimadores em 4 CPUs). Limite 14 (limpo <= 77%). Mutações
     medidas (quadrático em Python dentro da janela): passo 1 dá 45 a 48; passo 8 dá 17,0 a 17,4; passo 64 dá 10,9 a 11,2 e NÃO é pego
     (nem o 512). Janela maior que a de 50 mil do guarda antigo: o termo quadrático pesa 4x mais e a folga do passo 8 passou de 6% para 30%."""
     _exige_relogio_de_cpu_fino()
     env.b._linha(HOSTIL + "[" * 5_000, 5000)  # aquecimento: regex já compilada, alocador quente
-    r, t_p, t_g = _razao_cpu(lambda: env.b._linha(HOSTIL + "[" * 10_000, 10_000), lambda: env.b._linha(HOSTIL + "[" * 100_000, 10_000), 13.0)
-    assert r < 13.0, f"_linha: a CPU cresceu {r:.1f}x de 10 mil para 100 mil colchetes ({t_p * 1e3:.1f} ms -> {t_g * 1e3:.1f} ms)"
+    r, t_p, t_g = _razao_cpu(lambda: env.b._linha(HOSTIL + "[" * 10_000, 10_000), lambda: env.b._linha(HOSTIL + "[" * 100_000, 10_000), 14.0)
+    assert r < 14.0, f"_linha: a CPU cresceu {r:.1f}x de 10 mil para 100 mil colchetes ({t_p * 1e3:.1f} ms -> {t_g * 1e3:.1f} ms)"
 
 
 def test_texto_pagina_cresce_em_linha_reta(env):
