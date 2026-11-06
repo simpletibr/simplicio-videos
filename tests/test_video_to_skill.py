@@ -582,7 +582,7 @@ def test_frame_at_passes_the_bundle_and_every_timestamp_and_prints_what_the_extr
     assert out.count("t=") == 3 and str(b / "rewatch") in out
 
 
-@pytest.mark.parametrize("stamp", ["-1", "1:2:3:4", "abc", "1e3", "--help", "12;ls", "1:", ":5", "1 2", "0x10", "9" * 20])
+@pytest.mark.parametrize("stamp", ["-1", "1:2:3:4", "abc", "1e3", "12;ls", "1:", ":5", "1 2", "0x10", "9" * 20])
 def test_frame_at_refuses_timestamps_that_are_not_seconds_mm_ss_or_hh_mm_ss(env, stamp):
     with pytest.raises(v2s.VideoToSkillError):
         v2s.run_video_to_skill(["frame-at", "--bundle", str(bundle(env)), stamp])

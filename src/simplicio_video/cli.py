@@ -689,13 +689,15 @@ def _main(argv: list[str] | None = None) -> int:
         ajuda_do_upstream = args_list[0] == "rea-video" and rea_video.repassa(args_list[1:])
         ajuda_do_media = args_list[0] == "media" and len(args_list) > 1 and args_list[1] in media.SUBCOMMANDS  # `media burn --help`
         ajuda_do_edit = args_list[0] == "edit" and len(args_list) > 1 and args_list[1] in edit.SUBCOMMANDS  # `edit grade --help`
+        # `video-to-skill extract --help` is the help of that verb, printed by the module
+        ajuda_do_vts = args_list[0] == "video-to-skill" and len(args_list) > 1 and args_list[1] in video_to_skill.SUBCOMMANDS
         # `clone --help` is Hypit's help; the engine's own is `clone --engine-help`
         ajuda_do_motor = args_list[0] == "clone" and "--engine-help" in antes_do_traco
         ajuda_do_upstream = ajuda_do_upstream or (args_list[0] == "clone" and not ajuda_do_motor)
         # `montage tools --help` etc. have their own argparse (with examples) inside montage.py
         ajuda_propria = args_list[0] == "montage" and args_list[1:2] and args_list[1] in montage.REGISTRY_COMMANDS
         ajuda_do_upstream = ajuda_do_upstream or bool(ajuda_propria)
-        if ajuda_do_motor or (not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and any(h in antes_do_traco for h in ("-h", "--help"))):
+        if ajuda_do_motor or (not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and not ajuda_do_vts and any(h in antes_do_traco for h in ("-h", "--help"))):
             ap.parse_args(args_list[:1] + ["--help"])
             return 0
         cmd = args_list[0]

@@ -151,6 +151,11 @@ USAGE = (
     "O extrator roda com stdin fechado, pasta privada, grupo de processos próprio, ambiente mínimo (sem chaves), limite de tempo e de\n"
     "saída. Pelo MCP: `video.video-to-skill` com status, where, check, skill, extract (tarefa em `video.jobs`), frame-at, clip,\n"
     "compile e merge --dry-run; clone, setup e install só no terminal.\n"
+    "Limites: o `vts-extract` do PATH é confiado só pela versão (sem sha256), ao contrário do binário gerenciado, conferido pelo sha256\n"
+    "antes de cada uso; entre conferir e executar, um processo do mesmo usuário pode trocar o arquivo (a pasta é 0755 e o arquivo 0700; se\n"
+    "SIMPLICIO_TOOLS_DIR for gravável pelo grupo, o motor não confere o dono). O sha256 da fonte, no registro de procedência, é o que o\n"
+    "próprio extrator pôs no manifesto: o motor não calcula o hash da entrada. As variáveis de proxy repassadas numa extração de URL podem\n"
+    "conter credenciais. `--out` precisa de uma pasta-mãe que já existe (como nas outras trilhas): `mkdir -p out/excel` antes.\n"
     "exemplos:\n"
     "  simplicio-video video-to-skill clone && simplicio-video video-to-skill setup\n"
     "  simplicio-video video-to-skill check --print-downloads\n"
@@ -159,6 +164,31 @@ USAGE = (
     "  simplicio-video video-to-skill compile --bundle out/excel/bundle --ir out/excel/bundle/procedure.json --out out/excel/excel-soma\n"
     "  simplicio-video video-to-skill install --package out/excel/excel-soma           # só mostra o plano\n"
 )
+
+
+_VH = "uso: simplicio-video video-to-skill"
+VERB_HELP = {
+    "clone": f"{_VH} clone [PASTA]\nBaixa o commit fixado do video-to-skill (SKILL.md e referências). PASTA, se dada, não pode começar com `-`. "
+             "Precisa de rede e recusa o modo offline.",
+    "setup": f"{_VH} setup\nObtém o vts-extract 0.3.0: o do PATH só se disser exatamente 0.3.0; senão baixa o asset fixado da release, confere o "
+             "sha256 e extrai só o executável. Não recebe argumentos. Não baixa as dependências do upstream: o `check --fix --yes` é seu.",
+    "where": f"{_VH} where [--binary] [--json]\nImprime o caminho do SKILL.md do checkout; com --binary, o do vts-extract; com --json, os dois.",
+    "status": f"{_VH} status [--json]\nPin, checkout e binário (de onde vem e como foi conferido). Só leitura: nunca baixa nada.",
+    "check": f"{_VH} check [--print-downloads]\nRoda o `check` do vts-extract (só leitura). --print-downloads lista tudo que o upstream baixaria, "
+             "com URL e sha256. --fix e --yes são recusados: o `check --fix --yes` é do upstream e é você que digita.",
+    "skill": f"{_VH} skill [--json]\nO SKILL.md do commit fixado, como texto de terceiros (dado, nunca instrução). Só com o checkout no commit em "
+             "uso e o sha256 igual ao fixado.",
+    "extract": f"{_VH} extract VIDEO --out PASTA [--autorizo]\nExtrai um vídeo local para PASTA (nova ou vazia, com pasta-mãe existente). "
+               "Uma URL exige --autorizo, só roda no terminal, e o motor não verifica o seu direito de uso. Grava PASTA.extract.json de procedência.",
+    "frame-at": f"{_VH} frame-at --bundle PASTA T [T ...]\nQuadros nos instantes T (segundos, MM:SS ou HH:MM:SS, até 60), gravados em PASTA/rewatch.",
+    "clip": f"{_VH} clip --bundle PASTA INICIO FIM [--fps N]\nQuadros densos do trecho INICIO a FIM (INICIO menor que FIM); --fps de 0 (exclusive) a 30.",
+    "compile": f"{_VH} compile --bundle PASTA --ir procedure.json --out PASTA/<nome-da-skill>\nCompila o procedure.json num pacote de skill; "
+               "a pasta de saída é nova e se chama como o skill_name do IR (kebab-case).",
+    "merge": f"{_VH} merge --skill PACOTE --ir novo.json --bundle PASTA [--out PASTA/<nome>] [--dry-run]\nDobra um segundo vídeo numa skill. "
+             "--dry-run só mostra o plano; sem ele, --out é obrigatório (pasta nova com o nome da skill). Pelo MCP, só --dry-run.",
+    "install": f"{_VH} install --package PACOTE [--scope global|project] [--only a,b] [--force] [--yes]\nMostra o plano e não grava. "
+               "Com --yes, digitado por você, grava a skill em todos os agentes da máquina. Só do terminal.",
+}
 
 
 # ------------------------------------------------------------------------------------------------------------- the pin table
@@ -240,13 +270,36 @@ def lint_pins(doc: dict) -> None:
 
 
 def _load_pins() -> dict:
-    doc = json.loads((paths.data_dir() / "video_to_skill" / "pins.json").read_text(encoding="utf8"))
+    """Read and lint data/video_to_skill/pins.json from the PACKAGE data (not from `paths.data_dir()`, which follows
+    SIMPLICIO_VIDEO_HOME and may point to a folder with no data). A missing or invalid file is a VideoToSkillError."""
+    path = paths.DATA_DIR / "video_to_skill" / "pins.json"
+    try:
+        doc = json.loads(path.read_text(encoding="utf8"))
+    except (OSError, ValueError) as e:
+        raise VideoToSkillError(f"não consegui ler {path} (pins.json do video-to-skill): {type(e).__name__}") from None
     lint_pins(doc)
     return doc
 
 
-PINS: dict = _load_pins()
-VERSION: str = PINS["version"]
+def _pins() -> dict:
+    """The pin table, loaded on first use and cached in the module (`PINS`); never at import, so `import simplicio_video.cli` cannot
+    fail because of it. Tests replace `PINS` on the module."""
+    table = globals().get("PINS")
+    if table is None:
+        table = globals()["PINS"] = _load_pins()
+    return table
+
+
+def _version() -> str:
+    return _pins()["version"]
+
+
+def __getattr__(name: str):  # PEP 562: `video_to_skill.PINS` and `.VERSION` stay available, loaded when first asked for
+    if name == "PINS":
+        return _pins()
+    if name == "VERSION":
+        return _version()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _platform() -> tuple[str, str]:
@@ -255,14 +308,14 @@ def _platform() -> tuple[str, str]:
 
 def platform_asset(system: str, machine: str) -> dict | None:
     """The release asset for this system and machine (the table decides), or None: no prebuilt binary there."""
-    for a in PINS["assets"]:
+    for a in _pins()["assets"]:
         if a["system"] == system and str(machine).lower() in [m.lower() for m in a["machines"]]:
             return a
     return None
 
 
 def asset_url(asset: dict) -> str:
-    return PINS["release_url_base"] + asset["file"]
+    return _pins()["release_url_base"] + asset["file"]
 
 
 # ------------------------------------------------------------------------------------------------------ text from outside
@@ -400,7 +453,9 @@ def _host_ok(url: str) -> bool:
     return p.scheme == "https" and (host in DOWNLOAD_HOSTS or host.endswith(DOWNLOAD_SUFFIX))
 
 
-def _urlopen(req, timeout=None):
+def _redirect_handler():
+    """The redirect handler class (built lazily: urllib is not imported at import time). It refuses a hop off github.com and
+    githubusercontent.com BEFORE following it, so a foreign host is never contacted."""
     import urllib.error
     import urllib.request
 
@@ -410,12 +465,17 @@ def _urlopen(req, timeout=None):
                 raise urllib.error.URLError("redirecionamento para fora de github.com recusado")
             return super().redirect_request(req, fp, code, msg, headers, newurl)
 
-    return urllib.request.build_opener(Handler).open(req, timeout=timeout)
+    return Handler
+
+
+def _urlopen(req, timeout=None):
+    import urllib.request
+    return urllib.request.build_opener(_redirect_handler()()).open(req, timeout=timeout)
 
 
 def _download(url: str, max_bytes: int) -> bytes:
     """GET `url` (only the pinned release URL), up to `max_bytes`. No credential is sent; a redirect off github.com is refused."""
-    if not url.startswith(PINS["release_url_base"]) or "?" in url or "#" in url:
+    if not url.startswith(_pins()["release_url_base"]) or "?" in url or "#" in url:
         raise VideoToSkillError(f"URL fora da release fixada: {_ascii(url, 100)}")
     import urllib.request
     req = urllib.request.Request(url, headers={"User-Agent": "simplicio-video (video-to-skill setup)"})
@@ -443,7 +503,7 @@ def bin_dir() -> Path:
 
 
 def managed_binary() -> Path:
-    return bin_dir() / (f"vts-extract-{VERSION}" + (".exe" if os.name == "nt" else ""))
+    return bin_dir() / (f"vts-extract-{_version()}" + (".exe" if os.name == "nt" else ""))
 
 
 def checkout() -> Path | None:
@@ -494,7 +554,7 @@ def _version_line(exe: Path) -> str | None:
 
 
 def _says_pinned(line: str | None) -> bool:
-    return line == f"vts-extract {VERSION}"
+    return line == f"vts-extract {_version()}"
 
 
 def find_binary() -> Binary | None:
@@ -504,20 +564,20 @@ def find_binary() -> Binary | None:
     asset = platform_asset(*_platform())
     if asset is not None and exe.is_file() and not exe.is_symlink() and _sha256_file(exe) == asset["member_sha256"]:
         if _says_pinned(_version_line(exe)):
-            return Binary(exe, "managed", "sha256", VERSION)
+            return Binary(exe, "managed", "sha256", _version())
     found = shutil.which("vts-extract")
     if found and os.path.isabs(found):
         p = Path(found)
         if p.is_file() and p != exe and _says_pinned(_version_line(p)):
-            return Binary(p, "path", "version-only", VERSION)
+            return Binary(p, "path", "version-only", _version())
     return None
 
 
 def _require_binary() -> Binary:
     b = find_binary()
     if b is None:
-        raise VideoToSkillError(f"o vts-extract {VERSION} não está disponível (nem o gerenciado conferido por sha256, nem um no PATH que "
-                                f"diga exatamente `vts-extract {VERSION}`): rode `simplicio-video video-to-skill setup` no terminal.")
+        raise VideoToSkillError(f"o vts-extract {_version()} não está disponível (nem o gerenciado conferido por sha256, nem um no PATH que "
+                                f"diga exatamente `vts-extract {_version()}`): rode `simplicio-video video-to-skill setup` no terminal.")
     return b
 
 
@@ -653,8 +713,8 @@ def _lugar_proibido(real: Path) -> str:
 def _abs(valor: str, canal: str, nome: str) -> str:
     """An absolute path. The terminal resolves a relative one against where the user is; MCP refuses it (the server's folder is not
     the caller's) and refuses `..`."""
-    if not isinstance(valor, str) or not valor or len(valor) > MAX_ARG_CHARS or "\0" in valor:
-        raise VideoToSkillError(f"{nome}: caminho inválido ({_ascii(valor)})")
+    if not isinstance(valor, str) or not valor or len(valor) > MAX_ARG_CHARS or any(ord(c) < 32 or ord(c) == 127 for c in valor):
+        raise VideoToSkillError(f"{nome}: caminho inválido, vazio ou com caractere de controle ({_ascii(valor)})")
     if canal == "mcp":
         if not os.path.isabs(valor):
             raise VideoToSkillError(f"{nome}: pelo MCP todo caminho precisa ser absoluto ({_ascii(valor)})")
@@ -690,6 +750,8 @@ def _regular_file(caminho: str, nome: str, limite: int | None = None) -> bytes |
 
 def _input_file(valor: str, canal: str) -> str:
     caminho = _abs(valor, canal, "entrada")
+    if canal == "mcp" and os.path.islink(caminho):
+        raise VideoToSkillError(f"entrada: {_ascii(caminho, 80)} é um link simbólico; pelo MCP só o arquivo real")
     _regular_file(caminho, "entrada")
     return caminho
 
@@ -738,6 +800,10 @@ def _bundle(valor: str, canal: str) -> str:
     """An extraction bundle: a real folder with a real manifest.json, and no link where the extractor writes (its top-level entries,
     and the entries of rewatch/)."""
     caminho = _abs(valor, canal, "--bundle")
+    real = _real(caminho)
+    motivo = _lugar_proibido(real) if real is not None else "em caminho inválido"
+    if motivo:  # the extractor writes rewatch/ here: the same output rule as every other folder
+        raise VideoToSkillError(f"--bundle {_ascii(caminho, 80)}: o motor não grava {motivo}")
     if canal == "mcp":
         _no_links(caminho, "--bundle")
     if not os.path.isdir(caminho):
@@ -922,6 +988,10 @@ def plan(verb: str, rest: list[str], canal: str) -> dict:
                                     f"motor nunca passam --fix nem --yes: `{_hint_binary()} check --fix --yes`")
         raise _fix_yes_error()
     if verb in ("clone", "setup"):
+        for tok in rest:
+            if not isinstance(tok, str) or tok.startswith("-") or "\0" in tok:
+                raise VideoToSkillError(f"{verb}: opção ou argumento não permitido: {_ascii(tok)} "
+                                        f"({'só aceita uma pasta, que não começa com `-`' if verb == 'clone' else 'não recebe argumentos'})")
         return {"verb": verb, "argv": list(rest)}
     opts, pos = _split(verb, list(rest))
     json_flag = bool(opts.get("--json"))
@@ -1050,6 +1120,8 @@ def clone(target: Path | None = None) -> Path:
             return Path(tools.install("video_to_skill"))
     except tools.ToolError as e:
         raise VideoToSkillError(str(e)) from None
+    except OSError as e:
+        raise VideoToSkillError(f"clone: não consegui rodar o git ou gravar o checkout: {e.strerror or type(e).__name__}") from None
 
 
 def _setup(args: list[str]) -> int:
@@ -1058,9 +1130,9 @@ def _setup(args: list[str]) -> int:
     have = find_binary()
     if have is not None:
         if have.source == "managed":
-            print(f"vts-extract {VERSION} já instalado e conferido por sha256: {have.path}")
+            print(f"vts-extract {_version()} já instalado e conferido por sha256: {have.path}")
         else:
-            print(f"usando o vts-extract do PATH, que diz exatamente `vts-extract {VERSION}`: {have.path}\n"
+            print(f"usando o vts-extract do PATH, que diz exatamente `vts-extract {_version()}`: {have.path}\n"
                   "(o sha256 dele não é conferido: só a versão. Nada foi baixado.)")
         _after_setup()
         return 0
@@ -1068,14 +1140,14 @@ def _setup(args: list[str]) -> int:
     if asset is None:
         system, machine = _platform()
         raise VideoToSkillError(
-            f"não há binário pré-compilado do vts-extract {VERSION} para esta plataforma ({system}/{machine}): as releases são "
-            f"{', '.join(a['platform'] for a in PINS['assets'])}. Compile do código-fonte do upstream (`cargo build --release` no checkout "
-            f"{REPO}) e ponha um `vts-extract` que diga `vts-extract {VERSION}` no PATH.")
+            f"não há binário pré-compilado do vts-extract {_version()} para esta plataforma ({system}/{machine}): as releases são "
+            f"{', '.join(a['platform'] for a in _pins()['assets'])}. Compile do código-fonte do upstream (`cargo build --release` no checkout "
+            f"{REPO}) e ponha um `vts-extract` que diga `vts-extract {_version()}` no PATH.")
     if _offline():
         raise VideoToSkillError("modo offline (SIMPLICIO_OFFLINE=1): não vou baixar o vts-extract. Rode `simplicio-video video-to-skill "
                                 "setup` fora do modo offline.")
     url = asset_url(asset)
-    print(f"baixando {asset['file']} da release v{VERSION} de {REPO} ({asset['size']} bytes)")
+    print(f"baixando {asset['file']} da release v{_version()} de {REPO} ({asset['size']} bytes)")
     blob = _download(url, MAX_ARCHIVE_BYTES)
     digest = hashlib.sha256(blob).hexdigest()
     if len(blob) != asset["size"] or digest != asset["sha256"]:
@@ -1108,9 +1180,9 @@ def _setup(args: list[str]) -> int:
     if not _says_pinned(line):
         with contextlib.suppress(OSError):
             dest.unlink()
-        raise VideoToSkillError(f"o executável instalado não diz `vts-extract {VERSION}` (disse {_ascii(line or '', 60)}): removido; "
-                                f"o motor só usa a versão {VERSION}")
-    print(f"vts-extract {VERSION} instalado em {dest}")
+        raise VideoToSkillError(f"o executável instalado não diz `vts-extract {_version()}` (disse {_ascii(line or '', 60)}): removido; "
+                                f"o motor só usa a versão {_version()}")
+    print(f"vts-extract {_version()} instalado em {dest}")
     _after_setup()
     return 0
 
@@ -1145,7 +1217,7 @@ def status_info() -> dict:
     b = find_binary()
     return {
         "track": "video-to-skill", "license": "MIT", "author": "Breno Epics", "source": REPO,
-        "pin": {"tag": PINS["tag"], "commit": PINS["commit"], "extractor_version": VERSION},
+        "pin": {"tag": _pins()["tag"], "commit": _pins()["commit"], "extractor_version": _version()},
         "checkout": _checkout_info(),
         "binary": {"found": b is not None, "source": b.source if b else None, "path": str(b.path) if b else None,
                    "version": b.version if b else None, "verified": b.verified if b else None,
@@ -1205,7 +1277,7 @@ def _skill_text() -> tuple[str, str, str]:
     if len(data) > MAX_SKILL_BYTES:
         raise VideoToSkillError(f"SKILL.md maior que {MAX_SKILL_BYTES} bytes: não é o fixado")
     digest = hashlib.sha256(data).hexdigest()
-    if digest != PINS["files"]["SKILL.md"]:
+    if digest != _pins()["files"]["SKILL.md"]:
         raise VideoToSkillError("o sha256 do SKILL.md não é o fixado (arquivo alterado, ou outro commit): recusado")
     return data.decode("utf-8", errors="replace"), digest, head
 
@@ -1253,7 +1325,7 @@ def _write_provenance(p: dict) -> str | None:
     else:
         source = {"kind": "file", "name": os.path.basename(argv[1]), "sha256": original_sha}
     rec = {"schema": PROVENANCE_SCHEMA, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-           "extractor_version": VERSION, "pin_tag": PINS["tag"], "pin_commit": PINS["commit"], "channel": "terminal",
+           "extractor_version": _version(), "pin_tag": _pins()["tag"], "pin_commit": _pins()["commit"], "channel": "terminal",
            "source": source, "autorizo": bool(p["autorizo"]), "engine_checked_rights": False,
            "bundle": out, "manifest_sha256": digest,
            "note": "o motor não verifica o direito de uso do vídeo; a autorização é de quem passou --autorizo"}
@@ -1284,16 +1356,24 @@ def _extract(p: dict) -> int:
 def _install(p: dict) -> int:
     b = _require_binary()
     plan_argv = list(p["argv"])
-    print("Plano da instalação (o vts-extract mostra, e nada foi gravado ainda):")
     cwd = os.getcwd() if p["scope"] == "project" else None
-    res = _spawn(b.path, [*plan_argv, "--dry-run"], verb="install", env=_env(), cwd=cwd, on_out=_stream_out, on_err=_stream_err)
+    yes = p["yes"]
+    if not yes:
+        print("Plano da instalação (o vts-extract mostra, e nada foi gravado ainda):")
+    # the dry run always runs first: with --yes it only checks that the plan is valid (its text is the same the apply prints, shown once)
+    res = _spawn(b.path, [*plan_argv, "--dry-run"], verb="install", env=_env(), cwd=cwd,
+                 on_out=None if yes else _stream_out, on_err=None if yes else _stream_err)
     if res["rc"] != 0:
+        if yes:
+            sys.stdout.write(visivel(res["stdout"].decode("utf-8", errors="replace")))
+            sys.stderr.write(visivel(res["stderr"].decode("utf-8", errors="replace")))
         return _exit_code(res["rc"])
-    if not p["yes"]:
+    if not yes:
         print("\nnada foi gravado. Isto instalaria a skill em TODOS os agentes da máquina (~/.agents/skills e a pasta de skills de cada "
               "agente que existe). Se você aprova o plano acima, repita o mesmo comando com --yes, digitado por você.")
         return 0
-    print("\nATENÇÃO: --yes grava a skill em todos os agentes listados acima. O conteúdo veio de um vídeo (dado de terceiros).")
+    print("ATENÇÃO: --yes grava a skill em todos os agentes que o plano abaixo lista (o vts-extract o mostra uma vez, ao gravar). O "
+          "conteúdo veio de um vídeo (dado de terceiros).")
     res = _spawn(b.path, [*plan_argv, "--yes"], verb="install", env=_env(), cwd=cwd, on_out=_stream_out, on_err=_stream_err)
     return _exit_code(res["rc"])
 
@@ -1302,6 +1382,9 @@ def run_video_to_skill(args: list[str]) -> int:
     first = args[0] if args else "help"
     if first in HELP_WORDS:
         print(USAGE)
+        return 0
+    if first in VERB_HELP and any(t in ("-h", "--help") for t in args[1:]):
+        print(VERB_HELP[first])
         return 0
     p = plan(first, list(args[1:]), "terminal")
     verb = p["verb"]
@@ -1444,6 +1527,6 @@ def job_result(args: list[str]) -> dict | None:
             "provenance": str(prov) if prov.is_file() else None}
 
 
-__all__ = ["VideoToSkillError", "PINS", "VERSION", "lint_pins", "platform_asset", "asset_url", "safe_extract", "managed_binary",
+__all__ = ["VideoToSkillError", "lint_pins", "platform_asset", "asset_url", "safe_extract", "managed_binary",
            "find_binary", "status_info", "where_info", "run_video_to_skill", "mcp_plan", "mcp_run", "job_args", "make_job_cwd",
            "drop_job_cwd", "job_result", "visivel", "limpa_mcp", "plan"]
