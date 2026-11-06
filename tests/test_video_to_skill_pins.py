@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 import _fake_vts as fake
+from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no test leaves a job folder in the real tmp)
 
 from simplicio_video import cli, paths, tools, video_to_skill as v2s
 

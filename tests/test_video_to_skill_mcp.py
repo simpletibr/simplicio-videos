@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 import _fake_vts as fake
+from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no test leaves a job folder in the real tmp)
 
 from simplicio_video import jobs, mcp_server, tools, video_to_skill as v2s
 
@@ -506,7 +507,9 @@ def test_the_mcp_description_does_not_call_the_tool_read_only_since_it_writes_ne
     desc = mcp_server.DESC_video_video_to_skill
     assert "Read-only and local" not in desc
     assert desc.startswith("video-to-skill (MIT, Breno Epics, https://github.com/brenoepics/video-to-skill)")
-    assert "Local, closed list of verbs; writes only into new folders you name" in desc
+    assert "writes only into new folders you name" not in desc, "frame-at and clip write under an EXISTING bundle"
+    for word in ("Local, closed list of verbs. Writes:", "NEW folder", "<folder>.extract.json", "rewatch/", "existing bundle", "nothing else"):
+        assert word in desc, word
 
 
 def test_a_successful_job_has_no_untrusted_fields(env, monkeypatch):
@@ -520,3 +523,9 @@ def test_an_extract_input_that_is_a_symlink_is_refused_over_mcp(env):
     link.symlink_to(env.video)
     r = call(["extract", str(link), "--out", str(env.files / "b")])
     assert r["ok"] is False and "link" in r["error"] and env.spawned == []
+
+
+def test_the_runner_hands_the_job_origin_to_the_cli_so_the_provenance_can_say_it(env, monkeypatch):
+    out = env.tmp / "origin.txt"
+    jid, _ = _submit_and_run(env, monkeypatch, f"printf '%s' \"$SIMPLICIO_JOB_ORIGIN\" > {out}\n")
+    assert jobs.status(jid)["state"] == "done" and out.read_text() == "mcp"

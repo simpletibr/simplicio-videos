@@ -7,7 +7,7 @@ whether stdin was a terminal). `MARKERS` are files it writes when it is asked to
 
 modes: ok (default) | oldversion (--version says 0.2.9) | slow (extract sleeps 60 s) | grandchild (extract leaves a sleeping child
 and records its pid in `child.pid`, then sleeps) | esc (frame-at prints terminal escapes, bidi marks and a prompt injection) | big
-(frame-at prints more than the stdout cap) | fail (check exits 3 with a message on stderr) | failextract (extract exits 7) | flood (frame-at prints 200 KB and keeps running) | leaves (extract leaves a sleeping child behind and exits 0)
+(frame-at prints more than the stdout cap) | fail (check exits 3 with a message on stderr) | failextract (extract exits 7) | flood (frame-at prints 200 KB and keeps running) | faildry (install --dry-run exits 4) | leaves (extract leaves a sleeping child behind and exits 0)
 """
 from __future__ import annotations
 
@@ -15,6 +15,16 @@ import json
 import stat
 import sys
 from pathlib import Path
+
+def events(directory: Path) -> dict:
+    """name -> monotonic_ns of the first event of that name (install: dry-run, write)."""
+    out: dict = {}
+    f = directory / "events.log"
+    for line in (f.read_text(encoding="utf8").splitlines() if f.exists() else []):
+        name, ns = line.split()
+        out.setdefault(name, int(ns))
+    return out
+
 
 MARKERS = ("DOWNLOADED", "INSTALLED", "FORBIDDEN-RAN")
 
@@ -114,9 +124,25 @@ elif cmd in ("compile", "merge"):
         (o / "provenance.json").write_text(json.dumps({{"skill_name": ir["skill_name"], "history": []}}))
         print("skill package written: " + out + "/ (1 steps)")
 elif cmd == "install":
-    print("plan: would install into ~/.agents/skills")
-    if "--yes" in argv and "--dry-run" not in argv:
-        (here / "INSTALLED").write_text("x")
+    # MIRRORS THE REAL v0.3.0 BINARY: --dry-run prints the plan and writes nothing; the apply writes FIRST and prints the plan AFTER.
+    # `events.log` has one line per event with a monotonic clock shared with the engine: `dry-run`, `write`, `plan-printed`.
+    def ev(name):
+        with open(here / "events.log", "a") as f:
+            f.write("%s %d\n" % (name, time.monotonic_ns()))
+    plan = ["skill:     excel-sum", "plan: would install into ~/.agents/skills"]
+    if "--dry-run" in argv:
+        print("dry run \u2014 nothing written.")
+        for line in plan:
+            print(line)
+        ev("dry-run")
+        if mode == "faildry":
+            sys.exit(4)
+    else:
+        if "--yes" in argv:
+            (here / "INSTALLED").write_text("x")
+            ev("write")
+        for line in plan:
+            print(line)
         print("installed")
 else:
     (here / "FORBIDDEN-RAN").write_text(cmd)
@@ -151,4 +177,4 @@ def subcommands(directory: Path) -> list[str]:
     return [c["argv"][0] for c in calls(directory) if c["argv"] and c["argv"] != ["--version"]]
 
 
-__all__ = ["make", "set_mode", "calls", "markers", "subcommands", "MARKERS", "SCRIPT"]
+__all__ = ["events", "make", "set_mode", "calls", "markers", "subcommands", "MARKERS", "SCRIPT"]

@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 import pytest
+from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no test leaves a job folder in the real tmp)
 
 from simplicio_video import mcp_server, tools, video_to_skill
 
@@ -194,3 +195,13 @@ def test_the_skill_recipe_and_the_help_say_the_same_limits():
     usage = " ".join(video_to_skill.USAGE.split())
     for phrase in ("mesmo usuário", "não calcula o hash da entrada", "credenciais"):
         assert phrase in usage, phrase
+
+
+def test_the_docs_say_a_killed_extract_leaves_its_partial_bundle():
+    skill = " ".join((ROOT / "skills" / "simplicio-video-trilhas" / "SKILL.md").read_text(encoding="utf8").split())
+    recipe = skill[skill.index("### Receita (g)"):]
+    for text, phrase in ((_section(README, "video-to-skill (`video-to-skill`)"), "leaves its partial bundle"),
+                         (_section(README_PT, "video-to-skill (`video-to-skill`)"), "deixa a pasta parcial"),
+                         (recipe, "deixa a pasta parcial")):
+        assert phrase in text, phrase
+    assert "deixa a pasta parcial" in " ".join(video_to_skill.USAGE.split())

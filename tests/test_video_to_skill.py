@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 import _fake_vts as fake
+from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no test leaves a job folder in the real tmp)
 from _orfao import SINAIS, espera, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao, vivo  # noqa: F401
 
 from simplicio_video import childio, cli, tools, video_to_skill as v2s
@@ -877,14 +878,46 @@ def test_install_with_yes_shows_the_plan_once(env, capsys):
 
 
 def test_install_with_yes_does_not_apply_when_the_dry_run_fails(env):
-    exe = env.bindir / "vts-extract"
-    exe.write_text(exe.read_text().replace('print("plan: would install into ~/.agents/skills")',
-                                           'print("plan: would install"); sys.exit(4 if "--dry-run" in argv else 0)'), encoding="utf8")
+    fake.set_mode(env.bindir, "faildry")
     assert run("install", "--package", package(env), "--yes") == 4
     assert fake.markers(env.bindir) == []
 
 
-@pytest.mark.parametrize("words", [["clone", "--upload-pack=/tmp/x"], ["clone", "-x"], ["clone", "--help-me"], ["setup", "-x"]])
+def test_install_with_yes_prints_the_plan_before_the_extractor_writes_anything(env, monkeypatch):
+    """The real extractor writes first and prints its plan after (the fake mirrors that): the user must see the plan from the
+    --dry-run BEFORE the apply starts. Ordered by a clock shared with the fake: when the engine printed the plan vs its first write."""
+    printed = []
+    real = v2s._stream_out
+
+    def spy(text):
+        if "plan: would install" in text:
+            printed.append(time.monotonic_ns())
+        real(text)
+
+    monkeypatch.setattr(v2s, "_stream_out", spy)
+    assert run("install", "--package", package(env), "--yes") == 0
+    ev = fake.events(env.bindir)
+    assert printed and "write" in ev and "dry-run" in ev
+    assert ev["dry-run"] < printed[0] < ev["write"], "the plan must be on the screen before the first write"
+
+
+def test_install_with_yes_does_not_repeat_the_plan_and_shows_what_the_apply_adds(env, capsys):
+    assert run("install", "--package", package(env), "--yes") == 0
+    out, _ = out_of(capsys)
+    assert out.count("plan: would install") == 1 and out.count("skill:     excel-sum") == 1
+    assert out.count("installed") == 1, "the line the apply adds is shown once"
+    assert out.index("plan: would install") < out.index("ATENÇÃO") < out.index("installed")
+
+
+def test_the_warning_before_an_install_with_yes_does_not_promise_a_plan_that_is_not_there(env, capsys):
+    run("install", "--package", package(env), "--yes")
+    out, _ = out_of(capsys)
+    warning = next(line for line in out.splitlines() if line.startswith("ATENÇÃO"))
+    assert "plano abaixo" not in warning and "plano acima" in warning
+
+
+@pytest.mark.parametrize("words", [["clone", "--upload-pack=/tmp/x"], ["clone", "-x"], ["clone", "--help-me"], ["setup", "-x"], ["clone", ""],
+                                   ["setup", ""]])
 def test_clone_and_setup_refuse_arguments_that_look_like_options(env, monkeypatch, words):
     monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
     monkeypatch.setattr(tools, "install", lambda name: pytest.fail("git must not be started"))
@@ -927,3 +960,18 @@ def test_each_verb_has_its_own_help(verb, capsys, env):
 def test_help_after_other_arguments_is_still_the_verb_help_and_runs_nothing(env, capsys):
     assert cli.main(["video-to-skill", "extract", str(env.video), "--out", str(env.files / "b"), "--help"]) == 0
     assert "--autorizo" in capsys.readouterr().out and fake.calls(env.bindir) == [] and not (env.files / "b").exists()
+
+
+def test_the_provenance_of_a_job_started_over_mcp_says_so(env, monkeypatch):
+    monkeypatch.setenv("SIMPLICIO_JOB_ORIGIN", "mcp")
+    assert run("extract", env.video, "--out", env.files / "b") == 0
+    rec = json.loads((env.files / "b.extract.json").read_text(encoding="utf8"))
+    assert rec["channel"] == "job" and rec["submitted_via"] == "mcp"
+
+
+@pytest.mark.parametrize("value", ["", "evil", "MCP", "mcp\n", "terminal"])
+def test_only_a_known_job_origin_is_recorded(env, monkeypatch, value):
+    monkeypatch.setenv("SIMPLICIO_JOB_ORIGIN", value)
+    assert run("extract", env.video, "--out", env.files / "b") == 0
+    rec = json.loads((env.files / "b.extract.json").read_text(encoding="utf8"))
+    assert (rec["channel"], rec.get("submitted_via")) == (("job", "terminal") if value == "terminal" else ("terminal", None))
