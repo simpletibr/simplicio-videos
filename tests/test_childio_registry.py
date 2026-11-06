@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 import pytest
-from _orfao import POSIX, SINAIS, espera, espera_pid, limpa, pid_de, sleeper, vivo
+from _orfao import POSIX, SINAIS, espera, espera_pid, limpa, pid_de, sinais_padrao, sleeper, vivo  # noqa: F401
 
 from simplicio_video import childio
 
@@ -136,6 +136,27 @@ HARNESS = textwrap.dedent('''
 
     for i, group in enumerate(cfg["groups"]):
         threading.Thread(target=work_respawn if cfg.get("respawn") else work, args=(cfg["pidfiles"][i], group), daemon=True).start()
+    if cfg.get("nested"):  # SIGTERM, and a second signal lands inside the flag's set (inside Event.set's lock, when it is an Event) in the first handler
+        for _p in cfg["pidfiles"]:
+            for _ in range(600):
+                if os.path.exists(_p) and open(_p).read().strip():
+                    break
+                time.sleep(0.05)
+        _fired = []
+        def _local(frame, event, arg):
+            if event == "line" and not _fired:
+                _fired.append(1)
+                signal.raise_signal(signal.SIGHUP)
+            return None
+        def _global(frame, event, arg):
+            # inside the lock of Event.set (its notify_all) on code that uses an Event; on our own flag's set otherwise
+            name, fname = frame.f_code.co_name, frame.f_code.co_filename
+            if event == "call" and not _fired and (name == "notify_all" or (name == "set" and fname.endswith("childio.py"))):
+                return _local
+            return None
+        sys.settrace(_global)
+        signal.raise_signal(signal.SIGTERM)
+        time.sleep(60)
     print("ready", flush=True)
     time.sleep(60)
     print("the engine was not stopped", flush=True)
@@ -144,13 +165,14 @@ HARNESS = textwrap.dedent('''
 
 
 def _roda_harness(tmp_path: Path, cfg: dict) -> subprocess.Popen:
+    import json
+
     from conftest import ROOT, offline_env
 
-    import json
     env = offline_env(HARNESS_CFG=json.dumps(cfg))
     env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])
-    return subprocess.Popen([sys.executable, "-c", HARNESS], env=env, stdin=subprocess.DEVNULL, stdout=open(tmp_path / "h.out", "w"),
-                            stderr=open(tmp_path / "h.err", "w"), cwd=tmp_path)
+    with open(tmp_path / "h.out", "w") as out, open(tmp_path / "h.err", "w") as err:
+        return subprocess.Popen([sys.executable, "-c", HARNESS], env=env, stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=tmp_path)
 
 
 @pytest.mark.parametrize("nome", SINAIS)
@@ -229,3 +251,76 @@ def test_nothing_changes_for_the_cli_without_the_exit_guard(tmp_path):
     finally:
         limpa(proc, pidfile)
         assert pid_de(pidfile) is None or not vivo(pid_de(pidfile))
+
+
+def test_a_second_stop_signal_inside_the_first_handler_does_not_deadlock_it(tmp_path):
+    """The handler used a threading.Event: a signal landing inside Event.set re-entered the same non-reentrant lock on the main
+    thread, and the engine never exited (children leaked, even later SIGTERMs hung). Nothing in the handler may block."""
+    pidfile = tmp_path / "p0"
+    motor = _roda_harness(tmp_path, {"groups": [True], "pidfiles": [str(pidfile)], "nested": True})
+    try:
+        pid = espera_pid(pidfile)
+        assert motor.wait(15) in (128 + signal.SIGTERM, 128 + signal.SIGHUP), (tmp_path / "h.err").read_text()
+        assert espera(lambda: not vivo(pid), 10), "a child outlived the engine"
+    finally:
+        motor.kill()
+        motor.wait()
+        limpa(None, pidfile)
+
+
+def test_a_burst_of_stop_signals_always_ends_the_engine_and_its_children(tmp_path):
+    """Seeded bursts of 1-4 signals 0-10 ms apart at 120 engines (12 at a time): none hangs, every child is dead."""
+    import random
+
+    rng = random.Random(20261107)
+    ok = (128 + signal.SIGTERM, 128 + signal.SIGHUP, 128 + signal.SIGINT)
+    inicio = time.monotonic()
+    for lote in range(10):
+        motores = []
+        for i in range(12):
+            d = tmp_path / f"b{lote}_{i}"
+            d.mkdir()
+            motores.append((d, _roda_harness(d, {"groups": [True], "pidfiles": [str(d / "p0")]})))
+        pids = {}
+        try:
+            for d, m in motores:
+                pids[d] = espera_pid(d / "p0")
+                for _ in range(rng.randint(1, 4)):
+                    os.kill(m.pid, rng.choice((signal.SIGTERM, signal.SIGHUP, signal.SIGINT)))
+                    time.sleep(rng.choice((0, 0.001, 0.005, 0.01)))
+            for d, m in motores:
+                assert m.wait(15) in ok, (d / "h.err").read_text()
+            assert espera(lambda: not any(vivo(p) for p in pids.values()), 10), "a child outlived its engine"
+        finally:
+            for d, m in motores:
+                m.kill()
+                m.wait()
+                limpa(None, d / "p0")
+    assert time.monotonic() - inicio < 15, "the burst test must stay short"
+
+
+@pytest.mark.usefixtures("sinais_padrao")
+def test_install_exit_guard_says_what_it_did(monkeypatch):
+    import threading
+
+    assert childio.install_exit_guard() == childio.GUARD_INSTALLED
+    assert childio.install_exit_guard() == childio.GUARD_ALREADY
+    out: list = []
+    t = threading.Thread(target=lambda: out.append(childio.install_exit_guard()))
+    t.start()
+    t.join()
+    assert out == [childio.GUARD_ALREADY]  # installed already: that is what is true, wherever it is asked from
+    for n in SINAIS:  # a process that ignores / handles everything itself: nothing to take over
+        signal.signal(getattr(signal, n), signal.SIG_IGN if n != "SIGINT" else (lambda *a: None))
+    assert childio.install_exit_guard() == childio.GUARD_NOTHING
+
+
+@pytest.mark.usefixtures("sinais_padrao")
+def test_install_exit_guard_off_the_main_thread_installs_nothing():
+    import threading
+
+    out: list = []
+    t = threading.Thread(target=lambda: out.append(childio.install_exit_guard()))
+    t.start()
+    t.join()
+    assert out == [childio.GUARD_NOT_MAIN]

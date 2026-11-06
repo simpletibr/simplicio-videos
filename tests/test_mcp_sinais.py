@@ -7,6 +7,7 @@ import signal
 import stat
 import subprocess
 import sys
+import time
 
 import pytest
 from _orfao import POSIX, SINAIS, espera, limpa, vivo
@@ -50,3 +51,60 @@ def test_a_stop_signal_to_the_mcp_server_kills_the_child_of_a_running_tool(nome,
         servidor.kill()
         servidor.wait()
         limpa(None, pidfile)
+
+
+def test_a_burst_of_stop_signals_to_real_mcp_servers_never_hangs_or_leaks_a_child(tmp_path):
+    """The real server (a tool running a child in a worker thread), 8 at a time, bursts of 1-4 signals 0-10 ms apart: every server
+    exits with 128+n and no child survives."""
+    import random
+
+    from conftest import ROOT, offline_env
+
+    rng = random.Random(20261107)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    ok = (128 + signal.SIGTERM, 128 + signal.SIGHUP, 128 + signal.SIGINT)
+    env = None
+    servidores = []
+    try:
+        for i in range(8):
+            d = tmp_path / f"s{i}"
+            d.mkdir()
+            pidfile = d / "child.pid"
+            falso = bindir / f"tinyfish{i}"
+            falso.write_text(f"#!/bin/bash\necho $$ > {pidfile}\nexec sleep 120\n")
+            falso.chmod(falso.stat().st_mode | stat.S_IEXEC)
+            (d / "bin").mkdir()
+            (d / "bin" / "tinyfish").symlink_to(falso)
+            env = offline_env(HOME=str(d), PATH=f"{d / 'bin'}{os.pathsep}{os.environ['PATH']}", TINYFISH_API_KEY="x")
+            env.pop("SIMPLICIO_OFFLINE", None)
+            env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])
+            p = subprocess.Popen([sys.executable, "-m", "simplicio_video.mcp_server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                 stderr=open(d / "server.err", "w"), env=env, cwd=d)
+            servidores.append((d, pidfile, p))
+        for d, pidfile, p in servidores:
+            for obj in ({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                         "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}},):
+                p.stdin.write((json.dumps(obj) + "\n").encode())
+                p.stdin.flush()
+            assert b'"id":1' in p.stdout.readline()
+            for obj in ({"jsonrpc": "2.0", "method": "notifications/initialized"},
+                        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                         "params": {"name": "video.busca", "arguments": {"acao": "consulta", "consulta": "teste de busca"}}}):
+                p.stdin.write((json.dumps(obj) + "\n").encode())
+                p.stdin.flush()
+        pids = []
+        for d, pidfile, p in servidores:
+            assert espera(lambda pf=pidfile: pf.exists() and pf.read_text().strip(), 30), "the tool never started its child"
+            pids.append(int(pidfile.read_text()))
+            for _ in range(rng.randint(1, 4)):
+                os.kill(p.pid, rng.choice((signal.SIGTERM, signal.SIGHUP, signal.SIGINT)))
+                time.sleep(rng.choice((0, 0.001, 0.005, 0.01)))
+        for d, pidfile, p in servidores:
+            assert p.wait(20) in ok, (d / "server.err").read_text()[-600:]
+        assert espera(lambda: not any(vivo(x) for x in pids), 10), "a child outlived its MCP server"
+    finally:
+        for d, pidfile, p in servidores:
+            p.kill()
+            p.wait()
+            limpa(None, pidfile)

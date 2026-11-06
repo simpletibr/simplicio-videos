@@ -57,11 +57,13 @@ def test_main_sets_the_mcp_flag(monkeypatch):
     class Stub:
         def run(self, transport):
             seen.append((transport, os.environ.get("SIMPLICIO_MCP")))
-    seen = []
+    seen, guards = [], []
     monkeypatch.setenv("SIMPLICIO_MCP", "0")  # restored on teardown, so the flag does not leak into other tests
     monkeypatch.setattr(mcp_server, "build_server", lambda: Stub())
+    # main() installs the process-wide exit handlers: stubbed, so this test does not leave os._exit handlers in the pytest process
+    monkeypatch.setattr(childio, "install_exit_guard", lambda *a, **k: guards.append(1))
     mcp_server.main()
-    assert seen == [("stdio", "1")]
+    assert seen == [("stdio", "1")] and guards == [1]  # the entry point installs the exit guard, once
 
 
 # ---- lint: no bare child process in any module reachable from the MCP server ----
