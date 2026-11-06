@@ -72,7 +72,7 @@ Depois, crie o workspace e confira o ambiente:
 
 ### Só o ambiente Python
 
-Para só instalar o pacote, sem as checagens do `dev_install`: `pip install -e .` na raiz do repo (Python 3.10 ou superior), ou `pip install simplicio-video` quando o pacote estiver no PyPI (ainda não está: conferido em 17/10/2026).
+Para só instalar o pacote, sem as checagens do `dev_install`: `pip install -e .` na raiz do repo (Python 3.10 ou superior), ou `pip install simplicio-video` (o pacote está no PyPI desde a 0.5.0).
 
 ## Instalar a skill no seu agente
 
@@ -128,7 +128,7 @@ O recibo é um arquivo do repositório, e um repositório clonado pode ser hosti
 
 ### Se o pacote veio do pip
 
-Instalado por `pip install simplicio-video`, não há checkout: o `install` copia a skill que veio no pacote (a mesma, byte a byte, que `skills/` tem no repo) e nada é criado em `site-packages`. O pacote ainda não está publicado no PyPI (conferido em 17/10/2026): até lá, instale pelo checkout.
+Instalado por `pip install simplicio-video`, não há checkout: o `install` copia a skill que veio no pacote (a mesma, byte a byte, que `skills/` tem no repo) e nada é criado em `site-packages`.
 
 ## Atualizar
 

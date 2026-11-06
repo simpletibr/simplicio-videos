@@ -55,7 +55,7 @@ A versão da release é lida com regra estrita: `X.Y`, `X.Y.Z` ou `X.Y.Z.W` com 
 - **source**: um checkout git (ou `pip install -e`). O `update` **recusa** e manda rodar `git pull` e `bash scripts/dev_install.sh` (no Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev_install.ps1`); o `--check` pergunta ao git quantos commits são novos.
 - **pip**: um pacote instalado (`pip install simplicio-video`). O `install` copia a skill que veio no wheel (`simplicio_video/data/skills`) para o `--target` ou o `~`, e nada é criado em `site-packages`. O `update` faz `pip install --upgrade "simplicio-video==<versão>"`, que vem do PyPI, e depois `simplicio-video install --global`; a versão mais nova vem do GitHub Releases (`gh release view -R simpletibr/simplicio-videos`, ou a API `releases/latest`). Um Python gerenciado pelo sistema (PEP 668) é recusado com as saídas possíveis (`venv`, `uv`, `pipx` ou `PIP_BREAK_SYSTEM_PACKAGES=1`), e um Python sem pip (o venv de um `uv tool install`) também, com `uv tool upgrade simplicio-video` ou `pipx upgrade simplicio-video`.
 
-O pacote ainda não estava no PyPI na última conferência (a página `pypi.org/pypi/simplicio-video/json` respondia 404 em 17/10/2026; ele deve entrar na release 0.5.0): até a primeira publicação, o `update` de um pacote instalado acha a release no GitHub e o `pip install` falha com a mensagem do pip. Dentro do container o pacote é instalado por pip (`Dockerfile`): para atualizar, reconstrua a imagem.
+O pacote não estava no PyPI na conferência de 17/10/2026 (a página `pypi.org/pypi/simplicio-video/json` respondeu 404 nela); desde a 0.5.0 (2026-10-17) ele está publicado, e a 0.7.0 saiu em 2026-11-06. Dentro do container o pacote é instalado por pip (`Dockerfile`): para atualizar, reconstrua a imagem.
 
 ## Os hosts do `install`
 
@@ -180,7 +180,6 @@ A atualização está num módulo só, `src/simplicio_video/commands/update.py`:
 - **web/ (#34):** o build de `web/` ainda não existe. O `dev_install` registra `web/ chega com a #34: nada a construir` e segue.
 - **Workspace de checagem (#35):** o doctor checa só a presença e o schema do workspace. As checagens de saúde do workspace chegam com a #35.
 - **Windows e macOS reais:** UNVERIFIED (veja a tabela acima).
-- **PyPI:** o pacote `simplicio-video` ainda não está publicado; o ramo pip do `update` depende disso.
 - **Node no host:** a build de `web/` precisa de Node no host. A imagem Docker é o caminho sem Node.
 
 ## Mudanças que quebram (desde a 0.4.0)

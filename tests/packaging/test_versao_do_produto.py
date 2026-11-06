@@ -57,9 +57,16 @@ def test_o_unreleased_nao_leva_o_que_ja_saiu_na_0_7_0():
     assert "busca-log/v2" not in unreleased and "guarded_child" not in unreleased
 
 
-def test_a_secao_0_7_0_diz_a_faixa_de_prs_e_que_nao_ha_pypi():
+def test_a_secao_0_7_0_diz_a_faixa_de_prs_e_o_pypi_publicado():
     secao = _secao("0.7.0 — ")
     assert "0.6.0" in secao and "PyPI" in secao and "tag" in secao
+    assert "não foi publicado" not in secao and "sem credencial" not in secao, "o PyPI já foi publicado em 2026-11-06"
+    assert "publicado em 2026-11-06 a partir do commit d703a79" in secao
+    assert "pip install simplicio-video==0.7.0" in secao
+    assert "4ad007d621f89e493a5e3c52ed7b00e03e153ea1669f23e5726d61cdbe6dbbe7" in secao  # wheel
+    assert "1f099175f39ea9af1d887ba9e8766c2eeb82ed131cfa137db6c57ef5f5799624" in secao  # sdist
+    assert "simplicio-video 0.7.0 (hyperframes@0.8.97)" in secao
+    assert "pendente" in secao  # a tag v0.7.0 e a GitHub Release ficam com o dono
 
 
 def test_a_secao_0_7_0_registra_a_mudanca_quebrante_do_busca_log():
