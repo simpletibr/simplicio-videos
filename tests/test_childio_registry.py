@@ -136,6 +136,16 @@ HARNESS = textwrap.dedent('''
 
     for i, group in enumerate(cfg["groups"]):
         threading.Thread(target=work_respawn if cfg.get("respawn") else work, args=(cfg["pidfiles"][i], group), daemon=True).start()
+    if cfg.get("to_worker"):  # the OS hands the signal to a worker thread (it does in a burst); the main thread sleeps in a syscall
+        def _poke():
+            for _p in cfg["pidfiles"]:
+                for _ in range(600):
+                    if os.path.exists(_p) and open(_p).read().strip():
+                        break
+                    time.sleep(0.05)
+            signal.pthread_kill(threading.get_ident(), signal.SIGTERM)
+            time.sleep(60)
+        threading.Thread(target=_poke, daemon=True).start()
     if cfg.get("nested"):  # SIGTERM, and a second signal lands inside the flag's set (inside Event.set's lock, when it is an Event) in the first handler
         for _p in cfg["pidfiles"]:
             for _ in range(600):
@@ -268,6 +278,21 @@ def test_a_second_stop_signal_inside_the_first_handler_does_not_deadlock_it(tmp_
         limpa(None, pidfile)
 
 
+def test_a_stop_signal_taken_by_a_worker_thread_still_ends_the_engine(tmp_path):
+    """CPython runs Python signal handlers on the main thread only; with the main thread asleep in a syscall a signal caught by a
+    worker thread would wait for it to wake up (a minute here). The wakeup-fd watcher runs the handler at once."""
+    pidfile = tmp_path / "p0"
+    motor = _roda_harness(tmp_path, {"groups": [True], "pidfiles": [str(pidfile)], "to_worker": True})
+    try:
+        pid = espera_pid(pidfile)
+        assert motor.wait(15) == 128 + signal.SIGTERM, (tmp_path / "h.err").read_text()
+        assert espera(lambda: not vivo(pid), 10), "a child outlived the engine"
+    finally:
+        motor.kill()
+        motor.wait()
+        limpa(None, pidfile)
+
+
 def test_a_burst_of_stop_signals_always_ends_the_engine_and_its_children(tmp_path):
     """Seeded bursts of 1-4 signals 0-10 ms apart at 120 engines (12 at a time): none hangs, every child is dead."""
     import random
@@ -303,13 +328,18 @@ def test_a_burst_of_stop_signals_always_ends_the_engine_and_its_children(tmp_pat
 def test_install_exit_guard_says_what_it_did(monkeypatch):
     import threading
 
-    assert childio.install_exit_guard() == childio.GUARD_INSTALLED
-    assert childio.install_exit_guard() == childio.GUARD_ALREADY
-    out: list = []
-    t = threading.Thread(target=lambda: out.append(childio.install_exit_guard()))
-    t.start()
-    t.join()
-    assert out == [childio.GUARD_ALREADY]  # installed already: that is what is true, wherever it is asked from
+    try:
+        assert childio.install_exit_guard() == childio.GUARD_INSTALLED
+        assert childio.install_exit_guard() == childio.GUARD_ALREADY
+        out: list = []
+        t = threading.Thread(target=lambda: out.append(childio.install_exit_guard()))
+        t.start()
+        t.join()
+        assert out == [childio.GUARD_ALREADY]  # installed already: that is what is true, wherever it is asked from
+    finally:
+        childio.uninstall_exit_guard()
+    assert {n: signal.getsignal(getattr(signal, n)) for n in SINAIS} == {n: (signal.default_int_handler if n == "SIGINT" else signal.SIG_DFL)
+                                                                         for n in SINAIS}  # the previous handlers are back
     for n in SINAIS:  # a process that ignores / handles everything itself: nothing to take over
         signal.signal(getattr(signal, n), signal.SIG_IGN if n != "SIGINT" else (lambda *a: None))
     assert childio.install_exit_guard() == childio.GUARD_NOTHING
