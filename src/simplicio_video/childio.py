@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
@@ -216,6 +217,91 @@ class _Guard:
             raise first
 
 
+# ---- the children that are under a guard right now (for a stop signal that no guard can take: a worker thread) ----
+
+_live: dict[int, tuple[subprocess.Popen, Callable[[subprocess.Popen], None]]] = {}  # pid -> (child, its killer)
+_live_mu = threading.Lock()
+_spawning = 0  # guarded_child calls that are between "about to fork" and "registered"
+_exiting = threading.Event()
+_exit_code = 0
+
+
+def live_children() -> list[subprocess.Popen]:
+    """The children that are under a guarded_child block right now (started, block not ended). A normal exit of a block hands
+    its child to the caller and removes it; start_child's child is never in here after it returns."""
+    return [p for p, _ in list(_live.values())]  # list() is one atomic step under the GIL: safe from a signal handler too
+
+
+def kill_live() -> None:
+    """Kill every child that is under a guard, each with the killer its guarded_child was given."""
+    for proc, killer in list(_live.values()):
+        with contextlib.suppress(Exception):
+            killer(proc)
+
+
+def _track(proc: subprocess.Popen, killer: Callable[[subprocess.Popen], None]) -> None:
+    with _live_mu:
+        _live[proc.pid] = (proc, killer)
+    if _exiting.is_set():  # the engine is already ending: this child was started too late for kill_live to see it
+        raise SystemExit(_exit_code)
+
+
+def _untrack(proc: subprocess.Popen) -> None:
+    with _live_mu:
+        if _live.get(proc.pid, (None,))[0] is proc:
+            del _live[proc.pid]
+
+
+@contextlib.contextmanager
+def _starting() -> Iterator[None]:
+    global _spawning
+    with _live_mu:
+        _spawning += 1
+    try:
+        yield
+    finally:
+        with _live_mu:
+            _spawning -= 1
+
+
+def install_exit_guard(wait_s: float = 3.0, leave: Callable[[int], Any] = os._exit) -> bool:
+    """For a process whose work runs in worker threads, where no guarded_child can take a signal (the MCP server): from the MAIN
+    thread, SIGTERM, SIGHUP and Ctrl+C kill every child that is under a guard (also one a worker is still forking) and end the
+    process with the shell's 128+n through `leave` (os._exit: a worker thread cannot be unwound, and waiting for one would be
+    waiting for a render). Ignored signals stay ignored, a handler the engine set itself stays. Returns False off the main thread
+    (nothing is installed). The CLI never calls this: its guarded_child blocks take the signals themselves."""
+    def handler(signum, frame):
+        global _exit_code
+        _exit_code = 128 + signum
+        _exiting.set()
+        limite = time.monotonic() + wait_s
+        while True:
+            quiet = _spawning == 0  # read BEFORE the kill: nobody was between fork and registration, so kill_live sees every child
+            kill_live()
+            if quiet or time.monotonic() >= limite:  # (a worker that gets there later kills its own child: see _track)
+                break
+            time.sleep(0.01)
+        with contextlib.suppress(Exception):
+            sys.stderr.flush()
+        leave(_exit_code)
+
+    installed = False
+    for name in ("SIGTERM", "SIGHUP", "SIGINT"):
+        sig = getattr(signal, name, None)
+        if sig is None:
+            continue
+        current = signal.getsignal(sig)
+        if current == signal.SIG_IGN or (sig == signal.SIGINT and current is not signal.default_int_handler) or (
+                sig != signal.SIGINT and current != signal.SIG_DFL):
+            continue
+        try:
+            signal.signal(sig, handler)
+            installed = True
+        except (ValueError, OSError):  # not the main thread
+            return False
+    return installed
+
+
 @contextlib.contextmanager
 def guarded_child(argv: Sequence[Any], *, stop: Callable[[int], BaseException] | None = None,
                   kill: Callable[[subprocess.Popen], None] | None = None, **kw: Any) -> Iterator[subprocess.Popen]:
@@ -232,7 +318,9 @@ def guarded_child(argv: Sequence[Any], *, stop: Callable[[int], BaseException] |
     guard.install()
     try:
         try:
-            guard.proc = subprocess.Popen(argv, **kw)
+            with _starting():
+                guard.proc = subprocess.Popen(argv, **kw)
+                _track(guard.proc, killer)
         except BaseException:
             if guard.pending:
                 raise guard.stop(guard.pending[0]) from None
@@ -246,7 +334,11 @@ def guarded_child(argv: Sequence[Any], *, stop: Callable[[int], BaseException] |
             killer(guard.proc)
         raise
     finally:
-        guard.restore()
+        try:
+            if guard.proc is not None:
+                _untrack(guard.proc)
+        finally:
+            guard.restore()
 
 
 def start_child(argv: Sequence[Any], *, track: list | None = None, **kw: Any) -> subprocess.Popen:
