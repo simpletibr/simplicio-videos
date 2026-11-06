@@ -361,6 +361,30 @@ def test_check_nao_consulta_a_main_do_video_use(ambiente):
     assert any(line.lstrip().startswith("video-use") and "pin" in line for line in lines), lines
 
 
+def test_video_to_skill_nao_segue_a_main_porque_o_binario_e_o_skill_sao_fixados_juntos(ambiente):
+    """The extractor binary (version and sha256 per platform) and the SKILL.md (sha256) are pinned together: following the upstream main
+    would leave a SKILL.md that asks for another extractor. `update` records the pin (mode "pin") and leaves the checkout there."""
+    pin = tools.get("video_to_skill").ref
+    fake = Fake()
+    lock = ambiente / "data" / tools_lock.LOCK_FILE
+    lines, failed = tools_update.apply_all(tools_lock.empty(), "follow", fake.io(), lock)
+    assert failed == 0, lines
+    assert not fake.ran("ls-remote", tools.get("video_to_skill").source), "o update não deve consultar a main do video-to-skill"
+    d = str(_checkout(ambiente, "video_to_skill"))
+    doc = tools_lock.read_lock(lock)
+    assert doc["tools"]["video_to_skill"]["mode"] == "pin" and doc["tools"]["video_to_skill"]["ref"] == pin
+    assert fake.heads[d] == pin and doc["tools"]["opencut"]["ref"] == SHA_NEW
+
+
+def test_check_nao_consulta_a_main_do_video_to_skill_e_diz_pin(ambiente):
+    fake = Fake()
+    lines = tools_update.report("follow", fake.io(), dry=True)
+    assert not fake.ran("ls-remote", tools.get("video_to_skill").source)
+    assert any(line.lstrip().startswith("video_to_skill") and "pin" in line for line in lines), lines
+    assert tools_update.pin_only(tools.get("video_to_skill")) and tools_update.pin_only(tools.get("video-use"))
+    assert not tools_update.pin_only(tools.get("matchcut"))
+
+
 def test_o_pin_do_video_use_e_o_vu_ref_do_setup_sh():
     assert tools.get("video-use").ref == _vu_ref_do_setup()
 
