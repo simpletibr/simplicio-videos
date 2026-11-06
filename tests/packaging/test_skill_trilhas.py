@@ -637,16 +637,22 @@ def test_a_linha_do_hypit_nao_lista_o_que_o_pin_nao_aceita(caminho):
     inicio = next(i for i, linha in enumerate(linhas) if linha.startswith("| Pedido"))
     linha = " ".join(next(linha for linha in linhas[inicio + 2:] if "| Hypit" in linha).split())
     limites = linha.strip("|").split("|")[-1]
-    assert "o MCP recusa `packages` e `measure`" in limites and "não foi conferido" in limites
+    assert "o MCP recusa `packages` e `measure`" in limites and "não foi conferido" not in limites
     assert re.search(r"`studio`, `auth`, `runtime`, `capture` e `transcribe`", limites), "the terminal-only verbs that do exist in the pin"
-    assert not re.search(r"`runtime`, `packages`|`packages`, `capture`|e `measure`,? ", limites.replace("`packages` e `measure` não existem", ""))
+    antes_do_mcp = limites.split("o MCP recusa")[0]
+    assert "packages" not in antes_do_mcp and "measure" not in antes_do_mcp, "the terminal list names only verbs the pin has"
     assert "MCP" in limites
 
 
-def test_o_codigo_de_saida_1_e_do_terminal_e_o_ok_true_e_do_mcp():
+def test_o_codigo_de_saida_1_e_achado_so_no_veredito_e_erro_de_uso_e_outra_coisa():
     secao = " ".join(_secao_da_receita(TEXTO, "f").split())
     assert "Código de saída 1 conta como resultado (`ok: true`)" not in secao
-    assert "no terminal o processo sai com 1" in secao and "no MCP" in secao and "`ok: true`" in secao and "`codigo_saida`" in secao
+    assert "Código de saída 1 conta como resultado em hookscore, caption e detect" not in secao, "1 is a finding only at a verdict"
+    assert "no terminal o processo sai com 1" not in secao and "um `$?` de 1 não é falha aí" not in secao
+    assert "`instagram: ...`" in secao and "erro de uso" in secao and "`ok: false`" in secao and "`codigo_saida`" in secao and "`ok: true`" in secao
+    assert "Com `--json`, hookscore e detect saem com 0" in secao, "with --json the upstream returns before sys.exit (hookscore, detect)"
+    assert "sem `--json`" in secao and "caption" in secao and "READY" in secao and "PASS" in secao and "70" in secao
+    assert "Traceback" in secao and "erros" in secao
 
 
 def test_a_skill_documenta_o_doctor_trilhas_como_ele_e():
@@ -764,13 +770,15 @@ def test_o_mcp_recusa_packages_e_measure_do_hypit():
 
 @pytest.mark.parametrize("caminho", COPIAS)
 def test_a_linha_do_hypit_nao_afirma_que_o_pin_nao_tem_packages_nem_measure(caminho):
-    """Not confirmed here: the `npx` run of the pinned package was refused in the session that checked it. The engine's own refusal texts
-    call them terminal verbs (`packages` installs third-party code, `measure` uses providers), so the skill must not state "não existem"."""
+    """Checked (`npx @hypit/hypit@0.3.1 help` does not list `packages` nor `measure`; `packages` exits with CLI_USAGE, "Unknown command"): the
+    caveat "não foi conferido" is gone, and the fact is in its place. The MCP refusal texts (mcp_server.py) say the terminal runs them."""
     linhas = caminho.read_text(encoding="utf-8").splitlines()
     inicio = next(i for i, linha in enumerate(linhas) if linha.startswith("| Pedido"))
     limites = " ".join(next(linha for linha in linhas[inicio + 2:] if "| Hypit" in linha).split()).strip("|").split("|")[-1]
-    assert "não existem" not in limites and "Unknown help topic" not in limites
-    assert "o MCP recusa `packages` e `measure`" in limites and "não foi conferido" in limites
+    assert "não existem" not in limites and "Unknown help topic" not in limites and "não foi conferido" not in limites
+    assert "o MCP recusa `packages` e `measure`" in limites
+    assert "o Hypit do pin 0.3.1 não lista `packages` nem `measure`" in limites
+    assert 'CLI_USAGE, `Unknown command "packages"`' in limites
 
 
 @pytest.mark.parametrize("caminho", COPIAS)
@@ -780,3 +788,45 @@ def test_o_voicestudio_nao_diz_que_o_motor_nao_tem_clone_quando_o_clone_clona_vo
                           if l.startswith("- **VoiceStudio:**")).split())
     assert "não tem `clone` nem `setup` dele" not in linha
     assert "`voicestudio clone` clona uma voz" in linha and "não o app" in linha
+
+
+# --- fourth review of PR #185 (LOW text issues): each claim is pinned, and the old wording makes a test red -------------------------------
+
+
+def test_o_erro_de_uso_do_instagram_sai_com_1_e_a_linha_instagram_sem_aviso(tmp_path, monkeypatch, capsys):
+    """The skill says a usage error exits 1 with a line `instagram: ...` on stderr (not `instagram: aviso:`). Offline: the option check runs
+    before the checkout is looked for."""
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    monkeypatch.delenv("INSTAGRAM_DIR", raising=False)
+    rc, out, err = executa(["instagram", "run", "hookscore", "--", "--hook", "ok", "--nao-existe"], capsys, main)
+    assert rc == 1 and err.startswith("instagram: opção desconhecida") and "aviso" not in err, (rc, err)
+
+
+def test_o_mcp_devolve_ok_false_no_erro_de_uso_do_instagram(monkeypatch):
+    from simplicio_video import mcp_server
+
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    monkeypatch.delenv("INSTAGRAM_DIR", raising=False)
+    r = mcp_server.video_instagram(acao="run", ferramenta="hookscore", texto="ok", opcoes=["--nao-existe"])
+    assert r["ok"] is False and "opção desconhecida" in r.get("error", ""), r
+
+
+@pytest.mark.parametrize("caminho", COPIAS)
+def test_a_correcao_do_doctor_trilhas_e_comando_ou_passo_em_texto(caminho):
+    """`doctor trilhas` gives a command as the fix only when there is one; yt-dlp (first use), SIMPLICIO_TTS_PY and Node 24 are steps in
+    prose (the `fix` of each check says so). The skill must not promise a command for each."""
+    secao = " ".join(_secao_do("Ver o que falta: doctor trilhas", caminho.read_text(encoding="utf-8")).split())
+    assert "cada uma com o comando que a resolve" not in secao
+    for trecho in ("é um passo", "SIMPLICIO_TTS_PY", "Node 24", "yt-dlp", "primeiro uso"):
+        assert trecho in secao, f"the doctor section does not say {trecho!r}"
+
+
+@pytest.mark.parametrize("caminho", COPIAS)
+def test_o_voicestudio_diz_a_base_configuravel_e_o_loopback_so_nas_chamadas_com_arquivo(caminho):
+    """voicestudio.py: the base is VOICESTUDIO_URL/OMNIVOICE_URL (default http://127.0.0.1:3900, `voicestudio --help`); only the calls that
+    send a file (transcribe, dub create, clone) need loopback. The line must not say the engine talks to the app only at 127.0.0.1:3900."""
+    linha = " ".join(next(l for l in _secao_do("Trilha que falta", caminho.read_text(encoding="utf-8")).splitlines()
+                          if l.startswith("- **VoiceStudio:**")).split())
+    assert "só fala com ele em 127.0.0.1:3900" not in linha
+    for trecho in ("VOICESTUDIO_URL", "OMNIVOICE_URL", "127.0.0.1:3900", "só aceitam loopback", "`transcribe`, `dub create`, `clone`"):
+        assert trecho in linha, f"the VoiceStudio line does not say {trecho!r}"

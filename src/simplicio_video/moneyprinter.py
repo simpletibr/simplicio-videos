@@ -37,7 +37,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import unquote
 
-from . import hostos, tools
+from . import childio, hostos, tools
 from .childio import run_child
 from .toonflow import _offline, _on_term, _stop_group  # same process-group handling as the toonflow track
 
@@ -495,7 +495,9 @@ def _serve(d: Path, args: list[str]) -> int:
     try:
         for cmd in cmds:
             try:
-                procs.append(subprocess.Popen(cmd, cwd=d, env=env, start_new_session=True))
+                # a stop signal that lands while Popen starts the server must not leave it running with `procs` empty: the child is
+                # in `procs` before the signal is acted on, or killed by the guard (childio.start_child)
+                childio.start_child(cmd, track=procs, stop=childio.stop_as_interrupt, cwd=d, env=env, start_new_session=True)
             except OSError as e:
                 raise MoneyPrinterError(f"não consegui iniciar {cmd[0]}: {e}") from None
         while True:
@@ -861,9 +863,9 @@ def _generate(d: Path, args: list[str]) -> int:
         env = {**os.environ, "PYTHONPATH": str(d) + (os.pathsep + existing if existing else "")}
         fd = listener.fileno()
         # o log do servidor vai para o stderr (fd 2): o stdout fica só com o resultado, que pode ser JSON
-        procs.append(subprocess.Popen([str(venv_python()), "-m", "uvicorn", "app.asgi:app", "--fd", str(fd),
-                                       "--log-level", "warning"],
-                                      cwd=d, env=env, start_new_session=True, stdin=subprocess.DEVNULL, stdout=2, stderr=2, pass_fds=(fd,)))
+        childio.start_child([str(venv_python()), "-m", "uvicorn", "app.asgi:app", "--fd", str(fd), "--log-level", "warning"],
+                            track=procs, stop=childio.stop_as_interrupt, cwd=d, env=env, start_new_session=True,
+                            stdin=subprocess.DEVNULL, stdout=2, stderr=2, pass_fds=(fd,))
         listener.close()  # o filho tem a sua cópia do socket
         listener = None
         proc = procs[0]
@@ -1242,23 +1244,19 @@ def _spawn_cli(argv: list[str], cwd: Path, env: dict) -> tuple[int, str]:
     a stop signal here takes that whole group down (see _stop_upstream)."""
     saved = {n: signal.getsignal(n) for n in (signal.SIGINT, getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None))
              if n is not None}
-    proc = None
     try:
-        proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
-                                start_new_session=True)
-        documents = []
-        for line in proc.stdout:
-            if line.lstrip().startswith("{"):
-                documents.append(line)
-            else:
-                sys.stderr.write(line)
-                sys.stderr.flush()
-        proc.wait()
-    except BaseException:  # Ctrl+C / SIGTERM: the upstream group goes down with us
-        if proc is not None:
-            _stop_upstream(proc)
-        raise
+        # Ctrl+C / SIGTERM (also the one that lands while Popen starts the upstream): its group goes down with us (_stop_upstream)
+        with childio.guarded_child(argv, stop=childio.stop_as_interrupt, kill=_stop_upstream, cwd=cwd, env=env,
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                   encoding="utf-8", errors="replace", start_new_session=True) as proc:
+            documents = []
+            for line in proc.stdout:
+                if line.lstrip().startswith("{"):
+                    documents.append(line)
+                else:
+                    sys.stderr.write(line)
+                    sys.stderr.flush()
+            proc.wait()
     finally:
         for n, handler in saved.items():
             signal.signal(n, handler)

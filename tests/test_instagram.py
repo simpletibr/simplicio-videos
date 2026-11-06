@@ -22,6 +22,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -30,6 +31,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from _orfao import SINAIS, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao, sleeper  # noqa: F401
 from conftest import ROOT, offline_env
 from simplicio_video import cli, instagram, mcp_server, tools, tools_lock, tools_update
 
@@ -848,6 +850,65 @@ def test_a_signal_right_after_the_script_starts_still_kills_it(ig, monkeypatch, 
             os.kill(int(pidfile.read_text()), signal.SIGKILL)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.usefixtures("sinais_padrao")
+@pytest.mark.parametrize("nome", SINAIS)
+def test_every_stop_signal_inside_popen_kills_the_script_and_the_private_folder_goes(ig, monkeypatch, tmp_path, nome):
+    """SIGTERM and SIGHUP were already held until the child existed; Ctrl+C was not: KeyboardInterrupt came out of Popen with no
+    process to kill, the private folder went with the engine and the script kept running."""
+    pidfile = tmp_path / "pid"
+    tmpd = tmp_path / "tmpd"
+    tmpd.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmpd))
+    sinaliza_no_popen(monkeypatch, pidfile, getattr(signal, nome), so_se=str(pidfile))
+    exc, codigo = parada_esperada(nome)
+    try:
+        with pytest.raises(exc) as saida:
+            instagram.run_tool("hookscore", ["--hook", f"TRIGGER:SLEEP:{pidfile}"])
+        if codigo is not None:
+            assert saida.value.code == codigo
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 10), "the script outlived the engine"
+        assert not list(tmpd.glob("simplicio-instagram-*")), "the private folder was left behind"
+    finally:
+        mata_o_que_sobrou(pidfile)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.parametrize("nome", ["SIGTERM", "SIGHUP"])
+def test_executa_gives_back_the_handlers_after_a_signal_in_the_gap(tmp_path, monkeypatch, nome):
+    """Called directly (run_tool's own context manager would hide a missing restore): the handler found before is the one after."""
+    sinal = getattr(signal, nome)
+    pidfile = tmp_path / "pid"
+    antes = signal.getsignal(sinal)
+    protegido = lambda signum, frame: None  # noqa: E731  (swallows the signal when the engine did not install its own)
+    signal.signal(sinal, protegido)
+    sinaliza_no_popen(monkeypatch, pidfile, sinal)
+    try:
+        with pytest.raises(SystemExit):
+            instagram._executa(sleeper(pidfile), None, str(tmp_path))
+        assert signal.getsignal(sinal) is protegido
+    finally:
+        signal.signal(sinal, antes if antes is not None else signal.SIG_DFL)
+        mata_o_que_sobrou(pidfile)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+def test_the_signal_handlers_are_given_back_when_the_spawn_fails(tmp_path):
+    """Popen raises FileNotFoundError: _executa turns it into InstagramError and the handlers it swapped are put back."""
+    nomes = [n for n in ("SIGTERM", "SIGHUP") if hasattr(signal, n)]
+    antes = {n: signal.getsignal(getattr(signal, n)) for n in nomes}
+    protegidos = {n: (lambda signum, frame: None) for n in nomes}  # noqa: E731
+    for n in nomes:
+        signal.signal(getattr(signal, n), protegidos[n])
+    try:
+        with pytest.raises(instagram.InstagramError, match="não consegui executar"):
+            instagram._executa([str(tmp_path / "nao-existe")], None, str(tmp_path))
+        assert {n: signal.getsignal(getattr(signal, n)) for n in nomes} == protegidos
+    finally:
+        for n in nomes:
+            signal.signal(getattr(signal, n), antes[n] if antes[n] is not None else signal.SIG_DFL)
+
+
 @pytest.mark.skipif(os.name != "posix", reason="POSIX rlimit")
 @pytest.mark.slow
 def test_a_script_that_burns_cpu_is_ended_by_the_kernel_even_if_the_engine_is_killed(ig, tmp_path):
@@ -1112,7 +1173,9 @@ def test_the_module_imports_nothing_that_talks_to_the_network_or_posts():
     tops = {n.split(".")[0] for n in names if not n.startswith(".")}
     assert not tops & NETWORK, tops & NETWORK
     relatives = {n.lstrip(".") for n in names if n.startswith(".")}
-    assert relatives <= {"tools"}, relatives  # no busca, social, realoficial, publish, remote, swap, openverse, toonflow
+    assert relatives <= {"tools", "childio"}, relatives  # no busca, social, realoficial, publish, remote, swap, openverse, toonflow
+    # childio (the child that dies with the engine) is the one shared helper allowed: it must itself reach nothing on the network
+    assert not {n.split(".")[0] for n in imported(ROOT / "src" / "simplicio_video" / "childio.py") if not n.startswith(".")} & NETWORK
     source = MODULE.read_text(encoding="utf8")
     tree = ast.parse(source)
     calls = {ast.unparse(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
