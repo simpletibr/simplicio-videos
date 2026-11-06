@@ -16,7 +16,9 @@ the real stream. Nothing in the engine may use contextlib.redirect_std* (a test 
 A long-lived child must also not outlive the engine because of a stop signal. `guarded_child` (a Popen whose kill is armed before
 the fork returns: SIGTERM, SIGHUP and Ctrl+C that land in the gap are held until the child exists, then it is killed and the stop
 is raised), `start_child` (the same for servers a caller stops in its own `finally`) and `kill_group` (SIGKILL of the child's group,
-refusing pid <= 1, our own group and a child that already exited) are that API; the rules and the tests are in docs/host/gate.md."""
+refusing pid <= 1, our own group and a child that already exited) are that API; the rules and the tests are in docs/host/gate.md.
+Worker threads cannot take signals, so every guarded child is also in a process-wide registry (`live_children`, `kill_live`), and the
+MCP server's entry point calls `install_exit_guard()` once from its main thread to kill them on SIGTERM/SIGHUP/Ctrl+C."""
 from __future__ import annotations
 
 import contextlib
