@@ -19,7 +19,8 @@ is raised), `start_child` (the same for servers a caller stops in its own `final
 refusing pid <= 1 and our own pid and group; the group of a leader that already exited is still swept, its grandchildren outlive it)
 are that API; the rules and the tests are in docs/host/gate.md.
 Worker threads cannot take signals, so every guarded child is also in a process-wide registry (`live_children`, `kill_live`), and the
-MCP server's entry point calls `install_exit_guard()` once from its main thread to kill them on SIGTERM/SIGHUP/Ctrl+C."""
+MCP server's entry point calls `install_exit_guard()` once from its main thread to kill them on SIGTERM/SIGHUP/Ctrl+C (its handler
+must never block: see docs/host/gate.md)."""
 from __future__ import annotations
 
 import contextlib
@@ -232,10 +233,31 @@ class _Guard:
 # ---- the children that are under a guard right now (for a stop signal that no guard can take: a worker thread) ----
 
 _live: dict[int, tuple[subprocess.Popen, Callable[[subprocess.Popen], None]]] = {}  # pid -> (child, its killer)
-_live_mu = threading.RLock()  # re-entrant: the exit handler runs on the main thread, which may be inside _track/_untrack
+_live_mu = threading.RLock()  # writers only (worker threads, short sections); the exit handler never takes it
 _spawning = 0  # guarded_child calls that are between "about to fork" and "registered"
-_exiting = threading.Event()
 _exit_code = 0
+GUARD_INSTALLED, GUARD_ALREADY, GUARD_NOT_MAIN, GUARD_NOTHING = "installed", "already-installed", "not-main-thread", "nothing-to-install"
+
+
+class _Flag:
+    """A boolean the exit handler can set from any point of any thread: no lock, no Condition (threading.Event.set takes a lock a
+    nested signal handler on the same thread would wait for forever)."""
+    __slots__ = ("value",)
+
+    def __init__(self) -> None:
+        self.value = False
+
+    def set(self) -> None:
+        self.value = True
+
+    def clear(self) -> None:
+        self.value = False
+
+    def is_set(self) -> bool:
+        return self.value
+
+
+_exiting = _Flag()
 
 
 def live_children() -> list[subprocess.Popen]:
@@ -264,55 +286,120 @@ def _untrack(proc: subprocess.Popen) -> None:
 
 @contextlib.contextmanager
 def _starting() -> Iterator[None]:
+    """Counts a start (fork until registered) so the exit handler can wait for it. Dekker-style with the handler, no lock shared
+    with it: the start counts itself FIRST and looks at the exit flag AFTER; the handler sets the flag FIRST and reads the count
+    AFTER. So either this start sees the flag and forks nothing, or the handler sees the start and waits for it."""
     global _spawning
     with _live_mu:
-        if _exiting.is_set():  # the engine is ending (a tool that goes on to its next program after the sweep killed the last one)
-            raise SystemExit(_exit_code)  # nothing is forked: the sweep has no way to see a child that starts after it
         _spawning += 1
     try:
+        if _exiting.is_set():  # the engine is ending (e.g. a tool that goes on to its next program after the sweep killed the last)
+            raise SystemExit(_exit_code)
         yield
     finally:
         with _live_mu:
             _spawning -= 1
 
 
-def install_exit_guard(wait_s: float = 3.0, leave: Callable[[int], Any] = os._exit) -> bool:
-    """For a process whose work runs in worker threads, where no guarded_child can take a signal (the MCP server): from the MAIN
-    thread, SIGTERM, SIGHUP and Ctrl+C kill every child that is under a guard (also one a worker is still forking) and end the
-    process with the shell's 128+n through `leave` (os._exit: a worker thread cannot be unwound, and waiting for one would be
-    waiting for a render). Ignored signals stay ignored, a handler the engine set itself stays. Returns False off the main thread
-    (nothing is installed). The CLI never calls this: its guarded_child blocks take the signals themselves."""
-    def handler(signum, frame):
-        global _exit_code
-        with _live_mu:  # from here on _starting refuses: only the starts already counted in _spawning are waited for
-            _exit_code = 128 + signum
-            _exiting.set()
-        limite = time.monotonic() + wait_s
-        while True:
-            quiet = _spawning == 0  # read BEFORE the kill: nobody was between fork and registration, so kill_live sees every child
-            kill_live()
-            if quiet or time.monotonic() >= limite:
-                break
-            time.sleep(0.01)
-        with contextlib.suppress(Exception):
-            sys.stderr.flush()
-        leave(_exit_code)
+_exit_wait_s = 3.0
+_exit_leave: Callable[[int], Any] = os._exit
 
+
+def _exit_handler(signum, frame) -> None:
+    """The stop-signal handler of install_exit_guard. Nothing here may block on anything another thread, or this very thread
+    further up the stack, can hold: no lock, no Event/Condition, no stream flush. A second signal that lands inside it just runs it
+    again (the first signal's exit code wins)."""
+    global _exit_code
+    if not _exiting.is_set():
+        _exit_code = 128 + signum
+        _exiting.set()
+    limite = time.monotonic() + _exit_wait_s
+    while True:
+        quiet = _spawning == 0  # read BEFORE the kill: nobody was between fork and registration, so kill_live sees every child
+        kill_live()
+        if quiet or time.monotonic() >= limite:
+            break
+        time.sleep(0.01)
+    _exit_leave(_exit_code)
+
+
+_exit_prev: dict[int, Any] = {}  # signal -> handler that was there before install_exit_guard
+_exit_pipe: list[int] = []  # [read fd, write fd] of the wakeup pipe, while installed
+
+
+def _watch_signals(rfd: int) -> None:
+    """Runs on a daemon thread. CPython runs a Python signal handler only on the main thread, and the OS may hand the signal to a
+    worker thread (it does when the main thread already has one pending, as in a burst): the C handler then records it and the
+    main thread, asleep in a syscall, would not run the Python handler until it wakes. The C handler also writes the signal number
+    to the wakeup fd, whatever thread caught it: this thread reads it and runs the same handler, so the exit never waits for the
+    main thread. It acts only on a signal whose handler is still ours (after uninstall_exit_guard a stray byte does nothing)."""
+    while True:
+        try:
+            data = os.read(rfd, 64)
+        except OSError:
+            return
+        if not data:
+            return
+        for signum in data:
+            if signal.getsignal(signum) is _exit_handler:
+                _exit_handler(signum, None)
+
+
+def install_exit_guard(wait_s: float = 3.0, leave: Callable[[int], Any] = os._exit) -> str:
+    """For a process whose work runs in worker threads, where no guarded_child can take a signal (the MCP server): from the MAIN
+    thread, SIGTERM, SIGHUP and Ctrl+C kill every child that is under a guard (also one a worker is still forking; one that would
+    start after is never forked) and end the process with the shell's 128+n through `leave` (os._exit: a worker thread cannot be
+    unwound, and waiting for one would be waiting for a render). Ignored signals stay ignored, a handler the engine set itself
+    stays. The CLI never calls this: its guarded_child blocks take the signals themselves. Returns what it did: GUARD_INSTALLED,
+    GUARD_ALREADY (it was installed by an earlier call; nothing changed), GUARD_NOT_MAIN (called off the main thread: nothing is
+    installed) or GUARD_NOTHING (every stop signal is ignored or handled by the engine itself)."""
+    global _exit_wait_s, _exit_leave
+    names = [n for n in ("SIGTERM", "SIGHUP", "SIGINT") if hasattr(signal, n)]
+    if any(signal.getsignal(getattr(signal, n)) is _exit_handler for n in names):
+        return GUARD_ALREADY
+    if threading.current_thread() is not threading.main_thread():
+        return GUARD_NOT_MAIN
+    _exit_wait_s, _exit_leave = wait_s, leave
     installed = False
-    for name in ("SIGTERM", "SIGHUP", "SIGINT"):
-        sig = getattr(signal, name, None)
-        if sig is None:
-            continue
+    for name in names:
+        sig = getattr(signal, name)
         current = signal.getsignal(sig)
         if current == signal.SIG_IGN or (sig == signal.SIGINT and current is not signal.default_int_handler) or (
                 sig != signal.SIGINT and current != signal.SIG_DFL):
             continue
         try:
-            signal.signal(sig, handler)
+            _exit_prev[sig] = signal.signal(sig, _exit_handler)
             installed = True
-        except (ValueError, OSError):  # not the main thread
-            return False
-    return installed
+        except (ValueError, OSError):
+            return GUARD_INSTALLED if installed else GUARD_NOT_MAIN
+    if installed and not _exit_pipe:
+        try:
+            rfd, wfd = os.pipe()
+            os.set_blocking(wfd, False)  # a full pipe drops the byte: the Python handler still runs
+            signal.set_wakeup_fd(wfd, warn_on_full_buffer=False)
+            _exit_pipe.extend((rfd, wfd))
+            threading.Thread(target=_watch_signals, args=(rfd,), daemon=True, name="exit-guard").start()
+        except (ValueError, OSError):  # no wakeup fd: the handlers alone are what there was before
+            pass
+    return GUARD_INSTALLED if installed else GUARD_NOTHING
+
+
+def uninstall_exit_guard() -> None:
+    """Gives back the handlers install_exit_guard replaced (the ones that are still ours) and the wakeup fd. For tests; the MCP
+    server installs once and never removes it."""
+    for sig, old in list(_exit_prev.items()):
+        with contextlib.suppress(ValueError, OSError):
+            if signal.getsignal(sig) is _exit_handler:
+                signal.signal(sig, old if old is not None else signal.SIG_DFL)
+    _exit_prev.clear()
+    if _exit_pipe:
+        with contextlib.suppress(ValueError, OSError):
+            signal.set_wakeup_fd(-1)
+        rfd, wfd = _exit_pipe[:]
+        _exit_pipe.clear()
+        for fd in (wfd, rfd):  # closing the write end ends the watcher's read
+            with contextlib.suppress(OSError):
+                os.close(fd)
 
 
 @contextlib.contextmanager
