@@ -89,11 +89,36 @@ def test_global_json_is_refused_where_the_subcommand_has_no_json(args, tmp_path)
     assert list(tmp_path.iterdir()) == []
 
 
-def test_global_json_reaches_instagram_status_and_where():
-    for sub in ("status", "where"):
-        r = run_cli("--json", "instagram", sub)
-        assert r.returncode == 0, r.stderr
-        assert isinstance(json.loads(r.stdout), dict)
+@pytest.fixture
+def casa_vazia(tmp_path, monkeypatch):
+    """HOME, the tools cache and INSTAGRAM_DIR point to empty places: no instagram checkout, whatever the developer has installed."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
+    monkeypatch.delenv("INSTAGRAM_DIR", raising=False)
+    return tmp_path
+
+
+def test_global_json_reaches_instagram_status_and_where(casa_vazia):
+    status = run_cli("--json", "instagram", "status")
+    assert status.returncode == 0, status.stderr
+    info = json.loads(status.stdout)
+    assert info["schema"] == "simplicio.instagram-status/v1"
+    assert info["instalado"] is False and info["checkout"] is None  # the 'not installed' shape, with no checkout in HOME
+
+    fake = casa_vazia / "tools" / "instagram"
+    (fake / "skills" / "ig-reel").mkdir(parents=True)
+    (fake / "skills" / "ig-reel" / "hookscore.py").write_text("")  # the marker that makes it a checkout
+    where = run_cli("--json", "instagram", "where")
+    assert where.returncode == 0, where.stderr
+    assert Path(json.loads(where.stdout)["checkout"]).resolve() == fake.resolve()
+
+
+def test_global_json_instagram_where_without_checkout_is_a_clean_error(casa_vazia):
+    r = run_cli("--json", "instagram", "where")
+    assert r.returncode == 1
+    assert "Traceback" not in r.stderr and "não encontrado" in r.stderr
 
 
 def test_global_json_never_becomes_the_value_of_a_missing_option():

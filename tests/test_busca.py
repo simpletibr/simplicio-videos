@@ -1752,6 +1752,27 @@ def test_ctrl_c_durante_a_chamada_mata_o_tinyfish_e_repropaga(env):
                 os.killpg(pid, signal.SIGKILL)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signals")
+@pytest.mark.parametrize("quando", ["popen", "espera"])
+@pytest.mark.parametrize("nome", ["SIGTERM", "SIGHUP", "SIGINT"])
+def test_sinal_de_parada_nao_deixa_o_tinyfish_orfao(tmp_path, nome, quando):
+    """Only Ctrl+C was handled, and only after Popen returned: SIGTERM/SIGHUP killed the engine outright (the binary, in its own
+    session, kept running and the call stayed billed) and any signal in the gap of Popen left it running with no reference."""
+    from _orfao import espera, espera_pid, mata_o_que_sobrou, roda_motor, vivo
+
+    pidfile = tmp_path / "pid"
+    exe = tmp_path / "tinyfish"
+    exe.write_text(f"#!/bin/sh\necho $$ > {pidfile}\nexec sleep 120\n")
+    exe.chmod(0o755)
+    corpo = f"from simplicio_video import busca\nbusca._rodar({str(exe)!r}, ['search', 'query', 'a'], 60, 1000)\n"
+    try:
+        res = roda_motor(tmp_path, corpo, pidfile, nome, quando, so_se=str(exe))
+        assert espera(lambda: not vivo(espera_pid(pidfile)), 8), f"the tinyfish outlived the engine (rc {res.returncode})\n{res.stderr[-400:]}"
+        assert res.returncode in (128 + getattr(signal, nome), -getattr(signal, nome), 1), res.returncode
+    finally:
+        mata_o_que_sobrou(pidfile)
+
+
 # ------------------------------------------------------------------------------------------------ (17) hosts internos e preço
 
 HOSTS_INTERNOS = ["localhost.localdomain", "metadata.google.internal", "impressora.local", "roteador.lan", "x.localhost", "127.0.0.1.nip.io",

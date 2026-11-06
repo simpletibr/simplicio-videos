@@ -983,29 +983,28 @@ def _executa(argv: list, cwd: str, env: dict, nome: str) -> tuple[int, bytes, by
     while it runs. Past the time limit or the output cap the whole process group is killed and the call fails; after a normal
     exit the group is killed too, so nothing the script left running survives it."""
     limite_s = TIMEOUT_S.get(nome, 600)
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, contextlib.ExitStack() as guard:
         try:
-            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd, env=env, start_new_session=True)
+            # Ctrl+C, SIGTERM, SIGHUP: the child lives in its own session and would outlive the engine, so it is killed on the way
+            # out of the block, and a signal that lands while Popen starts it is held until the child exists (childio.guarded_child)
+            proc = guard.enter_context(childio.guarded_child(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd, env=env,
+                                                             start_new_session=True))
         except (OSError, subprocess.SubprocessError) as e:
             raise MatchcutError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
         fim = time.monotonic() + limite_s
         motivo = None
-        try:
-            while True:
-                try:
-                    proc.wait(timeout=POLL_S)
-                    break
-                except subprocess.TimeoutExpired:
-                    pass
-                if os.fstat(out.fileno()).st_size > MAX_OUTPUT_BYTES or os.fstat(err.fileno()).st_size > MAX_STDERR_BYTES:
-                    motivo = "tamanho"
-                    break
-                if time.monotonic() >= fim:
-                    motivo = "tempo"
-                    break
-        except BaseException:  # Ctrl+C, SIGTERM, SIGHUP: the child lives in its own session and would outlive the engine
-            _matar(proc)
-            raise
+        while True:
+            try:
+                proc.wait(timeout=POLL_S)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if os.fstat(out.fileno()).st_size > MAX_OUTPUT_BYTES or os.fstat(err.fileno()).st_size > MAX_STDERR_BYTES:
+                motivo = "tamanho"
+                break
+            if time.monotonic() >= fim:
+                motivo = "tempo"
+                break
         _matar(proc)  # also after a normal exit: grandchildren the script started die with its group
         if motivo == "tempo":
             raise MatchcutError(f"o script passou do tempo máximo de {limite_s:g} s e foi encerrado")

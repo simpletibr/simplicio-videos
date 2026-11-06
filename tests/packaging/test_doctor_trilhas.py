@@ -1297,3 +1297,44 @@ def test_processo_que_sai_no_meio_de_uma_leitura_leva_o_git_junto(tmp_path):
     for p in ainda:
         os.kill(p, 9)
     assert vivos and ainda == [], ainda
+
+
+def test_as_leituras_do_upstream_terminam_em_oito_decimos_do_orcamento(monkeypatch):
+    """The upstream reads get a deadline at 80% of the budget (they end, and kill their own groups, before the budget does). With
+    1.0 the reads would run to the very end of the budget: this pins the factor."""
+    recebido = {}
+
+    def falso_em_paralelo(trabalhos, orcamento_s, nome="upstream"):
+        recebido["orcamento"] = orcamento_s
+        recebido["fim"] = trabalhos[0].args[0]  # functools.partial(_upstream_com_prazo, fim, t, ref, fonte, io)
+        return {}
+
+    modulo = __import__("simplicio_video.doctor_trilhas", fromlist=["x"])
+    monkeypatch.setattr(modulo, "_em_paralelo", falso_em_paralelo)
+    monkeypatch.setattr(modulo, "_fecha_upstream", lambda *a, **k: None)
+    inicio = time.monotonic()
+    modulo._fecha_upstreams([(None, tools.get("opencut"), "a" * 40, "lock", None, None)], None, 10.0)
+    assert recebido["orcamento"] == 10.0
+    assert recebido["fim"] - inicio == pytest.approx(8.0, abs=0.5)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the fake git is a shell script")
+def test_git_que_nao_responde_vira_tempo_esgotado_e_o_doctor_nao_manda_apagar(ambiente, monkeypatch):
+    """End to end through the real tools._git: a git that hangs is a GitTimeout (not a ToolError), and the doctor's row for
+    the checkout is a warning that says the git did not answer, with no advice to delete the folder."""
+    modulo = __import__("simplicio_video.doctor_trilhas", fromlist=["x"])
+    monkeypatch.setattr(tools, "_git", REAL_GIT)
+    monkeypatch.setattr(modulo, "LIMITE_LOCAL_S", 0.5)
+    git_preso = ambiente.caixa.bin / "git"
+    git_preso.write_text(f"#!/bin/sh\nexec \"{sys.executable}\" -c \"import time; time.sleep(60)\"\n", encoding="utf-8")  # the sealed PATH has no sleep
+    git_preso.chmod(0o755)
+    pasta = ambiente.caixa.tmp / "tools" / "opencut"
+    (pasta / ".git").mkdir(parents=True)
+    (pasta / "package.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(tools.GitTimeout):
+        REAL_GIT("rev-parse", "HEAD", cwd=pasta, timeout=0.5)
+
+    c = _c(_trilha(dt.collect(), "opencut"), "instalada")
+    assert c["status"] == "warn" and "tempo esgotado" in c["summary"]
+    assert "apague" not in (c["fix"] or "") and "apague" not in c["summary"]
