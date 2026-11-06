@@ -61,22 +61,28 @@ def test_kill_live_kills_every_registered_child_with_its_own_killer(tmp_path):
         limpa(gb, b)
 
 
-def test_a_child_started_while_the_engine_is_already_ending_is_killed_by_its_own_guard(monkeypatch, tmp_path):
-    """A tool call that begins after the exit guard has done its sweep: the child is registered too late for kill_live, so the guard
-    that started it ends it and raises the exit."""
-    pidfile = tmp_path / "pid"
-    vistos = []
+def test_a_child_is_not_even_forked_once_the_engine_is_ending(monkeypatch, tmp_path):
+    """A tool call that begins after the exit guard has done its sweep: the sweep could not see its child, so none is started and the
+    exit is raised in its place."""
+    forks = []
+    real = subprocess.Popen
+
+    class Popen(real):
+        def __init__(self, *a, **k):
+            forks.append(a)
+            super().__init__(*a, **k)
+
+    monkeypatch.setattr(subprocess, "Popen", Popen)
     monkeypatch.setattr(childio, "_exit_code", 128 + signal.SIGTERM)
     childio._exiting.set()
     try:
         with pytest.raises(SystemExit) as saida:
-            with childio.guarded_child(sleeper(pidfile), start_new_session=True, kill=lambda p: (vistos.append(p), childio.kill_group(p))):
+            with childio.guarded_child(sleeper(tmp_path / "pid"), start_new_session=True):
                 pytest.fail("the engine is ending: no block may run")
         assert saida.value.code == 128 + signal.SIGTERM
-        assert len(vistos) == 1 and vistos[0].returncode == -signal.SIGKILL and vistos[0] not in childio.live_children()
+        assert forks == [] and childio.live_children() == []
     finally:
         childio._exiting.clear()
-        limpa(vistos[0] if vistos else None, pidfile)
 
 
 # ---- the exit guard, in an engine process of its own (worker threads, main thread waiting, like the MCP server) ----

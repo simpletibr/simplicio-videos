@@ -227,7 +227,7 @@ class _Guard:
 # ---- the children that are under a guard right now (for a stop signal that no guard can take: a worker thread) ----
 
 _live: dict[int, tuple[subprocess.Popen, Callable[[subprocess.Popen], None]]] = {}  # pid -> (child, its killer)
-_live_mu = threading.Lock()
+_live_mu = threading.RLock()  # re-entrant: the exit handler runs on the main thread, which may be inside _track/_untrack
 _spawning = 0  # guarded_child calls that are between "about to fork" and "registered"
 _exiting = threading.Event()
 _exit_code = 0
@@ -249,8 +249,6 @@ def kill_live() -> None:
 def _track(proc: subprocess.Popen, killer: Callable[[subprocess.Popen], None]) -> None:
     with _live_mu:
         _live[proc.pid] = (proc, killer)
-    if _exiting.is_set():  # the engine is already ending: this child was started too late for kill_live to see it
-        raise SystemExit(_exit_code)
 
 
 def _untrack(proc: subprocess.Popen) -> None:
@@ -263,6 +261,8 @@ def _untrack(proc: subprocess.Popen) -> None:
 def _starting() -> Iterator[None]:
     global _spawning
     with _live_mu:
+        if _exiting.is_set():  # the engine is ending (a tool that goes on to its next program after the sweep killed the last one)
+            raise SystemExit(_exit_code)  # nothing is forked: the sweep has no way to see a child that starts after it
         _spawning += 1
     try:
         yield
@@ -279,13 +279,14 @@ def install_exit_guard(wait_s: float = 3.0, leave: Callable[[int], Any] = os._ex
     (nothing is installed). The CLI never calls this: its guarded_child blocks take the signals themselves."""
     def handler(signum, frame):
         global _exit_code
-        _exit_code = 128 + signum
-        _exiting.set()
+        with _live_mu:  # from here on _starting refuses: only the starts already counted in _spawning are waited for
+            _exit_code = 128 + signum
+            _exiting.set()
         limite = time.monotonic() + wait_s
         while True:
             quiet = _spawning == 0  # read BEFORE the kill: nobody was between fork and registration, so kill_live sees every child
             kill_live()
-            if quiet or time.monotonic() >= limite:  # (a worker that gets there later kills its own child: see _track)
+            if quiet or time.monotonic() >= limite:
                 break
             time.sleep(0.01)
         with contextlib.suppress(Exception):
