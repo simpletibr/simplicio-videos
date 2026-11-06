@@ -15,6 +15,10 @@ import pytest
 from simplicio_video import hostos, paths, tools
 from simplicio_video.cli import main
 
+import _caixa
+
+disco_de_sobra = _caixa.disco_de_sobra  # fixture (assigned, not imported: no shadowing)
+
 
 def _sem_casa(monkeypatch):
     for nome in list(os.environ):
@@ -135,7 +139,7 @@ def test_a_raiz_do_disco_nao_e_um_home(monkeypatch):
         hostos.home_absoluta()
 
 
-def test_o_doctor_sem_HOME_segue_e_responde(monkeypatch, tmp_path):
+def test_o_doctor_sem_HOME_segue_e_responde(monkeypatch, tmp_path, disco_de_sobra):
     """The doctor is a diagnostic: with no home its update and tools rows still answer, without a cache to read or write."""
     from simplicio_video.commands import doctor
     _sem_casa(monkeypatch)

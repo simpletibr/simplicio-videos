@@ -10,6 +10,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -451,8 +452,22 @@ def test_voicestudio_sem_checkout_pergunta_ao_app(smoke, monkeypatch, app_respon
         assert por_checagem["mcp video_voicestudio"].detalhe == "app fechado (sem resposta local)"
 
 
+PISO_DISCO_GB = 5  # the doctor's floor (commands/doctor.py MIN_DISCO_GB); its disk row measures the HOST, not the test
+
+
+def _disco_da_maquina_passa_no_piso():
+    """The smoke runs `doctor --json` in a subprocess: on a host under the floor its disk row is `fail` by design. This test says
+    what THIS machine is, so on a smaller disk it is skipped with the reason, never failed for the disk."""
+    for pasta in {ROOT, Path.home()}:
+        livre = shutil.disk_usage(pasta).free
+        if livre < PISO_DISCO_GB * 1024**3:
+            pytest.skip(f"{livre / 1024**3:.1f} GB livres em {pasta}: abaixo do piso de {PISO_DISCO_GB} GB do doctor "
+                        "(o disco é do host, não do código)")
+
+
 @pytest.mark.integration
 def test_smoke_trilhas_nesta_maquina_sem_fail():
+    _disco_da_maquina_passa_no_piso()
     r = subprocess.run([sys.executable, str(SCRIPT), "--json"], capture_output=True, text=True, encoding="utf-8",
                        timeout=600, cwd=ROOT)
     assert r.returncode == 0, (r.stdout[-3000:], r.stderr[-2000:])
