@@ -71,6 +71,15 @@ def mata_o_que_sobrou(pidfile: Path) -> None:
             os.killpg(pid, signal.SIGKILL) if os.getpgid(pid) == pid else os.kill(pid, signal.SIGKILL)
 
 
+def limpa(proc, pidfile: Path) -> None:
+    """mata_o_que_sobrou plus the direct child itself: it dies even when it never got to write its pid (a test that fails early)."""
+    if proc is not None:
+        with contextlib.suppress(Exception):
+            proc.kill()
+            proc.wait(5)
+    mata_o_que_sobrou(pidfile)
+
+
 def sinaliza_no_popen(monkeypatch, pidfile: Path, sinal: int, *, so_se: str | None = None) -> list:
     """Patch subprocess.Popen so that, after the child has started and written `pidfile`, the engine gets `sinal` while Popen is
     still running (its handler, if any, runs inside Popen, before the child is handed back). Only a Popen whose argv contains
