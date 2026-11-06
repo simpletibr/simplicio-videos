@@ -830,3 +830,47 @@ def test_o_voicestudio_diz_a_base_configuravel_e_o_loopback_so_nas_chamadas_com_
     assert "só fala com ele em 127.0.0.1:3900" not in linha
     for trecho in ("VOICESTUDIO_URL", "OMNIVOICE_URL", "127.0.0.1:3900", "só aceitam loopback", "`transcribe`, `dub create`, `clone`"):
         assert trecho in linha, f"the VoiceStudio line does not say {trecho!r}"
+
+
+# --- final review of PR #193 (LOW text issues in recipe (f)): each claim is pinned, and the old wording makes a test red ---------------
+
+
+def _receita_f() -> str:
+    return " ".join(_secao_da_receita(TEXTO, "f").split())
+
+
+def test_no_terminal_um_traceback_e_falha_mesmo_com_codigo_1():
+    """The engine's own crash (non-UTF-8 input) exits 1 with a Traceback on stderr and no `instagram: ...` line: a failure in the terminal.
+    Through MCP the same text comes in `erros`, and `ok` stays true (the exit 1 is a result there)."""
+    secao = _receita_f()
+    assert "No terminal, um Traceback no stderr também é falha, mesmo com código 1 e sem linha `instagram: ...`" in secao
+    assert "um arquivo que não é UTF-8, por exemplo" in secao
+    assert "no MCP ele vem em `erros`" in secao
+
+
+def test_o_codigo_2_e_entrada_sem_nada_para_medir_e_nao_e_nota():
+    """hookscore exits 2 with `nothing to score` on empty input, with or without `--json` (the check runs before the JSON); beats exits 2
+    with `empty script`. Nothing was measured."""
+    secao = _receita_f()
+    assert "O código 2 é entrada sem nada para medir" in secao
+    assert "hookscore (`nothing to score`, com ou sem `--json`) e beats (`empty script`) saem com 2" in secao
+    assert "nada foi medido" in secao
+
+
+def test_com_json_o_zero_vale_quando_o_script_chega_ao_json():
+    """Upstream: hookscore and detect return before `sys.exit` when `--json` is set. An unknown option or an environment error exits 1
+    before the script runs, so `--json` does not make it 0 then."""
+    secao = _receita_f()
+    assert "Com `--json`, hookscore e detect saem com 0 quando o script chega ao JSON" in secao
+    assert "uma opção desconhecida ou um erro de ambiente sai com 1 antes disso" in secao
+    assert "saem com 0 sempre" not in secao
+
+
+def test_hookscore_sem_json_vale_a_maior_nota_das_linhas():
+    """hookscore.py (~L309): `sys.exit(0 if max(score) >= 70 else 1)`. With one sentence the score is the one; with several lines the top
+    one decides, so a strong line makes it exit 0 even if the others are weak."""
+    secao = _receita_f()
+    assert "hookscore sem `--json` com uma só frase (nota abaixo de 70)" in secao
+    assert "com várias linhas, o código vem da **maior** nota" in secao
+    assert "sai com 0 se alguma linha chegar a 70" in secao
+    assert "hookscore sem `--json` (nota abaixo de 70)" not in secao
