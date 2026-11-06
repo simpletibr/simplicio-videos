@@ -97,6 +97,14 @@ def test_config_md_tem_toda_variavel_lida_pelo_codigo(gerado):
     assert not missing, f"variáveis lidas pelo código ausentes de config.md: {missing}"
 
 
+def test_config_md_descreve_o_rotulo_de_procedencia_dos_jobs(gerado):
+    """SIMPLICIO_JOB_ORIGIN is set by the jobs runner ('terminal' or 'mcp'); the row must say so and say it is no access control."""
+    linha = next(l for l in _read(gerado, "config.md").splitlines() if l.startswith("| `SIMPLICIO_JOB_ORIGIN`"))
+    assert "sem descrição" not in linha
+    assert "terminal" in linha and "mcp" in linha and "jobs.py" in linha
+    assert "controle de acesso" in linha
+
+
 def test_eventos_vazio_com_aviso(gerado):
     assert "ainda não há eventos" in _read(gerado, "events.md").lower()
 
