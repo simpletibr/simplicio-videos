@@ -101,7 +101,26 @@ HARNESS = textwrap.dedent('''
                     signal.pthread_kill(_main, signal.SIGTERM)
                     time.sleep(0.3)  # still inside Popen while the main thread handles the signal
         subprocess.Popen = _P
+    if cfg.get("respawn"):  # a worker that starts the next child as soon as the previous one dies, Popen slow to hand it back
+        _real2 = subprocess.Popen
+        _n = [0]
+        class _Q(_real2):
+            def __init__(self, *a, **k):
+                super().__init__(*a, **k)
+                if "time.sleep(120)" in " ".join(map(str, a[0])):
+                    n, _n[0] = _n[0], _n[0] + 1
+                    open(cfg["respawn"] + "." + str(n), "w").write(str(self.pid))  # the fork happened: this child exists
+                    if n >= 1:
+                        time.sleep(0.3)  # the engine's handler must not leave while this is going on
+        subprocess.Popen = _Q
     childio.install_exit_guard()
+
+    def work_respawn(pidfile, group):
+        while True:
+            with childio.guarded_child([sys.executable, "-c",
+                    "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(120)", pidfile],
+                    start_new_session=True) as proc:
+                proc.wait()
 
     def work(pidfile, group):
         with childio.guarded_child([sys.executable, "-c",
@@ -110,7 +129,7 @@ HARNESS = textwrap.dedent('''
             proc.wait()
 
     for i, group in enumerate(cfg["groups"]):
-        threading.Thread(target=work, args=(cfg["pidfiles"][i], group), daemon=True).start()
+        threading.Thread(target=work_respawn if cfg.get("respawn") else work, args=(cfg["pidfiles"][i], group), daemon=True).start()
     print("ready", flush=True)
     time.sleep(60)
     print("the engine was not stopped", flush=True)
@@ -155,6 +174,26 @@ def test_a_signal_inside_popen_of_a_worker_thread_still_ends_with_the_child_dead
     finally:
         motor.kill()
         motor.wait()
+        limpa(None, pidfile)
+
+
+def test_a_worker_that_starts_the_next_child_when_the_killed_one_dies_does_not_leave_an_orphan(tmp_path):
+    """The sweep kills child 1; the worker, woken by that, starts child 2 (a tool that runs several programs in a row). The engine
+    must not leave while that start is going on, or must stop it before the fork: no child may outlive it."""
+    pidfile, marcas = tmp_path / "p0", tmp_path / "forked"
+    motor = _roda_harness(tmp_path, {"groups": [True], "pidfiles": [str(pidfile)], "respawn": str(marcas)})
+    try:
+        espera_pid(pidfile)
+        os.kill(motor.pid, signal.SIGTERM)
+        assert motor.wait(15) == 128 + signal.SIGTERM, (tmp_path / "h.err").read_text()
+        pids = [int(m.read_text()) for m in sorted(tmp_path.glob("forked.*")) if m.read_text().strip()]
+        assert pids, "the harness never forked a child"
+        assert espera(lambda: not any(vivo(p) for p in pids), 10), f"a child that was started while the engine was ending outlived it: {pids}"
+    finally:
+        motor.kill()
+        motor.wait()
+        for m in tmp_path.glob("forked.*"):
+            limpa(None, m)
         limpa(None, pidfile)
 
 
