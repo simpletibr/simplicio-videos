@@ -153,10 +153,18 @@ def stop_as_interrupt(signum: int) -> BaseException:
 
 
 def kill_group(proc: subprocess.Popen, group: bool = True) -> None:
-    """SIGKILL the child's whole process group (`group`: it was started with start_new_session) or just the child, then reap it."""
+    """SIGKILL the child's whole process group (`group`: it was started with start_new_session) or just the child, then reap it.
+    It signals nothing that may not be the child: a pid <= 1 (killpg(0) is OUR group, killpg(1) is init's), our own pid or
+    process group, and a child that has already exited (its pid may belong to somebody else by now). `group` on a child that
+    leads no group of its own (no start_new_session: killpg would name no group, or ours) kills just the child."""
+    pid = proc.pid
+    if pid <= 1 or pid == os.getpid() or (hasattr(os, "getpgrp") and pid == os.getpgrp()):
+        return
+    if proc.poll() is not None:  # exited and reaped: nothing left to kill, and the pid is no longer ours
+        return
     with contextlib.suppress(ProcessLookupError, PermissionError):
-        if group and hasattr(os, "killpg"):
-            os.killpg(proc.pid, signal.SIGKILL)
+        if group and hasattr(os, "killpg") and os.getpgid(pid) == pid:
+            os.killpg(pid, signal.SIGKILL)
         else:  # no group of its own (or Windows): only the child itself
             proc.kill()
     with contextlib.suppress(Exception):
@@ -175,6 +183,7 @@ class _Guard:
         if self.proc is None or self.stopping:  # no child yet (or already stopping it): note it, act when the child exists
             self.pending.append(signum)
             return
+        self.stopping = True  # here, not in the `except`: a second signal can land between this raise and the first line there
         raise self.stop(signum)
 
     def install(self) -> None:
@@ -191,10 +200,20 @@ class _Guard:
                 continue
 
     def restore(self) -> None:
+        """Every handler goes back, one signal at a time: a signal delivered while this runs can raise (from the handler just put
+        back, or from ours still in place), and that must not cut the loop short. The first such exception is raised at the end."""
+        first: BaseException | None = None
         for sig, old in self.previous.items():
-            with contextlib.suppress(ValueError, OSError):
-                if signal.getsignal(sig) == self.handle:  # a stop routine that set SIG_IGN keeps it: it restores in its own time
-                    signal.signal(sig, old if old is not None else signal.SIG_DFL)
+            for _ in range(3):  # a raise from our own handler, before the swap, is retried: the swap itself must happen
+                try:
+                    with contextlib.suppress(ValueError, OSError):
+                        if signal.getsignal(sig) == self.handle:  # a stop routine that set SIG_IGN keeps it: it restores in its own time
+                            signal.signal(sig, old if old is not None else signal.SIG_DFL)
+                    break
+                except BaseException as e:  # noqa: BLE001 - a stop signal turned into an exception by a handler
+                    first = first or e
+        if first is not None:
+            raise first
 
 
 @contextlib.contextmanager
@@ -222,7 +241,7 @@ def guarded_child(argv: Sequence[Any], *, stop: Callable[[int], BaseException] |
             raise guard.stop(guard.pending[0])
         yield guard.proc
     except BaseException:
-        guard.stopping = True  # a second signal must not cut the kill short
+        guard.stopping = True  # (handle() already set it for a signal; this covers the other exceptions) the kill is not cut short
         if guard.proc is not None:
             killer(guard.proc)
         raise
