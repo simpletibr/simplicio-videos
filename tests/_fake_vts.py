@@ -7,7 +7,7 @@ whether stdin was a terminal). `MARKERS` are files it writes when it is asked to
 
 modes: ok (default) | oldversion (--version says 0.2.9) | slow (extract sleeps 60 s) | grandchild (extract leaves a sleeping child
 and records its pid in `child.pid`, then sleeps) | esc (frame-at prints terminal escapes, bidi marks and a prompt injection) | big
-(frame-at prints more than the stdout cap) | fail (check exits 3 with a message on stderr) | failextract (extract exits 7) | leaves (extract leaves a sleeping child behind and exits 0)
+(frame-at prints more than the stdout cap) | fail (check exits 3 with a message on stderr) | failextract (extract exits 7) | flood (frame-at prints 200 KB and keeps running) | leaves (extract leaves a sleeping child behind and exits 0)
 """
 from __future__ import annotations
 
@@ -91,6 +91,10 @@ elif cmd == "frame-at":
     elif mode == "big":
         for _ in range(200000):
             print("t=1.000\tframes/shot000.jpg\t" + "x" * 80)
+    elif mode == "flood":
+        sys.stdout.write("x" * 200000 + "\n")
+        sys.stdout.flush()
+        time.sleep(60)
 elif cmd == "clip":
     bundle = Path(opt("--bundle"))
     d = bundle / "rewatch" / "c1"

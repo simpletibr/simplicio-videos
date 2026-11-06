@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import signal
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -824,3 +826,104 @@ def test_doc_of_the_module_says_what_is_not_covered_by_the_engines_guarantees():
 
 def test_the_pins_file_ships_beside_the_other_package_data():
     assert (Path(v2s.__file__).parent / "data" / "video_to_skill" / "pins.json").is_file()
+
+
+# ------------------------------------------------------------------------------------------------- review of PR #207
+
+@pytest.mark.slow
+def test_output_that_floods_while_the_extractor_keeps_running_is_cut_in_the_loop_not_by_the_timeout(env, monkeypatch):
+    """The in-loop cap: the extractor prints past the cap and goes on running, so only the loop can end it (a timeout would say `tempo`)."""
+    fake.set_mode(env.bindir, "flood")
+    monkeypatch.setattr(v2s, "MAX_STDOUT_BYTES", 64 * 1024)
+    monkeypatch.setitem(v2s.TIMEOUT_S, "frame-at", 6.0)
+    started = time.monotonic()
+    with pytest.raises(v2s.VideoToSkillError, match="limite"):
+        v2s.run_video_to_skill(["frame-at", "--bundle", str(bundle(env)), "1"])
+    assert time.monotonic() - started < 5.0
+
+
+@pytest.mark.parametrize("name", ["Bad_Name", "BAD", "-a", "a-", "a--b", "a_b", "a b", "a" * 65, "é"])
+def test_compile_refuses_a_skill_name_that_is_not_kebab_case_even_when_the_out_folder_carries_it(env, name):
+    """The out folder named after the skill is a second guard; the kebab-case check must hold on its own."""
+    p = env.files / "bad.json"
+    p.write_text(json.dumps({"skill_name": name}), encoding="utf8")
+    with pytest.raises(v2s.VideoToSkillError, match="kebab"):
+        v2s.run_video_to_skill(["compile", "--bundle", str(bundle(env)), "--ir", str(p), "--out", str(env.files / name)])
+    assert fake.calls(env.bindir) == []
+
+
+def test_frame_at_and_clip_do_not_write_into_a_bundle_in_a_forbidden_place(env):
+    """A folder that already has a manifest.json is not a licence to write rewatch/ anywhere: the output rule applies to the bundle too."""
+    hidden = env.home / ".config" / "bundle"
+    (hidden / "frames").mkdir(parents=True)
+    (hidden / "manifest.json").write_text("{}", encoding="utf8")
+    inside = tools.tools_dir() / "bundle"
+    inside.mkdir(parents=True)
+    (inside / "manifest.json").write_text("{}", encoding="utf8")
+    for where in (hidden, inside, env.checkout):
+        for words in (["frame-at", "--bundle", str(where), "1"], ["clip", "--bundle", str(where), "0", "5"]):
+            with pytest.raises(v2s.VideoToSkillError, match="não grava"):
+                v2s.run_video_to_skill(words)
+    assert fake.subcommands(env.bindir) == []
+
+
+def test_install_with_yes_shows_the_plan_once(env, capsys):
+    pkg = package(env)
+    assert run("install", "--package", pkg, "--yes") == 0
+    out, _ = out_of(capsys)
+    assert out.count("plan: would install") == 1 and "installed" in out
+    argvs = [c["argv"] for c in fake.calls(env.bindir) if c["argv"][0] == "install"]
+    assert argvs == [["install", "--package", str(pkg), "--dry-run"], ["install", "--package", str(pkg), "--yes"]], "the dry run still runs first"
+
+
+def test_install_with_yes_does_not_apply_when_the_dry_run_fails(env):
+    exe = env.bindir / "vts-extract"
+    exe.write_text(exe.read_text().replace('print("plan: would install into ~/.agents/skills")',
+                                           'print("plan: would install"); sys.exit(4 if "--dry-run" in argv else 0)'), encoding="utf8")
+    assert run("install", "--package", package(env), "--yes") == 4
+    assert fake.markers(env.bindir) == []
+
+
+@pytest.mark.parametrize("words", [["clone", "--upload-pack=/tmp/x"], ["clone", "-x"], ["clone", "--help-me"], ["setup", "-x"]])
+def test_clone_and_setup_refuse_arguments_that_look_like_options(env, monkeypatch, words):
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+    monkeypatch.setattr(tools, "install", lambda name: pytest.fail("git must not be started"))
+    with pytest.raises(v2s.VideoToSkillError, match="opç|argumento"):
+        v2s.run_video_to_skill(words)
+
+
+def test_clone_turns_an_os_error_of_the_install_into_a_clean_refusal(env, monkeypatch):
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+
+    def boom(name):
+        raise FileNotFoundError(2, "No such file or directory", "git")
+
+    monkeypatch.setattr(tools, "install", boom)
+    with pytest.raises(v2s.VideoToSkillError, match="clone"):
+        v2s.run_video_to_skill(["clone"])
+
+
+@pytest.mark.parametrize("name", ["b\nx", "b\rx", "b\x1bx", "b\x7fx"])
+def test_a_path_with_a_control_character_is_refused(env, name):
+    with pytest.raises(v2s.VideoToSkillError):
+        v2s.run_video_to_skill(["extract", str(env.video), "--out", str(env.files / name)])
+    assert fake.calls(env.bindir) == []
+
+
+@pytest.mark.parametrize("verb", v2s.SUBCOMMANDS)
+def test_each_verb_has_its_own_help(verb, capsys, env):
+    assert cli.main(["video-to-skill", verb, "--help"]) == 0
+    out = capsys.readouterr().out
+    first = out.splitlines()[0]
+    assert f"video-to-skill {verb}" in first
+    assert not [v for v in v2s.SUBCOMMANDS if v != verb and re.search(rf"video-to-skill {re.escape(v)}\b", first)]
+    for option in v2s._SPEC.get(verb, ({}, 0, 0))[0]:
+        assert option in out, (verb, option)
+    assert len(out.splitlines()) < len(v2s.USAGE.splitlines()) / 2, "not the general help"
+    assert fake.calls(env.bindir) == []
+    assert cli.main(["video-to-skill", verb, "-h"]) == 0 and capsys.readouterr().out == out
+
+
+def test_help_after_other_arguments_is_still_the_verb_help_and_runs_nothing(env, capsys):
+    assert cli.main(["video-to-skill", "extract", str(env.video), "--out", str(env.files / "b"), "--help"]) == 0
+    assert "--autorizo" in capsys.readouterr().out and fake.calls(env.bindir) == [] and not (env.files / "b").exists()

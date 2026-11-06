@@ -128,3 +128,69 @@ def test_the_env_vars_of_the_track_are_described_in_the_reference_generator():
 def test_smoke_trilhas_has_a_read_only_script_for_the_track():
     text = (ROOT / "scripts" / "smoke_trilhas.py").read_text(encoding="utf8")
     assert '"video_to_skill": ChamadaMcp("video_video_to_skill", {"args": "status"}, precisa=True)' in text
+
+
+# ------------------------------------------------------------------------------------------------- review of PR #207
+
+def test_agents_md_repo_map_counts_the_seven_recipes_of_the_trilhas_skill():
+    text = (ROOT / "AGENTS.md").read_text(encoding="utf8")
+    cell = next(line for line in text.splitlines() if line.startswith("| `skills/simplicio-video-trilhas/`"))
+    assert "sete receitas" in cell and "seis receitas" not in cell and "vídeo vira skill" in cell
+    assert "seis receitas" not in text
+
+
+def _first_extract(text: str) -> int:
+    return text.index("video-to-skill extract ")
+
+
+def test_the_examples_create_the_parent_folder_before_the_first_extract():
+    """`--out` needs an existing parent (like every other track): the examples say `mkdir -p`."""
+    skill = (ROOT / "skills" / "simplicio-video-trilhas" / "SKILL.md").read_text(encoding="utf8")
+    recipe = skill[skill.index("### Receita (g)"):]
+    readme = _section(README, "video-to-skill (`video-to-skill`)")
+    pt = _section(README_PT, "video-to-skill (`video-to-skill`)")
+    for text in (recipe, README[README.index("### video-to-skill (`video-to-skill`)"):], README_PT[README_PT.index("### video-to-skill (`video-to-skill`)"):]):
+        assert "mkdir -p out/excel" in text and text.index("mkdir -p out/excel") < _first_extract(text)
+    assert readme and pt
+    assert "a pasta-mãe precisa existir" in pt or "o `--out` precisa de uma pasta-mãe que já existe" in pt
+    assert "parent folder must exist" in readme
+
+
+def test_the_skill_doctor_text_says_both_pin_only_tracks_show_only_the_pin():
+    skill = " ".join((ROOT / "skills" / "simplicio-video-trilhas" / "SKILL.md").read_text(encoding="utf8").split())
+    assert "o video-use só mostra o pin" not in skill
+    assert "o video-use e o video-to-skill só mostram o pin" in skill
+    assert (ROOT / "skills" / "simplicio-video-trilhas" / "SKILL.md").read_bytes() == (
+        ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video-trilhas" / "SKILL.md").read_bytes()
+
+
+def test_a_comment_in_test_cli_doctor_says_thirteen_tracks():
+    assert "twelve external tracks" not in (ROOT / "tests" / "packaging" / "test_cli_doctor.py").read_text(encoding="utf8")
+
+
+def test_the_incorporated_projects_intro_includes_the_release_binary_case():
+    en = README[README.index("## Incorporated projects (external tracks)"):][:2500]
+    pt = README_PT[README_PT.index("## Projetos incorporados"):][:2500] if "## Projetos incorporados" in README_PT else README_PT
+    assert "a release binary checked by sha256 (video-to-skill)" in en
+    assert "um binário de release conferido por sha256 (video-to-skill)" in pt
+
+
+def test_the_readme_says_a_path_binary_is_trusted_by_version_only_and_lists_the_limits():
+    for text, phrases in ((_section(README, "video-to-skill (`video-to-skill`)"),
+                           ("trusted by its version only", "no sha256", "same user", "group-writable", "does not hash the input",
+                            "proxy", "credentials")),
+                          (_section(README_PT, "video-to-skill (`video-to-skill`)"),
+                           ("confiado só pela versão", "sem sha256", "mesmo usuário", "gravável pelo grupo", "não calcula o hash da entrada",
+                            "proxy", "credenciais"))):
+        for phrase in phrases:
+            assert phrase in text, phrase
+
+
+def test_the_skill_recipe_and_the_help_say_the_same_limits():
+    skill = " ".join((ROOT / "skills" / "simplicio-video-trilhas" / "SKILL.md").read_text(encoding="utf8").split())
+    recipe = skill[skill.index("### Receita (g)"):]
+    for phrase in ("mesmo usuário", "gravável pelo grupo", "não calcula o hash da entrada", "proxy", "credenciais", "só pela versão"):
+        assert phrase in recipe, phrase
+    usage = " ".join(video_to_skill.USAGE.split())
+    for phrase in ("mesmo usuário", "não calcula o hash da entrada", "credenciais"):
+        assert phrase in usage, phrase

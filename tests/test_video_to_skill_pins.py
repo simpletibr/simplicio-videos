@@ -132,6 +132,7 @@ def _bad(mutate):
     (lambda d: d["assets"][0].pop("member_sha256"), "member_sha256"),
     (lambda d: d["assets"][0].__setitem__("file", "vts-extract-other.tar.gz"), "nome"),
     (lambda d: d["assets"][3].__setitem__("format", "tar.gz"), "formato"),
+    (lambda d: d["assets"][0].__setitem__("member_sha256", d["assets"][0]["sha256"]), "iguais"),
     (lambda d: d["assets"][0].__setitem__("member", "../vts-extract"), "member"),
     (lambda d: d["assets"][0].__setitem__("member", "bin/vts-extract"), "member"),
     (lambda d: d["assets"][0].__setitem__("member_size", v2s.MAX_MEMBER_BYTES + 1), "tamanho"),
@@ -550,3 +551,65 @@ def test_the_module_does_not_import_the_network_stack_at_import_time():
     assert "import urllib.request" not in top and "import http" not in top and "import requests" not in top
     assert "preexec_fn" not in src.replace("# no preexec_fn", "")
     assert "shell=True" not in src and "os.system" not in src
+
+
+# ------------------------------------------------------------------------------------- review of PR #207: B1, C1 (e) and (f)
+
+def test_the_pins_are_read_lazily_from_the_package_data_never_at_import(tmp_path, monkeypatch):
+    """SIMPLICIO_VIDEO_HOME pointing to an empty folder made `paths.data_dir()` miss pins.json and `import simplicio_video.cli` crash."""
+    monkeypatch.setenv("SIMPLICIO_VIDEO_HOME", str(tmp_path / "vazio"))
+    monkeypatch.delattr(v2s, "PINS", raising=False)
+    assert v2s._pins()["version"] == "0.3.0"  # read from the package data, not from the env-dependent folder
+    assert v2s.PINS["commit"] == COMMIT and v2s.VERSION == "0.3.0"
+
+
+def test_a_missing_pins_file_is_a_clear_error_in_the_commands_that_need_it(tmp_path, monkeypatch):
+    monkeypatch.delattr(v2s, "PINS", raising=False)
+    monkeypatch.setattr(paths, "DATA_DIR", tmp_path / "sem-dados")
+    with pytest.raises(v2s.VideoToSkillError, match="pins.json"):
+        v2s.platform_asset("Linux", "x86_64")
+    with pytest.raises(v2s.VideoToSkillError, match="pins.json"):
+        v2s.run_video_to_skill(["status"])
+
+
+@pytest.mark.parametrize("argv", [["--version"], ["tools", "--json"], ["status", "--json"], ["doctor", "trilhas", "--json"],
+                                  ["video-to-skill", "--help"]])
+def test_the_cli_works_with_an_empty_video_home(tmp_path, argv):
+    import subprocess
+    import sys
+
+    from conftest import offline_env
+    (tmp_path / "vazio").mkdir()
+    (tmp_path / "home").mkdir()
+    env = offline_env(SIMPLICIO_VIDEO_HOME=str(tmp_path / "vazio"), HOME=str(tmp_path / "home"), SIMPLICIO_TOOLS_DIR=str(tmp_path / "t"),
+                      SIMPLICIO_VIDEO_DATA=str(tmp_path / "d"))
+    r = subprocess.run([sys.executable, "-m", "simplicio_video", *argv], capture_output=True, text=True, env=env, cwd=tmp_path,
+                       stdin=subprocess.DEVNULL, timeout=120)
+    assert "Traceback" not in r.stderr and r.returncode in (0,), (argv, r.returncode, r.stderr[-500:])
+
+
+def test_the_byte_cap_of_copy_capped_holds_by_itself(tmp_path):
+    dest = tmp_path / "o"
+    with pytest.raises(v2s.VideoToSkillError, match="tamanho"):
+        v2s._copy_capped(io.BytesIO(b"x" * 2000), dest, 1000)
+    assert not dest.exists()
+
+
+@pytest.mark.parametrize("fmt, maker", [("tar.gz", _tar), ("zip", _zip)])
+def test_the_header_size_cap_holds_without_the_byte_cap(tmp_path, monkeypatch, fmt, maker):
+    """Each size guard on its own: with the byte cap of the copy off, the size in the header still refuses."""
+    monkeypatch.setattr(v2s, "_copy_capped", lambda src, dest, cap: dest.write_bytes(src.read()))
+    with pytest.raises(v2s.VideoToSkillError, match="tamanho"):
+        _extract(tmp_path, maker([("vts-extract", b"x" * 1001, "file")]), fmt, cap=1000)
+
+
+def test_the_redirect_handler_refuses_a_foreign_target_before_following_it():
+    import urllib.error
+    import urllib.request
+    handler = v2s._redirect_handler()()
+    req = urllib.request.Request(BASE + "vts-extract-linux-x86_64.tar.gz")
+    for bad in ("https://evil.example.com/x", "http://github.com/x", "https://githubusercontent.com.evil.example/x"):
+        with pytest.raises(urllib.error.URLError):
+            handler.redirect_request(req, io.BytesIO(b""), 302, "Found", {}, bad)
+    ok = handler.redirect_request(req, io.BytesIO(b""), 302, "Found", {}, "https://release-assets.githubusercontent.com/x")
+    assert ok is not None and ok.full_url.startswith("https://release-assets.githubusercontent.com/")
