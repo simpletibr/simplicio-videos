@@ -52,7 +52,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SIMPLICIO_JOB_ORIGIN` | Rótulo de procedência de uma tarefa de `jobs`: `terminal` ou `mcp`. O runner (`jobs.py`) grava no ambiente do processo filho a origem de quem submeteu a tarefa, e a trilha `video-to-skill` a copia para o `PASTA.extract.json` (`submitted_via`). Não é controle de acesso: não autoriza nem bloqueia nada, só registra de onde veio o pedido. | `src/simplicio_video/video_to_skill.py:1303` |
 | `SIMPLICIO_MCP` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/childio.py:97`<br>`src/simplicio_video/mcp_server.py:944` |
 | `SIMPLICIO_MONTAGE_TIMEOUT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/montage.py:761` |
-| `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline (inclui a consulta da última release no `update` e no `doctor --online`). O gate (`make check`) roda com `1`. | `src/simplicio_video/rede.py:31`<br>`src/simplicio_video/tools_update.py:65` |
+| `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline (inclui a consulta da última release no `update` e no `doctor --online`). O gate (`make check`) roda com `1`. | `src/simplicio_video/rede.py:31` |
 | `SIMPLICIO_OPENMONTAGE_DIR` | Pasta do OpenMontage (alternativa a `OPENMONTAGE_DIR`). | `src/simplicio_video/montage.py:47` |
 | `SIMPLICIO_RCLONE_BIN` | Caminho do binário do rclone (padrão: o `rclone` do PATH). | `src/simplicio_video/publish.py:117` |
 | `SIMPLICIO_STT_PY` | Python com o motor de transcrição (STT). Padrão: o Python do TTS local. | `src/simplicio_video/words.py:36` |
