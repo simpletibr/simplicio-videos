@@ -9,8 +9,8 @@ command that fixes it, in this order:
   python, node, ffmpeg, ffmpeg-libass, disk, ports, GEMINI_API_KEY (presence only, never the value)
   setup          the workspace: a warning when `simplicio-video setup` never ran, a failure when it is there and invalid
   tools          the lock of the external tracks (offline)
-  trilhas        one row for the thirteen external tracks (installed, pin, setup, dependencies, the fix of each gap); the full
-                 table, with its own schema, is `simplicio-video doctor trilhas` (doctor_trilhas.py)
+  trilhas        one row for the external tracks, one per entry of `tools.TOOLS` (installed, pin, setup, dependencies, the fix of
+                 each gap); the full table, with its own schema, is `simplicio-video doctor trilhas` (doctor_trilhas.py)
 
 Output: `simplicio-video doctor: <status>`, then one line per check (`  ok    name   summary` and `        fix: ...`);
 with --json, {"schema": "simplicio.doctor/v1", "status", "version", "checks": [{name, status, summary, fix, detail}]}.
@@ -39,7 +39,7 @@ from typing import Any, Callable, Optional
 import yaml
 
 from .. import __version__, distribution, doctor_trilhas, hostos, paths, tools_lock
-from . import update
+from . import update, versions
 from .setup import POL_SCHEMA, WS_LAYOUT, WS_SCHEMA
 
 SCHEMA = "simplicio.doctor/v1"
@@ -111,21 +111,21 @@ def _update(online: bool, installed: str, fetch: Callable[[], str], state_dir: P
             info = update.check_latest(kind, installed, fetch=fetch, git=git)
         except (OSError, ValueError, KeyError, subprocess.SubprocessError, update.Refused) as exc:
             return _row("update", "warn", f"não consegui consultar a última versão de {update.REPO}: {exc}")
-        update.write_check(info, state_dir)
+        versions.write_check(info, state_dir)
         detail = {**info, "checked_at": int(time.time())}
         if info["update_available"]:
             return _row("update", "warn", f"atualização disponível: {installed} -> {info['latest']} (consultado agora)", fix, detail)
         return _row("update", "ok", f"em dia: {installed} (última versão {info['latest']}, consultado agora)", None, detail)
     try:
-        cached = update.read_check(state_dir)
-    except update.CheckInvalid as exc:  # a corrupt or hostile file: a warning with the way out, never a traceback
+        cached = versions.read_check(state_dir)
+    except versions.CheckInvalid as exc:  # a corrupt or hostile file: a warning with the way out, never a traceback
         return _row("update", "warn", f"a checagem em cache do update (update-check.json) está inválida ({exc}); "
                     "rode `simplicio-video update --check` para regravá-la", "simplicio-video update --check")
     if cached is None:
         return _row("update", "ok", "nenhuma checagem em cache; rode `simplicio-video update --check` ou "
                                     "`simplicio-video doctor --online`")
     # `cached` is validated and holds only the keys of the schema: `latest` is a normalized release, `checked_at` a real instant
-    available = update.parse_version(cached["latest"]) > update.release_tuple(installed)
+    available = versions.parse_version(cached["latest"]) > versions.release_tuple(installed)
     when = hostos.utc_stamp(cached["checked_at"])
     detail = {**cached, "installed": installed, "update_available": available}
     if available:
@@ -344,13 +344,13 @@ def collect(*, online: bool = False, environ: Optional[dict] = None,
     env = dict(os.environ) if environ is None else environ
     installed = installed or __version__
     try:
-        state_dir = state_dir or update.default_state_dir()
+        state_dir = state_dir or versions.default_state_dir()
     except hostos.SemCasa:  # no home: nothing to read or write there (a path under /dev/null can be neither)
         state_dir = Path(os.devnull) / "sem-home"
     wanted = [only] if only else list(SECTIONS)
     kind = kind or distribution.kind()
     fetch = fetch or update.fetch_latest_tag
-    git = git or update._git
+    git = git or update.git
     usage = usage or shutil.disk_usage
     # a package has no checkout: measure the folder where the venvs, tools and renders go, never site-packages
     anchor = paths.home() if kind == distribution.SOURCE else state_dir
@@ -392,7 +392,7 @@ def _texto(doc: dict) -> str:
 
 
 def run(a) -> int:
-    if a.what == "trilhas":  # the full table of the thirteen tracks, with its own schema
+    if a.what == "trilhas":  # the full table of the external tracks (`tools.TOOLS`), with its own schema
         doc = doctor_trilhas.collect(online=a.online)
         hostos.say(json.dumps(doc, sort_keys=True) if a.json else doctor_trilhas.texto(doc))  # ensure_ascii: valid on any console
         return 1 if doc["status"] == "fail" else 0

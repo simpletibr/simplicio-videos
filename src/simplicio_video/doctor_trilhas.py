@@ -25,7 +25,6 @@ Output: `texto(doc)` for the terminal; `collect()` returns {"schema": "simplicio
 from __future__ import annotations
 
 import functools
-import hashlib
 import os
 import re
 import shlex
@@ -36,6 +35,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from . import hostos, tools, tools_lock, tools_update
+from .fsutil import sha256_file
 from .status import ENV_FERRAMENTA
 
 SCHEMA = "simplicio.doctor-trilhas/v1"
@@ -298,7 +298,7 @@ def _pin_git(head: str, ref: str, fonte: str, clone: str) -> tuple[bool, list]:
 def _sha256(arquivo: Path) -> Optional[str]:
     if arquivo.is_symlink() or not arquivo.is_file() or arquivo.stat().st_size > MAX_ARQUIVO_FIXADO:
         return None
-    return hashlib.sha256(arquivo.read_bytes()).hexdigest()
+    return sha256_file(arquivo)
 
 
 def _integridade(pasta: Path, tabela: dict) -> list:

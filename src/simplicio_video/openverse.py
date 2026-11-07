@@ -51,6 +51,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urljoin, urlparse
 
 from . import __version__, hostos, paths
+from .fsutil import sha256_file
 from .swap_providers import http as _api_http
 
 __all__ = ["OpenverseError", "search", "get", "library_list", "library_show", "review_sheet", "review", "review_status", "export",
@@ -331,14 +332,6 @@ def _index_tx():
         idx = _load_index()
         yield idx
         _atomic_write(lib / "index.json", _dump(idx))
-
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
 
 
 def _check_id(id_) -> str:

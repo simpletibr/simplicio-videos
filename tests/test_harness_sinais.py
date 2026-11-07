@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -137,3 +138,89 @@ def test_a_child_that_is_not_python_has_none_of_the_stop_signals_ignored():
     finally:
         proc.kill()
         proc.wait(10)
+
+
+def _mascara_de_sigign_de_um_sleep() -> tuple[int, str]:
+    """Launch a plain `sleep` through the helper, with pytest ignoring HUP and INT as under `nohup`, and read its SigIgn from /proc."""
+    from _orfao import lanca_como_shell
+
+    with sinais_ignorados("SIGHUP", "SIGINT"):
+        proc = lanca_como_shell(["sleep", "60"])
+    try:
+        comm = Path(f"/proc/{proc.pid}/comm")
+        assert espera(lambda: comm.exists() and comm.read_text().strip() == "sleep", 20), "the wrapper never exec'd the command"
+        linha = next(x for x in Path(f"/proc/{proc.pid}/status").read_text().splitlines() if x.startswith("SigIgn:"))
+        return int(linha.split()[1], 16), linha
+    finally:
+        proc.kill()
+        proc.wait(10)
+
+
+@pytest.mark.skipif(not Path("/proc/self/status").exists(), reason="needs /proc")
+@pytest.mark.skipif(not shutil.which("sleep"), reason="no sleep on PATH")
+def test_a_child_that_is_not_python_has_sigpipe_and_sigxfsz_at_their_defaults():
+    """The wrapper is a Python process, and Python starts with SIGPIPE and SIGXFSZ at SIG_IGN (SigIgn=0x1001000): the exec keeps them
+    ignored, so a plain `sleep | head` child would never die of a broken pipe. A shell gives a command both at their defaults."""
+    mascara, linha = _mascara_de_sigign_de_um_sleep()
+    for nome in ("SIGPIPE", "SIGXFSZ"):
+        assert not mascara & (1 << (int(getattr(signal, nome)) - 1)), f"{nome} is ignored in the child: {linha}"
+
+
+@pytest.mark.skipif(not Path("/proc/self/status").exists(), reason="needs /proc")
+@pytest.mark.skipif(not shutil.which("sleep"), reason="no sleep on PATH")
+def test_lanca_como_shell_returns_only_after_the_command_took_the_place_of_the_wrapper():
+    """Like Popen, which returns once the exec happened: the process a test signals is already the command, with its final
+    signal state, and not still the wrapper that is starting Python."""
+    from _orfao import lanca_como_shell
+
+    proc = lanca_como_shell(["sleep", "60"])
+    try:
+        assert Path(f"/proc/{proc.pid}/comm").read_text().strip() == "sleep"
+    finally:
+        proc.kill()
+        proc.wait(10)
+
+
+def _recusa_do_popen(argv):
+    with pytest.raises(OSError) as esperado:
+        subprocess.Popen(argv)
+    return esperado.value
+
+
+@pytest.mark.parametrize("caso", ["nome-solto", "caminho-que-nao-existe", "sem-permissao-de-execucao"])
+def test_lanca_como_shell_refuses_a_command_that_cannot_run_the_way_popen_does(caso, tmp_path):
+    """Popen raises FileNotFoundError (or PermissionError) in the caller. Through the wrapper the failure used to be an execvp
+    traceback in the wrapper's stderr and a plain rc=1 from a process that had already been returned."""
+    from _orfao import lanca_como_shell
+
+    if caso == "nome-solto":
+        alvo = "comando-que-nao-existe-simplicio"
+    elif caso == "caminho-que-nao-existe":
+        alvo = str(tmp_path / "nada" / "ai")
+    else:
+        alvo = str(tmp_path / "sem-x")
+        Path(alvo).write_text("#!/bin/sh\nexit 0\n")
+        os.chmod(alvo, 0o644)
+    esperado = _recusa_do_popen([alvo])
+    with open(tmp_path / "wrapper.err", "w+") as err:
+        with pytest.raises(type(esperado)) as obtido:
+            lanca_como_shell([alvo], stdout=subprocess.PIPE, stderr=err, stdin=subprocess.DEVNULL)
+        err.seek(0)
+        sobra = err.read()
+    assert (obtido.value.errno, obtido.value.filename) == (esperado.errno, alvo)
+    assert sobra == "", "the wrapper's own traceback must not reach the test's stderr"
+
+
+def test_lanca_como_shell_still_resolves_the_command_with_the_path_of_the_env_it_was_given(tmp_path):
+    """The lookup happens in the wrapper, after the env and cwd of Popen apply: same rule as Popen([name], env=env)."""
+    from _orfao import lanca_como_shell
+
+    pasta = tmp_path / "bin"
+    pasta.mkdir()
+    comando = pasta / "so-neste-path"
+    comando.write_text("#!/bin/sh\necho achei\n")
+    comando.chmod(0o755)
+    env = {**os.environ, "PATH": f"{pasta}{os.pathsep}{os.environ['PATH']}"}
+    proc = lanca_como_shell(["so-neste-path"], env=env, stdout=subprocess.PIPE, text=True)
+    saida, _ = proc.communicate(timeout=60)
+    assert (proc.returncode, saida) == (0, "achei\n")

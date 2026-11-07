@@ -18,6 +18,7 @@ from pathlib import Path
 
 from . import aio, childio, hostos, paths, voice_clone, words as wordsmod
 from .contract import Contract, r4
+from .fsutil import sha256_file
 
 DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=3400:t=q:w=1.3:g=2.5,"
                  "equalizer=f=9000:t=q:w=1:g=1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=140:makeup=2:knee=4,"
@@ -67,14 +68,6 @@ def sh(*a: str) -> str:
 
 def duration(p: Path) -> float:
     return float(sh("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)).strip())
-
-
-def sha256_file(p: Path) -> str:
-    h = hashlib.sha256()
-    with open(p, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def settings_for(c: Contract, prov: str) -> dict:
