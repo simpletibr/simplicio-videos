@@ -98,13 +98,19 @@ def test_o_produto_esta_na_0_8_0_ou_depois():
 def test_o_changelog_tem_a_secao_0_8_0_com_data_e_o_unreleased_vazio_acima():
     """O nome é do corte 0.8.0, quando o Unreleased nascia vazio. Com as notas do ciclo untangle ele deixa de ficar vazio, então a
     asserção de vazio saiu e entrou a mesma da 0.7.0: o Unreleased não repete o que já está na seção 0.8.0. (Renomear quando a regra
-    de ids permitir.)"""
+    de ids permitir.) O que saiu na 0.8.0 é lido da própria seção, não de uma lista escrita aqui: cada número de PR e a manchete em
+    negrito de cada bullet; mais os nomes que identificam a trilha video-to-skill (o commit e a tag fixados, o extrator, a 32ª tool)."""
     assert "## 0.8.0 — 2026-11-06" in _changelog()
     titulos = re.findall(r"^## (.+)$", _changelog(), re.M)
     assert titulos[:2] == ["Unreleased", "0.8.0 — 2026-11-06"], titulos[:3]
-    unreleased = _secao("Unreleased")
-    for da_0_8_0 in ("#207", "c1a1b90", "vts-extract", "32ª"):  # o PR, o commit fixado, o extrator e a 32ª tool da trilha video-to-skill
-        assert da_0_8_0 not in unreleased, f"{da_0_8_0!r} saiu na 0.8.0; as notas moram lá"
+    unreleased, da_0_8_0 = _secao("Unreleased"), _secao("0.8.0 — ")
+    prs = sorted(set(re.findall(r"#\d+", da_0_8_0)))
+    manchetes = sorted(set(re.findall(r"^- \*\*(.+?)\*\*", da_0_8_0, re.M)))
+    assert prs and manchetes, "a seção 0.8.0 perdeu os números de PR ou os bullets: o teste não leria nada"
+    repetidos = [m for m in manchetes if m in unreleased]
+    repetidos += [p for p in prs if re.search(re.escape(p) + r"(?!\d)", unreleased)]  # #2070 não conta como #207
+    repetidos += [t for t in ("c1a1b90", "v0.3.0", "vts-extract", "video.video-to-skill", "32ª") if t in unreleased]
+    assert not repetidos, f"o Unreleased repete o que saiu na 0.8.0 (as notas moram lá): {repetidos}"
 
 
 @pytest.mark.parametrize("trecho", [
