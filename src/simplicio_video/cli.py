@@ -154,7 +154,7 @@ def _contract_arg(p):
 def _ajuda_longa(only: str | None, nome: str, carrega: Callable[[], ModuleType]) -> dict[str, str]:
     """`description` and `epilog` of command `nome` when its long help lives in a module of the package (heavy: it imports the
     track, or six adapters). Only the page that is going to be printed needs them: `only` is the command whose `--help` it is;
-    None = every page (docs/reference/cli.md is made from that), "" = none (the main help shows the short line of each command)."""
+    None = every page (the generated reference of the CLI is made from that), "" = none (the main help shows the short line of each command)."""
     if only is not None and only != nome:
         return {}
     modulo = carrega()
