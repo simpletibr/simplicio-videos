@@ -413,3 +413,19 @@ def test_commit_do_checkout_de_terceiros_trata_o_git_que_trava_como_o_que_falha(
 def test_terceiros_nao_usa_o_nome_privado_git_de_tools():
     arvore = ast.parse(Path(_terceiros().__file__).read_text(encoding="utf-8"))
     assert [n.lineno for n in ast.walk(arvore) if isinstance(n, ast.Attribute) and n.attr == "_git"] == []
+
+
+# ---- U07: the default base is the `os.environ` of the CALL ----------------------------------------------------------------------------------
+
+
+def test_sem_base_o_ambiente_trocado_depois_da_importacao_e_o_que_vale(monkeypatch):
+    """The suite (golden, test_registro_trilhas) replaces `os.environ` by a dict: `env_para_terceiro()` must see the object that is there
+    now, not the one `os.environ` was when `terceiros` was imported (a default argument is fixed at import)."""
+    import os
+    t = _terceiros()
+    monkeypatch.setattr(os, "environ", {"PATH": "/trocado", "TMPDIR": "/t", "GEMINI_API_KEY": "segredo"})
+    assert t.env_para_terceiro() == {"PATH": "/trocado"}
+    assert t.env_para_terceiro(("TMPDIR",)) == {"PATH": "/trocado", "TMPDIR": "/t"}
+    assert t.env_para_terceiro({"TMPDIR"}, base={"PATH": "/dado"}) == {"PATH": "/dado"}  # an explicit base still wins
+    monkeypatch.setattr(os, "environ", {})
+    assert t.env_para_terceiro(("TMPDIR",)) == {}

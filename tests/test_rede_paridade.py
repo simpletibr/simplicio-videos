@@ -389,3 +389,58 @@ def test_nenhum_dos_dois_chama_o_git_privado_de_tools(arquivo):
     arvore = ast.parse((PKG / arquivo).read_text(encoding="utf-8"))
     privados = [n.lineno for n in ast.walk(arvore) if isinstance(n, ast.Attribute) and n.attr == "_git"]
     assert privados == []
+
+
+# ---- `os.environ` replaced after the import: the readers look at the object that is there at the CALL --------------------------------------
+# `def offline(env=os.environ)` binds the object `os.environ` had when `rede` was imported; the suite (golden, test_registro_trilhas,
+# test_cli_registro) and any host that swaps `os.environ` for a dict would then not be seen. Before U07 every reader wrote
+# `os.environ.get("SIMPLICIO_OFFLINE")` and saw the swap: the answers below are the ones of that code.
+
+
+def _com_o_ambiente_trocado(monkeypatch, *, objeto_original: str | None, novo: dict):
+    """The original `os.environ` object holds SIMPLICIO_OFFLINE=`objeto_original` (None: not there); then `os.environ` becomes `novo`."""
+    if objeto_original is None:
+        monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+    else:
+        monkeypatch.setenv("SIMPLICIO_OFFLINE", objeto_original)
+    base = {k: v for k, v in os.environ.items() if k != "SIMPLICIO_OFFLINE"}
+    monkeypatch.setattr(os, "environ", {**base, **novo})
+
+
+@pytest.mark.parametrize("leitor", NOMES_DOS_LEITORES)
+def test_ambiente_trocado_para_on_vale_mesmo_que_o_objeto_original_nao_tenha_a_variavel(monkeypatch, leitor):
+    """Case B: the original object has no SIMPLICIO_OFFLINE, `os.environ` is replaced by a dict that says `On `: the reader refuses, as
+    it does with the variable set in the real environment."""
+    chamada = _leitores()[leitor]
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    esperado = _resposta(chamada)
+    _com_o_ambiente_trocado(monkeypatch, objeto_original=None, novo={"SIMPLICIO_OFFLINE": "On "})
+    assert _resposta(chamada) == esperado, leitor
+
+
+@pytest.mark.parametrize("leitor", SEM_EFEITO_ONLINE)
+def test_ambiente_trocado_para_um_dict_sem_a_variavel_libera_a_rede_mesmo_que_o_objeto_original_tenha_1(monkeypatch, leitor):
+    """Case A: the original object says 1, `os.environ` is replaced by a dict without the variable: the reader answers as with the
+    network free."""
+    chamada = _leitores()[leitor]
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "0")
+    liberado = _resposta(chamada)
+    _com_o_ambiente_trocado(monkeypatch, objeto_original="1", novo={})
+    assert _resposta(chamada) == liberado, leitor
+
+
+def test_motivo_offline_olha_o_ambiente_que_esta_la_na_hora_da_chamada(monkeypatch):
+    from simplicio_video import rede
+    _com_o_ambiente_trocado(monkeypatch, objeto_original="1", novo={})
+    assert rede.motivo_offline("clonar o x.") is None
+    _com_o_ambiente_trocado(monkeypatch, objeto_original=None, novo={"SIMPLICIO_OFFLINE": " Yes "})
+    assert rede.motivo_offline("clonar o x.") == PREFIXO + "clonar o x."
+
+
+def test_offline_com_o_ambiente_dado_ignora_o_do_processo(monkeypatch):
+    """An explicit mapping wins over the process, and an empty one is a mapping (not "none given")."""
+    from simplicio_video import rede
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    assert rede.offline({}) is False
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "0")
+    assert rede.offline({"SIMPLICIO_OFFLINE": "on"}) is True
