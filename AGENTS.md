@@ -168,7 +168,7 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `compiler.py`: Compile a contract into a self-contained HyperFrames project (the render workdir).
 - `contract.py`: Load, schema-check and semantically validate a simplicio.video-contract/v1 YAML file.
 - `distribution.py`: How this simplicio-video was installed: as a source checkout (or an editable install) or as a package (pip).
-- `doctor_trilhas.py`: `simplicio-video doctor trilhas [--json] [--online]` and the row `trilhas` of `doctor all`: the state of the thirteen external tracks.
+- `doctor_trilhas.py`: `simplicio-video doctor trilhas [--json] [--online]` and the row `trilhas` of `doctor all`: the state of the external tracks of tools.TOOLS.
 - `download.py`: `simplicio-video media fetch`: download one public video page to a local MP4 (or audio, a time range, creator subtitles) with yt-dlp (pinned in tools.py); `info` reads metadata only.
 - `edit.py`: Edit track: browser-use/video-use over any MP4/MOV (HyperFrames, OpenMontage or OpenCut output).
 - `engine/openvoice_convert.py`: Headless OpenVoice V2 tone-color conversion (runs in the OpenVoice Python env, not in simplicio-video's).
