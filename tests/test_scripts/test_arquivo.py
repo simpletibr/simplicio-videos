@@ -21,7 +21,7 @@ import sys
 
 import pytest
 import yaml
-from gitfixture import OWNERSHIP_REL, ROOT
+from gitfixture import OWNERSHIP_REL, ROOT, Repo, clean_env
 
 # (where it was, where it is now). A folder ends with `/`.
 ARQUIVADOS = [
@@ -79,12 +79,63 @@ FICA_NO_AGENTS = (
 )
 
 
+def _rastreados(pasta: str, raiz=ROOT) -> list[str]:
+    """What git TRACKS under `pasta` (a place the archived content left). What git does not track does not count: an old checkout leaves a
+    `.ruff_cache` (self-ignored) in `modules/`, a prospects run leaves ignored files in `prospects/`, and neither is the content that
+    moved, so the folder itself may still exist. Skips the test when `raiz` is not a git checkout (an sdist) or git is missing."""
+    try:
+        r = subprocess.run(["git", "ls-files", "-z", "--", pasta], cwd=raiz, capture_output=True, text=True, env=clean_env())
+    except OSError as e:
+        pytest.skip(f"git is not available: {e}")
+    if r.returncode:
+        pytest.skip(f"not a git checkout: {r.stderr.strip()}")
+    return sorted(p for p in r.stdout.split("\0") if p)
+
+
 @pytest.mark.parametrize("antes, depois", ARQUIVADOS, ids=[a for a, _ in ARQUIVADOS])
 def test_archived_content_left_its_old_place_and_sits_under_arquivo(antes, depois):
-    assert not (ROOT / antes).exists(), f"{antes} is still where it was: `git mv {antes} {depois}`"
     assert (ROOT / depois).exists(), f"{depois} does not exist"
     if depois.endswith("/"):
         assert any((ROOT / depois).rglob("*")), f"{depois} is empty"
+    ficaram = _rastreados(antes)  # last: it skips (not fails) outside a git checkout, after the asserts above ran
+    assert not ficaram, f"{antes} still has files tracked where it was (`git mv {antes} {depois}`): {ficaram[:5]}"
+
+
+def test_the_old_place_check_sees_a_tracked_file_but_not_what_git_ignores_or_does_not_track(tmp_path):
+    """The check looks at tracked files, not at the folder: a folder that only holds leftovers (a `.ruff_cache`, an untracked note) is
+    fine; a file that is tracked, even only staged (`git add`, `git mv` back), is not."""
+    repo = Repo(tmp_path / "repo")
+    repo.commit_files("base", {"README.md": "base\n", "arquivo/modules/app.py": "x\n"})
+    assert _rastreados("modules/", repo.path) == [] and _rastreados("ugc/", repo.path) == []
+    repo.write("modules/.ruff_cache/.gitignore", "*\n")  # what ruff writes: the cache ignores itself
+    repo.write("modules/.ruff_cache/0.1.0/entry", "cache\n")
+    repo.write("modules/notes.txt", "untracked, not ignored\n")
+    assert (repo.path / "modules").is_dir() and "?? modules/" in repo.git("status", "--short")
+    assert _rastreados("modules/", repo.path) == [], "leftovers that git does not track must not count"
+    repo.git("add", "--", "modules/notes.txt")
+    assert _rastreados("modules/", repo.path) == ["modules/notes.txt"], "a staged file is tracked"
+    repo.git("mv", "arquivo/modules/app.py", "modules/app.py")
+    assert _rastreados("modules/", repo.path) == ["modules/app.py", "modules/notes.txt"], "a file moved back is tracked"
+    repo.git("rm", "-q", "-f", "--", "modules/app.py", "modules/notes.txt")
+    assert (repo.path / "modules").is_dir() and _rastreados("modules/", repo.path) == [], "the folder may stay while nothing in it is tracked"
+    repo.commit_files("single file and nested folder", {"docs/venda-ativa.md": "x\n", "docs/factory/spec.md": "x\n"})
+    assert _rastreados("docs/venda-ativa.md", repo.path) == ["docs/venda-ativa.md"]
+    assert _rastreados("docs/factory/", repo.path) == ["docs/factory/spec.md"]
+
+
+@pytest.mark.parametrize("falha, motivo", [(subprocess.CompletedProcess([], 128, "", "fatal: not a git repository"), "not a git checkout: fatal: not a git repository"),
+                                           (FileNotFoundError("git"), "git is not available: git")])
+def test_the_old_place_check_skips_with_a_reason_outside_a_git_checkout(monkeypatch, falha, motivo):
+    """An sdist has no `.git`: the check cannot say anything, so it skips and says why (it never passes or fails by accident)."""
+    def sem_git(*args, **kwargs):
+        if isinstance(falha, Exception):
+            raise falha
+        return falha
+
+    monkeypatch.setattr(subprocess, "run", sem_git)
+    with pytest.raises(pytest.skip.Exception) as caught:
+        _rastreados("modules/")
+    assert caught.value.msg == motivo
 
 
 @pytest.mark.parametrize("nome", PESQUISAS)
