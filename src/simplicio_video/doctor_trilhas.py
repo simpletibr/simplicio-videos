@@ -1,4 +1,4 @@
-"""`simplicio-video doctor trilhas [--json] [--online]` and the row `trilhas` of `doctor all`: the state of the thirteen external tracks.
+"""`simplicio-video doctor trilhas [--json] [--online]` and the row `trilhas` of `doctor all`: the state of the external tracks of tools.TOOLS.
 
 For each track of tools.TOOLS (registry order), in `checks`, one row per thing that was looked at, each `ok`, `warn` or `fail`
 with the exact command that fixes it (`fix`), like the doctor's other checks:
@@ -29,12 +29,14 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 import threading
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
 
-from . import hostos, tools, tools_lock, tools_update
+from . import hostos, terceiros, tools, tools_lock, tools_update
 from .fsutil import sha256_file
 from .status import ENV_FERRAMENTA
 
@@ -49,37 +51,16 @@ MAX_ARQUIVO_FIXADO = 1024 * 1024  # the pinned files are a few KB; a bigger one 
 TEMPO_ESGOTADO = "tempo esgotado"  # the reason _leitura_do_checkout gives when git did not answer
 LIMITE_LOCAL_S = 5.0  # each local program the doctor runs (git rev-parse, `<exe> --version`): a hung one is a finding, not a wait
 ORCAMENTO_ONLINE_S = 25.0  # the whole --online: every upstream read together. A proxy that never answers costs this, once
-NODE_TINYFISH = (24,)  # the @tiny-fish/cli package declares Node >= 24
 NODE_HYPIT = tools.NODE_MIN  # (22, 15): @hypit/hypit "engines"
-CLONE = {
-    "openmontage": "simplicio-video montage clone",
-    "opencut": "simplicio-video opencut clone",
-    "toonflow": "simplicio-video toonflow clone",
-    "moneyprinter": "simplicio-video moneyprinter clone",
-    "matchcut": "simplicio-video matchcut clone",
-    "instagram": "simplicio-video instagram clone",
-    "rea_video": "simplicio-video rea-video clone",
-    "video_to_skill": "simplicio-video video-to-skill clone",
-    "video-use": "simplicio-video edit setup",
-}
+# The command that installs each track that has a verb, and the dependencies of each track, by track name: derived from TOOLS (the
+# `clone_verb` and `deps` fields), never written here. The checks below read the fields of the track itself.
+CLONE = {t.name: f"simplicio-video {t.command} {t.clone_verb}" for t in tools.TOOLS.values() if t.clone_verb}
 # yt-dlp is not installed by a command of its own: the first `media fetch` installs the pinned one (it needs a URL and --autorizo)
 YTDLP_INSTALA = "instala na primeira vez que você usar `simplicio-video media fetch` (exige uma URL e --autorizo)"
 # (name, required, minimum version or None) for the tracks that need more than git; `hypit` adds npx when it has no binary
-DEPS = {
-    "openmontage": [("ffmpeg", True, None)],
-    "opencut": [("bun", True, None), ("docker", False, None)],
-    "hypit": [("node", True, NODE_HYPIT)],
-    "toonflow": [("bun", True, None), ("docker", False, None)],
-    "moneyprinter": [("ffmpeg", True, None)],
-    "matchcut": [("ffmpeg", True, None)],
-    "instagram": [],
-    "rea_video": [("ffmpeg", True, None)],
-    "video_to_skill": [("ffmpeg", False, None)],  # the upstream brings its own with `check --fix --yes`, typed by the user
-    "voicestudio": [("bun", False, None)],
-    "video-use": [("ffmpeg", True, None), ("SIMPLICIO_TTS_PY", True, None)],
-    "tinyfish": [("node", True, NODE_TINYFISH), ("npm", True, None)],
-    "yt-dlp": [("ffmpeg", False, None)],
-}
+DEPS = {t.name: [tools.parse_dep(spec) for spec in t.deps] for t in tools.TOOLS.values()}
+# the dependencies `_deps` knows how to look for (a track that declares another one gets a warning row that names it)
+DEP_NOMES = ("node", "bun", "docker", "ffmpeg", "npx", "npm", "SIMPLICIO_TTS_PY")
 
 
 # --- text that may come from outside, and the quoting of paths written into a fix ------------------------------------------
@@ -113,14 +94,45 @@ def _row(name: str, status: str, summary: str, fix: Optional[str] = None, detail
             "detail": _limpa_valor(detail or {})}
 
 
+def _modulo(nome: str):
+    """A module a registry pointer names (`Tool.setup_probe`, `integrity`, `checkout_probe`), imported when it is asked for: the tracks import
+    `tools`, so neither `tools` nor the doctor can import them at the top. Spelled out one by one, because the package imports no module by a
+    computed name (tests/test_motor_sem_vendas.py); a track that points into a module that is not here fails loudly (ImportError), and the
+    parity test says so."""
+    if nome == "doctor_trilhas":
+        return sys.modules[__name__]
+    if nome == "matchcut":
+        from . import matchcut
+        return matchcut
+    if nome == "montage":
+        from . import montage
+        return montage
+    if nome == "video_to_skill":
+        from . import video_to_skill
+        return video_to_skill
+    raise ImportError(f"o doctor não sabe abrir o módulo {nome!r} (os que sabe: doctor_trilhas, matchcut, montage, video_to_skill)")
+
+
+def lookup(ref: tuple[str, str]):
+    """What a registry pointer names: `(module, path)` is a module of this package and a dotted path inside it (`PINNED_SHA256`, `PINS.files`:
+    an attribute, or the key of a dict). Read when it is asked for, so a test that replaces the attribute is seen and a module is imported only
+    for the track that points to it. A missing module, attribute or key is an ImportError, AttributeError or KeyError."""
+    modulo, caminho = ref
+    achado = _modulo(modulo)
+    for parte in caminho.split("."):
+        achado = achado[parte] if isinstance(achado, Mapping) else getattr(achado, parte)
+    return achado
+
+
 def _ache(nome: str) -> Optional[str]:
     """A program on PATH, looked up as commands/doctor.py does (PATHEXT on Windows, the Homebrew folders on macOS)."""
     return hostos.find_tool(nome)
 
 
 def _ambiente() -> dict:
-    """The only variables a probe of a program gets (the closed environment of `status`: no key of the shell)."""
-    return {k: os.environ[k] for k in ENV_FERRAMENTA if k in os.environ}
+    """The only variables a probe of a program gets (the closed environment of `status`: no key of the shell). The environment is read at
+    the call (`base=os.environ` here, not the default of the function, which is fixed when `terceiros` is imported)."""
+    return terceiros.env_para_terceiro(ENV_FERRAMENTA, base=os.environ)
 
 
 _MEMO: dict = {}  # per collect(): the node version is asked once, however many tracks need it
@@ -170,16 +182,16 @@ def _versao_texto(versao: tuple) -> str:
 def _ref_valida(t: tools.Tool, valor: str) -> bool:
     """A commit for git, a version for npm and pip: the same patterns the lock and `update` accept."""
     if t.kind == "git":
-        return bool(tools_lock._GIT_REF.fullmatch(valor))
+        return bool(tools_lock.GIT_REF.fullmatch(valor))
     if t.kind == "npm":
-        return bool(tools_update._NPM_VERSION.fullmatch(valor))
-    return bool(tools_lock._VERSION.fullmatch(valor))
+        return bool(tools_lock.NPM_VERSION.fullmatch(valor))
+    return bool(tools_lock.VERSION.fullmatch(valor))
 
 
 def _ref_em_uso(t: tools.Tool) -> tuple[str, str, Optional[str]]:
     """(ref, source, problem): what the track really uses. An override that is not a commit or a version is not used: the registry
     pin stands, `problem` says so, and the value is never printed (it may be a token typed by mistake)."""
-    nome_var = f"SIMPLICIO_{t.name.upper()}_REF"
+    nome_var = tools.override_var(t)
     valor = os.environ.get(nome_var)
     if valor:
         if _ref_valida(t, valor):
@@ -197,27 +209,28 @@ def _ref_em_uso(t: tools.Tool) -> tuple[str, str, Optional[str]]:
 # --- the command of each track, and the folder a git track lives in --------------------------------------------------------
 
 
-def _clone_voicestudio(t: tools.Tool, ref: str) -> str:
-    """voicestudio has no clone in the CLI (its app is installed by its own installer): the git commands tools.install runs."""
+def _clone_git(t: tools.Tool, ref: str) -> str:
+    """A git track with no verb in the CLI (voicestudio: its app is installed by its own installer): the git commands tools.install runs.
+    The `--` ends the options, as in tools.install: a relative folder that starts with `-` is a folder, not an option."""
     destino = _q(tools.checkout_dir(t))
-    return f"git clone --filter=blob:none {t.source} {destino} && git -C {destino} checkout --detach {ref}"
+    return f"git clone --filter=blob:none -- {t.source} {destino} && git -C {destino} checkout --detach {ref}"
 
 
 def _clone_de(t: tools.Tool, ref: str) -> str:
-    """The command that installs the track at `ref` (the pin in use)."""
-    if t.name in CLONE:
-        return CLONE[t.name]
-    if t.name == "voicestudio":
-        return _clone_voicestudio(t, ref)
+    """The command that installs the track at `ref` (the pin in use): its verb (`clone_verb`), else the git commands, `npm install -g`
+    for an npm track, and the first `media fetch` for the pip one (yt-dlp)."""
+    if t.clone_verb:
+        return f"simplicio-video {t.command} {t.clone_verb}"
+    if t.kind == "git":
+        return _clone_git(t, ref)
     if t.kind == "npm":
         return f"npm install -g {t.source}@{ref}"
     return YTDLP_INSTALA
 
 
 def _pasta_do_checkout(t: tools.Tool) -> Path:
-    if t.name == "openmontage":  # montage has its own search order (OPENMONTAGE_DIR, then the tools folder)
-        from . import montage
-        return montage.default_openmontage_dir()
+    if t.checkout_probe:  # a track with its own search order (openmontage: OPENMONTAGE_DIR, then the tools folder)
+        return lookup(t.checkout_probe)()
     return tools.checkout_dir(t)
 
 
@@ -225,7 +238,7 @@ def _leitura_do_checkout(pasta: Path) -> tuple[Optional[str], str]:
     """(commit, why): the commit of the checkout at `pasta`, or None and the reason. Git walks up to a parent repository when the
     folder's own .git is not valid, so the top of the repository must be the folder itself, and HEAD must name a commit that exists."""
     try:
-        topo = tools._git("rev-parse", "--show-toplevel", cwd=pasta, timeout=LIMITE_LOCAL_S)
+        topo = tools.git("rev-parse", "--show-toplevel", cwd=pasta, timeout=LIMITE_LOCAL_S)
     except tools.GitTimeout:
         return None, TEMPO_ESGOTADO
     except tools.ToolError:
@@ -233,13 +246,13 @@ def _leitura_do_checkout(pasta: Path) -> tuple[Optional[str], str]:
     if Path(topo).resolve() != pasta.resolve():
         return None, "o .git dela não é válido: o git lê outro repositório em volta"
     try:
-        tools._git("cat-file", "-e", "HEAD^{commit}", cwd=pasta, timeout=LIMITE_LOCAL_S)
+        tools.git("cat-file", "-e", "HEAD^{commit}", cwd=pasta, timeout=LIMITE_LOCAL_S)
     except tools.GitTimeout:
         return None, TEMPO_ESGOTADO
     except tools.ToolError:
         return None, "o HEAD não aponta para um commit que existe no repositório"
     try:
-        return tools._git("rev-parse", "HEAD", cwd=pasta, timeout=LIMITE_LOCAL_S), ""
+        return tools.git("rev-parse", "HEAD", cwd=pasta, timeout=LIMITE_LOCAL_S), ""
     except tools.GitTimeout:
         return None, TEMPO_ESGOTADO
     except tools.ToolError:
@@ -333,47 +346,66 @@ def _venv_row(programa: Path, fix: str) -> dict:
 
 
 def _setup(t: tools.Tool, pasta: Path) -> list:
-    """The track's own setup, judged only once the track is installed (what the setup of a missing track would make is not a gap)."""
-    nome = t.name
-    if nome == "openmontage":
-        from . import montage
-        return [_venv_row(montage.venv_python(), "simplicio-video montage setup")]
-    if nome == "moneyprinter":
-        from . import moneyprinter
-        config = pasta / "config.toml"
-        return [_venv_row(moneyprinter.venv_python(), "simplicio-video moneyprinter setup"),
-                _row("setup:config.toml", "ok" if config.is_file() else "warn",
-                     "config.toml pronto" if config.is_file() else "config.toml ausente (o setup copia o exemplo, sem chave)",
-                     None if config.is_file() else "simplicio-video moneyprinter setup", {"path": str(config)})]
-    if nome == "matchcut":
-        from . import matchcut
-        return [_venv_row(matchcut.venv_python(), "simplicio-video matchcut setup")]
-    if nome == "rea_video":
-        from . import rea_video
-        return [_venv_row(rea_video.venv_bin("rea-video"), "simplicio-video rea-video setup")]
-    if nome == "video_to_skill":
-        return [_binary_row()]
-    if nome == "opencut":
-        from . import opencut
-        env = pasta / opencut.ENV_FILE
-        if env.is_file() and env.stat().st_size == 0:
-            env_row = _row("setup:.env.local", "warn", f"{env} está vazio: o app não sobe sem as variáveis",
-                           f"apague {_q(env)} e rode `simplicio-video opencut dev`", {"path": str(env)})
-        elif env.is_file():
-            env_row = _row("setup:.env.local", "ok", "apps/web/.env.local pronto", None, {"path": str(env)})
-        else:
-            env_row = _row("setup:.env.local", "warn", "apps/web/.env.local ausente: o `opencut dev` cria na primeira vez",
-                           "simplicio-video opencut dev", {"path": str(env)})
-        return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {_q(pasta)} && bun install",
-                           "node_modules ausente: as dependências do editor não foram instaladas"), env_row]
-    if nome == "toonflow":
-        from . import toonflow
-        faltam = [str(rel) for rel in (toonflow.SERVER_ENTRY, toonflow.STDIO_ENTRY) if not (pasta / rel).is_file()]
-        build = (_row("setup:build", "warn", f"build ausente ({', '.join(faltam)})", f"cd {_q(pasta)} && bun run build:server")
-                 if faltam else _row("setup:build", "ok", "build do servidor e do MCP prontos"))
-        return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {_q(pasta)} && bun install --frozen-lockfile",
-                           "node_modules ausente: as dependências do Toonflow não foram instaladas"), build]
-    return []
+    """The track's own setup, judged only once the track is installed (what the setup of a missing track would make is not a gap). The
+    registry names the function that judges it (`Tool.setup_probe`); a track with none has no setup of its own to judge."""
+    if t.setup_probe is None:
+        return []
+    return lookup(t.setup_probe)(t, pasta)
+
+
+# The setup probes of each track, called as `probe(tool, checkout)` by name from `Tool.setup_probe` (tools.py).
+
+
+def setup_openmontage(t: tools.Tool, pasta: Path) -> list:
+    from . import montage
+    return [_venv_row(montage.venv_python(), "simplicio-video montage setup")]
+
+
+def setup_moneyprinter(t: tools.Tool, pasta: Path) -> list:
+    from . import moneyprinter
+    config = pasta / "config.toml"
+    return [_venv_row(moneyprinter.venv_python(), "simplicio-video moneyprinter setup"),
+            _row("setup:config.toml", "ok" if config.is_file() else "warn",
+                 "config.toml pronto" if config.is_file() else "config.toml ausente (o setup copia o exemplo, sem chave)",
+                 None if config.is_file() else "simplicio-video moneyprinter setup", {"path": str(config)})]
+
+
+def setup_matchcut(t: tools.Tool, pasta: Path) -> list:
+    from . import matchcut
+    return [_venv_row(matchcut.venv_python(), "simplicio-video matchcut setup")]
+
+
+def setup_rea_video(t: tools.Tool, pasta: Path) -> list:
+    from . import rea_video
+    return [_venv_row(rea_video.venv_bin("rea-video"), "simplicio-video rea-video setup")]
+
+
+def setup_video_to_skill(t: tools.Tool, pasta: Path) -> list:
+    return [_binary_row()]
+
+
+def setup_opencut(t: tools.Tool, pasta: Path) -> list:
+    from . import opencut
+    env = pasta / opencut.ENV_FILE
+    if env.is_file() and env.stat().st_size == 0:
+        env_row = _row("setup:.env.local", "warn", f"{env} está vazio: o app não sobe sem as variáveis",
+                       f"apague {_q(env)} e rode `simplicio-video opencut dev`", {"path": str(env)})
+    elif env.is_file():
+        env_row = _row("setup:.env.local", "ok", "apps/web/.env.local pronto", None, {"path": str(env)})
+    else:
+        env_row = _row("setup:.env.local", "warn", "apps/web/.env.local ausente: o `opencut dev` cria na primeira vez",
+                       "simplicio-video opencut dev", {"path": str(env)})
+    return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {_q(pasta)} && bun install",
+                       "node_modules ausente: as dependências do editor não foram instaladas"), env_row]
+
+
+def setup_toonflow(t: tools.Tool, pasta: Path) -> list:
+    from . import toonflow
+    faltam = [str(rel) for rel in (toonflow.SERVER_ENTRY, toonflow.STDIO_ENTRY) if not (pasta / rel).is_file()]
+    build = (_row("setup:build", "warn", f"build ausente ({', '.join(faltam)})", f"cd {_q(pasta)} && bun run build:server")
+             if faltam else _row("setup:build", "ok", "build do servidor e do MCP prontos"))
+    return [_pasta_row("setup:node_modules", pasta / "node_modules", f"cd {_q(pasta)} && bun install --frozen-lockfile",
+                       "node_modules ausente: as dependências do Toonflow não foram instaladas"), build]
 
 
 def _binary_row() -> dict:
@@ -505,10 +537,12 @@ def _deps(t: tools.Tool) -> list:
     rows = []
     if t.kind == "git":
         rows.append(_dep_row("git", _ache("git") is not None, True, "instale o git (https://git-scm.com/downloads)", ""))
-    itens = list(DEPS.get(t.name, []))
-    if t.name == "hypit" and _ache("hypit") is None:  # without a binary, npx runs the pinned package
+    itens = [tools.parse_dep(spec) for spec in t.deps]
+    if t.name in tools.NPX_TRACKS and _ache(t.name) is None:  # without a binary, npx runs the pinned package
         itens.append(("npx", True, None))
     for nome, obrigatoria, minimo in itens:
+        if nome not in DEP_NOMES:
+            raise ValueError(f"{t.name}: não sei julgar a dependência {nome!r} (as que sei: {', '.join(DEP_NOMES)})")
         if nome == "node":
             rows.append(_dep_node(minimo))
         elif nome == "bun":
@@ -551,13 +585,7 @@ def _fix_de_seguir(t: tools.Tool, latest: str) -> Optional[str]:
     no command moves it, so there is no fix to show."""
     if t.kind == "pip":
         return None
-    if t.name == "voicestudio":
-        instala = _clone_voicestudio(t, latest)
-    elif t.kind == "npm":
-        instala = f"npm install -g {t.source}@{latest}"
-    else:
-        instala = CLONE.get(t.name, "")
-    return f"SIMPLICIO_{t.name.upper()}_REF={latest} {instala}" if instala else None
+    return f"{tools.override_var(t)}={latest} {_clone_de(t, latest)}"
 
 
 def _upstream(t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
@@ -569,7 +597,7 @@ def _upstream(t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
                                     "pin: o setup.sh fixa o commit (VU_REF) e o upstream não é seguido"), None, {"pin_only": True})]
     if fonte == "override":
         return {"pin_only": False, "latest": None, "newer": None, "error": None}, [
-            _row("upstream", "ok", f"fixada por SIMPLICIO_{t.name.upper()}_REF: o upstream não é seguido", None, {"override": True})]
+            _row("upstream", "ok", f"fixada por {tools.override_var(t)}: o upstream não é seguido", None, {"override": True})]
     try:
         alvo = tools_update.resolve(t, io)
     except tools_update.FAILURES as exc:
@@ -577,7 +605,7 @@ def _upstream(t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
         return {"pin_only": False, "latest": None, "newer": None, "error": msg}, [
             _row("upstream", "warn", f"não consegui consultar o upstream: {msg}", None)]
     latest = alvo["ref"]
-    newer = not tools_update._same_ref(t, ref, latest)
+    newer = not tools_update.same_ref(t, ref, latest)
     detalhe = {"latest": latest, "branch": alvo.get("branch"), "newer": newer}
     if newer:
         return {"pin_only": False, "latest": latest, "newer": True, "error": None}, [
@@ -609,7 +637,7 @@ def _avalia(t: tools.Tool, online_jobs: Optional[list]) -> dict:
             version, detalhe = head, f"commit {head[:12]}"
             pin_match, pin_rows = _pin_git(head, ref, fonte, clone)
             rows += pin_rows
-            tabela = _tabela_fixada(t.name)
+            tabela = _tabela_fixada(t)
             if tabela is not None and pin_match:
                 rows += _integridade(pasta, tabela)
             rows += _setup(t, pasta)
@@ -628,12 +656,12 @@ def _avalia(t: tools.Tool, online_jobs: Optional[list]) -> dict:
         rows += linhas
         detalhe = f"versão {version}" if version else ""
     if problema:  # the pin in use is the registry's: the one `pin` row says the override was refused, and no other `pin` row is shown
-        rows = [_row("pin", "warn", problema, f"apague SIMPLICIO_{t.name.upper()}_REF ou defina um commit (git) ou uma versão (npm; pip só a fixada)")
+        rows = [_row("pin", "warn", problema, f"apague {tools.override_var(t)} ou defina um commit (git) ou uma versão (npm; pip só a fixada)")
                 ] + [r for r in rows if r["name"] != "pin"]
     rows += _deps(t)
     track = {
         "name": t.name,
-        "command": f"simplicio-video {tools.COMMANDS.get(t.name, t.name)}",
+        "command": tools.command(t),
         "status": _pior(r["status"] for r in rows),
         "summary": _limpa(_resumo(installed, _limpa(detalhe, 80), rows)),
         "installed": installed,
@@ -650,17 +678,11 @@ def _avalia(t: tools.Tool, online_jobs: Optional[list]) -> dict:
     return track
 
 
-def _tabela_fixada(nome: str) -> Optional[dict]:
-    """The sha256 table of the pinned files of a git track that has one (read at call time: the tests replace it).
+def _tabela_fixada(t: tools.Tool) -> Optional[dict]:
+    """The sha256 table of the pinned files of a git track that has one (`Tool.integrity`; read at call time: the tests replace it).
     instagram has one too, but this module must not import it (the engine reaches that module only from cli and mcp):
     `simplicio-video instagram status` checks its scripts."""
-    if nome == "matchcut":
-        from . import matchcut
-        return matchcut.PINNED_SHA256
-    if nome == "video_to_skill":
-        from . import video_to_skill
-        return video_to_skill.PINS["files"]
-    return None
+    return lookup(t.integrity) if t.integrity else None
 
 
 def _fecha_upstream(job: tuple, upstream: dict, linhas: list) -> None:
@@ -739,7 +761,7 @@ def _avalia_seguro(t: tools.Tool, online_jobs: Optional[list]) -> dict:
 def _trilha_com_aviso(t: tools.Tool, motivo: str, fix: str) -> dict:
     """A track that could not be checked: one warning row that names why (an error, or the budget that ran out)."""
     linha = _row("instalada", "warn", f"não consegui checar esta trilha ({motivo})", fix)
-    return {"name": t.name, "command": f"simplicio-video {tools.COMMANDS.get(t.name, t.name)}", "status": "warn",
+    return {"name": t.name, "command": tools.command(t), "status": "warn",
             "summary": _limpa(f"não consegui checar ({motivo})"), "installed": False, "version": None, "pin": t.ref,
             "pin_source": "pin", "pin_registry": t.ref, "pin_match": None, "upstream": None, "checks": [linha]}
 

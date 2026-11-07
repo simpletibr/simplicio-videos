@@ -136,6 +136,9 @@ def _normaliza(texto: str, tmp_path: Path) -> str:
         texto = re.sub(rf"(?<![0-9A-Za-z.]){re.escape(t.ref)}(?![0-9A-Za-z.])", f"<PIN:{nome}>", texto)
         texto = re.sub(rf"(?<![0-9A-Za-z.]){re.escape(t.ref[:12])}(?![0-9A-Za-z])", f"<PIN12:{nome}>", texto) if len(t.ref) == 40 else texto
     texto = re.sub(rf"(?<![0-9A-Za-z.]){re.escape(__version__)}(?![0-9A-Za-z.])", "<VERSION>", texto)
+    # the one deliberate change of U09 in what the user sees: the doctor's clone of the voicestudio ends the options with `--`, as tools.install
+    # does (the tests of that text are test_o_doctor_mostra_o_clone_do_voicestudio_*); everything else here is byte for byte what main prints
+    texto = texto.replace("git clone --filter=blob:none -- ", "git clone --filter=blob:none ")
     return texto.replace(HYPERFRAMES, "<ENGINE>")
 
 
@@ -322,21 +325,25 @@ def test_cada_trilha_declara_no_registro_o_que_as_tabelas_diziam(nome):
 def test_a_integridade_e_a_tabela_de_sha256_que_o_doctor_lia():
     from simplicio_video import matchcut, video_to_skill
 
-    assert tools.lookup(tools.get("matchcut").integrity) is matchcut.PINNED_SHA256
-    assert tools.lookup(tools.get("video_to_skill").integrity) == video_to_skill.PINS["files"]
+    assert dt.lookup(tools.get("matchcut").integrity) is matchcut.PINNED_SHA256
+    assert dt.lookup(tools.get("video_to_skill").integrity) == video_to_skill.PINS["files"]
     assert tools.get("instagram").integrity is None  # de propósito: o doctor não importa o módulo (o `instagram status` confere os scripts)
 
 
 def test_lookup_le_o_atributo_na_hora_da_chamada_e_anda_por_dicionarios(monkeypatch):
-    from simplicio_video import matchcut
+    from simplicio_video import matchcut, montage
 
-    monkeypatch.setattr(matchcut, "PINNED_SHA256", {"x": "y"})
-    assert tools.lookup(("matchcut", "PINNED_SHA256")) == {"x": "y"}  # a test that replaces the table is seen
-    assert tools.lookup(("tools_lock", "GIT_REF")) is tools_lock.GIT_REF
-    monkeypatch.setattr(tools_lock, "SCHEMA", {"a": {"b": 7}}, raising=False)
-    assert tools.lookup(("tools_lock", "SCHEMA.a.b")) == 7
+    monkeypatch.setattr(matchcut, "PINNED_SHA256", {"x": {"y": 7}})
+    assert dt.lookup(("matchcut", "PINNED_SHA256")) == {"x": {"y": 7}}  # a test that replaces the table is seen
+    assert dt.lookup(("matchcut", "PINNED_SHA256.x.y")) == 7
+    assert dt.lookup(("montage", "default_openmontage_dir")) is montage.default_openmontage_dir
+    assert dt.lookup(("doctor_trilhas", "setup_opencut")) is dt.setup_opencut
     with pytest.raises(AttributeError):
-        tools.lookup(("tools_lock", "NAO_EXISTE"))
+        dt.lookup(("matchcut", "NAO_EXISTE"))
+    with pytest.raises(KeyError):
+        dt.lookup(("matchcut", "PINNED_SHA256.x.z"))
+    with pytest.raises(ImportError):
+        dt.lookup(("tools_lock", "GIT_REF"))  # the doctor opens only the modules a track points to, spelled out one by one
 
 
 @pytest.mark.parametrize("spec, esperado", [("ffmpeg", ("ffmpeg", True, None)), ("docker?", ("docker", False, None)),
@@ -444,8 +451,8 @@ def test_o_setup_vem_do_campo_setup_probe(ambiente, monkeypatch):
 
 def test_a_pasta_do_checkout_vem_do_campo_checkout_probe(ambiente, monkeypatch):
     destino = tools.tools_dir()
-    _troca(monkeypatch, "opencut", checkout_probe=("tools", "tools_dir"))
-    assert _c(_trilha(dt.collect(), "opencut"), "instalada")["detail"]["path"] == str(destino)
+    _troca(monkeypatch, "opencut", checkout_probe=("montage", "default_openmontage_dir"))  # montage's own search order: tools/openmontage
+    assert _c(_trilha(dt.collect(), "opencut"), "instalada")["detail"]["path"] == str(destino / "openmontage")
     _troca(monkeypatch, "opencut", checkout_probe=None)
     assert _c(_trilha(dt.collect(), "opencut"), "instalada")["detail"]["path"] == str(destino / "opencut")
 
@@ -569,7 +576,7 @@ def lacunas(t: tools.Tool, *, so_o_registro: bool = False) -> list[str]:
     for rotulo, ponteiro in (("setup_probe", t.setup_probe), ("integrity", t.integrity), ("checkout_probe", t.checkout_probe)):
         if ponteiro is not None:
             try:
-                tools.lookup(ponteiro)
+                dt.lookup(ponteiro)
             except (ImportError, AttributeError, KeyError) as exc:
                 faltas.append(f"{rotulo} {ponteiro} não resolve: {exc}")
     if t.pin_only and t.kind == "pip":
