@@ -10,7 +10,7 @@ import sys
 import time
 
 import pytest
-from _orfao import POSIX, SINAIS, espera, limpa, vivo
+from _orfao import POSIX, SINAIS, espera, limpa, sinais_ignorados, vivo
 
 pytestmark = pytest.mark.skipif(not POSIX, reason="POSIX signals")
 pytest.importorskip("mcp")
@@ -108,3 +108,16 @@ def test_a_burst_of_stop_signals_to_real_mcp_servers_never_hangs_or_leaks_a_chil
             p.kill()
             p.wait()
             limpa(None, pidfile)
+
+
+@pytest.mark.parametrize("nome", SINAIS)
+def test_a_stop_signal_to_the_mcp_server_kills_the_child_of_a_running_tool_even_when_pytest_ignores_hup_and_int(nome, tmp_path):
+    """`nohup make check` / `make check &`: pytest starts with SIGHUP and SIGINT ignored. The server the test launches must still
+    start with them at their defaults, as it does from a shell (the engine keeps an ignored signal ignored, on purpose)."""
+    with sinais_ignorados("SIGHUP", "SIGINT"):
+        test_a_stop_signal_to_the_mcp_server_kills_the_child_of_a_running_tool(nome, tmp_path)
+
+
+def test_a_burst_of_stop_signals_to_real_mcp_servers_never_hangs_or_leaks_a_child_even_when_pytest_ignores_hup_and_int(tmp_path):
+    with sinais_ignorados("SIGHUP", "SIGINT"):
+        test_a_burst_of_stop_signals_to_real_mcp_servers_never_hangs_or_leaks_a_child(tmp_path)

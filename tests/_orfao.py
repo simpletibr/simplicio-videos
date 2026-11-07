@@ -105,6 +105,20 @@ def estado_dos_sinais() -> dict:
     return {n: signal.getsignal(getattr(signal, n)) for n in SINAIS}
 
 
+@contextlib.contextmanager
+def sinais_ignorados(*nomes: str):
+    """The pytest process as `nohup pytest` or `pytest &` start it: the named signals at SIG_IGN, restored on exit. Whatever the
+    test launches inherits them (the exec keeps an ignored signal ignored), unless it is launched through `lanca_como_shell`."""
+    antes = estado_dos_sinais()
+    try:
+        for n in nomes:
+            signal.signal(getattr(signal, n), signal.SIG_IGN)
+        yield
+    finally:
+        for n, h in antes.items():
+            signal.signal(getattr(signal, n), h)
+
+
 @pytest.fixture
 def sinais_padrao():
     """The engine as a shell starts it: the stop signals at their defaults (pytest may run under nohup, which ignores SIGHUP, and
