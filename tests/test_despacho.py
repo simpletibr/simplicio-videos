@@ -136,6 +136,7 @@ def test_um_backend_desconhecido_cai_no_local(folhas):
     ("none", None), ("NONE", None), ("None", None), ("cpu", None), ("CPU", None), ("Cpu", None),   # CPU: None, any case
     ("NvidiaL4", "NvidiaL4"), ("NvidiaTeslaT4", "NvidiaTeslaT4"), ("T4", "T4"),                   # anything else goes as typed
     ("", ""),                       # an empty text is "given" and is not none|cpu: it goes as typed
+    (" cpu", " cpu"), ("cpu ", "cpu "), (" none", " none"), ("none ", "none "),   # no strip: with a blank it is not none|cpu
 ])
 def test_kaggle_normaliza_none_e_cpu_para_none_e_usa_a_t4_quando_nao_ha_acelerador(folhas, acelerador, esperado):
     cli.do_render(object(), "kaggle", accelerator=acelerador)
@@ -147,7 +148,7 @@ def test_kaggle_normaliza_none_e_cpu_para_none_e_usa_a_t4_quando_nao_ha_acelerad
     (None, "T4"),
     ("none", None), ("NONE", None), ("cpu", None), ("CPU", None), ("Cpu", None),
     ("L4", "L4"), ("A100", "A100"), ("T4", "T4"), ("NvidiaTeslaT4", "NvidiaTeslaT4"),
-    ("", ""),
+    ("", ""), (" cpu", " cpu"), ("cpu ", "cpu "), (" none", " none"), ("none ", "none "),
 ])
 def test_colab_cli_normaliza_none_e_cpu_para_none_e_usa_a_t4_quando_nao_ha_acelerador(folhas, acelerador, esperado):
     cli.do_render(object(), "colab-cli", accelerator=acelerador)
@@ -270,6 +271,99 @@ def test_a_tool_video_render_converte_out_em_path_e_filtra_as_chaves_alheias(min
     r = mcp_server.video_render(str(mini), out=str(tmp_path / "x.mp4"))
     assert visto["out"] == tmp_path / "x.mp4" and isinstance(visto["out"], Path)
     assert r["result"] == {"backend": "local", "output": {"path": "o.mp4"}, "loudness": None}  # `files` and the timing do not pass
+
+
+# ------------------------------------------- characterization: every option reaches the leaf, with and without `--json`
+
+def _opcoes_esperadas(backend: str, out: Path, wd: Path) -> dict:
+    """What each leaf receives (besides `log`) when `render` is run with every option set; the accelerator is `L4`, not the default."""
+    return {
+        "local": {"out": out, "quality": "delivery", "workdir": wd, "gpu": True},
+        "kaggle": {"out": out, "quality": "delivery", "timeout_s": 91, "gpu_encode": "1", "accelerator": "L4"},
+        "colab-cli": {"out": out, "quality": "delivery", "timeout_s": 91, "gpu_encode": "1", "gpu": "L4"},
+        "colab": {"out": out, "quality": "delivery", "gpu_encode": "1"},
+    }[backend]
+
+
+@pytest.mark.parametrize("com_json", [False, True], ids=["texto", "json"])
+@pytest.mark.parametrize("backend", ["local", "kaggle", "colab-cli", "colab"])
+def test_render_repassa_cada_opcao_da_linha_de_comando_a_folha_do_backend(mini, folhas, capsys, backend, com_json):
+    out, wd = mini.parent / "x.mp4", mini.parent / "w"
+    argv = ["render", str(mini), "--backend", backend, "--out", str(out), "--quality", "delivery", "--workdir", str(wd), "--gpu",
+            "--accelerator", "L4", "--timeout", "91", "--gpu-encode", "1"] + (["--json"] if com_json else [])
+    rc, _, _ = _main(argv, capsys)
+    assert rc == 0 and [f[0] for f in folhas] == [FOLHA[backend]]
+    k = dict(folhas[0][2])
+    log = k.pop("log")
+    assert k == _opcoes_esperadas(backend, out, wd)
+    assert (callable(log) and log is not print) if com_json else log is print  # --json logs to stderr, the text mode prints
+
+
+@pytest.mark.parametrize("backend", ["local", "kaggle", "colab-cli", "colab"])
+def test_a_tool_video_render_repassa_cada_argumento_a_folha_do_backend(mini, folhas, tmp_path, backend):
+    out = tmp_path / "x.mp4"
+    r = mcp_server.video_render(str(mini), backend=backend, accelerator="L4", quality="delivery", out=str(out), timeout=77)
+    assert r["ok"] is True and [f[0] for f in folhas] == [FOLHA[backend]]
+    k = dict(folhas[0][2])
+    assert callable(k.pop("log"))
+    esperado = {  # the tool has no workdir, gpu or gpu_encode: the defaults of the dispatch
+        "local": {"out": out, "quality": "delivery", "workdir": None, "gpu": False},
+        "kaggle": {"out": out, "quality": "delivery", "timeout_s": 77, "gpu_encode": "auto", "accelerator": "L4"},
+        "colab-cli": {"out": out, "quality": "delivery", "timeout_s": 77, "gpu_encode": "auto", "gpu": "L4"},
+        "colab": {"out": out, "quality": "delivery", "gpu_encode": "auto"},
+    }[backend]
+    assert k == esperado and isinstance(k["out"], Path)
+
+
+def test_a_tool_video_render_deixa_passar_so_as_oito_chaves_na_ordem_de_sempre(mini, monkeypatch):
+    """Every key a backend may return, and then some: the tool keeps `backend output loudness usage inputs_sha256 bundle notebook
+    timings_s` (that order), nothing else."""
+    tudo = {"backend": "local", "output": {"path": "o.mp4"}, "loudness": {"integrated_lufs": -14.0}, "usage": {"credits": 3},
+            "inputs_sha256": H, "bundle": "/b.zip", "notebook": "/nb.ipynb", "timings_s": {"render": 2.0},
+            "files": ["a"], "compile_build_s": 1.0, "bundle_sha256": H, "tools": {"node": "v22"}, "schema": "x"}
+    monkeypatch.setattr(render, "render_local", lambda c, **k: dict(tudo))
+    r = mcp_server.video_render(str(mini))
+    chaves = ["backend", "output", "loudness", "usage", "inputs_sha256", "bundle", "notebook", "timings_s"]
+    assert list(r["result"]) == chaves and r["result"] == {k: tudo[k] for k in chaves}
+
+
+# ------------------------------------------------ what moving the name changes: the `cli.do_render` of the CLI is read-only now
+
+def test_patchar_cli_do_render_nao_tem_mais_efeito_em_nenhum_dos_cinco_chamadores(mini, folhas, monkeypatch, capsys):
+    """The target of a monkeypatch of the dispatch is `despacho.do_render`. `cli.do_render` is the same function under a lazy
+    name, and the callers (`render`, `render --json`, `run`, `run --json`, `video.render`) read `despacho.do_render`."""
+    vistas = []
+
+    def boom(*a, **k):
+        vistas.append(a)
+        raise AssertionError("o patch em cli.do_render nao deveria chegar aos chamadores")
+
+    try:
+        with monkeypatch.context() as m:
+            m.setattr(cli, "do_render", boom, raising=False)
+            assert _main(["render", str(mini)], capsys)[0] == 0
+            assert _main(["render", "--json", str(mini)], capsys)[0] == 0
+            assert _main(["run", str(mini)], capsys)[0] == 0
+            assert _main(["run", "--json", str(mini)], capsys)[0] == 0
+            assert mcp_server.video_render(str(mini))["ok"] is True
+    finally:
+        cli.__dict__.pop("do_render", None)  # monkeypatch puts the old value back as a plain attribute: leave the module as found
+    assert vistas == [] and [f[0] for f in folhas] == ["render_local"] * 5
+
+
+def test_o_do_render_da_cli_e_um_nome_tardio_sem_guardar_nada_no_modulo():
+    """Effects of the lazy re-export (PEP 562), pinned: reading it does not put it in the module (`vars`, `dir`, `import *`),
+    it cannot be deleted, and the function says it lives in `despacho`."""
+    codigo = ("import json\nfrom simplicio_video import cli\n"
+              "antes = 'do_render' in vars(cli)\nfn = cli.do_render\nser = 'do_render' in vars(cli)\n"
+              "ns = {}\nexec('from simplicio_video.cli import *', ns)\n"
+              "try:\n    delattr(cli, 'do_render')\n    del_ = 'sem erro'\nexcept AttributeError:\n    del_ = 'AttributeError'\n"
+              "print(json.dumps({'antes': antes, 'depois': ser, 'dir': 'do_render' in dir(cli), 'estrela': 'do_render' in ns,\n"
+              "                  'del': del_, 'modulo': fn.__module__, 'ainda_le': callable(cli.do_render)}))")
+    r = subprocess.run([sys.executable, "-c", codigo], capture_output=True, text=True, timeout=60, env=offline_env())
+    assert r.returncode == 0, r.stderr[-600:]
+    assert json.loads(r.stdout) == {"antes": False, "depois": False, "dir": False, "estrela": False, "del": "AttributeError",
+                                    "modulo": "simplicio_video.despacho", "ainda_le": True}
 
 
 # ---------------------------------------------------------------------------------------------- structure (red before)
