@@ -150,7 +150,9 @@ def test_the_child_of_run_limitado_is_in_childios_registry_while_it_runs_and_out
     fio.start()
     try:
         pid = espera_pid(pidfile)
-        assert pid in [p.pid for p in childio.live_children()]
+        # the pidfile is written by the child itself, as soon as it runs; guarded_child puts the child in the registry only once Popen
+        # has returned to the engine, so under load the pid can be in the file a moment before it is in the registry: wait for it
+        assert espera(lambda: pid in [p.pid for p in childio.live_children()], 10), "the child never showed up in childio's registry"
         childio.kill_live()  # what the exit guard does on a stop signal
         fio.join(10)
         assert not fio.is_alive() and feito and feito[0].returncode == -signal.SIGKILL
