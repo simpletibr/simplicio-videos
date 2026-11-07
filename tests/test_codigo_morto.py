@@ -447,3 +447,40 @@ def test_the_kinds_golden_is_a_literal_and_no_test_spells_the_list_again():
                 if set(KINDS_DE_HOJE) <= nomes:  # the whole list (a parametrize over a subset of the kinds is another thing)
                     copias.append(f"{rel}:{n.lineno}")
     assert copias == [], "import KINDS_DE_HOJE from helpers instead of typing the list:\n" + "\n".join(copias)
+
+
+# ---- the two callers of `scaffold.skeleton` and the places that now ask the owner (the sites V3 touched; each was a surviving mutant)
+
+def test_init_writes_the_same_contract_from_the_cli_and_from_the_mcp_tool(tmp_path):
+    """`cli init` and `video.init` both hand `scaffold.skeleton` the same words in the same order: same inputs, same bytes."""
+    import yaml
+    from simplicio_video import cli, mcp_server
+    por_cli, por_mcp = tmp_path / "cli" / "contract.yaml", tmp_path / "mcp" / "contract.yaml"
+    assert cli.main(["init", "acme", "Dia das Maes", "--template", "saude-odontologia", "--nome", "Acme Exemplo", "--ano", "2031",
+                     "--out", str(por_cli)]) == 0
+    assert mcp_server.video_init("acme", "Dia das Maes", "saude-odontologia", nome="Acme Exemplo", ano=2031, out=str(por_mcp))["ok"] is True
+    contrato = yaml.safe_load(por_cli.read_text(encoding="utf-8"))
+    assert (contrato["cliente"]["slug"], contrato["cliente"]["nome"], contrato["campanha"]["id"], contrato["campanha"]["ano"],
+            contrato["template"]) == ("acme", "Acme Exemplo", "Dia_Das_Maes", 2031, "saude-odontologia")
+    assert por_cli.read_bytes() == por_mcp.read_bytes()
+
+
+def _chamadas_de(rel: str, funcao: str, dono: str) -> set[str]:
+    """The names `dono.<name>(...)` that the function `funcao` of the file `rel` calls."""
+    arvore = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+    no = next(n for n in ast.walk(arvore) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == funcao)
+    return {n.func.attr for n in ast.walk(no) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and isinstance(n.func.value, ast.Name) and n.func.value.id == dono}
+
+
+@pytest.mark.parametrize("funcao,nome", [("jobs_dir", "data_root"), ("cancel", "jobs_grace_s"), ("_runner", "jobs_grace_s")])
+def test_jobs_asks_paths_for_the_data_root_and_for_the_grace(funcao, nome):
+    """What `jobs.data_root()` and `jobs.grace()` forwarded, the three sites now ask the owner (`paths`): the folder of the job states,
+    the budget of a cancel and the wait the runner gives a task before the SIGKILL."""
+    assert nome in _chamadas_de("src/simplicio_video/jobs.py", funcao, "paths")
+
+
+def test_jobs_never_reads_the_default_of_the_grace_as_if_it_were_the_answer():
+    """`paths.JOBS_GRACE_S` is only the default of `paths.jobs_grace_s()` (which reads SIMPLICIO_JOBS_GRACE_S): jobs.py must not use it."""
+    lidos = {n.attr for n in ast.walk(ast.parse((SRC / "jobs.py").read_text(encoding="utf-8"))) if isinstance(n, ast.Attribute)}
+    assert "JOBS_GRACE_S" not in lidos
