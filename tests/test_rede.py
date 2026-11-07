@@ -307,13 +307,13 @@ def test_request_sem_seguir_redirecionamento_usa_o_handler_que_nao_segue(rede_fa
     assert len(falsa.handlers) == 1 and len(falsa.handlers[0]) == 1
     handler = falsa.handlers[0][0]
     assert issubclass(handler, urllib.request.HTTPRedirectHandler)
-    assert handler is getattr(modulo, "NoRedirect", None) or handler is getattr(modulo, "_NoRedirect", None)
+    assert handler is modulo.NoRedirect
 
 
 @pytest.mark.parametrize("caminho", _implementacoes())
 def test_o_handler_de_redirecionamento_recusa_seguir(caminho):
     modulo = importlib.import_module(caminho)
-    handler = getattr(modulo, "NoRedirect", None) or modulo._NoRedirect
+    handler = modulo.NoRedirect
     req = urllib.request.Request("https://a.example/")
     assert handler().redirect_request(req, None, 302, "Found", {}, "https://b.example/") is None
 

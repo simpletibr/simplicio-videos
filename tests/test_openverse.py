@@ -461,7 +461,7 @@ def test_redirecionamento_da_api_vira_erro_claro_sem_mandar_o_token_adiante(env,
 
 def test_http_request_sem_seguir_redirecionamento_e_a_opcao_aditiva():
     import urllib.request
-    assert http._NoRedirect().redirect_request(urllib.request.Request("https://a.example/"), None, 302, "Found", {}, "https://b.example/") is None
+    assert http.NoRedirect().redirect_request(urllib.request.Request("https://a.example/"), None, 302, "Found", {}, "https://b.example/") is None
     assert {"follow_redirects", "max_bytes", "form"} <= set(inspect.signature(REAL_REQUEST).parameters)
 
 
