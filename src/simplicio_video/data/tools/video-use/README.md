@@ -1,19 +1,19 @@
 # video-use — edição agêntica (opcional)
 
-[browser-use/video-use](https://github.com/browser-use/video-use) (MIT), fixado no commit `b877063` (23/09/2026) em [`setup.sh`](setup.sh). É uma skill de edição: o agente (humano ou LLM) lê a transcrição palavra a palavra, decide os cortes num **EDL** (`edl.json`) e os helpers em Python/ffmpeg executam — cortes em limite de palavra, fades de 30 ms, concat sem reencode, overlays (inclusive HyperFrames), legendas e autoavaliação por filmstrip. Avaliação completa: [docs/video-use-integracao.md](../../../../../docs/video-use-integracao.md).
+[browser-use/video-use](https://github.com/browser-use/video-use) (MIT), fixado no commit `b877063` (23/09/2026) em [`setup.sh`](setup.sh). É uma skill de edição: o agente (humano ou LLM) lê a transcrição palavra a palavra, decide os cortes num **EDL** (`edl.json`) e os helpers em Python/ffmpeg executam — cortes em limite de palavra, fades de 30 ms, concat sem reencode, overlays (inclusive HyperFrames), legendas e autoavaliação por filmstrip. Avaliação completa: [docs/video-use-integracao.md](https://github.com/simpletibr/simplicio-videos/blob/main/docs/video-use-integracao.md).
 
 ## Quando usar × compor direto no HyperFrames
 
 | Pedido | Caminho |
 |---|---|
 | Vídeo novo a partir do intake/template, motion, tipografia, cenas sintéticas | **HyperFrames direto** (etapas 3–4–7). O LLM/template compõe e o render já corta no quadro; video-use não acrescenta nada |
-| "Corta para 15 s / 6 s", versão curta de um vídeo pronto | **video-use** sobre o MP4 renderizado (ex.: um cutdown de 11,5 s, ver docs/video-use-integracao.md) — ou, se a cena inteira puder sair, um spec novo no HyperFrames |
+| "Corta para 15 s / 6 s", versão curta de um vídeo pronto | **video-use** sobre o MP4 renderizado (ex.: um cutdown de 11,5 s, ver [docs/video-use-integracao.md](https://github.com/simpletibr/simplicio-videos/blob/main/docs/video-use-integracao.md)) — ou, se a cena inteira puder sair, um spec novo no HyperFrames |
 | Reordenar blocos de um vídeo pronto, aparar início/fim | **video-use** |
 | Footage do cliente (depoimento, bancada, loja, clipes Grok Imagine): tirar "éé", retakes, silêncio | **video-use** (é para isso que ele existe) → clipes vão para os slots `clips` do spec ou viram o vídeo final |
 | Legendas (queimadas ou SRT lateral) sobre fala real | **video-use** (`--build-subtitles`), por último na cadeia |
 | Revisar cortes de um render ("o corte em 4 s está limpo?") | **video-use** `timeline_view.py` (filmstrip + forma de onda + palavras) |
 
-Regra da esteira: video-use só entra **quando o usuário pede ajuda de edição** ou há footage real. É o op opcional `edit` do [`plugin.json`](../../../../../plugin.json).
+Regra da esteira: video-use só entra **quando o usuário pede ajuda de edição** ou há footage real. É o op opcional `edit` do [`plugin.json`](https://github.com/simpletibr/simplicio-videos/blob/main/plugin.json).
 
 ## Qualquer motor de render (HyperFrames, OpenMontage, OpenCut)
 

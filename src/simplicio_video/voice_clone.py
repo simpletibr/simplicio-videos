@@ -51,7 +51,7 @@ def openvoice(S: dict, text: str, dst: Path, ref: Path | None, base_take) -> Non
     py = os.environ.get("OPENVOICE_PY")
     ckpt = os.environ.get("OPENVOICE_CHECKPOINTS") or str(hostos.home_dir() / ".local/share/simplicio-tts/openvoice/checkpoints_v2")
     if not py or not Path(py).exists():
-        raise CloneVoiceError("provider=openvoice: set OPENVOICE_PY to a Python with OpenVoice installed (see voices/openvoice.md)")
+        raise CloneVoiceError(f"provider=openvoice: set OPENVOICE_PY to a Python with OpenVoice installed (see {paths.doc_url('voices/openvoice.md')})")
     if not (Path(ckpt) / "converter" / "checkpoint.pth").is_file():
         raise CloneVoiceError(f"provider=openvoice: checkpoints_v2 not found at {ckpt} (set OPENVOICE_CHECKPOINTS)")
     dst.parent.mkdir(parents=True, exist_ok=True)

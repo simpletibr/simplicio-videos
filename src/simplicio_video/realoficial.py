@@ -1,12 +1,15 @@
 """Real Oficial track: MCP remoto (https://api.realoficial.com.br/mcp) for scheduling/publishing and AI image/video generation.
 
-This track wires the MCP server (OAuth login in the client; 49 tools, see docs/realoficial.md). Generated media never
+This track wires the MCP server (OAuth login in the client; 49 tools,
+see https://github.com/simpletibr/simplicio-videos/blob/main/docs/realoficial.md). Generated media never
 enters the deterministic `render` unless it is copied in as a contract asset file.
 """
 from __future__ import annotations
 
 import json
 import shutil
+
+from . import paths
 
 REALOFICIAL_MCP_URL = "https://api.realoficial.com.br/mcp"
 
@@ -29,6 +32,6 @@ def run_realoficial(args: list[str]) -> int:
     if first == "check":
         if not shutil.which("npx"):
             raise RealOficialError("npx não encontrado no PATH (necessário para mcp-remote).")
-        print(f"ok: npx presente; MCP em {REALOFICIAL_MCP_URL} (OAuth login in your MCP client; tools: docs/realoficial.md)")
+        print(f"ok: npx presente; MCP em {REALOFICIAL_MCP_URL} (OAuth login in your MCP client; tools: {paths.doc_url('docs/realoficial.md')})")
         return 0
     raise RealOficialError(f"subcomando desconhecido: {first} (config|check)")

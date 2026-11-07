@@ -26,7 +26,7 @@ Os quatro templates de campanha e institucionais (`sazonal-dia-das-criancas` e `
 
 O fluxo com intake segue abaixo (a tabela de roteamento por coluna `setor` da venda ativa saiu do pacote do motor).
 
-1. Intake → `empresa.nicho` + `descricao` (ver [`intake/`](../../../../intake/README.md)).
+1. Intake → `empresa.nicho` + `descricao` (ver [`intake/`](https://github.com/simpletibr/simplicio-videos/blob/main/intake/README.md)).
 2. Compara com a lista `nichos` de cada `template.json`; empate ou nenhum → pergunta ao usuário com as 2 opções mais próximas.
 3. Grava em `intake.empresa.setor_template`.
 
