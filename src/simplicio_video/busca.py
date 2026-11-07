@@ -40,7 +40,6 @@ import json
 import os
 import re
 import shutil
-import signal
 import socket
 import stat
 import subprocess
@@ -608,16 +607,6 @@ def _ambiente_filho() -> dict:
     return env
 
 
-def _matar(proc: subprocess.Popen) -> None:
-    with contextlib.suppress(ProcessLookupError, PermissionError):
-        if hasattr(os, "killpg"):
-            os.killpg(proc.pid, signal.SIGKILL)
-        else:  # pragma: no cover (Windows)
-            proc.kill()
-    with contextlib.suppress(Exception):
-        proc.wait(5)
-
-
 def _rodar(exe: str, args: list[str], timeout: float, max_saida: int) -> tuple[int, bytes, bytes]:
     """Run the binary by argument list, no shell, no stdin, closed environment, output to temporary files so the size can be
     watched while it runs: past `max_saida` or `timeout` the whole process group is killed and the call fails."""
@@ -645,7 +634,7 @@ def _rodar(exe: str, args: list[str], timeout: float, max_saida: int) -> tuple[i
                 motivo = "tempo"
                 break
         if motivo:
-            _matar(proc)
+            childio.kill_group(proc)
         if motivo == "tempo":
             raise BuscaError(f"o tinyfish passou do tempo máximo de {timeout:g} s e foi encerrado (a chamada conta no teto do dia)")
         out.seek(0)
