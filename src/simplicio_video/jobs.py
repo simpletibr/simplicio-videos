@@ -40,7 +40,7 @@ import subprocess
 import sys
 import threading
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
@@ -555,10 +555,10 @@ def build_argv(kind: str, params: dict, origin: str | None = None) -> list[str]:
     return _refusal(spec, spec.argv, params, origin if spec.origem_mcp else None)
 
 
-class _Kinds(Mapping):
-    """`jobs.KINDS`: the closed list, kind -> {"prepare", "argv", "result"}, in order (swap-run, voice, then JOB_MODULES).
-    Read from the registry every time, so it cannot disagree with it. An item is the three hooks of the kind; listing the kinds or
-    reading an item imports nothing, a track's module is imported when one of its hooks is called."""
+class _Kinds:
+    """`jobs.KINDS`: the closed list of kinds, in order (swap-run, voice, then JOB_MODULES). Read from the registry every time, so it
+    cannot disagree with it. Listing it imports nothing: the hooks of a kind are its `JobSpec` (`job_spec(kind)`, which imports the
+    track's module the first time)."""
 
     def __iter__(self):
         yield from (*_LOCAL, *JOB_MODULES)
@@ -568,13 +568,6 @@ class _Kinds(Mapping):
 
     def __contains__(self, kind) -> bool:
         return kind in _LOCAL or kind in JOB_MODULES
-
-    def __getitem__(self, kind: str) -> dict:
-        if kind not in self:
-            raise KeyError(kind)
-        return {"prepare": lambda params, confirm_yes, origin: _prepare(kind, params, confirm_yes, origin),
-                "argv": lambda params, origin=None: build_argv(kind, params, origin),
-                "result": lambda params, last_json: _result(kind, params, last_json)}
 
 
 KINDS = _Kinds()
