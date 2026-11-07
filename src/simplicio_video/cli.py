@@ -762,7 +762,12 @@ class Comando:
     ajuda        who prints `<nome> ... --help`: "argparse" = the parser; "upstream" = the program behind the track, and the
                  parser's page only with `--engine-help`; "propria" = the module, when `ajuda_em` says the words are its own
     ajuda_em     name of the module's attribute for "propria": a tuple of verbs (the first word is one of them) or a function
-                 of the words after the command that says so
+                 of the words after the command that says so. Examples of what it decides: `media burn --help` is the help of
+                 that verb, printed by the module (`media` is "propria" with `SUBCOMMANDS`), `edit grade --help` the same for
+                 edit, and `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this
+                 parser (`repassa`: everything but this track's own commands and help words); `montage tools --help` has an
+                 argparse with examples inside montage.py (`REGISTRY_COMMANDS`); `clone --help` is Hypit's help and the
+                 engine's own page is `clone --engine-help` ("upstream"). A help word after `--` is a value, never a help request
     """
     nome: str
     modulo: Callable[[], ModuleType]

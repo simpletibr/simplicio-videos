@@ -456,7 +456,7 @@ def _cli_tree() -> ast.Module:
 
 
 def test_cli_has_one_error_handler_for_the_tracks_and_one_for_status():
-    """17 `except <Track>Error as e` blocks (one per command, two of them dead) became the single handler of the dispatch.
+    """17 `except <Track>Error as e` blocks (one per command, two of them after the parse) became the single handler of the dispatch.
 
     The count is the one of the plan's metric (`except .*Error as e` over the text of cli.py: 17 before), so the generic handler,
     which names its class by data, does not count and `status.StatusError` does."""
@@ -467,7 +467,12 @@ def test_cli_has_one_error_handler_for_the_tracks_and_one_for_status():
 
 
 def test_no_branch_after_the_parse_runs_a_command_the_table_dispatches():
-    """`a.cmd == "clone"` and `== "montage"` were unreachable: the table answers for those before argparse sees them."""
+    """The branches `a.cmd == "clone"` and `== "montage"` after the parse are gone: the table answers for those before argparse sees them.
+
+    They were reachable only with a leading `--` (`simplicio-video -- clone`, `-- montage status`), an invocation nobody generates
+    (not the MCP server, not the docs, not a test) that already ended in `AttributeError: 'Namespace' object has no attribute
+    'contrato'` for every other command (`-- media probe x`, `-- opencut where`, `-- edit`, `-- swap`). They were removed on purpose and
+    now fail like the rest: an accepted deviation from "identical behaviour" for a call that was never supported (see the PR #223)."""
     comparados = {c.value for n in ast.walk(_cli_tree()) if isinstance(n, ast.Compare)
                   and ast.unparse(n.left) == "a.cmd" for c in n.comparators if isinstance(c, ast.Constant)}
     assert not comparados & set(NOMES), sorted(comparados & set(NOMES))

@@ -1178,8 +1178,11 @@ def test_help_da_busca_traz_o_aviso_de_terceiro_o_que_ficou_de_fora_e_o_gasto():
 def test_help_geral_lista_busca_e_o_mcp_cita_video_busca():
     r = run_cli("--help")
     assert r.returncode == 0, r.stderr
-    # the `mcp` line is generated from mcp_server.TOOLS (U10a): `busca` is no longer the last name, after `openverse`
-    assert "    busca" in r.stdout and "/busca/" in r.stdout
+    # the `mcp` line is generated from mcp_server.TOOLS (U10a), so `busca` is a name in the middle of the list, wherever it is
+    # registered: the tool `video.busca` is the word `busca` between `/` (or between `video.` and the end of the line)
+    assert "    busca" in r.stdout
+    linha_mcp = next(ln for ln in r.stdout.splitlines() if ln.lstrip().startswith("mcp ") and "com as tools video." in ln)
+    assert re.search(r"(?:video\.|/)busca(?:/|$)", linha_mcp)
 
 
 def test_main_sem_subcomando_imprime_ajuda_e_sai_com_1(capsys):
