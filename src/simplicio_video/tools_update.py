@@ -217,7 +217,7 @@ def apply_git(t: tools.Tool, sha: str, io: Io) -> None:
     d = checkout_for(t)
     if not (d / ".git").is_dir():
         d.parent.mkdir(parents=True, exist_ok=True)
-        _must(io.run(["git", "clone", "--filter=blob:none", t.source, str(d)], None), f"git clone {t.source}")
+        _must(io.run(["git", "clone", "--filter=blob:none", "--", t.source, str(d)], None), f"git clone {t.source}")
     head = io.run(["git", "-C", str(d), "rev-parse", "HEAD"], None)
     before = (head.stdout or "").strip() if head.returncode == 0 else ""
     if len(sha) < 40:  # a registry pin may keep a short commit (video-use): fetch the branches, then name the full commit
