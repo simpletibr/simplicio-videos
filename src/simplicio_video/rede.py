@@ -6,6 +6,11 @@
   replace this one function and no test touches the network. Headers carry the API key: they are never logged or stored. It refuses
   to run in offline mode. `NoRedirect` never follows a redirect (urllib would forward the Authorization header to the new host).
 
+The standard-library HTTP stack (urllib, and through it socket, ssl, http.client and email) is imported when a request is made, not when
+this module is imported: `offline`, `motivo_offline`, `Response` and `NetworkError` need none of it, and `trilha_base` (so every track,
+instagram included) imports this module for `offline` alone. `NoRedirect` is a subclass of a urllib class, so it is built on first access
+(module `__getattr__`, PEP 562) and cached in the module: every access, `from simplicio_video.rede import NoRedirect` included, is the same object.
+
 `swap_providers/http.py` is this module under its old name (it imports it and takes its place in sys.modules), so `request`, `Response`,
 `NetworkError` and `NoRedirect` are the same objects under both names.
 """
@@ -13,9 +18,6 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.error
-import urllib.parse
-import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -59,11 +61,35 @@ def _lower(headers) -> dict:
     return {str(k).lower(): str(v) for k, v in (headers.items() if headers is not None else [])}
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    """Never follow a redirect: urllib would forward the Authorization header to the new host."""
+def _no_redirect():
+    """The `NoRedirect` class: built the first time it is needed (it subclasses a urllib class, and urllib is not imported with this module)
+    and cached in the module, so `rede.NoRedirect` and the handler `request` uses are one object. `setdefault` is atomic: threads that race
+    on the first access all get the one class that won."""
+    cached = globals().get("NoRedirect")
+    if cached is not None:
+        return cached
+    import urllib.request
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        """Never follow a redirect: urllib would forward the Authorization header to the new host."""
+
+        __qualname__ = "NoRedirect"  # not `_no_redirect.<locals>.NoRedirect`: the name it always had
+
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    return globals().setdefault("NoRedirect", NoRedirect)
+
+
+def __getattr__(nome: str):
+    """PEP 562: `rede.NoRedirect` (and `from simplicio_video.rede import NoRedirect`) builds the class on first access."""
+    if nome == "NoRedirect":
+        return _no_redirect()
+    raise AttributeError(f"module {__name__!r} has no attribute {nome!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), "NoRedirect"})
 
 
 def request(method: str, url: str, headers: dict | None = None, json_body: dict | None = None, timeout: float = 60,
@@ -71,6 +97,9 @@ def request(method: str, url: str, headers: dict | None = None, json_body: dict 
     """`follow_redirects=False` returns the 3xx as a Response; `max_bytes` turns an oversized body into a NetworkError."""
     if offline():
         raise NetworkError("SIMPLICIO_OFFLINE=1: rede bloqueada")
+    import urllib.error  # here and not at the top: see the module docstring (the refusal above loads none of it)
+    import urllib.parse
+    import urllib.request
     data = None
     hdrs = dict(headers or {})
     if json_body is not None:
@@ -80,7 +109,7 @@ def request(method: str, url: str, headers: dict | None = None, json_body: dict 
         data = urllib.parse.urlencode(form).encode("utf8")
         hdrs.setdefault("Content-Type", "application/x-www-form-urlencoded")
     req = urllib.request.Request(url, data=data, method=method, headers=hdrs)
-    opener = urllib.request.build_opener(NoRedirect) if not follow_redirects else None
+    opener = urllib.request.build_opener(_no_redirect()) if not follow_redirects else None
     try:
         with (opener.open(req, timeout=timeout) if opener else urllib.request.urlopen(req, timeout=timeout)) as r:  # noqa: S310 (URLs chosen by the callers)
             body = r.read() if max_bytes is None else r.read(max_bytes + 1)
