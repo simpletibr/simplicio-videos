@@ -74,7 +74,7 @@ def parse_dep(spec: str) -> tuple[str, bool, tuple[int, ...] | None]:
 
 class _RefOrFunction:
     """The `ref` of a `Tool`: a string, or a function with no arguments that returns it (video-use reads its pin from setup.sh). The
-    function runs each time `ref` is read; it keeps its own cache. `ref` stays an ordinary field (`dataclasses.replace(t, ref=...)`)."""
+    function runs each time `ref` is read (the one video-use uses, `_video_use_pin`, keeps its own cache). `ref` stays an ordinary field (`dataclasses.replace(t, ref=...)`)."""
 
     def __set_name__(self, owner, name):
         self._key = f"_{name}"
@@ -115,7 +115,7 @@ class Tool:
     deps: tuple[str, ...] = ()  # system dependencies the doctor checks, `name[>=a.b][?]` (parse_dep): `ffmpeg`, `docker?` (optional), `node>=24`
     clone_verb: str | None = None  # the verb of `<command>` that installs a git track (`clone`, `setup`); None: the doctor shows the git commands
     setup_probe: tuple[str, str] | None = None  # (module, function) the doctor calls as function(tool, checkout) for the rows of the track's own setup
-    integrity: tuple[str, str] | None = None  # (module, attribute) that holds {file: sha256} of the pinned files, read by the doctor (tools.lookup)
+    integrity: tuple[str, str] | None = None  # (module, attribute) that holds {file: sha256} of the pinned files, read by the doctor (doctor_trilhas.lookup)
     checkout_probe: tuple[str, str] | None = None  # (module, function with no arguments) that says where the track looks for its checkout, when
     #                                                it is not `checkout_dir` (montage has its own search order)
     mcp_read: McpRead | None = None  # the read-only MCP call of the smoke
@@ -237,7 +237,8 @@ TOOLS: dict[str, Tool] = {
                            "turns a video into an installable agent skill (by Breno Epics): an agent SKILL.md plus a local Rust extractor (`vts-extract`: "
                            "transcript, shots, keyframes, skill package); the engine pins the commit and the extractor "
                            "release, and runs the extractor only as a separate program", command="video-to-skill", marker="SKILL.md",
-                           clone_verb="clone", deps=("ffmpeg?",), pin_only=True, integrity=("video_to_skill", "PINS.files"),
+                           clone_verb="clone", pin_only=True, integrity=("video_to_skill", "PINS.files"),
+                           deps=("ffmpeg?",),  # the upstream brings its own with `check --fix --yes`, typed by the user
                            setup_probe=("doctor_trilhas", "setup_video_to_skill"), mcp_read=McpRead("args", "status"),
                            note="pin = tag v0.3.0 (commit c1a1b90), read on 2026-11-06. The extractor binary comes from the upstream release "
                                 "(sha256 pinned per platform in data/video_to_skill/pins.json, checked before it runs); its own dependencies "

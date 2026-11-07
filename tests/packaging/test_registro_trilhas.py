@@ -621,6 +621,8 @@ def test_os_defaults_silenciosos_de_hoje_estao_declarados_no_registro():
     assert {n for n in git if tools.get(n).setup_probe is None} == git - SETUP == {"instagram", "voicestudio", "video-use"}
     assert {n for n in git if tools.get(n).integrity is None} == git - INTEGRIDADE
     assert {n for n, t in tools.TOOLS.items() if not t.deps} == {"instagram"}
+    assert {n for n, t in tools.TOOLS.items() if t.kind == "pip"} == {"yt-dlp"}  # `_clone_de` ends in the message of the only pip track
+    assert {n for n, t in tools.TOOLS.items() if t.kind == "npm"} == {"hypit", "tinyfish"}
     assert {n for n, t in tools.TOOLS.items() if t.mcp_read is None} == set()
 
 
