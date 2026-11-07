@@ -4,7 +4,6 @@ Thin wrapper over the video-use files shipped in the package (data/tools/video-u
 """
 from __future__ import annotations
 
-import re
 import subprocess
 from pathlib import Path
 
@@ -35,12 +34,11 @@ def _run(cmd: list[str]) -> int:
 
 
 def _tem_saida(rest: list[str]) -> bool:
-    """True if the output option is there in any spelling the upstream argparse takes (see _output_values)."""
-    return bool(_output_values(rest))
+    """True if the output option is there in any spelling the upstream argparse takes (see output_values)."""
+    return bool(output_values(rest))
 
 
 SUBCOMMANDS = ("setup", "transcribe", "transcribe-batch", "pack", "render", "verify", "grade")
-NEEDS_OUT = ("transcribe", "render", "verify", "grade")
 GRADE_READ_ONLY = ("--analyze", "--list-presets", "--print-preset")
 
 GRADE_HELP = """edit grade FONTE.mp4 -o OUT.mp4 [--preset NOME | --filter 'FFMPEG'] | --analyze FONTE.mp4 | --list-presets
@@ -66,7 +64,7 @@ def _is_out_flag(a: str) -> bool:
     return a.startswith("--") and len(flag) >= 3 and "--output".startswith(flag)
 
 
-def _output_values(rest: list[str]) -> list[str]:
+def output_values(rest: list[str]) -> list[str]:
     """ALL values given to the output option, in any spelling argparse accepts: -o X, -oX, -o=X, --output X, --out=X, --o X ...
     (the last one wins upstream, so a caller that checks them must check every one). '' marks a missing value. Stops at `--`."""
     vals: list[str] = []
@@ -87,8 +85,7 @@ def _output_values(rest: list[str]) -> list[str]:
     return vals
 
 
-GRADE_FILTERS_MCP = frozenset({"eq", "curves", "colorbalance", "hue", "lut", "lutrgb", "lutyuv", "colorchannelmixer", "vibrance"})
-GRADE_BAD_OPTIONS = frozenset({"file", "filename", "stats_file", "result", "psfile", "preset"})
+_output_values = output_values  # the old name: tests and callers that read it keep working
 
 
 def filter_values(rest: list[str]) -> list[str]:
@@ -108,22 +105,6 @@ def filter_values(rest: list[str]) -> list[str]:
                 i += 1
         i += 1
     return vals
-
-
-def colour_filter_ok(chain: str) -> bool:
-    """True if every filter of the chain is a colour filter from the closed set, with no file-reading option. A backslash or a
-    quote is refused wherever it is: ffmpeg drops them before it matches the option names, so ps\\file and 'psfile' are psfile."""
-    if any(c in chain for c in "\\'\""):
-        return False
-    for part in re.split(r"[,;]", chain):
-        name, _, opts = part.strip().partition("=")
-        if name.strip() not in GRADE_FILTERS_MCP:
-            return False
-        for o in (opts.split(":") if opts else []):
-            key, eq, _v = o.partition("=")
-            if key.strip().lower() in GRADE_BAD_OPTIONS or (not eq and name.strip() == "curves"):
-                return False
-    return True
 
 
 def _grade_inputs(rest: list[str]) -> list[str]:
@@ -178,7 +159,7 @@ def run_edit(args: list[str]) -> int:
     if first == "grade" and not any(r.split("=", 1)[0] in GRADE_READ_ONLY for r in rest):
         if not _grade_inputs(rest):
             raise EditError("grade: informe FONTE.mp4 -o OUT.mp4 (edit help grade)")
-        if not _output_values(rest):
+        if not output_values(rest):
             raise EditError("grade: -o OUT.mp4 é obrigatório (ou use --analyze FONTE.mp4)")
     if first == "transcribe" and not any(h in rest for h in ("-h", "--help")):
         if not rest:

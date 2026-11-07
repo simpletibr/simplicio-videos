@@ -23,14 +23,6 @@ class MediaError(Exception):
     pass
 
 
-def __getattr__(name: str):
-    """`media.shorts` still resolves (tests/test_media.py reads `media.shorts.probe`), but media no longer imports shorts: the probe is mediaio's."""
-    if name == "shorts":
-        from . import shorts
-        return shorts
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
 HELP = """media (audio-visual on any MP4: ffmpeg/ffprobe, deterministic; fetch uses the pinned yt-dlp)
 
   fetch URL -o OUT.mp4 --autorizo [--max-mb 500] [--timeout 600]
@@ -286,7 +278,7 @@ def _has_filter(name: str) -> bool:
     return any(re.match(r"\s*\S+\s+%s\s" % re.escape(name), linha) for linha in r.stdout.splitlines())
 
 
-def _parse(args: list[str]) -> tuple[list[str], dict[str, str]]:
+def parse_argv(args: list[str]) -> tuple[list[str], dict[str, str]]:
     pos: list[str] = []
     vals: dict[str, str] = {}
     i = 0
@@ -305,6 +297,9 @@ def _parse(args: list[str]) -> tuple[list[str], dict[str, str]]:
             pos.append(a)
             i += 1
     return pos, vals
+
+
+_parse = parse_argv  # the old name: the MCP server reads the CLI's own parse through the public one, callers of the old name keep working
 
 
 def _float(vals: dict[str, str], key: str, default: float | None) -> float | None:
@@ -549,7 +544,7 @@ def run_media(args: list[str]) -> int:
     if any(h in antes_do_traco for h in ("-h", "--help")):
         print(sub_help(first))
         return 0
-    pos, vals = _parse(args[1:])
+    pos, vals = parse_argv(args[1:])
     resultado = DISPATCH[first](pos, vals)
     print(json.dumps(resultado, ensure_ascii=False, indent=2))
     return 0

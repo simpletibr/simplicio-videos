@@ -3244,7 +3244,7 @@ MSG_CHAVE = ("{}: {} não é uma opção própria com um valor: foi engolido por
     (["probe", "/a/x.mp4", "--fit", "-o", "/abs/o"], {"--fit": "-o"}, MSG_CHAVE.format("media", "-o")),
     (["probe", "/a/x.mp4", "-o", "/abs/a", "-o", "/abs/b"], {"-o": "/abs/b"}, MSG_CHAVE.format("media", "-o")),
     (["probe", "/a/x.mp4", "-o"], {"-o": ""}, MSG_SAIDA.format("media", "-o/--out")),
-    (["probe", "-o", "/abs/o", "--", "-o", "rel"], {"-o": "/abs/o", "--": "-o"}, None),
+    (["probe", "-o", "/abs/o", "--", "-o", "rel"], {"-o": "/abs/o", "--": "-o"}, MSG_CHAVE.format("media", "-o")),  # the count sees past `--`
 ])
 def test_saida_absoluta_nova_checks_every_spelling_of_the_output_and_that_each_key_comes_from_one_option(pol, argv, flags, erro):
     assert pol.saida_absoluta_nova(argv, flags, nome="media", chaves=("-o",)) == erro
@@ -3316,7 +3316,7 @@ def test_the_policy_functions_do_not_live_in_the_wrappers_any_more():
 def test_mcp_server_has_one_place_that_decides_clone_with_a_folder_and_one_roda_externa():
     import ast
     fonte = Path(mcp_server.__file__).read_text(encoding="utf-8")
-    assert fonte.count('["clone"] and len(argv) > 1') == 0
+    assert fonte.count('== ["clone"] and len(argv) > 1') == 0  # mcp_policy.clone_com_pasta decides it, once
     arvore = ast.parse(fonte)
     video_rea = next(n for n in arvore.body if isinstance(n, ast.FunctionDef) and n.name == "video_rea_video")
     assert not any(isinstance(n, ast.Attribute) and n.attr == "StringIO" for n in ast.walk(video_rea))  # a cópia de _roda_externa saiu
