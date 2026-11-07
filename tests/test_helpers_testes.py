@@ -684,3 +684,32 @@ def test_edit_yaml_utf8_is_edit_yaml_with_utf8_named(tmp_path):
     p.write_bytes("nome: João\n".encode("utf8"))
     assert helpers.edit_yaml_utf8(p, lambda d: d.update(cidade="São Paulo")) is None
     assert p.read_bytes() == "nome: João\ncidade: São Paulo\n".encode("utf8")
+
+
+def test_run_cli_runs_the_module_with_the_offline_environment(tmp_path, monkeypatch):
+    helpers = h()
+    visto = {}
+
+    def falso(argv, **kw):
+        visto.update(argv=argv, **kw)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", falso)
+    helpers.run_cli("a", Path("b"), 3, cwd=tmp_path)
+    assert visto["argv"] == [sys.executable, "-m", "simplicio_video", "a", "b", "3"]
+    assert visto["capture_output"] is True and visto["text"] is True and visto["cwd"] == tmp_path
+    assert visto["env"]["SIMPLICIO_OFFLINE"] == "1"
+    assert (Path(visto["env"]["PYTHONPATH"].split(os.pathsep)[0]) / "sitecustomize.py").is_file()  # the socket guard reaches the child
+
+
+def test_fake_mp4_creates_the_missing_folders_up_to_out(tmp_path):
+    helpers = h()
+    contrato = tmp_path / "ainda" / "nao" / "existe" / "contract.yaml"
+    assert helpers.fake_mp4(contrato, b"x") == tmp_path / "ainda" / "nao" / "existe" / "out" / "mini.mp4"
+    assert (tmp_path / "ainda" / "nao" / "existe" / "out" / "mini.mp4").read_bytes() == b"x"
+
+
+def test_the_asserts_inside_helpers_are_rewritten_by_pytest_like_the_ones_in_test_modules():
+    import helpers.repo
+    # conftest registers the package for rewriting before importing it; without that, a failing assert in a helper has no detail
+    assert type(helpers.repo.__spec__.loader).__name__ == "AssertionRewritingHook"
