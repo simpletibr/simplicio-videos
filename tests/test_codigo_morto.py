@@ -154,7 +154,7 @@ def test_voice_py_points_to_the_mock_where_it_is_and_says_the_legacy_script_is_g
     assert "scripts/mock_gemini_tts.py" not in texto  # never existed
     assert "tests/tools/mock_gemini.py" in texto and MOCK.is_file()
     cabeca = texto.split('"""')[1]
-    # `scripts/voice.py` was the script of the per-video WJR projects (clients/ left the repository): the docstring says so
+    # `scripts/voice.py` was the script of the per-video projects (clients/ left the repository): the docstring says so
     assert (ROOT / "scripts" / "voice.py").exists() or "scripts/voice.py" not in cabeca or "no longer in this repository" in cabeca
 
 

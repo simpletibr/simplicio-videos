@@ -1,6 +1,6 @@
 """`simplicio-video voice`: render/cache the narration lines of a contract and write timing.lock.json.
 
-Same processing as the legacy scripts/voice.py of the per-video WJR projects (no longer in this repository; so takes are bit-identical): source -> 48 kHz mono ->
+Same processing as the legacy scripts/voice.py of the per-video projects (no longer in this repository; so takes are bit-identical): source -> 48 kHz mono ->
 silence trim -> contract ffmpeg chain -> pcm_s16le -bitexact. Never time-stretches: a take longer than
 its max_s is an error (after one retry with the tighter silence trim TRIM_TIGHT). Cache key = provider + resolved settings + chain + text-to-say (+ source file hash).
 """
