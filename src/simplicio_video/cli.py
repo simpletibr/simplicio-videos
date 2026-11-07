@@ -96,10 +96,14 @@ Skill para LLMs: skills/simplicio-video/SKILL.md"""
 def __getattr__(nome: str):
     """`cli.MAIN_DESC` (a text that some tests and `docs` read) is made on first use, not when the module is imported.
     `cli.do_render` is `despacho.do_render` (the dispatch of a render moved there, so the domain does not import the CLI to render),
-    re-exported on first use: a top-level import would load one more module in every `--help`."""
+    re-exported on first use: a top-level import would load one more module in every `--help`.
+    The name is read-only and nothing is stored in the module (not in `vars`, `dir` or `import *`). The target of a monkeypatch of the
+    render dispatch is `despacho.do_render`: patching `cli.do_render` has NO effect on the callers (`render`, `run`, `pipeline`,
+    `mcp_server`), which read `despacho.do_render` when they render."""
     if nome == "MAIN_DESC":
         return _main_desc()
     if nome == "do_render":
+        # kept off globals() on purpose: see the docstring (tests/test_despacho.py pins it)
         from .despacho import do_render
         return do_render
     raise AttributeError(f"module {__name__!r} has no attribute {nome!r}")

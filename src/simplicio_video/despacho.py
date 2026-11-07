@@ -4,6 +4,9 @@
 own, not in `cli.py`, so that the domain (`pipeline`, `mcp_server`) does not import the CLI to render: the CLI is the volatile side
 and the domain the stable one. `cli.do_render` is still there, a lazy re-export of this very function.
 
+The target of a monkeypatch of the dispatch is `despacho.do_render`: the callers (`cli`, `pipeline`, `mcp_server`) read it from this
+module when they render, so patching `cli.do_render` (the re-exported name) has NO effect on them.
+
 This module imports nothing of the package at the top: the backends (`render`, `remote`) are read when a render is dispatched, so
 importing it is as light as it was to import the function from the CLI.
 """
