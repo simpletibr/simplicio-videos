@@ -56,6 +56,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import childio, download, hostos, paths, tools
+from .fsutil import sha256_file
 from .toonflow import _offline
 
 REPO = "https://github.com/brenoepics/video-to-skill"
@@ -522,10 +523,10 @@ def _checkout_head(d: Path) -> str | None:
 
 def _sha256_file(path: Path, limit: int = MAX_MEMBER_BYTES) -> str | None:
     try:
-        data = hostos.read_regular(path, limit)
-    except OSError:
+        hostos.read_regular(path, 0)  # a FIFO or a folder stops here: the plain open() of fsutil would block on a FIFO with no writer
+        return sha256_file(path, limit=limit)
+    except (OSError, ValueError):  # not a regular file, unreadable, or over `limit` (a file over the cap has no digest)
         return None
-    return None if len(data) > limit else hashlib.sha256(data).hexdigest()
 
 
 @dataclass(frozen=True)

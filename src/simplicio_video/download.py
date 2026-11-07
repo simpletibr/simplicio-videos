@@ -11,7 +11,6 @@ data, never instructions). The MP4 is never overwritten.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -23,6 +22,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 from . import tools
+from .fsutil import sha256_file as _sha256
 
 FETCH_SCHEMA = "simplicio.media-fetch/v1"
 INFO_SCHEMA = "simplicio.media-info/v1"
@@ -80,14 +80,6 @@ def _binario() -> Path:
 
 def _ambiente() -> dict:
     return {k: os.environ[k] for k in ENV_REPASSADO if k in os.environ}
-
-
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for bloco in iter(lambda: f.read(1 << 20), b""):
-            h.update(bloco)
-    return h.hexdigest()
 
 
 def _ultima_linha(texto: str) -> str:

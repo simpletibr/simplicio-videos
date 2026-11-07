@@ -4,6 +4,7 @@ Estes testes descrevem o comportamento de HOJE e ficam verdes antes e depois de 
 os mesmos bytes de hash, as mesmas exceções para os mesmos arquivos ruins (ausente, pasta, FIFO, link) e o mesmo hex congelado
 de tudo que entra em manifesto, lock, plano, cache ou recibo.
 """
+import ast
 import hashlib
 import inspect
 import json
@@ -11,6 +12,7 @@ import os
 import random
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -292,7 +294,7 @@ def _gerados(n: int = 1000):
 
 
 @pytest.mark.parametrize("nome", sorted(CANONICOS))
-@pytest.mark.parametrize("obj", OBJETOS, ids=lambda o: json.dumps(o, default=str, ensure_ascii=True)[:40])
+@pytest.mark.parametrize("obj", OBJETOS, ids=[f"objeto{i}" for i in range(len(OBJETOS))])
 def test_canonical_dos_quatro_e_a_formula_de_hoje(nome, obj):
     try:
         esperado = json.dumps(obj, **REFERENCIA)
@@ -366,3 +368,64 @@ def test_chave_de_cache_e_sha_da_busca_sao_os_hex_de_hoje():
 def test_digest_do_plano_do_installer_e_o_hex_de_hoje():
     assert installer._digest({"schema": "x", "hosts": ["claude", "codex"], "n": 3, "ç": "á"}) == \
         "sha256:f24e809529843fac99c4fba1a39d2780a819043bce6f63f1a95cb9e38461c4c8"
+
+
+# ------------------------------------------------------------------- depois de U05: uma implementação só (e os nomes antigos)
+
+SRC = Path(fsutil.__file__).parent
+
+
+def test_os_nomes_publicos_antigos_sao_o_sha256_file_do_fsutil():
+    for nome, fn in ABREM.items():
+        assert fn is fsutil.sha256_file, nome
+
+
+def test_os_nomes_antigos_do_canonical_sao_o_canonical_json_do_fsutil():
+    for nome in ("contract.canonical", "social.canonical", "busca._canonico"):
+        assert CANONICOS[nome] is fsutil.canonical_json, nome
+
+
+def _modulos():
+    for p in sorted(SRC.rglob("*.py")):
+        yield p.relative_to(SRC).as_posix(), ast.parse(p.read_text(encoding="utf8"))
+
+
+def test_so_o_fsutil_e_o_installer_hasheiam_um_arquivo_por_funcao_propria():
+    """O que `pronto.py` mede: função de nome `*sha*` que usa hashlib e lê arquivo. O installer lê pelo `hostos.read_regular` (arquivo
+    comum com teto, sem corrida entre a checagem e a leitura) e fica de propósito."""
+    achadas = set()
+    for rel, arvore in _modulos():
+        texto = (SRC / rel).read_text(encoding="utf8")
+        for n in ast.walk(arvore):
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and "sha" in n.name.lower():
+                src = ast.get_source_segment(texto, n) or ""
+                if "hashlib" in src and ("open(" in src or "read_bytes" in src or "os.read" in src):
+                    achadas.add(f"{rel}:{n.name}")
+    assert achadas == {"fsutil.py:sha256_file", "installer.py:sha256_of"}
+
+
+def test_so_o_fsutil_escreve_o_json_canonico():
+    """`json.dumps` com sort_keys, ensure_ascii e separators juntos é o canônico: uma só vez no pacote."""
+    achadas = []
+    for rel, arvore in _modulos():
+        for n in ast.walk(arvore):
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "dumps":
+                if {"sort_keys", "ensure_ascii", "separators"} <= {k.arg for k in n.keywords}:
+                    achadas.append(rel)
+    assert achadas == ["fsutil.py"]
+
+
+def test_render_nao_importa_o_voice_so_para_o_sha256():
+    arvore = ast.parse((SRC / "render.py").read_text(encoding="utf8"))
+    de_voice = [n for n in ast.walk(arvore) if isinstance(n, ast.ImportFrom) and n.level == 1 and n.module == "voice"]
+    assert de_voice == []
+    assert render.sha256_file is fsutil.sha256_file
+
+
+def test_o_fsutil_passa_pela_varredura_de_fronteira_do_social():
+    """O `social` pode importar o `fsutil` (ele está em RELATIVOS_PERMITIDOS) porque o próprio `fsutil` não tem rede, ambiente,
+    processo nem import relativo."""
+    from social_guard import RELATIVOS_PERMITIDOS, violacoes_de_codigo
+
+    assert "fsutil" in RELATIVOS_PERMITIDOS
+    assert violacoes_de_codigo((SRC / "fsutil.py").read_text(encoding="utf8")) == []

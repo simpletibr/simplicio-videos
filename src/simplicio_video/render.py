@@ -19,7 +19,7 @@ from pathlib import Path
 from . import HYPERFRAMES, __version__, paths, perfis
 from .compiler import MARCA_PADRAO_DAGUA, compile_project
 from .contract import Contract, load_lock, validate
-from .voice import sha256_file
+from .fsutil import sha256_file
 
 SKIP_DIRS = {"out", "renders", ".debug", "node_modules"}
 BUNDLE_SCRIPT = r"""#!/usr/bin/env bash

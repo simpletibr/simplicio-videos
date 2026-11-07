@@ -52,6 +52,7 @@ from pathlib import Path
 
 from . import childio, hostos, tools
 from .busca_ajuda import HELP_DESC, HELP_EPILOG, TETO_PADRAO
+from .fsutil import canonical_json as _canonico
 
 __all__ = ["BuscaError", "consulta", "pagina", "status", "log", "status_summary", "run_busca", "scrub", "UNTRUSTED_NOTICE"]
 
@@ -315,10 +316,6 @@ def _atomic_write(path: Path, texto: str) -> None:
 
 def _dump(obj) -> str:
     return _guard(json.dumps(obj, indent=2, ensure_ascii=False) + "\n")
-
-
-def _canonico(obj) -> str:
-    return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
 def _sha(dados: bytes | str) -> str:
