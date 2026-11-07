@@ -619,3 +619,20 @@ def test_no_test_module_has_its_own_yaml_editor_or_fake_mp4_writer():
                 if "'out' / 'mini.mp4'" in corpo or '"out" / "mini.mp4"' in corpo:
                     achados.append(f"{rel}:{n.lineno}: def {n.name}() writes out/mini.mp4 (helpers.fake_mp4)")
     assert achados == [], "\n".join(achados)
+
+
+def test_no_test_module_has_its_own_in_process_main_runner():
+    import ast
+    achados = []
+    for rel, tree in _modulos():
+        for n in tree.body:
+            if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) or n.name.startswith("test_"):
+                continue
+            if "capsys.readouterr()" not in ast.unparse(n):
+                continue
+            for sub in ast.walk(n):
+                if isinstance(sub, ast.ExceptHandler) and ast.unparse(sub.type) == "SystemExit" and sub.body:
+                    primeiro = ast.unparse(sub.body[0])
+                    if primeiro == "rc = e.code" or primeiro.startswith("if isinstance(e.code, str):"):
+                        achados.append(f"{rel}:{n.lineno}: def {n.name}() runs main(argv) and turns SystemExit into rc (helpers.run_main)")
+    assert achados == [], "\n".join(achados)

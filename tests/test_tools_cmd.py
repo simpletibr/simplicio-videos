@@ -7,17 +7,13 @@ import pytest
 
 from simplicio_video import status, tools
 from simplicio_video.cli import main
+from helpers import run_main
 
 NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "tinyfish", "voicestudio", "video-use", "yt-dlp", "rea_video", "video_to_skill"}
 
 
 def _run(argv, capsys):
-    try:
-        rc = main(argv)
-    except SystemExit as e:  # argparse exits for --help
-        rc = e.code
-    out, err = capsys.readouterr()
-    return rc, out, err
+    return run_main(main, argv, capsys)  # argparse exits for --help
 
 
 @pytest.fixture(autouse=True)

@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from helpers import offline_env, SRC
+from helpers import offline_env, run_main, SRC
 from simplicio_video import cli, mcp_server, pipeline, remote, render
 from simplicio_video import contract as ct
 
@@ -76,12 +76,7 @@ def folhas(monkeypatch):
 
 
 def _main(argv, capsys):
-    try:
-        rc = cli.main(argv)
-    except SystemExit as e:
-        rc = e.code
-    out, err = capsys.readouterr()
-    return rc, out, err
+    return run_main(cli.main, argv, capsys)
 
 
 # ------------------------------------------------------------------ characterization: which backend, with which arguments
