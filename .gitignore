@@ -32,13 +32,19 @@ prospects/*
 clients/*/coleta/
 # recibo de posse do `simplicio-video install` (e a pasta do projeto onde ele roda)
 .simplicio-video/
-# as skills que `simplicio-video install` copia para a raiz deste repositório (a fonte é src/simplicio_video/data/skills/)
+# BEGIN GENERATED skills
+# as skills que `simplicio-video install` copia para a raiz deste repositório (a fonte é src/simplicio_video/data/skills/; bloco gerado por scripts/sync_skills.py, não edite: `make regen`)
 .claude/skills/simplicio-video/
 .claude/skills/simplicio-video-social/
+.claude/skills/simplicio-video-media/
+.claude/skills/simplicio-video-voicestudio/
+.claude/skills/simplicio-video-shorts/
+.claude/skills/simplicio-video-edit/
+.claude/skills/simplicio-video-trilhas/
 .claude/skills/deep-news/
 .claude/skills/deep-service/
 .claude/skills/deep-product/
-.claude/skills/simplicio-video-trilhas/
+# END GENERATED skills
 
 # dados de cliente nunca vão para o git (AGENTS.md; backup fora do repo)
 clients/
