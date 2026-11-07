@@ -141,7 +141,10 @@ def _repo_files_referenced() -> list[tuple[str, str]]:
 
 
 def _versioned(rel: str) -> str:
-    return f"{REPO_URL}v{simplicio_video.__version__}/{rel}"
+    """The URL of `rel` at this release's tag, or on `main` when the running version is not a plain release (a dev checkout)."""
+    version = simplicio_video.__version__
+    ref = f"v{version}" if re.fullmatch(r"\d+(?:\.\d+){1,3}(?:\.post\d+)?", version, re.ASCII) else "main"
+    return f"{REPO_URL}{ref}/{rel}"
 
 
 # ---------------------------------------------------------------------------------------------------------- doc_url
@@ -153,6 +156,24 @@ def test_doc_url_is_the_versioned_blob_url():
 def test_doc_url_follows_the_package_version(monkeypatch):
     monkeypatch.setattr(paths, "__version__", "9.9.9", raising=False)
     assert paths.doc_url("voices/openvoice.md") == f"{REPO_URL}v9.9.9/voices/openvoice.md"
+
+
+# A tag exists only for a release: a development, pre-release or dirty version has no `v<version>` to point at, so the link
+# would be a 404 for exactly the people who run a build that is not a release. It falls back to `main`.
+@pytest.mark.parametrize("version, ref", [
+    ("0.8.0", "v0.8.0"),
+    ("1.12", "v1.12"),
+    ("0.8.0.post1", "v0.8.0.post1"),
+    ("0.8.1.dev0", "main"),
+    ("0.9.0rc1", "main"),
+    ("0.9.0.a1", "main"),
+    ("0.8.0+dirty", "main"),
+    ("0.8.1.dev0+g1a2b3c4.d20261107", "main"),
+    ("0+unknown", "main"),
+])
+def test_doc_url_points_at_the_tag_of_a_release_and_at_main_otherwise(monkeypatch, version, ref):
+    monkeypatch.setattr(paths, "__version__", version, raising=False)
+    assert paths.doc_url("docs/custos.md") == f"{REPO_URL}{ref}/docs/custos.md"
 
 
 # ----------------------------------------------------------------------------------------------- the wheel scan
