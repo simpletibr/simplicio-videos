@@ -5,7 +5,7 @@ O que o motor não executa e o repositório não confere (operação de vendas, 
 - `scripts/check_docs.py` **não confere nada aqui**: os links dentro destes arquivos continuam como eram e apontam para onde as coisas ficavam antes. Um link de uma página viva para um arquivo daqui é conferido (o alvo tem de existir).
 - Nada de `arquivo/` entra no wheel nem no sdist (eles só levam `src/` e seis arquivos da raiz; `tests/test_scripts/test_arquivo.py` guarda isso).
 - As cinco pesquisas datadas de 30/09/2026 não vieram para cá: foram para [`docs/pesquisa/`](../docs/pesquisa/README.md).
-- O texto das seções do `AGENTS.md` que descreviam a operação está, copiado como estava, em [`AGENTS-legado.md`](AGENTS-legado.md).
+- As quatro linhas do Mapa do `AGENTS.md` que descreviam `modules/`, `ugc/`, `scripts/kit_gpu/` e `prospects/` estão, copiadas como estavam, em [`AGENTS-legado.md`](AGENTS-legado.md).
 
 | Onde estava | Onde está | O que é |
 |---|---|---|
@@ -23,4 +23,5 @@ O que o motor não executa e o repositório não confere (operação de vendas, 
 
 - `intake/` e o verbo `videos` do `plugin.json` (o único consumidor de `intake/`): decisão do dono, ainda sem resposta.
 - `voices/`, `colab/`, `tools/`, `examples/`, `deploy/`, `src/simplicio_video/data/**`: têm consumidor vivo (mensagens do CLI, `render.py`, testes, o pacote).
+- As seções do `AGENTS.md` sobre a missão e o guia de operação de vendas, a venda ativa, o fluxo de UGC e as entregas no Drive: carregam regra ativa (o guia do dono, as travas, a convenção de pastas do Drive que `publish.py` e `--drive-nome` ainda usam) e ficam no `AGENTS.md`; só os caminhos de dois links passaram a apontar para cá.
 - `.gitignore` (linhas `prospects/*` e `clients/`) e o `CHANGELOG.md` (histórico): não se editam nesta mudança.
