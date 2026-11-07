@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .voice import PROVIDERS
+from .voz_catalogo import DESCRICOES
 
 
 def templates(data: Path) -> list[dict]:
@@ -24,7 +24,7 @@ def motion(data: Path) -> list[dict]:
 
 
 def voices() -> list[dict]:
-    return [{"id": k, "desc": v} for k, v in PROVIDERS.items()]
+    return [{"id": k, "desc": v} for k, v in DESCRICOES.items()]
 
 
 GRUPOS_ANGULOS = ("problema", "prova", "desejo", "decisao", "estrategia")

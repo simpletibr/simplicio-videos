@@ -226,6 +226,7 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `voice.py`: `simplicio-video voice`: render/cache the narration lines of a contract and write timing.lock.json.
 - `voice_clone.py`: Voice cloning / local-engine providers: voxcpm, openvoice, voicestudio.
 - `voicestudio.py`: VoiceStudio track: local voice studio for TTS, voice cloning, voice design and transcription (https://github.com/debpalash/VoiceStudio, AGPL-3.0).
+- `voz_catalogo.py`: The voice providers as plain data: name, description, whether the provider waits on the network and whether it keeps the raw take.
 - `words.py`: Word timings of a processed narration take (for word-by-word kinetic typography synced to the voice).
 <!-- END GENERATED -->
 
