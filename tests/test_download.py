@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from simplicio_video import download, media, tools
+from helpers import isolate_tools
 
 SHA_WHEEL = "a05c5b5d8562f7e8a62f5334348b406af4930d56d3a65f8021d14af0e22339ae"
 POSIX = os.name == "posix"
@@ -23,8 +24,7 @@ _REAL_CONFERIR = download._conferir if hasattr(download, "_conferir") else None
 
 @pytest.fixture(autouse=True)
 def _isolated(tmp_path, monkeypatch):
-    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
-    monkeypatch.delenv("SIMPLICIO_YT-DLP_REF", raising=False)
+    isolate_tools(monkeypatch, tmp_path, home=False, drop=("SIMPLICIO_YT-DLP_REF",))
     monkeypatch.setattr(download, "_conferir", lambda caminho: None, raising=False)  # the fakes write bytes, not media
     return tmp_path
 

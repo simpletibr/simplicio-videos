@@ -646,3 +646,22 @@ def test_vivo_and_espera_are_defined_once():
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in ("vivo", "espera"):
                 achados.append(f"{rel}:{n.lineno}: def {n.name}() (helpers.procs)")
     assert achados == [], "\n".join(achados)
+
+
+def test_isolate_tools_drops_first_so_a_dropped_name_that_it_also_sets_ends_up_set(tmp_path):
+    helpers = h()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("SIMPLICIO_TOOLS_DIR", "/real")
+        helpers.isolate_tools(mp, tmp_path, drop=("SIMPLICIO_TOOLS_DIR",))
+        assert os.environ["SIMPLICIO_TOOLS_DIR"] == str(tmp_path / "tools")  # test_tools_cmd dropped per-track names first, then set it
+
+
+def test_no_test_module_isolates_home_and_the_tools_dir_by_hand():
+    import ast
+    achados = []
+    for rel, tree in _modulos():
+        for n in tree.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "_isolated":
+                if "SIMPLICIO_TOOLS_DIR" in ast.unparse(n):
+                    achados.append(f"{rel}:{n.lineno}: def _isolated() sets SIMPLICIO_TOOLS_DIR itself (helpers.isolate_tools)")
+    assert achados == [], "\n".join(achados)

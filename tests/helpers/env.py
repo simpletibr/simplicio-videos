@@ -49,11 +49,11 @@ def isolate_tools(monkeypatch, tmp_path, *, home: bool = True, data: str | None 
     machine) must never be found by a test. HOME and the tools dir point into `tmp_path` (not created), `data` names the
     SIMPLICIO_VIDEO_DATA folder under it, and `drop` lists the variables of that track to remove. What a track needs beyond
     this (a chdir, a patched platform, PATH) stays in its own fixture. Returns `tmp_path`."""
+    for var in drop:
+        monkeypatch.delenv(var, raising=False)
     if home:
         monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
     if data is not None:
         monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path / data))
-    for var in drop:
-        monkeypatch.delenv(var, raising=False)
     return tmp_path

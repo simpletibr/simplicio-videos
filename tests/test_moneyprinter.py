@@ -16,7 +16,7 @@ from _orfao import (SINAIS, SLEEPER_CODE, espera, espera_pid, lanca_como_shell, 
                     sinaliza_no_popen, sinais_padrao, vivo)
 
 from simplicio_video import cli, mcp_server, moneyprinter, tools
-from helpers import ROOT
+from helpers import isolate_tools, ROOT
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 FAKE_KEY = "FAKEKEY-do-not-print-0123456789"
@@ -78,12 +78,7 @@ def _no_git_and_no_real_sockets(monkeypatch):
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch, tmp_path):
     # Isolate the home and the tools dir: a real checkout under ~/.simplicio-video must never be found by a test.
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
-    monkeypatch.delenv("MONEYPRINTER_DIR", raising=False)
-    monkeypatch.delenv("MONEYPRINTER_DATA_DIR", raising=False)
-    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
-    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path / "data"))
+    isolate_tools(monkeypatch, tmp_path, data="data", drop=("MONEYPRINTER_DIR", "MONEYPRINTER_DATA_DIR", "SIMPLICIO_OFFLINE"))
 
 
 @pytest.fixture

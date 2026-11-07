@@ -32,7 +32,7 @@ from types import SimpleNamespace
 import pytest
 
 from _orfao import SINAIS, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao, sleeper  # noqa: F401
-from helpers import espera, offline_env, ROOT, vivo
+from helpers import espera, isolate_tools, offline_env, ROOT, vivo
 from simplicio_video import cli, instagram, mcp_server, tools, tools_lock, tools_update
 
 REAL_GIT = tools._git  # the conftest replaces tools._git for every test; the integration test needs the real one
@@ -145,10 +145,7 @@ def build_checkout(root: Path) -> dict[str, str]:
 def _isolated(monkeypatch, tmp_path):
     (tmp_path / "home").mkdir()
     (tmp_path / "work").mkdir()
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
-    for var in ("INSTAGRAM_DIR", "SIMPLICIO_INSTAGRAM_DIR", "SIMPLICIO_INSTAGRAM_REF"):
-        monkeypatch.delenv(var, raising=False)
+    isolate_tools(monkeypatch, tmp_path, drop=("INSTAGRAM_DIR", "SIMPLICIO_INSTAGRAM_DIR", "SIMPLICIO_INSTAGRAM_REF"))
     monkeypatch.chdir(tmp_path / "work")  # the folder the user runs from: the child's cwd
 
 

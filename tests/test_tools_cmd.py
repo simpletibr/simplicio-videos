@@ -7,7 +7,7 @@ import pytest
 
 from simplicio_video import status, tools
 from simplicio_video.cli import main
-from helpers import run_main
+from helpers import isolate_tools, run_main
 
 NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "tinyfish", "voicestudio", "video-use", "yt-dlp", "rea_video", "video_to_skill"}
 
@@ -19,10 +19,9 @@ def _run(argv, capsys):
 @pytest.fixture(autouse=True)
 def _isolated(tmp_path, monkeypatch):
     """No real checkout, no binary on PATH: every track starts absent."""
-    for t in tools.TOOLS.values():
-        for var in (f"{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_REF"):
-            monkeypatch.delenv(var, raising=False)
-    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
+    isolate_tools(monkeypatch, tmp_path, home=False,
+                  drop=[var for t in tools.TOOLS.values()
+                        for var in (f"{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_DIR", f"SIMPLICIO_{t.name.upper()}_REF")])
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     monkeypatch.setenv("PATH", str(bin_dir))

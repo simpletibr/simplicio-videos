@@ -18,6 +18,7 @@ import _fake_vts as fake
 from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no test leaves a job folder in the real tmp)
 
 from simplicio_video import cli, paths, tools, video_to_skill as v2s
+from helpers import isolate_tools
 
 COMMIT = "c1a1b905da6a252077ace0657e8ea49cb785e7c3"
 BASE = "https://github.com/brenoepics/video-to-skill/releases/download/v0.3.0/"
@@ -39,11 +40,8 @@ posix_only = pytest.mark.skipif(os.name != "posix", reason="the fake extractor i
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
-    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path / "dados"))
-    for var in ("VIDEO_TO_SKILL_DIR", "SIMPLICIO_VIDEO_TO_SKILL_DIR", "VTS_DATA_DIR", "SIMPLICIO_VIDEO_TO_SKILL_REF"):
-        monkeypatch.delenv(var, raising=False)
+    isolate_tools(monkeypatch, tmp_path, data="dados",
+                  drop=("VIDEO_TO_SKILL_DIR", "SIMPLICIO_VIDEO_TO_SKILL_DIR", "VTS_DATA_DIR", "SIMPLICIO_VIDEO_TO_SKILL_REF"))
     monkeypatch.setattr(v2s, "_platform", lambda: ("Linux", "x86_64"))
 
 
