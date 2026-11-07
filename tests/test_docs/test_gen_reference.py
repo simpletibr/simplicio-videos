@@ -296,11 +296,30 @@ def test_o_mapa_de_modulos_do_agents_lista_cada_modulo_com_a_sua_docstring():
             assert "sem docstring" in itens[rel], f"{rel}: sem docstring e o mapa não avisa"
 
 
-def test_o_agents_nao_repete_o_mapa_de_modulos_a_mao():
-    """The 4 KB hand-written cell of the `src/simplicio_video/` row is gone: the generated block is the only module map."""
+def test_o_agents_mantem_a_celula_a_mao_de_src_simplicio_video():
+    """The block only adds: the hand-written `src/simplicio_video/` row of the table (3.8 KB, with the ADR links, the UNVERIFIED notes and
+    the `data/skills/` rule) stays as the owner wrote it, and the generated module map lives apart, under its own heading."""
     texto = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     linha = next(l for l in texto.splitlines() if l.startswith("| `src/simplicio_video/` |"))
-    assert len(linha) < 600, "a linha de src/simplicio_video/ do AGENTS.md voltou a ser o mapa de módulos escrito à mão"
+    assert len(linha) > 3000, "a célula à mão de src/simplicio_video/ do AGENTS.md foi encurtada ou trocada"
+    for trecho in ("`swap.manifest.json`", "`data/skills/` (fonte da verdade; `skills/` é o espelho)", "[ADR-0018](docs/decisoes/ADR-0018-social-planejar-sem-postar.md)",
+                   "[ADR-0020](docs/decisoes/ADR-0020-install-universal-e-update-igual-ao-loop.md)", "fal, wavespeed, kie e alibaba UNVERIFIED"):
+        assert trecho in linha, f"a célula à mão perdeu {trecho!r}"
+    assert "### Módulos de `src/simplicio_video/`" in texto and "<!-- BEGIN GENERATED: mapa-modulos -->" not in linha
+
+
+def test_o_bloco_fatos_diz_que_a_contagem_vem_do_codigo_e_nao_da_prosa():
+    """Where the hand-written prose still says another number (README.md:17 `6 skeleton`, esteira `1 pronto`), the reader of the block
+    knows these are the ones read from the code. PYPI.md is the public page of the package: its block shows no maintainer note."""
+    comeco = {"en": "Counts generated from the code", "pt": "Contagens geradas do código"}
+    for rel, (lingua, _fatos) in FATOS_ARQUIVOS.items():
+        bloco = _bloco(rel, "fatos")
+        if rel == "PYPI.md":
+            assert "make regen" not in bloco and "gen_reference" not in bloco and "Gerado" not in bloco, "a nota de manutenção apareceria na página do PyPI"
+            assert bloco.lstrip().startswith("| Fato | Valor |")
+        else:
+            assert bloco.lstrip().startswith(comeco[lingua]), f"{rel}: o bloco não rotula a origem da contagem"
+            assert "make regen" in bloco
 
 
 @pytest.mark.parametrize("rel, antes, depois", [
