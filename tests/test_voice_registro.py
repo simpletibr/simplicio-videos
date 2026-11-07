@@ -12,9 +12,12 @@ Three layers, from the most portable to the most exact:
 
 No network, no key, no engine: the HTTP layer and the child processes are faked, the takes are made here in integers.
 """
+import ast
 import atexit
 import base64
+import dataclasses
 import hashlib
+import inspect
 import io
 import json
 import os
@@ -34,7 +37,7 @@ import pytest
 from conftest import FIXTURE
 from simplicio_video import catalog, childio
 from simplicio_video import contract as ct
-from simplicio_video import voice
+from simplicio_video import voice, voice_clone, voz_catalogo
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None, reason="needs ffmpeg and ffprobe")
 
@@ -588,3 +591,93 @@ def test_a_take_longer_than_its_slot_is_an_error_after_the_lock_is_written(tmp_p
     assert ei.value.code.endswith("s > max_s 0.4s")
     lock = json.loads((path.parent / "timing.lock.json").read_text(encoding="utf8"))
     assert lock["lines"]["vo1"]["fits"] is False and lock["lines"]["vo1"]["slack_s"] < 0
+
+
+# ================================================================ the registry (U21): one Provider per name, one ffmpeg chain
+def test_provider_is_a_frozen_dataclass_with_the_six_fields():
+    assert [f.name for f in dataclasses.fields(voice.Provider)] == ["nome", "descricao", "rede", "guarda_bruto", "settings", "gerar"]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        voice.REGISTRO["file"].rede = True  # type: ignore[misc]
+
+
+def test_registry_has_the_nine_providers_in_the_order_of_the_table():
+    assert list(voice.REGISTRO) == list(DESCRICOES)
+    for nome, p in voice.REGISTRO.items():
+        assert p.nome == nome and p.descricao == DESCRICOES[nome] and (p.rede, p.guarda_bruto) == REDE_E_BRUTO[nome], nome
+        assert callable(p.settings) and callable(p.gerar), nome
+
+
+def test_the_table_the_catalog_reads_is_the_one_of_the_registry():
+    assert [f.nome for f in voz_catalogo.FICHAS] == list(voice.REGISTRO) == list(voice._COMPORTAMENTO)
+    assert voz_catalogo.DESCRICOES == voice.PROVIDERS
+    assert [(f.rede, f.guarda_bruto) for f in voz_catalogo.FICHAS] == [(p.rede, p.guarda_bruto) for p in voice.REGISTRO.values()]
+
+
+def test_voz_catalogo_is_only_data():
+    tree = ast.parse(Path(voz_catalogo.__file__).read_text(encoding="utf8"))
+    imports = [n for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))]
+    assert sorted(getattr(n, "module", None) or n.names[0].name for n in imports) == ["__future__", "dataclasses"]
+    assert [n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))] == []
+
+
+def test_the_catalog_does_not_load_the_voice_engine():
+    code = ("import sys, simplicio_video.catalog as c; c.voices(); "
+            "print(sorted(m for m in sys.modules if m in ('simplicio_video.voice', 'simplicio_video.voice_clone', 'simplicio_video.childio')))")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
+    assert out.strip() == "[]"
+
+
+def test_settings_of_the_registry_read_the_voz_block_and_agree_with_settings_for(tmp_path):
+    for caso in ("local", "gemini_generate_content", "openvoice", "voicestudio"):
+        spec = dict(CASES[caso])
+        spec.pop("take", None)
+        c = ct.load(_contract(tmp_path / caso, **spec))
+        nome = spec["provider"]
+        assert voice.REGISTRO[nome].settings(c.data["voz"]) == voice.settings_for(c, nome)
+
+
+def test_gerar_looks_the_function_up_when_it_is_called(monkeypatch, tmp_path):
+    """Tests (and the bench script) replace `voice._gemini`, `voice._local` and `voice_clone.*`: the registry must still reach them."""
+    c = ct.load(_contract(tmp_path / "c", "file"))
+    dst, seen = tmp_path / "o.wav", []
+    monkeypatch.setattr(voice, "_gemini", lambda S, text, d: seen.append(("gemini", S, text, d)) or {"x": 1})
+    monkeypatch.setattr(voice, "_local", lambda S, text, d: seen.append(("local", S, text, d)))
+    monkeypatch.setattr(voice_clone, "voxcpm", lambda S, text, d, ref: seen.append(("voxcpm", S, text, d, ref)))
+    monkeypatch.setattr(voice_clone, "audio8", lambda S, text, d, ref: seen.append(("audio8", S, text, d, ref)))
+    monkeypatch.setattr(voice_clone, "voicestudio", lambda S, text, d: seen.append(("voicestudio", S, text, d)))
+    monkeypatch.setattr(voice_clone, "openvoice", lambda S, text, d, ref, base: (base("t2", dst), seen.append(("openvoice", S, text, d, ref)))[1])
+    S, ref = {"base": {"b": 1}}, tmp_path / "ref.wav"
+    assert voice.REGISTRO["gemini"].gerar(c, S, "t", dst, None) == {"x": 1}
+    for nome in ("local", "voxcpm", "audio8", "voicestudio", "openvoice"):
+        assert voice.REGISTRO[nome].gerar(c, S, "t", dst, ref) is None, nome
+    assert seen == [("gemini", S, "t", dst), ("local", S, "t", dst), ("voxcpm", S, "t", dst, ref), ("audio8", S, "t", dst, ref),
+                    ("voicestudio", S, "t", dst), ("local", {"b": 1}, "t2", dst), ("openvoice", S, "t", dst, ref)]
+
+
+def test_file_and_the_stubs_never_generate(tmp_path):
+    c = ct.load(_contract(tmp_path / "c", "file"))
+    for nome in ("elevenlabs", "xai"):
+        with pytest.raises(SystemExit) as ei:
+            voice.REGISTRO[nome].gerar(c, {}, "t", tmp_path / "o.wav", None)
+        assert ei.value.code == STUB.format(nome)
+    with pytest.raises(SystemExit) as ei:
+        voice.REGISTRO["file"].gerar(c, {"dir": "vo"}, "t", tmp_path / "o.wav", None)
+    assert ei.value.code == "provider=file: nothing to generate, the takes are the files in vo"
+    assert not (tmp_path / "o.wav").exists()
+
+
+def test_the_ffmpeg_chain_lives_in_one_function():
+    src = inspect.getsource(voice)
+    assert src.count('"-bitexact"') == 1 and src.count("aresample=48000") == 1 and src.count('"-ar", "48000"') == 1
+    assert src.count("_cadeia(") == 3 and src.count("_normaliza(") == 4  # the definitions + the normal pass and the tight retry
+
+
+@pytest.mark.parametrize("trim", [TRIM, TRIM_TIGHT])
+def test_cadeia_is_trim_then_chain_then_pcm_bitexact(tmp_path, trim):
+    raw, dst, cut, want = tmp_path / "raw.wav", tmp_path / "dst.wav", tmp_path / "cut.wav", tmp_path / "want.wav"
+    raw.write_bytes(_take_with_air_leadin())
+    voice._cadeia(raw, dst, "highpass=f=85", trim)
+    for args in (["-i", str(raw), "-af", trim, str(cut)],
+                 ["-i", str(cut), "-af", "highpass=f=85,aresample=48000", "-ac", "1", "-c:a", "pcm_s16le", "-bitexact", str(want)]):
+        subprocess.run(["ffmpeg", "-y", "-v", "error", *args], check=True, stdin=subprocess.DEVNULL)
+    assert dst.read_bytes() == want.read_bytes()
