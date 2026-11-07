@@ -452,7 +452,7 @@ def test_paths_job_origin_le_a_variavel_que_o_runner_escreve(monkeypatch):
 
 def test_o_esqueleto_do_contrato_traz_o_schema_de_sempre():
     """Green: `init` writes the schema id the validator checks."""
-    esqueleto = scaffold.skeleton(Path("."), "x", "Camp", "sazonal-dia-das-criancas", 2026, "Nome", None)
+    esqueleto = scaffold.skeleton("x", "Camp", "sazonal-dia-das-criancas", 2026, "Nome", None)
     assert esqueleto["schema"] == CONTRACT_SCHEMA_ID == "simplicio.video-contract/v1"
 
 

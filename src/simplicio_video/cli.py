@@ -1011,8 +1011,7 @@ def _main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "init":
         from . import scaffold
-        h = paths.home()
-        data = scaffold.skeleton(h, a.cliente, a.campanha, a.template, a.ano, a.nome, a.drive_nome)
+        data = scaffold.skeleton(a.cliente, a.campanha, a.template, a.ano, a.nome, a.drive_nome)
         out = a.out or scaffold.default_out(data["campanha"]["id"], a.cliente)
         scaffold.write(out, data, a.force)
         print(f"contrato: {out}\npróximo: preencha os TODO (só fatos de coleta/) e rode `simplicio-video validate {out}`")

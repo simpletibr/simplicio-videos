@@ -32,8 +32,7 @@ def default_out(campanha_id: str, slug: str) -> Path:
     return base / "clients" / slug / campanha_id.lower().replace("_", "-") / "contract.yaml"
 
 
-def skeleton(home: Path, slug: str, campanha: str, template: str, ano: int | None, nome: str | None,
-             drive_nome: str | None) -> dict:
+def skeleton(slug: str, campanha: str, template: str, ano: int | None, nome: str | None, drive_nome: str | None) -> dict:
     tj = paths.data_dir() / "templates" / template / "template.json"
     if not tj.is_file():
         raise SystemExit(f"template '{template}' not found (see `simplicio-video list templates`)")

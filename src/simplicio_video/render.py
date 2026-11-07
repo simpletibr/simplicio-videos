@@ -301,7 +301,7 @@ PREVIEW = {"width": 540, "height": 960, "fps": 30, "crf": 30, "end_card_s": 2.5,
 MARCA_PADRAO = {"dagua": MARCA_PADRAO_DAGUA, "credito": None}
 
 
-def preview_font(home: Path) -> Path:
+def preview_font() -> Path:
     for t in ("assistencia-tecnica-games", "saude-odontologia"):
         f = paths.data_dir() / "templates" / t / "composition" / "assets" / "fonts" / "Inter.ttf"
         if f.is_file():
@@ -379,7 +379,7 @@ def make_preview(src: Path, dst: Path, home: Path, log=print, marca: dict | None
     logo = preview_logo(home)
     dst.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
-        fc = preview_filter(dur, preview_font(home), Path(td), logo=bool(logo), marca=marca, chrome=chrome)
+        fc = preview_filter(dur, preview_font(), Path(td), logo=bool(logo), marca=marca, chrome=chrome)
         cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)] + (["-i", str(logo)] if logo else []) + [
             "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium",
             "-crf", str(PREVIEW["crf"]), "-pix_fmt", "yuv420p", "-r", str(PREVIEW["fps"]), "-threads", "4",
