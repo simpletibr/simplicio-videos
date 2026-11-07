@@ -307,9 +307,9 @@ _PARTES_SEGREDO = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PASSPHRASE",
 # teclado (KEYBOARD, KEYMAP, KEYBINDING, KEYCODE, KEYSTROKE, KEYPAD, HOTKEY), animais e afins (MONKEY, DONKEY, TURKEY,
 # TURNKEY, HOCKEY, JOCKEY, WHISKEY), KEYFRAME (animação), KEYWORD (busca), KEYSTONE e KEYCLOAK (nomes de serviços; as
 # credenciais deles têm SECRET ou PASSWORD no nome), TOKENIZ (TOKENIZERS_PARALLELISM do Hugging Face) e AUTHOR/AUTHORITY
-# (GIT_AUTHOR_NAME); AUTHORIZATION continua sendo segredo.
+# (GIT_AUTHOR_NAME); AUTHORIZATION e AUTHORISATION (AUTHOR seguido de IZ ou IS) continuam sendo segredo.
 _NAO_SEGREDO = re.compile(r"KEYBOARD|KEYMAP|KEYBIND|KEYCODE|KEYSTROKE|KEYPAD|HOTKEY|MONKEY|DONKEY|TURKEY|TURNKEY|HOCKEY|"
-                          r"JOCKEY|WHISKEY|KEYFRAME|KEYWORD|KEYSTONE|KEYCLOAK|TOKENIZ|AUTHOR(?!IZ)|AUTHORITY")
+                          r"JOCKEY|WHISKEY|KEYFRAME|KEYWORD|KEYSTONE|KEYCLOAK|TOKENIZ|AUTHOR(?!I[SZ])|AUTHORITY")
 
 
 def _nome_e_segredo(nome: str) -> bool:
@@ -329,7 +329,7 @@ _NUMERO_TOML = re.compile(r"[-+]?\d[\w.:+-]*")  # inteiro (0x, 0o, 0b, _), decim
 
 def _ler_texto_toml(texto: str, i: int):
     """Lê uma string TOML que começa em texto[i]: básica ("...", com escapes) ou literal ('...'). Devolve (valor, fim);
-    valor é None se a string não fecha na linha (aí o fim é onde a leitura parou)."""
+    se a string não fecha na linha, o valor é o resto da linha, como está no arquivo (aí o fim é onde a leitura parou)."""
     aspa = texto[i]
     j = i + 1
     while j < len(texto):
@@ -346,9 +346,12 @@ def _ler_texto_toml(texto: str, i: int):
                     pass
             return bruto, j + 1
         if c == "\n":
-            return None, j
+            break
         j += 1
-    return None, j
+    # sem aspa de fechamento a string vai até o fim da linha (config.toml inválido: o tomllib recusa o arquivo,
+    # e este caminho por regex é o único que o lê)
+    fim_da_linha = texto.find("\n", i)
+    return texto[i + 1:fim_da_linha if fim_da_linha != -1 else len(texto)], j
 
 
 def _valores_de_valor_toml(texto: str, i: int) -> list:
