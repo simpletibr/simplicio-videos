@@ -1173,17 +1173,61 @@ def imported_source(source: str) -> set[str]:
     return names
 
 
+# What the module may take from each sibling it imports. tools and childio come whole (they are not the network: childio is checked
+# below). Of the three leaves the track declaration needs, only the names it uses: `rede` also holds the HTTP client of the swap adapters
+# and of the Openverse client (urllib, ssl, socket), `terceiros` the helpers of the other sandbox tracks, `trilha_base` the stop of a
+# process group. No busca, social, realoficial, publish, remote, swap, openverse, toonflow.
+IRMAOS_INTEIROS = {"tools", "childio"}
+SO_ESTES_NOMES = {"rede": {"offline"}, "terceiros": {"commit_do_checkout"}, "trilha_base": {"Trilha"}}
+NOMES_DO_CLIENTE_HTTP = {"request", "NetworkError", "Response", "NoRedirect", "urlopen"}  # wherever they appear, as a name or an attribute
+
+
 def _guarda_de_rede(source: str) -> list[str]:
-    """What the source of the instagram module imports that talks to the network or posts, as a list of reasons (empty: clean)."""
-    names = imported_source(source)
-    tops = {n.split(".")[0] for n in names if not n.startswith(".")}
-    relatives = {n.lstrip(".") for n in names if n.startswith(".")}
-    # no busca, social, realoficial, publish, remote, swap, openverse, toonflow. The three leaves the track declaration needs are the
-    # exception: trilha_base (the `Trilha`), rede (`offline`, the one reading of SIMPLICIO_OFFLINE; it also holds the HTTP client of the
-    # swap adapters and the Openverse client, which this module never calls) and terceiros (the helpers the sandbox tracks share)
-    return [*(f"importa {t}" for t in sorted(tops & NETWORK)),
-            *(f"importa .{r}" for r in sorted(relatives - {"tools", "childio", "rede", "rede.offline", "terceiros",
-                                                           "terceiros.commit_do_checkout", "trilha_base", "trilha_base.Trilha"}))]
+    """What the source of the instagram module imports or uses that talks to the network or posts, as a list of reasons (empty: clean).
+    By ast, so it sees the HTTP client of `rede` however it is reached: a name imported (`from .rede import request`), the module
+    imported and an attribute used (`rede.request`, also under another name), the module passed on, or the package named absolute."""
+    tree = ast.parse(source)
+    motivos: list[str] = []
+    modulos: dict[str, str] = {}  # local name -> sibling module (`from . import rede as r` -> {"r": "rede"})
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name.split(".")[0] in NETWORK or a.name.split(".")[0] == "simplicio_video":
+                    motivos.append(f"importa {a.name}")
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            if (node.module or "").split(".")[0] in NETWORK or (node.module or "").split(".")[0] == "simplicio_video":
+                motivos.append(f"importa {node.module}")
+        elif isinstance(node, ast.ImportFrom) and node.module is None:  # from . import X
+            for a in node.names:
+                if a.name in IRMAOS_INTEIROS:
+                    continue
+                if a.name in SO_ESTES_NOMES:
+                    modulos[a.asname or a.name] = a.name
+                else:
+                    motivos.append(f"importa .{a.name}")
+        elif isinstance(node, ast.ImportFrom):  # from .X import N
+            if node.module in IRMAOS_INTEIROS:
+                continue
+            for a in node.names:
+                if a.name not in SO_ESTES_NOMES.get(node.module, ()):
+                    motivos.append(f"importa .{node.module}.{a.name}")
+    base_de_atributo = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            if isinstance(node.value, ast.Name) and node.value.id in modulos:
+                base_de_atributo.add(id(node.value))
+                mod = modulos[node.value.id]
+                if node.attr not in SO_ESTES_NOMES[mod]:
+                    motivos.append(f"usa {mod}.{node.attr}")
+            if node.attr in NOMES_DO_CLIENTE_HTTP:
+                motivos.append(f"usa .{node.attr}")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in NOMES_DO_CLIENTE_HTTP:
+            motivos.append(f"usa {node.id}")
+        elif isinstance(node, ast.Name) and node.id in modulos and id(node) not in base_de_atributo:
+            if isinstance(node.ctx, ast.Load):
+                motivos.append(f"passa o modulo {modulos[node.id]} adiante")
+    return sorted(set(motivos))
 
 
 def test_the_module_imports_nothing_that_talks_to_the_network_or_posts():
