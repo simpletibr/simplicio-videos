@@ -63,7 +63,11 @@ from typing import Callable, Optional
 # o plano importa o pacote para o custo: sem isto ele escreveria __pycache__ dentro do repositório
 sys.dont_write_bytecode = True
 
-REPO = Path(__file__).resolve().parent.parent
+_AQUI = str(Path(__file__).resolve().parent)
+if _AQUI not in sys.path:  # `_lib.py` sits next to this script (run as a file it is already there; the tests load the script by path)
+    sys.path.insert(0, _AQUI)
+from _lib import REPO, matar_grupo as _matar_grupo  # noqa: E402
+
 SRC = REPO / "src"
 if SRC.is_dir() and str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
@@ -705,16 +709,6 @@ def _rodar(argv: list, *, env: dict, cwd: Path, timeout: float, segredos=()) -> 
     if expirou:
         err += f"\n[tempo esgotado em {timeout:.0f} s]"
     return Saida(124 if expirou else rc, out, err, expirou=expirou, bruta=out_c.bruta_texto())
-
-
-def _matar_grupo(proc) -> None:
-    try:
-        if os.name == "posix":
-            os.killpg(proc.pid, signal.SIGKILL)
-        else:
-            proc.kill()
-    except OSError:
-        pass
 
 
 def _json_de(texto: str) -> Optional[dict]:

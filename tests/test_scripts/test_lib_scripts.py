@@ -219,3 +219,73 @@ def test_nothing_in_src_imports_a_script_helper():
             nomes = [a.name for a in n.names] if isinstance(n, ast.Import) else [n.module or ""] if isinstance(n, ast.ImportFrom) else []
             achados += [f"{f.relative_to(ROOT)}: {x}" for x in nomes if x.split(".")[0] in {"_lib", "scripts"}]
     assert achados == []
+
+
+# ================================================================ scripts/_lib.py (what U18 adds)
+USAM_LIB = ("check_tdd", "check_ownership", "smoke_trilhas", "e2e_real")
+
+
+def _lib(mods):
+    assert "_lib" in sys.modules, "a script that imports _lib puts its own folder on sys.path first, so the tests that load it by path work"
+    assert Path(sys.modules["_lib"].__file__).resolve() == SCRIPTS / "_lib.py"
+    return sys.modules["_lib"]
+
+
+def _importados(caminho: Path) -> set[str]:
+    achados = set()
+    for n in ast.walk(ast.parse(caminho.read_text(encoding="utf-8"))):
+        if isinstance(n, ast.Import):
+            achados |= {a.name.split(".")[0] for a in n.names}
+        elif isinstance(n, ast.ImportFrom) and n.level == 0:
+            achados.add((n.module or "").split(".")[0])
+    return achados
+
+
+def test_lib_uses_only_the_standard_library():
+    fora = sorted(m for m in _importados(SCRIPTS / "_lib.py") if m not in sys.stdlib_module_names and m != "__future__")
+    assert fora == []
+
+
+def test_exactly_the_scripts_that_share_something_import_it():
+    importam = sorted(n for n in CINCO if "_lib" in _importados(SCRIPTS / f"{n}.py"))
+    assert importam == sorted(USAM_LIB)  # smoke_so keeps its own REPO: its test pins "only the standard library at the top"
+
+
+def test_the_shared_names_are_the_ones_of_lib(mods):
+    lib = _lib(mods)
+    assert mods["check_tdd"].git is mods["check_ownership"].git is lib.git
+    assert mods["check_tdd"].UsageError is mods["check_ownership"].UsageError is lib.UsageError
+    assert mods["smoke_trilhas"]._matar_arvore is mods["e2e_real"]._matar_grupo is lib.matar_grupo
+    assert mods["smoke_trilhas"].REPO is mods["e2e_real"].REPO is lib.REPO
+
+
+def test_no_script_defines_again_what_lib_has():
+    redefinidos = []
+    for f in sorted(SCRIPTS.glob("*.py")):
+        if f.name == "_lib.py":
+            continue
+        for n in ast.parse(f.read_text(encoding="utf-8")).body:
+            if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in {"git", "UsageError", "_matar_arvore", "_matar_grupo", "matar_grupo"}:
+                redefinidos.append(f"{f.name}:{n.name}")
+    assert redefinidos == []
+
+
+@pytest.mark.parametrize("nome", USAM_LIB)
+def test_the_script_runs_as_a_file_from_any_folder(nome, tmp_path):
+    env = {**os.environ, "COLUMNS": "100", "NO_COLOR": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    r = subprocess.run([sys.executable, str(SCRIPTS / f"{nome}.py"), "--help"], capture_output=True, text=True, env=env, cwd=tmp_path, timeout=120)
+    assert r.returncode == 0 and r.stderr == "" and r.stdout == _help(nome).stdout
+
+
+@pytest.mark.parametrize("nome", USAM_LIB)
+def test_the_script_loaded_by_path_in_a_fresh_process_finds_lib(nome, tmp_path):
+    """Nothing but the script's own bootstrap puts `scripts/` on sys.path: the earlier tests of this module already did it in this process."""
+    codigo = ("import importlib.util, sys\n"
+              "assert not any(p.endswith('scripts') for p in sys.path), sys.path\n"
+              f"spec = importlib.util.spec_from_file_location('carregado', {str(SCRIPTS / f'{nome}.py')!r})\n"
+              "mod = importlib.util.module_from_spec(spec); sys.modules['carregado'] = mod; spec.loader.exec_module(mod)\n"
+              "import _lib\n"
+              f"assert _lib.__file__ == {str(SCRIPTS / '_lib.py')!r}, _lib.__file__\n")
+    r = subprocess.run([sys.executable, "-c", codigo], capture_output=True, text=True, cwd=tmp_path, timeout=120,
+                       env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    assert r.returncode == 0, r.stderr

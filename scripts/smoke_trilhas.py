@@ -34,7 +34,6 @@ import json
 import os
 import platform
 import re
-import signal
 import subprocess
 import sys
 import threading
@@ -42,7 +41,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+_AQUI = str(Path(__file__).resolve().parent)
+if _AQUI not in sys.path:  # `_lib.py` sits next to this script (run as a file it is already there; the tests load the script by path)
+    sys.path.insert(0, _AQUI)
+from _lib import REPO, matar_grupo as _matar_arvore  # noqa: E402
+
 SCHEMA = "simplicio.smoke-trilhas/v1"
 TIMEOUT_S = 30
 DETALHE_MAX = 90
@@ -136,17 +139,6 @@ def _comando_cli() -> list[str]:
         if candidato.is_file():
             return [str(candidato)]
     return [sys.executable, "-m", "simplicio_video"]
-
-
-def _matar_arvore(proc: subprocess.Popen) -> None:
-    """Kills the child and everything it started: on POSIX its whole process group (it was started in a new session)."""
-    try:
-        if os.name == "posix":
-            os.killpg(proc.pid, signal.SIGKILL)
-        else:
-            proc.kill()
-    except OSError:
-        pass  # the group already ended
 
 
 def _rodar_cli(argv: list[str]) -> Saida:
