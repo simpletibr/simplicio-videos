@@ -403,6 +403,28 @@ def test_o_runner_conta_o_estado_adulterado_pelo_nome_da_classe_da_trilha_e_deix
     assert cwd.is_dir()
 
 
+@POSIX
+def test_a_recusa_da_submissao_e_subclasse_de_rea_video_error_e_a_do_runner_segue_com_a_classe_pura(mundo):
+    """The same refused argument (`--vlm`), told twice: at the submit as a `JobError`, in the runner (a state edited on disk) as the plain
+    `ReaVideoError` that job.json names. `ReaVideoRecusa` is what tells them apart, and it must stay a `ReaVideoError`."""
+    assert issubclass(rea_video.ReaVideoRecusa, rea_video.ReaVideoError) and rea_video.ReaVideoRecusa is not rea_video.ReaVideoError
+    assert rea_video.JOB.erro_terceiro is rea_video.ReaVideoRecusa
+    video, out = mundo.work / "v.mp4", str(mundo.tmp / "o")
+    video.write_bytes(b"v")
+    args = ["decompose", str(video), "-o", out, "--vlm"]
+    e = _recusa(lambda: jobs.submit("rea-video", {"args": args}, origin="mcp"))
+    assert type(e) is jobs.JobError and str(e) == VLM_NO_MCP
+    e = _recusa(lambda: rea_video.JOB.prepare({"args": args}, False, "mcp"))  # the hook itself: the subclass, the same text
+    assert type(e) is rea_video.ReaVideoRecusa and isinstance(e, rea_video.ReaVideoError) and str(e) == VLM_NO_MCP
+    e = _recusa(lambda: rea_video.JOB.argv({"args": args}))  # the repeated check: the plain class, which `jobs` does not turn into a JobError
+    assert type(e) is rea_video.ReaVideoError and str(e) == VLM_NO_MCP
+    jid, _ = _decompose(mundo, 1)
+    st = jobs.read_state(jid)
+    jobs.update(jid, params={**st["params"], "args": [*st["params"]["args"], "--vlm"]})
+    final = _roda(mundo, jid, "echo nunca\n")
+    assert final["state"] == "failed" and final["error"] == f"ReaVideoError: {VLM_NO_MCP}"  # not `JobError: ...`
+
+
 # ================================================================================================================ MECHANISM
 # Red until the three fixes. `rea_video.JOB`, `jobs.JOB_MODULES["rea-video"]`, no `rede._NoRedirect`, no `tools_update._offline`.
 
@@ -454,6 +476,23 @@ def _importados(arquivo: Path) -> set[str]:
     return nomes
 
 
+def test_importar_rea_video_nao_carrega_o_hashlib_que_so_o_resultado_da_tarefa_usa():
+    """`import simplicio_video.rea_video` is the cost of `rea-video --help`: the hash of breakdown.json is taken when a job result is
+    read (as `jobs.py` did), so the import is inside `_job_result`. Whatever its other imports load is the baseline."""
+    codigo = ("import sys\n"
+              f"sys.path.insert(0, {str(ROOT / 'src')!r})\n"
+              "import contextlib, json, os, re, shlex, shutil, subprocess, tempfile\n"
+              "from pathlib import Path\n"
+              "from simplicio_video import childio, paths, rede, tools, trilha_base\n"
+              "base = 'hashlib' in sys.modules\n"
+              "import simplicio_video.rea_video\n"
+              "print(base, 'hashlib' in sys.modules)\n")
+    r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    antes, depois = r.stdout.split()
+    assert antes == depois, "importing rea_video loaded hashlib: the import belongs inside the function that hashes"
+
+
 def test_rea_video_nao_importa_jobs():
     assert "jobs" not in _importados(SRC / "rea_video.py")  # the cycle jobs -> rea_video -> jobs the JobSpec avoids
 
@@ -499,6 +538,23 @@ def test_num_processo_novo_o_shim_nao_deixa_nome_privado_em_rede_e_o_publico_e_a
     r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout) == {"modulo": True, "privado_em_rede": False, "publico": True}
+
+
+def test_importar_o_shim_em_processo_novo_nao_carrega_a_pilha_http_e_a_classe_nasce_na_primeira_leitura():
+    """The shim used to read `rede.NoRedirect` at import to add the private alias, which built the class (a urllib subclass) and loaded
+    urllib.request, socket, ssl and http.client with it. It reads nothing now: the class is built when `http.NoRedirect` is read."""
+    codigo = ("import json, sys\n"
+              f"sys.path.insert(0, {str(ROOT / 'src')!r})\n"
+              "from simplicio_video.swap_providers import http\n"
+              "pesados = ('urllib.request', 'socket', 'ssl', 'http.client')\n"
+              "carregados_no_import = [m for m in pesados if m in sys.modules]\n"
+              "from simplicio_video import rede\n"
+              "classe = http.NoRedirect\n"
+              "print(json.dumps({'no_import': carregados_no_import, 'mesma_classe': classe is rede.NoRedirect and http is rede,\n"
+              "                  'nome': classe.__name__, 'urllib_depois': 'urllib.request' in sys.modules}))\n")
+    r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == {"no_import": [], "mesma_classe": True, "nome": "NoRedirect", "urllib_depois": True}
 
 
 def test_no_redirect_e_uma_classe_so_com_o_nome_publico_e_nunca_segue():

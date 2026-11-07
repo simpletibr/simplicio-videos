@@ -11,7 +11,6 @@ report.html) that the user reads and decides on; it is outside the deterministic
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import json
 import os
 import re
@@ -504,6 +503,7 @@ def _job_argv(p: dict, origin: str | None = None) -> list[str]:  # origin: the j
 
 
 def _job_result(p: dict, last_json: dict | None) -> dict | None:
+    import hashlib  # here and not at the top: only a finished job needs it, and loading this module is the cost of `rea-video --help`
     drop_job_cwd(p.get("cwd"))
     args = p["args"]
     out = Path(args[args.index("-o" if "-o" in args else "--out") + 1])
