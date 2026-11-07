@@ -598,7 +598,7 @@ def test_o_doctor_conhece_cada_trilha_do_registro(nome, ambiente):
     assert _c(track, "instalada")["fix"] == (dt._clone_de(t, tools.pinned_ref(t)))
     assert [c["name"] for c in track["checks"] if c["name"].startswith("dep:")] == [
         *(["dep:git"] if t.kind == "git" else []), *(f"dep:{tools.parse_dep(s)[0]}" for s in t.deps),
-        *(["dep:npx"] if t.name in tools.NPX_TRACKS else [])]
+        *(["dep:npx"] if t.npx else [])]
 
 
 def test_o_teste_de_paridade_pega_uma_trilha_incompleta():

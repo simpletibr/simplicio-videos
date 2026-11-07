@@ -415,9 +415,8 @@ def _binary_row() -> dict:
     from . import video_to_skill as v2s
     fix = "simplicio-video video-to-skill setup"
     exe = v2s.managed_binary()
-    asset = v2s.platform_asset(*v2s._platform())
     if exe.is_file() or exe.is_symlink():
-        if asset is not None and not exe.is_symlink() and v2s._sha256_file(exe) == asset["member_sha256"]:
+        if v2s.managed_verified(exe):
             return _row("setup:binary", "ok", f"vts-extract {v2s.VERSION} gerenciado, sha256 conferido ({exe})", None,
                         {"source": "managed", "path": str(exe), "version": v2s.VERSION})
         return _row("setup:binary", "fail", f"{exe} não confere com o sha256 fixado (alterado, link ou outra plataforma): o motor não o usa",
@@ -430,7 +429,7 @@ def _binary_row() -> dict:
                         {"source": "path", "path": achado, "version": versao})
         return _row("setup:binary", "warn", f"o vts-extract do PATH ({achado}) não diz {v2s.VERSION}: o motor não o usa", fix,
                     {"source": "path", "path": achado, "version": versao})
-    if asset is None:
+    if v2s.host_asset() is None:
         return _row("setup:binary", "warn", "sem binário pré-compilado para esta plataforma: compile o vts-extract do upstream e ponha no PATH",
                     None, {"supported": False})
     return _row("setup:binary", "warn", f"vts-extract {v2s.VERSION} ausente; o setup baixa e confere por sha256", fix, {"path": str(exe)})
@@ -465,7 +464,7 @@ def _npm(t: tools.Tool, ref: str, fonte: str) -> tuple[bool, Optional[str], list
     clone = _clone_de(t, ref)
     exe = _ache(t.name)
     if exe is None:
-        if t.name in tools.NPX_TRACKS and _npx_pronto():
+        if t.npx and _npx_pronto():
             return True, None, [_row("instalada", "ok", "instalada via npx no pin em uso (sem binário no PATH)", None,
                                      {"source": "npx"})]
         return False, None, [_row("instalada", "warn", "não instalada", clone)]
@@ -538,7 +537,7 @@ def _deps(t: tools.Tool) -> list:
     if t.kind == "git":
         rows.append(_dep_row("git", _ache("git") is not None, True, "instale o git (https://git-scm.com/downloads)", ""))
     itens = [tools.parse_dep(spec) for spec in t.deps]
-    if t.name in tools.NPX_TRACKS and _ache(t.name) is None:  # without a binary, npx runs the pinned package
+    if t.npx and _ache(t.name) is None:  # without a binary, npx runs the pinned package
         itens.append(("npx", True, None))
     for nome, obrigatoria, minimo in itens:
         if nome not in DEP_NOMES:
@@ -591,10 +590,13 @@ def _fix_de_seguir(t: tools.Tool, latest: str) -> Optional[str]:
 def _upstream(t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
     """The same resolution as `update --check` (tools_update.resolve), compared with the commit or version in use."""
     if tools_update.pin_only(t):
+        # a pin-only track with a checkout kept outside the tools cache (`checkout_env`: video-use) is pinned by its setup.sh; the other one
+        # (video_to_skill) pins a binary and its SKILL.md together
         return {"pin_only": True, "latest": None, "newer": None, "error": None}, [
-            _row("upstream", "ok", ("pin: o binário (sha256 por plataforma) e o SKILL.md são fixados juntos e o upstream não é seguido"
-                                    if t.name == "video_to_skill" else
-                                    "pin: o setup.sh fixa o commit (VU_REF) e o upstream não é seguido"), None, {"pin_only": True})]
+            _row("upstream", "ok", ("pin: o setup.sh fixa o commit (VU_REF) e o upstream não é seguido"
+                                    if t.checkout_env else
+                                    "pin: o binário (sha256 por plataforma) e o SKILL.md são fixados juntos e o upstream não é seguido"),
+                 None, {"pin_only": True})]
     if fonte == "override":
         return {"pin_only": False, "latest": None, "newer": None, "error": None}, [
             _row("upstream", "ok", f"fixada por {tools.override_var(t)}: o upstream não é seguido", None, {"override": True})]

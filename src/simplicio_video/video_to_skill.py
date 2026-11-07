@@ -316,6 +316,11 @@ def platform_asset(system: str, machine: str) -> dict | None:
     return None
 
 
+def host_asset() -> dict | None:
+    """The release asset for the machine this runs on (`platform_asset` of `_platform()`), or None: no prebuilt binary for it."""
+    return platform_asset(*_platform())
+
+
 def asset_url(asset: dict) -> str:
     return _pins()["release_url_base"] + asset["file"]
 
@@ -527,6 +532,16 @@ def _sha256_file(path: Path, limit: int = MAX_MEMBER_BYTES) -> str | None:
     return None if len(data) > limit else hashlib.sha256(data).hexdigest()
 
 
+def managed_verified(exe: Path | None = None) -> bool:
+    """Is the managed extractor (`exe`; None: `managed_binary()`) the pinned file? A regular file, not a link, whose sha256 is the
+    `member_sha256` of this machine's asset. It reads the bytes and starts nothing. The one place that says "managed and verified":
+    `find_binary` then asks the file `--version`, and the doctor (`setup:binary`) never runs it."""
+    if exe is None:
+        exe = managed_binary()
+    asset = host_asset()
+    return asset is not None and exe.is_file() and not exe.is_symlink() and _sha256_file(exe) == asset["member_sha256"]
+
+
 @dataclass(frozen=True)
 class Binary:
     path: Path
@@ -558,8 +573,7 @@ def find_binary() -> Binary | None:
     """The extractor the engine runs: the managed one if its sha256 is the pinned one and it says 0.3.0; else a `vts-extract` of the
     PATH that says exactly `vts-extract 0.3.0` (its sha256 is unknown: `verified` says so). Never a downloaded or unverified file."""
     exe = managed_binary()
-    asset = platform_asset(*_platform())
-    if asset is not None and exe.is_file() and not exe.is_symlink() and _sha256_file(exe) == asset["member_sha256"]:
+    if managed_verified(exe):
         if _says_pinned(_version_line(exe)):
             return Binary(exe, "managed", "sha256", _version())
     found = shutil.which("vts-extract")
@@ -1532,6 +1546,6 @@ JOB = paths.JobSpec("video-to-skill", prepare=_job_prepare, argv=_job_argv, resu
                     erro_terceiro=VideoToSkillError, texto_terceiro=_job_texto_terceiro)
 
 
-__all__ = ["VideoToSkillError", "lint_pins", "platform_asset", "asset_url", "safe_extract", "managed_binary",
-           "find_binary", "status_info", "where_info", "run_video_to_skill", "mcp_plan", "mcp_run", "job_args", "make_job_cwd",
+__all__ = ["VideoToSkillError", "lint_pins", "platform_asset", "host_asset", "asset_url", "safe_extract", "managed_binary",
+           "managed_verified", "find_binary", "status_info", "where_info", "run_video_to_skill", "mcp_plan", "mcp_run", "job_args", "make_job_cwd",
            "drop_job_cwd", "job_result", "JOB", "visivel", "limpa_mcp", "plan"]

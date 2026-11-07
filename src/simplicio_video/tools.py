@@ -18,10 +18,10 @@ Lock: `simplicio-video update` follows the upstream of each track (git default b
 resolved in tools.lock.json (tools_lock.py). effective() reads that lock; pinned_ref() stays the registry pin (or the override).
 
 The registry is the one place that names the tracks. Each `Tool` declares everything the other doors need to know about its track (the CLI
-command, the verb that installs it, the system dependencies, whether `update` follows it, where its checkout lives, which sha256 table pins
-its files, which setup the doctor judges, the read-only MCP call the smoke makes); `COMMANDS`, the doctor's `CLONE` and `DEPS`, its setup and
-integrity checks and the smoke's `MCP_LEITURA` are derived from it, and tests/packaging/test_registro_trilhas.py walks TOOLS to prove that
-every track is known to every door.
+command, the verb that installs it, the system dependencies, whether `update` follows it, whether npx runs it, where its checkout lives, which
+sha256 table pins its files, which setup the doctor judges, the read-only MCP call the smoke makes); `COMMANDS`, the doctor's `CLONE` and
+`DEPS`, its setup and integrity checks and the smoke's `MCP_LEITURA` are derived from it, and tests/packaging/test_registro_trilhas.py walks
+TOOLS to prove that every track is known to every door.
 """
 from __future__ import annotations
 
@@ -112,6 +112,7 @@ class Tool:
     sha256: str = ""   # pip tools: the sha256 of the pinned wheel, checked by pip --require-hashes
     pin_only: bool = False  # `update` never follows its upstream: the lock records the registry pin (video-use, video_to_skill)
     checkout_env: str | None = None  # the variable that holds a checkout kept OUTSIDE the tools cache (video-use: setup.sh), else ~/.cache/simplicio/<name>
+    npx: bool = False  # an npm track that runs through `npm_command` when it has no binary on PATH (npx at the pin: hypit); the others need a binary
     deps: tuple[str, ...] = ()  # system dependencies the doctor checks, `name[>=a.b][?]` (parse_dep): `ffmpeg`, `docker?` (optional), `node>=24`
     clone_verb: str | None = None  # the verb of `<command>` that installs a git track (`clone`, `setup`); None: the doctor shows the git commands
     setup_probe: tuple[str, str] | None = None  # (module, function) the doctor calls as function(tool, checkout) for the rows of the track's own setup
@@ -144,7 +145,7 @@ TOOLS: dict[str, Tool] = {
                     mcp_read=McpRead("args", "where")),
     "hypit": Tool("hypit", "npm", "@hypit/hypit", "0.3.1", "Hypit license (modified Apache-2.0)",
                   "agentic video cloning; user-installed, never bundled or offered as a hosted service",
-                  command="clone", note="its license forbids commercial redistribution and multi-tenant service without permission",
+                  command="clone", npx=True, note="its license forbids commercial redistribution and multi-tenant service without permission",
                   deps=(f"node>={'.'.join(map(str, NODE_MIN))}",),
                   # `clone --help` would pass through to Hypit (npx when it is not installed): the read-only status of the engine is asked instead
                   mcp_read=McpRead("args", "status --json")),
@@ -529,9 +530,6 @@ def command(t: Tool) -> str:
     return f"simplicio-video {t.command}"
 
 
-NPX_TRACKS = ("hypit",)  # npm tracks that run through `npm_command` (a PATH binary, else npx at the pin); the others need a binary
-
-
 def node_version() -> tuple[int, ...] | None:
     """The version of the `node` on PATH, e.g. (22, 15, 0). Local only: runs `node --version`, no network."""
     exe = shutil.which("node")
@@ -558,7 +556,7 @@ def install_source(t: Tool) -> str | None:
         return None
     if shutil.which(t.name):
         return "path"
-    return "npx" if t.name in NPX_TRACKS and npx_ready() else None
+    return "npx" if t.npx and npx_ready() else None
 
 
 def is_installed(t: Tool) -> bool:
