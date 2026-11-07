@@ -182,7 +182,6 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `mcp_server.py`: MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
 - `media.py`: `simplicio-video media`: audio-visual operations on any MP4, deterministic and local (ffmpeg and ffprobe only).
 - `mediaio.py`: One way to find ffmpeg/ffprobe and one ffprobe call for the duration and the metadata of a media file.
-- `mock_gemini.py`: Local MOCK of the Gemini TTS API for dry runs of `simplicio-video voice --provider gemini` (no network, no key, no cost).
 - `moneyprinter.py`: MoneyPrinterTurbo track: topic-to-short-video generator (LLM script, synthesized voice, stock footage) (https://github.com/harry0703/MoneyPrinterTurbo, MIT).
 - `montage.py`: Montage track: Agentic video production platform using OpenMontage (https://github.com/calesthio/OpenMontage).
 - `opencut.py`: OpenCut track: open-source video editor for manual finishing (MIT).

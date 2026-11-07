@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 
 from .. import __version__, distribution, hostos, paths, tools_lock, tools_update
+from ..rede import offline as _offline  # the one reading of SIMPLICIO_OFFLINE, under the name this module always used
 from .versions import (  # noqa: F401 - re-exported: they were defined here, and `update.<name>` keeps meaning the same
     CHECK_FILE, FINAL, MAX_CHECK_BYTES, CheckInvalid, default_state_dir, format_version, parse_version, read_check,
     release_tuple, write_check)
@@ -56,10 +57,6 @@ _API = "https://api.github.com/"
 
 Runner = Callable[..., int]
 Git = Callable[..., "subprocess.CompletedProcess"]
-
-
-def _offline() -> bool:
-    return os.environ.get("SIMPLICIO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 # --- PEP 668 (a pip install into the system Python) -------------------------------------------------------------------

@@ -42,7 +42,6 @@ UNVERIFIED = "UNVERIFIED"
 NETWORKS = ("youtube", "youtube_shorts", "tiktok", "instagram", "facebook", "twitter", "linkedin", "threads", "pinterest", "bluesky",
             "reddit", "snapchat")
 FIELDS = ("duration_min_s", "duration_max_s", "aspect_ratios", "size_max_mb", "caption_max_chars", "title_max_chars", "hashtags_max")
-DEFAULT_PROVIDER = "realoficial"
 ASPECT_TOLERANCE = 0.02
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,64}$")
 _SECRET_RE = re.compile(r"^(sk-|AIza|gh[pousr]_|xox[a-z]-|eyJ|ya29\.|AQ\.|Bearer\b)|[A-Za-z0-9_-]{32,}")
@@ -610,7 +609,7 @@ def _offset_iso(sched: dict) -> str:
     return when.isoformat(timespec="seconds")
 
 
-def _context(plan: dict, provider: str, clip_id: str | None, step) -> dict:
+def _context(plan: dict, clip_id: str | None, step) -> dict:
     """Values a template can reference with `$name`. Everything here is DATA (the caption, the title, the file name) or text
     the engine wrote itself: nothing in it is ever read as a template. `step(id)` gives the number of a recipe step."""
     tgts = plan["targets"]
@@ -765,10 +764,10 @@ def recipe(plan_path: str, provider: str | None = None, clip_id: str | None = No
         reason = _motivo_sem_provedor(sem, pid, prov["label"], doc) + ". Gere um plano só com as redes que o provedor publica"
         return _recipe_doc(pid, prov, plan, doc, reason=reason, steps=[{"n": 1, "id": "sem_provedor", "kind": "manual", "text": reason}],
                            blocked_until=sem)
-    flags = _context(plan, pid, clip_id, lambda _id: "?")  # only the `when` flags matter here: which steps this plan needs
+    flags = _context(plan, clip_id, lambda _id: "?")  # only the `when` flags matter here: which steps this plan needs
     templates = [t for t in prov["recipe"] if not t.get("when") or flags.get(t["when"])]
     numbers = {t["id"]: i + 1 for i, t in enumerate(templates)}
-    ctx = _context(plan, pid, clip_id, lambda sid: str(numbers.get(sid, "?")))
+    ctx = _context(plan, clip_id, lambda sid: str(numbers.get(sid, "?")))
     values = {"plan": plan_path, "video_name": ctx["video_name"], "video_sha256_short": ctx["video_sha256_short"]}
 
     def marker(m) -> str:

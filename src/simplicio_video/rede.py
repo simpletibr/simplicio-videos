@@ -6,8 +6,8 @@
   replace this one function and no test touches the network. Headers carry the API key: they are never logged or stored. It refuses
   to run in offline mode. `NoRedirect` never follows a redirect (urllib would forward the Authorization header to the new host).
 
-The body of `request`, `NoRedirect`, `Response` and `NetworkError` is the one of swap_providers/http.py, which still has its own copy
-until the modules migrate.
+`swap_providers/http.py` is this module under its old name (it imports it and takes its place in sys.modules), so `request`, `Response`,
+`NetworkError` and `NoRedirect` are the same objects under both names.
 """
 from __future__ import annotations
 
@@ -23,9 +23,11 @@ _VERDADEIROS = ("1", "true", "yes", "on")
 PREFIXO_OFFLINE = "modo offline (SIMPLICIO_OFFLINE=1): não vou "  # what every refusal in offline mode opens with
 
 
-def offline(env: Mapping[str, str] = os.environ) -> bool:
-    """True when SIMPLICIO_OFFLINE is 1, true, yes or on (spaces and case ignored): the network must not be used."""
-    return env.get("SIMPLICIO_OFFLINE", "").strip().lower() in _VERDADEIROS
+def offline(env: Mapping[str, str] | None = None) -> bool:
+    """True when SIMPLICIO_OFFLINE is 1, true, yes or on (spaces and case ignored): the network must not be used. Without `env` it reads
+    the `os.environ` that is there at the call (a default argument would keep the object `os.environ` was at import)."""
+    valor = os.environ.get("SIMPLICIO_OFFLINE", "") if env is None else env.get("SIMPLICIO_OFFLINE", "")
+    return valor.strip().lower() in _VERDADEIROS
 
 
 def motivo_offline(acao: str) -> str | None:
