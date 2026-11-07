@@ -14,8 +14,13 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import subprocess
 import sys
+from pathlib import Path
+
+_AQUI = str(Path(__file__).resolve().parent)
+if _AQUI not in sys.path:  # `_lib.py` sits next to this script (run as a file it is already there; the tests load the script by path)
+    sys.path.insert(0, _AQUI)
+from _lib import UsageError, git  # noqa: E402
 
 EXEMPT = "tdd-exempt"
 
@@ -26,17 +31,6 @@ Exemplos:
   scripts/check_tdd.py --labels reviewed,tdd-exempt   # PR com o label de dispensa
   PR_LABELS="mvp tdd-exempt" scripts/check_tdd.py     # o mesmo, por variável de ambiente
 """
-
-
-class UsageError(Exception):
-    pass
-
-
-def git(*args: str, check: bool = True) -> str:
-    r = subprocess.run(["git", *args], capture_output=True, text=True)
-    if check and r.returncode:
-        raise UsageError(f"git {' '.join(args)}: {r.stderr.strip()}")
-    return r.stdout
 
 
 def is_test_side(path: str) -> bool:
