@@ -167,7 +167,7 @@ def data_root() -> Path:
     return Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
 
 
-jobs_root = data_root  # the name `jobs` and `montage` (and their tests) call: the same function
+jobs_root = data_root  # the old name: only montage (forbidden places, run-tool result file) and tests/test_valores_v1.py call it; jobs calls data_root()
 
 
 def jobs_grace_s() -> float:

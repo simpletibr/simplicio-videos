@@ -85,9 +85,6 @@ def output_values(rest: list[str]) -> list[str]:
     return vals
 
 
-_output_values = output_values  # the old name: tests and callers that read it keep working
-
-
 def filter_values(rest: list[str]) -> list[str]:
     """Values of --filter in any abbreviation (--f ... --filter, with or without =)."""
     vals: list[str] = []

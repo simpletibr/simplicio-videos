@@ -299,9 +299,6 @@ def parse_argv(args: list[str]) -> tuple[list[str], dict[str, str]]:
     return pos, vals
 
 
-_parse = parse_argv  # the old name: the MCP server reads the CLI's own parse through the public one, callers of the old name keep working
-
-
 def _float(vals: dict[str, str], key: str, default: float | None) -> float | None:
     if key not in vals:
         return default

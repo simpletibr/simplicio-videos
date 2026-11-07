@@ -15,7 +15,7 @@ import _fake_vts as fake
 from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no test leaves a job folder in the real tmp)
 
 from simplicio_video import jobs, mcp_server, tools, video_to_skill as v2s
-from helpers import ROOT
+from helpers import KINDS_DE_HOJE, ROOT
 
 REF = "c1a1b905da6a252077ace0657e8ea49cb785e7c3"
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="the fake extractor is a shebang script")
@@ -122,8 +122,9 @@ def test_the_mcp_protocol_lists_it_with_the_cmd_enum():
 
 
 def test_jobs_has_the_video_to_skill_kind_in_order_and_the_docs_say_it():
-    assert list(jobs.KINDS) == ["swap-run", "voice", "rea-video", "moneyprinter", "montage-tool", "video-to-skill"]
-    assert set(jobs.KINDS["video-to-skill"]) == {"prepare", "argv", "result"}
+    assert list(jobs.KINDS) == KINDS_DE_HOJE
+    spec = jobs.job_spec("video-to-skill")
+    assert spec.kind == "video-to-skill" and all(callable(f) for f in (spec.prepare, spec.argv, spec.result))
     assert "video-to-skill" in jobs.HELP_DESC and "video-to-skill" in mcp_server.DESC_video_jobs
 
 
@@ -415,12 +416,12 @@ def test_the_job_result_summarises_the_bundle_with_hashes(env):
     (out / "frames" / "shot000.jpg").write_bytes(b"x")
     (env.files / "bundle.extract.json").write_text("{}", encoding="utf8")
     params = {"args": ["extract", str(env.video), "--out", str(out)], "cwd": str(env.tmp)}
-    res = jobs.KINDS["video-to-skill"]["result"](params, None)
+    res = jobs.job_spec("video-to-skill").result(params, None)
     assert res["out"] == str(out) and res["manifest"] == str(out / "manifest.json") and res["timeline"] == str(out / "timeline.json")
     assert len(res["manifest_sha256"]) == 64 and len(res["timeline_sha256"]) == 64 and res["frames"] == 1
     assert res["provenance"] == str(env.files / "bundle.extract.json") and res["transcript"] is True
     (out / "timeline.json").unlink()
-    assert jobs.KINDS["video-to-skill"]["result"](params, None) is None
+    assert jobs.job_spec("video-to-skill").result(params, None) is None
 
 
 def test_the_job_private_folder_is_swept_when_the_result_is_read(env):
@@ -428,7 +429,7 @@ def test_the_job_private_folder_is_swept_when_the_result_is_read(env):
     assert Path(cwd).is_dir()
     out = env.files / "bundle"
     out.mkdir()
-    jobs.KINDS["video-to-skill"]["result"]({"args": ["extract", str(env.video), "--out", str(out)], "cwd": cwd}, None)
+    jobs.job_spec("video-to-skill").result({"args": ["extract", str(env.video), "--out", str(out)], "cwd": cwd}, None)
     assert not Path(cwd).exists()
     other = env.tmp / "keep"
     other.mkdir()

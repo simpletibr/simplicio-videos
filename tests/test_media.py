@@ -95,7 +95,7 @@ def test_voice_filter_atrasa_cada_clipe_no_inicio_certo():
 
 
 def test_parse_separa_posicionais_e_valores():
-    pos, vals = media._parse(["reel.mp4", "--box", "1,2,3,4", "-o", "x.mp4", "--keep-length"])
+    pos, vals = media.parse_argv(["reel.mp4", "--box", "1,2,3,4", "-o", "x.mp4", "--keep-length"])
     assert pos == ["reel.mp4"]
     assert vals == {"--box": "1,2,3,4", "-o": "x.mp4", "--keep-length": "1"}
 

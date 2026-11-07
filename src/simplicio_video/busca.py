@@ -676,9 +676,6 @@ def versao_cli(exe: str) -> str | None:
     return m.group(1) if rc == 0 and m else None
 
 
-_versao_cli = versao_cli  # the name this module had before it was public
-
-
 # ---------------------------------------------------------------------------------------------------------- spend counter
 
 def _invalido_contador(por_que: str) -> BuscaError:

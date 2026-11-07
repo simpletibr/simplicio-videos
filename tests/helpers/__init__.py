@@ -10,6 +10,7 @@ conftest.py there), including those in tests/packaging, tests/test_docs, tests/t
   capture   run_main
   procs     vivo, espera
   audio     pcm_wav, sine_wav
+  kinds     KINDS_DE_HOJE (the golden list of `jobs.KINDS`: a literal, never derived from the code)
 
 Left where they are on purpose (the copies look alike, the behaviour is not):
   checkout        each track builds a different fake upstream (other files, other marker, other env var)
@@ -36,12 +37,13 @@ from helpers.audio import pcm_wav, sine_wav
 from helpers.capture import run_main
 from helpers.env import have_render_tools, isolate_tools, offline_env, run_cli
 from helpers.files import edit_yaml, edit_yaml_utf8, fake_mp4
+from helpers.kinds import KINDS_DE_HOJE
 from helpers.procs import espera, vivo
 from helpers.repo import CLIENT_DATA_REASON, FIXTURE, LOTHUS, ROOT, SCRIPTS, SRC, WJR, contract_with_coleta_placeholders, needs_client
 from helpers.skips import ffmpeg_ou_pula, needs_ffmpeg
 
 __all__ = [
-    "CLIENT_DATA_REASON", "FIXTURE", "LOTHUS", "ROOT", "SCRIPTS", "SRC", "WJR", "contract_with_coleta_placeholders", "edit_yaml", "edit_yaml_utf8", "espera",
-    "fake_mp4", "ffmpeg_ou_pula", "have_render_tools", "isolate_tools", "needs_client", "needs_ffmpeg", "offline_env", "pcm_wav",
+    "CLIENT_DATA_REASON", "FIXTURE", "KINDS_DE_HOJE", "LOTHUS", "ROOT", "SCRIPTS", "SRC", "WJR", "contract_with_coleta_placeholders", "edit_yaml",
+    "edit_yaml_utf8", "espera", "fake_mp4", "ffmpeg_ou_pula", "have_render_tools", "isolate_tools", "needs_client", "needs_ffmpeg", "offline_env", "pcm_wav",
     "run_cli", "run_main", "sine_wav", "vivo",
 ]

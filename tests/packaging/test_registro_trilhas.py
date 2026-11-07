@@ -475,14 +475,13 @@ def test_o_checkout_fora_do_cache_vem_do_campo_checkout_env(tmp_path, monkeypatc
     assert tools.checkout_dir(tools.get("opencut")) == tmp_path / ".cache" / "simplicio" / "opencut"
     monkeypatch.setenv("OPENCUT_ELSEWHERE", "~/em/outro/lugar")
     assert tools.checkout_dir(tools.get("opencut")) == Path("~/em/outro/lugar")  # as bash takes it in setup.sh: no `~` expansion
-    assert tools_update.checkout_for(tools.get("opencut")) == Path("~/em/outro/lugar")
 
 
 def test_o_video_use_continua_fora_do_cache_de_tools(tmp_path, monkeypatch):
     monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
     monkeypatch.setenv("VIDEO_USE_DIR", str(tmp_path / "vu"))
     t = tools.get("video-use")
-    assert tools.checkout_dir(t) == tmp_path / "vu" == tools_update.checkout_for(t)
+    assert tools.checkout_dir(t) == tmp_path / "vu"
     monkeypatch.delenv("VIDEO_USE_DIR")
     assert tools.checkout_dir(t) == hostos.home_absoluta("VIDEO_USE_DIR") / ".cache" / "simplicio" / "video-use"
 

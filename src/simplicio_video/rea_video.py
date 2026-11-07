@@ -304,7 +304,6 @@ SPECS: dict[str, tuple[list[tuple[str, bool]], dict[str, object], tuple[str, ...
                                       "--ocr-lang": ("choice", "zh", "ja"), "--no-packaging": "bool", "--no-stems": "bool",
                                       "--workers": "int", "--engine": "text", "--meta": "file"}, ("out",)),
 }
-_SPECS = SPECS  # the old name: callers that read it keep working
 _DEST = {"-o": "out", "--out": "out"}
 
 

@@ -40,7 +40,7 @@ import subprocess
 import sys
 import threading
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
@@ -58,7 +58,6 @@ FINAL = ("done", "failed", "cancelled", "lost")
 # Voice providers that run on this machine: they spend no money, so MCP may submit them.
 LOCAL_VOICE = ("file", "local", "voxcpm", "openvoice")
 PRUNE_DAYS = 7
-GRACE_S = paths.JOBS_GRACE_S
 HEARTBEAT_S = 5.0
 LOG_CAP = 1 << 20
 ID_RE = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{8}$")
@@ -77,12 +76,8 @@ class JobError(Exception):
 
 # ---------------------------------------------------------------------------------------------------------- storage
 
-def data_root() -> Path:
-    return paths.jobs_root()
-
-
 def jobs_dir() -> Path:
-    return data_root() / "jobs"
+    return paths.data_root() / "jobs"
 
 
 def job_dir(jid: str) -> Path:
@@ -560,10 +555,10 @@ def build_argv(kind: str, params: dict, origin: str | None = None) -> list[str]:
     return _refusal(spec, spec.argv, params, origin if spec.origem_mcp else None)
 
 
-class _Kinds(Mapping):
-    """`jobs.KINDS`: the closed list, kind -> {"prepare", "argv", "result"}, in order (swap-run, voice, then JOB_MODULES).
-    Read from the registry every time, so it cannot disagree with it. An item is the three hooks of the kind; listing the kinds or
-    reading an item imports nothing, a track's module is imported when one of its hooks is called."""
+class _Kinds:
+    """`jobs.KINDS`: the closed list of kinds, in order (swap-run, voice, then JOB_MODULES). Read from the registry every time, so it
+    cannot disagree with it. Listing it imports nothing: the hooks of a kind are its `JobSpec` (`job_spec(kind)`, which imports the
+    track's module the first time)."""
 
     def __iter__(self):
         yield from (*_LOCAL, *JOB_MODULES)
@@ -573,13 +568,6 @@ class _Kinds(Mapping):
 
     def __contains__(self, kind) -> bool:
         return kind in _LOCAL or kind in JOB_MODULES
-
-    def __getitem__(self, kind: str) -> dict:
-        if kind not in self:
-            raise KeyError(kind)
-        return {"prepare": lambda params, confirm_yes, origin: _prepare(kind, params, confirm_yes, origin),
-                "argv": lambda params, origin=None: build_argv(kind, params, origin),
-                "result": lambda params, last_json: _result(kind, params, last_json)}
 
 
 KINDS = _Kinds()
@@ -632,7 +620,7 @@ def cancel(jid: str, wait_s: float | None = None, block: bool = True) -> dict:
         return st
     update(jid, cancel_requested_at=now_iso())
     pid = st.get("runner_pid")
-    budget = (grace() + 10.0) if wait_s is None else wait_s
+    budget = (paths.jobs_grace_s() + 10.0) if wait_s is None else wait_s
     if is_alive(pid, st.get("runner_start")):
         if not _runner_proven(st):
             raise JobError(f"não consegui provar que o pid {pid} é o runner da tarefa (sem start time conferível neste sistema): "
@@ -666,10 +654,6 @@ def cancel(jid: str, wait_s: float | None = None, block: bool = True) -> dict:
 def _sleep(s: float) -> None:
     import time
     time.sleep(s)
-
-
-def grace() -> float:
-    return paths.jobs_grace_s()
 
 
 def result(jid: str) -> dict:
@@ -804,7 +788,7 @@ async def _runner(jid: str) -> int:
             await asyncio.wait({waiter, asker}, return_when=asyncio.FIRST_COMPLETED)
             if not waiter.done():
                 cancelled = True
-                await _stop_group(proc, grace())
+                await _stop_group(proc, paths.jobs_grace_s())
             rc = await waiter
             await pump
         finally:

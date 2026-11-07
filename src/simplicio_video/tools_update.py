@@ -193,20 +193,13 @@ def pin_target(t: tools.Tool) -> dict:
     return {"ref": t.ref}
 
 
-def checkout_for(t: tools.Tool) -> Path:
-    """Where a git track lives: `tools.checkout_dir`. video-use's checkout is kept by data/tools/video-use/setup.sh (VIDEO_USE_DIR, else
-    ~/.cache), not the tools cache: the update moves that one, and the registry marker tells it apart (the registry names that variable in
-    `Tool.checkout_env`, and checkout_dir reads it as bash does in setup.sh: no ~ expansion inside a variable's value)."""
-    return tools.checkout_dir(t)
-
-
 # --- moving a track ---------------------------------------------------------------------------------------------------
 
 
 def apply_git(t: tools.Tool, sha: str, io: Io) -> None:
     """Fetch `sha` and check it out detached. A missing registry marker after the checkout puts the previous commit back."""
     _need_network(io, f"git fetch {t.source}")
-    d = checkout_for(t)
+    d = tools.checkout_dir(t)
     if not (d / ".git").is_dir():
         d.parent.mkdir(parents=True, exist_ok=True)
         _must(io.run(["git", "clone", "--filter=blob:none", "--", t.source, str(d)], None), f"git clone {t.source}")
@@ -245,7 +238,7 @@ def _in_place(t: tools.Tool, previous: Optional[dict], target: dict, mode: str) 
     if not same_ref(t, previous.get("ref") or "", target["ref"]):
         return False
     if t.kind == "git":
-        d = checkout_for(t)
+        d = tools.checkout_dir(t)
         return (d / ".git").is_dir() and (d / t.marker).exists()
     if t.kind == "pip":
         return previous.get("sha256") == target.get("sha256") and tools.pip_binary(t.name) is not None

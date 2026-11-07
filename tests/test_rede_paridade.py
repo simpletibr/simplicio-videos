@@ -367,10 +367,9 @@ def test_nenhuma_das_tres_monta_o_ambiente_do_filho_com_a_compreensao_de_cada_di
 # ---- status: the public names ---------------------------------------------------------------------------------------------------------
 
 
-def test_o_busca_tem_o_nome_publico_versao_cli_e_o_antigo_e_so_um_apelido():
+def test_o_busca_exporta_versao_cli_como_nome_publico():
     from simplicio_video import busca
-    assert busca.versao_cli is busca._versao_cli
-    assert "versao_cli" in busca.__all__
+    assert "versao_cli" in busca.__all__ and callable(busca.versao_cli)
 
 
 def test_o_status_le_a_versao_do_tinyfish_pelo_nome_publico_do_busca(monkeypatch):

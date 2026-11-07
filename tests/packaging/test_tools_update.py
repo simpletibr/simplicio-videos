@@ -406,7 +406,7 @@ def test_checkout_padrao_do_video_use_e_o_do_setup_sh(tmp_path, monkeypatch):
     monkeypatch.delenv("VIDEO_USE_DIR", raising=False)
     monkeypatch.setenv("HOME", str(home))
     expected = home / ".cache" / "simplicio" / "video-use"
-    assert tools_update.checkout_for(tools.get("video-use")) == expected
+    assert tools.checkout_dir(tools.get("video-use")) == expected
     assert Path(_vu_dir_do_setup({"HOME": str(home), "PATH": os.environ.get("PATH", "")})) == expected
 
 
@@ -416,7 +416,7 @@ def test_video_use_dir_com_til_vai_como_esta_como_no_setup_sh(tmp_path, monkeypa
         pytest.skip("setup.sh roda em bash")
     monkeypatch.setenv("VIDEO_USE_DIR", "~/vu")
     env = {"HOME": str(tmp_path), "PATH": os.environ.get("PATH", ""), "VIDEO_USE_DIR": "~/vu"}
-    assert tools_update.checkout_for(tools.get("video-use")) == Path(_vu_dir_do_setup(env)) == Path("~/vu")
+    assert tools.checkout_dir(tools.get("video-use")) == Path(_vu_dir_do_setup(env)) == Path("~/vu")
 
 
 def test_checkout_padrao_vem_da_home_do_hostos(tmp_path, monkeypatch):
@@ -424,7 +424,7 @@ def test_checkout_padrao_vem_da_home_do_hostos(tmp_path, monkeypatch):
     monkeypatch.delenv("VIDEO_USE_DIR", raising=False)
     casa = tmp_path / "casa"
     monkeypatch.setattr(hostos, "home_dir", lambda environ=None: casa)
-    assert tools_update.checkout_for(tools.get("video-use")) == casa / ".cache" / "simplicio" / "video-use"
+    assert tools.checkout_dir(tools.get("video-use")) == casa / ".cache" / "simplicio" / "video-use"
 
 
 def test_marcador_ausente_no_commit_novo_volta_ao_anterior(ambiente):

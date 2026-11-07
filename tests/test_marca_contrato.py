@@ -105,14 +105,14 @@ def _duration(path):
 
 def test_preview_filter_without_credit_has_no_end_card(tmp_path):
     from simplicio_video import render
-    fc = render.preview_filter(2.0, render.preview_font(ROOT), tmp_path, marca=DEFAULT_MARCA)
+    fc = render.preview_filter(2.0, render.preview_font(), tmp_path, marca=DEFAULT_MARCA)
     assert "concat=n=1:v=1:a=1" in fc and "concat=n=2" not in fc and "anullsrc" not in fc
     assert (tmp_path / "wm.txt").read_text().count("Prévia") == 3 and not (tmp_path / "end1.txt").exists()
 
 
 def test_preview_filter_takes_watermark_and_credit_from_marca(tmp_path):
     from simplicio_video import render
-    render.preview_filter(2.0, render.preview_font(ROOT), tmp_path, marca=BRAND, chrome={"badge": "PRÉVIA · Teste"})
+    render.preview_filter(2.0, render.preview_font(), tmp_path, marca=BRAND, chrome={"badge": "PRÉVIA · Teste"})
     assert (tmp_path / "wm.txt").read_text().count("Marca Teste") == 3
     assert (tmp_path / "end1.txt").read_text() == "Feito por Teste"
     assert (tmp_path / "badge.txt").read_text() == "PRÉVIA · Teste"

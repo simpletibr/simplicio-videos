@@ -810,32 +810,7 @@ class VoiceStudio:
         return data
 
 
-# ---- module-level helpers (one client per call; tests replace default_transport) ---------------------------------
-
-def status() -> dict:
-    return VoiceStudio().status()
-
-
-def voices() -> list:
-    return VoiceStudio().list_voices()
-
-
-def languages() -> dict:
-    return VoiceStudio().list_languages()
-
-
-def speak(text: str, out_path: str | Path, profile_id: str | None = None, language: str | None = None,
-          fmt: str = "wav") -> dict:
-    return VoiceStudio(timeout=600.0).speak(text, out_path, profile_id=profile_id, language=language, fmt=fmt)
-
-
-def transcribe(path: str | Path, language: str | None = None, via: str = "mcp"):
-    return VoiceStudio(timeout=600.0).transcribe(path, language=language, via=via)
-
-
-def clone_voice(ref_audio_path: str | Path, name: str, language: str | None = None) -> dict:
-    return VoiceStudio(timeout=600.0).clone_voice(ref_audio_path, name, language=language)
-
+# ---- MCP client config (the calls are the methods of VoiceStudio, one client per call; tests replace default_transport) ----
 
 def mcp_config() -> dict:
     """The MCP client block for this backend (Streamable HTTP, trailing slash)."""

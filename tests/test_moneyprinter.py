@@ -1951,9 +1951,9 @@ def test_the_moneyprinter_job_result_is_the_list_of_videos_with_their_hashes(tmp
     last = {"total": 1, "succeeded": 1, "failed": 0, "tasks": [
         {"task_id": "t1", "status": "succeeded", "error": None,
          "videos": [{"video": "moneyprinter-t1.mp4", "sha256": "ab" * 32, "bytes": 3}]}]}
-    res = jobs.KINDS["moneyprinter"]["result"]({"out": str(tmp_path)}, last)
+    res = jobs.job_spec("moneyprinter").result({"out": str(tmp_path)}, last)
     assert res["videos"] == [{"path": str(tmp_path / "moneyprinter-t1.mp4"), "sha256": "ab" * 32, "bytes": 3}]
-    assert jobs.KINDS["moneyprinter"]["result"]({"out": str(tmp_path)}, None) is None
+    assert jobs.job_spec("moneyprinter").result({"out": str(tmp_path)}, None) is None
 
 
 def test_mcp_description_mentions_generate_run_and_the_terminal_only_rest():

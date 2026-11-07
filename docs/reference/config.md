@@ -69,7 +69,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SV_QUALITY` | Qualidade do render remoto: `draft`, `looks` ou `delivery`. | `src/simplicio_video/engine/remote_render.py:223` |
 | `SV_SKIP_SETUP` | `1` pula a instalação de dependências do render remoto. | `src/simplicio_video/engine/remote_render.py:205` |
 | `SV_WORKERS` | Workers do HyperFrames no render: `auto` (padrão) ou um inteiro. | `src/simplicio_video/render.py:191`<br>`src/simplicio_video/render.py:91` |
-| `TINYFISH_API_KEY` | Chave da API do TinyFish, lida só pelo binário `tinyfish` (que também a guarda em `~/.tinyfish/config.json`). O `busca` a repassa ao binário se estiver no ambiente e nunca a lê, imprime nem grava; nunca em argumento. | `src/simplicio_video/busca.py:1134`<br>`src/simplicio_video/busca.py:185` |
+| `TINYFISH_API_KEY` | Chave da API do TinyFish, lida só pelo binário `tinyfish` (que também a guarda em `~/.tinyfish/config.json`). O `busca` a repassa ao binário se estiver no ambiente e nunca a lê, imprime nem grava; nunca em argumento. | `src/simplicio_video/busca.py:1131`<br>`src/simplicio_video/busca.py:185` |
 | `TOONFLOW_DATA_DIR` | Pasta de dados do servidor Toonflow (padrão: `~/.simplicio-video/toonflow-data`, fora do checkout). | `src/simplicio_video/toonflow.py:62` |
 | `TOONFLOW_DIR` | Checkout do Toonflow (alternativa a `SIMPLICIO_TOOLS_DIR/toonflow`). | `src/simplicio_video/toonflow.py:62` |
 | `VIDEO_TO_SKILL_DIR` | Checkout do video-to-skill (alternativa a `SIMPLICIO_TOOLS_DIR/video_to_skill`). O binário `vts-extract` fica à parte, em `SIMPLICIO_TOOLS_DIR/video-to-skill-bin`. | `src/simplicio_video/video_to_skill.py:516` |

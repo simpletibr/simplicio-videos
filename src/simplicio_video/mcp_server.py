@@ -160,7 +160,7 @@ def _cli(argv: list[str], codigos_ok: tuple[int, ...] = (0,)) -> dict:
 DESC_video_init = "Write a contract skeleton for <cliente> <campanha> from a sector template (fill the TODOs with coleta facts). Writes <checkout>/clients/<cliente>/<campanha>/contract.yaml; in a pip-installed package (no checkout) `out`, the absolute path of the contract file, is required and nothing is written without it."
 def video_init(cliente: str, campanha: str, template: str, nome: str | None = None, ano: int | None = None,
                out: str | None = None, force: bool = False) -> dict:
-    from . import paths, scaffold
+    from . import scaffold
 
     def _do(log):
         if scaffold.sem_checkout():
@@ -173,8 +173,7 @@ def video_init(cliente: str, campanha: str, template: str, nome: str | None = No
             if not Path(out).is_absolute():
                 raise SystemExit(f"video.init: num pacote instalado pelo pip `out` precisa ser um caminho absoluto (recebi {out!r}); "
                                  "o relativo cairia na pasta onde o servidor foi iniciado. Nada foi gravado.")
-        h = paths.home()
-        data = scaffold.skeleton(h, cliente, campanha, template, ano, nome, None)
+        data = scaffold.skeleton(cliente, campanha, template, ano, nome, None)
         dst = Path(out) if out else scaffold.default_out(data["campanha"]["id"], cliente)
         scaffold.write(dst, data, force)
         log(f"contrato: {dst}")
