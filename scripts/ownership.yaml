@@ -36,6 +36,8 @@ issues:
       - ".github/ISSUE_TEMPLATE/**"
       - "CONTRIBUTING.md"
       - "tests/conftest.py"
+      - "tests/helpers/**"
+      - "tests/test_helpers_testes.py"
       - "tests/test_clone_montage.py"
       - "tests/test_render_determinism.py"
       - "tests/test_scripts/**"
