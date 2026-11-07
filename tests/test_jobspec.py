@@ -528,7 +528,7 @@ def sinais_do_upstream(monkeypatch):
 
 @pytest.mark.parametrize("ambiente,espera", [("6", 3.0), ("0.2", 0.5), ("", 7.5), ("lixo", 7.5), (None, 7.5)])
 def test_o_upstream_do_moneyprinter_espera_metade_da_tolerancia_do_ambiente(monkeypatch, sinais_do_upstream, ambiente, espera):
-    """Today `jobs.grace()` (SIMPLICIO_JOBS_GRACE_S, default 15 s) decides: SIGINT, half the grace, SIGKILL, a last wait."""
+    """Today `paths.jobs_grace_s()` (SIMPLICIO_JOBS_GRACE_S, default 15 s) decides: SIGINT, half the grace, SIGKILL, a last wait."""
     if ambiente is None:
         monkeypatch.delenv("SIMPLICIO_JOBS_GRACE_S", raising=False)
     else:
@@ -728,22 +728,6 @@ def _ciclos_de(alvos: set[str]) -> list[list[str]]:
 
 def test_nenhum_ciclo_de_import_passa_por_jobs_nem_pelas_tres_trilhas():
     assert _ciclos_de({"jobs", "montage", "moneyprinter", "video_to_skill"}) == []
-
-
-@pytest.mark.parametrize("cenario", RAIZES)
-def test_paths_jobs_root_responde_o_que_jobs_data_root_respondia(monkeypatch, tmp_path, cenario):
-    de_jobs = _raiz_de(jobs.data_root, monkeypatch, tmp_path, cenario)
-    de_paths = _raiz_de(paths.jobs_root, monkeypatch, tmp_path, cenario)
-    assert de_paths == de_jobs or (isinstance(de_jobs, tuple) and de_paths[0] is de_jobs[0] and de_paths[1] == de_jobs[1])
-
-
-@pytest.mark.parametrize("ambiente", ["7", "0", "", "x", None])
-def test_paths_jobs_grace_s_responde_o_que_jobs_grace_respondia(monkeypatch, ambiente):
-    if ambiente is None:
-        monkeypatch.delenv("SIMPLICIO_JOBS_GRACE_S", raising=False)
-    else:
-        monkeypatch.setenv("SIMPLICIO_JOBS_GRACE_S", ambiente)
-    assert paths.jobs_grace_s() == jobs.grace() and paths.JOBS_GRACE_S == jobs.GRACE_S == 15.0
 
 
 def test_o_montage_recusa_a_pasta_de_dados_sem_importar_jobs(tmp_path):
