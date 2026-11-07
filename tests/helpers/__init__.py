@@ -19,6 +19,16 @@ Left where they are on purpose (the copies look alike, the behaviour is not):
   _run            test_childio runs a child through childio.run_child; test_bundle_script runs render_bundle.sh;
                   test_moneyprinter calls run_moneyprinter (only the in-process `main(argv)` copies share `run_main`)
   _wav            test_mediaio writes a silent file; test_codigo_morto reads a WAV back
+  _alive          test_moneyprinter/test_toonflow: only FileNotFoundError means gone (`vivo` also falls back to os.kill)
+  _isolated       what each track drops and sets besides HOME/tools dir/data stays in its own fixture (chdir, PATH, _platform...)
+
+Identical copies that stay for now, in pairs of sibling files (2 to 10 lines, tied to the domain of the folder; each pair belongs in
+that folder's support module rather than here): test_moneyprinter/test_toonflow (_alive, _verbs), test_fsutil/test_fsutil_paridade
+(_arquivo), test_openverse_contrato/test_openverse_trilha (_ov_erros, _sem_voz), test_trilhas_lote1/test_trilhas_lote2 (_nao_chama,
+_pouso, _velha, temp: they use a local `_Install`), test_jobspec/test_residuos_u24a (_filho_falso, _roda, _recusa), install_planner/
+install_seguranca (bundle, instala, repo), test_mcp_argv/test_mcp_saidas (cli), test_edit/test_edit_review (calls), the golden pair
+(corpo, real), check_ownership/check_tdd (repo), test_montage_hardening/test_montage_setup (run), test_instagram/test_matchcut (spy),
+packaging (_texto).
 Importing this package must stay cheap: no simplicio_video import at the top of a module (the helpers that need it import it inside).
 """
 
