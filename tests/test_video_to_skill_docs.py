@@ -23,9 +23,19 @@ def _section(text: str, heading: str) -> str:
     return " ".join((text[m.end(): m.end() + end.start()] if end else text[m.end():]).split())
 
 
+def _facts_block(text: str) -> str:
+    """The generated `fatos` block of a README (scripts/gen_reference.py writes it from the code)."""
+    m = re.search(r"<!-- BEGIN GENERATED: fatos -->\n(.*?)<!-- END GENERATED -->", text, re.S)
+    assert m, "no generated `fatos` block"
+    return m.group(1)
+
+
 def test_the_readme_counts_come_from_the_code():
     n_tools, n_tracks = len(mcp_server.TOOLS), len(tools.TOOLS)
-    assert (n_tools, n_tracks) == (32, 13)
+    assert f"| MCP tools (`video.*`) | {n_tools} |" in _facts_block(README)
+    assert f"| External tracks | {n_tracks} |" in _facts_block(README)
+    assert f"| Tools MCP (`video.*`) | {n_tools} |" in _facts_block(README_PT)
+    assert f"| Trilhas externas | {n_tracks} |" in _facts_block(README_PT)
     assert f"| MCP server | `simplicio-video-mcp` | {n_tools} `video.*` tools |" in README
     assert f"lists {n_tools} `video.*` tools over the stdio protocol" in README
     assert "lists all thirteen tracks" in README and "all twelve" not in README

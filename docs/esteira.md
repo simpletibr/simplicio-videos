@@ -55,6 +55,18 @@ Decisão de produto: [ADR-0001](decisoes/ADR-0001-visao-plugin.md). Resumo: o pl
 | 6 video-use (opcional) | ferramenta em [`src/simplicio_video/data/tools/video-use/`](../src/simplicio_video/data/tools/video-use/README.md) (setup fixado, quando usar × HyperFrames direto); provado no `clients/wjr-informatica-games/video-02-videouse` (cutdown 11,5 s: transcrição local formato Scribe, EDL, overlay MOV do HyperFrames, autoavaliação). Detalhes: [video-use-integracao.md](video-use-integracao.md). Falta footage real do cliente |
 | 7 Render | produção no video-01 (20 s, −14 LUFS). QA extra testado (critério de "tempo congelado" do [motion-video-kit](https://github.com/echris6/motion-video-kit), `frozen-time.sh`, MIT): video-01 ≈0,5 s quase parado em 20 s, video-02 ≈0,2 s — dentro da meta (≤ ~1 s por 30 s, nenhuma pausa > 0,6 s). Ainda não é script do repo |
 
+### Contagens de hoje, do código
+
+<!-- BEGIN GENERATED: fatos -->
+Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão em outro ponto diz outro número, estes são os lidos do código. Não edite aqui: rode `make regen`.
+
+| Fato | Valor |
+|---|---|
+| Templates | 15: 8 `pronto`, 7 `skeleton`; 6 sem `composicao` (não renderizam) |
+| Padrões de motion | 56: 33 `pronto`, 20 `proposto`, 2 `inline`, 1 `lib` |
+| HyperFrames | `hyperframes@0.8.97` |
+<!-- END GENERATED -->
+
 ## Comandos da esteira hoje (por etapa)
 
 ```bash

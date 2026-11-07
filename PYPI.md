@@ -29,6 +29,18 @@ Extras opcionais: `[local-tts]` (as bibliotecas da voz local Kokoro; a voz ainda
 - ffmpeg com libass.
 - Rede no primeiro render: o motor chama `npx hyperframes@0.8.97` e baixa um Chrome. Medido num HOME limpo: cerca de 470 MB (208 MB de cache do npm e 261 MB de Chrome). Os templates também carregam o GSAP pelo jsDelivr.
 
+## O pacote em números
+
+<!-- BEGIN GENERATED: fatos -->
+
+| Fato | Valor |
+|---|---|
+| Tools MCP (`video.*`) | 32 |
+| Trilhas externas | 13 |
+| HyperFrames | `hyperframes@0.8.97` |
+| Hosts de agente (`install`) | 12: `aider`, `antigravity`, `claude`, `codex`, `cursor`, `gemini`, `grok`, `kiro`, `openclaw`, `opencode`, `simplicio_agent`, `vscode` |
+<!-- END GENERATED -->
+
 ## Primeiros passos
 
 ```bash

@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Generates the reference in docs/reference/ from the code, plus the GENERATED blocks of README.md and AGENTS.md (#44).
+"""Generates the reference in docs/reference/ from the code, plus the GENERATED blocks of the docs and the generated fields of
+plugin.json (#44).
 
 Usage:
   scripts/gen_reference.py --out DIR                  writes cli.md, schemas.md, config.md, mcp-tools.md, events.md
-  scripts/gen_reference.py --out DIR --check          writes nothing; exits 1 when a file in DIR or a block is stale
-  scripts/gen_reference.py --out DIR --update-blocks  writes DIR and rewrites the blocks of README.md and AGENTS.md
+  scripts/gen_reference.py --out DIR --check          writes nothing; exits 1 when a file in DIR, a block or plugin.json is stale
+  scripts/gen_reference.py --out DIR --update-blocks  writes DIR, rewrites the GENERATED blocks and the generated fields of plugin.json
+
+The blocks (BLOCKS below says which file carries which): `host` (map of docs/host/*.md, from the front matter), `fatos` (the
+counts and pins that the docs used to repeat by hand: MCP tools, external tracks, templates, motion patterns, HyperFrames, hosts,
+skills, the pin of each track) and `mapa-modulos` (the first sentence of the docstring of each module of the package). In
+plugin.json the generator owns `version`, `contract_schema`, `skills` and `mcp.tools`; `commands` stays hand-written.
 
 Deterministic: no dates, no absolute paths, sorted order. Each subcommand's help is the real output of
 `python -m simplicio_video <sub> --help` run in a subprocess, offline (SIMPLICIO_OFFLINE=1).
@@ -29,8 +35,54 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 PKG = SRC / "simplicio_video"
 DATA = PKG / "data"
-BLOCK_FILES = (ROOT / "README.md", ROOT / "AGENTS.md")
+PLUGIN_JSON = ROOT / "plugin.json"
 SECTION_DIRS = {"host": ROOT / "docs" / "host"}
+# Which generated blocks each file carries (path from the repo root -> sections). A file that must carry a block and has none, or
+# has it twice, is an error: a block that disappears must not turn into a silent skip.
+BLOCKS = {
+    "README.md": ("host", "fatos"),
+    "README.pt-BR.md": ("fatos",),
+    "PYPI.md": ("fatos",),
+    "AGENTS.md": ("host", "fatos", "mapa-modulos"),
+    "docs/esteira.md": ("fatos",),
+    "docs/host/README.md": ("fatos",),
+}
+BLOCK_FILES = tuple(ROOT / rel for rel in BLOCKS)
+# Language of the `fatos` block of each file and the facts it carries ("pins" = the table of pins per track). Each file gets only
+# the facts it talks about; PYPI.md has no pin table (it is the short page of the package).
+_COUNTS = ("tools", "trilhas", "templates", "padroes", "hyperframes", "hosts", "hosts_globais", "skills")
+FATOS = {
+    "README.md": ("en", _COUNTS + ("pins",)),
+    "README.pt-BR.md": ("pt", _COUNTS + ("pins",)),
+    "PYPI.md": ("pt", ("tools", "trilhas", "hyperframes", "hosts")),
+    "AGENTS.md": ("pt", _COUNTS),
+    "docs/esteira.md": ("pt", ("templates", "padroes", "hyperframes")),
+    "docs/host/README.md": ("pt", ("hosts", "hosts_globais", "skills")),
+}
+# Modules the module map leaves out: the entry shim and the empty package marker. Any other module without a docstring is listed
+# and marked, so the gap shows in AGENTS.md instead of being hidden.
+MAP_SKIP = {"__main__.py", "commands/__init__.py"}
+NO_NOTE = {"PYPI.md"}
+FATOS_TEXT = {
+    "en": {
+        "note": "Counts generated from the code (`scripts/gen_reference.py`); where hand-written text elsewhere says another number, "
+                "these are the ones read from the code. Do not edit here: run `make regen`.",
+        "head": ("Fact", "Value"), "pins": ("Track", "Kind", "Pin"),
+        "tools": "MCP tools (`video.*`)", "trilhas": "External tracks", "templates": "Templates", "padroes": "Motion patterns",
+        "hyperframes": "HyperFrames", "hosts": "Agent hosts (`install`)",
+        "hosts_globais": "Hosts with a global skills folder (`install --global`)", "skills": "Skills for agents",
+        "sem_composicao": "{n} without `composicao` (do not render)", "sem_status": "no status",
+    },
+    "pt": {
+        "note": "Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão em outro ponto diz outro número, "
+                "estes são os lidos do código. Não edite aqui: rode `make regen`.",
+        "head": ("Fato", "Valor"), "pins": ("Trilha", "Tipo", "Pin"),
+        "tools": "Tools MCP (`video.*`)", "trilhas": "Trilhas externas", "templates": "Templates", "padroes": "Padrões de motion",
+        "hyperframes": "HyperFrames", "hosts": "Hosts de agente (`install`)",
+        "hosts_globais": "Hosts com pasta global de skills (`install --global`)", "skills": "Skills para agentes",
+        "sem_composicao": "{n} sem `composicao` (não renderizam)", "sem_status": "sem status",
+    },
+}
 FRONT_MATTER = re.compile(r"^---\n(.*?)\n---\n", re.S)
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]+$")
 ENV_READERS = {"get", "pop", "setdefault"}
@@ -334,14 +386,14 @@ def _front_matter(path: Path) -> dict:
     return meta
 
 
-def block_body(section: str) -> str:
+def host_body() -> str:
     pages = sorted(
-        (p for p in SECTION_DIRS[section].glob("*.md") if p.name != "README.md"),
+        (p for p in SECTION_DIRS["host"].glob("*.md") if p.name != "README.md"),
         key=lambda p: p.relative_to(ROOT).as_posix(),
     )
-    note = f"Gerado de `docs/{section}/*.md` (front matter). Não edite aqui: rode `make regen`."
+    note = "Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`."
     if not pages:
-        return f"{note}\n\nAinda não há páginas em `docs/{section}/`."
+        return f"{note}\n\nAinda não há páginas em `docs/host/`."
     items = []
     for page in pages:
         meta = _front_matter(page)
@@ -349,29 +401,156 @@ def block_body(section: str) -> str:
     return f"{note}\n\n" + "\n".join(items)
 
 
+def _package():
+    """The package modules the facts come from, imported from this checkout (src/), like the CLI help above."""
+    if str(SRC) not in sys.path:
+        sys.path.insert(0, str(SRC))
+    import simplicio_video  # noqa: PLC0415 (path set above)
+    from simplicio_video import catalog, cli, installer, mcp_server, skill_sync, tools  # noqa: PLC0415
+
+    return simplicio_video, catalog, cli, installer, mcp_server, skill_sync, tools
+
+
+def facts() -> dict:
+    """The numbers and pins the docs repeat, read from the code: the registries and the data files, never typed here."""
+    package, catalog, _cli, installer, mcp_server, skill_sync, tools = _package()
+    templates = catalog.templates(DATA)
+    patterns = catalog.motion(DATA)
+    by_pattern: dict = {}
+    for item in patterns:
+        by_pattern[item["status"]] = by_pattern.get(item["status"], 0) + 1
+    by_template: dict = {}
+    for item in templates:
+        by_template[item["status"]] = by_template.get(item["status"], 0) + 1
+    return {
+        "tools": len(mcp_server.TOOLS),
+        "trilhas": len(tools.TOOLS),
+        "templates": len(templates),
+        "templates_por_status": sorted(by_template.items()),
+        "sem_composicao": sum(1 for item in templates if not item["renderizavel"]),
+        "padroes": len(patterns),
+        "padroes_por_status": sorted(by_pattern.items(), key=lambda kv: (-kv[1], str(kv[0]))),
+        "hyperframes": package.HYPERFRAMES,
+        "hosts": sorted(installer.HOST_ENTRY),
+        "hosts_globais": sorted(skill_sync.HOST_SKILL_ROOTS),
+        "skills": len(skill_sync.SKILLS),
+        "pins": [(name, tool.kind, tool.ref[:7] if tool.kind == "git" else tool.ref) for name, tool in tools.TOOLS.items()],
+    }
+
+
+def fatos_body(rel: str) -> str:
+    language, keys = FATOS[rel]
+    text = FATOS_TEXT[language]
+    data = facts()
+
+    def counts(items) -> str:
+        return ", ".join(f"{n} `{text['sem_status'] if status is None else status}`" for status, n in items)
+
+    def names(items) -> str:
+        return f"{len(items)}: " + ", ".join(f"`{item}`" for item in items)
+
+    cells = {
+        "tools": str(data["tools"]),
+        "trilhas": str(data["trilhas"]),
+        "templates": f"{data['templates']}: {counts(data['templates_por_status'])}; " + text["sem_composicao"].format(n=data["sem_composicao"]),
+        "padroes": f"{data['padroes']}: {counts(data['padroes_por_status'])}",
+        "hyperframes": f"`{data['hyperframes']}`",
+        "hosts": names(data["hosts"]),
+        "hosts_globais": names(data["hosts_globais"]),
+        "skills": str(data["skills"]),
+    }
+    # PYPI.md is the public page of the package: the maintainer note would show there (the BEGIN/END comments do not render).
+    lines = [""] if rel in NO_NOTE else [text["note"], ""]  # a blank line after the comment keeps the table a block of its own
+    lines += [f"| {text['head'][0]} | {text['head'][1]} |", "|---|---|"]
+    lines += [f"| {text[key]} | {cells[key]} |" for key in keys if key in cells]
+    if "pins" in keys:
+        head = text["pins"]
+        lines += ["", f"| {head[0]} | {head[1]} | {head[2]} |", "|---|---|---|"]
+        lines += [f"| `{name}` | {kind} | `{pin}` |" for name, kind, pin in data["pins"]]
+    return "\n".join(lines)
+
+
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z`])")
+
+
+def first_sentence(doc: str) -> str:
+    """The first sentence of the first paragraph of a docstring, on one line (a docstring wraps, so its first line is often cut)."""
+    paragraph = " ".join(doc.strip().split("\n\n", 1)[0].split())
+    return _SENTENCE_END.split(paragraph, 1)[0]
+
+
+def _escape_angle(text: str) -> str:
+    """`<slug>` outside a code span would vanish as an HTML tag when the page is rendered."""
+    parts = text.split("`")
+    for index in range(0, len(parts), 2):
+        parts[index] = parts[index].replace("<", "\\<")
+    return "`".join(parts)
+
+
+def mapa_modulos_body() -> str:
+    items = []
+    for path in sorted(PKG.rglob("*.py"), key=lambda p: p.relative_to(PKG).as_posix()):
+        rel = path.relative_to(PKG).as_posix()
+        if rel.startswith("data/") or rel in MAP_SKIP:
+            continue
+        doc = ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
+        summary = _escape_angle(first_sentence(doc)) if doc else "(sem docstring)"
+        items.append(f"- `{rel}`: {summary}")
+    note = ("Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Gerado da primeira frase da docstring de "
+            "cada módulo de `src/simplicio_video/` (ficam de fora `data/` e os arquivos que não são Python em `engine/`). "
+            "Não edite aqui: rode `make regen`.")
+    return f"{note}\n\n" + "\n".join(items)
+
+
+def block_body(section: str, rel: str) -> str:
+    if section == "host":
+        return host_body()
+    if section == "fatos":
+        return fatos_body(rel)
+    if section == "mapa-modulos":
+        return mapa_modulos_body()
+    raise SystemExit(f"gen_reference: bloco desconhecido {section!r}")
+
+
 def updated_block_text(text: str, path: Path) -> str:
-    for section in SECTION_DIRS:
-        pattern = re.compile(
-            rf"(<!-- BEGIN GENERATED: {section} -->\n).*?(<!-- END GENERATED -->)", re.S
-        )
+    rel = path.relative_to(ROOT).as_posix()
+    for section in BLOCKS[rel]:
+        pattern = re.compile(rf"(<!-- BEGIN GENERATED: {section} -->\n).*?(<!-- END GENERATED -->)", re.S)
         matches = pattern.findall(text)
         if len(matches) != 1:
-            raise SystemExit(f"gen_reference: {path.relative_to(ROOT).as_posix()} precisa de exatamente um bloco '{section}'")
-        body = block_body(section)
+            raise SystemExit(f"gen_reference: {rel} precisa de exatamente um bloco '{section}'")
+        body = block_body(section, rel)
         text = pattern.sub(lambda m: m.group(1) + body + "\n" + m.group(2), text, count=1)
     return text
 
 
+def plugin_json_text(text: str) -> str:
+    """plugin.json with the four generated fields rewritten from the code; `commands` and the rest stay as they are."""
+    package, _catalog, cli, _installer, mcp_server, skill_sync, _tools = _package()
+    try:
+        plugin = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"gen_reference: plugin.json não é JSON válido: {exc}")
+    plugin["version"] = package.__version__
+    plugin["contract_schema"] = cli.SCHEMA_REL
+    plugin["skills"] = [{"name": name, "path": f"skills/{name}/SKILL.md"} for name in skill_sync.SKILLS]
+    plugin["mcp"]["tools"] = [name for name, _fn, _desc in mcp_server.TOOLS]
+    for target in [plugin["contract_schema"], *(skill["path"] for skill in plugin["skills"])]:
+        if not (ROOT / target).is_file():
+            raise SystemExit(f"gen_reference: plugin.json apontaria para {target}, que não existe")
+    return json.dumps(plugin, indent=2, ensure_ascii=False) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Gera docs/reference/ a partir do código e atualiza os blocos GENERATED do README.md e do AGENTS.md.",
+        description="Gera docs/reference/ a partir do código e atualiza os blocos GENERATED dos docs e os campos gerados do plugin.json.",
         epilog="exemplos:\n  scripts/gen_reference.py --out docs/reference\n  scripts/gen_reference.py --out docs/reference --check",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--out", required=True, type=Path, help="pasta de saída (ex.: docs/reference)")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="não grava; sai com 1 se algo estiver desatualizado")
-    mode.add_argument("--update-blocks", action="store_true", help="grava a pasta e reescreve os blocos do README e do AGENTS")
+    mode.add_argument("--update-blocks", action="store_true", help="grava a pasta e reescreve os blocos dos docs e os campos gerados do plugin.json")
     args = parser.parse_args(argv)
 
     out = args.out.resolve()
@@ -386,12 +565,15 @@ def main(argv: list[str] | None = None) -> int:
             text = path.read_text(encoding="utf-8")
             if updated_block_text(text, path) != text:
                 stale.append(path.relative_to(ROOT).as_posix())
+        plugin = PLUGIN_JSON.read_text(encoding="utf-8")
+        if plugin_json_text(plugin) != plugin:
+            stale.append(PLUGIN_JSON.relative_to(ROOT).as_posix())
         if stale:
             print("gen_reference: desatualizado (rode make regen):")
             for item in stale:
                 print(f"  {item}")
             return 1
-        print("gen_reference: ok (docs/reference e blocos em dia)")
+        print("gen_reference: ok (docs/reference, blocos e plugin.json em dia)")
         return 0
 
     out.mkdir(parents=True, exist_ok=True)
@@ -401,6 +583,7 @@ def main(argv: list[str] | None = None) -> int:
         for path in BLOCK_FILES:
             text = path.read_text(encoding="utf-8")
             path.write_text(updated_block_text(text, path), encoding="utf-8")
+        PLUGIN_JSON.write_text(plugin_json_text(PLUGIN_JSON.read_text(encoding="utf-8")), encoding="utf-8")
     return 0
 
 

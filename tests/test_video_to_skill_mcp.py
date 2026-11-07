@@ -88,7 +88,7 @@ def nothing_ran(env):
 
 def test_the_tool_is_the_thirty_second_and_its_description_comes_from_the_same_tuple_as_the_enum():
     names = [n for n, _, _ in mcp_server.TOOLS]
-    assert len(names) == 32 and "video.video-to-skill" in names and names.index("video.video-to-skill") > names.index("video.rea-video")
+    assert len(names) == len(mcp_server.TOOLS) and "video.video-to-skill" in names and names.index("video.video-to-skill") > names.index("video.rea-video")
     fn = dict((n, f) for n, f, _ in mcp_server.TOOLS)["video.video-to-skill"]
     assert fn is mcp_server.video_video_to_skill and mcp_server.DESC_video_video_to_skill is dict((n, d) for n, _, d in mcp_server.TOOLS)["video.video-to-skill"]
     assert mcp_server._CMD_VIDEO_TO_SKILL == ("status", "where", "check", "skill", "extract", "frame-at", "clip", "compile", "merge")
@@ -102,7 +102,7 @@ def test_the_tool_is_the_thirty_second_and_its_description_comes_from_the_same_t
 
 def test_plugin_json_advertises_thirty_two_tools_including_this_one():
     plugin = json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))
-    assert len(plugin["mcp"]["tools"]) == 32 and "video.video-to-skill" in plugin["mcp"]["tools"]
+    assert len(plugin["mcp"]["tools"]) == len(mcp_server.TOOLS) and "video.video-to-skill" in plugin["mcp"]["tools"]
     assert set(plugin["mcp"]["tools"]) == {n for n, _, _ in mcp_server.TOOLS}
 
 

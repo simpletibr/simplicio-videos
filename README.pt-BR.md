@@ -32,6 +32,39 @@ Para quem é: quem produz anúncios e vídeos curtos com voz, legenda e cortes, 
 | Limpeza de áudio | não há ainda | Em PR, não está no main | não se aplica |
 | Dublagem com fundo preservado | `voicestudio dub create` e `dub-export` | Sobe o vídeo ao app e exporta o job pronto, com música e efeitos, desde que a separação de fundo tenha estado ligada no app | A dublagem em si roda no app |
 
+### Números do código
+
+<!-- BEGIN GENERATED: fatos -->
+Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão em outro ponto diz outro número, estes são os lidos do código. Não edite aqui: rode `make regen`.
+
+| Fato | Valor |
+|---|---|
+| Tools MCP (`video.*`) | 32 |
+| Trilhas externas | 13 |
+| Templates | 15: 8 `pronto`, 7 `skeleton`; 6 sem `composicao` (não renderizam) |
+| Padrões de motion | 56: 33 `pronto`, 20 `proposto`, 2 `inline`, 1 `lib` |
+| HyperFrames | `hyperframes@0.8.97` |
+| Hosts de agente (`install`) | 12: `aider`, `antigravity`, `claude`, `codex`, `cursor`, `gemini`, `grok`, `kiro`, `openclaw`, `opencode`, `simplicio_agent`, `vscode` |
+| Hosts com pasta global de skills (`install --global`) | 11: `agents`, `amp`, `claude`, `codex`, `copilot`, `cursor`, `grok`, `kiro`, `opencode`, `simplicio_agent`, `vscode` |
+| Skills para agentes | 10 |
+
+| Trilha | Tipo | Pin |
+|---|---|---|
+| `openmontage` | git | `9327439` |
+| `opencut` | git | `cf5e79e` |
+| `hypit` | npm | `0.3.1` |
+| `toonflow` | git | `d2e94ac` |
+| `moneyprinter` | git | `4b7b965` |
+| `matchcut` | git | `b51c98f` |
+| `instagram` | git | `d03c56b` |
+| `voicestudio` | git | `beeaae0` |
+| `video-use` | git | `b877063` |
+| `tinyfish` | npm | `0.57.0` |
+| `yt-dlp` | pip | `2026.10.26` |
+| `rea_video` | git | `36e02dd` |
+| `video_to_skill` | git | `c1a1b90` |
+<!-- END GENERATED -->
+
 ## Instalação
 
 ### Pré-requisitos
