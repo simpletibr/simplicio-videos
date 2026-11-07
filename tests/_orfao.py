@@ -122,19 +122,56 @@ def sinais_ignorados(*nomes: str):
 # Runs in the wrapper process before the exec: SIGHUP, SIGINT and SIGTERM back to SIG_DFL (a shell starts every command that way), then
 # the command takes the place of the wrapper (same pid). Python, exec'd with SIGINT at SIG_DFL, installs default_int_handler for it,
 # which is what childio's _Guard.install requires. No preexec_fn: it is not safe in a process with threads (pytest, xdist).
-_COMO_SHELL = (
-    "import os, signal, sys; "
-    "[signal.signal(getattr(signal, n), signal.SIG_DFL) for n in ('SIGHUP', 'SIGINT', 'SIGTERM') if hasattr(signal, n)]; "
-    "os.execvp(sys.argv[1], sys.argv[1:])"
-)
+# SIGPIPE and SIGXFSZ go back to SIG_DFL too: the wrapper is itself a Python process, and Python starts with both at SIG_IGN (Popen's
+# restore_signals only restores them for the wrapper's exec, and the wrapper's interpreter ignores them again), so without this a child
+# that is not Python (`sleep`, `head`) kept them ignored (SigIgn=0x1001000 in /proc) where a shell gives them at their defaults.
+# `argv[1]` is the write end of a close-on-exec pipe: when the exec fails (no such command, not executable) the wrapper writes the errno
+# there and exits, and the caller raises the same OSError Popen would have raised (a clean exec closes the pipe: EOF, nothing written).
+_COMO_SHELL = """\
+import os, signal, sys
+[signal.signal(getattr(signal, n), signal.SIG_DFL) for n in ('SIGHUP', 'SIGINT', 'SIGTERM', 'SIGPIPE', 'SIGXFSZ') if hasattr(signal, n)]
+canal = int(sys.argv[1])
+os.set_inheritable(canal, False)
+try:
+    os.execvp(sys.argv[2], sys.argv[2:])
+except OSError as e:
+    os.write(canal, str(e.errno).encode())
+    os._exit(127)
+"""
 
 
 def lanca_como_shell(argv: list[str], **popen_kw) -> subprocess.Popen:
-    """subprocess.Popen(argv, **popen_kw) with SIGHUP, SIGINT and SIGTERM in the state a shell gives a command, whatever the pytest
-    process has (`nohup make check` and `make check &` leave HUP and INT at SIG_IGN, and an ignored signal survives the exec: the
+    """subprocess.Popen(argv, **popen_kw) with SIGHUP, SIGINT, SIGTERM, SIGPIPE and SIGXFSZ in the state a shell gives a command, whatever
+    the pytest process has (`nohup make check` and `make check &` leave HUP and INT at SIG_IGN, and an ignored signal survives the exec: the
     engine keeps it ignored on purpose, so a test signal sent to such a child does nothing). The single launcher for every test that
-    starts the engine or the MCP server and signals it. `restore_signals=True` does not do this: it only restores SIGPIPE and SIGXFSZ."""
-    return subprocess.Popen([sys.executable, "-c", _COMO_SHELL, *map(os.fspath, argv)], **popen_kw)
+    starts the engine or the MCP server and signals it. `restore_signals=True` does not do this: it restores SIGPIPE and SIGXFSZ only for
+    the wrapper, which is a Python process that ignores them again.
+
+    Like Popen it returns once the command has taken the place of the wrapper (the pid is the command's, with its final signal state), and
+    it raises what Popen raises when the command cannot run: FileNotFoundError for a missing command, PermissionError for a file that is
+    not executable (same errno and filename). The lookup uses the `env` and `cwd` given, as Popen does."""
+    leitura, escrita = os.pipe()
+    try:
+        pass_fds = (*popen_kw.pop("pass_fds", ()), escrita)
+        proc = subprocess.Popen([sys.executable, "-c", _COMO_SHELL, str(escrita), *map(os.fspath, argv)], pass_fds=pass_fds, **popen_kw)
+    except BaseException:
+        os.close(leitura)
+        raise
+    finally:
+        os.close(escrita)
+    try:
+        with os.fdopen(leitura, "rb") as canal:
+            errno_do_exec = canal.read()  # EOF: the exec happened (or the wrapper died before it)
+    except BaseException:
+        proc.kill()
+        proc.wait()
+        raise
+    if errno_do_exec:
+        numero = int(errno_do_exec)
+        with proc:  # reaps the wrapper and closes the pipes Popen made
+            pass
+        raise OSError(numero, os.strerror(numero), os.fsdecode(os.fspath(argv[0])))
+    return proc
 
 
 @pytest.fixture
