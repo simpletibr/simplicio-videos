@@ -325,7 +325,6 @@ def test_smoke_a_storm_of_stop_signals_never_orphans_the_child(tmp_path):
     signal.signal(signal.SIGTERM, sobra)
     signal.signal(signal.SIGHUP, sobra)
     argv = [sys.executable, "-c", "import time; time.sleep(120)"]
-    inicio = time.monotonic()
     for _ in range(25):
         rajada = [rng.choice((signal.SIGTERM, signal.SIGHUP)) for _ in range(rng.randint(2, 8))]
         folgas = [rng.choice((0, 0, 0.0001, 0.0005, 0.002)) for _ in rajada]
@@ -358,7 +357,10 @@ def test_smoke_a_storm_of_stop_signals_never_orphans_the_child(tmp_path):
             hilo.join(10)
             for p in vistos:
                 limpa(p, tmp_path / "nenhum")
-    assert time.monotonic() - inicio < 2 + 25 * 0.1, "the storm test must stay short"
+    # No wall-clock ceiling on purpose (same as the burst test of test_childio_registry.py, PR #203): under host load the 25 rounds took
+    # 10.1 s against the old 4.5 s limit (wave-0 review, load > 5) with every child dead and reaped, so the clock measured the machine.
+    # What matters is asserted in each round: exit code 128+n, the child killed exactly once, dead and reaped. A hang stays bounded: the
+    # body sleeps at most 10 s and the signalling thread is joined with a 10 s timeout.
 
 
 # ---- kill_group refuses what it must not signal ----

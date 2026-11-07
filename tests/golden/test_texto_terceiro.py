@@ -67,7 +67,7 @@ TABELA = [
     ("CR", "\r", "drop drop drop mark mark mark nl space space space"),
     ("ESC", "\x1b", "drop drop drop mark mark mark drop space drop keep"),
     ("US", "\x1f", "drop drop drop mark mark mark drop space space space"),
-    ("DEL", "", "drop drop drop mark mark mark drop space drop keep"),
+    ("DEL", "\x7f", "drop drop drop mark mark mark drop space drop keep"),
     ("C1 NEL U+0085", "\x85", "drop drop drop hex hex hex drop space space space"),
     ("C1 CSI U+009B", "\x9b", "drop drop drop hex hex hex drop space drop keep"),
     ("NBSP U+00A0", "\xa0", "keep keep keep keep keep keep keep keep space space"),

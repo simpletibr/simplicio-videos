@@ -30,6 +30,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import paths
+from .fsutil import canonical_json as canonical, sha256_file
 
 __all__ = ["SocialError", "providers_report", "limits_table", "make_plan", "check_plan", "recipe", "recipe_text", "run_social"]
 
@@ -81,20 +82,8 @@ def _providers_doc() -> dict:
     return _load("providers.json")
 
 
-def canonical(obj) -> str:
-    return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-
-
 def plan_id(body: dict) -> str:
     return hashlib.sha256(canonical(body).encode("utf8")).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
 
 
 def _publishable(net: str, provs: list[dict]) -> bool:

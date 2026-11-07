@@ -7,13 +7,26 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
-from . import hostos
+from . import __version__, hostos
 
 PKG_DIR = Path(__file__).resolve().parent
 DATA_DIR = PKG_DIR / "data"
 ENGINE_DIR = PKG_DIR / "engine"
+REPO_URL = "https://github.com/simpletibr/simplicio-videos"
+_RELEASE = re.compile(r"\d+(?:\.\d+){1,3}(?:\.post\d+)?", re.ASCII)  # X.Y[.Z[.W]][.postN]: the versions that have a tag
+
+
+def doc_url(rel: str) -> str:
+    """URL, at the tag of this release, of a repository file (a doc, a voice guide, the Colab notebook, the intake).
+
+    Those folders belong to the checkout and are not in the wheel: a message that ships in the package names the file by
+    this URL, never by a path that only exists next to the source. Only a release has a tag: a development, pre-release or
+    dirty version (0.8.1.dev0, 0.9.0rc1, 0.8.0+dirty) points at `main` instead of a `v<version>` that would be a 404."""
+    ref = f"v{__version__}" if _RELEASE.fullmatch(__version__) else "main"
+    return f"{REPO_URL}/blob/{ref}/{rel}"
 
 
 def _is_home(p: Path) -> bool:
@@ -41,7 +54,8 @@ def home(start: Path | None = None) -> Path:
 
 
 def workspace_dir() -> Path:
-    """$SIMPLICIO_WORKSPACE, else ~/.simplicio-video/workspaces/default (docs/factory/contracts.md).
+    """$SIMPLICIO_WORKSPACE, else ~/.simplicio-video/workspaces/default
+    (https://github.com/simpletibr/simplicio-videos/blob/main/docs/factory/contracts.md).
 
     Lives here and not in `commands/setup.py`: `install` needs it before the `.venv` exists, under the system python, and
     `setup` imports PyYAML at the top. This module is standard library only."""

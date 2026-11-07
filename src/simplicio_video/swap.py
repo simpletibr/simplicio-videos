@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
-import hashlib
 import json
 import math
 import os
@@ -30,6 +29,7 @@ from pathlib import Path
 
 from . import swap_providers
 from .aio import athread, clamp, positive_int, run_sync
+from .fsutil import sha256_file
 from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError, redact
 
 __all__ = ["Job", "SwapError", "SwapTimeout", "run_swap", "plan_chunks", "estimate_report", "providers_report"]
@@ -92,14 +92,6 @@ def scrub(text: str) -> str:
     for v in _secrets():
         text = text.replace(v, "***")
     return redact(text)
-
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
 
 
 def _bin(name: str) -> str:

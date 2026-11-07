@@ -3,7 +3,7 @@
 
 Breaking change (direct owner request, ADR-0020): `install` used to be the `.venv` of the checkout (uv). That is now
 `bash scripts/dev_install.sh` (Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev_install.ps1`). Here `install`
-copies the skills that ship in the package (`.claude/skills/simplicio-video` and `simplicio-video-social`) into the project, or into
+copies the skills that ship in the package (`skill_sync.SKILLS`, under `.claude/skills` for the default host) into the project, or into
 the home with `--global`, and the entry file of the host when it has one (`AGENTS.md`, `GEMINI.md`, `CONVENTIONS.md`,
 `.github/copilot-instructions.md`, `.kiro/steering/simplicio-video.md`; never over a file that exists). It writes an ownership receipt
 (`.simplicio-video/install-ownership.json`, with the sha256 of every file) and never overwrites or deletes a file that is not its own:
@@ -142,13 +142,19 @@ def _home_problem(home: Path) -> str:
     return ""
 
 
+def global_skill_paths(root: Path) -> list[Path]:
+    """The folder of every skill of the install in every global root under `root` (the home): what `--global` writes, and what an
+    uninstall or a prune of the PROJECT must never touch. One definition, for `_protect_global` and for `install`."""
+    return [root / dest / name for dest in installer.GLOBAL_ROOTS for name in installer.SKILLS]
+
+
 def _protect_global(home: Path, target: Path) -> list:
     """The folders of the global install, as the real paths a PROJECT uninstall must never remove from: a cloned repository whose
     `.claude` is a link to `~/.claude`, with a receipt that records that real folder as its base, must not take the global install away.
     Empty when the home cannot be trusted or the project IS the home (then the uninstall is the global one)."""
     if _home_problem(home) or os.path.realpath(target) == os.path.realpath(home):
         return []
-    return [home / dest / name for dest in installer.GLOBAL_ROOTS for name in installer.SKILLS]
+    return global_skill_paths(home)
 
 
 def _uninstall(root: Path, globally: bool, dry_run: bool, as_json: bool, host: str) -> int:
@@ -254,7 +260,7 @@ def install(target: Path, globally: bool, host: str = "claude", dry_run: bool = 
         resync = _resynced(result, applied=not (dry_run or check)) if globally else None
         prune_result = None
         if globally and prune_project_copies:
-            protect = [root / dest / name for dest in installer.GLOBAL_ROOTS for name in installer.SKILLS]  # the global install itself
+            protect = global_skill_paths(root)  # the global install itself
             prune_result = installer.prune_project_copies(target, dry_run=dry_run or check, protect=protect)
     except installer.InstallRefused as exc:
         return _fail(str(exc), EXIT_USAGE, as_json, host)

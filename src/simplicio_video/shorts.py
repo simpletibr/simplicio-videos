@@ -14,12 +14,13 @@ sem ela não há seleção: o plano é a decisão, não um chute.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import shutil
 import subprocess
 from pathlib import Path
+
+from .fsutil import sha256_file
 
 PLAN_SCHEMA = "simplicio.shorts-plan/v1"
 MANIFEST_SCHEMA = "simplicio.shorts-manifest/v1"
@@ -42,14 +43,6 @@ class ShortsError(Exception):
 
 
 # ---------------------------------------------------------------- utilidades
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
 
 def _need(exe: str) -> str:
     found = shutil.which(exe)
