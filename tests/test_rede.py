@@ -15,11 +15,16 @@ import email.message
 import importlib
 import io
 import json
+import os
+import subprocess
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import pytest
+
+from conftest import ROOT
 
 PREFIXO = "modo offline (SIMPLICIO_OFFLINE=1): não vou "
 ENV_VERDADEIRO = ["1", "true", "yes", "on", " 1 ", "TRUE", "Yes", " On ", "ON\t"]
@@ -373,3 +378,230 @@ def test_rede_nao_importa_nada_do_pacote_nem_de_fora_da_biblioteca_padrao():
             raizes.add((no.module or "").split(".")[0])
     import sys
     assert raizes <= set(sys.stdlib_module_names) | {"__future__"}, raizes
+
+
+# ---- U07b: `rede` loads urllib when a request is made, not when the module is imported ---------------------------------------------
+#
+# `import simplicio_video.instagram` (the module that runs third-party scripts in isolation, and whose documented rule is "does not import
+# the network") reached `rede` through `trilha_base` and loaded 13 modules of the network stack (socket, ssl, http.client, urllib.*,
+# email.*) because `rede` imported urllib at the top. `rede` now imports urllib inside `request`, and builds `NoRedirect` (a subclass of
+# urllib's redirect handler) on first access by a module-level `__getattr__` (PEP 562), cached so that every access is the same object.
+#
+# These tests run a CLEAN interpreter (`python -I`, so no PYTHONPATH, no user site, no sitecustomize): what a process has loaded is the
+# only honest measure of "does not import the network". The loopback servers listen on 127.0.0.1 and the child refuses to connect
+# anywhere else; no test touches the real network.
+
+PILHA_DE_REDE = {"socket", "_socket", "ssl", "_ssl", "http", "urllib", "email", "asyncio", "urllib3", "requests", "httpx", "aiohttp"}
+# top-level names. `selectors` is not here: it is the poll loop of `subprocess`, which the tracks need, not a way to the network.
+
+_PRELUDIO = "import sys\nsys.path.insert(0, %r)\n" % str(ROOT / "src")
+
+_SO_LOOPBACK = """
+import socket
+_connect = socket.socket.connect
+
+
+def _so_loopback(self, endereco):
+    if not (isinstance(endereco, tuple) and endereco[0] in ("127.0.0.1", "::1")):
+        raise AssertionError(f"fora do loopback: {endereco!r}")
+    return _connect(self, endereco)
+
+
+socket.socket.connect = _so_loopback
+"""
+
+_SERVIDORES = """
+import http.server
+import json
+import threading
+
+
+def servidor(rotas):
+    \"\"\"A loopback server on a free port. `rotas` maps a path to (status, headers, body). Returns (base url, what it was asked).\"\"\"
+    pedidos = []
+
+    class Atende(http.server.BaseHTTPRequestHandler):
+        def _responde(self):
+            tamanho = int(self.headers.get("Content-Length") or 0)
+            pedidos.append({"metodo": self.command, "caminho": self.path, "autorizacao": self.headers.get("Authorization"),
+                            "tipo": self.headers.get("Content-Type"), "corpo": (self.rfile.read(tamanho) if tamanho else b"").decode("utf8")})
+            status, cabecalhos, corpo = rotas[self.path]
+            self.send_response(status)
+            for nome, valor in cabecalhos.items():
+                self.send_header(nome, valor)
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+
+        do_GET = do_POST = _responde
+
+        def log_message(self, *args):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Atende)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return f"http://127.0.0.1:{srv.server_address[1]}", pedidos
+"""
+
+
+def _processo_limpo(codigo: str) -> dict:
+    """Run `codigo` in `python -I` with a minimal environment (no proxy variable, no SIMPLICIO_OFFLINE); it prints one JSON object."""
+    env = {k: os.environ[k] for k in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "HOME", "LANG", "LC_ALL") if k in os.environ}
+    r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, env=env, timeout=120)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+def _carga_de(modulo: str) -> list[str]:
+    """The modules of the network stack that `import <modulo>` loads in a clean interpreter, beyond what `pathlib` brings (before
+    Python 3.13 `pathlib` itself loads urllib.parse, which is a string parser, not the network)."""
+    carregados = _processo_limpo(_PRELUDIO + "import json\nimport pathlib\nantes = set(sys.modules)\n" + f"import {modulo}\n"
+                                 + "print(json.dumps(sorted(set(sys.modules) - antes)))\n")
+    return sorted(m for m in carregados if m.split(".")[0] in PILHA_DE_REDE)
+
+
+@pytest.mark.parametrize("modulo", ["simplicio_video.rede", "simplicio_video.trilha_base"])
+def test_importar_rede_ou_quem_so_depende_dela_nao_carrega_a_pilha_de_rede(modulo):
+    """Red before U07b: `rede` imported urllib at the top, so every module that imports `rede` loaded socket, ssl, http.client..."""
+    assert _carga_de(modulo) == []
+
+
+def test_request_do_zero_importa_o_urllib_so_na_chamada_e_funciona_contra_um_servidor_de_loopback():
+    codigo = _PRELUDIO + _SO_LOOPBACK + """
+import os
+from simplicio_video import rede
+v = {"urllib_ao_importar": "urllib.request" in sys.modules}
+os.environ["SIMPLICIO_OFFLINE"] = "1"
+try:
+    rede.request("GET", "http://127.0.0.1:9/")
+except rede.NetworkError as e:
+    v["offline"] = str(e)
+v["urllib_depois_de_recusar_offline"] = "urllib.request" in sys.modules
+os.environ.pop("SIMPLICIO_OFFLINE")
+""" + _SERVIDORES + """
+base, pedidos = servidor({"/ok": (200, {"Retry-After": "3"}, b'{"ok": true}'), "/nada": (404, {"X-Erro": "1"}, b"nada aqui"),
+                          "/grande": (200, {}, b"x" * 50), "/eco": (200, {}, b"{}")})
+r = rede.request("GET", base + "/ok", headers={"Authorization": "Bearer k"}, timeout=10)
+v["get"] = [r.status, r.body.decode(), r.headers["retry-after"], r.json(), pedidos[0]["autorizacao"]]
+rede.request("POST", base + "/eco", json_body={"a": "ç"})
+v["json"] = [pedidos[1]["metodo"], pedidos[1]["tipo"], pedidos[1]["corpo"]]
+rede.request("POST", base + "/eco", form={"grant_type": "client_credentials", "q": "a b&c"})
+v["form"] = [pedidos[2]["tipo"], pedidos[2]["corpo"]]
+r = rede.request("GET", base + "/nada")
+v["http_error"] = [r.status, r.body.decode(), r.headers["x-erro"]]
+v["max_bytes"] = [len(rede.request("GET", base + "/grande", max_bytes=50).body)]
+try:
+    rede.request("GET", base + "/grande", max_bytes=10)
+except rede.NetworkError as e:
+    v["max_bytes"].append(str(e))
+import socket
+livre = socket.socket()
+livre.bind(("127.0.0.1", 0))
+porta = livre.getsockname()[1]
+livre.close()
+try:
+    rede.request("GET", f"http://127.0.0.1:{porta}/")
+except rede.NetworkError as e:
+    v["recusada"] = [str(e), e.__cause__]
+v["urllib_depois_da_chamada"] = "urllib.request" in sys.modules
+print(json.dumps(v))
+"""
+    v = _processo_limpo(codigo)
+    assert v["urllib_ao_importar"] is False
+    assert v["offline"] == "SIMPLICIO_OFFLINE=1: rede bloqueada" and v["urllib_depois_de_recusar_offline"] is False
+    assert v["get"] == [200, '{"ok": true}', "3", {"ok": True}, "Bearer k"]
+    assert v["json"] == ["POST", "application/json", json.dumps({"a": "ç"})]
+    assert v["form"] == ["application/x-www-form-urlencoded", "grant_type=client_credentials&q=a+b%26c"]
+    assert v["http_error"] == [404, "nada aqui", "1"]
+    assert v["max_bytes"] == [50, "resposta acima de 10 bytes"]
+    assert v["recusada"] == ["falha de rede: URLError", None]
+    assert v["urllib_depois_da_chamada"] is True
+
+
+def test_sem_seguir_redirecionamento_o_segundo_host_nao_recebe_nenhum_acesso():
+    """Two loopback servers (two origins): the first answers 302 to the second. With `follow_redirects=False` the second is never
+    asked; with the default it is asked once, which shows the servers do redirect. The handler `request` used is `rede.NoRedirect`,
+    even though nothing had read that name before the call (it is built on first use, by `request` or by the attribute: one class)."""
+    codigo = _PRELUDIO + _SO_LOOPBACK + _SERVIDORES + """
+import urllib.request
+from simplicio_video import rede
+usados = []
+construir = urllib.request.build_opener
+urllib.request.build_opener = lambda *handlers: (usados.extend(handlers), construir(*handlers))[1]
+outro, pedidos_do_outro = servidor({"/chegou": (200, {}, b"cheguei")})
+primeiro, pedidos_do_primeiro = servidor({"/vai": (302, {"Location": outro + "/chegou"}, b"")})
+v = {}
+r = rede.request("GET", primeiro + "/vai", headers={"Authorization": "Bearer segredo"}, follow_redirects=False)
+v["sem_seguir"] = [r.status, r.headers["location"] == outro + "/chegou", len(pedidos_do_primeiro), len(pedidos_do_outro)]
+v["handler_e_o_publico"] = len(usados) == 1 and usados[0] is rede.NoRedirect
+r = rede.request("GET", primeiro + "/vai")
+v["seguindo"] = [r.status, r.body.decode(), len(pedidos_do_outro)]
+print(json.dumps(v))
+"""
+    v = _processo_limpo(codigo)
+    assert v["sem_seguir"] == [302, True, 1, 0]
+    assert v["handler_e_o_publico"] is True
+    assert v["seguindo"] == [200, "cheguei", 1]
+
+
+def test_no_redirect_e_o_mesmo_objeto_em_todo_acesso_e_so_carrega_o_urllib_quando_pedido():
+    codigo = _PRELUDIO + """
+import json
+from simplicio_video import rede
+v = {"urllib_ao_importar": "urllib.request" in sys.modules,
+     "dir_antes": sorted({"request", "Response", "NetworkError", "NoRedirect", "offline", "motivo_offline", "PREFIXO_OFFLINE"} - set(dir(rede)))}
+primeira = rede.NoRedirect
+v["urllib_depois_do_acesso"] = "urllib.request" in sys.modules
+v["mesma"] = primeira is rede.NoRedirect is getattr(rede, "NoRedirect") is vars(rede)["NoRedirect"]
+from simplicio_video.rede import NoRedirect
+v["from_import"] = NoRedirect is primeira
+v["nomes"] = [primeira.__name__, primeira.__qualname__, primeira.__module__]
+v["doc"] = primeira.__doc__
+import urllib.request
+v["e_handler_do_urllib"] = issubclass(primeira, urllib.request.HTTPRedirectHandler)
+v["recusa"] = primeira().redirect_request(urllib.request.Request("http://a.example/"), None, 302, "Found", {}, "http://b.example/") is None
+v["dir_depois"] = "NoRedirect" in dir(rede)
+v["inexistente"] = [hasattr(rede, "nao_existe"), getattr(rede, "nao_existe", "padrao")]
+try:
+    rede.nao_existe
+except AttributeError as e:
+    v["erro"] = str(e)
+print(json.dumps(v))
+"""
+    v = _processo_limpo(codigo)
+    assert v["urllib_ao_importar"] is False and v["dir_antes"] == []
+    assert v["urllib_depois_do_acesso"] is True
+    assert v["mesma"] is True and v["from_import"] is True
+    assert v["nomes"] == ["NoRedirect", "NoRedirect", "simplicio_video.rede"]
+    assert "Never follow a redirect" in v["doc"]
+    assert v["e_handler_do_urllib"] is True and v["recusa"] is True and v["dir_depois"] is True
+    assert v["inexistente"] == [False, "padrao"]
+    assert v["erro"] == "module 'simplicio_video.rede' has no attribute 'nao_existe'"
+
+
+def test_no_redirect_e_um_so_objeto_mesmo_com_varias_threads_no_primeiro_acesso():
+    """The first access can come from several threads at once (aio.py runs one thread per blocking call): they all get ONE class."""
+    codigo = _PRELUDIO + """
+import json
+import threading
+from simplicio_video import rede
+sys.setswitchinterval(1e-6)
+divergiu = 0
+for rodada in range(200):
+    rede.__dict__.pop("NoRedirect", None)  # as if it had never been read
+    largada = threading.Barrier(8)
+    vistos = []
+
+    def acessa():
+        largada.wait()
+        vistos.append(rede.NoRedirect)
+
+    threads = [threading.Thread(target=acessa) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    divergiu += len({id(c) for c in vistos}) != 1 or vistos[0] is not rede.NoRedirect
+print(json.dumps({"divergiu": divergiu}))
+"""
+    assert _processo_limpo(codigo) == {"divergiu": 0}
