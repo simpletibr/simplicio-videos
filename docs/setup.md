@@ -75,4 +75,4 @@ Quando o cliente mandar os arquivos: coloque em `assets/client/` com os mesmos n
 
 Abra o agente dentro de `video-01/` e use o prompt de `clients/wjr-informatica-games/video-01/PROMPT.md` (fora do git: clients/ não é rastreado). As regras para o agente estão em `AGENTS.md` (Codex) / `CLAUDE.md` (Claude Code).
 
-Dica de custo: effort `medium`, uma cena por iteração, revisar pelo contact sheet antes de renderizar (ver [`tokens-e-deterministico.md`](tokens-e-deterministico.md)).
+Dica de custo: effort `medium`, uma cena por iteração, revisar pelo contact sheet antes de renderizar (ver [`tokens-e-deterministico.md`](pesquisa/tokens-e-deterministico.md)).

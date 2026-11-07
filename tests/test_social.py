@@ -1500,7 +1500,7 @@ def test_redacao_sem_afirmar_ausencia_e_com_a_data_do_bloqueio_do_reddit():
     zr = sem["reddit"]["por_provedor"]["zernio"]["texto"]
     assert "temporariamente indisponível" in zr and "desde 19/10/2026" in zr
     assert "bloqueia as chamadas do app da Zernio para todos os clientes Zernio" in zr
-    for arq in [ROOT / "docs" / "recursos.md", ROOT / "docs" / "realoficial.md", ROOT / "skills" / "simplicio-video-social" / "SKILL.md"]:
+    for arq in [ROOT / "docs" / "pesquisa" / "recursos.md", ROOT / "docs" / "realoficial.md", ROOT / "skills" / "simplicio-video-social" / "SKILL.md"]:
         texto = arq.read_text(encoding="utf8")
         assert "não aparece entre os destinos" not in texto and "não lista como destino" not in texto, arq
         achados = _negacoes_sem_fonte(texto)
@@ -1549,7 +1549,7 @@ def test_adr_0018_tem_adendo_sobre_plano_sem_provedor():
 def test_skill_e_docs_citam_reddit_e_snapchat_como_sem_provedor():
     for arq in (ROOT / "skills" / "simplicio-video-social" / "SKILL.md",
                 ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video-social" / "SKILL.md",
-                ROOT / "docs" / "recursos.md"):
+                ROOT / "docs" / "pesquisa" / "recursos.md"):
         t = arq.read_text(encoding="utf8")
         assert "Reddit" in t and "Snapchat" in t and "sem provedor" in t and "não confirmado" in t, arq
 

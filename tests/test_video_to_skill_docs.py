@@ -107,7 +107,7 @@ def test_the_legal_table_lists_the_track_the_engine_does_not_bundle():
 
 
 def test_the_resources_page_and_the_packaging_page_count_thirteen_tracks():
-    assert "video-to-skill" in (ROOT / "docs" / "recursos.md").read_text(encoding="utf8")
+    assert "video-to-skill" in (ROOT / "docs" / "pesquisa" / "recursos.md").read_text(encoding="utf8")
     packaging = (ROOT / "docs" / "host" / "packaging.md").read_text(encoding="utf8")
     assert "as treze de `tools.py`" in packaging and "as doze" not in packaging
 

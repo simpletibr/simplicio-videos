@@ -55,7 +55,7 @@ def home(start: Path | None = None) -> Path:
 
 def workspace_dir() -> Path:
     """$SIMPLICIO_WORKSPACE, else ~/.simplicio-video/workspaces/default
-    (https://github.com/simpletibr/simplicio-videos/blob/main/docs/factory/contracts.md).
+    (https://github.com/simpletibr/simplicio-videos/blob/main/arquivo/docs/factory/contracts.md).
 
     Lives here and not in `commands/setup.py`: `install` needs it before the `.venv` exists, under the system python, and
     `setup` imports PyYAML at the top. This module is standard library only."""

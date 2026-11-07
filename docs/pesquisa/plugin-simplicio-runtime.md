@@ -34,10 +34,10 @@ Engines (escolhidas por video.json → "engine"):
 | Op | Faz | LLM? |
 |---|---|---|
 | `videos schema` | devolve os schemas (`video-spec`, `intake`, `video-template`, `motion-pattern`) | não |
-| `videos intake --client <slug> [--site] [--instagram]` | estado do questionário ([`intake/`](../intake/README.md)): extrai dados públicos, devolve só as perguntas que faltam, valida `intake.json` | não (a conversa é do host) |
+| `videos intake --client <slug> [--site] [--instagram]` | estado do questionário ([`intake/`](../../intake/README.md)): extrai dados públicos, devolve só as perguntas que faltam, valida `intake.json` | não (a conversa é do host) |
 | `videos brief --intake intake.json` | intake aprovado + template → `brief.md` + `spec.json`/`video.json` (a construir) | não |
-| `videos template [--intake]` | lista/escolhe template por nicho ([`templates/`](../src/simplicio_video/data/templates/README.md)) | não |
-| `videos patterns` / `videos voices` | catálogo de motion ([`motion/catalog.json`](../src/simplicio_video/data/motion/README.md)) / providers de voz ([`voices/`](../voices/README.md)) | não |
+| `videos template [--intake]` | lista/escolhe template por nicho ([`templates/`](../../src/simplicio_video/data/templates/README.md)) | não |
+| `videos patterns` / `videos voices` | catálogo de motion ([`motion/catalog.json`](../../src/simplicio_video/data/motion/README.md)) / providers de voz ([`voices/`](../../voices/README.md)) | não |
 | `videos voice --spec video.json [--provider] [--force]` | narração com cache por hash | não (TTS é serviço, não LLM de autoria) |
 | `videos edit --edl edl.json` | executa um EDL do video-use sobre footage do cliente | a *decisão* do corte é do host; a execução não |
 | `videos new --client <slug> --template <id> --out <dir>` | copia um template aprovado + cria `video.json`, `spec.json`, slots placeholder | não |
@@ -64,6 +64,6 @@ Decisão do Wesley: **geração só com Opus 5.5**. No desenho do runtime, o plu
 
 ## 3. Estrutura do repo
 
-Atualizada em 30/09/2026 para a esteira ([ADR-0001](decisoes/ADR-0001-visao-plugin.md)): `intake/`, `templates/`, `motion/`, `voices/`, `schemas/`, `docs/`, `clients/`. Mapa completo e atualizado em [`AGENTS.md`](../AGENTS.md); fluxo em [`esteira.md`](esteira.md).
+Atualizada em 30/09/2026 para a esteira ([ADR-0001](../decisoes/ADR-0001-visao-plugin.md)): `intake/`, `templates/`, `motion/`, `voices/`, `schemas/`, `docs/`, `clients/`. Mapa completo e atualizado em [`AGENTS.md`](../../AGENTS.md); fluxo em [`esteira.md`](../esteira.md).
 
 Próximo passo sugerido: gerador intake + template → spec; depois o binário `simplicio-plugin-videos` (Rust, espelhando `simplicio-plugin-motion/src/{lib,main}.rs`: `handle_op`, `ok_envelope`/`err_envelope`, argv direto + `--simplicio-plugin-request`) e issue no simplicio-runtime para registrar no catálogo.

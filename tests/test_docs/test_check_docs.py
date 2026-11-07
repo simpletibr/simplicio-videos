@@ -107,3 +107,39 @@ def test_fence_mermaid_sem_fechamento_e_pega(tmp_path):
     unclosed = "# Guia\n\n## Como rodar\n\n```mermaid\ngraph TD\n  A-->B\n"
     root = _tree(tmp_path, {"docs/guia.md": unclosed})
     _assert_pega(_check(root), "guia.md", "mermaid")
+
+
+# --- arquivo/ (U16): the owner's archived work keeps the text and the links it had; the check skips it ---------------------------------
+
+ARQUIVADO = {
+    "arquivo/docs/velho.md": "# Velho\n\nVeja [sumido](nao-existe.md) e [fora](../../README.md#nao-existe).\n\nTODO: nunca mais.\n"
+                             "\n```mermaid\nfoo\n```\n\n```python\nabre sem fechar\n",
+    "arquivo/docs/host/sem-front-matter.md": "# Sem front matter\n\nPágina arquivada de uma pasta que exige front matter.\n",
+}
+
+
+def test_arquivo_nao_e_checado(tmp_path):
+    """Broken links, TODO, a bad fence, a missing front matter and an orphan page: none counts under arquivo/."""
+    result = _check(_tree(tmp_path, ARQUIVADO))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "arquivo" not in result.stdout
+
+
+def test_arquivo_nao_entra_na_contagem_de_paginas(tmp_path):
+    base = _check(_tree(tmp_path / "base"))
+    com = _check(_tree(tmp_path / "com", ARQUIVADO))
+    assert base.stdout == com.stdout, (base.stdout, com.stdout)
+
+
+def test_a_pasta_do_spec_antigo_deixou_de_ter_excecao(tmp_path):
+    """`docs/factory/` was skipped because its links pointed to pages that do not exist. It moved to arquivo/: a page left there is checked."""
+    root = _tree(tmp_path, {"docs/README.md": VALID["docs/README.md"] + "- [Spec](factory/x.md)\n",
+                            "docs/factory/x.md": "# X\n\nVeja [sumido](nao-existe.md).\n"})
+    _assert_pega(_check(root), "docs/factory/x.md", "nao-existe.md")
+
+
+def test_link_de_pagina_viva_para_arquivo_continua_conferido(tmp_path):
+    ok = _tree(tmp_path / "ok", {"arquivo/docs/velho.md": "# Velho\n", "docs/README.md": VALID["docs/README.md"] + "- [Velho](../arquivo/docs/velho.md)\n"})
+    assert _check(ok).returncode == 0
+    morto = _tree(tmp_path / "morto", {"docs/README.md": VALID["docs/README.md"] + "- [Velho](../arquivo/docs/velho.md)\n"})
+    _assert_pega(_check(morto), "docs/README.md", "../arquivo/docs/velho.md")

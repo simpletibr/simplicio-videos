@@ -164,6 +164,7 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 - [Gate local, TDD e pouso de PRs](docs/host/gate.md): Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
 - [Licenças das dependências](docs/host/licenses.md): Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e os limites do scan.
 - [Pacote de operação (install, update, doctor, setup)](docs/host/packaging.md): O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites atuais.
+- [Trabalho em paralelo (acordo para humanos e agentes)](docs/host/parallel-work.md): Como várias issues andam ao mesmo tempo sem quebrar a main: testes primeiro, posse de caminhos por issue, o gate sem CI e o pouso serializado. A página está em inglês e vem do spec da fábrica (arquivo/docs/factory/).
 <!-- END GENERATED -->
 
 ## Troubleshooting

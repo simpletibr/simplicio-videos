@@ -6,7 +6,7 @@
 - **Data:** 08/10/2026 (BRT)
 - **Superada em parte pelo [ADR-0020](ADR-0020-install-universal-e-update-igual-ao-loop.md)** (17/10/2026): o `simplicio-video install` deixou de ser o `.venv` (virou `scripts/dev_install.sh`, e passou a copiar a skill para o host, como o do simplicio-loop) e o `update` de um checkout deixou de rodar `git pull --ff-only` (recusa e diz `git pull` e o dev install, como o loop). As decisões 1, 2, 3 e 4 abaixo valem só como histórico; as 5 (Docker) e 6 (doctor) seguem de pé.
 - **Revisado em 17/10/2026** pelo [ADR-0019](ADR-0019-login-compartilhado.md) e pelo PR de `install`, `update`, `doctor` e `login`: veja a seção "Revisão de 17/10/2026" no fim. As decisões 3 e 4 abaixo valem como foram escritas em 08/10/2026, com as mudanças registradas lá.
-- **Relaciona:** [docs/host/packaging.md](../host/packaging.md) (o que cada comando faz) · [docs/how-to/install.md](../how-to/install.md) (passo a passo) · [ADR-0005](ADR-0005-gate-sem-ci.md) (gate local, sem CI) · [monetization.md](../factory/monetization.md) (repositório público ou privado)
+- **Relaciona:** [docs/host/packaging.md](../host/packaging.md) (o que cada comando faz) · [docs/how-to/install.md](../how-to/install.md) (passo a passo) · [ADR-0005](ADR-0005-gate-sem-ci.md) (gate local, sem CI) · [monetization.md](../../arquivo/docs/factory/monetization.md) (repositório público ou privado)
 
 ## Contexto
 
@@ -15,7 +15,7 @@ Um desenvolvedor clona o repositório e precisa chegar a uma instalação funcio
 Ao mesmo tempo, há restrições que moldam a solução:
 
 - A organização não usa GitHub Actions, então não existe CI que publique binários ou imagens (ADR-0005).
-- As builds do ffmpeg trazem obrigações de GPL ou LGPL, e a revisão de licença dos componentes empacotados ainda não foi feita (ver [risks-and-policies.md](../factory/risks-and-policies.md)).
+- As builds do ffmpeg trazem obrigações de GPL ou LGPL, e a revisão de licença dos componentes empacotados ainda não foi feita (ver [risks-and-policies.md](../../arquivo/docs/factory/risks-and-policies.md)).
 - O repositório pode continuar privado. Nesse caso, atualizar por archives assinados passa a ser o caminho, e a troca não deve espalhar mudanças pelo resto do código.
 - Não temos permissão de root no ambiente do usuário, e o instalador não deve pedir sudo.
 - O MVP tem zero custo de token no caminho padrão. A instalação e a atualização também não podem chamar LLM.

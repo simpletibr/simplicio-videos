@@ -5,6 +5,7 @@ Documentos do host: como o repositório é checado, instalado e mantido na máqu
 | Página | Para quê |
 |---|---|
 | [Gate local, TDD e pouso de PRs](gate.md) | Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI |
+| [Trabalho em paralelo (acordo para humanos e agentes)](parallel-work.md) | Como várias issues andam ao mesmo tempo sem quebrar a main: testes primeiro, posse de caminhos por issue, o gate sem CI e o pouso serializado; a página está em inglês e vem do spec da fábrica |
 | [Pacote de operação (install, update, doctor, setup)](packaging.md) | O que cada subcomando faz, o que o doctor checa, por que a falta de GEMINI_API_KEY é aviso e os limites atuais |
 | [Licenças das dependências](licenses.md) | Como o gate confere licenças, como adicionar uma exceção justificada, como regerar `docs/licenses.md` e os limites do scan |
 

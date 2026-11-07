@@ -81,4 +81,4 @@ npm run render         # build → render → master
 npm run loudness && npm run preview
 ```
 
-Ver também: [pipeline-deterministico-gemini.md](pipeline-deterministico-gemini.md) (por que dá para ser determinístico com Gemini), [plugin-simplicio-runtime.md](plugin-simplicio-runtime.md) (proposta de plugin), [tokens-e-deterministico.md](tokens-e-deterministico.md).
+Ver também: [pesquisa/pipeline-deterministico-gemini.md](pesquisa/pipeline-deterministico-gemini.md) (por que dá para ser determinístico com Gemini), [pesquisa/plugin-simplicio-runtime.md](pesquisa/plugin-simplicio-runtime.md) (proposta de plugin), [pesquisa/tokens-e-deterministico.md](pesquisa/tokens-e-deterministico.md).

@@ -1,3 +1,11 @@
+---
+title: Trabalho em paralelo (acordo para humanos e agentes)
+summary: "Como várias issues andam ao mesmo tempo sem quebrar a main: testes primeiro, posse de caminhos por issue, o gate sem CI e o pouso serializado. A página está em inglês e vem do spec da fábrica (arquivo/docs/factory/)."
+commands: make check, make regen, scripts/check_ownership.py, scripts/check_tdd.py, scripts/land.sh
+issue: 31
+last_verified: 2026-11-07
+---
+
 # Working in parallel (agreement for humans and agents)
 
 Goal: many issues in flight at once, `main` always green, every release with every shipped stage working. That holds because every issue has (1) a fixed contract, (2) fakes and contract suites to develop against, (3) paths it alone may touch, (4) a loop end-to-end test that stays green, and (5) one local gate every PR must pass.
@@ -59,7 +67,7 @@ Test kinds:
 
 ## Ownership
 
-[`ownership.yaml`](ownership.yaml) maps every issue to the paths it alone may change; `scripts/check_ownership.py <issue>` fails a PR that touches anything else. Mechanisms that remove conflicts:
+[`ownership.yaml`](../../scripts/ownership.yaml) maps every issue to the paths it alone may change; `scripts/check_ownership.py <issue>` fails a PR that touches anything else. Mechanisms that remove conflicts:
 
 | Hotspot | Rule |
 |---|---|
@@ -76,7 +84,7 @@ Test kinds:
 
 ## Start here (every agent, every issue)
 
-1. Read [README.md](README.md), [roadmap.md](roadmap.md), [plugins.md](plugins.md), [contracts.md](contracts.md), [risks-and-policies.md](risks-and-policies.md) and your issue. If an acceptance criterion is untestable, comment before coding.
+1. Read [README.md](../../arquivo/docs/factory/README.md), [roadmap.md](../../arquivo/docs/factory/roadmap.md), [plugins.md](../../arquivo/docs/factory/plugins.md), [contracts.md](../../arquivo/docs/factory/contracts.md), [risks-and-policies.md](../../arquivo/docs/factory/risks-and-policies.md) and your issue. If an acceptance criterion is untestable, comment before coding.
 2. `git worktree add ../sv-<issue> -b feat/<issue>-<slug> origin/main`, then `make setup`.
 3. **Write the failing contract and flow tests first and commit them alone.**
 4. Touch only your owned paths. Need something elsewhere? Comment on the owner's issue or open a tiny `contract-change`/fix PR.

@@ -1,4 +1,4 @@
-"""Contrato de `simplicio-video setup` (issue #43): cria o workspace (docs/factory/contracts.md, "Workspace layout").
+"""Contrato de `simplicio-video setup` (issue #43): cria o workspace (arquivo/docs/factory/contracts.md, "Workspace layout").
 
 Com --yes o wizard aceita os padrões, sem rede e sem login do Real Oficial. O workspace fica em
 $SIMPLICIO_WORKSPACE (tmp_path). Nada pode ser escrito em ~.

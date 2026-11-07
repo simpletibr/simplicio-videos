@@ -36,7 +36,7 @@ DOC = ROOT / "docs" / "licenses.md"
 PRODUCT = "simplicio-video"
 ALLOWED = ("MIT", "Apache-2.0", "BSD", "ISC", "PSF-2.0", "MPL-2.0")
 EXCEPTION_FIELDS = ("package", "license", "justificativa", "uso")
-# Programas AGPL que só existem como processo ou serviço externo (docs/factory/monetization.md).
+# Programas AGPL que só existem como processo ou serviço externo (arquivo/docs/factory/monetization.md).
 FORBIDDEN_PROGRAMS = {"openmontage", "voicestudio", "postiz"}
 
 STATUS_LABEL = {"allowed": "permitida", "exception": "exceção", "denied": "negada", "product": "produto"}

@@ -16,10 +16,10 @@ Termos do motor (`simplicio-video`) e da fábrica, com uma definição curta cad
 
 ## Fábrica (spec)
 
-Termos da fábrica de conteúdo, definidos no [spec em `docs/factory/`](factory/README.md). O spec ainda não está implementado no repo.
+Termos da fábrica de conteúdo, definidos no [spec em `arquivo/docs/factory/`](../arquivo/docs/factory/README.md). O spec ainda não está implementado no repo.
 
 - **Stage** — uma etapa do loop da fábrica (`brand`, `ideas`, `make`, `review`, `publish`, `metrics`). No código, é a interface de um plugin. Uma etapa sem plugin é reportada como `stage.skipped`.
 - **Station** — o lugar do painel onde a etapa aparece (por exemplo, *Studio* para `make`). Só apresentação.
 - **Character** — o personagem que representa a etapa no painel (por exemplo, *Director* para `make`). Só apresentação.
-- **Plugin** — extensão instalada no host que acrescenta uma capacidade do tipo `stage`, `publisher`, `metrics-source`, `theme` e outros. Ver [plugins](factory/plugins.md).
+- **Plugin** — extensão instalada no host que acrescenta uma capacidade do tipo `stage`, `publisher`, `metrics-source`, `theme` e outros. Ver [plugins](../arquivo/docs/factory/plugins.md).
 - **Runtime plugin** — o `plugin.json` da raiz do repo, que apresenta o simplicio-videos ao Simplicio Runtime (`simplicio.plugin/v1`). Não é um plugin da fábrica, apesar do nome parecido.

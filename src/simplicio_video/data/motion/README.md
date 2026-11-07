@@ -52,7 +52,7 @@ node motion/scripts/catalog.mjs --check   # falha se o catálogo estiver desatua
 - [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos) (MIT, 475 prompts em `data/videos.json`) e [Revid — 63 exemplos de motion do Opus 5.5](https://www.revid.ai/claude-motion-graphics); técnicas destiladas dos prompts citados em cada `pattern.json`.
 - [Fluxo Opus 5.5 + HyperFrames em 5 passos](https://openclawdatabase.com/news/videos/2026-09-25-opus-55-hyperframes-video-editing-workflow/) (transcrever → planejar beats → skills → verificação).
 - [motion-video-kit](https://github.com/echris6/motion-video-kit) (MIT, commit `255562b`, 29/09/2026) — `business-motion-film/references/motion-grammar.md`: 6 regras (o primeiro plano vira a transição, um ator persistente, densidade por hierarquia, variar velocidade, corte seco quando a linguagem casa, causa → efeito) e catálogo de mecanismos; 5 viraram padrões `proposto` aqui (reescritos, só a ideia). A barra de qualidade dele (tempo congelado ≤ ~1 s/30 s, nenhuma pausa > 0,6 s fora o CTA; frame 0 já composto) vale como checklist de review dos blocos.
-- Bookmarks do X (@simpliciomcp) — ver `docs/recursos.md`.
+- Bookmarks do X (@simpliciomcp) — ver `docs/pesquisa/recursos.md`.
 - [Registry do HyperFrames](https://github.com/heygen-com/hyperframes/tree/main/registry) (blocos/componentes oficiais; contrato de montagem igual ao nosso).
 
 ## Catálogo

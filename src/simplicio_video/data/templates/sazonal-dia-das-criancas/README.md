@@ -2,7 +2,7 @@
 
 A coreografia v2 do piloto de odontologia (Dia das Crianças 2026: 16 s, 128 BPM, cortes na batida, `fx-transition` de 6–10
 frames, confete/balões, `kinetic-words` palavra a palavra no tempo da fala, `beat-burst` nas batidas e câmera com punch/whip)
-generalizada para qualquer empresa com público de pais e crianças. Nasceu da venda ativa ([docs/venda-ativa.md](https://github.com/simpletibr/simplicio-videos/blob/main/docs/venda-ativa.md)),
+generalizada para qualquer empresa com público de pais e crianças. Nasceu da venda ativa ([arquivo/docs/venda-ativa.md](https://github.com/simpletibr/simplicio-videos/blob/main/arquivo/docs/venda-ativa.md)),
 cuja automação saiu do CLI do motor (#77) e fica no repositório de operação.
 
 | Arquivo | O que é |
