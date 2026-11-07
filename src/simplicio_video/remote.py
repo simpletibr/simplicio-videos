@@ -37,7 +37,7 @@ def _default_runner(cmd: list[str]) -> subprocess.CompletedProcess:
 def _bin(env: str, name: str) -> str:
     b = os.environ.get(env) or shutil.which(name)
     if not b:
-        raise SystemExit(f"`{name}` not found on PATH (install it or set {env}); see docs/decisoes/ADR-0003-fluxo-100-script.md")
+        raise SystemExit(f"`{name}` not found on PATH (install it or set {env}); see {paths.doc_url('docs/decisoes/ADR-0003-fluxo-100-script.md')}")
     return b
 
 

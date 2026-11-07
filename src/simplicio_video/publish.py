@@ -10,7 +10,7 @@ idempotent (just refresh the link). Links come from the Drive file ID (`rclone l
 
 One-time auth (Wesley): an rclone remote of type `drive` (default name `gdrive`, override with --remote or
 SIMPLICIO_DRIVE_REMOTE) with scope `drive` and his own OAuth client_id (rclone's shared id is retired in 2026).
-See docs/decisoes/ADR-0003-fluxo-100-script.md.
+See https://github.com/simpletibr/simplicio-videos/blob/main/docs/decisoes/ADR-0003-fluxo-100-script.md.
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
+from . import paths
 from .contract import Contract
 
 Runner = Callable[[list[str]], subprocess.CompletedProcess]
@@ -47,7 +48,7 @@ def _lsjson(run: Runner, rc: str, target: str, *flags: str) -> list[dict]:
         if "not found" in (p.stderr or "").lower() or p.returncode == 3:
             return []
         raise SystemExit(f"rclone lsjson {target} failed (exit {p.returncode}):\n{(p.stderr or '')[-2000:]}\n"
-                         "check the remote: `rclone about <remote>:` (auth: docs/decisoes/ADR-0003-fluxo-100-script.md)")
+                         f"check the remote: `rclone about <remote>:` (auth: {paths.doc_url('docs/decisoes/ADR-0003-fluxo-100-script.md')})")
     return json.loads(p.stdout or "[]")
 
 

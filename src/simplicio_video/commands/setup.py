@@ -17,7 +17,7 @@ from pathlib import Path
 
 import yaml
 
-from ..paths import workspace_dir
+from ..paths import doc_url, workspace_dir
 from ..realoficial import REALOFICIAL_MCP_URL
 
 WS_SCHEMA = "simplicio.workspace/v1"
@@ -72,5 +72,5 @@ def run(a) -> int:
           "  próximo passo: simplicio-video doctor")
     if a.realoficial:
         print(f"Real Oficial: o MCP é {REALOFICIAL_MCP_URL}. Adicione essa URL no seu cliente MCP e entre com OAuth "
-              "(docs/realoficial.md). O setup não guarda token.")
+              f"({doc_url('docs/realoficial.md')}). O setup não guarda token.")
     return 0
