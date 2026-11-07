@@ -18,7 +18,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import childio, hostos, tools
+from . import childio, tools
+from .rede import offline as _offline  # the one reading of SIMPLICIO_OFFLINE; kept as a name here: matchcut and video_to_skill import it from this module
+from .trilha_base import Trilha
+from .trilha_base import on_term as _on_term  # same: moneyprinter's and the tests' `_on_term`/`_stop_group` are these
+from .trilha_base import stop_group as _stop_group
 
 TOONFLOW_REPO = tools.get("toonflow").source
 # Fixed in the Toonflow server (apps/server/src/index.ts). The server listens on every interface with no login,
@@ -55,54 +59,26 @@ class ToonflowError(Exception):
     pass
 
 
-def _offline() -> bool:
-    return os.environ.get("SIMPLICIO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on")
+T = Trilha("toonflow", "TOONFLOW_DIR", "TOONFLOW_DATA_DIR")
 
 
 def find_toonflow_dir() -> Path | None:
     """The pinned checkout (TOONFLOW_DIR, else SIMPLICIO_TOOLS_DIR/toonflow, else ~/.simplicio-video/tools/toonflow)."""
-    return tools.find("toonflow")
+    return T.find()
 
 
 def data_dir() -> Path:
     """Where the server keeps its data, absolute: the server runs inside the checkout, so a relative path would
     point somewhere else. Outside the checkout by default, so a re-clone never wipes it."""
-    explicit = os.environ.get("TOONFLOW_DATA_DIR")
-    if explicit:
-        return Path(explicit).expanduser().resolve()
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return (base / "toonflow-data").resolve()
-
-
-@contextlib.contextmanager
-def _checkout_at(target: Path):
-    """Point tools.install at `target` for the duration of the block, then restore the environment."""
-    previous = os.environ.get("TOONFLOW_DIR")
-    os.environ["TOONFLOW_DIR"] = str(target)
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("TOONFLOW_DIR", None)
-        else:
-            os.environ["TOONFLOW_DIR"] = previous
+    return T.data_dir()
 
 
 def clone_toonflow(target: Path | None = None) -> Path:
     """Install Toonflow at its pinned commit (target overrides the location). Never in offline mode."""
-    if _offline():
-        raise ToonflowError(
-            "modo offline (SIMPLICIO_OFFLINE=1): não vou clonar o Toonflow. "
-            "Instale fora do modo offline com `simplicio-video toonflow clone` ou aponte TOONFLOW_DIR para um checkout."
-        )
-    try:
-        if target is None:
-            return Path(tools.install("toonflow"))
-        with _checkout_at(Path(target).expanduser()):
-            return Path(tools.install("toonflow"))
-    except tools.ToolError as e:
-        raise ToonflowError(str(e)) from None
+    return T.clone(target, erro=ToonflowError, offline=_offline, acao=(
+        "clonar o Toonflow. "
+        "Instale fora do modo offline com `simplicio-video toonflow clone` ou aponte TOONFLOW_DIR para um checkout."
+    ))
 
 
 def _bun() -> str:
@@ -110,26 +86,6 @@ def _bun() -> str:
     if not bun:
         raise ToonflowError("bun não encontrado (https://bun.sh); a versão exigida está no campo packageManager do package.json do checkout.")
     return bun
-
-
-def _on_term(signum, frame):
-    raise KeyboardInterrupt  # `kill <this process>` stops the server the same way Ctrl+C does
-
-
-def _stop_group(proc: subprocess.Popen) -> None:
-    """SIGINT to the server's whole process group; SIGKILL if it outlives 15 s; then a SIGKILL sweep of the group.
-    The sweep matters: a helper the server started may still be finishing after the server exited, and it must not
-    keep running (or keep port 3000 open without login) once this returns."""
-    with contextlib.suppress(ProcessLookupError):
-        os.killpg(proc.pid, signal.SIGINT)
-    try:
-        proc.wait(timeout=15)
-    except subprocess.TimeoutExpired:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
-    with contextlib.suppress(ProcessLookupError):
-        os.killpg(proc.pid, signal.SIGKILL)
 
 
 def _sinais_de_parada() -> list[int]:
@@ -281,7 +237,7 @@ def status() -> dict:
     head = None
     if d is not None:
         try:
-            head = tools._git("rev-parse", "HEAD", cwd=d)
+            head = tools.git("rev-parse", "HEAD", cwd=d)
         except tools.ToolError:
             head = None
     bun = shutil.which("bun")

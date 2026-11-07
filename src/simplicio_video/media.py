@@ -14,13 +14,21 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import download, shorts
+from . import download, mediaio
 
 CUES_SCHEMA = "simplicio.media-cues/v1"
 
 
 class MediaError(Exception):
     pass
+
+
+def __getattr__(name: str):
+    """`media.shorts` still resolves (tests/test_media.py reads `media.shorts.probe`), but media no longer imports shorts: the probe is mediaio's."""
+    if name == "shorts":
+        from . import shorts
+        return shorts
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 HELP = """media (audio-visual on any MP4: ffmpeg/ffprobe, deterministic; fetch uses the pinned yt-dlp)
@@ -265,9 +273,8 @@ def voice_filter(plano: list[dict], duration: float) -> str:
 
 
 def _clip_seconds(path: Path) -> float:
-    ffprobe = _need("ffprobe")
-    r = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(path)],
-                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    ffprobe = _need(mediaio.PATH_FFPROBE)
+    r = mediaio.run_ffprobe(["-show_entries", "format=duration", "-of", "default=nw=1:nk=1"], path, ffprobe=ffprobe, check=False)
     try:
         return float(r.stdout.strip())
     except ValueError:
@@ -370,12 +377,17 @@ def cmd_fetch(pos, vals) -> dict:
         raise MediaError(str(e)) from None
 
 
+def _probe_summary(src: Path) -> dict:
+    """The metadata of `src` (path, duration, size, fps, audio, sha256): the fields and the texts that shorts.probe gave media."""
+    found = shutil.which(mediaio.PATH_FFPROBE)
+    if not found:
+        raise MediaError("ffprobe não encontrado no PATH (o shorts usa só ffmpeg/ffprobe)")
+    return mediaio.probe_summary(src, ffprobe=found, fail=MediaError)
+
+
 def cmd_probe(pos, vals) -> dict:
     src = _source(pos, "probe")
-    try:
-        info = shorts.probe(src)
-    except shorts.ShortsError as e:
-        raise MediaError(str(e)) from None
+    info = _probe_summary(src)
     if "-o" in vals:
         Path(vals["-o"]).expanduser().write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf8")
     return info
@@ -403,7 +415,7 @@ def cmd_sheet(pos, vals) -> dict:
 
 
 def _clip_count(src: Path, every: float) -> int:
-    info = shorts.probe(src)
+    info = _probe_summary(src)
     return max(1, int(math.ceil(info["duration"] / every)))
 
 

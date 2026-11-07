@@ -17,6 +17,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from . import mediaio
+
 CROSSFADE_PADRAO_MS = 8.0
 DUCKING_PADRAO = {"graves_db": -2.5, "agudos_db": -8.0}
 CORTE_GRAVES_HZ = 250.0
@@ -43,8 +45,7 @@ def _ffmpeg(args: list[str]) -> None:
 
 
 def duracao_s(path: Path) -> float:
-    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
-                         stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    out = mediaio.run_ffprobe(mediaio.DURATION_ARGS, path, ffprobe=mediaio.PATH_FFPROBE, check=False)
     if out.returncode != 0 or not out.stdout.strip():
         raise SystemExit(f"trilha: ffprobe não leu a duração de {path}")
     return float(out.stdout.strip())

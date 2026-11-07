@@ -139,14 +139,16 @@ def test_clone_installs_the_pin_in_the_default_folder(monkeypatch):
 def test_clone_with_a_folder_uses_it_and_restores_the_environment(tmp_path, monkeypatch):
     seen = {}
 
-    def fake_install(name):
+    def fake_install(name, *, dir=None):
+        seen["dir"] = dir
         seen["env"] = os.environ.get("REA_VIDEO_DIR")
-        return seen["env"]
+        return str(dir)
 
     monkeypatch.setattr(tools, "install", fake_install)
     target = tmp_path / "meu-rea"
     assert rea_video.clone_rea_video(target) == target
-    assert seen["env"] == str(target)
+    assert seen["dir"] == target  # the folder goes to tools.install as `dir=`
+    assert seen["env"] is None  # and the variable is not even set while it runs (it used to be, and put back)
     assert "REA_VIDEO_DIR" not in os.environ
 
 

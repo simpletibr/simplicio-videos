@@ -18,6 +18,7 @@ import tempfile
 from pathlib import Path
 
 from . import tools
+from .trilha_base import Trilha
 
 OPENCUT_REPO = tools.get("opencut").source
 PORT = 3000
@@ -60,17 +61,19 @@ class OpenCutError(Exception):
     pass
 
 
+T = Trilha("opencut", "OPENCUT_DIR")
+
+
 def find_opencut_dir() -> Path | None:
-    return tools.find("opencut")
+    return T.find()
+
+
+def _sem_recusa_offline() -> bool:
+    return False  # the opencut clone has never refused in offline mode (git decides): the migration keeps it exactly so
 
 
 def clone_opencut(target: Path | None = None) -> Path:
-    if target is not None:
-        os.environ["OPENCUT_DIR"] = str(Path(target).expanduser())
-    try:
-        return Path(tools.install("opencut"))
-    except tools.ToolError as e:
-        raise OpenCutError(str(e)) from None
+    return T.clone(target, erro=OpenCutError, offline=_sem_recusa_offline)
 
 
 def _port_free(port: int, host: str = LOOPBACK) -> bool:
@@ -168,7 +171,7 @@ def status() -> dict:
     head = None
     if d is not None:
         try:
-            head = tools._git("rev-parse", "HEAD", cwd=d)
+            head = tools.git("rev-parse", "HEAD", cwd=d)
         except tools.ToolError:
             head = None
     env_path = d / ENV_FILE if d is not None else None

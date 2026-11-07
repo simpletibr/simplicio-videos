@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 import subprocess
 from pathlib import Path
 
+from . import mediaio
 from .openverse import OpenverseError
 
 DEMUXER = {"jpeg": "image2", "png": "image2", "webp": "image2", "gif": "gif", "mp3": "mp3", "ogg": "ogg", "wav": "wav",
@@ -27,10 +27,7 @@ TOOL_TIMEOUT_S = 180
 
 
 def _bin(name: str) -> str:
-    d = os.environ.get("SIMPLICIO_FFMPEG_DIR")
-    if d and (Path(d) / name).exists():
-        return str(Path(d) / name)
-    return name
+    return mediaio.ffmpeg_bin(name)
 
 
 def _run(cmd: list[str], binary: bool = False) -> subprocess.CompletedProcess:
@@ -58,9 +55,10 @@ def _ffmpeg(*args: str) -> list[str]:
 
 
 def probe(path: Path, formato: str) -> dict:
-    r = _run([_bin("ffprobe"), "-v", "error", "-protocol_whitelist", "file", "-f", DEMUXER[formato], "-show_entries",
-              "stream=codec_type,codec_name,width,height,sample_rate,channels:stream_disposition=attached_pic:format=duration,bit_rate",
-              "-of", "json", "-i", str(Path(path).resolve())])
+    r = _run(mediaio.ffprobe_cmd(
+        ["-protocol_whitelist", "file", "-f", DEMUXER[formato], "-show_entries",
+         "stream=codec_type,codec_name,width,height,sample_rate,channels:stream_disposition=attached_pic:format=duration,bit_rate",
+         "-of", "json", "-i"], Path(path).resolve(), ffprobe=_bin(mediaio.PATH_FFPROBE)))
     if r.returncode != 0:
         raise OpenverseError(f"o ffprobe não conseguiu ler o arquivo ({formato}): {(r.stderr or '').strip()[-300:]}")
     try:

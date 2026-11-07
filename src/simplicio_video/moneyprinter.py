@@ -37,10 +37,13 @@ import uuid
 from pathlib import Path
 from urllib.parse import unquote
 
-from . import childio, hostos, tools
+from . import childio, tools
 from .childio import run_child
 from .fsutil import sha256_file as _sha256
-from .toonflow import _offline, _on_term, _stop_group  # same process-group handling as the toonflow track
+from .rede import offline as _offline
+from .trilha_base import Trilha
+from .trilha_base import on_term as _on_term  # same process-group handling as the toonflow track
+from .trilha_base import stop_group as _stop_group
 
 MONEYPRINTER_REPO = tools.get("moneyprinter").source
 WEBUI_PORT = 8501
@@ -96,55 +99,30 @@ class MoneyPrinterError(Exception):
     pass
 
 
+T = Trilha("moneyprinter", "MONEYPRINTER_DIR", "MONEYPRINTER_DATA_DIR")
+
+
 def find_moneyprinter_dir() -> Path | None:
     """The pinned checkout (MONEYPRINTER_DIR, else SIMPLICIO_TOOLS_DIR/moneyprinter, else ~/.simplicio-video/tools/moneyprinter)."""
-    return tools.find("moneyprinter")
+    return T.find()
 
 
 def data_dir() -> Path:
     """Where the venv and the generated videos (storage/) live, absolute and outside the checkout, so a re-clone
     never wipes them."""
-    explicit = os.environ.get("MONEYPRINTER_DATA_DIR")
-    if explicit:
-        return Path(explicit).expanduser().resolve()
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return (base / "moneyprinter-data").resolve()
+    return T.data_dir()
 
 
 def venv_python() -> Path:
-    sub = ("Scripts", "python.exe") if os.name == "nt" else ("bin", "python")
-    return data_dir() / "venv" / sub[0] / sub[1]
-
-
-@contextlib.contextmanager
-def _checkout_at(target: Path):
-    """Point tools.install at `target` for the duration of the block, then restore the environment."""
-    previous = os.environ.get("MONEYPRINTER_DIR")
-    os.environ["MONEYPRINTER_DIR"] = str(target)
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("MONEYPRINTER_DIR", None)
-        else:
-            os.environ["MONEYPRINTER_DIR"] = previous
+    return T.venv_python(data_dir())
 
 
 def clone_moneyprinter(target: Path | None = None) -> Path:
     """Install MoneyPrinterTurbo at its pinned commit (target overrides the location). Never in offline mode."""
-    if _offline():
-        raise MoneyPrinterError(
-            "modo offline (SIMPLICIO_OFFLINE=1): não vou clonar o MoneyPrinterTurbo. "
-            "Instale fora do modo offline com `simplicio-video moneyprinter clone` ou aponte MONEYPRINTER_DIR para um checkout."
-        )
-    try:
-        if target is None:
-            return Path(tools.install("moneyprinter"))
-        with _checkout_at(Path(target).expanduser()):
-            return Path(tools.install("moneyprinter"))
-    except tools.ToolError as e:
-        raise MoneyPrinterError(str(e)) from None
+    return T.clone(target, erro=MoneyPrinterError, offline=_offline, acao=(
+        "clonar o MoneyPrinterTurbo. "
+        "Instale fora do modo offline com `simplicio-video moneyprinter clone` ou aponte MONEYPRINTER_DIR para um checkout."
+    ))
 
 
 # ---- config.toml: key names and yes/no only -----------------------------------------------------------------------
@@ -311,7 +289,7 @@ def _warn_if_not_pinned(d: Path) -> None:
     """pip installs the requirements.txt of whatever commit is checked out: say so when it is not the pinned one."""
     ref = tools.effective_ref(tools.get("moneyprinter"))  # the commit in use: the lock's when `update` followed MoneyPrinter, else the pin
     try:
-        head = tools._git("rev-parse", "HEAD", cwd=d)
+        head = tools.git("rev-parse", "HEAD", cwd=d)
     except tools.ToolError:
         return  # not a git checkout (a copy, or a test stand-in): nothing to compare
     if head != ref:
@@ -749,12 +727,7 @@ def _wait_ready(base: str, proc: subprocess.Popen, auth: dict) -> None:
 
 def _checkout_head(d: Path) -> str | None:
     """O commit que realmente está no checkout (o manifesto registra esse, não só o pino)."""
-    if not (d / ".git").exists():  # sem .git aqui, o git acharia o repositório pai: não é o checkout
-        return None
-    try:
-        return tools._git("rev-parse", "HEAD", cwd=d)
-    except tools.ToolError:
-        return None
+    return T.head(d)  # sem .git aqui, o git acharia o repositório pai: não é o checkout (T.head devolve None)
 
 
 def _can_read_toml() -> bool:
