@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from . import mediaio, terceiros, tools  # terceiros is a leaf (standard library only): it costs `media --help` nothing
+from . import mediaio, terceiros, tools  # terceiros is a leaf (standard library only): `media --help` and `montage --help` already load download and now load this one small module too; the root `--help` does not load download
 from .fsutil import sha256_file as _sha256
 
 FETCH_SCHEMA = "simplicio.media-fetch/v1"
