@@ -508,3 +508,68 @@ def test_config_md_lista_a_variavel_de_cada_trilha_declarada(gerado):
         assert nome in linhas, f"{nome} é argumento de Trilha(...) e falta em config.md"
         assert "sem descrição" not in linhas[nome], nome
         assert f"`{arquivo}:" in linhas[nome], f"{nome}: a linha não aponta para {arquivo}"
+
+
+# ------------------------------------------------------------------------------------------------- variable named in Tool(checkout_env=...)
+# A track whose checkout lives outside the tools cache (video-use: data/tools/video-use/setup.sh) names its variable only as the
+# `checkout_env` argument of its `Tool(...)` in the registry, and `tools.checkout_dir` reads it through the declaration (U09). It is what a
+# user sets (`VIDEO_USE_DIR`), so the reference keeps listing it: the generator reads that argument as it reads a literal `os.environ.get`.
+DECLARADAS_EM_TOOL = {"VIDEO_USE_DIR"}
+FONTE_DE_TOOLS = (
+    "from .tools import Tool\n"                                                   # 1
+    "import simplicio_video.tools as t\n"                                         # 2
+    'ENV_K = "K_DIR"\n'                                                           # 3
+    'A = Tool("a", "git", "u", "r", "l", "p", command="a", checkout_env="A_DIR")\n'  # 4
+    "B = t.Tool(\n"                                                               # 5
+    '    "b", "git", "u", "r", "l", "p",\n'                                       # 6
+    '    command="b",\n'                                                          # 7
+    '    checkout_env="B_DIR",\n'                                                 # 8
+    ")\n"                                                                         # 9
+    'K = Tool("k", "git", "u", "r", "l", "p", command="k", checkout_env=ENV_K)\n'   # 10
+    'N = Tool("n", "git", "u", "r", "l", "p", command="n", checkout_env=None)\n'    # 11
+    'M = Tool("m", "git", "u", "r", "l", "p", command="m", checkout_env=f"{x}_DIR")\n'  # 12
+    'O = Outra("o", "git", "u", "r", "l", "p", command="o", checkout_env="O_DIR")\n'  # 13
+    'L = Tool("l", "git", "u", "r", "l", "p", command="l", checkout_env="minuscula")\n'  # 14
+    'P = Tool("p", "git", "u", "r", "l", "p", command="p", marker="NAO_E_CHECKOUT_ENV")\n'  # 15
+)
+
+
+def test_o_gerador_le_por_ast_o_checkout_env_do_tool(monkeypatch, tmp_path):
+    """`checkout_env` of a `Tool(...)` (bare or `module.Tool`) is a reader, at the line of the call; a module constant resolves like in
+    `os.environ.get(CONST)`; `None`, a computed name, a name that is not a variable, another argument and another callable are not."""
+    gen = _gen_module()
+    pkg = tmp_path / "src" / "simplicio_video"
+    pkg.mkdir(parents=True)
+    (pkg / "tools_x.py").write_text(FONTE_DE_TOOLS, encoding="utf-8")
+    monkeypatch.setattr(gen, "ROOT", tmp_path)
+    monkeypatch.setattr(gen, "PKG", pkg)
+    arq = "src/simplicio_video/tools_x.py"
+    assert gen.env_reads() == {"A_DIR": [f"{arq}:4"], "B_DIR": [f"{arq}:5"], "K_DIR": [f"{arq}:10"]}
+
+
+def _checkout_env_no_pacote() -> dict[str, str]:
+    """The names given as `checkout_env` to a `Tool(...)` in the package, with the file that declares each, found here with its own ast
+    walk (independent of the generator)."""
+    achadas = {}
+    for path in PKG.rglob("*.py"):
+        rel = path.relative_to(ROOT).as_posix()
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not ((isinstance(func, ast.Name) and func.id == "Tool") or (isinstance(func, ast.Attribute) and func.attr == "Tool")):
+                continue
+            achadas.update({k.value.value: rel for k in node.keywords
+                            if k.arg == "checkout_env" and isinstance(k.value, ast.Constant) and isinstance(k.value.value, str)})
+    return achadas
+
+
+def test_config_md_lista_a_variavel_do_checkout_de_cada_trilha_do_registro(gerado):
+    """Red when a track names its checkout variable only in the registry: each is a row, described, and the row points at the file."""
+    declaradas = _checkout_env_no_pacote()
+    assert DECLARADAS_EM_TOOL <= set(declaradas), "o scan não achou o checkout_env conhecido"
+    linhas = {l.split("`")[1]: l for l in _read(gerado, "config.md").splitlines() if l.startswith("| `")}
+    for nome, arquivo in sorted(declaradas.items()):
+        assert nome in linhas, f"{nome} é checkout_env de um Tool(...) e falta em config.md"
+        assert "sem descrição" not in linhas[nome], nome
+        assert f"`{arquivo}:" in linhas[nome], f"{nome}: a linha não aponta para {arquivo}"
