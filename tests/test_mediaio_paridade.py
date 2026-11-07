@@ -11,6 +11,9 @@ Green BEFORE and AFTER the callers move to `mediaio`: moving them must not chang
 * the flags of the child (stdin, capture, text, timeout, check, env) and the exact argv, `file:` and `-i` included.
 
 The ffprobe and the ffmpeg of the tests are fake scripts (POSIX): they record what they were asked and answer by mode.
+
+One thing changed on purpose when the callers moved (D1): `media` no longer imports `shorts`, so `media sheet` raises a MediaError
+(`media: <text>`, exit 1) where it used to let the ShortsError of shorts.probe out (a traceback), with the SAME text.
 """
 import json
 import os
@@ -300,7 +303,7 @@ ERRO_AUSENTE = {
     "trilha.duracao_s": "FileNotFoundError: [Errno 2] No such file or directory: 'ffprobe'",
     "voice.duration": "FileNotFoundError: [Errno 2] No such file or directory: 'ffprobe'",
     "media.probe": "MediaError: ffprobe não encontrado no PATH (o shorts usa só ffmpeg/ffprobe)",
-    "media.sheet": "ShortsError: ffprobe não encontrado no PATH (o shorts usa só ffmpeg/ffprobe)",
+    "media.sheet": "MediaError: ffprobe não encontrado no PATH (o shorts usa só ffmpeg/ffprobe)",
     "media.voice-track": "MediaError: ffprobe não encontrado no PATH (media usa ffmpeg e ffprobe)",
     "download._conferir": "DownloadError: o ffprobe é necessário para conferir o arquivo baixado (instale o ffmpeg)",
     "shorts.probe": "ShortsError: ffprobe não encontrado no PATH (o shorts usa só ffmpeg/ffprobe)",
@@ -329,7 +332,7 @@ ERRO_INVALIDO = {
     "voice.duration": "CalledProcessError: Command '('ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', "
                       "'<TMP>/voz.wav')' returned non-zero exit status 1.",
     "media.probe": f"MediaError: {INVALIDO_STDERR}",
-    "media.sheet": f"ShortsError: {INVALIDO_STDERR}",
+    "media.sheet": f"MediaError: {INVALIDO_STDERR}",
     "media.voice-track": "MediaError: não consegui ler a duração de <TMP>/voz.wav",
     "download._conferir": "DownloadError: o arquivo baixado não é mídia legível (ffprobe: fake ffprobe: segunda linha do erro)",
     "shorts.probe": f"ShortsError: {INVALIDO_STDERR}",
@@ -353,7 +356,7 @@ ERRO_VAZIO = {  # exit 0 and nothing on stdout
     "trilha.duracao_s": "SystemExit: trilha: ffprobe não leu a duração de <TMP>/voz.wav",
     "voice.duration": "ValueError: could not convert string to float: ''",
     "media.probe": "MediaError: sem trilha de vídeo: <TMP>/clip.mp4",
-    "media.sheet": "ShortsError: sem trilha de vídeo: <TMP>/clip.mp4",
+    "media.sheet": "MediaError: sem trilha de vídeo: <TMP>/clip.mp4",
     "media.voice-track": "MediaError: não consegui ler a duração de <TMP>/voz.wav",
     "download._conferir": "DownloadError: o arquivo baixado não é mídia legível (ffprobe: sem fluxo ou sem duração)",
     "shorts.probe": "ShortsError: sem trilha de vídeo: <TMP>/clip.mp4",
@@ -419,7 +422,7 @@ ERRO_RC_COM_SAIDA = {  # exit 3 but a good answer on stdout
     "voice.duration": "CalledProcessError: Command '('ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', "
                       "'<TMP>/voz.wav')' returned non-zero exit status 3.",
     "media.probe": "MediaError: ffprobe falhou em <TMP>/clip.mp4",
-    "media.sheet": "ShortsError: ffprobe falhou em <TMP>/clip.mp4",
+    "media.sheet": "MediaError: ffprobe falhou em <TMP>/clip.mp4",
     "download._conferir": "DownloadError: o arquivo baixado não é mídia legível (ffprobe: sem fluxo ou sem duração)",
     "shorts.probe": "ShortsError: ffprobe falhou em <TMP>/clip.mp4",
     "social._real_probe": "SocialError: ffprobe falhou: ",
@@ -455,7 +458,7 @@ def test_resposta_que_nao_e_json(amb, capsys, nome):
 
 ERRO_SEM_VIDEO = {  # only an audio stream
     "media.probe": "MediaError: sem trilha de vídeo: <TMP>/clip.mp4",
-    "media.sheet": "ShortsError: sem trilha de vídeo: <TMP>/clip.mp4",
+    "media.sheet": "MediaError: sem trilha de vídeo: <TMP>/clip.mp4",
     "shorts.probe": "ShortsError: sem trilha de vídeo: <TMP>/clip.mp4",
     "social._real_probe": "SocialError: o arquivo não tem trilha de vídeo: <TMP>/clip.mp4",
     "swap.probe": "SwapError: sem trilha de vídeo: <TMP>/clip.mp4",
@@ -693,12 +696,21 @@ def test_media_probe_de_video_gerado_com_ffprobe_de_verdade(tmp_path, monkeypatc
     assert doc["size_bytes"] == mp4.stat().st_size
 
 
-def test_media_sheet_com_arquivo_ilegivel_deixa_escapar_o_erro_do_shorts(amb):
-    """TODAY `media sheet` lets the ShortsError of shorts.probe out of media.run_media: cli.py only catches MediaError there."""
+def test_media_sheet_com_arquivo_ilegivel_agora_e_media_error_com_o_mesmo_texto(amb):
+    """DEVIATION D1 (U06): media no longer imports shorts, so `media sheet` cannot raise the ShortsError of shorts.probe. Before, that
+    error left media.run_media (cli.py only catches MediaError there): a traceback on the terminal, `ShortsError: <text>` in the MCP.
+    Now it is a MediaError with the SAME text: `media: <text>` on stderr, exit 1."""
     amb.com_path()
     amb.modo("invalido")
-    with pytest.raises(shorts.ShortsError, match="dado inválido"):
-        cli.main(["media", "sheet", str(amb.mp4), "-o", str(amb.tmp / "s.jpg")])
+    rc, out, err = _cli("media", "sheet", str(amb.mp4), "-o", str(amb.tmp / "s.jpg"))
+    assert (rc, out) == (1, "")
+    assert err == "media: fake ffprobe: dado inválido (linha 1)\nfake ffprobe: segunda linha do erro\n"
+
+
+def test_media_sheet_sem_ffprobe_na_linha_de_comando_agora_e_media_error_com_o_mesmo_texto(amb):
+    rc, out, err = _cli("media", "sheet", str(amb.mp4), "-o", str(amb.tmp / "s.jpg"))
+    assert (rc, out) == (1, "")
+    assert err == "media: ffprobe não encontrado no PATH (o shorts usa só ffmpeg/ffprobe)\n"
 
 
 def test_qc_na_linha_de_comando_com_ffprobe_que_falha(amb):
@@ -727,3 +739,25 @@ def test_download_conferir_recusa_duracao_zero(amb, monkeypatch):
     with pytest.raises(download.DownloadError, match=r"^o arquivo baixado não é mídia legível \(ffprobe: sem fluxo ou sem duração\)$"):
         download._conferir(amb.mp4)
 
+
+
+def test_shorts_e_media_probe_com_fps_0_0_levantam_zerodivisionerror_crua(amb):
+    """`0/0` is what ffprobe prints for a stream without a frame rate: shorts._fps catches only ValueError (a bug kept as it was)."""
+    amb.com_path()
+    _instala(amb.pasta, "ffprobe", "import json\nprint(json.dumps({'streams': [{'codec_type': 'video', 'avg_frame_rate': '0/0'}], 'format': {'duration': '1'}}))")
+    with pytest.raises(ZeroDivisionError):
+        shorts.probe(amb.mp4)
+    with pytest.raises(ZeroDivisionError):
+        media.run_media(["probe", str(amb.mp4)])
+
+
+def test_importar_o_media_nao_carrega_o_shorts_mas_media_shorts_continua_a_resolver():
+    codigo = ("import sys\nfrom simplicio_video import media\n"
+              "antes = 'simplicio_video.shorts' in sys.modules\n"
+              "depois = media.shorts.__name__, 'simplicio_video.shorts' in sys.modules\n"
+              "print(antes, *depois)")
+    r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                       env={**os.environ, "PYTHONPATH": str(Path(shorts.__file__).parents[1])})
+    assert r.stdout.split() == ["False", "simplicio_video.shorts", "True"], r.stderr
+    with pytest.raises(AttributeError):
+        media.nao_existe_mesmo  # noqa: B018 - the lazy attribute only answers for `shorts`
