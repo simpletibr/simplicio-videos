@@ -4,7 +4,7 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
-Reúne o que entrou na `main` depois da 0.8.0 (b0f92ad): os PRs #209 a #244 (36 mesclados), a refatoração "untangle", feita para não mudar o que o motor faz. O que muda para quem usa está em Mudanças e Correções; fora disso, `--json`, `--help`, o snapshot das 32 tools do MCP e os bytes do contrato ao MP4 seguem iguais (medido nos PRs e conferido de novo contra a 0.8.0, em Linux).
+Reúne o que entrou na `main` depois da 0.8.0 (b0f92ad): os PRs #209 a #245 (37 mesclados), a refatoração "untangle", feita para não mudar o que o motor faz. O que muda para quem usa está em Mudanças e Correções; fora disso, `--json`, `--help`, o snapshot das 32 tools do MCP e os bytes do contrato ao MP4 seguem iguais (medido nos PRs e conferido de novo contra a 0.8.0, em Linux).
 
 ### Mudanças
 - **Mensagens e `--help` com URL do GitHub** (#218, #223): o texto que citava arquivo só do checkout (`docs/…`, `voices/…`, `colab/…`) agora traz `…/blob/v<versão>/…` (versão de desenvolvimento: `blob/main`): epílogo do `--help` raiz, `render --help`, `setup --realoficial` e o `error.message` do `--json` de `render --backend kaggle|colab-cli` sem o binário e de `run --provider openvoice` sem `OPENVOICE_PY`. **UNVERIFIED:** a tag `v0.8.0` ainda não existe no remoto (só até `v0.7.0`); as URLs só abrem depois que o dono a criar.
@@ -30,7 +30,7 @@ Reúne o que entrou na `main` depois da 0.8.0 (b0f92ad): os PRs #209 a #244 (36 
 - **`scripts/e2e_real.py` (dev, `make e2e-real`) redige mais** (#243): `AUTHORISATION` e `AUTHORISE` (grafia britânica) e `api_key = "valor` com aspa sem fechar em `config.toml` inválido (vai até o fim da linha); `GIT_AUTHOR_NAME` e `AUTHORITY` seguem fora. São as duas lacunas que a 0.7.0 deixou como `xfail(strict=True)`, agora testes normais.
 
 ### Interno
-- **Sem efeito para quem usa** (os demais PRs de #209 a #244): módulos novos (`fsutil`, `mediaio`, `rede`, `terceiros`, `trilha_base`, `despacho`, `mcp_policy`, `voz_catalogo`, `commands/versions`) no lugar de cópias espalhadas; um `JobSpec` por trilha; tabelas únicas de comandos, trilhas, política do MCP e providers de voz; `tests/helpers/`, testes golden e de paridade; `scripts/_lib.py`. O clone de trilha não grava mais `<NOME>_DIR` em `os.environ` (o `opencut clone` deixava `OPENCUT_DIR` no processo) e nomes internos sem uso saíram (`social.DEFAULT_PROVIDER`, `swap_providers.base.PRICES_READ_ON`, `media.shorts`, `edit.GRADE_*`).
+- **Sem efeito para quem usa** (os demais PRs de #209 a #245): módulos novos (`fsutil`, `mediaio`, `rede`, `terceiros`, `trilha_base`, `despacho`, `mcp_policy`, `voz_catalogo`, `commands/versions`) no lugar de cópias espalhadas; um `JobSpec` por trilha; tabelas únicas de comandos, trilhas, política do MCP e providers de voz; `tests/helpers/`, testes golden e de paridade; `scripts/_lib.py`. O clone de trilha não grava mais `<NOME>_DIR` em `os.environ` (o `opencut clone` deixava `OPENCUT_DIR` no processo) e nomes internos sem uso saíram (`social.DEFAULT_PROVIDER`, `swap_providers.base.PRICES_READ_ON`, `media.shorts`, `edit.GRADE_*`).
 
 ## 0.8.0 — 2026-11-06
 
