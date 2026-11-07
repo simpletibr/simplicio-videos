@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from conftest import ROOT
+from helpers import ROOT
 from simplicio_video import contract as ct
 from simplicio_video import publish as pub
 

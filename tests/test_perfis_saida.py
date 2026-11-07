@@ -7,12 +7,11 @@
 import json
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 import yaml
 
-from conftest import FIXTURE, have_render_tools
+from helpers import FIXTURE, have_render_tools, ROOT
 from simplicio_video import contract as ct
 from simplicio_video import perfis, render, voice
 from simplicio_video.contract import schema_errors
@@ -150,7 +149,6 @@ def test_thumb_nao_grava_video_quando_o_destino_e_mp4(raw_vermelho_depois_azul, 
 
 # ---------------------------------------------------------------- A aplicado de ponta a ponta: master.sh no MP4 final
 
-ROOT = Path(__file__).resolve().parents[1]
 MASTER_SH = ROOT / "src" / "simplicio_video" / "engine" / "master.sh"
 
 

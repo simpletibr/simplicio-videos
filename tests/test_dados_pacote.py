@@ -28,9 +28,8 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FIXTURE, ROOT, offline_env
+from helpers import FIXTURE, offline_env, ROOT, SRC
 
-SRC = ROOT / "src" / "simplicio_video"
 DATA = SRC / "data"
 DADOS_OBRIGATORIOS = [
     "schema/contract.schema.json",

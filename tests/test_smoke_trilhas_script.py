@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 
 from simplicio_video import mcp_server, tools
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "smoke_trilhas.py"
 PROC_DISPONIVEL = os.name == "posix" and Path("/proc/self/stat").is_file()
 

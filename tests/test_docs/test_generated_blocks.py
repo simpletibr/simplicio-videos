@@ -10,7 +10,8 @@ import re
 
 import pytest
 
-from _docs import HOST_DIR, ROOT, doc_pages, front_matter
+from _docs import HOST_DIR, doc_pages, front_matter
+from helpers import ROOT
 
 SECTIONS = {"host": HOST_DIR}
 LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")

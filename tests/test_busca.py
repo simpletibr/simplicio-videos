@@ -33,7 +33,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from conftest import ROOT, run_cli
+from helpers import ROOT, run_cli
 from simplicio_video import mcp_server, paths, status, tools
 from simplicio_video.cli import main
 

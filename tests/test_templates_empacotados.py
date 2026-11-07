@@ -14,7 +14,7 @@ import re
 import pytest
 import yaml
 
-from conftest import ROOT
+from helpers import ROOT
 from simplicio_video import contract as ct
 from simplicio_video.compiler import PH, compile_project, render_template
 

@@ -17,11 +17,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from conftest import ROOT
+from helpers import ROOT, SRC
 from simplicio_video import compiler
 from simplicio_video import contract as ct
 
-SRC = ROOT / "src" / "simplicio_video"
 RENDER_CODE = [SRC / "render.py", SRC / "compiler.py"] + sorted(p for p in (SRC / "engine").rglob("*")
                                                               if p.is_file() and "__pycache__" not in p.parts)
 # Hardcoded names that must leave the render code (the operator's brand, the client names, the company).

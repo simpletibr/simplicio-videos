@@ -25,7 +25,8 @@ import pytest
 
 import _caixa
 from _caixa import FFMPEG_COM_LIBASS, posix_real, write_fake_tool, write_fake_uv
-from _comum import ROOT, erros_de_schema
+from _comum import erros_de_schema
+from helpers import ROOT
 
 # fixtures: assigned (not imported) so pytest finds them and ruff sees no shadowing by the test parameters
 caixa = _caixa.caixa

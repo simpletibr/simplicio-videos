@@ -16,8 +16,8 @@ from _orfao import (SINAIS, SLEEPER_CODE, espera, espera_pid, lanca_como_shell, 
                     sinaliza_no_popen, sinais_padrao, vivo)
 
 from simplicio_video import cli, mcp_server, moneyprinter, tools
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 FAKE_KEY = "FAKEKEY-do-not-print-0123456789"
 FAKE_KEY_2 = "FAKEKEY-in-a-list-9876543210"

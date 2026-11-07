@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 
 from simplicio_video import edit, mcp_server, paths
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 PKG_TOOL = ROOT / "src" / "simplicio_video" / "data" / "tools" / "video-use"
 
 

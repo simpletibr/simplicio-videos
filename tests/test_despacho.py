@@ -29,11 +29,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from conftest import offline_env
+from helpers import offline_env, SRC
 from simplicio_video import cli, mcp_server, pipeline, remote, render
 from simplicio_video import contract as ct
 
-SRC = Path(__file__).resolve().parents[1] / "src" / "simplicio_video"
 H = "ab" * 32
 
 # the signature of `cli.do_render` on origin/main (c6e0391): note `gpu_encode` between `timeout` and `log`

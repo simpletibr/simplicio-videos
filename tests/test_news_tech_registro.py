@@ -8,7 +8,7 @@ from __future__ import annotations
 import collections
 import json
 
-from conftest import ROOT
+from helpers import ROOT
 
 DATA = ROOT / "src" / "simplicio_video" / "data"
 TEMPLATE = DATA / "templates" / "news-tech"

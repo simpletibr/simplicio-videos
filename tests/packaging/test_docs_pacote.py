@@ -12,8 +12,9 @@ import re
 
 import pytest
 
-from _comum import ROOT, exige_registrado
+from _comum import exige_registrado
 from simplicio_video.cli import main
+from helpers import ROOT
 
 tomllib = pytest.importorskip("tomllib")
 

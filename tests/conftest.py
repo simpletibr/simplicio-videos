@@ -1,42 +1,23 @@
-import atexit
 import os
 import shutil
-import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
-import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "tests" / "fixtures" / "mini"
-WJR = ROOT / "clients" / "wjr-informatica-games" / "video-01" / "contract.yaml"
-LOTHUS = ROOT / "clients" / "lothus-odontologia" / "video-01-dia-das-criancas" / "contract.yaml"
-CLIENT_DATA_REASON = "contrato real de cliente fora do git (clients/ não é rastreado)"
-
-
-def needs_client(*paths: Path):
-    """skipif marker for a test that only makes sense with the real client contract(s): clients/ is not tracked by git."""
-    return pytest.mark.skipif(not all(p.exists() for p in paths), reason=CLIENT_DATA_REASON)
-
-
-def contract_with_coleta_placeholders(contract: Path, dest: Path) -> Path:
-    """A copy of a client contract in `dest` whose assets under `coleta/` exist as placeholders.
-
-    `clients/*/coleta/` is gitignored (client data never goes to git), so a clean checkout has none of those files."""
-    copia = dest / "a" / "video"
-    shutil.copytree(contract.parent, copia, ignore=shutil.ignore_patterns("preview", "node_modules"))
-    d = yaml.safe_load(contract.read_text(encoding="utf8"))
-    refs = [a["arquivo"] for a in d.get("assets") or []] + [s["file"] for s in d.get("placas_video") or []]
-    if (d.get("marca") or {}).get("logo"):
-        refs.append(d["marca"]["logo"]["arquivo"])
-    for ref in refs:
-        alvo = (copia / ref).resolve()
-        assert (dest / "a") in alvo.parents, ref  # the copy never writes outside the temporary folder
-        if not alvo.exists():
-            alvo.parent.mkdir(parents=True, exist_ok=True)
-            alvo.write_bytes(b"\x89PNG\r\n\x1a\n" + ref.encode())
-    return copia / contract.name
+# The helpers live in tests/helpers; the names that used to be defined here stay importable from `conftest`
+# (tests/test_scripts/test_socket_guard.py and the imports inside test bodies still read them from this module).
+pytest.register_assert_rewrite("helpers")  # before the first import of the package, so the asserts inside helpers keep pytest's detail
+from helpers import (  # noqa: E402,F401
+    CLIENT_DATA_REASON,
+    FIXTURE,
+    LOTHUS,
+    ROOT,
+    WJR,
+    contract_with_coleta_placeholders,
+    have_render_tools,
+    needs_client,
+    offline_env,
+    run_cli,
+)
 
 
 # Marker taxonomy (registered in pyproject.toml). `slow` is orthogonal to the kind markers.
@@ -96,40 +77,3 @@ def mini(tmp_path):
 
 # hermetic tests: no speech-to-text subprocess (word timings fall back to proportional)
 os.environ.setdefault("SIMPLICIO_STT_PY", "/nonexistent/stt-python")
-
-
-def have_render_tools() -> bool:
-    from simplicio_video import paths
-    env = paths.node_env()
-    return all(shutil.which(t, path=env["PATH"]) for t in ("node", "npx", "ffmpeg"))
-
-
-_OFFLINE_DIR: list[str] = []
-
-_SITECUSTOMIZE = """\
-# written by tests/conftest.py: subprocess tests are offline too (same guard as the in-process one)
-from pytest_socket import disable_socket
-
-disable_socket(allow_unix_socket=True)
-"""
-
-
-def offline_env(**extra: str) -> dict[str, str]:
-    """Environment for subprocess tests: SIMPLICIO_OFFLINE=1 (the engine refuses to download) plus the
-    pytest-socket guard injected through sitecustomize, which the in-process guard cannot reach."""
-    if not _OFFLINE_DIR:
-        d = tempfile.mkdtemp(prefix="simplicio-offline-")
-        (Path(d) / "sitecustomize.py").write_text(_SITECUSTOMIZE)
-        atexit.register(shutil.rmtree, d, True)
-        _OFFLINE_DIR.append(d)
-    env = os.environ.copy()
-    env["SIMPLICIO_OFFLINE"] = "1"
-    env["PYTHONPATH"] = os.pathsep.join(filter(None, [_OFFLINE_DIR[0], env.get("PYTHONPATH", "")]))
-    env.update(extra)
-    return env
-
-
-def run_cli(*args, cwd=None):
-    import sys
-    return subprocess.run([sys.executable, "-m", "simplicio_video", *map(str, args)], capture_output=True, text=True, cwd=cwd,
-                          env=offline_env())

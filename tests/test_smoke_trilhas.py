@@ -7,9 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import run_cli
-
-ROOT = Path(__file__).resolve().parents[1]
+from helpers import ROOT, run_cli
 
 
 def test_global_json_before_a_subcommand_never_leaves_a_traceback():

@@ -229,7 +229,7 @@ def roda_motor(tmp_path: Path, corpo: str, pidfile: Path, sinal: str, quando: st
     """Run `corpo` (Python source that calls the module under test) in a separate engine process. `quando` is "popen" (the signal
     lands inside Popen, once the child that wrote `pidfile` runs) or "espera" (while the engine waits for the child). The caller
     asserts on the exit code, the child (pid in `pidfile`) and the private folders under `tmpd`."""
-    from conftest import ROOT, offline_env
+    from helpers import ROOT, offline_env
 
     cfg = {"pidfile": str(pidfile), "sinal": sinal, "quando": quando, "so_se": so_se or str(pidfile)}
     env = offline_env(ORFAO_CFG=__import__("json").dumps(cfg), **(extra_env or {}))

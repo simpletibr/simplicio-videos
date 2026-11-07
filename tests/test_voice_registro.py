@@ -34,7 +34,7 @@ from unittest import mock
 
 import pytest
 
-from conftest import FIXTURE
+from helpers import FIXTURE
 from simplicio_video import catalog, childio
 from simplicio_video import contract as ct
 from simplicio_video import voice, voice_clone, voz_catalogo

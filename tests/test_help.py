@@ -1,6 +1,6 @@
 import pytest
 
-from conftest import run_cli
+from helpers import run_cli
 
 SUBS = ["init", "validate", "voice", "render", "run", "clone", "montage", "edit", "shorts", "opencut", "toonflow", "swap", "moneyprinter", "matchcut", "instagram", "jobs", "social", "openverse", "busca", "mcp", "list",
         "install", "update", "doctor", "setup", "rea-video"]

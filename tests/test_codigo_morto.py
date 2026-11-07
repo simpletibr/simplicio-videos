@@ -40,9 +40,8 @@ import pytest
 
 from simplicio_video import social, voice
 from simplicio_video.swap_providers import base
+from helpers import ROOT, SRC
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src" / "simplicio_video"
 MOCK = ROOT / "tests" / "tools" / "mock_gemini.py"
 
 

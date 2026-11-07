@@ -32,7 +32,7 @@ from types import SimpleNamespace
 import pytest
 
 from _orfao import SINAIS, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao, sleeper  # noqa: F401
-from conftest import ROOT, offline_env
+from helpers import offline_env, ROOT
 from simplicio_video import cli, instagram, mcp_server, tools, tools_lock, tools_update
 
 REAL_GIT = tools._git  # the conftest replaces tools._git for every test; the integration test needs the real one

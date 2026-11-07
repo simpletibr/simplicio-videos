@@ -12,7 +12,7 @@ import re
 
 import pytest
 
-from _comum import ROOT
+from helpers import ROOT
 from simplicio_video import __version__
 
 tomllib = pytest.importorskip("tomllib")

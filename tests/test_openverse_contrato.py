@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from conftest import ROOT, have_render_tools
+from helpers import have_render_tools, ROOT
 from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract, paths, render
 from test_openverse import (
     ID_IMG, OUTRO_PEDIDO, PEDIDO, PNG_B, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, cli, env, midia)

@@ -17,7 +17,7 @@ import yaml
 import math
 
 from audio_medida import grava_wav, le_wav, potencia_banda_db, tons
-from conftest import FIXTURE
+from helpers import FIXTURE
 from simplicio_video import compiler, trilha
 from simplicio_video import contract as ct
 from simplicio_video.contract import schema_errors

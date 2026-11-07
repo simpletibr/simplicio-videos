@@ -27,9 +27,9 @@ import pytest
 from _orfao import POSIX, SINAIS, espera, espera_pid, estado_dos_sinais, lanca_como_shell, vivo
 
 from simplicio_video import childio, hostos
+from helpers import SRC
 
 POSIX_ONLY = pytest.mark.skipif(not POSIX, reason="POSIX signals and sh")
-SRC = Path(__file__).resolve().parents[1] / "src" / "simplicio_video"
 COMO_SH = 'echo $$ > "$1"; exec sleep 60'  # the pid of the child (it becomes `sleep`) goes to the file in $1
 
 
@@ -54,7 +54,7 @@ def mata_todos(pidfile: Path) -> None:
 
 def motor(tmp_path: Path, corpo: str, *args: str, **extra_env: str) -> subprocess.Popen:
     """Python source `corpo` as an engine process of its own, started as a shell starts it (stop signals at their defaults)."""
-    from conftest import ROOT, offline_env
+    from helpers import ROOT, offline_env
 
     env = offline_env(**extra_env)
     env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])

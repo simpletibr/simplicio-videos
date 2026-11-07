@@ -14,13 +14,12 @@ package contract (the first one is a script for a remote box, the second one is 
 import ast
 import json
 import re
-from pathlib import Path
 
 import pytest
 
 import simplicio_video
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "simplicio_video"
 REMOTE_RENDER = PKG / "engine" / "remote_render.py"
 NOTEBOOK = ROOT / "colab" / "render.ipynb"

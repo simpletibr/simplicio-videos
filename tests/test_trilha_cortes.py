@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from audio_medida import freq_dominante, le_wav, potencia_banda_db
-from conftest import have_render_tools
+from helpers import have_render_tools
 from simplicio_video import compiler, trilha
 from simplicio_video import contract as ct
 from simplicio_video import render, voice

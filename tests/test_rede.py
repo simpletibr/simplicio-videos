@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import ROOT
+from helpers import ROOT
 
 PREFIXO = "modo offline (SIMPLICIO_OFFLINE=1): não vou "
 ENV_VERDADEIRO = ["1", "true", "yes", "on", " 1 ", "TRUE", "Yes", " On ", "ON\t"]

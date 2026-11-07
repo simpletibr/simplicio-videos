@@ -6,9 +6,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from helpers import SCRIPTS
 
-ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ROOT / "scripts"
 
 OWNERSHIP = """\
 schema: simplicio.ownership/v1

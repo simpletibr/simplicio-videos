@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from conftest import ROOT
+from helpers import ROOT
 from simplicio_video import mcp_server, openverse as ov, paths
 from simplicio_video.cli import main
 from simplicio_video.swap_providers import http

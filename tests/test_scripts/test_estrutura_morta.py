@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 import pytest
-from gitfixture import ROOT
+from helpers import ROOT
 
 ARQUIVOS_DO_GATE = ["Makefile", "scripts/dev_install.sh", "scripts/dev_install.ps1", "scripts/licenses.py", "scripts/check.sh",
                     "docs/host/gate.md", "docs/host/licenses.md", "docs/host/packaging.md"]

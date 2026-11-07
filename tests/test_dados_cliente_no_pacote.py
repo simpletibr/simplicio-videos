@@ -19,9 +19,8 @@ import zlib
 import pytest
 
 import dados_cliente_guard as guarda
-from conftest import ROOT
+from helpers import ROOT, SRC
 
-SRC = ROOT / "src" / "simplicio_video"
 TEMPLATE_GAMES = SRC / "data" / "templates" / "assistencia-tecnica-games" / "composition" / "index.template.html"
 LOCKUP = SRC / "data" / "motion" / "patterns" / "brand-lockup-soft"
 

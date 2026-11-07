@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 import pytest
-from gitfixture import ROOT
+from helpers import ROOT
 
 import conftest
 

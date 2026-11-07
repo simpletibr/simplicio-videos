@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 
-from conftest import run_cli
+from helpers import run_cli
 
 
 def _ffmpeg_ou_pula():

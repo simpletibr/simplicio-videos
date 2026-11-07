@@ -2,7 +2,7 @@ import json
 
 import yaml
 
-from conftest import LOTHUS, WJR, contract_with_coleta_placeholders, needs_client
+from helpers import contract_with_coleta_placeholders, LOTHUS, needs_client, WJR
 from simplicio_video import contract as ct
 
 

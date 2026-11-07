@@ -15,11 +15,10 @@ from __future__ import annotations
 
 import re
 import tomllib
-from pathlib import Path
 
 import pytest
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 LICENSE_ID = "AGPL-3.0-or-later"
 
 

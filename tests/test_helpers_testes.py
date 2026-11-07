@@ -525,3 +525,68 @@ def test_sine_wav_different_frequencies_give_different_bytes():
     helpers = h()
     assert helpers.sine_wav(0.1, 24000, 330) != helpers.sine_wav(0.1, 24000, 340)
     assert len(helpers.sine_wav(0.1, 24000, 330)) == len(helpers.sine_wav(0.1, 24000, 340))
+
+
+# ------------------------------------------------------------------------------------------------ as cópias não voltam
+# Guards for the cleanup itself: a test file that grows its own copy of a shared helper fails here, naming the file.
+
+def _modulos():
+    import ast
+    for p in sorted(TESTS.rglob("*.py")):
+        rel = p.relative_to(TESTS)
+        if rel.parts[0] == "helpers" or rel.as_posix() in ("test_helpers_testes.py", "conftest.py"):
+            continue
+        yield rel.as_posix(), ast.parse(p.read_text(encoding="utf8"))
+
+
+def test_no_test_module_recomputes_the_repository_root_from_its_own_location():
+    import ast
+    # the exact spellings the copies had (a different value, like SRC = Path(fsutil.__file__).parent, is another thing)
+    copias_de = {
+        "ROOT": ("Path(__file__).resolve().parents[1]", "Path(__file__).resolve().parents[2]"),
+        "SRC": ("ROOT / 'src' / 'simplicio_video'", "Path(__file__).resolve().parents[1] / 'src' / 'simplicio_video'"),
+        "SCRIPTS": ("ROOT / 'scripts'",),
+        "FIXTURE": ("Path(__file__).parent / 'fixtures' / 'mini'",),
+    }
+    copias = []
+    for rel, tree in _modulos():
+        for n in tree.body:
+            if isinstance(n, ast.Assign) and len(n.targets) == 1 and getattr(n.targets[0], "id", None) in copias_de:
+                if ast.unparse(n.value) in copias_de[n.targets[0].id]:
+                    copias.append(f"{rel}:{n.lineno}: {ast.unparse(n)}")
+    assert copias == [], "use `from helpers import ROOT, SRC, SCRIPTS, FIXTURE`:\n" + "\n".join(copias)
+
+
+def test_nothing_imports_the_shared_names_from_conftest_or_through_a_support_module_at_module_level():
+    import ast
+    achados = []
+    for rel, tree in _modulos():
+        for n in tree.body:
+            if isinstance(n, ast.ImportFrom) and n.level == 0:
+                if n.module == "conftest":
+                    achados.append(f"{rel}:{n.lineno}: from conftest import ...")
+                elif n.module in ("_comum", "_docs", "gitfixture") and any(a.name in ("ROOT", "SCRIPTS") for a in n.names):
+                    achados.append(f"{rel}:{n.lineno}: from {n.module} import ROOT/SCRIPTS")
+        for fn in ast.walk(tree):
+            if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and not fn.name.startswith("test_"):
+                for n in ast.walk(fn):
+                    if isinstance(n, ast.ImportFrom) and n.module == "conftest":
+                        achados.append(f"{rel}:{n.lineno}: from conftest import ... inside {fn.name}()")
+    assert achados == [], "import from helpers:\n" + "\n".join(achados)
+
+
+def test_conftest_still_exports_the_names_that_test_bodies_import_from_it():
+    import conftest
+    helpers = h()
+    for nome in ("ROOT", "FIXTURE", "WJR", "LOTHUS", "CLIENT_DATA_REASON", "needs_client", "contract_with_coleta_placeholders",
+                 "have_render_tools", "offline_env", "run_cli"):
+        assert getattr(conftest, nome) is getattr(helpers, nome), nome
+
+
+def test_importing_helpers_registers_no_second_copy_of_the_offline_folder():
+    import conftest
+    helpers = h()
+    assert conftest.offline_env is helpers.offline_env  # one function, one per-process sitecustomize folder
+    pasta = helpers.offline_env()["PYTHONPATH"].split(os.pathsep)[0]
+    assert sys.modules["helpers.env"]._OFFLINE_DIR == [pasta]
+    assert not hasattr(conftest, "_OFFLINE_DIR")

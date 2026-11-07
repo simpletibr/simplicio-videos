@@ -17,8 +17,9 @@ from jsonschema import Draft202012Validator
 
 import _caixa
 from _caixa import distribution, update_cmd
-from _comum import ROOT, executa
+from _comum import executa
 from simplicio_video.cli import main
+from helpers import ROOT
 
 # fixtures: assigned (not imported) so pytest finds them and ruff sees no shadowing by the test parameters
 caixa = _caixa.caixa

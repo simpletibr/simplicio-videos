@@ -24,8 +24,8 @@ import pytest
 
 import simplicio_video
 from simplicio_video import paths
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "simplicio_video"
 REPO_URL = "https://github.com/simpletibr/simplicio-videos/blob/"
 

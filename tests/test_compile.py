@@ -1,7 +1,7 @@
 import pytest
 import yaml
 
-from conftest import ROOT, WJR, contract_with_coleta_placeholders
+from helpers import contract_with_coleta_placeholders, ROOT, WJR
 from simplicio_video import contract as ct
 from simplicio_video.compiler import compile_project, render_template
 

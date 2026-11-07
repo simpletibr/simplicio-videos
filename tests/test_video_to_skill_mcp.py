@@ -15,9 +15,9 @@ import _fake_vts as fake
 from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no test leaves a job folder in the real tmp)
 
 from simplicio_video import jobs, mcp_server, tools, video_to_skill as v2s
+from helpers import ROOT
 
 REF = "c1a1b905da6a252077ace0657e8ea49cb785e7c3"
-ROOT = Path(__file__).resolve().parents[1]
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="the fake extractor is a shebang script")
 SECRETS = ("GITHUB_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "HF_TOKEN")
 

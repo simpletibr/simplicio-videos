@@ -10,7 +10,7 @@ import json
 import pytest
 import yaml
 
-from conftest import LOTHUS, have_render_tools, needs_client, run_cli
+from helpers import have_render_tools, LOTHUS, needs_client, run_cli
 from simplicio_video import contract as ct
 from simplicio_video import publish as pub
 from simplicio_video import render, voice

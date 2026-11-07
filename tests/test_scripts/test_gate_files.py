@@ -7,7 +7,8 @@ import subprocess
 import sys
 
 import pytest
-from gitfixture import ROOT, Repo, clean_env, tool
+from gitfixture import Repo, clean_env, tool
+from helpers import ROOT
 
 try:  # py>=3.11
     import tomllib

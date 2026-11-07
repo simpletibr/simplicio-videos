@@ -3,11 +3,10 @@
 O espelho skills/ x src/.../data/skills/ já é conferido em tests/packaging/test_skills_empacotadas.py; aqui só se checa
 o conteúdo novo. docs/reference/cli.md é gerado (make docs-regen) e é conferido pelo gate (gen_reference --check).
 """
-from pathlib import Path
 
 import pytest
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video" / "SKILL.md"
 CLI_REF = ROOT / "docs" / "reference" / "cli.md"
 

@@ -5,7 +5,7 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
-from conftest import FIXTURE, LOTHUS, ROOT, WJR, needs_client
+from helpers import FIXTURE, LOTHUS, needs_client, ROOT, WJR
 from simplicio_video.contract import schema_errors
 
 DATA = ROOT / "src" / "simplicio_video" / "data"  # esquemas, templates e motion: dentro do pacote (#74)

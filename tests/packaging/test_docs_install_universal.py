@@ -13,8 +13,9 @@ import re
 import pytest
 
 from _caixa import installer, skill_sync
-from _comum import ROOT, exige_registrado
+from _comum import exige_registrado
 from simplicio_video.cli import main
+from helpers import ROOT
 
 ADR_20 = ROOT / "docs" / "decisoes" / "ADR-0020-install-universal-e-update-igual-ao-loop.md"
 ADR_17 = ROOT / "docs" / "decisoes" / "ADR-0017-instalacao-atualizacao.md"

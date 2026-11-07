@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 
 from simplicio_video import cli, mcp_server, opencut, tools
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = """# Environment variables example
 NODE_ENV=development
 NEXT_PUBLIC_SITE_URL=http://localhost:3000

@@ -39,9 +39,8 @@ from types import SimpleNamespace
 import pytest
 
 from simplicio_video import jobs, paths, rea_video
+from helpers import ROOT, SRC
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src" / "simplicio_video"
 POSIX = pytest.mark.skipif(os.name != "posix", reason="the fake child is a shell script")
 
 KINDS_DE_HOJE = ["swap-run", "voice", "rea-video", "moneyprinter", "montage-tool", "video-to-skill"]

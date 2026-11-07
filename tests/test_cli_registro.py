@@ -31,8 +31,8 @@ from pathlib import Path
 import pytest
 
 from simplicio_video import cli, mcp_server, paths
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 CLI_PY = ROOT / "src" / "simplicio_video" / "cli.py"
 
 # (command, module of the package, function that runs it, error class that the CLI turns into `<cmd>: message`, "" = none).

@@ -21,9 +21,10 @@ import pytest
 
 import _caixa
 from _caixa import SISTEMAS, distribution, posix_real, roda_com_prazo, saida_cp1252, skill_sync, solta_fifo
-from _comum import ROOT, erros_de_schema, executa, exige_registrado, fotografia, make_bundle, write
+from _comum import erros_de_schema, executa, exige_registrado, fotografia, make_bundle, write
 from simplicio_video import __version__
 from simplicio_video.cli import main
+from helpers import ROOT
 
 caixa = _caixa.caixa
 simula_so = _caixa.simula_so

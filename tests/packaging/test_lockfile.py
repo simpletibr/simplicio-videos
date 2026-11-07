@@ -15,7 +15,7 @@ import time
 import pytest
 
 from _caixa import REAL_WINDOWS, posix_real
-from _comum import ROOT
+from helpers import ROOT
 
 from simplicio_video import lockfile
 

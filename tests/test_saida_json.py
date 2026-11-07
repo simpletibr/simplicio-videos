@@ -11,7 +11,7 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
-from conftest import ROOT
+from helpers import ROOT
 from simplicio_video import despacho, pipeline, render
 from simplicio_video.cli import main
 

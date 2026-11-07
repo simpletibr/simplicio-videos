@@ -13,7 +13,7 @@ import pytest
 
 import _caixa
 from _caixa import SISTEMAS, skill_sync
-from _comum import ROOT
+from helpers import ROOT
 
 simula_so = _caixa.simula_so
 

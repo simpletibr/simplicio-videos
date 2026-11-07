@@ -7,11 +7,10 @@ import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "bench_concurrency.py"
 needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 

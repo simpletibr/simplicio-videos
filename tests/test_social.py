@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import ROOT, run_cli
+from helpers import ROOT, run_cli
 from simplicio_video import mcp_server, paths, social
 
 needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")

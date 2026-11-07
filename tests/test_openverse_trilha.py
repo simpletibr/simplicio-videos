@@ -22,7 +22,7 @@ import pytest
 import yaml
 
 from audio_medida import freq_dominante, le_wav, potencia_banda_db
-from conftest import have_render_tools
+from helpers import have_render_tools
 from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract as oc, render, trilha, voice
 from test_openverse import PEDIDO, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, env, midia
 
