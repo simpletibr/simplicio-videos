@@ -50,11 +50,11 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import childio, hostos, tools
+from . import childio, hostos, rede, terceiros, tools
 from .busca_ajuda import HELP_DESC, HELP_EPILOG, TETO_PADRAO
 from .fsutil import canonical_json as _canonico
 
-__all__ = ["BuscaError", "consulta", "pagina", "status", "log", "status_summary", "run_busca", "scrub", "UNTRUSTED_NOTICE"]
+__all__ = ["BuscaError", "consulta", "pagina", "status", "log", "status_summary", "run_busca", "scrub", "versao_cli", "UNTRUSTED_NOTICE"]
 
 SCHEMA_CONSULTA = "simplicio.busca-consulta/v1"
 SCHEMA_PAGINA = "simplicio.busca-pagina/v1"
@@ -67,10 +67,11 @@ SCHEMA_CONTADOR = "simplicio.busca-contador/v1"
 BINARIO = "tinyfish"
 ENV_CHAVE = "TINYFISH_API_KEY"  # documented by `tinyfish auth`; it wins over ~/.tinyfish/config.json inside the CLI
 ENV_TETO = "SIMPLICIO_BUSCA_MAX_DIA"
-# The only variables the binary receives. The key is forwarded only when the owner exported it (the one way the CLI can use it);
-# everything else of the environment (other providers' keys, tokens, SIMPLICIO_*) stays behind.
-ENV_REPASSADO = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
-                 "ALL_PROXY", "all_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_USE_ENV_PROXY", ENV_CHAVE)
+# The only variables the binary receives: the core of terceiros.NUCLEO_ENV plus these. The key is forwarded only when the owner exported it
+# (the one way the CLI can use it); everything else of the environment (other providers' keys, tokens, SIMPLICIO_*) stays behind.
+ENV_EXTRA = ("TMPDIR", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+             "ALL_PROXY", "all_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_USE_ENV_PROXY", ENV_CHAVE)
+ENV_REPASSADO = (*terceiros.NUCLEO_ENV, *ENV_EXTRA)
 ENV_FORCADO = {"NO_COLOR": "1", "TINYFISH_NO_TELEMETRY": "1"}
 ENV_PROXY = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
 
@@ -596,12 +597,13 @@ def _instalar() -> list[str]:
 
 
 def _exige_rede() -> None:
-    if os.environ.get("SIMPLICIO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on"):
-        raise BuscaError("modo offline (SIMPLICIO_OFFLINE=1): não vou chamar o TinyFish. Só resultados que já estão no cache saem sem rede")
+    motivo = rede.motivo_offline("chamar o TinyFish. Só resultados que já estão no cache saem sem rede")
+    if motivo:
+        raise BuscaError(motivo)
 
 
 def _ambiente_filho() -> dict:
-    env = {k: os.environ[k] for k in ENV_REPASSADO if k in os.environ}
+    env = terceiros.env_para_terceiro(ENV_EXTRA, base=os.environ)  # base at the call: the default of the function is fixed at import
     env.update(ENV_FORCADO)
     return env
 
@@ -677,13 +679,18 @@ def _json_do_binario(dados: bytes):
     return doc
 
 
-def _versao_cli(exe: str) -> str | None:
+def versao_cli(exe: str) -> str | None:
+    """The version the `tinyfish` binary at `exe` reports, or None (it did not run, failed, or said nothing that looks like a version).
+    It runs with the closed environment of this module: no key of the shell reaches it."""
     try:
         rc, saida, _ = _rodar(exe, ["--version"], TIMEOUT_STATUS_S, MAX_SAIDA_STATUS_BYTES)
     except BuscaError:
         return None
     m = _VERSAO_RE.search(saida.decode("utf8", errors="replace"))
     return m.group(1) if rc == 0 and m else None
+
+
+_versao_cli = versao_cli  # the name this module had before it was public
 
 
 # ---------------------------------------------------------------------------------------------------------- spend counter
@@ -951,7 +958,7 @@ def consulta(texto, dominios=None, excluir=None, idioma=None, limite=LIMITE_PADR
         _exige_rede()
         exe = _achar_binario()
         _reservar(teto)
-        versao = _versao_cli(exe)
+        versao = versao_cli(exe)
         args = ["search", "query"]  # options first, then `--` and the text: the text can never be read as an option
         if inc:
             args += ["--include-domains", ",".join(inc)]
@@ -1004,7 +1011,7 @@ def pagina(url, max_bytes=MAX_BYTES_PADRAO, atualizar=False, max_chamadas_dia=No
         _confere_destino(url)  # antes de qualquer chamada ao binário: recusa sem enviar nem gastar
         exe = _achar_binario()
         _reservar(teto)
-        versao = _versao_cli(exe)
+        versao = versao_cli(exe)
         rc, saida, erro = _rodar(exe, ["fetch", "content", "get", "--format", "markdown", "--", url], TIMEOUT_PAGINA_S, MAX_SAIDA_PAGINA_BYTES)
         if rc != 0:
             raise _falha(rc, erro)
@@ -1097,7 +1104,7 @@ def status() -> dict:
     testada = tools.pinned_ref(t)
     avisos: list[str] = []
     exe = shutil.which(BINARIO)
-    versao = _versao_cli(exe) if exe else None
+    versao = versao_cli(exe) if exe else None
     binario = {"encontrado": exe is not None, "caminho": exe, "versao": versao, "versao_testada": testada,
                "versao_confere": (versao == testada) if versao else None}
     if exe and not versao:

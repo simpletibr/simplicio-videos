@@ -320,6 +320,17 @@ def test_so_o_busca_pede_a_chave_do_tinyfish_como_extra(monkeypatch):
     assert terceiros.NUCLEO_ENV == ("PATH", "HOME", "LANG", "LC_ALL")
 
 
+@pytest.mark.parametrize("modulo, lista", [("download", "ENV_REPASSADO"), ("busca", "ENV_REPASSADO"), ("status", "ENV_FERRAMENTA")])
+def test_a_constante_publica_de_cada_modulo_e_o_nucleo_mais_o_extra_dele(modulo, lista):
+    """The constants stay (the golden test and doctor_trilhas read them): the core first, then what the module has on top. download writes
+    the four core names itself (importing `terceiros` there would put one more module in the `--help` of the CLI), and this is what
+    keeps that copy from drifting."""
+    import importlib
+    from simplicio_video import terceiros
+    m = importlib.import_module(f"simplicio_video.{modulo}")
+    assert getattr(m, lista) == (*terceiros.NUCLEO_ENV, *m.ENV_EXTRA)
+
+
 @pytest.mark.parametrize("arquivo", ["download.py", "busca.py", "status.py"])
 def test_nenhuma_das_tres_monta_o_ambiente_do_filho_com_a_compreensao_de_cada_dia(arquivo):
     texto = (PKG / arquivo).read_text(encoding="utf-8")

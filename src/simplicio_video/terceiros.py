@@ -54,6 +54,6 @@ def real(caminho: str) -> Path | None:
 def commit_do_checkout(d: Path) -> str:
     from . import tools  # at call time: the leaf does not drag the registry of tools in at import
     try:
-        return tools._git("rev-parse", "HEAD", cwd=d)
+        return tools.git("rev-parse", "HEAD", cwd=d)
     except tools.ToolError:
         return ""
