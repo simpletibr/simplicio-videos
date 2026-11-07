@@ -172,13 +172,6 @@ def iter_files(node, prefix: tuple = ()) -> Iterator[tuple]:
             yield prefix + (child.name,), child
 
 
-def read_node(node) -> bytes:
-    """The bytes of a file of the package or of the host (a host file is opened O_NONBLOCK and checked with fstat)."""
-    if isinstance(node, Path):
-        return hostos.read_regular(node, MAX_FILE_BYTES)
-    return node.read_bytes()
-
-
 def atomic_write(path: Path, data: bytes) -> None:
     """Write `data` to `path` all or nothing: a temporary file in the same folder (with the mode the umask gives a normal file,
     not the 0600 of `tempfile`), flushed to disk, then `os.replace`. A failure leaves the old file and no temporary file."""

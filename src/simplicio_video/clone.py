@@ -17,9 +17,6 @@ class CloneError(Exception):
     pass
 
 
-HYPIT_REPO = "https://github.com/hypit-ai/hypit"
-
-
 def find_hypit_bin() -> list[str]:
     """A local `hypit` binary, else npx at the pinned version (tools.TOOLS['hypit'])."""
     try:

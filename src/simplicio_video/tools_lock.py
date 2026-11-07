@@ -37,7 +37,6 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 _OVERRIDE = re.compile(r"[\x21-\x7e]{1,200}")  # an override is a ref the user typed: printable, no spaces
 _BRANCH = re.compile(r"[A-Za-z0-9._/-]{1,100}")
 _NPM_PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._-]{0,213}/)?[a-z0-9][a-z0-9._-]{0,213}")  # the npm name of an npm track
-_KEYS = ("kind", "source", "mode", "ref", "branch", "sha256", "status", "error", "resolved_at", "failed_at")
 
 
 class LockInvalid(ValueError):

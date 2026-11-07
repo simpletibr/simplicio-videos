@@ -27,9 +27,6 @@ def voices() -> list[dict]:
     return [{"id": k, "desc": v} for k, v in DESCRICOES.items()]
 
 
-GRUPOS_ANGULOS = ("problema", "prova", "desejo", "decisao", "estrategia")
-
-
 def angles(data: Path, grupo: str | None = None) -> list[dict]:
     """Ângulos de anúncio (data/angles/angles.json): todos, ou só os de um grupo."""
     doc = json.loads((data / "angles" / "angles.json").read_text(encoding="utf8"))
