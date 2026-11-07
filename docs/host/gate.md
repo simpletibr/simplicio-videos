@@ -52,7 +52,7 @@ As trilhas estendem o gate sem editar o `Makefile`: criam `mk/<trilha>.mk` com `
 
 **Sem rede nos testes.** `addopts` liga `--disable-socket --allow-unix-socket` (pytest-socket): um teste que abre socket falha com `SocketBlockedError`. `render`, `integration` e `ui` são liberados em `tests/conftest.py` (o render chama `npx`). Três testes antigos sobem um servidor em `127.0.0.1`; eles só falam com o loopback (`LOOPBACK_TESTS` no `conftest.py`).
 
-**Testes que rodam subprocessos** (`run_cli`) não são cobertos pelo guarda em processo, então `conftest.offline_env()` injeta o mesmo guarda no Python filho (`sitecustomize`) e exporta `SIMPLICIO_OFFLINE=1`. O motor respeita a variável: `montage clone` se recusa a baixar o OpenMontage em modo offline.
+**Testes que rodam subprocessos** (`run_cli`) não são cobertos pelo guarda em processo, então `offline_env()` injeta o mesmo guarda no Python filho (`sitecustomize`) e exporta `SIMPLICIO_OFFLINE=1`. O dono de `offline_env()` e de `run_cli` é `tests/helpers/env.py`; `tests/conftest.py` reexporta os dois, então `conftest.offline_env()` continua importável. O motor respeita a variável: `montage clone` se recusa a baixar o OpenMontage em modo offline.
 
 **Testes herméticos.** Um fixture automático aponta `SIMPLICIO_VIDEO_DATA` para um diretório temporário, limpa `OPENMONTAGE_DIR`/`SIMPLICIO_TOOLS_DIR` e troca `tools._git` por uma função que falha: nenhum teste clona nada nem toca no `~/.simplicio-video`. O OpenMontage fica em `$SIMPLICIO_VIDEO_DATA/tools/openmontage` (padrão `~/.simplicio-video/tools/openmontage`).
 
