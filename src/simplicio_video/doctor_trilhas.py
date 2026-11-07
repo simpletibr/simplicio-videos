@@ -590,10 +590,13 @@ def _fix_de_seguir(t: tools.Tool, latest: str) -> Optional[str]:
 def _upstream(t: tools.Tool, ref: str, fonte: str, io) -> tuple[dict, list]:
     """The same resolution as `update --check` (tools_update.resolve), compared with the commit or version in use."""
     if tools_update.pin_only(t):
+        # a pin-only track with a checkout kept outside the tools cache (`checkout_env`: video-use) is pinned by its setup.sh; the other one
+        # (video_to_skill) pins a binary and its SKILL.md together
         return {"pin_only": True, "latest": None, "newer": None, "error": None}, [
-            _row("upstream", "ok", ("pin: o binário (sha256 por plataforma) e o SKILL.md são fixados juntos e o upstream não é seguido"
-                                    if t.name == "video_to_skill" else
-                                    "pin: o setup.sh fixa o commit (VU_REF) e o upstream não é seguido"), None, {"pin_only": True})]
+            _row("upstream", "ok", ("pin: o setup.sh fixa o commit (VU_REF) e o upstream não é seguido"
+                                    if t.checkout_env else
+                                    "pin: o binário (sha256 por plataforma) e o SKILL.md são fixados juntos e o upstream não é seguido"),
+                 None, {"pin_only": True})]
     if fonte == "override":
         return {"pin_only": False, "latest": None, "newer": None, "error": None}, [
             _row("upstream", "ok", f"fixada por {tools.override_var(t)}: o upstream não é seguido", None, {"override": True})]
