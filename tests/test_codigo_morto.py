@@ -26,7 +26,8 @@ never read.
 CHARACTERIZATION (green before and after): the public names answer what the aliases answered; nothing reads a dead name; the group
 choices of `list angles` are the groups of the data. STRUCTURE (red before): each name above has no definition in `src/`, the closed list of
 kinds has no item to read, the two functions take no `home`, and no test spells the list of kinds again (it is one golden, in
-tests/helpers/kinds.py). What stays, and why, is in the PR: a name a `monkeypatch.setattr` of a test still needs is not removed.
+tests/helpers/kinds.py). No name was kept because of a `monkeypatch.setattr` (none of them is patched by any test); `paths.jobs_root`,
+the alias `jobs` used to call, stays because `montage.py` and the V1 tests still use it.
 """
 from __future__ import annotations
 
@@ -211,7 +212,7 @@ def test_the_smoke_has_no_skip_for_a_track_with_no_mcp_call():
 
 SEM_LEITOR = [  # S1: nothing in src, tests, scripts, docs, data, plugin.json, pyproject or skills reads them
     ("installer", "read_node"),  # a helper nothing called
-    ("clone", "HYPIT_REPO"),  # a URL constant (the one the code uses is the registry's: tools.TOOLS["hypit"])
+    ("clone", "HYPIT_REPO"),  # a URL constant: the repository is named in text only (docstring, help, error); the engine runs tools.TOOLS["hypit"]
     ("tools_lock", "_KEYS"),  # a tuple of the keys of a lock entry that nothing iterated
     ("catalog", "GRUPOS_ANGULOS"),  # a dead copy of the literal `--grupo` choices of `list angles` in cli.py
 ]
@@ -284,8 +285,12 @@ def _arvores_do_repo() -> tuple[tuple[str, ast.AST], ...]:
     achados = []
     for pasta in (SRC, ROOT / "tests", ROOT / "scripts"):
         for arquivo in sorted(pasta.rglob("*.py")):
-            if arquivo.resolve() != Path(__file__).resolve():
+            if arquivo.resolve() == Path(__file__).resolve():
+                continue
+            try:
                 achados.append((arquivo.relative_to(ROOT).as_posix(), ast.parse(arquivo.read_text(encoding="utf-8", errors="replace"))))
+            except SyntaxError:  # a deliberately broken fixture is not code that reads a name
+                continue
     return tuple(achados)
 
 
