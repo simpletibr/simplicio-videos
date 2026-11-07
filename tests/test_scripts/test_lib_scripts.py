@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 import pytest
-from helpers import ROOT, SCRIPTS
+from helpers import ROOT, SCRIPTS, espera
 
 CINCO = ("smoke_so", "smoke_trilhas", "e2e_real", "check_tdd", "check_ownership")
 
@@ -147,6 +147,15 @@ MATAR = [("smoke_trilhas", "_matar_arvore"), ("e2e_real", "_matar_grupo")]
 posix = pytest.mark.skipif(os.name != "posix" or not Path("/proc/self/stat").exists(), reason="process groups and /proc")
 
 
+def _pid_de(pidfile: Path) -> int | None:
+    """The pid written in `pidfile`, or None while the file is missing or still empty: `write_text` creates the file before it writes
+    the number, so under load the file can exist and be empty for a moment (`exists()` is not "has the pid")."""
+    try:
+        return int(pidfile.read_text())
+    except (OSError, ValueError):
+        return None
+
+
 @posix
 @pytest.mark.parametrize("nome,funcao", MATAR)
 def test_the_kill_takes_the_whole_group_down(mods, tmp_path, nome, funcao):
@@ -157,10 +166,8 @@ def test_the_kill_takes_the_whole_group_down(mods, tmp_path, nome, funcao):
               "time.sleep(60)\n")
     proc = subprocess.Popen([sys.executable, "-c", codigo], start_new_session=True)
     try:
-        fim = time.monotonic() + 10
-        while not pidfile.exists() and time.monotonic() < fim:
-            time.sleep(0.02)
-        neto = int(pidfile.read_text())
+        assert espera(lambda: _pid_de(pidfile) is not None, 10), "the grandchild never wrote its pid"
+        neto = _pid_de(pidfile)
         assert getattr(mods[nome], funcao)(proc) is None
         assert proc.wait(timeout=10) == -signal.SIGKILL
         fim = time.monotonic() + 10
