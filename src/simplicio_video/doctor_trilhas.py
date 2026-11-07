@@ -464,7 +464,7 @@ def _npm(t: tools.Tool, ref: str, fonte: str) -> tuple[bool, Optional[str], list
     clone = _clone_de(t, ref)
     exe = _ache(t.name)
     if exe is None:
-        if t.name in tools.NPX_TRACKS and _npx_pronto():
+        if t.npx and _npx_pronto():
             return True, None, [_row("instalada", "ok", "instalada via npx no pin em uso (sem binário no PATH)", None,
                                      {"source": "npx"})]
         return False, None, [_row("instalada", "warn", "não instalada", clone)]
@@ -537,7 +537,7 @@ def _deps(t: tools.Tool) -> list:
     if t.kind == "git":
         rows.append(_dep_row("git", _ache("git") is not None, True, "instale o git (https://git-scm.com/downloads)", ""))
     itens = [tools.parse_dep(spec) for spec in t.deps]
-    if t.name in tools.NPX_TRACKS and _ache(t.name) is None:  # without a binary, npx runs the pinned package
+    if t.npx and _ache(t.name) is None:  # without a binary, npx runs the pinned package
         itens.append(("npx", True, None))
     for nome, obrigatoria, minimo in itens:
         if nome not in DEP_NOMES:
