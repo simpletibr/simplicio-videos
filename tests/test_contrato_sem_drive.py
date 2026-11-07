@@ -10,7 +10,7 @@ import json
 import pytest
 import yaml
 
-from helpers import have_render_tools, LOTHUS, needs_client, run_cli
+from helpers import edit_yaml as _edit, fake_mp4, have_render_tools, LOTHUS, needs_client, run_cli
 from simplicio_video import contract as ct
 from simplicio_video import publish as pub
 from simplicio_video import render, voice
@@ -19,17 +19,8 @@ DESTINO = {"caminho": "simplicio-video/clientes/Teste_Mini/2026/Teste_Hash", "ar
 DRIVE_BLOCK = {"caminho": "simplicio-video/clientes/Teste_Mini/2026/Teste_Hash", "arquivo": "Teste - mini - v01.mp4"}
 
 
-def _edit(path, fn):
-    d = yaml.safe_load(path.read_text())
-    fn(d)
-    path.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False))
-
-
 def _mp4(mini):
-    p = mini.parent / "out" / "mini.mp4"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_bytes(b"fake-mp4-bytes")
-    return p
+    return fake_mp4(mini, b"fake-mp4-bytes")
 
 
 # (a) contract without drive validates

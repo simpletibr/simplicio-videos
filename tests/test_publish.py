@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from helpers import ROOT
+from helpers import fake_mp4, ROOT
 from simplicio_video import contract as ct
 from simplicio_video import publish as pub
 
@@ -28,10 +28,7 @@ def _cp(rc=0, out="", err=""):
 
 @pytest.fixture
 def mp4(mini):
-    p = mini.parent / "out" / "mini.mp4"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_bytes(b"fake-mp4-bytes")
-    return p
+    return fake_mp4(mini, b"fake-mp4-bytes")
 
 
 class Drive:

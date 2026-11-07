@@ -8,8 +8,8 @@ import yaml
 def edit_yaml(path, fn, *, encoding=None) -> None:
     """Load the YAML at `path`, let `fn` change the document in place, write it back (keys keep their order, accents stay).
 
-    `encoding=None` is the platform default (what `Path.read_text()` did in the copies that never named one); the openverse
-    tests pass "utf8"."""
+    `encoding=None` is the platform default (what `Path.read_text()` did in the copies that never named one); the openverse and
+    saida_json tests pass "utf8"."""
     p = Path(path)
     d = yaml.safe_load(p.read_text(encoding=encoding))
     fn(d)

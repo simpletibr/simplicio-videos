@@ -2,14 +2,8 @@ import json
 
 import yaml
 
-from helpers import contract_with_coleta_placeholders, LOTHUS, needs_client, WJR
+from helpers import contract_with_coleta_placeholders, edit_yaml as _edit, LOTHUS, needs_client, WJR
 from simplicio_video import contract as ct
-
-
-def _edit(path, fn):
-    d = yaml.safe_load(path.read_text())
-    fn(d)
-    path.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False))
 
 
 @needs_client(WJR, LOTHUS)

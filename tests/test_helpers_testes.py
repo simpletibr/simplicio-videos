@@ -605,3 +605,17 @@ def test_no_test_module_defines_its_own_ffmpeg_marker_or_ffmpeg_skip():
                 if isinstance(n.body[0], ast.If) and ast.unparse(n.body[0].test) == cond:
                     achados.append(f"{rel}:{n.lineno}: def {n.name}() repeats the ffmpeg/ffprobe check")
     assert achados == [], "use needs_ffmpeg / ffmpeg_ou_pula(motivo) from helpers:\n" + "\n".join(achados)
+
+
+def test_no_test_module_has_its_own_yaml_editor_or_fake_mp4_writer():
+    import ast
+    achados = []
+    for rel, tree in _modulos():
+        for n in tree.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("test_"):
+                corpo = ast.unparse(n)
+                if "fn(d)" in corpo and "yaml.safe_dump(d, allow_unicode=True, sort_keys=False)" in corpo:
+                    achados.append(f"{rel}:{n.lineno}: def {n.name}() loads, edits and dumps a YAML (helpers.edit_yaml)")
+                if "'out' / 'mini.mp4'" in corpo or '"out" / "mini.mp4"' in corpo:
+                    achados.append(f"{rel}:{n.lineno}: def {n.name}() writes out/mini.mp4 (helpers.fake_mp4)")
+    assert achados == [], "\n".join(achados)

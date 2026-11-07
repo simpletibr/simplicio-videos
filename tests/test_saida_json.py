@@ -8,10 +8,9 @@ import json
 import sys
 
 import pytest
-import yaml
 from jsonschema import Draft202012Validator
 
-from helpers import ROOT
+from helpers import edit_yaml, ROOT
 from simplicio_video import despacho, pipeline, render
 from simplicio_video.cli import main
 
@@ -44,9 +43,7 @@ def _run(argv, capsys):
 
 
 def _edita(path, fn):
-    d = yaml.safe_load(path.read_text(encoding="utf8"))
-    fn(d)
-    path.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False), encoding="utf8")
+    edit_yaml(path, fn, encoding="utf8")
 
 
 def _contrato_invalido(path):
