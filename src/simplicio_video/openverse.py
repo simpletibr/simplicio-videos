@@ -50,9 +50,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode, urljoin, urlparse
 
-from . import __version__, hostos, paths
+from . import __version__, hostos, paths, rede
 from .fsutil import sha256_file
-from .swap_providers import http as _api_http
 
 __all__ = ["OpenverseError", "search", "get", "library_list", "library_show", "review_sheet", "review", "review_status", "export",
            "credits", "export_name", "text_score", "normalize_pedido", "parse_licenses", "status_summary", "run_openverse", "untrusted",
@@ -436,9 +435,9 @@ def _call(method: str, url: str, headers: dict | None = None, form: dict | None 
     kw = {"timeout": HTTP_TIMEOUT, "follow_redirects": False, "max_bytes": API_MAX_BYTES}  # urllib would forward the bearer token on a redirect
     try:
         if form is not None:
-            return _api_http.request(method, url, headers=base, form=form, **kw)
-        return _api_http.request(method, url, headers=base, **kw)
-    except _api_http.NetworkError as e:
+            return rede.request(method, url, headers=base, form=form, **kw)
+        return rede.request(method, url, headers=base, **kw)
+    except rede.NetworkError as e:
         raise OpenverseError(f"sem rede para falar com o Openverse ({e}). Repita quando houver rede, "
                              "ou repita uma busca que já esteja no cache") from None
 
@@ -773,7 +772,7 @@ class _PinnedHTTPS(http.client.HTTPSConnection):
 
 
 def _real_http_get(url: str, ip: str, timeout: float = HTTP_TIMEOUT):
-    if os.environ.get("SIMPLICIO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on"):
+    if rede.offline():
         raise OpenverseError("SIMPLICIO_OFFLINE=1: rede bloqueada")
     u = urlparse(url)
     conn = _PinnedHTTPS(u.hostname, ip, port=443, timeout=timeout, context=ssl.create_default_context())
