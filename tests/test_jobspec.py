@@ -357,6 +357,24 @@ def test_so_video_to_skill_separa_o_texto_de_terceiros(mundo, kind):
     assert "untrusted_erro" not in jobs.summary(st) and "aviso" not in jobs.result(jid)
 
 
+def test_o_untrusted_erro_e_a_cauda_de_600_caracteres_ou_o_codigo_de_saida(mundo):
+    """What reaches the third-party field is the scrubbed tail cut to its last 600 characters, or the exit code when it printed nothing."""
+    jid, _ = _video_to_skill(mundo, 1)
+    assert _roda(mundo, jid, "exit 3\n")["untrusted_erro"] == "a tarefa terminou com código 3"
+    jid, _ = _video_to_skill(mundo, 2)
+    st = _roda(mundo, jid, "head -c 700 /dev/zero | tr '\\0' 'x'; echo; exit 3\n")
+    assert st["untrusted_erro"] == "x" * 600
+
+
+def test_o_resultado_do_montage_fica_na_pasta_ao_lado_das_tarefas_e_o_gate_vem_da_origem(mundo):
+    jid, _ = _montage(mundo, 1)
+    p = jobs.read_state(jid)["params"]
+    esperado = str(jobs.jobs_dir() / ".resultados" / f"{p['rid']}.json")
+    mcp, terminal = jobs.build_argv("montage-tool", p, "mcp"), jobs.build_argv("montage-tool", p, "terminal")
+    assert mcp[mcp.index("--resultado-em") + 1] == terminal[terminal.index("--resultado-em") + 1] == esperado
+    assert mcp[-1] == "--sob-mcp" and "--sob-mcp" not in terminal
+
+
 def test_a_chave_de_api_nunca_chega_ao_estado_nem_no_texto_de_terceiros(mundo):
     mundo.mp.setenv("ELEVENLABS_API_KEY", "chave-secreta-da-eleven-123456")
     jid, _ = _video_to_skill(mundo, 1)
