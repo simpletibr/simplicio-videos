@@ -235,21 +235,46 @@ def checkout_dir(t: Tool) -> Path:
 
 
 def _git(*args: str, cwd: Path | None = None, timeout: float | None = None) -> str:
-    """One git command. With `timeout` (seconds) a git that hangs is a ToolError and its whole process tree is killed; without it
-    the command runs as long as it takes (a clone)."""
-    git = shutil.which("git")
-    if not git:
+    """The implementation of `git`, and the name the tests replace (tests/conftest.py makes it refuse a real git in every unit test)."""
+    exe = shutil.which("git")
+    if not exe:
         raise ToolError("git não encontrado no PATH")
     if timeout is None:
-        r = subprocess.run([git, *args], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        r = subprocess.run([exe, *args], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     else:
         try:
-            r = hostos.run_limitado([git, *args], cwd=cwd, timeout=timeout)
+            r = hostos.run_limitado([exe, *args], cwd=cwd, timeout=timeout)
         except subprocess.TimeoutExpired:
             raise GitTimeout(f"git {' '.join(args[:2])}: tempo esgotado ({timeout:g} s)") from None
     if r.returncode:
         raise ToolError(f"git {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
     return r.stdout.strip()
+
+
+def git(*args: str, cwd: Path | None = None, timeout: float | None = None) -> str:
+    """One git command (the public name: other modules call this, not `_git`). With `timeout` (seconds) a git that hangs is a
+    GitTimeout and its whole process tree is killed; without it the command runs as long as it takes (a clone). A failing git is a
+    ToolError.
+
+    It goes through the module-level `_git` at call time, so a test that replaces `tools._git` also covers every caller of this one;
+    only the options the caller gave are passed on, so a fake with a narrower signature keeps working."""
+    options: dict = {}
+    if cwd is not None:
+        options["cwd"] = cwd
+    if timeout is not None:
+        options["timeout"] = timeout
+    return _git(*args, **options)
+
+
+def git_head(d: Path) -> str | None:
+    """The commit that is really in the checkout `d` (the pin is only what it should be), or None: no `.git` there (git would answer
+    with the parent repository: not this checkout) or a git that fails."""
+    if not (d / ".git").exists():
+        return None
+    try:
+        return git("rev-parse", "HEAD", cwd=d)
+    except ToolError:
+        return None
 
 
 def find(name: str) -> Path | None:
@@ -361,18 +386,24 @@ def _ref_de_instalacao(t: Tool) -> str:
     return ref
 
 
-def install(name: str) -> str:
+def install(name: str, *, dir: Path | None = None) -> str:
     """Install a tool at its pinned version. Git tools are cloned and checked out at the pinned commit; npm tools are
     fetched into the npx cache; pip tools get a venv with the pinned wheel. Returns where it lives. Without a usable home
-    there is nowhere to put a checkout: a refusal (ToolError), before any folder is made."""
+    there is nowhere to put a checkout: a refusal (ToolError), before any folder is made.
+
+    `dir` (git tools only) is where the checkout goes, `~` expanded like the variables are: the location then comes from it alone,
+    and `{NAME}_DIR`, `SIMPLICIO_{NAME}_DIR`, `SIMPLICIO_TOOLS_DIR` (and video-use's VIDEO_USE_DIR) are neither read nor written.
+    The pin override (SIMPLICIO_{NAME}_REF) still applies. Without `dir`, the location is `checkout_dir`, as it always was."""
     try:
-        return _install(name)
+        return _install(name, dir)
     except hostos.SemCasa as exc:
         raise ToolError(str(exc)) from None
 
 
-def _install(name: str) -> str:
+def _install(name: str, dir: Path | None = None) -> str:
     t = get(name)
+    if dir is not None and t.kind != "git":
+        raise ToolError(f"{t.name}: `dir` só vale para trilhas git (uma trilha {t.kind} não tem checkout para pôr ali)")
     if t.kind == "pip":
         return _install_pip(t)
     ref = _ref_de_instalacao(t)
@@ -384,10 +415,10 @@ def _install(name: str) -> str:
         if r.returncode:
             raise ToolError(f"{t.source}@{ref}: {r.stderr.strip()[-300:]}")
         return f"npx {t.source}@{ref}"
-    d = checkout_dir(t)
+    d = Path(dir).expanduser() if dir is not None else checkout_dir(t)
     if not (d / ".git").is_dir():
         d.parent.mkdir(parents=True, exist_ok=True)
-        _git("clone", "--filter=blob:none", t.source, str(d))
+        _git("clone", "--filter=blob:none", "--", t.source, str(d))  # `--`: a relative folder that starts with `-` is not an option
     _git("fetch", "--quiet", "origin", ref, cwd=d)
     _git("checkout", "--quiet", "--detach", ref, cwd=d)
     return str(d)
