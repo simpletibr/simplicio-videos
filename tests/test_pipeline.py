@@ -1,5 +1,5 @@
 """`run` = voice -> validate --need-lock -> render, e para no MP4 (render mocked; o upload não é do motor)."""
-from simplicio_video import cli, pipeline
+from simplicio_video import despacho, pipeline
 
 
 def test_run_all_chains_steps_and_stops_at_render(mini, monkeypatch):
@@ -12,7 +12,7 @@ def test_run_all_chains_steps_and_stops_at_render(mini, monkeypatch):
         mp4.write_bytes(b"mp4")
         return {"backend": backend, "output": {"path": "out/mini.mp4"}, "loudness": {"integrated_lufs": -14.0}}
 
-    monkeypatch.setattr(cli, "do_render", fake_render)
+    monkeypatch.setattr(despacho, "do_render", fake_render)
     logs = []
     res = pipeline.run_all(mini, backend="kaggle", log=lambda *m: logs.append(" ".join(map(str, m))))
     assert seen["backend"] == "kaggle"

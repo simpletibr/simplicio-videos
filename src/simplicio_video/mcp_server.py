@@ -206,7 +206,7 @@ DESC_video_render = "Render the contract: backend local | kaggle (GPU T4) | cola
 def video_render(contrato: str, backend: str = "local", accelerator: str | None = None, quality: str | None = None,
                  out: str | None = None, timeout: int = 3600) -> dict:
     from . import contract as ct
-    from .cli import do_render
+    from .despacho import do_render
 
     def _do(log):
         r = do_render(ct.load(contrato), backend, out=Path(out) if out else None, quality=quality, accelerator=accelerator,

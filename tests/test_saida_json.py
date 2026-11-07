@@ -12,8 +12,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from conftest import ROOT
-from simplicio_video import cli as cli_mod
-from simplicio_video import pipeline, render
+from simplicio_video import despacho, pipeline, render
 from simplicio_video.cli import main
 
 SCHEMAS = ROOT / "src" / "simplicio_video" / "data" / "schemas" / "cli"
@@ -266,7 +265,7 @@ def test_render_json_valido_segue_o_schema(mini, monkeypatch, capsys):
     def render_falso(c, backend, **kw):  # mesmo retorno de render_local: o manifesto gravado
         return _manifesto_minimo()
 
-    monkeypatch.setattr(cli_mod, "do_render", render_falso)
+    monkeypatch.setattr(despacho, "do_render", render_falso)
     rc, out, _ = _run(["render", "--json", str(mini)], capsys)
     assert rc == 0
     dados = json.loads(out)
@@ -291,7 +290,7 @@ def test_render_json_falha_de_render_tem_error_code(exc, codigo, mini, monkeypat
     def falha(*a, **k):
         raise exc
 
-    monkeypatch.setattr(cli_mod, "do_render", falha)
+    monkeypatch.setattr(despacho, "do_render", falha)
     rc, out, _ = _run(["render", "--json", str(mini)], capsys)
     assert rc == 1
     dados = json.loads(out)

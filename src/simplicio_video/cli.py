@@ -93,10 +93,15 @@ Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video va
 Skill para LLMs: skills/simplicio-video/SKILL.md"""
 
 
-def __getattr__(nome: str) -> str:
-    """`cli.MAIN_DESC` (a text that some tests and `docs` read) is made on first use, not when the module is imported."""
+def __getattr__(nome: str):
+    """`cli.MAIN_DESC` (a text that some tests and `docs` read) is made on first use, not when the module is imported.
+    `cli.do_render` is `despacho.do_render` (the dispatch of a render moved there, so the domain does not import the CLI to render),
+    re-exported on first use: a top-level import would load one more module in every `--help`."""
     if nome == "MAIN_DESC":
         return _main_desc()
+    if nome == "do_render":
+        from .despacho import do_render
+        return do_render
     raise AttributeError(f"module {__name__!r} has no attribute {nome!r}")
 
 MAIN_EPILOG = f"""\
@@ -123,22 +128,6 @@ custo por vídeo (medido e oficial): {paths.doc_url('docs/custos.md')} · creden
 
 
 BACKENDS = ["local", "kaggle", "colab-cli", "colab"]
-
-
-def do_render(c, backend: str, out=None, quality=None, workdir=None, gpu=False, accelerator=None, timeout=3600,
-              gpu_encode="auto", log=print) -> dict:
-    """Dispatch one render to a backend (shared by render, run and the MCP server)."""
-    from . import remote, render
-    acc = None if (accelerator or "").lower() in ("none", "cpu") else accelerator
-    if backend == "colab":
-        return render.render_colab(c, out=out, quality=quality, gpu_encode=gpu_encode, log=log)
-    if backend == "kaggle":
-        return remote.render_kaggle(c, out=out, quality=quality, timeout_s=timeout, gpu_encode=gpu_encode, log=log,
-                                    accelerator="NvidiaTeslaT4" if accelerator is None else acc)
-    if backend == "colab-cli":
-        return remote.render_colab_cli(c, out=out, quality=quality, timeout_s=timeout, gpu_encode=gpu_encode, log=log,
-                                       gpu="T4" if accelerator is None else acc)
-    return render.render_local(c, out=out, quality=quality, workdir=workdir, gpu=gpu, log=log)
 
 
 class Fmt(argparse.RawDescriptionHelpFormatter):
@@ -663,7 +652,7 @@ def _run_json(a) -> int:
 
 
 def _render_json(a) -> int:
-    from . import contract as ct, render
+    from . import contract as ct, despacho, render
     try:
         c = ct.load(a.contrato)
         if a.preview:
@@ -673,12 +662,9 @@ def _render_json(a) -> int:
             man = render.render_preview(c, out=a.out, workdir=a.workdir, log=_stderr)
             saida, manifesto = c.dir / man["preview"]["path"], c.dir / "preview.manifest.json"
         else:
-            r = do_render(c, a.backend, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu, accelerator=a.accelerator,
-                          timeout=a.timeout, gpu_encode=a.gpu_encode, log=_stderr)
-            if isinstance(r.get("output"), dict):  # local e remotos: MP4 + render.manifest.json ao lado do contrato
-                saida, manifesto = c.dir / r["output"]["path"], c.dir / "render.manifest.json"
-            else:  # colab: só o bundle .zip, sem manifesto
-                saida, manifesto = r.get("bundle"), None
+            r = despacho.do_render(c, a.backend, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu,
+                                   accelerator=a.accelerator, timeout=a.timeout, gpu_encode=a.gpu_encode, log=_stderr)
+            saida, manifesto = despacho.saida_do_render(c, r)  # local e remotos: MP4 + render.manifest.json; colab: só o bundle .zip
     except (SystemExit, FileNotFoundError) as e:
         _emite({"ok": False, "contrato": a.contrato, "backend": a.backend, "preview": a.preview,
                 "error": _erro(e, CODIGO_PADRAO["render"])})
@@ -1065,15 +1051,15 @@ def _main(argv: list[str] | None = None) -> int:
         voice.run(c, provider=a.provider, force=a.force, only=a.only, concurrency=a.concurrency)
         return 0
     if a.cmd == "render":
-        from . import render
+        from . import despacho, render
         if a.preview:
             if a.backend != "local":
                 print("render --preview: só no backend local", file=sys.stderr)
                 return 2
             render.render_preview(c, out=a.out, workdir=a.workdir)
             return 0
-        do_render(c, a.backend, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu, accelerator=a.accelerator,
-                  timeout=a.timeout, gpu_encode=a.gpu_encode)
+        despacho.do_render(c, a.backend, out=a.out, quality=a.quality, workdir=a.workdir, gpu=a.gpu, accelerator=a.accelerator,
+                           timeout=a.timeout, gpu_encode=a.gpu_encode)
         return 0
     return 2
 
