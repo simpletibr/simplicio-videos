@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Confere que uma branch só altera os paths que a issue possui (docs/factory/ownership.yaml).
+"""Confere que uma branch só altera os paths que a issue possui (scripts/ownership.yaml).
 
 Compara os arquivos alterados desde o merge-base com --base (commits, alterações não commitadas e
 arquivos novos fora do .gitignore) com `owns` da issue mais a lista global `generated`.
@@ -9,7 +9,10 @@ Sintaxe das entradas de `owns`:
   path#secao,...  arquivo compartilhado: a issue só pode mexer nas seções listadas. O script libera o
                   arquivo e avisa; o revisor confere a seção.
 Uma issue com `status: backlog` ainda não pode começar. O arquivo ownership.yaml em si só pode mudar
-na entrada da própria issue.
+na entrada da própria issue (`issues` e `backlog`).
+O bloco `backlog` guarda, por issue, os padrões que ainda não casam nenhum arquivo (trabalho que não
+começou): não vale como posse. A issue que começa move o que cria do `backlog` para o `owns` dela, no
+mesmo PR, na própria entrada.
 
 Saída: 0 = tudo dentro do escopo, 1 = arquivo fora do escopo, 2 = erro de uso (issue inexistente ou
 em backlog, base desconhecida, ownership.yaml ilegível).
@@ -23,7 +26,7 @@ import sys
 
 import yaml
 
-OWNERSHIP_REL = "docs/factory/ownership.yaml"
+OWNERSHIP_REL = "scripts/ownership.yaml"
 
 EPILOG = """\
 Exemplos:
@@ -94,8 +97,11 @@ def load_ownership(text: str, where: str) -> dict:
 
 
 def without_issue(doc: dict, issue: int) -> dict:
-    copy = {k: v for k, v in doc.items() if k != "issues"}
+    """The map without the entry of `issue`, in `issues` and in `backlog`: what is left is what that issue may not touch."""
+    copy = {k: v for k, v in doc.items() if k not in ("issues", "backlog")}
     copy["issues"] = {k: v for k, v in doc["issues"].items() if k != issue}
+    if isinstance(doc.get("backlog"), dict):
+        copy["backlog"] = {k: v for k, v in doc["backlog"].items() if k != issue}
     return copy
 
 
@@ -123,12 +129,19 @@ def run(issue: int, base: str) -> int:
         raise UsageError(f"a issue #{issue} não tem entrada em {OWNERSHIP_REL}")
     if entry.get("status") == "backlog":
         raise UsageError(f"a issue #{issue} está em backlog: elabore (owns e critérios) e vire para `status: ready` antes de começar")
+    backlog = (doc.get("backlog") or {}).get(issue) or []
     owns = entry.get("owns")
     if not owns:
+        if backlog:
+            raise UsageError(
+                f"a issue #{issue} só tem padrões em `backlog` ({len(backlog)}, nenhum casa arquivo hoje): mova para `owns` o que o PR cria, "
+                f"na entrada dela em {OWNERSHIP_REL}"
+            )
         raise UsageError(f"a issue #{issue} não lista `owns` em {OWNERSHIP_REL}")
 
     owned = [split_owns(e) for e in owns]
     generated = [glob_to_regex(g) for g in doc.get("generated") or []]
+    waiting = [(e, split_owns(e)[0]) for e in backlog]
     mb = merge_base(base)
     files = changed_files(mb)
 
@@ -149,6 +162,9 @@ def run(issue: int, base: str) -> int:
     if offenders:
         for path in offenders:
             print(f"FALHA: {path} não pertence à issue #{issue}")
+            for entry_text, rx in waiting:
+                if rx.match(path):
+                    print(f"  o padrão `{entry_text}` está no `backlog` da issue: mova-o para `owns` em {OWNERSHIP_REL}")
         print(f"{len(offenders)} arquivo(s) fora do escopo. Comente na issue dona do arquivo ou abra um PR pequeno de ajuste.")
         return 1
     print(f"ok: {len(files)} arquivo(s) alterado(s) em relação a {base}, todos dentro do escopo da issue #{issue}")
@@ -164,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         epilog=EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("issue", type=int, help="número da issue (chave em docs/factory/ownership.yaml)")
+    ap.add_argument("issue", type=int, help="número da issue (chave em scripts/ownership.yaml)")
     ap.add_argument("--base", default="origin/main", help="ref de comparação (padrão: origin/main)")
     args = ap.parse_args(argv)
     try:

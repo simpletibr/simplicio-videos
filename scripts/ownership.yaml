@@ -4,17 +4,20 @@
 # pyproject.toml, a function of app.py, a heading of a doc); the checker allows the file and the
 # reviewer verifies the section. An issue with `status: backlog` has no owned paths yet and cannot be
 # started: elaborate it first (owned paths, acceptance criteria) and flip it to `status: ready`.
+# Every pattern of `owns` matches a file (tests/test_scripts/test_ownership_yaml.py). What does not match yet lives in the
+# `backlog` block at the end, per issue, and is not enforced: the issue that starts moves what it creates into its own `owns`.
 # MCP registration sections (no shared TOOLS/KINDS block to edit): a track owns `src/simplicio_video/mcp_server.py#video_<track>`
 # (its tool function plus its `DESC_video_<track>` constant; the one-line TOOLS row is the only shared edit) and
 # `src/simplicio_video/jobs.py#<kind>` (its prepare/argv/result functions plus its `_register("<kind>", ...)` call).
 schema: simplicio.ownership/v1
 
-generated:         # never hand-edited; regenerate with `make regen`
-  - "plugin.json"
-  - "schemas/factory/*.json"
+# Whole files that `make regen` writes (gen_reference.py, licenses.py --write, sync_skills.py); never hand-edited. The blocks that
+# regen writes INSIDE a hand-edited file (README.md, AGENTS.md, docs/host/README.md, plugin.json, the .gitignore block) are not
+# listed: whoever owns the file owns the rest of it.
+generated:
   - "docs/reference/**"
-  - "web/shared/src/generated/**"
-  - "web/package-lock.json"
+  - "docs/licenses.md"
+  - "skills/**"
 
 issues:
   # ------------------------------------------------------------------ M0a foundation
@@ -45,228 +48,86 @@ issues:
     milestone: M0
     adr: 6
     owns:
-      - "src/simplicio_video/registry.py"
-      - "src/simplicio_video/manifest.py"
       - "src/simplicio_video/cli.py"
       - "src/simplicio_video/mcp_server.py"
-      - "src/simplicio_video/plugins/**"
       - "src/simplicio_video/commands/__init__.py"
-      - "src/simplicio_video/commands/init.py"
-      - "src/simplicio_video/commands/validate.py"
-      - "src/simplicio_video/commands/voice.py"
-      - "src/simplicio_video/commands/render.py"
-      - "src/simplicio_video/commands/publish.py"
-      - "src/simplicio_video/commands/run.py"
-      - "src/simplicio_video/commands/venda.py"
-      - "src/simplicio_video/commands/prospect.py"
-      - "src/simplicio_video/commands/ugc.py"
-      - "src/simplicio_video/commands/clone.py"
-      - "src/simplicio_video/commands/montage.py"
-      - "src/simplicio_video/commands/edit.py"
-      - "src/simplicio_video/commands/opencut.py"
-      - "src/simplicio_video/commands/realoficial.py"
-      - "src/simplicio_video/commands/list.py"
-      - "src/simplicio_video/commands/mcp.py"
-      - "src/simplicio_video/commands/plugin.py"
-      - "schemas/plugin.manifest.schema.json"
-      - "src/simplicio_factory/plugins/studio/plugin.json"  # manifesto do studio (id, kind, version, comandos make/draft) para o registro ter um plugin real; a #16 é dona de plugins/studio/** e deve manter o arquivo. Sobreposição declarada.
-      - "scripts/gen_manifest.py"
-      - "mk/manifest.mk"
       - "tests/test_help.py"
       - "tests/test_mcp_server.py"
-      - "tests/test_registry.py"
-      - "tests/test_plugin_host/**"
-      - "tests/golden/help/**"
-      - "docs/host/plugin-host.md"
-      - "docs/decisoes/ADR-0006-*.md"
   33:
     track: kernel
     milestone: M0
     adr: 7
     owns:
-      - "src/simplicio_factory/__init__.py"
-      - "src/simplicio_factory/app.py"
-      - "src/simplicio_factory/**/__init__.py"
-      - "src/simplicio_factory/contracts/**"
-      - "src/simplicio_factory/testkit/**"
-      - "schemas/factory/**"
-      - "tests/factory/conftest.py"
-      - "tests/factory/contracts/**"
-      - "tests/factory/fixtures/**"
-      - "tests/factory/_fixtures.py"   # helpers explícitos da #33 (importados pelos testes); sem conftest.py em tests/factory/ (conflito de nome, #43)
-      - "tests/factory/test_architecture.py"
-      - "mk/kernel.mk"
       - "docs/factory/contracts.md"   # o spec manda o PR do kernel atualizar este arquivo (transition, Store, nomes)
       - ".gitignore"   # linha .simplicio-factory/ (estado local do JsonStore)
-      - "docs/host/kernel.md"
-      - "docs/decisoes/ADR-0007-*.md"
       - "pyproject.toml#extras.*"
   34:
     track: web-scaffold
     milestone: M0
     adr: 8
-    owns:
-      - "web/package.json"
-      - "web/tsconfig.base.json"
-      - "web/eslint.config.*"
-      - "web/vitest.workspace.*"
-      - "web/playwright.config.*"
-      - "web/shared/**"
-      - "web/app/package.json"
-      - "web/scene/package.json"
-      - "web/i18n/package.json"
-      - "mk/web.mk"
-      - "docs/host/web-scaffold.md"
-      - "docs/decisoes/ADR-0008-*.md"
   47:
     track: skeleton-loop
     milestone: M0
-    owns:
-      - "src/simplicio_factory/runner/**"
-      - "src/simplicio_factory/plugins/loop/**"
-      - "tests/e2e/**"
-      - "mk/e2e.mk"
-      - "docs/host/skeleton-loop.md"
-      - "docs/tutorials/demo.md"
   # ------------------------------------------------------------------ M1 MVP: host services
   35:
     track: store
     milestone: M1
     adr: 9
-    owns:
-      - "src/simplicio_factory/workspace/**"
-      - "src/simplicio_factory/store/**"
-      - "src/simplicio_factory/plugins/workspace/**"
-      - "tests/factory/workspace/**"
-      - "tests/factory/store/**"
-      - "docs/host/store.md"
-      - "docs/decisoes/ADR-0009-*.md"
   36:
     track: policy
     milestone: M1
     adr: 10
-    owns:
-      - "src/simplicio_factory/policy/**"
-      - "src/simplicio_factory/plugins/policy/**"
-      - "tests/factory/policy/**"
-      - "docs/host/policy.md"
-      - "docs/decisoes/ADR-0010-*.md"
   37:
     track: security
     milestone: M1
     adr: 11
-    owns:
-      - "src/simplicio_factory/security/**"
-      - "tests/factory/security/**"
-      - "docs/host/security.md"
-      - "docs/decisoes/ADR-0011-*.md"
   # ------------------------------------------------------------------ M1 MVP: plugins
   15:
     track: brand
     milestone: M1
-    owns:
-      - "src/simplicio_factory/plugins/brand/**"
-      - "tests/factory/plugins/brand/**"
-      - "docs/plugins/brand.md"
   52:
     track: ideas
     milestone: M1
-    owns:
-      - "src/simplicio_factory/plugins/ideas/**"
-      - "tests/factory/plugins/ideas/**"
-      - "docs/plugins/ideas.md"
   16:
     track: studio
     milestone: M1
     owns:
-      - "src/simplicio_factory/plugins/studio/**"
       - "src/simplicio_video/data/templates/brand-promo/**"   # desvio: a spec diz templates/brand-promo/** na raiz; #74 moveu os templates para src/simplicio_video/data/templates/, então o brand-promo fica lá (status do engine: pronto)
-      - "tests/factory/plugins/studio/**"
-      - "docs/plugins/studio.md"
-      - "docs/plugins/README.md"   # índices de docs (cross-issue)
       - "docs/host/README.md"   # índices de docs (cross-issue)
       - "docs/decisoes/README.md"   # índices de docs (cross-issue)
   18:
     track: review
     milestone: M1
-    owns:
-      - "src/simplicio_factory/plugins/review/**"
-      - "tests/factory/plugins/review/**"
-      - "docs/plugins/review.md"
   19:
     track: publish-realoficial
     milestone: M1
     adr: 12
-    owns:
-      - "src/simplicio_factory/plugins/publish/**"
-      - "src/simplicio_factory/plugins/realoficial/**"
-      - "tests/factory/plugins/publish/**"
-      - "tests/factory/plugins/realoficial/**"
-      - "docs/plugins/publish.md"
-      - "docs/plugins/realoficial.md"
-      - "docs/decisoes/ADR-0012-*.md"
   22:
     track: metrics
     milestone: M1
-    owns:
-      - "src/simplicio_factory/plugins/metrics/**"
-      - "src/simplicio_factory/plugins/realoficial_analytics/**"
-      - "tests/factory/plugins/metrics/**"
-      - "tests/factory/plugins/realoficial_analytics/**"
-      - "docs/plugins/metrics.md"
   # ------------------------------------------------------------------ M1 MVP: surface
   41:
     track: server
     milestone: M1
     adr: 13
-    owns:
-      - "src/simplicio_factory/plugins/server/**"
-      - "tests/factory/plugins/server/**"
-      - "docs/plugins/server.md"
-      - "docs/decisoes/ADR-0013-*.md"
   23:
     track: panel
     milestone: M1
     adr: 14
-    owns:
-      - "web/app/**"
-      - "docs/factory/prototype/**"
-      - "docs/plugins/panel.md"
-      - "docs/decisoes/ADR-0014-*.md"
   28:
     track: factory-scene
     milestone: M1
     adr: 15
-    owns:
-      - "web/scene/**"
-      - "docs/plugins/factory-scene.md"
-      - "docs/design/factory-scene.md"
-      - "docs/decisoes/ADR-0015-*.md"
   53:
     track: theme-engine
     milestone: M1
-    owns:
-      - "src/simplicio_factory/plugins/theme/**"
-      - "tests/factory/plugins/theme/**"
-      - "docs/plugins/theme.md"
-      - "docs/themes/authoring.md"
   54:
     track: theme-br
     milestone: M1
-    owns:
-      - "themes/br/**"
-      - "docs/themes/br.md"
   55:
     track: i18n
     milestone: M1
     adr: 16
-    owns:
-      - "web/i18n/**"
-      - "locales/en/**"
-      - "locales/pt-BR/**"
-      - "tests/test_locales/**"
-      - "docs/plugins/i18n.md"
-      - "docs/decisoes/ADR-0016-*.md"
   # ------------------------------------------------------------------ M1 MVP: platform
   43:
     track: packaging
@@ -301,7 +162,6 @@ issues:
       - "docs/tutorials/README.md"
       - "docs/tutorials/primeiro-video.md"
       - "docs/decisoes/README.md"
-      - "docs/plugins/README.md"
       - "docs/host/README.md"
       - "scripts/check_docs.py"
       - "scripts/gen_reference.py"
@@ -318,11 +178,7 @@ issues:
       - "src/simplicio_video/data/templates/assistencia-tecnica-games/README.md"
       - "src/simplicio_video/data/templates/saude-odontologia/README.md"
       - "src/simplicio_video/data/templates/sazonal-dia-das-criancas/README.md"
-      - "clients/lothus-odontologia/video-01-dia-das-criancas/README.md"
       # correção de link: caminho de coleta/ (gitignored, não existe no repo) vira código; nada mais muda
-      - "clients/lothus-odontologia/video-01-dia-das-criancas/roteiro.md"
-      - "clients/wjr-informatica-games/video-01/README.md"
-      - "clients/wjr-informatica-games/video-01/roteiro.md"
       # correção de link: exemplos/ (não existe no repo) vira código; nada mais muda
       - "intake/extracao-automatica.md"
       - "intake/questionario.md"
@@ -342,22 +198,14 @@ issues:
   48:
     track: ui-e2e
     milestone: M1
-    owns:
-      - "tests/e2e_ui/**"
-      - "docs/tutorials/panel.md"
   49:
     track: live-check
     milestone: M1
-    owns:
-      - "docs/plugins/realoficial.md#live-verification-log"
-      - "tests/factory/plugins/realoficial/fixtures/tools.json"
   50:
     track: release
     milestone: M1
     owns:
       - "CHANGELOG.md#v0.4.0"
-      - "constraints.txt"
-      - "docs/release/**"
       - "pyproject.toml#project.version"
   # ------------------------------------------------------------------ motor sem vendas
   77:
@@ -370,53 +218,33 @@ issues:
       - "tests/test_help.py"
       - "tests/test_mcp_server.py"
       - "tests/test_pipeline.py"
-      - "tests/test_prospect.py"
-      - "tests/test_ugc.py"
-      - "tests/test_venda.py"
       - "tests/test_motor_sem_vendas.py"
   75:
     track: motor-sem-drive
     status: ready
     owns:
-      - "schema/contract.schema.json"
       - "src/simplicio_video/contract.py"
       - "src/simplicio_video/render.py"
       - "src/simplicio_video/publish.py"
-      - "src/simplicio_video/venda.py"
       - "src/simplicio_video/scaffold.py"
-      - "src/simplicio_video/prospect.py"
       - "src/simplicio_video/cli.py"
-      - "templates/institucional-advocacia/contract.base.yaml"
-      - "templates/institucional-estetica/contract.base.yaml"
-      - "templates/institucional-odontologia/contract.base.yaml"
-      - "templates/sazonal-dia-das-criancas/contract.base.yaml"
-      - "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml"
-      - "clients/lothus-odontologia/video-01-dia-das-criancas/render.manifest.json"
-      - "clients/wjr-informatica-games/video-01/contract.yaml"
-      - "clients/wjr-informatica-games/video-01/render.manifest.json"
       - "tests/fixtures/mini/contract.yaml"
       - "tests/test_contrato_sem_drive.py"
       - "tests/test_schema.py"
       - "tests/test_validate.py"
       - "tests/test_render_determinism.py"
       - "tests/test_publish.py"
-      - "tests/test_venda.py"
-      - "tests/test_prospect_institucional.py"
       - "skills/simplicio-video/SKILL.md"
       - "docs/receita-video-cliente.md"
   76:
     track: motor-marca
     status: ready
     owns:
-      - "schema/contract.schema.json"
       - "src/simplicio_video/compiler.py"
       - "src/simplicio_video/render.py"
       - "src/simplicio_video/engine/build.mjs"
       - "src/simplicio_video/cli.py"
-      - "src/simplicio_video/prospect.py"
       - "tests/test_marca_contrato.py"
-      - "tests/test_prospect.py"
-      - "tests/test_prospect_institucional.py"
   73:
     track: motor-status
     status: ready
@@ -429,17 +257,12 @@ issues:
     status: ready
     owns:
       - "src/simplicio_video/cli.py"
-      - "schemas/cli/**"
       - "tests/test_saida_json.py"
   74:
     track: motor-pacote
     status: ready
     owns:
       - "src/simplicio_video/data/**"
-      - "schema/**"
-      - "schemas/**"
-      - "templates/**"
-      - "motion/**"
       - "src/simplicio_video/paths.py"
       - "src/simplicio_video/catalog.py"
       - "src/simplicio_video/cli.py"
@@ -448,14 +271,11 @@ issues:
       - "src/simplicio_video/compiler.py"
       - "src/simplicio_video/render.py"
       - "src/simplicio_video/scaffold.py"
-      - "src/simplicio_video/prospect.py"
       - "pyproject.toml#tool.setuptools"
       - "tests/test_dados_pacote.py"
       - "tests/test_validate.py"
       - "tests/test_contrato_sem_drive.py"
       - "tests/test_schema.py"
-      - "tests/test_prospect.py"
-      - "tests/test_prospect_institucional.py"
       - "tests/test_saida_json.py"
   # ------------------------------------------------------------------ M1 rotas de produção (épico #81)
   82:
@@ -463,53 +283,24 @@ issues:
     milestone: M1
     status: ready
     owns:
-      - "src/simplicio_factory/contracts/models.py"
-      - "src/simplicio_factory/contracts/transitions.py"
-      - "schemas/factory/item.schema.json"
-      - "tests/factory/contracts/test_transition_ai.py"
-      - "tests/factory/contracts/test_item_production.py"
-      - "tests/factory/_fixtures.py"   # fixtures de rota (acréscimo; arquivo da #33)
-      - "src/simplicio_factory/contracts/schema.py"
-      - "src/simplicio_factory/contracts/json_store.py"   # persistência de production e review (round-trip; arquivo da #33)
-      - "docs/host/kernel.md"
-      - "docs/decisoes/ADR-0008-duas-rotas.md"
       - "docs/decisoes/README.md"   # índice de ADRs (acréscimo: registra o ADR-0008)
   # ------------------------------------------------------------------ M1 plugin media (épico #81)
   85:
     track: plugin
     milestone: M1
     status: ready
-    owns:
-      - "src/simplicio_factory/plugins/media/**"
-      - "tests/factory/plugins/media/**"
-      - "docs/plugins/media.md"
-      - "docs/plugins/README.md"   # índice de plugins (acréscimo: a linha do media; cross-issue)
 
   # ------------------------------------------------------------------ M1 quadro (épico #81)
   86:
     track: plugin
     milestone: M1
     status: ready
-    owns:
-      - "src/simplicio_factory/plugins/board/**"
-      - "schemas/factory/board.schema.json"
-      - "src/simplicio_factory/contracts/schema.py"   # gerador: `make factory-schema` passa a gravar também board.schema.json (arquivo da #33/#82; só essa linha de saída muda)
-      - "tests/factory/plugins/board/**"
-      - "docs/plugins/board.md"
-      - "docs/plugins/README.md"   # índice de plugins (acréscimo: só a linha do board)
   88:
     track: plugin
     milestone: M1
     status: ready
     owns:
-      - "src/simplicio_factory/plugins/board/html.py"
-      - "src/simplicio_factory/plugins/board/templates/**"
-      - "src/simplicio_factory/plugins/board/cli.py#build"   # só o subcomando build (cli.py é do #86)
-      - "src/simplicio_factory/plugins/board/plugin.json"   # só o texto de help do comando board (lista build)
       - "pyproject.toml#tool.setuptools.package-data"   # só a linha que põe o template board.html.tpl no wheel (seção é do #74)
-      - "tests/factory/plugins/board/test_html.py"
-      - "tests/factory/plugins/board/golden/**"
-      - "docs/plugins/board.md"   # só a seção html (e o `commands` do front matter)
       - "docs/assets/board-html.png"   # captura do dashboard, PNG pequeno
 
   # ------------------------------------------------------------------ M1 geração assistida: attach, recibo e runbook (épico #81)
@@ -518,19 +309,6 @@ issues:
     milestone: M1
     status: ready
     owns:
-      - "src/simplicio_factory/plugins/media/attach.py"
-      - "src/simplicio_factory/plugins/media/receipt.py"
-      - "src/simplicio_factory/plugins/media/cli.py"
-      - "src/simplicio_factory/plugins/media/plugin.json"   # acréscimo: comando `media` (attach) no manifesto do media (#85)
-      - "src/simplicio_factory/plugins/studio/composer.py#compose_contract,_assets"   # só o parâmetro midia e o helper _assets (asset anexado opcional)
-      - "src/simplicio_factory/plugins/studio/stage.py#_materializar,import receipt"   # copia a mídia anexada para assets/ e confere o sha256 no render (arquivo da #16)
-      - "tests/factory/plugins/media/test_attach.py"
-      - "tests/factory/plugins/media/_attach_fixtures.py"
-      - "tests/factory/plugins/media/test_media_cli.py#test_manifesto_declara_generate_com_handler_existente"   # a lista de comandos do manifesto passa a incluir `media` (arquivo da #85)
-      - "tests/factory/plugins/studio/test_asset_anexado.py"
-      - "tests/test_docs/test_runbook_real_oficial.py"
-      - "docs/how-to/gerar-video-real-oficial.md"
-      - "docs/plugins/media.md"
       - "docs/how-to/README.md"   # índice de guias (acréscimo: só a linha do runbook)
 
   # ------------------------------------------------------------------ M1 fluxo ponta a ponta das duas rotas (épico #81)
@@ -539,9 +317,6 @@ issues:
     milestone: M1
     status: ready
     owns:
-      - "tests/e2e/test_duas_rotas.py"
-      - "docs/host/duas-rotas.md"
-      - "docs/decisoes/ADR-*-render-final-deterministico.md"
       - "docs/decisoes/README.md"   # índice de ADRs (acréscimo: só a linha do ADR do render final)
       - "docs/host/README.md"   # índice de host (acréscimo: só a linha de duas-rotas.md)
 
@@ -550,22 +325,12 @@ issues:
     track: plugin
     milestone: M1
     status: ready
-    owns:
-      - "src/simplicio_factory/plugins/studio/stage.py#_gravar_estado,run,import DEFAULT_ROUTE"   # studio.json grava o production real do item (arquivo da #16)
-      - "tests/factory/plugins/studio/test_studio_rota.py"   # épico #81
 
   # ------------------------------------------------------------------ post-mvp, opcional: servidor local do quadro (épico #81)
   89:
     track: plugin
     milestone: M1
     status: ready
-    owns:
-      - "src/simplicio_factory/plugins/board/serve.py"
-      - "src/simplicio_factory/plugins/board/cli.py#serve"   # só o subcomando serve (cli.py é do #86)
-      - "src/simplicio_factory/plugins/board/plugin.json"   # só o texto de help do comando board (lista serve)
-      - "tests/factory/plugins/board/test_serve.py"
-      - "tests/factory/plugins/board/test_board_comentarios.py#test_plugin_nao_importa_modulos_de_rede_nem_llm"   # exceção: serve.py importa http.server (só 127.0.0.1); socket, urllib e clientes de rede seguem proibidos
-      - "docs/plugins/board.md#servidor"   # seção Servidor, e a linha `commands` do front matter
 
   # ------------------------------------------------------------------ M2 integração LangFlow (épico #81, post-mvp)
   84:   # post-mvp
@@ -586,9 +351,7 @@ issues:
     status: ready
     adr: 19
     owns:
-      - "docs/decisoes/ADR-0019-agentes.md"
       - "docs/decisoes/README.md#ADR-0019"
-      - "docs/research/agentes/**"
       - "docs/README.md#agentes"
 
   # ------------------------------------------------------------------ MoneyPrinterTurbo: porta da API e generate (#144)
@@ -643,7 +406,6 @@ issues:
       - "docs/README.md"
       - "docs/licenses.md"   # a linha do produto é regenerada por `make licenses-write`
       - "docs/host/licenses.md"   # nota de licença do produto (AGPL), não mais "proprietário"
-      - "clients/wjr-informatica-games/coleta/**"   # coleta de cliente saiu do índice (regra do .gitignore)
       - "tests/test_legal.py"
   # ------------------------------------------------------------------ follow-ups das revisões do Openverse (#111) e da busca (#112)
   113:
@@ -730,3 +492,265 @@ issues:
       - "README.md#External tracks and licenses"
       - "README.pt-BR.md#Trilhas externas e licenças"
       - "CHANGELOG.md#Unreleased"
+
+# Patterns of `owns` that match no file in the repository: work that never started or files that were never made. They are
+# not enforced. An issue that starts moves what it creates from here to its own `owns` (in the same PR, in its own entry), and
+# tests/test_scripts/test_ownership_yaml.py keeps `owns` honest: every pattern there matches a file.
+backlog:
+  32:
+    - "src/simplicio_video/registry.py"
+    - "src/simplicio_video/manifest.py"
+    - "src/simplicio_video/plugins/**"
+    - "src/simplicio_video/commands/init.py"
+    - "src/simplicio_video/commands/validate.py"
+    - "src/simplicio_video/commands/voice.py"
+    - "src/simplicio_video/commands/render.py"
+    - "src/simplicio_video/commands/publish.py"
+    - "src/simplicio_video/commands/run.py"
+    - "src/simplicio_video/commands/venda.py"
+    - "src/simplicio_video/commands/prospect.py"
+    - "src/simplicio_video/commands/ugc.py"
+    - "src/simplicio_video/commands/clone.py"
+    - "src/simplicio_video/commands/montage.py"
+    - "src/simplicio_video/commands/edit.py"
+    - "src/simplicio_video/commands/opencut.py"
+    - "src/simplicio_video/commands/realoficial.py"
+    - "src/simplicio_video/commands/list.py"
+    - "src/simplicio_video/commands/mcp.py"
+    - "src/simplicio_video/commands/plugin.py"
+    - "schemas/plugin.manifest.schema.json"
+    - "src/simplicio_factory/plugins/studio/plugin.json"   # manifesto do studio (id, kind, version, comandos make/draft) para o registro ter um plugin real; a #16 é dona de plugins/studio/** e deve manter o arquivo. Sobreposição declarada.
+    - "scripts/gen_manifest.py"
+    - "mk/manifest.mk"
+    - "tests/test_registry.py"
+    - "tests/test_plugin_host/**"
+    - "tests/golden/help/**"
+    - "docs/host/plugin-host.md"
+    - "docs/decisoes/ADR-0006-*.md"
+  33:
+    - "src/simplicio_factory/__init__.py"
+    - "src/simplicio_factory/app.py"
+    - "src/simplicio_factory/**/__init__.py"
+    - "src/simplicio_factory/contracts/**"
+    - "src/simplicio_factory/testkit/**"
+    - "schemas/factory/**"
+    - "tests/factory/conftest.py"
+    - "tests/factory/contracts/**"
+    - "tests/factory/fixtures/**"
+    - "tests/factory/_fixtures.py"   # helpers explícitos da #33 (importados pelos testes); sem conftest.py em tests/factory/ (conflito de nome, #43)
+    - "tests/factory/test_architecture.py"
+    - "mk/kernel.mk"
+    - "docs/host/kernel.md"
+    - "docs/decisoes/ADR-0007-*.md"
+  34:
+    - "web/package.json"
+    - "web/tsconfig.base.json"
+    - "web/eslint.config.*"
+    - "web/vitest.workspace.*"
+    - "web/playwright.config.*"
+    - "web/shared/**"
+    - "web/app/package.json"
+    - "web/scene/package.json"
+    - "web/i18n/package.json"
+    - "mk/web.mk"
+    - "docs/host/web-scaffold.md"
+    - "docs/decisoes/ADR-0008-*.md"
+  47:
+    - "src/simplicio_factory/runner/**"
+    - "src/simplicio_factory/plugins/loop/**"
+    - "tests/e2e/**"
+    - "mk/e2e.mk"
+    - "docs/host/skeleton-loop.md"
+    - "docs/tutorials/demo.md"
+  35:
+    - "src/simplicio_factory/workspace/**"
+    - "src/simplicio_factory/store/**"
+    - "src/simplicio_factory/plugins/workspace/**"
+    - "tests/factory/workspace/**"
+    - "tests/factory/store/**"
+    - "docs/host/store.md"
+    - "docs/decisoes/ADR-0009-*.md"
+  36:
+    - "src/simplicio_factory/policy/**"
+    - "src/simplicio_factory/plugins/policy/**"
+    - "tests/factory/policy/**"
+    - "docs/host/policy.md"
+    - "docs/decisoes/ADR-0010-*.md"
+  37:
+    - "src/simplicio_factory/security/**"
+    - "tests/factory/security/**"
+    - "docs/host/security.md"
+    - "docs/decisoes/ADR-0011-*.md"
+  15:
+    - "src/simplicio_factory/plugins/brand/**"
+    - "tests/factory/plugins/brand/**"
+    - "docs/plugins/brand.md"
+  52:
+    - "src/simplicio_factory/plugins/ideas/**"
+    - "tests/factory/plugins/ideas/**"
+    - "docs/plugins/ideas.md"
+  16:
+    - "src/simplicio_factory/plugins/studio/**"
+    - "tests/factory/plugins/studio/**"
+    - "docs/plugins/studio.md"
+    - "docs/plugins/README.md"   # índices de docs (cross-issue)
+  18:
+    - "src/simplicio_factory/plugins/review/**"
+    - "tests/factory/plugins/review/**"
+    - "docs/plugins/review.md"
+  19:
+    - "src/simplicio_factory/plugins/publish/**"
+    - "src/simplicio_factory/plugins/realoficial/**"
+    - "tests/factory/plugins/publish/**"
+    - "tests/factory/plugins/realoficial/**"
+    - "docs/plugins/publish.md"
+    - "docs/plugins/realoficial.md"
+    - "docs/decisoes/ADR-0012-*.md"
+  22:
+    - "src/simplicio_factory/plugins/metrics/**"
+    - "src/simplicio_factory/plugins/realoficial_analytics/**"
+    - "tests/factory/plugins/metrics/**"
+    - "tests/factory/plugins/realoficial_analytics/**"
+    - "docs/plugins/metrics.md"
+  41:
+    - "src/simplicio_factory/plugins/server/**"
+    - "tests/factory/plugins/server/**"
+    - "docs/plugins/server.md"
+    - "docs/decisoes/ADR-0013-*.md"
+  23:
+    - "web/app/**"
+    - "docs/factory/prototype/**"
+    - "docs/plugins/panel.md"
+    - "docs/decisoes/ADR-0014-*.md"
+  28:
+    - "web/scene/**"
+    - "docs/plugins/factory-scene.md"
+    - "docs/design/factory-scene.md"
+    - "docs/decisoes/ADR-0015-*.md"
+  53:
+    - "src/simplicio_factory/plugins/theme/**"
+    - "tests/factory/plugins/theme/**"
+    - "docs/plugins/theme.md"
+    - "docs/themes/authoring.md"
+  54:
+    - "themes/br/**"
+    - "docs/themes/br.md"
+  55:
+    - "web/i18n/**"
+    - "locales/en/**"
+    - "locales/pt-BR/**"
+    - "tests/test_locales/**"
+    - "docs/plugins/i18n.md"
+    - "docs/decisoes/ADR-0016-*.md"
+  44:
+    - "docs/plugins/README.md"
+    - "clients/lothus-odontologia/video-01-dia-das-criancas/README.md"
+    - "clients/lothus-odontologia/video-01-dia-das-criancas/roteiro.md"
+    - "clients/wjr-informatica-games/video-01/README.md"
+    - "clients/wjr-informatica-games/video-01/roteiro.md"
+  48:
+    - "tests/e2e_ui/**"
+    - "docs/tutorials/panel.md"
+  49:
+    - "docs/plugins/realoficial.md#live-verification-log"
+    - "tests/factory/plugins/realoficial/fixtures/tools.json"
+  50:
+    - "constraints.txt"
+    - "docs/release/**"
+  77:
+    - "tests/test_prospect.py"
+    - "tests/test_ugc.py"
+    - "tests/test_venda.py"
+  75:
+    - "schema/contract.schema.json"
+    - "src/simplicio_video/venda.py"
+    - "src/simplicio_video/prospect.py"
+    - "templates/institucional-advocacia/contract.base.yaml"
+    - "templates/institucional-estetica/contract.base.yaml"
+    - "templates/institucional-odontologia/contract.base.yaml"
+    - "templates/sazonal-dia-das-criancas/contract.base.yaml"
+    - "clients/lothus-odontologia/video-01-dia-das-criancas/contract.yaml"
+    - "clients/lothus-odontologia/video-01-dia-das-criancas/render.manifest.json"
+    - "clients/wjr-informatica-games/video-01/contract.yaml"
+    - "clients/wjr-informatica-games/video-01/render.manifest.json"
+    - "tests/test_venda.py"
+    - "tests/test_prospect_institucional.py"
+  76:
+    - "schema/contract.schema.json"
+    - "src/simplicio_video/prospect.py"
+    - "tests/test_prospect.py"
+    - "tests/test_prospect_institucional.py"
+  72:
+    - "schemas/cli/**"
+  74:
+    - "schema/**"
+    - "schemas/**"
+    - "templates/**"
+    - "motion/**"
+    - "src/simplicio_video/prospect.py"
+    - "tests/test_prospect.py"
+    - "tests/test_prospect_institucional.py"
+  82:
+    - "src/simplicio_factory/contracts/models.py"
+    - "src/simplicio_factory/contracts/transitions.py"
+    - "schemas/factory/item.schema.json"
+    - "tests/factory/contracts/test_transition_ai.py"
+    - "tests/factory/contracts/test_item_production.py"
+    - "tests/factory/_fixtures.py"   # fixtures de rota (acréscimo; arquivo da #33)
+    - "src/simplicio_factory/contracts/schema.py"
+    - "src/simplicio_factory/contracts/json_store.py"   # persistência de production e review (round-trip; arquivo da #33)
+    - "docs/host/kernel.md"
+    - "docs/decisoes/ADR-0008-duas-rotas.md"
+  85:
+    - "src/simplicio_factory/plugins/media/**"
+    - "tests/factory/plugins/media/**"
+    - "docs/plugins/media.md"
+    - "docs/plugins/README.md"   # índice de plugins (acréscimo: a linha do media; cross-issue)
+  86:
+    - "src/simplicio_factory/plugins/board/**"
+    - "schemas/factory/board.schema.json"
+    - "src/simplicio_factory/contracts/schema.py"   # gerador: `make factory-schema` passa a gravar também board.schema.json (arquivo da #33/#82; só essa linha de saída muda)
+    - "tests/factory/plugins/board/**"
+    - "docs/plugins/board.md"
+    - "docs/plugins/README.md"   # índice de plugins (acréscimo: só a linha do board)
+  88:
+    - "src/simplicio_factory/plugins/board/html.py"
+    - "src/simplicio_factory/plugins/board/templates/**"
+    - "src/simplicio_factory/plugins/board/cli.py#build"   # só o subcomando build (cli.py é do #86)
+    - "src/simplicio_factory/plugins/board/plugin.json"   # só o texto de help do comando board (lista build)
+    - "tests/factory/plugins/board/test_html.py"
+    - "tests/factory/plugins/board/golden/**"
+    - "docs/plugins/board.md"   # só a seção html (e o `commands` do front matter)
+  87:
+    - "src/simplicio_factory/plugins/media/attach.py"
+    - "src/simplicio_factory/plugins/media/receipt.py"
+    - "src/simplicio_factory/plugins/media/cli.py"
+    - "src/simplicio_factory/plugins/media/plugin.json"   # acréscimo: comando `media` (attach) no manifesto do media (#85)
+    - "src/simplicio_factory/plugins/studio/composer.py#compose_contract,_assets"   # só o parâmetro midia e o helper _assets (asset anexado opcional)
+    - "src/simplicio_factory/plugins/studio/stage.py#_materializar,import receipt"   # copia a mídia anexada para assets/ e confere o sha256 no render (arquivo da #16)
+    - "tests/factory/plugins/media/test_attach.py"
+    - "tests/factory/plugins/media/_attach_fixtures.py"
+    - "tests/factory/plugins/media/test_media_cli.py#test_manifesto_declara_generate_com_handler_existente"   # a lista de comandos do manifesto passa a incluir `media` (arquivo da #85)
+    - "tests/factory/plugins/studio/test_asset_anexado.py"
+    - "tests/test_docs/test_runbook_real_oficial.py"
+    - "docs/how-to/gerar-video-real-oficial.md"
+    - "docs/plugins/media.md"
+  90:
+    - "tests/e2e/test_duas_rotas.py"
+    - "docs/host/duas-rotas.md"
+    - "docs/decisoes/ADR-*-render-final-deterministico.md"
+  95:
+    - "src/simplicio_factory/plugins/studio/stage.py#_gravar_estado,run,import DEFAULT_ROUTE"   # studio.json grava o production real do item (arquivo da #16)
+    - "tests/factory/plugins/studio/test_studio_rota.py"   # épico #81
+  89:
+    - "src/simplicio_factory/plugins/board/serve.py"
+    - "src/simplicio_factory/plugins/board/cli.py#serve"   # só o subcomando serve (cli.py é do #86)
+    - "src/simplicio_factory/plugins/board/plugin.json"   # só o texto de help do comando board (lista serve)
+    - "tests/factory/plugins/board/test_serve.py"
+    - "tests/factory/plugins/board/test_board_comentarios.py#test_plugin_nao_importa_modulos_de_rede_nem_llm"   # exceção: serve.py importa http.server (só 127.0.0.1); socket, urllib e clientes de rede seguem proibidos
+    - "docs/plugins/board.md#servidor"   # seção Servidor, e a linha `commands` do front matter
+  83:
+    - "docs/decisoes/ADR-0019-agentes.md"
+    - "docs/research/agentes/**"
+  70:
+    - "clients/wjr-informatica-games/coleta/**"   # coleta de cliente saiu do índice (regra do .gitignore)

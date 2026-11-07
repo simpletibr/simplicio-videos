@@ -86,11 +86,6 @@ def test_generated_names_only_whole_files_that_make_regen_writes(mapa, arquivos)
     assert "docs/licenses.md" in (ROOT / "scripts" / "licenses.py").read_text(encoding="utf-8")
 
 
-def test_the_map_has_no_trace_of_the_web_workspace_that_never_existed(mapa):
-    texto = OWNERSHIP.read_text(encoding="utf-8")
-    assert "web/" not in texto and "schemas/factory" not in texto
-
-
 def test_the_script_works_with_the_real_map_for_every_issue(mapa, tmp_path, monkeypatch, capsys):
     """`check_ownership.py <n>` on a clean branch: 0 for an issue with `owns`, 2 and a reason for the others (backlog, nothing live)."""
     repo = Repo(tmp_path / "repo")

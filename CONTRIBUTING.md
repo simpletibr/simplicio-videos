@@ -13,7 +13,7 @@ make check       # offline, ~2-3 min em 4 núcleos (a meta de 60 s não foi atin
 
 ## O ciclo de uma issue
 
-1. Leia a issue, a entrada dela em [`docs/factory/ownership.yaml`](docs/factory/ownership.yaml) e o [AGENTS.md](AGENTS.md).
+1. Leia a issue, a entrada dela em [`scripts/ownership.yaml`](scripts/ownership.yaml) e o [AGENTS.md](AGENTS.md).
 2. **Testes primeiro.** Escreva os testes que falham pelo motivo certo e commite-os sozinhos (só testes, fixtures e docs). Esse é o primeiro commit do branch.
 3. Implemente até o `make check` ficar verde. Só toque nos paths da sua issue; precisa de outro arquivo? Comente na issue dona.
 4. Docs e help: o que mudou em `docs/host/<nome>.md`, `--help` com exemplos em todo comando, ADR se houve decisão.
@@ -29,6 +29,7 @@ make check       # offline, ~2-3 min em 4 núcleos (a meta de 60 s não foi atin
 | `make check` | o gate offline: ruff, shellcheck, testes sem `slow`/`render`/`integration`/`ui`, ownership e TDD |
 | `make check-full` | `check` + testes que podem usar rede |
 | `make regen` | regenera arquivos gerados; nunca edite-os à mão |
+| `scripts/sync_skills.py [--check]` | o espelho `skills/` (e o bloco `GENERATED skills` do `.gitignore`) a partir de `src/simplicio_video/data/skills/`; o `make regen` grava e o `make docs` confere |
 | `scripts/check_ownership.py <issue> --base origin/main` | só paths da issue |
 | `scripts/check_tdd.py --base origin/main` | testes primeiro |
 | `scripts/land.sh <pr> [--dry-run]` | pouso serializado |

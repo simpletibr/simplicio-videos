@@ -3,7 +3,6 @@
 #   make setup       cria o .venv, instala o extra `test` e liga os hooks
 #   make check       o gate offline (medido: ~2-3 min em 4 núcleos; a meta de 60 s não foi atingida): ruff, shellcheck, testes sem slow/render/integration/ui, ownership e TDD
 #   make check-full  check + testes render/integration/ui/slow (podem usar rede)
-#   make check-web   checagens do workspace web
 #   make hooks       core.hooksPath=.githooks (o pre-push roda `make check`)
 #   make regen       regenera os arquivos gerados
 #   ISSUE=31 BASE=origin/main make check    força a issue e a base do ownership e do TDD
@@ -17,15 +16,13 @@ PY      := $(if $(wildcard $(VENV)/bin/python),$(VENV)/bin/python,$(PYTHON))
 # Pontos de extensão. Cada trilha acrescenta em mk/<trilha>.mk:
 #   CHECKS     += meu-alvo   (roda em `make check`)
 #   REGEN      += meu-alvo   (roda em `make regen`)
-#   CHECKS_WEB += meu-alvo   (roda em `make check-web`)
 CHECKS     := gate
 REGEN      :=
-CHECKS_WEB :=
 
 -include mk/*.mk
 
 .DEFAULT_GOAL := help
-.PHONY: help setup check check-full check-web hooks regen gate
+.PHONY: help setup check check-full hooks regen gate
 
 help:
 	@sed -n '3,/^$$/p' Makefile
@@ -38,9 +35,6 @@ check: $(CHECKS)
 check-full: check
 	@printf '\n==> testes render/integration/ui/slow (podem usar rede)\n'
 	@$(PY) -m pytest -q -p no:cacheprovider -m "render or integration or ui or slow"
-
-check-web: $(CHECKS_WEB)
-	@if [ -z "$(strip $(CHECKS_WEB))" ]; then echo "check-web: o workspace web chega com a #34; nada para checar ainda."; fi
 
 setup: hooks
 	@test -x $(VENV)/bin/python || $(PYTHON) -m venv $(VENV)

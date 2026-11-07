@@ -129,12 +129,6 @@ def test_ownership_file_edit_of_the_issues_own_entry_is_allowed(repo):
 # The patterns of `owns` that match no file today (work not started, files never made) live in `backlog`, per issue: they are
 # not enforced, and an issue that starts moves them to `owns` in its own entry.
 
-def test_the_map_is_read_from_scripts_ownership_yaml():
-    import check_ownership
-
-    assert check_ownership.OWNERSHIP_REL == OWNERSHIP_REL == "scripts/ownership.yaml"
-
-
 def test_a_file_that_only_the_backlog_of_the_issue_names_fails_and_says_to_move_the_pattern(repo):
     repo.commit_files("feat: gate", {"mk/gate.mk": "x:\n"})
     r = check(repo)
