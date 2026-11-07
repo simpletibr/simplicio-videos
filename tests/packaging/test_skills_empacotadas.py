@@ -9,6 +9,11 @@ The mirror is GENERATED (U02): `scripts/sync_skills.py` copies the package copy 
 block of `.gitignore` from `skill_sync.SKILLS`; `--check` (run by `make docs`, so by `make check`) exits 1 with the diff when
 either is stale, and `make regen` runs it without the flag. The tests at the end of this file run the script in a temporary copy
 of the checkout, mutate it and look at the exit code, so the gate really breaks when the mirror is edited by hand.
+
+The regen never destroys work that git does not keep: before it deletes or overwrites a file of `skills/` it asks `git status`, and
+a file that is untracked, ignored, modified or staged (or any file, when the folder is not in a git work tree) makes it stop with
+rc 2 and write NOTHING, unless `--force` is given. A tracked, clean file (a hand edit that was committed, an extra file that was
+committed) is recoverable and is replaced or removed. Every file it removes or overwrites is printed, with its diff, before the write.
 """
 from __future__ import annotations
 
@@ -17,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -94,8 +100,42 @@ FIM = "# END GENERATED skills"
 SO_O_NECESSARIO = ("scripts/sync_skills.py", "src/simplicio_video/skill_sync.py", "src/simplicio_video/data/skills", "skills", ".gitignore")
 
 
+def _env_sem_git():
+    """The environment without any GIT_* variable (a pre-push hook exports GIT_DIR: the temporary repos must never see the real one)."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return {**env, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+
 def _roda(raiz, *args):
-    return subprocess.run([sys.executable, str(raiz / "scripts" / "sync_skills.py"), *args], capture_output=True, text=True, timeout=60)
+    return subprocess.run([sys.executable, str(raiz / "scripts" / "sync_skills.py"), *args], capture_output=True, text=True, timeout=60,
+                          env=_env_sem_git())
+
+
+def _git(raiz, *args):
+    return subprocess.run(["git", "-c", "user.name=teste", "-c", "user.email=teste@example.com", "-c", "commit.gpgsign=false", "-C", str(raiz), *args],
+                          capture_output=True, text=True, timeout=60, check=True, env=_env_sem_git())
+
+
+def _commita(raiz, mensagem="mudanca"):
+    _git(raiz, "add", "-A")
+    _git(raiz, "commit", "-q", "-m", mensagem)
+
+
+def _foto(raiz):
+    """The whole tree but .git, as it is on disk: folders, files (bytes and executable bit) and symlinks (target). Nothing is followed."""
+    saida = {}
+    for pasta, dirs, arquivos in os.walk(raiz):
+        dirs[:] = [d for d in dirs if not (Path(pasta) == raiz and d == ".git")]
+        for nome in dirs + arquivos:
+            caminho = Path(pasta) / nome
+            rel = caminho.relative_to(raiz).as_posix()
+            if caminho.is_symlink():
+                saida[rel] = ("link", os.readlink(caminho))
+            elif caminho.is_dir():
+                saida[rel] = ("pasta",)
+            else:
+                saida[rel] = ("arquivo", caminho.read_bytes(), bool(caminho.stat().st_mode & 0o111))
+    return saida
 
 
 def _make(*args):
@@ -129,6 +169,16 @@ def checkout(tmp_path):
     return raiz
 
 
+@pytest.fixture
+def checkout_git(checkout):
+    """The same copy as a git work tree with everything committed: `skills/` is tracked and clean."""
+    if shutil.which("git") is None:
+        pytest.skip("git não instalado")
+    _git(checkout, "init", "-q")
+    _commita(checkout, "base")
+    return checkout
+
+
 def _bloco(texto):
     linhas = texto.splitlines()
     return linhas[linhas.index(INICIO):linhas.index(FIM) + 1]
@@ -153,7 +203,8 @@ def test_o_gitignore_fora_do_bloco_nao_e_tocado(checkout):
     assert (checkout / ".gitignore").read_text(encoding="utf-8") == antes
 
 
-def test_editar_o_espelho_a_mao_quebra_o_check_e_o_regen_desfaz(checkout):
+def test_editar_o_espelho_a_mao_quebra_o_check_e_o_regen_desfaz(checkout_git):
+    checkout = checkout_git
     alvo = checkout / "skills" / "simplicio-video" / "SKILL.md"
     alvo.write_bytes(alvo.read_bytes() + b"\nlinha a mao\n")
     r = _roda(checkout, "--check")
@@ -161,12 +212,14 @@ def test_editar_o_espelho_a_mao_quebra_o_check_e_o_regen_desfaz(checkout):
     saida = r.stdout + r.stderr
     assert "skills/simplicio-video/SKILL.md" in saida and "make regen" in saida
     assert "linha a mao" in saida, "o --check mostra o diff, não só o nome do arquivo"
+    _commita(checkout, "edicao a mao do espelho")  # commitada, o git a guarda: o regen pode sobrescrever (a não commitada é recusada, abaixo)
     assert _roda(checkout).returncode == 0
     assert _tudo(checkout) == _tudo(ROOT)
     assert _roda(checkout, "--check").returncode == 0
 
 
-def test_a_fonte_do_pacote_editada_se_propaga_para_o_espelho(checkout):
+def test_a_fonte_do_pacote_editada_se_propaga_para_o_espelho(checkout_git):
+    checkout = checkout_git
     fonte = checkout / "src" / "simplicio_video" / "data" / "skills" / "deep-news" / "SKILL.md"
     fonte.write_bytes(fonte.read_bytes() + b"\nacrescentado no pacote\n")
     assert _roda(checkout, "--check").returncode == 1
@@ -175,7 +228,8 @@ def test_a_fonte_do_pacote_editada_se_propaga_para_o_espelho(checkout):
     assert _roda(checkout, "--check").returncode == 0
 
 
-def test_arquivo_a_mais_ou_a_menos_no_espelho_quebra_o_check_e_o_regen_corrige(checkout):
+def test_arquivo_a_mais_ou_a_menos_no_espelho_quebra_o_check_e_o_regen_corrige(checkout_git):
+    checkout = checkout_git
     (checkout / "skills" / "deep-news" / "sobrou.md").write_text("x", encoding="utf-8")
     (checkout / "skills" / "skill-fantasma").mkdir()
     (checkout / "skills" / "skill-fantasma" / "SKILL.md").write_text("x", encoding="utf-8")
@@ -185,6 +239,7 @@ def test_arquivo_a_mais_ou_a_menos_no_espelho_quebra_o_check_e_o_regen_corrige(c
     saida = r.stdout + r.stderr
     for rel in ("skills/deep-news/sobrou.md", "skills/skill-fantasma/SKILL.md", "skills/deep-product/SKILL.md"):
         assert rel in saida, rel
+    _commita(checkout, "extras e falta no espelho")  # rastreados e limpos: recuperáveis pelo git, o regen os remove
     assert _roda(checkout).returncode == 0
     assert _tudo(checkout) == _tudo(ROOT)
     assert not (checkout / "skills" / "skill-fantasma").exists(), "a pasta que o pacote não leva some do espelho"
@@ -270,3 +325,148 @@ def test_o_make_docs_confere_e_o_make_regen_regera():
     assert [l for l in docs.stdout.splitlines() if "scripts/sync_skills.py" in l and l.endswith("--check")], docs.stdout
     sem_flag = [l for l in regen.stdout.splitlines() if "scripts/sync_skills.py" in l and "--check" not in l]
     assert sem_flag, regen.stdout
+
+
+# --- o regen nunca apaga nem sobrescreve o que o git não guarda ------------------------------------------------------------------------
+
+def _untracked_arquivo(raiz):
+    (raiz / "skills" / "README.md").write_text("notas do dono\n", encoding="utf-8")
+
+
+def _untracked_pasta(raiz):
+    (raiz / "skills" / "minha-pasta").mkdir()
+    (raiz / "skills" / "minha-pasta" / "x.txt").write_text("x", encoding="utf-8")
+
+
+def _untracked_dentro_da_skill(raiz):
+    (raiz / "skills" / "deep-news" / "NOTAS-DO-DONO.md").write_text("não apague\n", encoding="utf-8")
+
+
+def _symlink_extra(raiz):
+    os.symlink("alvo-qualquer", raiz / "skills" / "link-extra")
+
+
+def _rastreado_e_modificado(raiz):
+    (raiz / "skills" / "README.md").write_text("versão commitada\n", encoding="utf-8")
+    _commita(raiz, "extra rastreado")
+    (raiz / "skills" / "README.md").write_text("versão commitada\n e uma edição sem commit\n", encoding="utf-8")
+
+
+def _skill_md_editado_a_mao(raiz):
+    alvo = raiz / "skills" / "simplicio-video" / "SKILL.md"
+    alvo.write_bytes(alvo.read_bytes() + b"\nlinha a mao sem commit\n")
+
+
+def _skill_md_editado_e_so_no_indice(raiz):
+    _skill_md_editado_a_mao(raiz)
+    _git(raiz, "add", "skills")
+
+
+def _extra_ignorado_pelo_git(raiz):
+    ignore = raiz / ".gitignore"
+    ignore.write_text(ignore.read_text(encoding="utf-8") + "*.swp\n", encoding="utf-8")
+    _commita(raiz, "ignora *.swp")
+    (raiz / "skills" / "deep-news" / "rascunho.swp").write_text("rascunho\n", encoding="utf-8")
+
+
+# caso -> (como cria o que o git não guarda, o arquivo de skills/ que o regen perderia)
+NAO_GUARDADOS = {
+    "extra-untracked": (_untracked_arquivo, "skills/README.md"),
+    "pasta-untracked": (_untracked_pasta, "skills/minha-pasta/x.txt"),
+    "extra-dentro-da-skill": (_untracked_dentro_da_skill, "skills/deep-news/NOTAS-DO-DONO.md"),
+    "symlink-extra": (_symlink_extra, "skills/link-extra"),
+    "extra-rastreado-e-modificado": (_rastreado_e_modificado, "skills/README.md"),
+    "skill-md-editado-a-mao": (_skill_md_editado_a_mao, "skills/simplicio-video/SKILL.md"),
+    "skill-md-editado-e-so-no-indice": (_skill_md_editado_e_so_no_indice, "skills/simplicio-video/SKILL.md"),
+    "extra-ignorado-pelo-git": (_extra_ignorado_pelo_git, "skills/deep-news/rascunho.swp"),
+}
+
+
+@pytest.mark.parametrize("caso", NAO_GUARDADOS)
+def test_o_regen_recusa_apagar_ou_sobrescrever_o_que_o_git_nao_guarda(caso, checkout_git):
+    criar, perdido = NAO_GUARDADOS[caso]
+    criar(checkout_git)
+    antes = _foto(checkout_git)
+    r = _roda(checkout_git)
+    saida = r.stdout + r.stderr
+    assert r.returncode == 2, saida
+    assert _foto(checkout_git) == antes, "recusou, mas mexeu no disco"
+    assert perdido in saida and "--force" in saida, saida
+    assert _roda(checkout_git, "--check").returncode == 1, "o --check segue igual: rc 1 com diff, sem escrever"
+    assert _foto(checkout_git) == antes
+
+
+@pytest.mark.parametrize("caso", NAO_GUARDADOS)
+def test_com_force_o_regen_aplica_e_mostra_o_que_perdeu_antes_de_escrever(caso, checkout_git):
+    criar, perdido = NAO_GUARDADOS[caso]
+    criar(checkout_git)
+    r = _roda(checkout_git, "--force")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert perdido in r.stdout, "o log do regen lista cada arquivo removido ou sobrescrito"
+    assert not (checkout_git / perdido).is_symlink() and (not (checkout_git / perdido).exists() or perdido.endswith("SKILL.md"))
+    assert _tudo(checkout_git) == _tudo(ROOT)
+    assert _roda(checkout_git, "--check").returncode == 0
+
+
+def test_a_recusa_e_atomica_nada_e_escrito_nem_o_que_seria_seguro(checkout_git):
+    """One unsafe file stops everything: the tracked overwrite, the missing file and the stale .gitignore block stay as they were."""
+    _untracked_arquivo(checkout_git)
+    fonte = checkout_git / "src" / "simplicio_video" / "data" / "skills" / "deep-news" / "SKILL.md"
+    fonte.write_bytes(fonte.read_bytes() + b"\nacrescentado no pacote\n")  # seguro: skills/deep-news/SKILL.md é rastreado e limpo
+    (checkout_git / "skills" / "deep-product" / "SKILL.md").unlink()  # falta: seria recriado
+    ignore = checkout_git / ".gitignore"
+    ignore.write_text(ignore.read_text(encoding="utf-8").replace(".claude/skills/deep-product/\n", ""), encoding="utf-8")
+    antes = _foto(checkout_git)
+    r = _roda(checkout_git)
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert _foto(checkout_git) == antes
+
+
+def test_extra_rastreado_e_limpo_e_removido_e_o_log_mostra_o_conteudo_perdido(checkout_git):
+    _untracked_arquivo(checkout_git)
+    _untracked_pasta(checkout_git)
+    _untracked_dentro_da_skill(checkout_git)
+    _symlink_extra(checkout_git)
+    _commita(checkout_git, "extras commitados: o git os guarda")
+    r = _roda(checkout_git)
+    assert r.returncode == 0, r.stdout + r.stderr
+    for perdido in ("skills/README.md", "skills/minha-pasta/x.txt", "skills/deep-news/NOTAS-DO-DONO.md", "skills/link-extra"):
+        assert perdido in r.stdout, f"{perdido} saiu sem aparecer no log"
+    assert "notas do dono" in r.stdout, "o log mostra o conteúdo do arquivo removido (o diff), não só o nome"
+    assert _tudo(checkout_git) == _tudo(ROOT)
+    assert not (checkout_git / "skills" / "minha-pasta").exists() and not (checkout_git / "skills" / "link-extra").is_symlink()
+
+
+def test_o_log_do_regen_mostra_o_diff_do_que_sobrescreve(checkout_git):
+    alvo = checkout_git / "skills" / "simplicio-video" / "SKILL.md"
+    alvo.write_bytes(alvo.read_bytes() + b"\nlinha que sera perdida\n")
+    _commita(checkout_git, "edição commitada")
+    r = _roda(checkout_git)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "skills/simplicio-video/SKILL.md" in r.stdout and "linha que sera perdida" in r.stdout
+
+
+def test_fora_de_um_repositorio_git_o_regen_so_cria_e_recusa_apagar_ou_sobrescrever(checkout):
+    """No git, nothing is recoverable: a file that is only missing is created, but a removal or an overwrite needs --force."""
+    shutil.rmtree(checkout / "skills" / "simplicio-video-edit")
+    assert _roda(checkout).returncode == 0 and _tudo(checkout) == _tudo(ROOT)
+    _untracked_arquivo(checkout)
+    antes = _foto(checkout)
+    r = _roda(checkout)
+    assert r.returncode == 2 and "skills/README.md" in r.stdout + r.stderr and "git" in r.stdout + r.stderr
+    assert _foto(checkout) == antes
+    fonte = checkout / "src" / "simplicio_video" / "data" / "skills" / "deep-news" / "SKILL.md"
+    (checkout / "skills" / "README.md").unlink()
+    fonte.write_bytes(fonte.read_bytes() + b"\nacrescentado no pacote\n")  # sobrescrita, não criação
+    antes = _foto(checkout)
+    r = _roda(checkout)
+    assert r.returncode == 2 and "skills/deep-news/SKILL.md" in r.stdout + r.stderr
+    assert _foto(checkout) == antes
+    assert _roda(checkout, "--force").returncode == 0 and _roda(checkout, "--check").returncode == 0
+
+
+def test_force_nao_se_combina_com_check(checkout):
+    antes = _foto(checkout)
+    r = _roda(checkout, "--check", "--force")
+    assert r.returncode == 2 and "--force" in r.stdout + r.stderr
+    assert _foto(checkout) == antes
