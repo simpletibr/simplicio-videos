@@ -35,6 +35,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterator, Mapping
 
 from . import __version__, distribution, hostos
+from .fsutil import canonical_json
 from .skill_sync import HOST_SKILL_ROOTS, SKILLS
 
 SCHEMA = "simplicio.video-install-plan/v1"
@@ -103,8 +104,7 @@ class NoReceipt(InstallError):
 
 
 def _digest(value: Any) -> str:
-    blob = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
+    return "sha256:" + hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
 def bundle_root():

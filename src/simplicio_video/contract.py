@@ -11,6 +11,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from . import paths
+from .fsutil import canonical_json as canonical
 
 EPS = 1e-6
 
@@ -85,10 +86,6 @@ class Contract:
 
     def sha256(self) -> str:
         return hashlib.sha256(canonical(self.data).encode()).hexdigest()
-
-
-def canonical(obj) -> str:
-    return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 def load(path: str | Path) -> Contract:

@@ -39,6 +39,7 @@ from urllib.parse import unquote
 
 from . import childio, hostos, tools
 from .childio import run_child
+from .fsutil import sha256_file as _sha256
 from .toonflow import _offline, _on_term, _stop_group  # same process-group handling as the toonflow track
 
 MONEYPRINTER_REPO = tools.get("moneyprinter").source
@@ -597,14 +598,6 @@ def _listen_socket(port: int) -> socket.socket:
         sock.close()
         raise
     return sock
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def build_video_request(script: str, voice: str, aspect: str, materials: list[str], subject: str) -> dict:

@@ -29,7 +29,7 @@ SEQUENCIA_ESPERADA = {
 MODULOS_PROIBIDOS = {"socket", "ssl", "urllib", "http", "requests", "httpx", "aiohttp", "websockets", "ftplib", "smtplib", "imaplib",
                      "poplib", "telnetlib", "xmlrpc", "socketserver", "selectors", "asyncio", "mcp", "playwright", "selenium",
                      "importlib", "pkgutil", "runpy", "ctypes", "multiprocessing", "webbrowser", "pty"}
-RELATIVOS_PERMITIDOS = {"paths"}
+RELATIVOS_PERMITIDOS = {"paths", "fsutil"}  # fsutil: sha256 e JSON canônico, só stdlib (test_fsutil_paridade confere que ele mesmo passa por esta varredura)
 NOMES_PROIBIDOS = {"__import__", "environ", "environb", "getenv", "exec", "eval", "Popen", "system", "popen"}
 TEXTOS_PROIBIDOS = NOMES_PROIBIDOS | MODULOS_PROIBIDOS
 PREFIXOS_OS_PROIBIDOS = ("exec", "spawn", "fork", "system", "popen", "posix_spawn", "startfile")
