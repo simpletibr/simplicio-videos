@@ -20,6 +20,7 @@ No test touches the network.
 from __future__ import annotations
 
 import ast
+import json
 import os
 import subprocess
 import sys
@@ -171,6 +172,22 @@ def test_o_nome_privado_antigo_do_handler_de_redirecionamento_continua_no_shim()
     from simplicio_video import rede
     from simplicio_video.swap_providers import http
     assert http._NoRedirect is rede.NoRedirect
+
+
+def test_o_shim_continua_sendo_o_modulo_rede_num_processo_novo_com_o_urllib_so_sob_demanda():
+    """U07b: `rede` builds `NoRedirect` on first access (module `__getattr__`) instead of at import. In a clean interpreter, where the
+    shim is the first thing to touch it (it reads `rede.NoRedirect` to add the old private name), `request`, `Response`, `NetworkError`,
+    `NoRedirect` and `_NoRedirect` are still the very same objects under both names and the shim still IS the module."""
+    codigo = ("import json, sys\n"
+              f"sys.path.insert(0, {str(ROOT / 'src')!r})\n"
+              "from simplicio_video.swap_providers import http\n"
+              "from simplicio_video import rede\n"
+              "print(json.dumps({'modulo': http is rede is sys.modules['simplicio_video.swap_providers.http'],\n"
+              "                  'nomes': [getattr(http, n) is getattr(rede, n) for n in ('request', 'Response', 'NetworkError', 'NoRedirect')],\n"
+              "                  'privado': http._NoRedirect is rede.NoRedirect is rede._NoRedirect}))\n")
+    r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == {"modulo": True, "nomes": [True] * 4, "privado": True}
 
 
 def test_o_shim_nao_tem_corpo_proprio_so_reexporta():
