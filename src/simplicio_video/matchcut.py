@@ -51,8 +51,11 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import childio, hostos, tools
-from .toonflow import _offline
+from . import childio, tools
+from .rede import offline as _offline
+from .terceiros import commit_do_checkout as _commit_do_checkout
+from .terceiros import real as _real
+from .trilha_base import Trilha
 
 MATCHCUT_REPO = tools.get("matchcut").source
 
@@ -136,39 +139,20 @@ class MatchcutError(Exception):
     pass
 
 
+T = Trilha("matchcut", "MATCHCUT_DIR", "MATCHCUT_DATA_DIR")
+
+
 def find_matchcut_dir() -> Path | None:
     """The pinned checkout (MATCHCUT_DIR, else SIMPLICIO_TOOLS_DIR/matchcut, else ~/.simplicio-video/tools/matchcut)."""
-    return tools.find("matchcut")
-
-
-@contextlib.contextmanager
-def _checkout_at(target: Path):
-    """Point tools.install at `target` for the duration of the block, then restore the environment."""
-    previous = os.environ.get("MATCHCUT_DIR")
-    os.environ["MATCHCUT_DIR"] = str(target)
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("MATCHCUT_DIR", None)
-        else:
-            os.environ["MATCHCUT_DIR"] = previous
+    return T.find()
 
 
 def clone_matchcut(target: Path | None = None) -> Path:
     """Download the pinned commit (target overrides the location). Never in offline mode."""
-    if _offline():
-        raise MatchcutError(
-            "modo offline (SIMPLICIO_OFFLINE=1): não vou clonar o match-cut. "
-            "Rode `simplicio-video matchcut clone` fora do modo offline ou aponte MATCHCUT_DIR para um checkout."
-        )
-    try:
-        if target is None:
-            return Path(tools.install("matchcut"))
-        with _checkout_at(Path(target).expanduser()):
-            return Path(tools.install("matchcut"))
-    except tools.ToolError as e:
-        raise MatchcutError(str(e)) from None
+    return T.clone(target, erro=MatchcutError, offline=_offline, acao=(
+        "clonar o match-cut. "
+        "Rode `simplicio-video matchcut clone` fora do modo offline ou aponte MATCHCUT_DIR para um checkout."
+    ))
 
 
 # --------------------------------------------------------------------------------------------------- small shared helpers
@@ -335,13 +319,6 @@ def _checkout() -> Path:
     return d
 
 
-def _commit_do_checkout(d: Path) -> str:
-    try:
-        return tools._git("rev-parse", "HEAD", cwd=d)
-    except tools.ToolError:
-        return ""
-
-
 def _mesmo_commit(head: str, ref: str) -> bool:
     return bool(head) and (head == ref or (len(ref) >= 7 and head.startswith(ref)))
 
@@ -413,17 +390,11 @@ def _prepara(s: Script, destino: Path) -> tuple[Path, list[str]]:
 
 def data_dir() -> Path:
     """Where the venv lives: absolute, and outside the checkout so a re-clone never wipes it."""
-    explicit = os.environ.get("MATCHCUT_DATA_DIR")
-    if explicit:
-        return Path(explicit).expanduser().resolve()
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return (base / "matchcut-data").resolve()
+    return T.data_dir()
 
 
 def venv_python() -> Path:
-    sub, ext = ("Scripts", ".exe") if os.name == "nt" else ("bin", "")
-    return data_dir() / "venv" / sub / ("python" + ext)
+    return T.venv_python(data_dir())
 
 
 # What pip and the venv commands receive: no API keys. Proxy and certificate names stay, so pip still works behind a proxy.
@@ -533,14 +504,7 @@ def _caminho(valor: str, canal: str, nome: str) -> str:
     return os.path.abspath(os.path.expanduser(valor))
 
 
-def _real(caminho: str) -> Path | None:
-    try:
-        return Path(caminho).resolve()
-    except (OSError, RuntimeError, ValueError):
-        return None
-
-
-def _confere_entrada(caminho: str, nome: str) -> str:
+def _confere_entrada(caminho: str) -> str:
     try:
         modo = os.stat(caminho).st_mode
     except (OSError, ValueError):
@@ -689,7 +653,7 @@ def _estrutura(cfg: dict) -> None:
 
 def _carrega_montagem(caminho: str) -> tuple[dict, str]:
     """A montage.json: a regular file, valid JSON, valid structure. Returns (config, the folder it sits in)."""
-    _confere_entrada(caminho, "config")
+    _confere_entrada(caminho)
     try:
         with open(caminho, "rb") as fh:
             dados = fh.read(MAX_CONFIG_BYTES + 1)
@@ -852,13 +816,13 @@ def _valor(tipo: str, valor: str, canal: str, forcar: bool, nome: str) -> str:
     if base == "target":  # a path, or path:frame
         cab, _, cauda = valor.rpartition(":")
         if cab and _INT.fullmatch(cauda):
-            return f"{_confere_entrada(_caminho(cab, canal, nome), nome)}:{cauda}"
-        return _confere_entrada(_caminho(valor, canal, nome), nome)
+            return f"{_confere_entrada(_caminho(cab, canal, nome))}:{cauda}"
+        return _confere_entrada(_caminho(valor, canal, nome))
     caminho = _caminho(valor, canal, nome)
     if base == "in":
-        return _confere_entrada(caminho, nome)
+        return _confere_entrada(caminho)
     if base == "config":
-        return _confere_entrada(caminho, nome)  # the content is judged after the whole call is parsed (_confere_montagem)
+        return _confere_entrada(caminho)  # the content is judged after the whole call is parsed (_confere_montagem)
     if base == "dir":
         return _confere_pasta(caminho)
     if base == "out":
@@ -1102,7 +1066,7 @@ def run_matchcut(args: list[str]) -> int:
         print("instalado: não (rode `simplicio-video matchcut clone`)")
         return 0
     try:
-        head = tools._git("rev-parse", "HEAD", cwd=d)
+        head = tools.git("rev-parse", "HEAD", cwd=d)
     except tools.ToolError:
         head = "desconhecido"
     print("instalado: sim")

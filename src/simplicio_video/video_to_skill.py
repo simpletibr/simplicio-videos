@@ -55,8 +55,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import childio, download, hostos, paths, tools
-from .toonflow import _offline
+from . import childio, download, hostos, paths, tools, trilha_base
+from .rede import offline as _offline
+from .terceiros import real as _real
+from .trilha_base import Trilha
 
 REPO = "https://github.com/brenoepics/video-to-skill"
 SUBCOMMANDS = ("clone", "setup", "where", "status", "check", "skill", "extract", "frame-at", "clip", "compile", "merge", "install")
@@ -507,17 +509,15 @@ def managed_binary() -> Path:
     return bin_dir() / (f"vts-extract-{_version()}" + (".exe" if os.name == "nt" else ""))
 
 
+T = Trilha("video_to_skill", "VIDEO_TO_SKILL_DIR")
+
+
 def checkout() -> Path | None:
-    return tools.find("video_to_skill")
+    return T.find()
 
 
 def _checkout_head(d: Path) -> str | None:
-    if not (d / ".git").exists():  # without .git, git would answer with the parent repository
-        return None
-    try:
-        return tools._git("rev-parse", "HEAD", cwd=d)
-    except tools.ToolError:
-        return None
+    return T.head(d)  # without .git, git would answer with the parent repository (T.head gives None)
 
 
 def _sha256_file(path: Path, limit: int = MAX_MEMBER_BYTES) -> str | None:
@@ -680,13 +680,6 @@ def _chave(caminho: Path) -> tuple:
 def _dentro(caminho: Path, pasta: Path) -> bool:
     a, b = _chave(caminho), _chave(pasta.resolve())
     return a[:len(b)] == b
-
-
-def _real(caminho: str) -> Path | None:
-    try:
-        return Path(caminho).resolve()
-    except (OSError, RuntimeError, ValueError):
-        return None
 
 
 def _lugar_proibido(real: Path) -> str:
@@ -1096,32 +1089,14 @@ def plan(verb: str, rest: list[str], canal: str) -> dict:
 
 # ----------------------------------------------------------------------------------------------------------- clone, setup
 
-@contextlib.contextmanager
-def _checkout_at(target: Path):
-    previous = os.environ.get("VIDEO_TO_SKILL_DIR")
-    os.environ["VIDEO_TO_SKILL_DIR"] = str(target)
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("VIDEO_TO_SKILL_DIR", None)
-        else:
-            os.environ["VIDEO_TO_SKILL_DIR"] = previous
-
-
 def clone(target: Path | None = None) -> Path:
     """Download the pinned commit (target overrides the location). Never in offline mode."""
-    if _offline():
-        raise VideoToSkillError("modo offline (SIMPLICIO_OFFLINE=1): não vou clonar o video-to-skill. Rode `simplicio-video "
-                                "video-to-skill clone` fora do modo offline ou aponte VIDEO_TO_SKILL_DIR para um checkout.")
     try:
-        if target is None:
-            return Path(tools.install("video_to_skill"))
-        with _checkout_at(Path(target).expanduser()):
-            return Path(tools.install("video_to_skill"))
-    except tools.ToolError as e:
-        raise VideoToSkillError(str(e)) from None
-    except OSError as e:
+        return T.clone(target, erro=VideoToSkillError, offline=_offline, acao=(
+            "clonar o video-to-skill. Rode `simplicio-video video-to-skill clone` fora do modo offline "
+            "ou aponte VIDEO_TO_SKILL_DIR para um checkout."
+        ))
+    except OSError as e:  # Trilha.clone catches only ToolError: the OSError of a missing git or an unwritable folder is this track's
         raise VideoToSkillError(f"clone: não consegui rodar o git ou gravar o checkout: {e.strerror or type(e).__name__}") from None
 
 
@@ -1498,21 +1473,12 @@ def mcp_run(argv) -> dict:
 def make_job_cwd() -> str:
     """A private empty folder for a job child. Folders of jobs that ended without a result and are older than a week are swept here,
     on the next submit; rmdir only removes an empty one."""
-    base = Path(tempfile.gettempdir())
-    cutoff = time.time() - 7 * 86400
-    for old in base.glob(JOB_CWD_PREFIX + "*"):
-        with contextlib.suppress(OSError):
-            if old.stat().st_mtime < cutoff:
-                old.rmdir()
-    return tempfile.mkdtemp(prefix=JOB_CWD_PREFIX)
+    return str(trilha_base.job_cwd(JOB_CWD_PREFIX))
 
 
 def drop_job_cwd(path) -> None:
     """Remove the private folder of a finished job (only ours: under the temp folder, with our prefix, empty)."""
-    p = Path(str(path or ""))
-    if p.name.startswith(JOB_CWD_PREFIX) and p.parent == Path(tempfile.gettempdir()):
-        with contextlib.suppress(OSError):
-            p.rmdir()
+    trilha_base.drop_job_cwd(path, JOB_CWD_PREFIX)
 
 
 def job_result(args: list[str]) -> dict | None:

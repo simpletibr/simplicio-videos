@@ -260,10 +260,11 @@ def test_clone_refuses_offline_mode(monkeypatch):
 def test_clone_points_the_install_at_the_given_folder_and_restores_the_environment(tmp_path, monkeypatch):
     monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
     seen = []
-    monkeypatch.setattr(tools, "install", lambda name: seen.append((name, os.environ.get("INSTAGRAM_DIR"))) or os.environ["INSTAGRAM_DIR"])
+    # the folder reaches tools.install as `dir=` (what the clone used to say through INSTAGRAM_DIR), and the environment is never written
+    monkeypatch.setattr(tools, "install", lambda name, dir=None: seen.append((name, dir, os.environ.get("INSTAGRAM_DIR"))) or str(dir))
     target = tmp_path / "meu-checkout"
     assert instagram.clone_instagram(target) == target
-    assert seen == [("instagram", str(target))]
+    assert seen == [("instagram", target, None)]
     assert "INSTAGRAM_DIR" not in os.environ
 
 
@@ -1173,7 +1174,11 @@ def test_the_module_imports_nothing_that_talks_to_the_network_or_posts():
     tops = {n.split(".")[0] for n in names if not n.startswith(".")}
     assert not tops & NETWORK, tops & NETWORK
     relatives = {n.lstrip(".") for n in names if n.startswith(".")}
-    assert relatives <= {"tools", "childio"}, relatives  # no busca, social, realoficial, publish, remote, swap, openverse, toonflow
+    # no busca, social, realoficial, publish, remote, swap, openverse, toonflow. The three leaves the track declaration needs are the
+    # exception: trilha_base (the `Trilha`), rede (`offline`, the one reading of SIMPLICIO_OFFLINE; it also holds the HTTP client of the
+    # swap adapters and the Openverse client, which this module never calls) and terceiros (the helpers the sandbox tracks share)
+    assert relatives <= {"tools", "childio", "rede", "rede.offline", "terceiros", "terceiros.commit_do_checkout", "trilha_base",
+                         "trilha_base.Trilha"}, relatives
     # childio (the child that dies with the engine) is the one shared helper allowed: it must itself reach nothing on the network
     assert not {n.split(".")[0] for n in imported(ROOT / "src" / "simplicio_video" / "childio.py") if not n.startswith(".")} & NETWORK
     source = MODULE.read_text(encoding="utf8")
