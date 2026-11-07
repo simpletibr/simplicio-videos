@@ -3,11 +3,14 @@
 What the engine does not run and the repository does not gate (sales operation, the character-swap kit, the factory spec, the
 translated READMEs, a Node service nobody executes) used to sit in the root, in `docs/` and in `scripts/`, next to the product. It is
 the owner's work, so nothing is deleted: every file moved to `arquivo/<where it was>` (history kept: `git log --follow`), the five
-dated researches of 30/09/2026 went to `docs/pesquisa/`, and the dead sections of `AGENTS.md` went VERBATIM to
-`arquivo/AGENTS-legado.md`. `scripts/check_docs.py` skips `arquivo/` (the text there keeps the links it had).
+dated researches of 30/09/2026 went to `docs/pesquisa/`, and the four rows of the `AGENTS.md` map that described the archived folders
+went VERBATIM to `arquivo/AGENTS-legado.md`. The sections of `AGENTS.md` that carry an ACTIVE rule (the owner's sales guide, the
+active-sales flow, the UGC guardrails, the Drive delivery convention that `publish.py` and `--drive-nome` still use) did NOT move:
+when in doubt a section stays in the live file. `scripts/check_docs.py` skips `arquivo/` (the text there keeps the links it had).
 
-This file pins the layout, the verbatim copy, the ownership patterns that lost their file (they go to the `backlog` block, copied as
-they were) and that nothing under `arquivo/` can reach the wheel or the sdist.
+This file pins the layout, the verbatim copy, the live sections, the manifest of `arquivo/` (so that deleting or adding a file there is a
+decision, not an accident), the ownership patterns that lost their file (they go to the `backlog` block, copied as they were) and that
+nothing under `arquivo/` can reach the wheel or the sdist.
 """
 from __future__ import annotations
 
@@ -43,22 +46,20 @@ LEGADO = ROOT / "arquivo" / "AGENTS-legado.md"
 CABECALHO_DA_TABELA_DO_MAPA = "| Pasta | O quê | Entrada principal |\n|---|---|---|\n"
 AGENTS = ROOT / "AGENTS.md"
 
-# The five blocks that left AGENTS.md, as they were in origin/main (ef043d7): sha256 of the exact text (see `_blocos_do_legado`).
-# `drive` is the whole section; its last item (social networks, rule 3) is live, so AGENTS.md keeps a copy of that one.
-SHA256_DOS_BLOCOS = {
-    "missao": "986400d659b16c5b8049522a702ec896f4a49e28a221f5516a6a3093374b4d28",
-    "venda-ativa": "2586f54f005ad6753d5932a9cf632558ce7105a8bc73171f1a14bb211dd5d38a",
-    "ugc": "462ef59a608ecfff4da01f4cb54994b65b528ded972fad6e16e2ed54fafe70cd",
-    "drive": "9d28b9e03da4ecbc4a74d244424c36ed70f1c604fb415a92798deee4586d65eb",
-    "mapa": "a78d54a4d11f30a1c213bc731d19186df3c014d458c317147c4944ca74c2d64d",
+MANIFESTO = ROOT / "tests" / "data" / "arquivo_manifest.txt"
+
+# What left AGENTS.md: the four map rows of the archived folders, as they were in origin/main (ef043d7): sha256 of the exact text (see
+# `_blocos_do_legado`). Nothing else: the sections below are active rules and stay.
+SHA256_DO_LEGADO = {"mapa": "a78d54a4d11f30a1c213bc731d19186df3c014d458c317147c4944ca74c2d64d"}
+# The sections that stayed in AGENTS.md, byte for byte as in origin/main: (first line, what follows the last line, sha256). The only
+# difference is the target of two links, written back here (`ugc/README.md`, `docs/venda-ativa.md` are under arquivo/ now).
+SECOES_QUE_FICARAM = {
+    "missao": ("## Missão e operação de vendas", "\n\n## O que é", "986400d659b16c5b8049522a702ec896f4a49e28a221f5516a6a3093374b4d28"),
+    "venda-ativa": ("**Venda ativa em massa (prévias para oferecer)**", "\n\n**Novo vídeo (etapas 3–7)",
+                    "2586f54f005ad6753d5932a9cf632558ce7105a8bc73171f1a14bb211dd5d38a"),
+    "ugc": ("**Vídeo UGC (gerativo)**", "\n\n**Voz / narração**", "462ef59a608ecfff4da01f4cb54994b65b528ded972fad6e16e2ed54fafe70cd"),
+    "drive": ("## Entregas no Google Drive", "\n\n## Convenções e travas", "9d28b9e03da4ecbc4a74d244424c36ed70f1c604fb415a92798deee4586d65eb"),
 }
-# What identifies each block in AGENTS.md: it must be gone from there.
-SAIU_DO_AGENTS = (
-    "## Missão e operação de vendas",
-    "**Venda ativa em massa (prévias para oferecer)**",
-    "**Vídeo UGC (gerativo)**",
-    "## Entregas no Google Drive",
-)
 LINHAS_DO_MAPA_QUE_SAIRAM = ("| `modules/h3-swap-service/` |", "| `ugc/` |", "| `scripts/kit_gpu/` |", "| `prospects/` |")
 # What the owner said must stay: the generated tables, the recipes, the product rules and the hand-written `src/simplicio_video/` cell.
 FICA_NO_AGENTS = (
@@ -71,6 +72,10 @@ FICA_NO_AGENTS = (
     "<!-- BEGIN GENERATED: host -->",
     "| `intake/` |",
     "**O motor não posta.**",
+    "`simplicio-video/clientes/NOME_CLIENTE/ANO/CAMPANHA`",  # the Drive convention publish.py prints and `--drive-nome` feeds
+    "gerar em plataforma paga só com pedido explícito do Wesley",  # the UGC guardrail
+    "**Nada é enviado pelo agente**",  # the active-sales rule
+    "Leia esse guia antes de qualquer trabalho de venda ativa.",  # the pointer to the owner's guide
 )
 
 
@@ -131,27 +136,63 @@ def _blocos_do_legado() -> dict[str, str]:
     return blocos
 
 
-def test_the_legado_keeps_the_five_dead_blocks_of_agents_md_byte_for_byte():
+def test_the_legado_keeps_the_four_map_rows_of_the_archived_folders_byte_for_byte():
     assert LEGADO.is_file(), "arquivo/AGENTS-legado.md does not exist"
     blocos = _blocos_do_legado()
-    assert set(blocos) == set(SHA256_DOS_BLOCOS), sorted(blocos)
-    for chave, esperado in SHA256_DOS_BLOCOS.items():
+    assert set(blocos) == set(SHA256_DO_LEGADO), sorted(blocos)
+    for chave, esperado in SHA256_DO_LEGADO.items():
         achado = hashlib.sha256(blocos[chave].encode("utf-8")).hexdigest()
         assert achado == esperado, f"block `{chave}` of arquivo/AGENTS-legado.md is not the text that was in AGENTS.md"
 
 
-def test_agents_md_no_longer_carries_the_dead_blocks_and_points_to_the_legado():
+def test_agents_md_no_longer_carries_the_map_rows_of_the_archived_folders_and_points_to_the_legado():
     texto = AGENTS.read_text(encoding="utf-8")
-    for marca in SAIU_DO_AGENTS:
-        assert marca not in texto, f"AGENTS.md still has {marca!r}: it moved to arquivo/AGENTS-legado.md"
     linhas = texto.splitlines()
     for prefixo in LINHAS_DO_MAPA_QUE_SAIRAM:
         assert not any(linha.startswith(prefixo) for linha in linhas), f"AGENTS.md still has the map row {prefixo}"
     assert "(arquivo/AGENTS-legado.md)" in texto and "(arquivo/README.md)" in texto, "AGENTS.md needs the pointer to arquivo/"
     for marca in FICA_NO_AGENTS:
         assert marca in texto, f"AGENTS.md lost {marca!r}: that part is live and stays"
-    # ~6 KB of dead text left (it had 54,830 bytes); the social item of the Drive section (1.2 KB) and the pointer (0.6 KB) came back
-    assert len(AGENTS.read_bytes()) < 54830 - 4000, "the dead text should be out of AGENTS.md"
+
+
+@pytest.mark.parametrize("chave", sorted(SECOES_QUE_FICARAM))
+def test_the_active_sections_stay_in_agents_md_byte_for_byte(chave):
+    """The legado only gets what is unmistakably dead. A rule an agent must follow stays in the live file (`publish.py` and `--drive-nome` still
+    use the Drive convention; the guardrails of the UGC flow and of the active sales flow are not written anywhere else in AGENTS.md)."""
+    inicio, fim, esperado = SECOES_QUE_FICARAM[chave]
+    texto = AGENTS.read_text(encoding="utf-8")
+    assert inicio in texto, f"AGENTS.md lost the section that starts with {inicio!r}"
+    a = texto.index(inicio)
+    secao = texto[a:texto.index(fim, a)]
+    secao = secao.replace("arquivo/ugc/README.md", "ugc/README.md").replace("arquivo/docs/venda-ativa.md", "docs/venda-ativa.md")
+    assert hashlib.sha256(secao.encode("utf-8")).hexdigest() == esperado, f"the section `{chave}` of AGENTS.md is not the text of origin/main"
+
+
+# ------------------------------------------------------------------------------------------------------- manifest of arquivo/
+
+
+def _arquivos_de_arquivo() -> list[str]:
+    """Every file of arquivo/, relative to it: what git tracks, plus what it does not ignore yet (a file added and not committed)."""
+    r = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "arquivo"], cwd=ROOT, capture_output=True, text=True)
+    if r.returncode:
+        achados = [p.relative_to(ROOT / "arquivo").as_posix() for p in (ROOT / "arquivo").rglob("*") if p.is_file() and "__pycache__" not in p.parts]
+        return sorted(achados)
+    return sorted({p.removeprefix("arquivo/") for p in r.stdout.split("\0") if p})
+
+
+def test_the_manifest_of_arquivo_lists_every_file_and_every_listed_file_exists():
+    """Deleting or renaming a file under arquivo/, or adding one, has to update `tests/data/arquivo_manifest.txt` ON PURPOSE.
+
+    Regenerate it with: `git ls-files arquivo | sed 's#^arquivo/##' | LC_ALL=C sort > tests/data/arquivo_manifest.txt`."""
+    listados = MANIFESTO.read_text(encoding="utf-8").splitlines()
+    assert listados, "the manifest is empty"
+    assert len(set(listados)) == len(listados), "a path twice in the manifest"
+    assert listados == sorted(listados), "the manifest is not sorted (LC_ALL=C sort)"
+    sumiram = [p for p in listados if not (ROOT / "arquivo" / p).is_file()]
+    assert not sumiram, "files of the manifest that are not in arquivo/ any more (archived work is never deleted):\n  " + "\n  ".join(sumiram)
+    novos = sorted(set(_arquivos_de_arquivo()) - set(listados))
+    assert not novos, "files in arquivo/ that the manifest does not list (add them to tests/data/arquivo_manifest.txt):\n  " + "\n  ".join(novos)
+    assert {"README.md", "AGENTS-legado.md", "docs/factory/README.md", "modules/h3-swap-service/README.md", "ugc/pack.json"} <= set(listados)
 
 
 # --------------------------------------------------------------------------------------------------------- ownership.yaml
