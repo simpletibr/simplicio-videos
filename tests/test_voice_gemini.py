@@ -2,8 +2,6 @@
 import base64
 import io
 import json
-import math
-import struct
 import urllib.error
 import wave
 
@@ -11,14 +9,7 @@ import pytest
 
 from simplicio_video import contract as ct
 from simplicio_video import voice
-
-
-def _wav(seconds=0.4, sr=24000) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1), w.setsampwidth(2), w.setframerate(sr)
-        w.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * 330 * i / sr))) for i in range(int(seconds * sr))))
-    return buf.getvalue()
+from helpers import sine_wav as _wav
 
 
 class _Resp(io.BytesIO):

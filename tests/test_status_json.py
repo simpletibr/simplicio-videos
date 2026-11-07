@@ -13,6 +13,7 @@ import pytest
 
 from simplicio_video import __version__, status, tools
 from simplicio_video.cli import main
+from helpers import run_main
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini" / "contract.yaml"
 TOOL_NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "voicestudio",
@@ -20,12 +21,7 @@ TOOL_NAMES = {"openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "ma
 
 
 def _run(argv, capsys):
-    try:
-        rc = main(argv)
-    except SystemExit as e:  # argparse encerra com SystemExit (--version, erro de uso)
-        rc = e.code
-    out, err = capsys.readouterr()
-    return rc, out, err
+    return run_main(main, argv, capsys)  # argparse encerra com SystemExit (--version, erro de uso)
 
 
 @pytest.fixture

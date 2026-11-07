@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from conftest import have_render_tools
+from helpers import have_render_tools
 from simplicio_video import contract as ct
 from simplicio_video import render, voice
 

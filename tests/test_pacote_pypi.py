@@ -20,7 +20,7 @@ from typing import Callable
 
 import pytest
 
-from conftest import ROOT
+from helpers import ROOT
 
 REPO = "https://github.com/simpletibr/simplicio-videos"
 CLASSIFICADORES = {

@@ -34,7 +34,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import offline_env
+from helpers import offline_env
 from simplicio_video import cli, mcp_server
 
 LIMITE = 12  # modules of the package that `--help` may import (it was 37)

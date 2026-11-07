@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from _comum import ROOT
+from helpers import ROOT
 
 SCRIPT = ROOT / "scripts" / "smoke_so.py"
 

@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import ROOT, offline_env
+from helpers import offline_env, ROOT
 
 PKG = ROOT / "src" / "simplicio_video"
 PREFIXO = "modo offline (SIMPLICIO_OFFLINE=1): não vou "

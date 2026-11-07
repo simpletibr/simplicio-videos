@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-from conftest import ROOT, offline_env
+from helpers import offline_env, ROOT
 
 RUNNER = """\
 import sys

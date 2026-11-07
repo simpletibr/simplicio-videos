@@ -26,9 +26,10 @@ import pytest
 
 import _caixa
 from _caixa import distribution, install_cmd, installer, skill_sync, update_cmd
-from _comum import ROOT, executa, make_bundle
+from _comum import executa, make_bundle
 from simplicio_video import __version__, tools
 from simplicio_video.cli import main
+from helpers import ROOT
 
 caixa = _caixa.caixa
 saude = _caixa.saude

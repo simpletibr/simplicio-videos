@@ -20,9 +20,10 @@ from pathlib import Path
 
 import pytest
 
-from _comum import ROOT, executa, instantanea
+from _comum import executa, instantanea
 from simplicio_video.cli import main
 from simplicio_video.commands import doctor as doctor_cmd
+from helpers import ROOT
 
 SKILL = ROOT / "src" / "simplicio_video" / "data" / "skills" / "simplicio-video-trilhas" / "SKILL.md"
 TEXTO = SKILL.read_text(encoding="utf-8")

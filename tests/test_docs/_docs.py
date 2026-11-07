@@ -7,9 +7,8 @@ import sys
 from pathlib import Path
 
 import yaml
+from helpers import ROOT, SCRIPTS
 
-ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ROOT / "scripts"
 HOST_DIR = ROOT / "docs" / "host"
 FRONT_MATTER_KEYS = ("title", "summary", "commands", "issue", "last_verified")
 

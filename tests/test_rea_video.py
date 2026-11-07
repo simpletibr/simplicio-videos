@@ -15,6 +15,7 @@ import pytest
 from _orfao import SINAIS, espera, espera_pid, mata_o_que_sobrou, roda_motor, vivo
 
 from simplicio_video import cli, mcp_server, rea_video, tools
+from helpers import isolate_tools
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 REF = "36e02ddf1ffc287bd760d816c132027598f2e4c0"
@@ -22,12 +23,9 @@ REF = "36e02ddf1ffc287bd760d816c132027598f2e4c0"
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
-    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path / "dados"))
-    for var in ("REA_VIDEO_DIR", "REA_VIDEO_DATA_DIR", "REA_VIDEO_HOME", "REA_VIDEO_MODELS", "REA_VLM_API_KEY",
-                "VIDEO_ANALYSIS_API_KEY", "GEMINI3_API_KEY", "SIMPLICIO_OFFLINE", "SIMPLICIO_REA_VIDEO_REF"):
-        monkeypatch.delenv(var, raising=False)
+    isolate_tools(monkeypatch, tmp_path, data="dados",
+                  drop=("REA_VIDEO_DIR", "REA_VIDEO_DATA_DIR", "REA_VIDEO_HOME", "REA_VIDEO_MODELS", "REA_VLM_API_KEY",
+                        "VIDEO_ANALYSIS_API_KEY", "GEMINI3_API_KEY", "SIMPLICIO_OFFLINE", "SIMPLICIO_REA_VIDEO_REF"))
 
 
 @pytest.fixture

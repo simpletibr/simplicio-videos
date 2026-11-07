@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 from test_swap import make_png, make_video, needs_ffmpeg
 
-from conftest import run_cli
+from helpers import run_cli
 from simplicio_video import cli, jobs, mcp_server
 
 FAKE_KEY = "AIzaSyFAKE-KEY-for-tests-0000000000"

@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-from _comum import ROOT
+from helpers import ROOT
 from simplicio_video import busca, openverse, social
 from simplicio_video.cli import build_parser
 

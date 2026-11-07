@@ -27,8 +27,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "licenses.py"
 DOC = ROOT / "docs" / "licenses.md"
 

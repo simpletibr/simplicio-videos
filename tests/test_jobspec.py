@@ -38,9 +38,8 @@ from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no t
 
 from simplicio_video import jobs, moneyprinter, montage, paths, rea_video, swap
 from simplicio_video import video_to_skill as v2s
+from helpers import SRC
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src" / "simplicio_video"
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="the fake child is a shell script")
 
 KINDS_DE_HOJE = ["swap-run", "voice", "rea-video", "moneyprinter", "montage-tool", "video-to-skill"]

@@ -15,13 +15,11 @@ import re
 from pathlib import Path
 
 import pytest
-import yaml
 
-from conftest import ROOT
+from helpers import edit_yaml as _edit, ROOT, SRC
 from simplicio_video import compiler
 from simplicio_video import contract as ct
 
-SRC = ROOT / "src" / "simplicio_video"
 RENDER_CODE = [SRC / "render.py", SRC / "compiler.py"] + sorted(p for p in (SRC / "engine").rglob("*")
                                                               if p.is_file() and "__pycache__" not in p.parts)
 # Hardcoded names that must leave the render code (the operator's brand, the client names, the company).
@@ -29,12 +27,6 @@ FORBIDDEN = re.compile(r"wesley|wjr|lothus|simpleti", re.I)
 
 DEFAULT_MARCA = {"dagua": "Prévia", "credito": None}
 BRAND = {"dagua": "Marca Teste", "credito": {"texto": "Feito por Teste"}}
-
-
-def _edit(path, fn):
-    d = yaml.safe_load(path.read_text())
-    fn(d)
-    path.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False))
 
 
 def _spec(path):

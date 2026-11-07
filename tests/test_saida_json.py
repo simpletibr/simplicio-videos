@@ -5,13 +5,11 @@ Testes em processo (main()), sem rede e sem render de verdade: o render é mocka
 de qualquer subprocesso, porque a validação do contrato roda primeiro. O texto de validate não muda.
 """
 import json
-import sys
 
 import pytest
-import yaml
 from jsonschema import Draft202012Validator
 
-from conftest import ROOT
+from helpers import edit_yaml_utf8 as _edita, ROOT, run_main
 from simplicio_video import despacho, pipeline, render
 from simplicio_video.cli import main
 
@@ -31,22 +29,8 @@ def _erros(nome, dados):
 
 
 def _run(argv, capsys):
-    try:
-        rc = main(argv)
-    except SystemExit as e:
-        if isinstance(e.code, str):  # SystemExit("texto") é o erro de texto do motor: exit 1 + mensagem no stderr
-            print(e.code, file=sys.stderr)
-            rc = 1
-        else:  # argparse (--help, erro de uso)
-            rc = e.code
-    out, err = capsys.readouterr()
-    return rc, out, err
-
-
-def _edita(path, fn):
-    d = yaml.safe_load(path.read_text(encoding="utf8"))
-    fn(d)
-    path.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False), encoding="utf8")
+    # SystemExit("texto") é o erro de texto do motor: exit 1 + mensagem no stderr; argparse (--help, erro de uso) dá o próprio código
+    return run_main(main, argv, capsys, text_exit=True)
 
 
 def _contrato_invalido(path):

@@ -14,7 +14,7 @@ import sys
 
 import pytest
 
-from conftest import ROOT, offline_env, run_cli
+from helpers import offline_env, ROOT, run_cli, SRC
 
 # Subcomandos de venda: não podem aparecer no argparse do motor nem no --help dele.
 VENDAS = ("prospect", "batch", "venda", "ugc", "realoficial", "publish")
@@ -102,7 +102,6 @@ def test_help_do_subcomando_motor_nao_cita_venda(sub, tmp_path):
 # `commands/setup.py` importa REALOFICIAL_MCP_URL.
 MODULOS_MORTOS = ("prospect", "venda", "ugc", "layout")
 MODULOS_QUE_FICAM = ("publish", "realoficial")
-SRC = ROOT / "src" / "simplicio_video"
 
 
 def test_modulos_de_venda_mortos_nao_estao_no_pacote():

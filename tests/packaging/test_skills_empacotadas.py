@@ -28,7 +28,7 @@ import pytest
 
 import dados_cliente_guard as guarda
 from _caixa import skill_sync
-from _comum import ROOT
+from helpers import ROOT
 
 PACOTE = ROOT / "src" / "simplicio_video" / "data" / "skills"
 ESPELHO = ROOT / "skills"

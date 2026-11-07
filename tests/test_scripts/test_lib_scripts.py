@@ -19,9 +19,8 @@ import time
 from pathlib import Path
 
 import pytest
+from helpers import ROOT, SCRIPTS
 
-ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ROOT / "scripts"
 CINCO = ("smoke_so", "smoke_trilhas", "e2e_real", "check_tdd", "check_ownership")
 
 

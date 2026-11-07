@@ -39,7 +39,7 @@ import pytest
 
 import _caixa
 from _caixa import _Lazy, posix_real, roda
-from _comum import ROOT
+from helpers import ROOT, SRC
 from simplicio_video import HYPERFRAMES, __version__, hostos, mcp_server, status, terceiros, tools, tools_lock, tools_update
 from simplicio_video.cli import build_parser
 from test_doctor_trilhas import _rede_em_dia, monta_saudavel
@@ -53,7 +53,6 @@ caixa = _caixa.caixa
 ambiente = _ambiente_do_doctor  # the doctor's machine: sealed PATH, nothing installed, fake git
 ambiente_update = _ambiente_do_update  # the update's machine: a checkout with .git and its marker per git track
 
-SRC = ROOT / "src" / "simplicio_video"
 SMOKE = ROOT / "scripts" / "smoke_trilhas.py"
 SETUP_SH = SRC / "data" / "tools" / "video-use" / "setup.sh"
 SKILL = SRC / "data" / "skills" / "simplicio-video-trilhas" / "SKILL.md"

@@ -6,16 +6,14 @@ import re
 import pytest
 
 from simplicio_video import cli, matchcut, mcp_server, tools
+from helpers import isolate_tools
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(tmp_path / "tools"))
-    monkeypatch.delenv("MATCHCUT_DIR", raising=False)
-    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+    isolate_tools(monkeypatch, tmp_path, drop=("MATCHCUT_DIR", "SIMPLICIO_OFFLINE"))
 
 
 @pytest.fixture

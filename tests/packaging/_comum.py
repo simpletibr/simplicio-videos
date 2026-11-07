@@ -6,8 +6,7 @@ no .venv real do repo ou abre socket (pytest-socket). Ferramentas externas (ffmp
 from __future__ import annotations
 
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]
+from helpers import ROOT
 
 
 def executa(argv, capsys, main):

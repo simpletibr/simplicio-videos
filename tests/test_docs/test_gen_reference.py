@@ -15,7 +15,8 @@ import re
 
 import pytest
 
-from _docs import ROOT, run_script
+from _docs import run_script
+from helpers import ROOT
 
 REFERENCE_FILES = {"cli.md", "mcp-tools.md", "schemas.md", "events.md", "config.md"}
 PKG = ROOT / "src" / "simplicio_video"

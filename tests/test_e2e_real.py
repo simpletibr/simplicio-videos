@@ -18,8 +18,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "e2e_real.py"
 FIXTURE = ROOT / "tests" / "fixtures" / "mini" / "contract.yaml"
 CHAVE_FALSA = "chave-falsa-do-teste-0123456789"

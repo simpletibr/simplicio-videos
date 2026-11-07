@@ -15,12 +15,11 @@ import re
 import subprocess
 import sys
 from functools import lru_cache
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 COMPONENTE = ROOT / "examples" / "langflow" / "simplicio_component.py"
 FLUXO = ROOT / "examples" / "langflow" / "fluxo-exemplo.json"

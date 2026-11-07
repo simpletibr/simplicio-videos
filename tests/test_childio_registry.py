@@ -179,7 +179,7 @@ HARNESS = textwrap.dedent('''
 def _roda_harness(tmp_path: Path, cfg: dict) -> subprocess.Popen:
     import json
 
-    from conftest import ROOT, offline_env
+    from helpers import ROOT, offline_env
 
     env = offline_env(HARNESS_CFG=json.dumps(cfg))
     env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])

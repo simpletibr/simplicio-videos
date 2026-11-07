@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 
 from simplicio_video import childio
+from helpers import FIXTURE, SRC
 
-SRC = Path(__file__).resolve().parents[1] / "src" / "simplicio_video"
 CHILD = "import sys; print('child-out'); print('child-err', file=sys.stderr); sys.stdin.read(); sys.exit(7)"
 
 
@@ -269,9 +269,6 @@ def test_check_child_raises_on_failure(monkeypatch):
     with pytest.raises(subprocess.CalledProcessError) as e:
         childio.check_child([sys.executable, "-c", "import sys; sys.exit(5)"])
     assert e.value.returncode == 5
-
-
-FIXTURE = Path(__file__).parent / "fixtures" / "mini"
 
 
 def _voice_under_mcp(tmp_path, monkeypatch, provider):

@@ -6,13 +6,9 @@ em ordem inversa, para a conclusão sair fora de ordem; o lock e os WAVs têm de
 from __future__ import annotations
 
 import hashlib
-import io
 import json
-import math
-import struct
 import threading
 import time
-import wave
 from pathlib import Path
 
 import pytest
@@ -20,17 +16,13 @@ import yaml
 
 from simplicio_video import contract as ct
 from simplicio_video import voice
+from helpers import sine_wav
 
 N = 6
 
 
 def _wav(seed: int, seconds=0.30, sr=24000) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1), w.setsampwidth(2), w.setframerate(sr)
-        f = 300 + 40 * seed
-        w.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * f * i / sr))) for i in range(int(seconds * sr))))
-    return buf.getvalue()
+    return sine_wav(seconds, sr, 300 + 40 * seed)
 
 
 def make_contract(mini: Path, n: int = N, max_s: float = 0.9) -> Path:

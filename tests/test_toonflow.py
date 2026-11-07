@@ -14,8 +14,8 @@ import pytest
 from _orfao import SINAIS, espera, espera_pid, mata_o_que_sobrou, sinaliza_no_popen, sinais_padrao, vivo  # noqa: F401
 
 from simplicio_video import cli, mcp_server, tools, toonflow
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 

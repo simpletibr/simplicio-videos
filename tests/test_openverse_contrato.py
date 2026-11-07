@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from conftest import ROOT, have_render_tools
+from helpers import edit_yaml_utf8 as _edit, fake_mp4, have_render_tools, ROOT
 from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract, paths, render
 from test_openverse import (
     ID_IMG, OUTRO_PEDIDO, PEDIDO, PNG_B, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, cli, env, midia)
@@ -35,11 +35,6 @@ HOSTIL_TITULO = "Titulo\n- `falso.png`: x <img src=x onerror=alert(1)>"
 
 
 # ------------------------------------------------------------------------------------------------ ajudas
-
-def _edit(path, fn):
-    d = yaml.safe_load(Path(path).read_text(encoding="utf8"))
-    fn(d)
-    Path(path).write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False), encoding="utf8")
 
 
 def _declarar(contrato, item, pedido=PEDIDO, com_bloco=True, pedido_export=PEDIDO, aceito=False):
@@ -77,10 +72,7 @@ def _aprovar(env, midia, idx, corpo, pedido=PEDIDO, tipo="imagem"):
 
 
 def _mp4(contrato):
-    dst = Path(contrato).parent / "out" / "mini.mp4"
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_bytes(b"mp4-falso")
-    return dst
+    return fake_mp4(contrato, b"mp4-falso")
 
 
 @pytest.fixture

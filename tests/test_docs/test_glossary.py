@@ -8,7 +8,7 @@ import re
 
 import pytest
 
-from _docs import ROOT
+from helpers import ROOT
 
 GLOSSARY = ROOT / "docs" / "glossary.md"
 TERMS = [

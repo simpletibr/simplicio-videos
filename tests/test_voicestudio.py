@@ -12,6 +12,7 @@ import json
 import pytest
 
 from simplicio_video import voicestudio as vs
+from helpers import run_main
 
 WAV = b"RIFF-fake-wav-bytes"
 MP4 = b"\x00\x00\x00\x18ftypmp42-fake-dubbed-video"
@@ -96,12 +97,7 @@ def fake(monkeypatch):
 
 
 def _run(argv, capsys):
-    try:
-        rc = vs.run_voicestudio(argv)
-    except SystemExit as e:
-        rc = e.code
-    out, err = capsys.readouterr()
-    return rc, out, err
+    return run_main(vs.run_voicestudio, argv, capsys)
 
 
 # ---- base URL ----------------------------------------------------------------------------------------------------

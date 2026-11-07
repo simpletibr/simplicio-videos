@@ -29,11 +29,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from conftest import offline_env
+from helpers import offline_env, run_main, SRC
 from simplicio_video import cli, mcp_server, pipeline, remote, render
 from simplicio_video import contract as ct
 
-SRC = Path(__file__).resolve().parents[1] / "src" / "simplicio_video"
 H = "ab" * 32
 
 # the signature of `cli.do_render` on origin/main (c6e0391): note `gpu_encode` between `timeout` and `log`
@@ -77,12 +76,7 @@ def folhas(monkeypatch):
 
 
 def _main(argv, capsys):
-    try:
-        rc = cli.main(argv)
-    except SystemExit as e:
-        rc = e.code
-    out, err = capsys.readouterr()
-    return rc, out, err
+    return run_main(cli.main, argv, capsys)
 
 
 # ------------------------------------------------------------------ characterization: which backend, with which arguments

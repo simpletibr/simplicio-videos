@@ -25,7 +25,8 @@ import pytest
 
 import _caixa
 from _caixa import FFMPEG_COM_LIBASS, FFMPEG_SEM_LIBASS, chamadas_do_uv, posix_real, write_fake_tool, write_fake_uv
-from _comum import ROOT, instantanea
+from _comum import instantanea
+from helpers import ROOT
 
 caixa = _caixa.caixa
 

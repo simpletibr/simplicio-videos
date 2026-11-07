@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FIXTURE
+from helpers import FIXTURE
 from simplicio_video import (busca, contract, doctor_trilhas, download, fsutil, installer, moneyprinter, openverse, render, shorts,
                              social, swap, voice)
 from simplicio_video import video_to_skill as v2s

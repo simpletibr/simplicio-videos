@@ -5,7 +5,6 @@ encadeados com crossfade (padrão 8 ms). Aqui o WAV de 60 s é sintético (senoi
 gerado pelo ffmpeg) e a checagem é por FFT em Python puro (tests/audio_medida.py): duração, ordem dos trechos e
 passa-baixa aplicado só no trecho marcado. Sem ffmpeg/ffprobe o teste pula com motivo explícito.
 """
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -13,7 +12,7 @@ import pytest
 import yaml
 
 from audio_medida import freq_dominante, le_wav, potencia_banda_db
-from conftest import have_render_tools
+from helpers import ffmpeg_ou_pula, have_render_tools
 from simplicio_video import compiler, trilha
 from simplicio_video import contract as ct
 from simplicio_video import render, voice
@@ -32,8 +31,7 @@ TAMANHO_JANELA = 1 << 15  # ~0.68 s por medição
 
 
 def _ffmpeg_ou_pula():
-    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
-        pytest.skip("ffmpeg/ffprobe ausentes neste ambiente: o arranjo por cortes e a checagem de duração precisam deles")
+    ffmpeg_ou_pula("ffmpeg/ffprobe ausentes neste ambiente: o arranjo por cortes e a checagem de duração precisam deles")
 
 
 def _gera_fonte_60s(path: Path) -> None:

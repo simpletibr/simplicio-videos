@@ -15,7 +15,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from gitfixture import OWNERSHIP, ROOT, Repo, clean_env
+from gitfixture import OWNERSHIP, Repo, clean_env
+from helpers import ROOT
 
 LAND = ROOT / "scripts" / "land.sh"
 

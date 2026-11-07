@@ -22,20 +22,14 @@ import pytest
 import yaml
 
 from audio_medida import freq_dominante, le_wav, potencia_banda_db
-from conftest import have_render_tools
+from helpers import edit_yaml_utf8 as _edit, fake_mp4, have_render_tools, needs_ffmpeg
 from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract as oc, render, trilha, voice
 from test_openverse import PEDIDO, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, env, midia
 
-needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 SR_TOM = 4000  # o tom da trilha de teste: fica na banda de agudos (2.5-6 kHz) que o ducking de voz baixa
 
 
 # ------------------------------------------------------------------------------------------------ ajudas
-
-def _edit(path, fn):
-    d = yaml.safe_load(Path(path).read_text(encoding="utf8"))
-    fn(d)
-    Path(path).write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False), encoding="utf8")
 
 
 def _wav_tom(path: Path, freq: int = SR_TOM, dur: int = 2) -> bytes:
@@ -237,9 +231,7 @@ def _creditos_do_video(contrato) -> str:
     wd = contrato.parent / "wd"
     compiler.compile_project(ct.load(contrato), wd, None)
     files = render.tree_hash(wd)[1]
-    dst = contrato.parent / "out" / "mini.mp4"
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_bytes(b"mp4-falso")
+    dst = fake_mp4(contrato, b"mp4-falso")
     oc.deliver(ct.load(contrato), dst, files)
     return (dst.parent / "mini.CREDITS-openverse.md").read_text(encoding="utf8")
 

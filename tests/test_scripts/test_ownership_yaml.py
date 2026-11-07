@@ -14,7 +14,8 @@ import importlib.util
 import subprocess
 
 import pytest
-from gitfixture import OWNERSHIP_REL, ROOT, SCRIPTS, Repo
+from gitfixture import OWNERSHIP_REL, Repo
+from helpers import ROOT, SCRIPTS
 
 OWNERSHIP = ROOT / OWNERSHIP_REL
 # whole files, rewritten by `make regen`: gen_reference.py (docs/reference), licenses.py --write (docs/licenses.md) and

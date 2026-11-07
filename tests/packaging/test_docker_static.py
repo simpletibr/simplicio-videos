@@ -10,7 +10,7 @@ import re
 import pytest
 import yaml
 
-from _comum import ROOT
+from helpers import ROOT
 
 DOCKERFILE = ROOT / "Dockerfile"
 COMPOSE = ROOT / "compose.yaml"

@@ -3,14 +3,13 @@ changelog, the legal table and the help texts. The numbers come from the code (t
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 from _sem_vazamento import sem_vazamento_de_pastas  # noqa: F401  (autouse: no test leaves a job folder in the real tmp)
 
 from simplicio_video import mcp_server, tools, video_to_skill
+from helpers import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 README = (ROOT / "README.md").read_text(encoding="utf8")
 README_PT = (ROOT / "README.pt-BR.md").read_text(encoding="utf8")
 COMMIT = tools.get("video_to_skill").ref

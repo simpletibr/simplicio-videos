@@ -21,7 +21,8 @@ import sys
 
 import pytest
 import yaml
-from gitfixture import OWNERSHIP_REL, ROOT, Repo, clean_env
+from gitfixture import OWNERSHIP_REL, Repo, clean_env
+from helpers import ROOT
 
 # (where it was, where it is now). A folder ends with `/`.
 ARQUIVADOS = [
