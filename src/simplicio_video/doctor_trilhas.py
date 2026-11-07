@@ -36,7 +36,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
 
-from . import hostos, terceiros, tools, tools_lock, tools_update
+from . import hostos, paths, terceiros, tools, tools_lock, tools_update
 from .fsutil import sha256_file
 from .status import ENV_FERRAMENTA
 
@@ -566,7 +566,7 @@ def _deps(t: tools.Tool) -> list:
 
 def _tts_py_row(obrigatoria: bool) -> dict:
     """The python that video-use's setup.sh needs (numpy, Pillow, soundfile): SIMPLICIO_TTS_PY, else its default folder."""
-    caminho = os.environ.get("SIMPLICIO_TTS_PY") or str(hostos.home_dir() / ".local" / "share" / "simplicio-tts" / "cbvenv" / "bin" / "python")
+    caminho = paths.tts_python()
     fix = ("defina SIMPLICIO_TTS_PY com um python que tenha numpy, Pillow e soundfile (e faster-whisper, para transcrever "
            "localmente), e rode `simplicio-video edit setup`")
     if Path(caminho).is_file():

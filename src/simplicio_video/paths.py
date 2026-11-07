@@ -88,8 +88,9 @@ def schema_path(d: Path | None = None) -> Path:
 
 
 def tts_python() -> str:
-    """Python with kokoro-onnx/soundfile for the local provider."""
-    return os.environ.get("SIMPLICIO_TTS_PY", str(hostos.home_dir() / ".local/share/simplicio-tts/cbvenv/bin/python"))
+    """Python with kokoro-onnx/soundfile for the local provider (and the support python video-use needs): $SIMPLICIO_TTS_PY, else the
+    venv of simplicio-tts. An empty variable is the default, as the doctor and video-use's setup.sh always took it."""
+    return os.environ.get("SIMPLICIO_TTS_PY") or str(hostos.home_dir() / ".local/share/simplicio-tts/cbvenv/bin/python")
 
 
 def node_env() -> dict:
