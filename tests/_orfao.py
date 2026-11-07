@@ -119,6 +119,24 @@ def sinais_ignorados(*nomes: str):
             signal.signal(getattr(signal, n), h)
 
 
+# Runs in the wrapper process before the exec: SIGHUP, SIGINT and SIGTERM back to SIG_DFL (a shell starts every command that way), then
+# the command takes the place of the wrapper (same pid). Python, exec'd with SIGINT at SIG_DFL, installs default_int_handler for it,
+# which is what childio's _Guard.install requires. No preexec_fn: it is not safe in a process with threads (pytest, xdist).
+_COMO_SHELL = (
+    "import os, signal, sys; "
+    "[signal.signal(getattr(signal, n), signal.SIG_DFL) for n in ('SIGHUP', 'SIGINT', 'SIGTERM') if hasattr(signal, n)]; "
+    "os.execvp(sys.argv[1], sys.argv[1:])"
+)
+
+
+def lanca_como_shell(argv: list[str], **popen_kw) -> subprocess.Popen:
+    """subprocess.Popen(argv, **popen_kw) with SIGHUP, SIGINT and SIGTERM in the state a shell gives a command, whatever the pytest
+    process has (`nohup make check` and `make check &` leave HUP and INT at SIG_IGN, and an ignored signal survives the exec: the
+    engine keeps it ignored on purpose, so a test signal sent to such a child does nothing). The single launcher for every test that
+    starts the engine or the MCP server and signals it. `restore_signals=True` does not do this: it only restores SIGPIPE and SIGXFSZ."""
+    return subprocess.Popen([sys.executable, "-c", _COMO_SHELL, *map(os.fspath, argv)], **popen_kw)
+
+
 @pytest.fixture
 def sinais_padrao():
     """The engine as a shell starts it: the stop signals at their defaults (pytest may run under nohup, which ignores SIGHUP, and
@@ -141,9 +159,6 @@ def parada_esperada(nome: str):
 PRELUDIO = r"""
 import json, os, signal, subprocess, sys, threading, time
 cfg = json.loads(os.environ["ORFAO_CFG"])
-for _n in ("SIGTERM", "SIGHUP"):  # as a shell starts the engine (pytest may run under nohup, which ignores SIGHUP)
-    if hasattr(signal, _n):
-        signal.signal(getattr(signal, _n), signal.SIG_DFL)
 _sinal = getattr(signal, cfg["sinal"])
 
 def _pid():
@@ -187,8 +202,15 @@ def roda_motor(tmp_path: Path, corpo: str, pidfile: Path, sinal: str, quando: st
         env["TMPDIR"] = str(tmpd)
     # Files, not pipes: an orphan that inherited a pipe would keep the read open and hang the test instead of failing it.
     with open(tmp_path / "motor.out", "w+") as out, open(tmp_path / "motor.err", "w+") as err:
-        rc = subprocess.run([sys.executable, "-c", PRELUDIO + corpo], env=env, stdout=out, stderr=err, timeout=timeout,
-                            stdin=subprocess.DEVNULL, cwd=tmp_path).returncode
+        # as a shell starts the engine (pytest may run under nohup, which ignores SIGHUP and SIGINT): the three stop signals at their defaults
+        proc = lanca_como_shell([sys.executable, "-c", PRELUDIO + corpo], env=env, stdout=out, stderr=err, stdin=subprocess.DEVNULL,
+                                cwd=tmp_path)
+        try:
+            rc = proc.wait(timeout)
+        except BaseException:  # what subprocess.run does: do not leave the engine behind
+            proc.kill()
+            proc.wait()
+            raise
         out.seek(0)
         err.seek(0)
         return subprocess.CompletedProcess([], rc, out.read(), err.read())
