@@ -101,16 +101,18 @@ def test_a_stop_signal_to_a_process_under_the_exit_guard_kills_the_child_of_run_
 
 @POSIX_ONLY
 @pytest.mark.parametrize("nome", SINAIS)
-def test_a_stop_signal_to_the_real_mcp_server_kills_the_git_read_of_video_doctor_online(nome, tmp_path):
-    """The real server (stdio) and a tool that reads the upstream of each track with `git ls-remote` (run_limitado) in a worker
-    thread: the server ends with 128+n and no `git` of the read is left."""
+def test_a_stop_signal_to_the_real_mcp_server_kills_the_git_read_of_video_doctor_trilhas_online(nome, tmp_path):
+    """The real server (stdio) and a tool that reads the upstream of each track with `git ls-remote` (run_limitado) in worker
+    threads: the server ends with 128+n and no `git` of the reads is left. (`trilhas` is the table of the tracks alone: the other
+    checks of `doctor --online` touch sockets, which offline_env blocks.)"""
     pytest.importorskip("mcp")
     from conftest import ROOT, offline_env
 
     bindir, home, pidfile = tmp_path / "bin", tmp_path / "home", tmp_path / "git.pids"
     bindir.mkdir(), home.mkdir()
-    falso = bindir / "git"  # the read hangs: one line per git that was started
-    falso.write_text(f"#!/bin/bash\necho $$ >> {pidfile}\nexec sleep 120\n")
+    falso = bindir / "git"  # the read of the upstream (ls-remote) hangs, one line per such git; any other git call fails at once
+    falso.write_text(f'#!/bin/bash\ncase " $* " in *" ls-remote "*) echo $$ >> {pidfile}; exec sleep 120;; esac\n'
+                     'echo "fatal: not a repository" >&2\nexit 128\n')
     falso.chmod(falso.stat().st_mode | stat.S_IEXEC)
     env = offline_env(HOME=str(home), PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}", SIMPLICIO_VIDEO_DATA=str(tmp_path / "data"))
     env.pop("SIMPLICIO_OFFLINE", None)  # --online reads the upstream; the sitecustomize of offline_env still blocks every socket
@@ -127,7 +129,7 @@ def test_a_stop_signal_to_the_real_mcp_server_kills_the_git_read_of_video_doctor
                "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}})
         assert b'"id":1' in servidor.stdout.readline()
         manda({"jsonrpc": "2.0", "method": "notifications/initialized"})
-        manda({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "video.doctor", "arguments": {"args": "--online"}}})
+        manda({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "video.doctor", "arguments": {"args": "trilhas --online"}}})
         assert espera(lambda: pids_de(pidfile), 30), "the tool never started its git"
         os.kill(servidor.pid, getattr(signal, nome))
         assert servidor.wait(20) == 128 + getattr(signal, nome), (tmp_path / "server.err").read_text()[-600:]
