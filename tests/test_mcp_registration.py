@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from helpers import KINDS_DE_HOJE
 from simplicio_video import jobs, mcp_server
 
 SNAPSHOT = json.loads((Path(__file__).parent / "data" / "mcp_tools_list.snapshot.json").read_text(encoding="utf-8"))
@@ -35,7 +36,7 @@ def test_mcp_tools_list_is_identical_to_the_snapshot():
 
 
 def test_jobs_kinds_are_registered_in_order():
-    assert list(jobs.KINDS) == ["swap-run", "voice", "rea-video", "moneyprinter", "montage-tool", "video-to-skill"]
+    assert list(jobs.KINDS) == KINDS_DE_HOJE
     for spec in jobs.KINDS.values():
         assert set(spec) == {"prepare", "argv", "result"} and all(callable(f) for f in spec.values())
 

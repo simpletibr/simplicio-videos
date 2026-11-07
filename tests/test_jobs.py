@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 from test_swap import make_png, make_video, needs_ffmpeg
 
-from helpers import run_cli
+from helpers import KINDS_DE_HOJE, run_cli
 from simplicio_video import cli, jobs, mcp_server
 
 FAKE_KEY = "AIzaSyFAKE-KEY-for-tests-0000000000"
@@ -75,7 +75,7 @@ def stub_spawn(monkeypatch):
 # ---------------------------------------------------------------- lista fechada e quem pode gastar
 
 def test_tipos_fechados():
-    assert set(jobs.KINDS) == {"swap-run", "voice", "rea-video", "moneyprinter", "montage-tool", "video-to-skill"}  # montage-tool: run-tool, gate estrito pelo MCP (T2c)
+    assert set(jobs.KINDS) == set(KINDS_DE_HOJE)  # montage-tool: run-tool, gate estrito pelo MCP (T2c)
 
 
 def test_cada_tipo_aparece_na_ajuda_e_na_docstring_do_modulo():

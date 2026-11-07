@@ -39,11 +39,10 @@ from types import SimpleNamespace
 import pytest
 
 from simplicio_video import jobs, paths, rea_video
-from helpers import ROOT, SRC
+from helpers import KINDS_DE_HOJE, ROOT, SRC
 
 POSIX = pytest.mark.skipif(os.name != "posix", reason="the fake child is a shell script")
 
-KINDS_DE_HOJE = ["swap-run", "voice", "rea-video", "moneyprinter", "montage-tool", "video-to-skill"]
 VARIANTES = ["decompose", "stems"]
 VLM_NO_MCP = ("--vlm: só pelo terminal (simplicio-video rea-video ...). Pelo MCP nada vai a um modelo de visão de terceiros, nada gasta "
               "e nada roda código de fora; o agente que chama faz o papel do modelo com review e apply-review.")
