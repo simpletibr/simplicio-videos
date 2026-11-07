@@ -169,25 +169,28 @@ def test_o_shim_de_swap_providers_http_e_a_mesma_coisa_que_rede(nome):
 
 
 def test_o_nome_privado_antigo_do_handler_de_redirecionamento_continua_no_shim():
+    """U24a: it did not stay. The shim used to write `rede._NoRedirect` into the other module only for a test that read `http._NoRedirect`;
+    the handler has one name now, `NoRedirect`, the same object through the shim and through `rede`, and neither module has the old one."""
     from simplicio_video import rede
     from simplicio_video.swap_providers import http
-    assert http._NoRedirect is rede.NoRedirect
+    assert http.NoRedirect is rede.NoRedirect
+    assert not hasattr(rede, "_NoRedirect") and not hasattr(http, "_NoRedirect")
 
 
 def test_o_shim_continua_sendo_o_modulo_rede_num_processo_novo_com_o_urllib_so_sob_demanda():
     """U07b: `rede` builds `NoRedirect` on first access (module `__getattr__`) instead of at import. In a clean interpreter, where the
-    shim is the first thing to touch it (it reads `rede.NoRedirect` to add the old private name), `request`, `Response`, `NetworkError`,
-    `NoRedirect` and `_NoRedirect` are still the very same objects under both names and the shim still IS the module."""
+    first access is the one below, `request`, `Response`, `NetworkError` and `NoRedirect` are the very same objects under both names, the
+    shim still IS the module, and neither has the old private name `_NoRedirect` (U24a: the shim no longer writes it into `rede`)."""
     codigo = ("import json, sys\n"
               f"sys.path.insert(0, {str(ROOT / 'src')!r})\n"
               "from simplicio_video.swap_providers import http\n"
               "from simplicio_video import rede\n"
               "print(json.dumps({'modulo': http is rede is sys.modules['simplicio_video.swap_providers.http'],\n"
               "                  'nomes': [getattr(http, n) is getattr(rede, n) for n in ('request', 'Response', 'NetworkError', 'NoRedirect')],\n"
-              "                  'privado': http._NoRedirect is rede.NoRedirect is rede._NoRedirect}))\n")
+              "                  'privado': hasattr(http, '_NoRedirect') or hasattr(rede, '_NoRedirect')}))\n")
     r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stderr
-    assert json.loads(r.stdout) == {"modulo": True, "nomes": [True] * 4, "privado": True}
+    assert json.loads(r.stdout) == {"modulo": True, "nomes": [True] * 4, "privado": False}
 
 
 def test_o_shim_nao_tem_corpo_proprio_so_reexporta():

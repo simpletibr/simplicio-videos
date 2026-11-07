@@ -38,9 +38,9 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `PATHEXT` | Extensões executáveis do Windows (`.EXE;.CMD`...). Lida só no Windows, ao procurar `simplicio`, `node`, `ffmpeg` e `npm` no PATH. | `src/simplicio_video/hostos.py:242` |
 | `PIP_BREAK_SYSTEM_PACKAGES` | `1` autoriza o pip a mexer no Python do sistema (PEP 668). O `update` de um pacote instalado por pip respeita: sem ele, um Python gerenciado pelo sistema é recusado com exit 2. | `src/simplicio_video/commands/update.py:73` |
 | `PYTHONPATH` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:1331`<br>`src/simplicio_video/moneyprinter.py:453`<br>`src/simplicio_video/moneyprinter.py:829` |
-| `REA_VIDEO_DATA_DIR` | Pasta de dados da trilha rea-video: o venv próprio e o estado do upstream (padrão: `~/.simplicio-video/rea-video-data`, fora do checkout). | `src/simplicio_video/rea_video.py:62` |
-| `REA_VIDEO_DIR` | Checkout do rea-video (alternativa a `SIMPLICIO_TOOLS_DIR/rea_video`). | `src/simplicio_video/rea_video.py:62` |
-| `REA_VIDEO_PYTHON` | Interpretador que cria o venv do rea-video no `setup`, por exemplo `python3.11` para o extra de OCR. Um venv que já existe é mantido. | `src/simplicio_video/rea_video.py:132` |
+| `REA_VIDEO_DATA_DIR` | Pasta de dados da trilha rea-video: o venv próprio e o estado do upstream (padrão: `~/.simplicio-video/rea-video-data`, fora do checkout). | `src/simplicio_video/rea_video.py:63` |
+| `REA_VIDEO_DIR` | Checkout do rea-video (alternativa a `SIMPLICIO_TOOLS_DIR/rea_video`). | `src/simplicio_video/rea_video.py:63` |
+| `REA_VIDEO_PYTHON` | Interpretador que cria o venv do rea-video no `setup`, por exemplo `python3.11` para o extra de OCR. Um venv que já existe é mantido. | `src/simplicio_video/rea_video.py:133` |
 | `SIMPLICIO_BUSCA_MAX_DIA` | Teto de chamadas ao TinyFish por dia UTC no `busca` (padrão 20; máximo 1000). `--max-chamadas-dia` vence. O MCP e o plugin só usam este valor ou o padrão. | `src/simplicio_video/busca.py:362` |
 | `SIMPLICIO_COLAB_AUTH` | Modo de autenticação do Colab CLI, repassado a `--auth`. | `src/simplicio_video/remote.py:183`<br>`src/simplicio_video/remote.py:184` |
 | `SIMPLICIO_DRIVE_REMOTE` | Nome do remote do rclone para o Drive (padrão: `gdrive`). | `src/simplicio_video/publish.py:109` |
@@ -52,7 +52,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SIMPLICIO_JOB_ORIGIN` | Rótulo de procedência de uma tarefa de `jobs`: `terminal` ou `mcp`. O runner (`jobs.py`) grava no ambiente do processo filho a origem de quem submeteu a tarefa, e a trilha `video-to-skill` a copia para o `PASTA.extract.json` (`submitted_via`). Não é controle de acesso: não autoriza nem bloqueia nada, só registra de onde veio o pedido. | `src/simplicio_video/video_to_skill.py:1303` |
 | `SIMPLICIO_MCP` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/childio.py:97`<br>`src/simplicio_video/mcp_server.py:944` |
 | `SIMPLICIO_MONTAGE_TIMEOUT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/montage.py:761` |
-| `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline (inclui a consulta da última release no `update` e no `doctor --online`). O gate (`make check`) roda com `1`. | `src/simplicio_video/rede.py:31`<br>`src/simplicio_video/tools_update.py:65` |
+| `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline (inclui a consulta da última release no `update` e no `doctor --online`). O gate (`make check`) roda com `1`. | `src/simplicio_video/rede.py:31` |
 | `SIMPLICIO_OPENMONTAGE_DIR` | Pasta do OpenMontage (alternativa a `OPENMONTAGE_DIR`). | `src/simplicio_video/montage.py:47` |
 | `SIMPLICIO_RCLONE_BIN` | Caminho do binário do rclone (padrão: o `rclone` do PATH). | `src/simplicio_video/publish.py:117` |
 | `SIMPLICIO_STT_PY` | Python com o motor de transcrição (STT). Padrão: o Python do TTS local. | `src/simplicio_video/words.py:36` |

@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from . import hostos, tools, tools_lock
+from .rede import offline as _offline  # the one reading of SIMPLICIO_OFFLINE, under the name this module always used
 
 MODES = ("follow", "pin")
 PYPI_JSON = "https://pypi.org/pypi/{name}/json"
@@ -59,10 +60,6 @@ def prazo_de_leitura(fim: float):
 def _limite_de_leitura() -> float:
     fim = getattr(_PRAZO, "fim", None)
     return READ_TIMEOUT_S if fim is None else max(0.1, min(READ_TIMEOUT_S, fim - time.monotonic()))
-
-
-def _offline() -> bool:
-    return os.environ.get("SIMPLICIO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _fetch_json(url: str) -> Any:
