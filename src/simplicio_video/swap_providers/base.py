@@ -16,7 +16,6 @@ from . import http
 
 # Reference exchange rate, kept apart from the USD prices so R$ can be shown next to US$.
 FX = {"brl_per_usd": 5.0521, "source": "PTAX de 2026-10-15 (Banco Central do Brasil)"}
-PRICES_READ_ON = "2026-10-15"
 UNVERIFIED = "UNVERIFIED"
 
 
