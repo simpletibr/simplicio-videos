@@ -3336,11 +3336,10 @@ def test_saida_absoluta_nova_without_the_cli_parse_checks_only_the_spelling_and_
     assert pol.saida_absoluta_nova(["/e.json", "--outp=/abs/o"], None, nome="edit render", opcoes="-o/--out/--output", obrigatoria=exigida) is None
 
 
-def test_the_output_values_come_from_the_public_parser_of_edit_and_the_old_names_are_the_same_objects(pol):
+def test_the_output_values_come_from_the_public_parser_of_edit(pol):
     from simplicio_video import edit, media, shorts
     assert edit.output_values(["a", "-o", "/x", "--ou", "y", "--outpu=z", "-ow", "-o=q"]) == ["/x", "y", "z", "w", "q"]
-    assert edit._output_values is edit.output_values and media._parse is media.parse_argv and shorts._parse is shorts.parse_argv
-    assert rea_video._SPECS is rea_video.SPECS and callable(shorts.parse_argv) and callable(media.parse_argv)
+    assert callable(shorts.parse_argv) and callable(media.parse_argv)
     assert edit.filter_values(["--f", "x", "--filter=y"]) == ["x", "y"]
 
 

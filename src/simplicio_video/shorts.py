@@ -347,9 +347,6 @@ def parse_argv(args: list[str]) -> tuple[list[str], set[str], dict]:
     return pos, flags, vals
 
 
-_parse = parse_argv  # the old name: the MCP server reads the CLI's own parse through the public one, callers of the old name keep working
-
-
 def _num(vals: dict, key: str, default, cast=float):
     raw = vals.get(key)
     if raw is None:
