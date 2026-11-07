@@ -18,7 +18,7 @@ How it works, in a few rules:
   stems), `moneyprinter` (free runs only, absolute `out`; `video.moneyprinter generate|run` sends it) and `montage-tool`
   (local, free and offline tools only, strict gate, new outputs; `video.montage run-tool` sends it) can be submitted;
   status, list, result and cancel work for every task.
-- Each kind is a `JobSpec` (see paths.py): the three whose code is not a track's (`swap-run`, `voice`, `rea-video`) are declared here;
+- Each kind is a `JobSpec` (see paths.py): the two whose code is not a track's (`swap-run`, `voice`) are declared here;
   the others are exported as `JOB` by their own module and found through `JOB_MODULES` (imported when a task of the kind is used,
   never by `import jobs`). So `jobs` runs a task and writes its state; what a track prints and leaves on disk is the track's.
 - If the runner dies without writing a final state, the next status/list marks the task `lost` and kills what it left
@@ -488,65 +488,21 @@ def _result_voice(p: dict, last_json: dict | None) -> dict | None:
             "lock_sha256": hashlib.sha256(lock.read_bytes()).hexdigest()}
 
 
-def _prepare_rea_video(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
-    """rea-video `decompose` (WITHOUT the vision model) or `stems`: nothing leaves the machine and nothing is spent, so MCP
-    may submit them. The arguments pass the same closed list as the MCP call (--vlm and --env-file are refused whatever the
-    origin; --no-vlm is always added). The child starts in a private empty folder, so the upstream never reads a stray .env."""
-    from . import rea_video
-    _check_keys(params, {"args"})
-    try:
-        args = rea_video.job_args(params.get("args"))
-        if rea_video._rea_video_exe() is None:
-            raise rea_video.ReaVideoError("rea-video não está instalado no venv: `simplicio-video rea-video clone` e "
-                                          "depois `setup` (setup só pelo terminal)")
-    except rea_video.ReaVideoError as e:
-        raise JobError(str(e)) from None
-    cwd = rea_video.make_job_cwd()
-    return {"args": args, "cwd": cwd}, False, {"cwd": cwd, "estimate_usd": None, "confirmed": None}
-
-
-def _argv_rea_video(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by rea-video)
-    """Checked again here, in the runner, so state edited on disk after the submit cannot add --vlm or --env-file."""
-    from . import rea_video
-    return ["rea-video", *rea_video.job_args(p["args"])]
-
-
-def _result_rea_video(p: dict, last_json: dict | None) -> dict | None:
-    import hashlib
-
-    from . import rea_video
-    rea_video.drop_job_cwd(p.get("cwd"))
-    args = p["args"]
-    out = Path(args[args.index("-o" if "-o" in args else "--out") + 1])
-    if args[0] == "stems":
-        files = {n: out / "stems" / f"{n}.wav" for n in ("original", "vocals", "music")}
-        if not files["original"].is_file():
-            return None
-        return {"out": str(out), **{n: str(f) for n, f in files.items() if f.is_file()}}
-    bd = out / "breakdown.json"
-    try:
-        raw = bd.read_bytes()
-        summ = json.loads(raw).get("summary") or {}
-    except (OSError, ValueError, AttributeError):
-        return None
-    report = out / "report.html"
-    return {"out": str(out), "breakdown": str(bd), "breakdown_sha256": hashlib.sha256(raw).hexdigest(),
-            "report": str(report) if report.is_file() else None, "verdict": summ.get("verdict"), "shots": summ.get("shots"),
-            "confidence": summ.get("confidence"), "vlm": summ.get("vlm")}
-
-
 # ------------------------------------------------------------------------------------------------ the registry of the kinds
 
-# The kinds whose hooks stay here: swap-run and voice are not a track's, and rea-video's own hooks (its module is another squad's
-# until a later plan moves them) are wrapped as they are.
+# The kinds whose hooks stay here: swap-run and voice are not a track's.
 _LOCAL: dict[str, JobSpec] = {spec.kind: spec for spec in (
     JobSpec("swap-run", prepare=_prepare_swap, argv=_argv_swap, result=_result_swap),
     JobSpec("voice", prepare=_prepare_voice, argv=_argv_voice, result=_result_voice),
-    JobSpec("rea-video", prepare=_prepare_rea_video, argv=_argv_rea_video, result=_result_rea_video),
 )}
 
 
 # One loader per track, a plain `from . import x` each (not a name made at run time: the tests that read the imports must see it).
+def _carrega_rea_video() -> ModuleType:
+    from . import rea_video
+    return rea_video
+
+
 def _carrega_moneyprinter() -> ModuleType:
     from . import moneyprinter
     return moneyprinter
@@ -562,8 +518,9 @@ def _carrega_video_to_skill() -> ModuleType:
     return video_to_skill
 
 
-# kind -> the loader of the module that exports `JOB` for it. The order is the order of the closed list after the three above.
+# kind -> the loader of the module that exports `JOB` for it. The order is the order of the closed list after the two above.
 JOB_MODULES: dict[str, Callable[[], ModuleType]] = {
+    "rea-video": _carrega_rea_video,
     "moneyprinter": _carrega_moneyprinter,
     "montage-tool": _carrega_montage,
     "video-to-skill": _carrega_video_to_skill,
@@ -604,7 +561,7 @@ def build_argv(kind: str, params: dict, origin: str | None = None) -> list[str]:
 
 
 class _Kinds(Mapping):
-    """`jobs.KINDS`: the closed list, kind -> {"prepare", "argv", "result"}, in order (swap-run, voice, rea-video, then JOB_MODULES).
+    """`jobs.KINDS`: the closed list, kind -> {"prepare", "argv", "result"}, in order (swap-run, voice, then JOB_MODULES).
     Read from the registry every time, so it cannot disagree with it. An item is the three hooks of the kind; listing the kinds or
     reading an item imports nothing, a track's module is imported when one of its hooks is called."""
 

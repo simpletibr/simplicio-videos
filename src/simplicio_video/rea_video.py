@@ -11,6 +11,8 @@ report.html) that the user reads and decides on; it is outside the deterministic
 from __future__ import annotations
 
 import contextlib
+import hashlib
+import json
 import os
 import re
 import shlex
@@ -20,7 +22,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import childio, tools, trilha_base
+from . import childio, paths, tools, trilha_base
 from .rede import offline as _offline
 from .trilha_base import Trilha
 
@@ -470,6 +472,61 @@ def make_job_cwd() -> str:
 def drop_job_cwd(path) -> None:
     """Remove the private folder of a finished job (only ours: under the temp folder, with our prefix, empty)."""
     trilha_base.drop_job_cwd(path, JOB_CWD_PREFIX)
+
+
+class ReaVideoRecusa(ReaVideoError):
+    """A refusal at the submit of a background job: `jobs` tells it as a `JobError` with the same text (`JOB.erro_terceiro`). A subclass
+    on purpose: the check the runner repeats (`_job_argv`) raises the plain `ReaVideoError`, and the runner tells that one by its own
+    name in job.json, as it always did."""
+
+
+def _job_prepare(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    """`decompose` (WITHOUT the vision model) or `stems` as a task: nothing leaves the machine and nothing is spent, so MCP may submit
+    them. The arguments pass the same closed list as the MCP call (--vlm and --env-file are refused whatever the origin; --no-vlm is
+    always added). The child starts in a private empty folder, so the upstream never reads a stray .env. A refusal is a
+    `ReaVideoRecusa` (`jobs` tells it as `JobError`)."""
+    try:
+        paths.check_job_keys(params, {"args"}, ReaVideoError)
+        args = job_args(params.get("args"))
+        if _rea_video_exe() is None:
+            raise ReaVideoError("rea-video não está instalado no venv: `simplicio-video rea-video clone` e depois `setup` "
+                                "(setup só pelo terminal)")
+    except ReaVideoError as e:
+        raise ReaVideoRecusa(str(e)) from None
+    cwd = make_job_cwd()
+    return {"args": args, "cwd": cwd}, False, {"cwd": cwd, "estimate_usd": None, "confirmed": None}
+
+
+def _job_argv(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by rea-video)
+    """Checked again here, in the runner, so state edited on disk after the submit cannot add --vlm or --env-file. The refusal is the
+    plain `ReaVideoError`, not a `ReaVideoRecusa`: it stays what it was (`jobs` does not turn it into a `JobError`)."""
+    return ["rea-video", *job_args(p["args"])]
+
+
+def _job_result(p: dict, last_json: dict | None) -> dict | None:
+    drop_job_cwd(p.get("cwd"))
+    args = p["args"]
+    out = Path(args[args.index("-o" if "-o" in args else "--out") + 1])
+    if args[0] == "stems":
+        files = {n: out / "stems" / f"{n}.wav" for n in ("original", "vocals", "music")}
+        if not files["original"].is_file():
+            return None
+        return {"out": str(out), **{n: str(f) for n, f in files.items() if f.is_file()}}
+    bd = out / "breakdown.json"
+    try:
+        raw = bd.read_bytes()
+        summ = json.loads(raw).get("summary") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    report = out / "report.html"
+    return {"out": str(out), "breakdown": str(bd), "breakdown_sha256": hashlib.sha256(raw).hexdigest(),
+            "report": str(report) if report.is_file() else None, "verdict": summ.get("verdict"), "shots": summ.get("shots"),
+            "confidence": summ.get("confidence"), "vlm": summ.get("vlm")}
+
+
+# No `cleanup`: the private folder of a job that failed or was cancelled stays (the age sweep in `make_job_cwd` removes it on a later
+# submit), as it did when `jobs.py` wrapped these hooks.
+JOB = paths.JobSpec("rea-video", prepare=_job_prepare, argv=_job_argv, result=_job_result, erro_terceiro=ReaVideoRecusa)
 
 
 def _mcp_env() -> dict[str, str]:

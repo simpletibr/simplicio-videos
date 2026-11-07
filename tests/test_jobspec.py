@@ -44,7 +44,7 @@ SRC = ROOT / "src" / "simplicio_video"
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="the fake child is a shell script")
 
 KINDS_DE_HOJE = ["swap-run", "voice", "rea-video", "moneyprinter", "montage-tool", "video-to-skill"]
-TRILHAS = {"moneyprinter": "moneyprinter", "montage-tool": "montage", "video-to-skill": "video_to_skill"}
+TRILHAS = {"rea-video": "rea_video", "moneyprinter": "moneyprinter", "montage-tool": "montage", "video-to-skill": "video_to_skill"}
 
 
 # ----------------------------------------------------------------------------------------------------------------- the world
@@ -605,7 +605,7 @@ def test_a_pasta_de_dados_e_o_que_o_montage_recusa_para_saidas_do_mcp(mundo):
 # Red until `JobSpec` exists. The names these tests commit to: paths.JobSpec / paths.check_job_keys / paths.jobs_root /
 # paths.jobs_grace_s, `JOB` in the three tracks, jobs.JOB_MODULES / jobs.job_spec / jobs.JobSpec, `grace_s` in the upstream stop.
 
-LOCAIS = ["swap-run", "voice", "rea-video"]  # the kinds whose hooks stay in jobs.py: swap.py, voice.py and rea_video.py are not U12's
+LOCAIS = ["swap-run", "voice"]  # the kinds whose hooks stay in jobs.py: swap.py and voice.py are not a track's (rea-video exports its own JOB since U24a)
 
 
 def test_jobspec_e_um_dataclass_congelado_com_os_campos_da_ficha():
@@ -639,7 +639,7 @@ def test_cada_trilha_exporta_o_seu_job(kind, modulo):
     spec = mod.JOB
     assert isinstance(spec, paths.JobSpec) and spec.kind == kind
     assert all(callable(f) for f in (spec.prepare, spec.argv, spec.result))
-    erro = {"moneyprinter": moneyprinter.MoneyPrinterError, "montage-tool": montage.MontageError,
+    erro = {"rea-video": rea_video.ReaVideoRecusa, "moneyprinter": moneyprinter.MoneyPrinterError, "montage-tool": montage.MontageError,
             "video-to-skill": v2s.VideoToSkillError}[kind]
     assert spec.erro_terceiro is erro
     assert (spec.cleanup is not None) == (kind == "video-to-skill")  # the private folder of a job that failed or was cancelled
@@ -648,7 +648,7 @@ def test_cada_trilha_exporta_o_seu_job(kind, modulo):
 
 
 def test_jobs_le_as_trilhas_de_uma_tabela_e_a_lista_fechada_sai_dela():
-    assert list(jobs.JOB_MODULES) == ["moneyprinter", "montage-tool", "video-to-skill"]
+    assert list(jobs.JOB_MODULES) == ["rea-video", "moneyprinter", "montage-tool", "video-to-skill"]
     for kind, carrega in jobs.JOB_MODULES.items():
         mod = carrega()
         assert mod.__name__ == f"simplicio_video.{TRILHAS[kind]}" and mod.JOB.kind == kind and jobs.job_spec(kind) is mod.JOB
