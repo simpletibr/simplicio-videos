@@ -670,7 +670,7 @@ def test_a_trilha_nao_importa_jobs(modulo):
 
 
 def test_paths_continua_uma_folha_sem_trilha_nem_jobs():
-    assert _importados(SRC / "paths.py") <= {"hostos"}
+    assert _importados(SRC / "paths.py") <= {"__version__", "hostos"}
 
 
 def _ciclos_de(alvos: set[str]) -> list[list[str]]:

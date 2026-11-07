@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import errno
+import functools
 import hashlib
 import http.client
 import ipaddress
@@ -37,7 +38,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import unquote
 
-from . import childio, tools
+from . import childio, paths, tools
 from .childio import run_child
 from .fsutil import sha256_file as _sha256
 from .rede import offline as _offline
@@ -1185,16 +1186,17 @@ def _terms_given(value: object) -> bool:
     return False
 
 
-def _stop_upstream(proc: subprocess.Popen) -> None:
+def _stop_upstream(proc: subprocess.Popen, grace_s: float | None = None) -> None:
     """SIGINT to the upstream group, SIGKILL when it outlives half the jobs grace (the runner SIGKILLs this process at the
-    full grace, so the upstream must be gone before that), then a sweep of the group. Further stop signals are ignored here."""
-    from . import jobs
+    full grace, so the upstream must be gone before that), then a sweep of the group. Further stop signals are ignored here.
+    `grace_s` is that grace; without it, the one the runner gave this process in the environment (`paths.jobs_grace_s`)."""
+    grace = paths.jobs_grace_s() if grace_s is None else grace_s
     for n in (signal.SIGINT, *(x for x in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None)) if x)):
         signal.signal(n, signal.SIG_IGN)
     with contextlib.suppress(ProcessLookupError):
         os.killpg(proc.pid, signal.SIGINT)
     try:
-        proc.wait(timeout=max(0.5, jobs.grace() / 2))
+        proc.wait(timeout=max(0.5, grace / 2))
     except subprocess.TimeoutExpired:
         pass
     with contextlib.suppress(ProcessLookupError):
@@ -1202,17 +1204,17 @@ def _stop_upstream(proc: subprocess.Popen) -> None:
     proc.wait()
 
 
-def _spawn_cli(argv: list[str], cwd: Path, env: dict) -> tuple[int, str]:
+def _spawn_cli(argv: list[str], cwd: Path, env: dict, grace_s: float | None = None) -> tuple[int, str]:
     """Run the upstream cli.py to the end and return (exit code, the JSON lines it printed). The upstream logs to STDOUT
     (its loguru sink is sys.stdout, despite the --help text) and prints the result there too, so stdout and stderr are
     read as one stream: every line that is not a JSON document is relayed at once to our stderr (the user sees the stages
     as they happen, and fd 1 stays free for our own JSON), and the JSON lines come back. It runs in its own process group;
-    a stop signal here takes that whole group down (see _stop_upstream)."""
+    a stop signal here takes that whole group down (see _stop_upstream, which gets `grace_s`)."""
     saved = {n: signal.getsignal(n) for n in (signal.SIGINT, getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None))
              if n is not None}
     try:
         # Ctrl+C / SIGTERM (also the one that lands while Popen starts the upstream): its group goes down with us (_stop_upstream)
-        with childio.guarded_child(argv, stop=childio.stop_as_interrupt, kill=_stop_upstream, cwd=cwd, env=env,
+        with childio.guarded_child(argv, stop=childio.stop_as_interrupt, kill=functools.partial(_stop_upstream, grace_s=grace_s), cwd=cwd, env=env,
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                    encoding="utf-8", errors="replace", start_new_session=True) as proc:
             documents = []
@@ -1442,6 +1444,27 @@ def job_result(params: dict, last_json: dict | None) -> dict | None:
     videos = [{"path": str(out / v["video"]), "sha256": v.get("sha256"), "bytes": v.get("bytes")}
               for t in last_json["tasks"] if isinstance(t, dict) for v in t.get("videos") or [] if isinstance(v, dict)]
     return {"out": str(out), "total": last_json.get("total"), "failed": last_json.get("failed"), "videos": videos}
+
+
+# moneyprinter (T4): a free MoneyPrinterTurbo run (supplied script, local material, Edge voice) in the background. It never
+# spends, so MCP may submit it; anything that would spend is refused here and runs in the terminal with `moneyprinter run --yes`.
+MONEYPRINTER_KEYS = {"out", "upstream"}
+
+
+def _job_prepare(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    """A free MoneyPrinterTurbo run as a task: it never spends, so MCP may submit it; anything that would spend is refused here and
+    runs in the terminal with `moneyprinter run --yes`. Refusals are `MoneyPrinterError` (`jobs` tells them as `JobError`)."""
+    paths.check_job_keys(params, MONEYPRINTER_KEYS, MoneyPrinterError)
+    if confirm_yes:
+        raise MoneyPrinterError("moneyprinter em segundo plano nunca leva --yes: o que gasta roda no terminal, com `simplicio-video moneyprinter run --yes`")
+    return job_params(params), False, {"estimate_usd": None, "confirmed": None}
+
+
+def _job_argv(params: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused by moneyprinter)
+    return job_argv(params)
+
+
+JOB = paths.JobSpec("moneyprinter", prepare=_job_prepare, argv=_job_argv, result=job_result, erro_terceiro=MoneyPrinterError)
 
 
 def run_moneyprinter(args: list[str]) -> int:

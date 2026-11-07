@@ -1500,6 +1500,42 @@ def job_result(args: list[str]) -> dict | None:
             "provenance": str(prov) if prov.is_file() else None}
 
 
+def _job_prepare(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    """`extract` of a LOCAL file into a new folder as a task: no network, nothing spent. The arguments pass the same closed list as
+    the MCP call whatever the origin (a URL, --autorizo and any other verb are refused). The child starts in a private empty folder.
+    Refusals are `VideoToSkillError` (`jobs` tells them as `JobError`)."""
+    paths.check_job_keys(params, {"args"}, VideoToSkillError)
+    args = job_args(params.get("args"))
+    if find_binary() is None:
+        raise VideoToSkillError("o vts-extract 0.3.0 não está disponível: `simplicio-video video-to-skill setup` (só pelo terminal)")
+    cwd = make_job_cwd()
+    return {"args": args, "cwd": cwd}, False, {"cwd": cwd, "estimate_usd": None, "confirmed": None}
+
+
+def _job_argv(p: dict, origin: str | None = None) -> list[str]:  # origin: the job's own (unused here: the child reads the environment)
+    """Checked again here, in the runner, so state edited on disk after the submit cannot add a URL or another verb."""
+    return ["video-to-skill", *job_args(p["args"])]
+
+
+def _job_result(p: dict, last_json: dict | None) -> dict | None:
+    drop_job_cwd(p.get("cwd"))
+    return job_result(list(p["args"]))
+
+
+def _job_cleanup(p: dict) -> None:
+    """A job that failed or was cancelled never reaches `result`: its private folder goes here (only ours, empty)."""
+    drop_job_cwd(p.get("cwd"))
+
+
+def _job_texto_terceiro(tail: str) -> tuple[str, str]:
+    """The tail of a failed run is text of a third party (the extractor, the video): clean for an agent, with the notice."""
+    return limpa_mcp(tail), AVISO
+
+
+JOB = paths.JobSpec("video-to-skill", prepare=_job_prepare, argv=_job_argv, result=_job_result, cleanup=_job_cleanup,
+                    erro_terceiro=VideoToSkillError, texto_terceiro=_job_texto_terceiro)
+
+
 __all__ = ["VideoToSkillError", "lint_pins", "platform_asset", "asset_url", "safe_extract", "managed_binary",
            "find_binary", "status_info", "where_info", "run_video_to_skill", "mcp_plan", "mcp_run", "job_args", "make_job_cwd",
-           "drop_job_cwd", "job_result", "visivel", "limpa_mcp", "plan"]
+           "drop_job_cwd", "job_result", "JOB", "visivel", "limpa_mcp", "plan"]

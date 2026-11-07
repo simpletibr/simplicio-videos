@@ -733,9 +733,9 @@ def test_o_modulo_nao_chama_o_tools_git_privado(nome):
 
 
 def test_o_montage_nao_tem_mais_o_result_dir_que_ninguem_lia():
-    from simplicio_video import jobs, montage
+    from simplicio_video import montage
     assert not hasattr(montage, "_RESULT_DIR")
-    assert jobs._MONTAGE_RESULT_DIR == ".resultados"  # the one that is read lives in jobs.py
+    assert montage._MONTAGE_RESULT_DIR == ".resultados"  # the one that is read lives with the montage-tool job (U12 moved it from jobs.py)
 
 
 def test_confere_entrada_do_matchcut_nao_recebe_o_nome_que_nao_usava():
