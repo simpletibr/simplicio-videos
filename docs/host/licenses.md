@@ -1,6 +1,6 @@
 ---
 title: Licenças das dependências
-summary: Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e o que ainda falta (web/).
+summary: Como o gate confere licenças (allowlist MIT, Apache-2.0, BSD, ISC, PSF, MPL-2.0), como adicionar uma exceção justificada, como regerar docs/licenses.md e os limites do scan.
 commands: make licenses, make licenses-write, scripts/licenses.py, scripts/licenses.py --imports
 issue: 46
 last_verified: 2026-10-08
@@ -48,7 +48,6 @@ GPL, LGPL e AGPL nunca viram exceção de runtime. Se um deles aparecer como dep
 
 ## Limites
 
-- **web/ fora do escopo.** O workspace web (`web/package.json`) chega com a #34. Hoje `make licenses` só escaneia o Python e avisa que não há web/ a escanear.
 - **Metadado errado ou ausente.** Alguns pacotes declaram a licença de forma incompleta. A exceção com justificativa é o controle. Não corrija o metadado do pacote no `.venv` à mão.
 - **Dependências com licença divergente do binário.** O scan lê o metadado do wrapper. Um pacote que baixa um binário com outra licença só aparece pelo que a exceção documenta (exemplo: `shellcheck-py`).
 - **Pinagem.** As dependências base e transitivas continuam sem pin exato; só o extra `test` é fixado. O lock de release (`constraints.txt`) fica na #50.

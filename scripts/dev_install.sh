@@ -10,7 +10,7 @@
 #
 # Faz, nesta ordem: checa Node 22 ou superior, ffmpeg com libass e 5 GB livres (sem instalar nada no sistema); garante o uv (se
 # faltar, oferece instalar e só baixa com sua confirmação); cria o .venv com o Python pedido e instala o pacote editável com os
-# extras (uv pip install -e); constrói web/ se ele existir; roda `simplicio-video doctor` e imprime os próximos passos. Rodar de
+# extras (uv pip install -e); roda `simplicio-video doctor` e imprime os próximos passos. Rodar de
 # novo não muda nada que já está certo. Um .venv com outro Python é um conflito: o script diz o que apagar e não troca sozinho.
 #
 # --dry-run lista o plano e não cria nem altera nada. --with aceita extras separados por vírgula.
@@ -153,13 +153,8 @@ plano() {
   printf '  5. criar .venv com Python %s e instalar o pacote (%s):\n' "$PY" "$sub_extras"
   printf '       uv venv --python %s .venv\n' "$PY"
   printf '       uv pip install --python %s -e "%s"\n' "$VENV_PY" "$(alvo_do_pacote)"
-  if [ -f "$RAIZ/web/package.json" ]; then
-    printf '  6. construir web/ (npm --prefix web ci && npm --prefix web run build)\n'
-  else
-    printf '  6. web/ ainda não existe: registrar "web/ chega com a #34" e seguir\n'
-  fi
-  printf '  7. rodar %s doctor\n' "$SV"
-  printf '  8. imprimir os próximos passos (install, setup e doctor)\n'
+  printf '  6. rodar %s doctor\n' "$SV"
+  printf '  7. imprimir os próximos passos (install, setup e doctor)\n'
 }
 
 while [ $# -gt 0 ]; do
@@ -232,14 +227,6 @@ fi
 
 echo "> instalando o pacote em modo editável ($(alvo_do_pacote))"
 "$UV" pip install --python "$VENV_PY" -e "$(alvo_do_pacote)"
-
-if [ -f web/package.json ]; then
-  echo "> construindo web/"
-  npm --prefix web ci
-  npm --prefix web run build
-else
-  echo "web/ chega com a #34: nada a construir."
-fi
 
 echo "> checando o ambiente (simplicio-video doctor)"
 rc_doctor=0

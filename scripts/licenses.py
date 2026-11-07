@@ -405,7 +405,6 @@ def main(argv: list[str] | None = None) -> int:
         f"licenses: {len(entries)} distribuições: {counts['allowed']} permitidas, "
         f"{counts['exception']} exceção, {counts['denied']} negada, {counts['product']} produto"
     )
-    print("licenses: web/ ainda não existe (workspace web chega com a #34): nada a escanear")
     for line in problems:
         print(f"licenses: {line}", file=sys.stderr)
     if problems:
