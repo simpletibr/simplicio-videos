@@ -918,13 +918,24 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
 
-def _pagina_pedida(args_list: list[str]) -> str:
-    """The command whose long help may be printed by this run: its name when a `-h`/`--help` is among the words (the first word that
-    is not the global `--json`), "" when none is asked for. `build_parser` reads that command's help from its module and no other."""
-    if "-h" not in args_list and "--help" not in args_list:
+def _pede_ajuda(palavra: str) -> bool:
+    """`-h` or `--help` as argparse takes it: `--h`, `--he` and `--hel` are the same option (and `-hx` starts with it)."""
+    return palavra.startswith("-h") or (palavra.startswith("--h") and "--help".startswith(palavra))
+
+
+def _pagina_pedida(args_list: list[str]) -> str | None:
+    """Which long help `build_parser` has to read from its module for this run, as its `only`: "" = none, None = all of them.
+
+    None of the help words in the line: no page is printed, so none. A help word first (`-h`, `--help`, `--hel`...): the main page,
+    which carries only the short line of each command: none. A command first: its page ("init -h" has it all in this file; `swap
+    --help` is the case that needs swap's text). An OPTION first (`--version swap --help`, `--vers swap -h`, `--js swap -h`,
+    `-- jobs --help`): argparse decides which page prints, abbreviations included, so every page is built, as it always was."""
+    if not any(_pede_ajuda(w) for w in args_list):
         return ""
     primeira = next((w for w in args_list if w != "--json"), "")
-    return "" if primeira.startswith("-") else primeira
+    if _pede_ajuda(primeira):
+        return ""
+    return None if primeira.startswith("-") else primeira
 
 
 def _main(argv: list[str] | None = None) -> int:
