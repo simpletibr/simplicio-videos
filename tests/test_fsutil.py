@@ -66,6 +66,11 @@ def test_sha256_file_limit_zero(tmp_path):
         fsutil.sha256_file(_arquivo(tmp_path, b"x", "b.bin"), limit=0)
 
 
+def test_sha256_file_limit_negativo_levanta_valueerror(tmp_path):
+    with pytest.raises(ValueError):
+        fsutil.sha256_file(_arquivo(tmp_path, b"abc"), limit=-1)
+
+
 def test_sha256_file_limit_so_é_nomeado(tmp_path):
     with pytest.raises(TypeError):
         fsutil.sha256_file(_arquivo(tmp_path, b"abc"), 10)  # the limit is keyword-only
