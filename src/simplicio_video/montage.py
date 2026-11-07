@@ -19,9 +19,11 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
-from . import childio, hostos, tools
+from . import childio, hostos, paths, tools
 from .childio import run_child, under_mcp
 from .rede import offline as _offline
 from .trilha_base import Trilha
@@ -952,12 +954,11 @@ def _dentro(caminho: Path, pasta) -> bool:
 def _lugar_proibido(real: Path) -> str:
     """Why an MCP output may not be written at `real` (links already resolved), or ''. It mirrors instagram._lugar_proibido and
     adds the engine's own places: its data (jobs, tools, the venv), its code, the checkout, any venv and any site-packages."""
-    from . import jobs
     if _dentro(real, Path(__file__).resolve().parent):
         return "dentro do código do motor"
     if _dentro(real, find_openmontage_dir() or default_openmontage_dir()):
         return "dentro do checkout do OpenMontage"
-    if any(_dentro(real, pasta) for pasta in (jobs.data_root(), data_dir(), tools.tools_dir())):
+    if any(_dentro(real, pasta) for pasta in (paths.jobs_root(), data_dir(), tools.tools_dir())):
         return "dentro da pasta de dados do motor (jobs, tools, openmontage-data)"
     if "site-packages" in real.parts:
         return "dentro de site-packages (pacotes de um venv)"
@@ -1133,6 +1134,63 @@ def run_tool_plan(name, inputs, *, strict: bool, yes: bool) -> dict:
         plan["refusal"] = (f"{name} precisa de --yes ({', '.join(reasons)}): a estimativa acima mostra o custo; "
                            "rode de novo com --yes para executar")
     return plan
+
+
+# ------------------------------------------------------------------------------------------------ run-tool as a background task
+
+_MONTAGE_RESULT_DIR = ".resultados"
+
+
+def _montage_result_path(rid) -> Path | None:
+    """The result file of one montage-tool job: beside the job folders, named by the token of its spec (the job id is made
+    after the spec, so the token is what both the argv and the result step can know)."""
+    if not (isinstance(rid, str) and re.fullmatch(r"[0-9a-f]{32}", rid)):
+        return None
+    return paths.jobs_root() / "jobs" / _MONTAGE_RESULT_DIR / f"{rid}.json"
+
+
+def _job_prepare(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
+    """`montage run-tool` as a task. Submitted over MCP (origin mcp) it passes the STRICT gate (local, free, offline, absolute
+    paths, new outputs), so nothing that spends or uses the network is queued from there. The terminal submits with its own gate.
+    Refusals are `MontageError` (`jobs` tells them as `JobError`)."""
+    paths.check_job_keys(params, {"name", "input"}, MontageError)
+    name, inputs = params.get("name"), params.get("input", {})
+    strict = origin != "terminal"
+    plan = run_tool_plan(name if isinstance(name, str) else "", inputs, strict=strict, yes=confirm_yes)
+    if plan["refusal"]:
+        raise MontageError(plan["refusal"])
+    p = {"name": name, "input": inputs, "strict": strict, "rid": uuid.uuid4().hex}  # the origin is the job's, not the spec's
+    at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return p, plan["spends"], {"estimate_usd": plan["cost"], "confirmed": {"yes": True, "at": at} if plan["needs_yes"] else None}
+
+
+def _job_argv(p: dict, origin: str | None = None) -> list[str]:
+    """The run's argv. The strict gate comes from the job's ORIGIN (its top-level field, set by the engine at submit, which the
+    runner passes here), never from the spec: a copy of the origin inside the spec is ignored. A job whose origin is missing
+    counts as MCP, so it always re-runs the MCP gate in its own process."""
+    a = ["montage", "run-tool", p["name"], "--input", input_json(p["input"]), "--yes", "--json"]
+    rp = _montage_result_path(p.get("rid"))
+    if rp is not None:
+        a += ["--resultado-em", str(rp)]  # the run writes its whole result here; the output line stays small
+    return a + (["--sob-mcp"] if (origin or "mcp") != "terminal" else [])
+
+
+def _job_result(p: dict, last_json: dict | None) -> dict | None:
+    """The result step: the whole JSON the run wrote to its result file (any size), read here and removed."""
+    rp = _montage_result_path(p.get("rid"))
+    if rp is None:
+        return None
+    try:
+        res = json.loads(rp.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    finally:
+        with contextlib.suppress(OSError):
+            rp.unlink()
+    return res if isinstance(res, dict) and res.get("tool") == p.get("name") else None
+
+
+JOB = paths.JobSpec("montage-tool", prepare=_job_prepare, argv=_job_argv, result=_job_result, erro_terceiro=MontageError, origem_mcp=True)
 
 
 def _output_entry(path: str, base: Path) -> dict:

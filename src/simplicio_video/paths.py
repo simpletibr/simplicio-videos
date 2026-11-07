@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import __version__, hostos
@@ -101,3 +103,61 @@ def node_env() -> dict:
         env.setdefault("HYPERFRAMES_FFMPEG_PATH", str(Path(ff) / "ffmpeg"))
         env.setdefault("HYPERFRAMES_FFPROBE_PATH", str(Path(ff) / "ffprobe"))
     return env
+
+
+# ------------------------------------------------------------------------------------------------- background jobs
+# What `jobs` and the tracks share and neither may import from the other (a track that imports `jobs`, which imports the track,
+# was the cycle montage <-> jobs <-> moneyprinter): the protocol of a task, where its state lives and how long it is given to stop.
+
+JOBS_GRACE_S = 15.0
+
+
+@dataclass(frozen=True)
+class JobSpec:
+    """One kind of background task, as the track that owns it declares it (`JOB` in the module); `jobs` only runs it.
+
+    kind            the id in `simplicio.job/v1` and in the closed list `jobs.KINDS` (never renamed)
+    prepare         `(params, confirm_yes, origin) -> (params, spends, extra)` at submit: the checks, the canonical params that go to
+                    the state, whether it spends money, and the extra fields of the state (`estimate_usd`, `confirmed`, ...)
+    argv            `(params, origin) -> list[str]` the words after `python -m simplicio_video`, built again in the runner from the
+                    state on disk (a state edited after the submit must not add a flag); `origin` is None unless `origem_mcp`
+    result          `(params, last_json) -> dict | None` after a `done` run: what the task left, from the last JSON line it printed
+    cleanup         `(params) -> None` after a `failed` or `cancelled` run, which never reaches `result` (its private folder)
+    erro_terceiro   the track's own error class: what `prepare` and `argv` raise for a refusal becomes a `JobError` with the same
+                    text (None: the hooks raise `JobError` themselves)
+    origem_mcp      True when `argv` turns the origin of the job into a gate of the child (montage: `--sob-mcp`): only then does
+                    `argv` get the origin
+    texto_terceiro  `(tail) -> (text, notice)` when the output of a failed run is a third party's text: the state keeps it only in
+                    `untrusted_erro` with `aviso`, never in `error` (None: the tail is ours and stays in `error`)
+    """
+    kind: str
+    prepare: Callable
+    argv: Callable
+    result: Callable
+    cleanup: Callable | None = None
+    erro_terceiro: type[Exception] | None = None
+    origem_mcp: bool = False
+    texto_terceiro: Callable | None = None
+
+
+def check_job_keys(params: dict, allowed: set[str], erro: type[Exception]) -> None:
+    """The first check of every `prepare`: a key the kind does not know is refused with `erro` (a `JobError`, or the track's own)."""
+    extra = sorted(set(params) - allowed)
+    if extra:
+        raise erro(f"parâmetros desconhecidos: {', '.join(extra)} (aceitos: {', '.join(sorted(allowed))})")
+
+
+def jobs_root() -> Path:
+    """The data folder of the engine, where `jobs/<id>/job.json` lives ($SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video): the folder
+    an MCP output may never be written into. Not resolved: a relative value stays relative, as it always was."""
+    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
+    return Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
+
+
+def jobs_grace_s() -> float:
+    """Seconds between the SIGINT and the SIGKILL when a job is stopped ($SIMPLICIO_JOBS_GRACE_S, default 15). The runner reads it
+    here and so does the child it starts (the environment is how it reaches `moneyprinter run`, which stops its upstream first)."""
+    try:
+        return float(os.environ.get("SIMPLICIO_JOBS_GRACE_S", "") or JOBS_GRACE_S)
+    except ValueError:
+        return JOBS_GRACE_S
