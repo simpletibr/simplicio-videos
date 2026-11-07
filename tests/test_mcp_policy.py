@@ -3200,15 +3200,15 @@ def test_verbo_is_a_frozen_dataclass_with_the_four_fields_of_the_card(pol):
 
 
 def test_the_table_has_a_row_for_every_tool_that_decides_what_is_terminal_only(pol):
-    assert set(pol.POLITICA) == set(CMD_POR_TOOL) | set(SO_TERMINAL)
+    assert set(pol.POLITICA) == {f"video.{t}" for t in set(CMD_POR_TOOL) | set(SO_TERMINAL)} <= {n for n, _, _ in mcp_server.TOOLS}
     for tool, verbos in pol.POLITICA.items():
-        assert all(isinstance(v, pol.Verbo) and k == v.nome for k, v in verbos.items()), tool
+        assert all(isinstance(v, pol.Verbo) and k == v.nome for k, v in verbos.items()), tool  # keyed by the MCP tool name, `video.<name>`
 
 
 @pytest.mark.parametrize("tool", sorted(CMD_POR_TOOL))
 def test_the_mcp_verbs_of_a_tool_are_the_closed_list_of_its_cmd(pol, tool):
-    assert pol.verbos_mcp(tool) == CMD_POR_TOOL[tool]
-    assert {v for v, x in pol.POLITICA[tool].items() if x.mcp and v != "*"} == set(CMD_POR_TOOL[tool])
+    assert pol.verbos_mcp(f"video.{tool}") == CMD_POR_TOOL[tool]
+    assert {v for v, x in pol.POLITICA[f"video.{tool}"].items() if x.mcp and v != "*"} == set(CMD_POR_TOOL[tool])
 
 
 @pytest.mark.parametrize("tool,constante", [
@@ -3216,13 +3216,13 @@ def test_the_mcp_verbs_of_a_tool_are_the_closed_list_of_its_cmd(pol, tool):
     ("moneyprinter", "_CMD_MONEYPRINTER"), ("matchcut", "_CMD_MATCHCUT"), ("rea-video", "_CMD_REA_VIDEO"), ("video-to-skill", "_CMD_VIDEO_TO_SKILL"),
     ("voicestudio", "_CMD_VOICESTUDIO"), ("shorts", "_CMD_SHORTS"), ("media", "_CMD_MEDIA"), ("qc", "_CMD_QC")])
 def test_the_cmd_literal_of_each_tool_is_derived_from_the_table(pol, tool, constante):
-    assert getattr(mcp_server, constante) == pol.verbos_mcp(tool) == CMD_POR_TOOL[tool]
+    assert getattr(mcp_server, constante) == pol.verbos_mcp(f"video.{tool}") == CMD_POR_TOOL[tool]
 
 
 @pytest.mark.parametrize("tool", sorted(SO_TERMINAL))
 def test_the_terminal_only_verbs_are_in_the_table_with_their_reason(pol, tool):
     for nome in SO_TERMINAL[tool]:
-        v = pol.POLITICA[tool][nome]
+        v = pol.POLITICA[f"video.{tool}"][nome]
         assert v.mcp is False and v.terminal_motivo, (tool, nome)
         if tool not in ("clone", "montage", "opencut", "edit", "instagram", "install", "update"):
             continue
@@ -3231,9 +3231,9 @@ def test_the_terminal_only_verbs_are_in_the_table_with_their_reason(pol, tool):
 
 def test_a_verb_that_the_mcp_runs_only_without_a_folder_says_why_the_folder_is_terminal_only(pol):
     for tool in COM_PASTA:
-        v = pol.POLITICA[tool]["clone"]
+        v = pol.POLITICA[f"video.{tool}"]["clone"]
         assert v.mcp is True and v.terminal_motivo, tool
-    assert pol.POLITICA["edit"]["grade"].mcp is True and pol.POLITICA["edit"]["grade"].terminal_motivo
+    assert pol.POLITICA["video.edit"]["grade"].mcp is True and pol.POLITICA["video.edit"]["grade"].terminal_motivo
 
 
 def test_every_refusal_text_of_the_table_names_a_reason_and_no_verb_is_both_mcp_and_unexplained_terminal(pol):
@@ -3246,55 +3246,55 @@ def test_every_refusal_text_of_the_table_names_a_reason_and_no_verb_is_both_mcp_
 
 def test_the_table_agrees_with_the_verbs_each_track_declares(pol):
     from simplicio_video import edit, media, montage, voicestudio
-    assert pol.verbos_mcp("media") == tuple(media.SUBCOMMANDS)
-    assert pol.verbos_mcp("voicestudio") == tuple(voicestudio.SUBCOMMANDS.split("|"))
-    assert pol.verbos_mcp("video-to-skill") == video_to_skill.MCP_VERBS
-    assert set(montage.READ_ONLY_COMMANDS) <= set(pol.verbos_mcp("montage"))
-    assert set(pol.verbos_mcp("edit")) | {"transcribe-batch"} == set(edit.SUBCOMMANDS)
-    assert set(pol.verbos_mcp("rea-video")) - {"clone", "where", "status"} == set(rea_video.SPECS)
-    assert set(pol.verbos_mcp("moneyprinter")) <= set(moneyprinter.SUBCOMMANDS.split("|"))
-    assert pol.POLITICA["toonflow"]["serve"].terminal_motivo and toonflow.LAN_FLAG in pol.POLITICA["toonflow"]["serve"].terminal_motivo
+    assert pol.verbos_mcp("video.media") == tuple(media.SUBCOMMANDS)
+    assert pol.verbos_mcp("video.voicestudio") == tuple(voicestudio.SUBCOMMANDS.split("|"))
+    assert pol.verbos_mcp("video.video-to-skill") == video_to_skill.MCP_VERBS
+    assert set(montage.READ_ONLY_COMMANDS) <= set(pol.verbos_mcp("video.montage"))
+    assert set(pol.verbos_mcp("video.edit")) | {"transcribe-batch"} == set(edit.SUBCOMMANDS)
+    assert set(pol.verbos_mcp("video.rea-video")) - {"clone", "where", "status"} == set(rea_video.SPECS)
+    assert set(pol.verbos_mcp("video.moneyprinter")) <= set(moneyprinter.SUBCOMMANDS.split("|"))
+    assert pol.POLITICA["video.toonflow"]["serve"].terminal_motivo and toonflow.LAN_FLAG in pol.POLITICA["video.toonflow"]["serve"].terminal_motivo
 
 
 def test_so_terminal_words_the_standard_sentence_when_the_verb_has_a_command_to_type(pol):
-    assert pol.so_terminal("montage", pol.POLITICA["montage"]["clone"]) == (
+    assert pol.so_terminal("video.montage", pol.POLITICA["video.montage"]["clone"]) == (
         "clonar o OpenMontage num diretório escolhido: rode `simplicio-video montage clone <dir>` no terminal; o MCP não faz isso")
-    assert pol.so_terminal("edit", pol.POLITICA["edit"]["transcribe-batch"]) == (
+    assert pol.so_terminal("video.edit", pol.POLITICA["video.edit"]["transcribe-batch"]) == (
         "transcrever em lote usa o ElevenLabs Scribe, um terceiro pago, e só roda com você no terminal: rode `simplicio-video edit "
         "transcribe-batch` no terminal; o MCP não faz isso")
-    assert pol.so_terminal("update", pol.POLITICA["update"]["instalar"]) == (
+    assert pol.so_terminal("video.update", pol.POLITICA["video.update"]["instalar"]) == (
         "atualizar o pacote instala software: rode `simplicio-video update` no terminal; o MCP não faz isso")
 
 
 def test_so_terminal_gives_the_whole_text_when_the_verb_has_no_command_to_type_and_none_for_a_verb_without_reason(pol):
-    assert pol.so_terminal("toonflow", pol.POLITICA["toonflow"]["clone"]) == (
+    assert pol.so_terminal("video.toonflow", pol.POLITICA["video.toonflow"]["clone"]) == (
         "toonflow clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão")
-    assert pol.so_terminal("matchcut", pol.POLITICA["matchcut"]["setup"]) == (
+    assert pol.so_terminal("video.matchcut", pol.POLITICA["video.matchcut"]["setup"]) == (
         "matchcut setup só pelo terminal: `simplicio-video matchcut setup` (o MCP não baixa código nem instala pacotes)")
-    assert pol.so_terminal("montage", pol.POLITICA["montage"]["doctor"]) is None
-    assert pol.so_terminal("qc", pol.POLITICA["qc"]["congelado"]) is None
+    assert pol.so_terminal("video.montage", pol.POLITICA["video.montage"]["doctor"]) is None
+    assert pol.so_terminal("video.qc", pol.POLITICA["video.qc"]["congelado"]) is None
 
 
 def test_verbo_looks_a_word_up_and_any_other_word_takes_the_row_of_the_tool_for_every_other_word(pol):
-    assert pol.verbo("montage", "setup") is pol.POLITICA["montage"]["setup"]
-    assert pol.verbo("montage", "clone") is pol.POLITICA["montage"]["clone"]
-    outro = pol.verbo("montage", "demo")
+    assert pol.verbo("video.montage", "setup") is pol.POLITICA["video.montage"]["setup"]
+    assert pol.verbo("video.montage", "clone") is pol.POLITICA["video.montage"]["clone"]
+    outro = pol.verbo("video.montage", "demo")
     assert (outro.nome, outro.mcp) == ("demo", False)
-    assert pol.so_terminal("montage", outro) == (
+    assert pol.so_terminal("video.montage", outro) == (
         "montage demo roda outra coisa do OpenMontage que o MCP não aceita: rode `simplicio-video montage demo` no terminal; o MCP não faz isso")
-    assert pol.so_terminal("clone", pol.verbo("clone", "get")) == (
+    assert pol.so_terminal("video.clone", pol.verbo("video.clone", "get")) == (
         "`get` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode "
         "`simplicio-video clone get` no terminal; o MCP não faz isso")
-    assert pol.so_terminal("clone", pol.verbo("clone", "(vazio)")).startswith("`(vazio)` não está na lista do MCP")
+    assert pol.so_terminal("video.clone", pol.verbo("video.clone", "(vazio)")).startswith("`(vazio)` não está na lista do MCP")
 
 
 def test_a_value_in_the_reason_or_the_command_is_filled_in_by_so_terminal(pol):
-    assert pol.so_terminal("clone", pol.POLITICA["clone"]["--watch"], resto="status --watch") == (
+    assert pol.so_terminal("video.clone", pol.POLITICA["video.clone"]["--watch"], resto="status --watch") == (
         "--watch não termina até o build acabar e o MCP não tem tempo limite: rode `simplicio-video clone status --watch` no terminal; "
         "o MCP não faz isso")
-    assert pol.so_terminal("clone", pol.POLITICA["clone"]["media fetch"]) == (
+    assert pol.so_terminal("video.clone", pol.POLITICA["video.clone"]["media fetch"]) == (
         "media fetch baixa sem o portão --autorizo: rode `simplicio-video media fetch --autorizo` no terminal; o MCP não faz isso")
-    assert pol.so_terminal("clone", pol.POLITICA["clone"]["media prepare-fetch"]) == (
+    assert pol.so_terminal("video.clone", pol.POLITICA["video.clone"]["media prepare-fetch"]) == (
         "media prepare-fetch baixa sem o portão --autorizo: rode `simplicio-video media fetch --autorizo` no terminal; o MCP não faz isso")
 
 
@@ -3349,7 +3349,7 @@ def test_the_policy_that_lived_in_edit_is_in_the_table_module(pol):
     for nome in ("colour_filter_ok", "GRADE_FILTERS_MCP", "GRADE_BAD_OPTIONS", "NEEDS_OUT"):
         assert not hasattr(edit, nome), nome
     assert pol.colour_filter_ok("eq=contrast=1.05:saturation=0.95") and not pol.colour_filter_ok("movie=x") and not pol.colour_filter_ok("eq=file=x")
-    assert pol.SAIDA_OBRIGATORIA["edit"] == ("transcribe", "render", "verify", "grade")
+    assert pol.SAIDA_OBRIGATORIA["video.edit"] == ("transcribe", "render", "verify", "grade")
     assert "GRADE_READ_ONLY" in dir(edit)  # o CLI também lê: --analyze, --list-presets, --print-preset
 
 
@@ -3410,7 +3410,7 @@ def test_media_no_longer_resolves_shorts_through_a_module_getattr():
 
 def test_so_terminal_fills_each_placeholder_once_and_leaves_an_unknown_one_as_it_is(pol):
     v = pol.Verbo("{resto}", False, "m {nome} {nada}", "{tool} {nome}")
-    assert pol.so_terminal("t", v, resto="R") == "m {resto} {nada}: rode `simplicio-video t {resto}` no terminal; o MCP não faz isso"
+    assert pol.so_terminal("video.t", v, resto="R") == "m {resto} {nada}: rode `simplicio-video t {resto}` no terminal; o MCP não faz isso"
 
 
 @LINUX

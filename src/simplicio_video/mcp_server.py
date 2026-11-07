@@ -232,7 +232,7 @@ def video_list(what: str = "templates", grupo: str | None = None) -> dict:
     return {"ok": True, "items": rows}
 
 
-_CMD_CLONE = mcp_policy.verbos_mcp("clone")
+_CMD_CLONE = mcp_policy.verbos_mcp("video.clone")
 DESC_video_clone = ("Hypit AI (https://github.com/hypit-ai/hypit, pinned @hypit/hypit), local single-user use. Allowed: help, version, doctor, "
                     "check, plan, pricing, status, builds, history, activity, inspect, logs, paths, vocabulary, `get <build> --output <name> --to <absolute path>` "
                     "and local `media probe|frames|tile|tiles|boundaries|cut` (every path absolute, no `..`; no `--watch`). terminal-only (refused here): build (can spend on providers), studio, auth, "
@@ -249,7 +249,7 @@ def video_clone(args: str = "", argv: list[str] | None = None, cmd: Literal[_CMD
     return _cli(["clone", *argv])
 
 
-_CMD_MONTAGE = mcp_policy.verbos_mcp("montage")
+_CMD_MONTAGE = mcp_policy.verbos_mcp("video.montage")
 DESC_video_montage = "Agentic video production using OpenMontage (https://github.com/calesthio/OpenMontage): clone (default folder), doctor, preflight, status, help, the read-only registry (pipelines list|show NAME, tools list|info NAME, envelope, estimate NAME with `input` as an object; add --json) and run-tool NAME with `input` as an object: one of the reviewed local, free, offline tools (video_trimmer with operation cut or speed, audio_probe, frame_sampler, scene_detect), run as a background job (the answer is the job id; video.jobs result ID gives the outputs with sha256). Its inputs must be absolute regular files, its outputs new files outside system, engine and venv folders, and no URL, URI scheme or protocol prefix (file:, data:, concat:, subfile,) may appear in `input`. Here the live status probes of tools are skipped (status reads 'unknown (probe skipped)'), envelope returns a compact summary unless --full is passed. run-tool refuses everything else (paid, networked, not local, not reviewed, publishing); the terminal runs a paid or networked tool with --yes, after the estimate. setup (installs the venv), open, serve, demo, a folder for clone and arbitrary script or code arguments are terminal-only." + _linha_cmd(_CMD_MONTAGE)
 @_erro_de_argumentos
 def video_montage(args: str = "", input: dict | None = None, argv: list[str] | None = None,
@@ -267,10 +267,10 @@ def video_montage(args: str = "", input: dict | None = None, argv: list[str] | N
             return {"ok": False, "error": "video.montage: `input` só vale com `estimate NOME` (as entradas da tool, como objeto)"}
         argv += ["--input", json.dumps(input, ensure_ascii=False, separators=(",", ":"))]
     if mcp_policy.clone_com_pasta(argv, ajuda_passa=True):
-        return _recusa("montage", "clone")
+        return _recusa("video.montage", "clone")
     if argv[:1] and (argv[0] in _CMD_MONTAGE or argv[0] in mcp_policy.AJUDA):  # run-tool was answered above
         return _cli(["montage", *argv])
-    return _recusa("montage", argv[0] if argv else "open")  # setup, open and serve are rows of the table; any other word is `*`
+    return _recusa("video.montage", argv[0] if argv else "open")  # setup, open and serve are rows of the table; any other word is `*`
 
 
 def _montage_run_tool(rest: list[str], inputs) -> dict:
@@ -279,7 +279,7 @@ def _montage_run_tool(rest: list[str], inputs) -> dict:
     there is no --yes over MCP."""
     from . import jobs
     if len(rest) != 1:
-        return _recusa("montage", "run-tool")
+        return _recusa("video.montage", "run-tool")
     if inputs is None:
         inputs = {}
     if not isinstance(inputs, dict):
@@ -292,7 +292,7 @@ def _montage_run_tool(rest: list[str], inputs) -> dict:
             "note": "tarefa em segundo plano: acompanhe com video.jobs (status, ou result com o id); o resultado traz as saídas e o sha256"}
 
 
-_CMD_OPENCUT = mcp_policy.verbos_mcp("opencut")
+_CMD_OPENCUT = mcp_policy.verbos_mcp("video.opencut")
 DESC_video_opencut = "OpenCut editor for manual finishing, pinned to opencut-classic (https://github.com/OpenCut-app/opencut-classic, archived upstream): clone (default folder), status (checkout, pin, bun, node_modules, .env.local, port; never prints values) and where. dev (a server that never ends) and a folder for clone are terminal-only." + _linha_cmd(_CMD_OPENCUT)
 @_erro_de_argumentos
 def video_opencut(args: str = "", argv: list[str] | None = None, cmd: Literal[_CMD_OPENCUT] | None = None) -> dict:
@@ -300,13 +300,13 @@ def video_opencut(args: str = "", argv: list[str] | None = None, cmd: Literal[_C
     `clone <dir>` picks where the checkout is written: both run in the terminal."""
     argv = _argv(args, argv, cmd, _CMD_OPENCUT)
     if argv[:1] == ["dev"]:
-        return _recusa("opencut", "dev")
+        return _recusa("video.opencut", "dev")
     if mcp_policy.clone_com_pasta(argv, ajuda_passa=True):
-        return _recusa("opencut", "clone")
+        return _recusa("video.opencut", "clone")
     return _cli(["opencut", *argv])
 
 
-_CMD_EDIT = mcp_policy.verbos_mcp("edit")
+_CMD_EDIT = mcp_policy.verbos_mcp("video.edit")
 DESC_video_edit = ("video-use EDL editing over any MP4 (setup|transcribe|pack|render|verify|grade; grade = color: auto, --preset, --analyze). "
                    "Every output (-o/--out/--output, abbreviations included) must be an absolute path with no `..`; the EDL of render and the folder of pack must be absolute too (their intermediates go beside them); grade --filter takes only colour filters here. Batch transcription (transcribe-batch, ElevenLabs Scribe, "
                    "a paid third party) is terminal-only."
@@ -485,7 +485,7 @@ def video_busca(acao: str = "status", consulta: str | None = None, pagina: str |
         return {"ok": False, "error": busca.scrub(f"{type(e).__name__}: {e}")}
 
 
-_CMD_TOONFLOW = mcp_policy.verbos_mcp("toonflow")
+_CMD_TOONFLOW = mcp_policy.verbos_mcp("video.toonflow")
 DESC_video_toonflow = "Toonflow open-source AI studio for short dramas and videos: status (checkout, pin, bun, build, MCP runtime file mode; read-only), mcp (stdio MCP config block for a host agent; never prints the token), where, clone into the default folder; serve (--lan or --docker) runs in the terminal (https://github.com/HBAI-Ltd/Toonflow-app)." + _linha_cmd(_CMD_TOONFLOW)
 @_erro_de_argumentos
 def video_toonflow(args: str = "", argv: list[str] | None = None, cmd: Literal[_CMD_TOONFLOW] | None = None) -> dict:
@@ -496,18 +496,18 @@ def video_toonflow(args: str = "", argv: list[str] | None = None, cmd: Literal[_
     from . import toonflow
     argv = _argv(args, argv, cmd, _CMD_TOONFLOW)
     if argv[:1] == ["serve"]:
-        return _recusa("toonflow", "serve")
+        return _recusa("video.toonflow", "serve")
     if mcp_policy.clone_com_pasta(argv):
-        return _recusa("toonflow", "clone")
+        return _recusa("video.toonflow", "clone")
     # Allow-list: anything not named here (help, a new upstream verb, extra operands) is terminal-only.
     shapes = (["clone"], ["where"], ["status"], ["status", "--json"], ["mcp"], ["mcp", "--json"])
     port_shape = len(argv) in (3, 4) and argv[:2] == ["mcp", "--port"] and argv[3:] in ([], ["--json"])
     if argv not in shapes and not port_shape:
-        return {"ok": False, "error": mcp_policy.so_terminal("toonflow", mcp_policy.POLITICA["toonflow"]["*"])}
+        return {"ok": False, "error": mcp_policy.so_terminal("video.toonflow", mcp_policy.POLITICA["video.toonflow"]["*"])}
     return _roda_externa(toonflow.run_toonflow, argv)
 
 
-_CMD_MONEYPRINTER = mcp_policy.verbos_mcp("moneyprinter")
+_CMD_MONEYPRINTER = mcp_policy.verbos_mcp("video.moneyprinter")
 DESC_video_moneyprinter = 'MoneyPrinterTurbo topic-to-short-video generator: clone into the default folder, where and status (read-only). generate and run submit a background job (kind moneyprinter; follow it with video.jobs status|result) and only with a supplied script (no LLM), local material, an Edge or silent voice and an absolute output path: `generate --script /abs/roteiro.txt --material /abs/clip.mp4 --out /abs/dir [--voice V] [--aspect 9:16]` or `run --out /abs/dir -- --video-script "..." --video-source local --video-materials /abs/a.mp4,/abs/b.mp4 --voice-name pt-BR-FranciscaNeural-Female` (plus subtitle, background music and layout flags). The MP4 comes back copied to the output folder with its sha256. Everything else is terminal-only: LLM scripts, online and paid material sources, --confirm-*-charge, batch files, setup and serve. Nothing is ever published (https://github.com/harry0703/MoneyPrinterTurbo).' + _linha_cmd(_CMD_MONEYPRINTER)
 @_erro_de_argumentos
 def video_moneyprinter(args: str = "", argv: list[str] | None = None, cmd: Literal[_CMD_MONEYPRINTER] | None = None) -> dict:
@@ -527,15 +527,15 @@ def video_moneyprinter(args: str = "", argv: list[str] | None = None, cmd: Liter
         return {"ok": True, "job": jobs.summary(st),
                 "next": "video.jobs status|result com este id; o MP4 volta copiado em `out`, com sha256"}
     if argv[:1] not in (["where"], ["clone"], ["status"]):
-        return {"ok": False, "error": mcp_policy.so_terminal("moneyprinter", mcp_policy.POLITICA["moneyprinter"]["*"])}
+        return {"ok": False, "error": mcp_policy.so_terminal("video.moneyprinter", mcp_policy.POLITICA["video.moneyprinter"]["*"])}
     if mcp_policy.clone_com_pasta(argv):
-        return _recusa("moneyprinter", "clone")
+        return _recusa("video.moneyprinter", "clone")
     if argv[:1] == ["where"] and len(argv) > 1:
         return _sem_argumentos("moneyprinter", argv)
     return _roda_externa(moneyprinter.run_moneyprinter, argv)
 
 
-_CMD_MATCHCUT = mcp_policy.verbos_mcp("matchcut")
+_CMD_MATCHCUT = mcp_policy.verbos_mcp("video.matchcut")
 DESC_video_matchcut = "match-cut agent skill for product films (MIT): where (path of SKILL.md), status, and run of one of its seven LOCAL scripts (music, mix, qc, render, assemble, align, undot; a closed list, each checked against a pinned sha256 before it runs, in the skill venv with no shell, no stdin and no key). `args` is a list such as [\"run\", \"qc\", \"sheet\", \"/abs/clip.mp4\", \"/abs/sheet.jpg\"]; every path-like argument must be absolute, an existing output file is never overwritten, and nothing is written into the checkout or a system folder. setup (the venv, needs network) and clone are terminal-only: simplicio-video matchcut setup|clone. The engine never calls Renoise; using the skill itself needs the person's own Renoise sign-in and paid credits (https://github.com/Sac-Y/match-cut)." + _linha_cmd(_CMD_MATCHCUT)
 @_erro_de_argumentos
 def video_matchcut(args: list[str] | str = "", argv: list[str] | None = None, cmd: Literal[_CMD_MATCHCUT] | None = None) -> dict:
@@ -553,9 +553,9 @@ def video_matchcut(args: list[str] | str = "", argv: list[str] | None = None, cm
         except Exception as e:  # noqa: BLE001 - report, don't kill the server
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     if argv[:1] in (["setup"], ["clone"]):
-        return _recusa("matchcut", argv[0])
+        return _recusa("video.matchcut", argv[0])
     if argv[:1] not in (["where"], ["status"]):
-        return {"ok": False, "error": mcp_policy.so_terminal("matchcut", mcp_policy.POLITICA["matchcut"]["*"])}
+        return {"ok": False, "error": mcp_policy.so_terminal("video.matchcut", mcp_policy.POLITICA["video.matchcut"]["*"])}
     if len(argv) > 1:
         return _sem_argumentos("matchcut", argv)
     return _roda_externa(matchcut.run_matchcut, argv)
@@ -590,7 +590,7 @@ def video_instagram(acao: str = "status", ferramenta: str | None = None, texto: 
         if acao == "run":
             return instagram.resposta_mcp(instagram.run_tool(ferramenta, opcoes, texto=texto, canal="mcp"))
         if acao == "clone":
-            return _recusa("instagram", "clone")
+            return _recusa("video.instagram", "clone")
         return {"ok": False, "error": f"acao desconhecida: {str(acao)[:40]!r} (skills|skill|where|status|run); clone, --out e --lexicon só no terminal"}
     except instagram.InstagramError as e:
         return {"ok": False, "error": str(e)}
@@ -598,7 +598,7 @@ def video_instagram(acao: str = "status", ferramenta: str | None = None, texto: 
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-_CMD_REA_VIDEO = mcp_policy.verbos_mcp("rea-video")
+_CMD_REA_VIDEO = mcp_policy.verbos_mcp("video.rea-video")
 DESC_video_rea_video = "rea-video (MIT): reverse-engineers a reference video shot by shot and plans a remake (https://github.com/JuneYaooo/rea-video). Over MCP, with absolute paths and a closed list of flags per command: where, status, clone (default folder); summary, probe, tiles (-o required, a new file), review, apply-review, remake-plan (these two write beside an existing analysis folder); decompose and stems run as background jobs (job id back; follow it with video.jobs status/result), decompose always without the vision model. review and apply-review let YOU act as the vision model, so no frame goes to a third party. --vlm, --env-file, setup, remake-run (bills), capsule-draft (runs code of a folder), prefs, correct and memory are terminal only. Children run with no stdin in a private empty folder." + _linha_cmd(_CMD_REA_VIDEO)
 @_erro_de_argumentos
 def video_rea_video(args: str = "", argv: list[str] | None = None, cmd: Literal[_CMD_REA_VIDEO] | None = None) -> dict:
@@ -610,7 +610,7 @@ def video_rea_video(args: str = "", argv: list[str] | None = None, cmd: Literal[
     argv = _argv(args, argv, cmd, _CMD_REA_VIDEO)
     if argv[:1] in (["where"], ["clone"], ["status"]):
         if mcp_policy.clone_com_pasta(argv):
-            return _recusa("rea-video", "clone")
+            return _recusa("video.rea-video", "clone")
         if argv[:1] != ["clone"] and len(argv) > 1:
             return _sem_argumentos("rea-video", argv)
         return _roda_externa(rea_video.run_rea_video, argv)
@@ -627,7 +627,7 @@ def video_rea_video(args: str = "", argv: list[str] | None = None, cmd: Literal[
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-_CMD_VIDEO_TO_SKILL = mcp_policy.verbos_mcp("video-to-skill")
+_CMD_VIDEO_TO_SKILL = mcp_policy.verbos_mcp("video.video-to-skill")
 DESC_video_video_to_skill = ("video-to-skill (MIT, Breno Epics, https://github.com/brenoepics/video-to-skill): turns a video into an installable agent skill with the pinned local extractor "
                              "vts-extract 0.3.0. Local, closed list of verbs. Writes: extract into a NEW folder you name (plus `<folder>.extract.json` beside it), compile into a NEW folder, frame-at and clip under rewatch/ of an existing bundle you extracted, nothing else. status and where (JSON, never download anything), check (read-only; "
                              "--print-downloads lists what the upstream would fetch), skill (the pinned SKILL.md, third-party text in untrusted_conteudo, cut at 64 KiB), "
@@ -661,7 +661,7 @@ def video_video_to_skill(args: str = "", argv: list[str] | None = None, cmd: Lit
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-_CMD_VOICESTUDIO = mcp_policy.verbos_mcp("voicestudio")
+_CMD_VOICESTUDIO = mcp_policy.verbos_mcp("video.voicestudio")
 DESC_video_voicestudio = "VoiceStudio local (AGPL-3.0) em :3900: status, voices, languages, personalities, tts, transcribe, clone, describe, design, dub create (sobe um vídeo ao app e cria o job de dublagem: só o upload e o preparo; transcrever, traduzir e gerar a dublagem rodam no app), dub-export (exporta um job de dublagem que já existe no app, com o fundo preservado; não gera nada) e o bloco de config mcp. `args` é a linha de comando (aspas valem). Regras do MCP: tts e dub-export exigem --out/-o absoluto, de arquivo novo (se já existe, é recusado: o MCP não sobrescreve) numa pasta que já existe e fora de pastas do sistema e ocultas; os arquivos de entrada (dub create, transcribe, clone) são caminhos absolutos de um arquivo de mídia (links são seguidos e o destino é que conta). Dub create, transcribe e clone enviam o arquivo e só falam com um app em loopback (127.0.0.0/8, ::1, localhost). Devolve `result` com o JSON do comando (a tool acrescenta --json), `rc` (o código de saída; antes `result` era o rc) e, se falhar, `error`. Clonar ou dublar a voz de uma pessoa real só com o consentimento registrado dela. Exige o app aberto; fora do render determinístico." + _linha_cmd(_CMD_VOICESTUDIO)
 
 
@@ -747,7 +747,7 @@ def video_voicestudio(args: str = "", argv: list[str] | None = None, cmd: Litera
     return res
 
 
-_CMD_SHORTS = mcp_policy.verbos_mcp("shorts")
+_CMD_SHORTS = mcp_policy.verbos_mcp("video.shorts")
 DESC_video_shorts = "Vertical 9:16 cuts from a long video: inspect, plan (writes plan.json), cut and run, from a word transcript. Deterministic, ffmpeg only; -o is required over MCP (absolute, no `..`), and an existing file at -o is overwritten." + _linha_cmd(_CMD_SHORTS)
 @_erro_de_argumentos
 def video_shorts(args: list[str] | str = "", argv: list[str] | None = None, cmd: Literal[_CMD_SHORTS] | None = None) -> dict:
@@ -771,13 +771,13 @@ def _erro_shorts(argv: list[str]) -> str | None:
     erro = mcp_policy.saida_absoluta_nova(argv, vals, nome="shorts", chaves=("-o", "--out"))
     if erro:
         return erro
-    if sub in mcp_policy.SAIDA_OBRIGATORIA["shorts"] and not {"-o", "--out"} & vals.keys():
+    if sub in mcp_policy.SAIDA_OBRIGATORIA["video.shorts"] and not {"-o", "--out"} & vals.keys():
         return (f"shorts {sub}: informe -o/--out com caminho absoluto (sem padrão no MCP: o plano e os cortes iriam para shorts/, "
                 "na pasta onde o servidor foi iniciado)")
     return None
 
 
-_CMD_MEDIA = mcp_policy.verbos_mcp("media")
+_CMD_MEDIA = mcp_policy.verbos_mcp("video.media")
 DESC_video_media = "Audio and video on any MP4 with ffmpeg: probe, audio, sheet, subs, burn, mask, replace-audio, voice-track, and fetch (public video page via the pinned yt-dlp; needs --autorizo, only with the user's approval for that URL). Every subcommand writes to -o: an existing -o file is overwritten (ffmpeg -y, probe), while fetch never overwrites, so give a new path." + _linha_cmd(_CMD_MEDIA)
 @_erro_de_argumentos
 def video_media(args: list[str] | str = "", argv: list[str] | None = None, cmd: Literal[_CMD_MEDIA] | None = None) -> dict:
@@ -803,7 +803,7 @@ def _erro_media(argv: list[str]) -> str | None:
     return mcp_policy.saida_absoluta_nova(argv, vals, nome="media", chaves=("-o",))
 
 
-_CMD_QC = mcp_policy.verbos_mcp("qc")
+_CMD_QC = mcp_policy.verbos_mcp("video.qc")
 DESC_video_qc = "Quality control of an MP4 with ffmpeg, no model: `congelado MP4 [--min-s 0.5]` lists the intervals where the picture is frozen on one frame (start, end, duration). Read-only; pass an absolute path." + _linha_cmd(_CMD_QC)
 @_erro_de_argumentos
 def video_qc(args: list[str] | str = "", argv: list[str] | None = None,
@@ -855,7 +855,7 @@ def video_install(args: list[str] | str = "", argv: list[str] | None = None) -> 
     if mcp_policy.pede_ajuda(argv):
         return _cli(["install", "--help"])
     if any(mcp_policy.opcao_de_remocao(t) for t in argv):
-        return {"ok": False, "error": mcp_policy.so_terminal("install", mcp_policy.POLITICA["install"]["--uninstall"])}
+        return {"ok": False, "error": mcp_policy.so_terminal("video.install", mcp_policy.POLITICA["video.install"]["--uninstall"])}
     alvo, tem_alvo = None, False
     for i, t in enumerate(argv):  # the value of --target in both forms; a missing value is refused here, not by an IndexError
         if t == "--target":
@@ -883,7 +883,7 @@ def video_update(args: list[str] | str = "", argv: list[str] | None = None) -> d
     if mcp_policy.pede_ajuda(argv):
         return _cli(["update", "--help"])
     if not ({"--check", "--dry-run"} & set(argv)):
-        return _recusa("update", "instalar")
+        return _recusa("video.update", "instalar")
     return _cli(["update", *argv], codigos_ok=(0, 10))
 
 

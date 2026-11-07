@@ -1,11 +1,12 @@
 """The argument policy of the MCP tools in one table: what each tool runs over MCP, what only the terminal does, and the words that say so.
 
-`POLITICA[tool][word]` is a `Verbo`. `mcp` says that the MCP runs the word; `terminal_motivo` is why a word, or the part of it that
-takes a folder or another operand (`montage clone <dir>`, `edit grade --filter`), is terminal-only. `forma` is the command to type in the
-terminal (what follows `simplicio-video`): with it the refusal is the standard sentence "<reason>: rode `simplicio-video <forma>` no
-terminal; o MCP não faz isso"; without it `terminal_motivo` is already the whole text. `{tool}` and `{nome}` in the texts are the tool
-and the word, and `so_terminal` fills in any other `{valor}` its caller passes (`{resto}` for the words of a refused `--watch`). The row
-`"*"` of a tool says the same of every other word.
+`POLITICA[tool][word]` is a `Verbo`; `tool` is the name of the MCP tool (`video.montage`, as in `mcp_server.TOOLS`). `mcp` says that the
+MCP runs the word; `terminal_motivo` is why a word, or the part of it that takes a folder or another operand (`montage clone <dir>`,
+`edit grade --filter`), is terminal-only. `forma` is the command to type in the terminal (what follows `simplicio-video`): with it the
+refusal is the standard sentence "<reason>: rode `simplicio-video <forma>` no terminal; o MCP não faz isso"; without it `terminal_motivo`
+is already the whole text. `{tool}` and `{nome}` in the texts are the command of the tool (`montage`, without `video.`) and the word, and
+`so_terminal` fills in any other `{valor}` its caller passes (`{resto}` for the words of a refused `--watch`). The row `"*"` of a tool
+says the same of every other word.
 
 The `cmd` list of each tool (`mcp_server._CMD_*`, the `Literal` of its schema and the line of its description) is `verbos_mcp(tool)`: a
 verb the table does not list is not in the list, so a new upstream subcommand is terminal-only until someone adds it here. A word that
@@ -48,7 +49,7 @@ _MONEYPRINTER_RESTO = ("moneyprinter pelo MCP aceita `where`, `clone` (na pasta 
 _MONTAGE_ABRIR = "montage open e serve sobem uma interface que não termina"
 
 POLITICA: dict[str, dict[str, Verbo]] = {
-    "clone": {
+    "video.clone": {
         **_mcp(*HYPIT_LIVRE, "get", "media"),
         "build": Verbo("build", False, "build pode gastar em provedores e fica só no terminal na v1", "clone {nome}"),
         "studio": Verbo("studio", False, "studio sobe uma interface que nunca termina", "clone {nome}"),
@@ -64,7 +65,7 @@ POLITICA: dict[str, dict[str, Verbo]] = {
         "*": Verbo("*", False, "`{nome}` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto)",
                    "clone {nome}"),
     },
-    "montage": {
+    "video.montage": {
         "clone": Verbo("clone", True, "clonar o OpenMontage num diretório escolhido", "montage clone <dir>"),
         **_mcp("doctor", "hyperframes-doctor", "preflight", "help", "pipelines", "tools", "envelope", "estimate", "status"),
         "run-tool": Verbo("run-tool", True, "pelo MCP, run-tool recebe só o nome da tool e `input` como objeto",
@@ -74,12 +75,12 @@ POLITICA: dict[str, dict[str, Verbo]] = {
         "serve": Verbo("serve", False, _MONTAGE_ABRIR, "montage open|serve"),
         "*": Verbo("*", False, "montage {nome} roda outra coisa do OpenMontage que o MCP não aceita", "montage {nome}"),
     },
-    "opencut": {
+    "video.opencut": {
         "clone": Verbo("clone", True, "clonar o OpenCut num diretório escolhido", "opencut clone <dir>"),
         **_mcp("status", "where"),
         "dev": Verbo("dev", False, "opencut dev sobe um servidor que não termina", "opencut dev"),
     },
-    "edit": {
+    "video.edit": {
         **_mcp("setup", "transcribe", "pack", "render", "verify"),
         "grade": Verbo("grade", True, "pelo MCP o --filter só aceita filtros de cor (eq, curves, colorbalance, hue, lut, lutrgb, lutyuv, "
                                       "colorchannelmixer, vibrance), sem opção que leia ou grave arquivo, sem barra invertida nem aspas; "
@@ -87,7 +88,7 @@ POLITICA: dict[str, dict[str, Verbo]] = {
         "transcribe-batch": Verbo("transcribe-batch", False, "transcrever em lote usa o ElevenLabs Scribe, um terceiro pago, e só roda com "
                                                              "você no terminal", "edit transcribe-batch"),
     },
-    "toonflow": {
+    "video.toonflow": {
         "clone": Verbo("clone", True, _CLONE_NA_PASTA_PADRAO),
         **_mcp("mcp", "status", "where"),
         "serve": Verbo("serve", False, "{tool} serve sobe um servidor local que não termina; rode `simplicio-video toonflow serve --lan` "
@@ -95,7 +96,7 @@ POLITICA: dict[str, dict[str, Verbo]] = {
         "*": Verbo("*", False, "toonflow pelo MCP aceita `status [--json]`, `mcp [--port N] [--json]`, `where` e `clone` (pasta padrão); "
                                "o resto é pelo terminal"),
     },
-    "moneyprinter": {
+    "video.moneyprinter": {
         "where": Verbo("where", True),
         "clone": Verbo("clone", True, _CLONE_NA_PASTA_PADRAO),
         **_mcp("status", "generate", "run"),
@@ -103,34 +104,34 @@ POLITICA: dict[str, dict[str, Verbo]] = {
         "serve": Verbo("serve", False, _MONEYPRINTER_RESTO),
         "*": Verbo("*", False, _MONEYPRINTER_RESTO),
     },
-    "matchcut": {
+    "video.matchcut": {
         **_mcp("where", "status", "run"),
         "setup": Verbo("setup", False, "{tool} {nome} só pelo terminal: `simplicio-video {tool} {nome}` (o MCP não baixa código nem instala pacotes)"),
         "clone": Verbo("clone", False, "{tool} {nome} só pelo terminal: `simplicio-video {tool} {nome}` (o MCP não baixa código nem instala pacotes)"),
         "*": Verbo("*", False, "matchcut pelo MCP aceita `where`, `status` e `run SCRIPT ...`; setup e clone são só do terminal"),
     },
-    "instagram": {
+    "video.instagram": {
         "clone": Verbo("clone", False, "baixar o instagram-agent-skill é código de terceiros vindo da rede", "instagram clone"),
     },
-    "voicestudio": _mcp("status", "voices", "languages", "personalities", "tts", "transcribe", "clone", "describe", "design", "dub", "dub-export", "mcp"),
-    "rea-video": {
+    "video.voicestudio": _mcp("status", "voices", "languages", "personalities", "tts", "transcribe", "clone", "describe", "design", "dub", "dub-export", "mcp"),
+    "video.rea-video": {
         "clone": Verbo("clone", True, _CLONE_NA_PASTA_PADRAO),
         **_mcp("where", "status", "summary", "probe", "tiles", "stems", "review", "apply-review", "remake-plan", "decompose"),
     },
-    "video-to-skill": _mcp("status", "where", "check", "skill", "extract", "frame-at", "clip", "compile", "merge"),
-    "shorts": _mcp("inspect", "plan", "cut", "run"),
-    "media": _mcp("fetch", "probe", "audio", "sheet", "subs", "burn", "mask", "replace-audio", "voice-track"),
-    "qc": _mcp("congelado"),
-    "install": {
+    "video.video-to-skill": _mcp("status", "where", "check", "skill", "extract", "frame-at", "clip", "compile", "merge"),
+    "video.shorts": _mcp("inspect", "plan", "cut", "run"),
+    "video.media": _mcp("fetch", "probe", "audio", "sheet", "subs", "burn", "mask", "replace-audio", "voice-track"),
+    "video.qc": _mcp("congelado"),
+    "video.install": {
         "--uninstall": Verbo("--uninstall", False, "remover as skills dos hosts", "install --uninstall"),
     },
-    "update": {
+    "video.update": {
         "instalar": Verbo("instalar", False, "atualizar o pacote instala software", "update"),
     },
 }
 
 # The tools that refuse a call with no output, and the subcommands that need one.
-SAIDA_OBRIGATORIA = {"edit": ("transcribe", "render", "verify", "grade"), "shorts": ("plan", "cut", "run")}
+SAIDA_OBRIGATORIA = {"video.edit": ("transcribe", "render", "verify", "grade"), "video.shorts": ("plan", "cut", "run")}
 
 AJUDA = ("-h", "--help")
 _OPCOES_DE_REMOCAO = ("--uninstall", "--prune-project-copies")
@@ -159,7 +160,7 @@ def so_terminal(tool: str, verbo: Verbo, **valores: str) -> str | None:
     """The refusal text of a verb that is terminal-only (or has a terminal-only part), or None when it has nothing terminal-only."""
     if not verbo.terminal_motivo:
         return None
-    mapa = {"tool": tool, "nome": verbo.nome, **valores}
+    mapa = {"tool": tool.removeprefix("video."), "nome": verbo.nome, **valores}
 
     def preenche(texto: str) -> str:  # one pass: a value that holds `{resto}` is not filled in again
         return re.sub(r"\{(\w+)\}", lambda m: str(mapa.get(m.group(1), m.group(0))), texto)
@@ -244,9 +245,9 @@ def edit_recusa(argv: list[str]) -> str | None:
     (--analyze, --list-presets, --print-preset) writes nothing and is left to the CLI."""
     sub, rest = (argv[0] if argv else ""), argv[1:]
     if sub in ("transcribe-batch", "transcribe_batch"):
-        return so_terminal("edit", POLITICA["edit"]["transcribe-batch"])
+        return so_terminal("video.edit", POLITICA["video.edit"]["transcribe-batch"])
     leitura = pede_ajuda(rest) or any(r.split("=", 1)[0] in GRADE_READ_ONLY for r in rest if sub == "grade")
-    if sub in SAIDA_OBRIGATORIA["edit"] and not leitura:
+    if sub in SAIDA_OBRIGATORIA["video.edit"] and not leitura:
         erro = saida_absoluta_nova(rest, None, nome=f"edit {sub}", opcoes="-o/--out/--output",
                                    obrigatoria=f"edit {sub}: -o <caminho absoluto> é obrigatório no MCP")
         if erro:
@@ -261,7 +262,7 @@ def edit_recusa(argv: list[str]) -> str | None:
     if sub == "grade":
         for f in filter_values(rest):
             if not colour_filter_ok(f):
-                return so_terminal("edit", POLITICA["edit"]["grade"])
+                return so_terminal("video.edit", POLITICA["video.edit"]["grade"])
     return None
 
 
@@ -312,9 +313,9 @@ def hypit_permitido(argv: list[str]) -> bool:
 
 def hypit_recusa(argv: list[str]) -> str:
     """The refusal text for an argument list `hypit_permitido` turned down: which word is terminal-only and the command to type."""
-    tabela = POLITICA["clone"]
+    tabela = POLITICA["video.clone"]
     if argv[:2] in (["media", "fetch"], ["media", "prepare-fetch"]):
-        return so_terminal("clone", tabela[f"media {argv[1]}"])
+        return so_terminal("video.clone", tabela[f"media {argv[1]}"])
     if "--watch" in argv:
-        return so_terminal("clone", tabela["--watch"], resto=" ".join(argv))
-    return so_terminal("clone", verbo("clone", argv[0] if argv else "(vazio)"))
+        return so_terminal("video.clone", tabela["--watch"], resto=" ".join(argv))
+    return so_terminal("video.clone", verbo("video.clone", argv[0] if argv else "(vazio)"))
