@@ -2,6 +2,7 @@
 
 The errors are the RAW ones of subprocess/float/json: each caller keeps wrapping them as it does today."""
 import json
+import os
 import shutil
 import stat
 import subprocess
@@ -222,3 +223,206 @@ def test_probe_ffprobe_com_codigo_de_saida_ruim_é_calledprocesserror_crua(tmp_p
     monkeypatch.setenv("SIMPLICIO_FFMPEG_DIR", str(tmp_path / "bin"))
     with pytest.raises(subprocess.CalledProcessError):
         mediaio.probe(tmp_path / "a.mp4")
+
+
+# ------------------------------------------------------------------ U06: the binary, the environment and the raw run
+
+@so_posix
+def test_path_ffprobe_é_o_nome_sem_pasta_e_ignora_o_dir_travado(tmp_path, monkeypatch):
+    assert mediaio.PATH_FFPROBE == "ffprobe"
+    _falso(tmp_path / "travado", "print('42.0')")
+    _falso(tmp_path / "path", "print('1.5')")
+    monkeypatch.setenv("SIMPLICIO_FFMPEG_DIR", str(tmp_path / "travado"))
+    monkeypatch.setenv("PATH", str(tmp_path / "path"))
+    assert mediaio.duration_s(tmp_path / "a.wav") == 42.0  # None: the resolution of mediaio (the locked folder wins)
+    assert mediaio.duration_s(tmp_path / "a.wav", ffprobe=mediaio.PATH_FFPROBE) == 1.5  # the bare name: the PATH only
+
+
+def test_ffprobe_cmd_monta_o_argv_e_o_binario_explicito_vence_o_dir_travado(tmp_path, monkeypatch):
+    (tmp_path / "ffprobe").write_bytes(b"")
+    monkeypatch.setenv("SIMPLICIO_FFMPEG_DIR", str(tmp_path))
+    alvo = tmp_path / "a.mp4"
+    assert mediaio.ffprobe_cmd(["-show_format"], alvo) == [str(tmp_path / "ffprobe"), "-v", "error", "-show_format", str(alvo)]
+    assert mediaio.ffprobe_cmd(["-show_format"], str(alvo), ffprobe="ffprobe") == ["ffprobe", "-v", "error", "-show_format", str(alvo)]
+    assert mediaio.ffprobe_cmd([], "x", ffprobe="/opt/ff/ffprobe")[0] == "/opt/ff/ffprobe"
+    assert isinstance(mediaio.ffprobe_cmd([], "x"), list)
+
+
+def test_ffprobe_cmd_sem_dir_travado_usa_o_nome(tmp_path):
+    assert mediaio.ffprobe_cmd(["-x"], "a") == ["ffprobe", "-v", "error", "-x", "a"]
+
+
+def test_as_constantes_de_argv_sao_as_que_os_chamadores_usam_hoje():
+    assert tuple(mediaio.DURATION_ARGS) == ("-show_entries", "format=duration", "-of", "csv=p=0")
+    assert tuple(mediaio.PROBE_ARGS) == ("-print_format", "json", "-show_format", "-show_streams")
+
+
+@so_posix
+def test_run_ffprobe_devolve_o_processo_sem_levantar_com_check_falso(tmp_path, monkeypatch):
+    _falso(tmp_path / "bin", "sys.stdout.write('saida'); sys.stderr.write('erro'); sys.exit(4)")
+    p = mediaio.run_ffprobe(["-x"], tmp_path / "a.wav", ffprobe=str(tmp_path / "bin" / "ffprobe"), check=False)
+    assert (p.returncode, p.stdout, p.stderr) == (4, "saida", "erro")
+    assert isinstance(p.stdout, str)  # text=True
+    with pytest.raises(subprocess.CalledProcessError) as e:
+        mediaio.run_ffprobe(["-x"], tmp_path / "a.wav", ffprobe=str(tmp_path / "bin" / "ffprobe"))
+    assert (e.value.returncode, e.value.stdout, e.value.stderr) == (4, "saida", "erro")
+
+
+@so_posix
+def test_run_ffprobe_o_filho_tem_o_stdin_em_dev_null_e_recebe_o_ambiente_dado(tmp_path, monkeypatch):
+    corpo = ("import os\n"
+             "dev_null = os.path.samestat(os.fstat(0), os.stat('/dev/null'))\n"
+             "print(json.dumps({'dev_null': dev_null, 'marca': os.environ.get('MARCA'), 'path': os.environ.get('PATH')}))")
+    _falso(tmp_path / "bin", corpo)
+    ff = str(tmp_path / "bin" / "ffprobe")
+    monkeypatch.setenv("MARCA", "do-processo")
+    visto = json.loads(mediaio.run_ffprobe([], "a", ffprobe=ff).stdout)
+    assert visto["dev_null"] is True and visto["marca"] == "do-processo"
+    visto = json.loads(mediaio.run_ffprobe([], "a", ffprobe=ff, env={"MARCA": "do-env", "PATH": "/x"}).stdout)
+    assert (visto["marca"], visto["path"]) == ("do-env", "/x")
+
+
+@so_posix
+def test_run_ffprobe_o_nome_sem_pasta_é_achado_no_path_do_env_dado(tmp_path, monkeypatch):
+    _falso(tmp_path / "so-no-env", "print('7.0')")
+    monkeypatch.setenv("PATH", str(tmp_path / "vazio"))
+    with pytest.raises(FileNotFoundError):
+        mediaio.run_ffprobe([], "a", ffprobe=mediaio.PATH_FFPROBE)
+    p = mediaio.run_ffprobe([], "a", ffprobe=mediaio.PATH_FFPROBE, env={"PATH": str(tmp_path / "so-no-env")})
+    assert p.stdout == "7.0\n"
+
+
+@so_posix
+def test_run_ffprobe_o_argv_é_uma_tupla_como_o_do_voice_sh(tmp_path):
+    """str(CalledProcessError) prints the argv: voice.duration (through voice.sh) always showed the tuple."""
+    _falso(tmp_path / "bin", "sys.exit(2)")
+    with pytest.raises(subprocess.CalledProcessError) as e:
+        mediaio.run_ffprobe(["-x"], "a", ffprobe=str(tmp_path / "bin" / "ffprobe"))
+    assert e.value.cmd == (str(tmp_path / "bin" / "ffprobe"), "-v", "error", "-x", "a")
+
+
+@so_posix
+def test_run_ffprobe_timeout_estourado(tmp_path):
+    _falso(tmp_path / "bin", "time.sleep(30)")
+    with pytest.raises(subprocess.TimeoutExpired):
+        mediaio.run_ffprobe([], "a", ffprobe=str(tmp_path / "bin" / "ffprobe"), timeout=0.3)
+
+
+@so_posix
+def test_duration_s_com_check_falso_ignora_o_codigo_de_saida_e_a_saida_vazia_é_valueerror(tmp_path):
+    _falso(tmp_path / "bin", "print('7.5'); sys.exit(3)")
+    ff = str(tmp_path / "bin" / "ffprobe")
+    assert mediaio.duration_s("a", ffprobe=ff, check=False) == 7.5
+    with pytest.raises(subprocess.CalledProcessError):
+        mediaio.duration_s("a", ffprobe=ff)
+    _falso(tmp_path / "vazio", "sys.exit(1)")
+    with pytest.raises(ValueError, match="could not convert string to float: ''"):
+        mediaio.duration_s("a", ffprobe=str(tmp_path / "vazio" / "ffprobe"), check=False)
+
+
+@so_posix
+def test_duration_s_e_probe_aceitam_o_binario_e_o_ambiente(tmp_path, monkeypatch):
+    _falso(tmp_path / "bin", "print(os.environ.get('MARCA', '0') if '-print_format' not in sys.argv else '{\"format\": {\"duration\": \"3\"}}')")
+    ff = str(tmp_path / "bin" / "ffprobe")
+    assert mediaio.duration_s("a", ffprobe=ff, env={"MARCA": "9.5", "PATH": os.environ["PATH"]}) == 9.5
+    assert mediaio.probe("a", ffprobe=ff, env={"PATH": os.environ["PATH"]}) == {"format": {"duration": "3"}}
+
+
+@so_posix
+def test_probe_resolve_o_binario_na_hora_da_chamada_e_o_explicito_vence(tmp_path, monkeypatch):
+    _falso(tmp_path / "travado", "print('{\"id\": \"travado\"}')")
+    _falso(tmp_path / "path", "print('{\"id\": \"path\"}')")
+    monkeypatch.setenv("SIMPLICIO_FFMPEG_DIR", str(tmp_path / "travado"))
+    monkeypatch.setenv("PATH", str(tmp_path / "path"))
+    assert mediaio.probe("a") == {"id": "travado"}
+    assert mediaio.probe("a", ffprobe=mediaio.PATH_FFPROBE) == {"id": "path"}
+
+
+# ------------------------------------------------------------------ U06: the summary of the first video stream (shorts and media)
+
+class _Erro(Exception):
+    pass
+
+
+def _json_falso(tmp_path: Path, doc: dict | None, stderr: str = "", codigo: int = 0, cru: str | None = None) -> str:
+    saida = cru if cru is not None else ("" if doc is None else json.dumps(doc))
+    _falso(tmp_path / "bin", f"sys.stdout.write({saida!r}); sys.stderr.write({stderr!r}); sys.exit({codigo})")
+    return str(tmp_path / "bin" / "ffprobe")
+
+
+VIDEO = {"codec_type": "video", "width": 1080, "height": 1920, "avg_frame_rate": "30000/1001", "r_frame_rate": "30/1"}
+AUDIO = {"codec_type": "audio"}
+
+
+@so_posix
+def test_probe_summary_resume_o_primeiro_video_e_calcula_tamanho_e_sha256(tmp_path):
+    ff = _json_falso(tmp_path, {"streams": [AUDIO, VIDEO], "format": {"duration": "12.3456"}})
+    arq = tmp_path / "v.mp4"
+    arq.write_bytes(b"abc")
+    r = mediaio.probe_summary(arq, ffprobe=ff, fail=_Erro)
+    assert r == {"path": str(arq), "duration": 12.346, "width": 1080, "height": 1920, "fps": 29.97, "has_audio": True, "size_bytes": 3,
+                 "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}
+    assert list(r) == ["path", "duration", "width", "height", "fps", "has_audio", "size_bytes", "sha256"]
+    assert json.loads((tmp_path / "bin" / "argv.json").read_text()) == [
+        "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(arq)]
+
+
+@so_posix
+def test_probe_summary_sem_audio_duracao_do_stream_e_fps_do_r_frame_rate(tmp_path):
+    video = {"codec_type": "video", "width": 2, "height": 4, "r_frame_rate": "25/1", "duration": "2.5"}
+    ff = _json_falso(tmp_path, {"streams": [video], "format": {}})
+    arq = tmp_path / "v.mp4"
+    arq.write_bytes(b"")
+    r = mediaio.probe_summary(arq, ffprobe=ff, fail=_Erro)
+    assert (r["duration"], r["fps"], r["has_audio"]) == (2.5, 25.0, False)
+
+
+@so_posix
+def test_probe_summary_duracao_ilegivel_vira_zero_e_largura_ausente_vira_zero(tmp_path):
+    ff = _json_falso(tmp_path, {"streams": [{"codec_type": "video"}], "format": {"duration": "N/A"}})
+    arq = tmp_path / "v.mp4"
+    arq.write_bytes(b"")
+    r = mediaio.probe_summary(arq, ffprobe=ff, fail=_Erro)
+    assert (r["duration"], r["width"], r["height"], r["fps"]) == (0.0, 0, 0, 0.0)
+
+
+@so_posix
+def test_probe_summary_o_erro_é_o_do_chamador_com_a_mensagem_do_ffprobe(tmp_path):
+    arq = tmp_path / "v.mp4"
+    arq.write_bytes(b"")
+    ff = _json_falso(tmp_path, None, stderr="  linha 1\nlinha 2\n", codigo=1)
+    with pytest.raises(_Erro) as e:
+        mediaio.probe_summary(arq, ffprobe=ff, fail=_Erro)
+    assert type(e.value) is _Erro and str(e.value) == "linha 1\nlinha 2"
+    ff = _json_falso(tmp_path, None, stderr="", codigo=1)
+    with pytest.raises(_Erro, match=f"^ffprobe falhou em {arq}$"):
+        mediaio.probe_summary(arq, ffprobe=ff, fail=_Erro)
+    ff = _json_falso(tmp_path, {"streams": [AUDIO], "format": {}})
+    with pytest.raises(_Erro, match=f"^sem trilha de vídeo: {arq}$"):
+        mediaio.probe_summary(arq, ffprobe=ff, fail=_Erro)
+    ff = _json_falso(tmp_path, None)  # exit 0 and nothing printed: no streams
+    with pytest.raises(_Erro, match=f"^sem trilha de vídeo: {arq}$"):
+        mediaio.probe_summary(arq, ffprobe=ff, fail=_Erro)
+
+
+@so_posix
+def test_probe_summary_json_ilegivel_é_valueerror_crua_e_ffprobe_ausente_é_filenotfounderror(tmp_path):
+    arq = tmp_path / "v.mp4"
+    arq.write_bytes(b"")
+    ff = _json_falso(tmp_path, None, cru="isto nao e json")
+    with pytest.raises(ValueError):
+        mediaio.probe_summary(arq, ffprobe=ff, fail=_Erro)
+    with pytest.raises(FileNotFoundError):
+        mediaio.probe_summary(arq, ffprobe=str(tmp_path / "nao-existe"), fail=_Erro)
+
+
+@pytest.mark.parametrize("bruto,esperado", [("30/1", 30.0), ("30000/1001", 29.97), ("abc/2", 0.0), ("24", 24.0), ("", 0.0), ("0", 0.0),
+                                              (None, 0.0), (0, 0.0), ("x", 0.0), ("25/", 25.0), (30, 30.0), ("1/3", 0.333)])
+def test_fps(bruto, esperado):
+    assert mediaio.fps(bruto) == esperado
+
+
+def test_fps_denominador_zero_é_zerodivisionerror_crua_como_sempre_foi_no_shorts():
+    """`0/0` is what ffprobe prints for a stream without a frame rate: the shorts caught only ValueError, and that did not change."""
+    with pytest.raises(ZeroDivisionError):
+        mediaio.fps("0/0")

@@ -12,6 +12,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from . import mediaio
+
 SCHEMA = "simplicio.qc-congelado/v1"
 RUIDO = 0.001
 
@@ -42,8 +44,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _duracao_arquivo(mp4: Path) -> float:
-    p = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(mp4)],
-                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    p = mediaio.run_ffprobe(mediaio.DURATION_ARGS, mp4, ffprobe=mediaio.PATH_FFPROBE, check=False)
     if p.returncode != 0 or not p.stdout.strip():
         raise QcError(f"qc: ffprobe não leu a duração de {mp4}")
     return float(p.stdout.strip())

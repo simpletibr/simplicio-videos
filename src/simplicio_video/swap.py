@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import swap_providers
+from . import mediaio, swap_providers
 from .aio import athread, clamp, positive_int, run_sync
 from .fsutil import sha256_file
 from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError, redact
@@ -95,10 +95,7 @@ def scrub(text: str) -> str:
 
 
 def _bin(name: str) -> str:
-    d = os.environ.get("SIMPLICIO_FFMPEG_DIR")
-    if d and (Path(d) / name).exists():
-        return str(Path(d) / name)
-    return name
+    return mediaio.ffmpeg_bin(name)
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -112,8 +109,8 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess:
 
 
 def probe(path: Path) -> dict:
-    r = _run([_bin("ffprobe"), "-v", "error", "-show_entries",
-              "stream=codec_type,avg_frame_rate,r_frame_rate,width,height:format=duration", "-of", "json", str(path)])
+    r = _run(mediaio.ffprobe_cmd(["-show_entries", "stream=codec_type,avg_frame_rate,r_frame_rate,width,height:format=duration",
+                                  "-of", "json"], path, ffprobe=_bin(mediaio.PATH_FFPROBE)))
     data = json.loads(r.stdout or "{}")
     streams = data.get("streams") or []
     video = next((s for s in streams if s.get("codec_type") == "video"), None)

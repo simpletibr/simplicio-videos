@@ -20,7 +20,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .fsutil import sha256_file
+from . import mediaio
+from .fsutil import sha256_file  # noqa: F401 - re-exported: tests/test_fsutil_paridade.py reads shorts.sha256_file
 
 PLAN_SCHEMA = "simplicio.shorts-plan/v1"
 MANIFEST_SCHEMA = "simplicio.shorts-manifest/v1"
@@ -51,19 +52,6 @@ def _need(exe: str) -> str:
     return found
 
 
-def _fps(raw) -> float:
-    if not raw or "/" not in str(raw):
-        try:
-            return round(float(raw), 3)
-        except (TypeError, ValueError):
-            return 0.0
-    num, _, den = str(raw).partition("/")
-    try:
-        return round(float(num) / float(den or 1), 3)
-    except ValueError:
-        return 0.0
-
-
 def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip()
 
@@ -72,33 +60,7 @@ def probe(path: Path) -> dict:
     """Metadados da fonte: nada é escrito, nada é decodificado."""
     if not path.exists():
         raise ShortsError(f"arquivo não existe: {path}")
-    ffprobe = _need("ffprobe")
-    r = subprocess.run(
-        [ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)],
-        stdin=subprocess.DEVNULL, capture_output=True, text=True)
-    if r.returncode != 0:
-        raise ShortsError(r.stderr.strip() or f"ffprobe falhou em {path}")
-    data = json.loads(r.stdout or "{}")
-    streams = data.get("streams") or []
-    video = next((s for s in streams if s.get("codec_type") == "video"), None)
-    if video is None:
-        raise ShortsError(f"sem trilha de vídeo: {path}")
-    audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
-    duration = data.get("format", {}).get("duration") or video.get("duration") or 0
-    try:
-        duration_f = float(duration)
-    except (TypeError, ValueError):
-        duration_f = 0.0
-    return {
-        "path": str(path),
-        "duration": round(duration_f, 3),
-        "width": int(video.get("width") or 0),
-        "height": int(video.get("height") or 0),
-        "fps": _fps(video.get("avg_frame_rate") or video.get("r_frame_rate")),
-        "has_audio": audio is not None,
-        "size_bytes": path.stat().st_size,
-        "sha256": sha256_file(path),
-    }
+    return mediaio.probe_summary(path, ffprobe=_need(mediaio.PATH_FFPROBE), fail=ShortsError)
 
 # ---------------------------------------------------------------- transcrição
 

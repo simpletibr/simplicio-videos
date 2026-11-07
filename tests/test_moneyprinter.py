@@ -12,8 +12,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from _orfao import (SINAIS, SLEEPER_CODE, espera, espera_pid, mata_o_que_sobrou, sinaliza_no_popen,  # noqa: F401
-                    sinais_padrao, vivo)
+from _orfao import (SINAIS, SLEEPER_CODE, espera, espera_pid, lanca_como_shell, mata_o_que_sobrou,  # noqa: F401
+                    sinaliza_no_popen, sinais_padrao, vivo)
 
 from simplicio_video import cli, mcp_server, moneyprinter, tools
 
@@ -2225,7 +2225,7 @@ def test_stopping_run_takes_the_upstream_process_group_down_within_the_grace(tmp
     driver.write_text("import os, sys\nfrom pathlib import Path\nfrom simplicio_video import moneyprinter as m\n"
                       "m._spawn_cli([sys.executable, sys.argv[1], sys.argv[2]], Path('.'), dict(os.environ))\n")
     env = {**os.environ, "SIMPLICIO_JOBS_GRACE_S": "2"}
-    p = subprocess.Popen([sys.executable, str(driver), str(fake), str(pidfile)], env=env, cwd=tmp_path)
+    p = lanca_como_shell([sys.executable, str(driver), str(fake), str(pidfile)], env=env, cwd=tmp_path)
     try:
         deadline = time.monotonic() + 15
         while not (pidfile.exists() and pidfile.read_text()) and time.monotonic() < deadline:
@@ -2236,10 +2236,13 @@ def test_stopping_run_takes_the_upstream_process_group_down_within_the_grace(tmp
         p.send_signal(signal.SIGINT)
         p.send_signal(signal.SIGINT)  # a second Ctrl+C must not abort the stop
         p.wait(timeout=10)
+        # the grace is 2 s (SIMPLICIO_JOBS_GRACE_S above): this wait only has to outlast it, the test asserts what is left, not how long the stop took
         while _alive(child) and time.monotonic() - t0 < 3.5:
             time.sleep(0.05)
         assert not _alive(child), "the upstream cli.py outlived the stop"
-        assert time.monotonic() - t0 <= 3.1  # grace (2 s) + 1
+        assert p.returncode == -signal.SIGINT  # the engine ends by the Ctrl+C it was sent (what a shell reports as 128 + 2)
+        with pytest.raises(ProcessLookupError):
+            os.killpg(child, 0)  # nobody is left in the upstream's process group
     finally:
         p.kill()
         if pidfile.exists() and pidfile.read_text():

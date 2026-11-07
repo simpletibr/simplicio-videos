@@ -18,11 +18,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
-from . import childio, hostos, tools
-from .toonflow import _offline
+from . import childio, tools, trilha_base
+from .rede import offline as _offline
+from .trilha_base import Trilha
 
 REA_VIDEO_REPO = tools.get("rea_video").source
 OWN_SUBCOMMANDS = ("clone", "setup", "where", "status")
@@ -59,19 +59,17 @@ class ReaVideoError(Exception):
     pass
 
 
+T = Trilha("rea_video", "REA_VIDEO_DIR", "REA_VIDEO_DATA_DIR")
+
+
 def find_rea_video_dir() -> Path | None:
     """The pinned checkout (REA_VIDEO_DIR, else SIMPLICIO_TOOLS_DIR/rea_video, else ~/.simplicio-video/tools/rea_video)."""
-    return tools.find("rea_video")
+    return T.find()
 
 
 def data_dir() -> Path:
     """Where the venv and the upstream state live: absolute, and outside the checkout so a re-clone never wipes them."""
-    explicit = os.environ.get("REA_VIDEO_DATA_DIR")
-    if explicit:
-        return Path(explicit).expanduser().resolve()
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return (base / "rea-video-data").resolve()
+    return T.data_dir()
 
 
 def venv_bin(name: str) -> Path:
@@ -84,44 +82,17 @@ def _rea_video_exe() -> Path | None:
     return exe if exe.is_file() else None
 
 
-@contextlib.contextmanager
-def _checkout_at(target: Path):
-    """Point tools.install at `target` for the duration of the block, then restore the environment."""
-    previous = os.environ.get("REA_VIDEO_DIR")
-    os.environ["REA_VIDEO_DIR"] = str(target)
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("REA_VIDEO_DIR", None)
-        else:
-            os.environ["REA_VIDEO_DIR"] = previous
-
-
 def clone_rea_video(target: Path | None = None) -> Path:
     """Install rea-video at its pinned commit (target overrides the location). Never in offline mode."""
-    if _offline():
-        raise ReaVideoError(
-            "modo offline (SIMPLICIO_OFFLINE=1): não vou clonar o rea-video. "
-            "Rode `simplicio-video rea-video clone` fora do modo offline ou aponte REA_VIDEO_DIR para um checkout."
-        )
-    try:
-        if target is None:
-            return Path(tools.install("rea_video"))
-        with _checkout_at(Path(target).expanduser()):
-            return Path(tools.install("rea_video"))
-    except tools.ToolError as e:
-        raise ReaVideoError(str(e)) from None
+    return T.clone(target, erro=ReaVideoError, offline=_offline, acao=(
+        "clonar o rea-video. "
+        "Rode `simplicio-video rea-video clone` fora do modo offline ou aponte REA_VIDEO_DIR para um checkout."
+    ))
 
 
 def _checkout_head(d: Path) -> str | None:
     """The commit that is really in the checkout (the pin is only what it should be)."""
-    if not (d / ".git").exists():  # without .git, git would answer with the parent repository: not this checkout
-        return None
-    try:
-        return tools._git("rev-parse", "HEAD", cwd=d)
-    except tools.ToolError:
-        return None
+    return T.head(d)  # without .git, git would answer with the parent repository: not this checkout (T.head gives None)
 
 
 def _warn_if_not_pinned(d: Path) -> None:
@@ -492,21 +463,12 @@ def job_args(args) -> list[str]:
 def make_job_cwd() -> str:
     """A private empty folder for a job child. Folders of jobs that ended without a result (failed, cancelled, lost) and
     are older than a week are swept here, on the next submit; rmdir only removes an empty one."""
-    base = Path(tempfile.gettempdir())
-    cutoff = time.time() - 7 * 86400
-    for old in base.glob(JOB_CWD_PREFIX + "*"):
-        with contextlib.suppress(OSError):
-            if old.stat().st_mtime < cutoff:
-                old.rmdir()
-    return tempfile.mkdtemp(prefix=JOB_CWD_PREFIX)
+    return str(trilha_base.job_cwd(JOB_CWD_PREFIX))
 
 
 def drop_job_cwd(path) -> None:
     """Remove the private folder of a finished job (only ours: under the temp folder, with our prefix, empty)."""
-    p = Path(str(path or ""))
-    if p.name.startswith(JOB_CWD_PREFIX) and p.parent == Path(tempfile.gettempdir()):
-        with contextlib.suppress(OSError):
-            p.rmdir()
+    trilha_base.drop_job_cwd(path, JOB_CWD_PREFIX)
 
 
 def _mcp_env() -> dict[str, str]:

@@ -16,7 +16,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import aio, childio, hostos, paths, voice_clone, words as wordsmod
+from . import aio, childio, hostos, mediaio, paths, voice_clone, words as wordsmod
 from .contract import Contract, r4
 from .fsutil import sha256_file
 
@@ -67,7 +67,7 @@ def sh(*a: str) -> str:
 
 
 def duration(p: Path) -> float:
-    return float(sh("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)).strip())
+    return mediaio.duration_s(p, ffprobe=mediaio.PATH_FFPROBE)
 
 
 def settings_for(c: Contract, prov: str) -> dict:

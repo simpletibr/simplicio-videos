@@ -439,3 +439,72 @@ def test_modulo_sem_docstring_aparece_marcado_no_mapa(tmp_path, monkeypatch):
     monkeypatch.setattr(gen, "PKG", pkg)
     itens = [l for l in gen.mapa_modulos_body().splitlines() if l.startswith("- ")]
     assert itens == ["- `com_doc.py`: Faz uma coisa.", "- `sem_doc.py`: (sem docstring)"]
+
+
+# ------------------------------------------------------------------------------------------------- variables named in Trilha(...)
+# The external tracks no longer read `<NAME>_DIR` / `<NAME>_DATA_DIR` with a literal `os.environ.get("...")` in their own module: the
+# names are the arguments of `T = Trilha(nome, env_dir, env_data)` and `trilha_base` reads them through the declaration. The reference
+# must keep listing them (they are what a user sets), so the generator reads those arguments as it reads a literal `os.environ.get`.
+DECLARADAS_EM_TRILHA = {"TOONFLOW_DIR", "TOONFLOW_DATA_DIR", "MONEYPRINTER_DIR", "MONEYPRINTER_DATA_DIR", "REA_VIDEO_DIR",
+                        "REA_VIDEO_DATA_DIR", "OPENCUT_DIR"}
+FONTE_DE_TRILHAS = (
+    "from .trilha_base import Trilha\n"                          # 1
+    "import simplicio_video.trilha_base as tb\n"                 # 2
+    'ENV_W = "W_DIR"\n'                                          # 3
+    'T = Trilha("x", "X_DIR", "X_DATA_DIR")\n'                   # 4
+    "U = tb.Trilha(\n"                                           # 5
+    '    "y",\n'                                                 # 6
+    '    env_dir="Y_DIR",\n'                                     # 7
+    '    env_data="Y_DATA_DIR",\n'                               # 8
+    ")\n"                                                        # 9
+    'V = Trilha("z", "Z_DIR")\n'                                 # 10
+    'W = Trilha("w", ENV_W)\n'                                   # 11
+    'D = Trilha(nome, f"{nome}_DIR", None)\n'                    # 12
+    'O = Outra("o", "O_DIR", "O_DATA_DIR")\n'                    # 13
+    'N = Trilha("n", "minuscula", "NAO-E-NOME")\n'               # 14
+)
+
+
+def test_o_gerador_le_por_ast_as_variaveis_que_a_trilha_declara(monkeypatch, tmp_path):
+    """The two variable arguments of `Trilha(...)` (positional or keyword, bare or `module.Trilha`) are readers, at the line of the
+    call; a module constant resolves like in `os.environ.get(CONST)`; what is not a literal name, and what is not a `Trilha`, is not."""
+    gen = _gen_module()
+    pkg = tmp_path / "src" / "simplicio_video"
+    pkg.mkdir(parents=True)
+    (pkg / "trilha_x.py").write_text(FONTE_DE_TRILHAS, encoding="utf-8")
+    monkeypatch.setattr(gen, "ROOT", tmp_path)
+    monkeypatch.setattr(gen, "PKG", pkg)
+    arq = "src/simplicio_video/trilha_x.py"
+    assert gen.env_reads() == {
+        "W_DIR": [f"{arq}:11"], "X_DATA_DIR": [f"{arq}:4"], "X_DIR": [f"{arq}:4"], "Y_DATA_DIR": [f"{arq}:5"],
+        "Y_DIR": [f"{arq}:5"], "Z_DIR": [f"{arq}:10"],
+    }  # no SIMPLICIO_<NAME>_DIR: `tools.find` builds that one at run time, and the reference never listed it for these tracks
+
+
+def _declaradas_no_pacote() -> dict[str, str]:
+    """The variable names given to `Trilha(...)` in the package, with the file that declares each, found here with its own ast walk
+    (independent of the generator)."""
+    achadas = {}
+    for path in PKG.rglob("*.py"):
+        rel = path.relative_to(ROOT).as_posix()
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not ((isinstance(func, ast.Name) and func.id == "Trilha") or (isinstance(func, ast.Attribute) and func.attr == "Trilha")):
+                continue
+            args = [*node.args[1:3], *(k.value for k in node.keywords if k.arg in ("env_dir", "env_data"))]
+            achadas.update({a.value: rel for a in args if isinstance(a, ast.Constant) and isinstance(a.value, str)})
+    return achadas
+
+
+def test_config_md_lista_a_variavel_de_cada_trilha_declarada(gerado):
+    """Red when the migration of a track to `Trilha` takes its variables out of the reference: each is a row, described, and the row
+    points at the file that declares it."""
+    declaradas = _declaradas_no_pacote()
+    assert DECLARADAS_EM_TRILHA <= set(declaradas), "o scan não achou as trilhas conhecidas"
+    linhas = {l.split("`")[1]: l for l in _read(gerado, "config.md").splitlines() if l.startswith("| `")}
+    for nome, arquivo in sorted(declaradas.items()):
+        assert nome in linhas, f"{nome} é argumento de Trilha(...) e falta em config.md"
+        assert "sem descrição" not in linhas[nome], nome
+        assert f"`{arquivo}:" in linhas[nome], f"{nome}: a linha não aponta para {arquivo}"
