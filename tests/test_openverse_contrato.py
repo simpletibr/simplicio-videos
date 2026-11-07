@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from helpers import edit_yaml, fake_mp4, have_render_tools, ROOT
+from helpers import edit_yaml_utf8 as _edit, fake_mp4, have_render_tools, ROOT
 from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract, paths, render
 from test_openverse import (
     ID_IMG, OUTRO_PEDIDO, PEDIDO, PNG_B, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, cli, env, midia)
@@ -35,9 +35,6 @@ HOSTIL_TITULO = "Titulo\n- `falso.png`: x <img src=x onerror=alert(1)>"
 
 
 # ------------------------------------------------------------------------------------------------ ajudas
-
-def _edit(path, fn):
-    edit_yaml(path, fn, encoding="utf8")
 
 
 def _declarar(contrato, item, pedido=PEDIDO, com_bloco=True, pedido_export=PEDIDO, aceito=False):

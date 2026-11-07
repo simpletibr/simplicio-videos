@@ -9,7 +9,7 @@ import json
 import pytest
 from jsonschema import Draft202012Validator
 
-from helpers import edit_yaml, ROOT, run_main
+from helpers import edit_yaml_utf8 as _edita, ROOT, run_main
 from simplicio_video import despacho, pipeline, render
 from simplicio_video.cli import main
 
@@ -31,10 +31,6 @@ def _erros(nome, dados):
 def _run(argv, capsys):
     # SystemExit("texto") é o erro de texto do motor: exit 1 + mensagem no stderr; argparse (--help, erro de uso) dá o próprio código
     return run_main(main, argv, capsys, text_exit=True)
-
-
-def _edita(path, fn):
-    edit_yaml(path, fn, encoding="utf8")
 
 
 def _contrato_invalido(path):

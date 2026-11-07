@@ -22,7 +22,7 @@ import pytest
 import yaml
 
 from audio_medida import freq_dominante, le_wav, potencia_banda_db
-from helpers import edit_yaml, fake_mp4, have_render_tools, needs_ffmpeg
+from helpers import edit_yaml_utf8 as _edit, fake_mp4, have_render_tools, needs_ffmpeg
 from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract as oc, render, trilha, voice
 from test_openverse import PEDIDO, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, env, midia
 
@@ -30,9 +30,6 @@ SR_TOM = 4000  # o tom da trilha de teste: fica na banda de agudos (2.5-6 kHz) q
 
 
 # ------------------------------------------------------------------------------------------------ ajudas
-
-def _edit(path, fn):
-    edit_yaml(path, fn, encoding="utf8")
 
 
 def _wav_tom(path: Path, freq: int = SR_TOM, dur: int = 2) -> bytes:

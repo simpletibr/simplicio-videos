@@ -614,7 +614,7 @@ def test_no_test_module_has_its_own_yaml_editor_or_fake_mp4_writer():
         for n in tree.body:
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("test_"):
                 corpo = ast.unparse(n)
-                if "fn(d)" in corpo and "yaml.safe_dump(d, allow_unicode=True, sort_keys=False)" in corpo:
+                if "fn(d)" in corpo and ("yaml.safe_dump(d, allow_unicode=True, sort_keys=False)" in corpo or "edit_yaml(path, fn" in corpo):
                     achados.append(f"{rel}:{n.lineno}: def {n.name}() loads, edits and dumps a YAML (helpers.edit_yaml)")
                 if "'out' / 'mini.mp4'" in corpo or '"out" / "mini.mp4"' in corpo:
                     achados.append(f"{rel}:{n.lineno}: def {n.name}() writes out/mini.mp4 (helpers.fake_mp4)")
@@ -676,3 +676,11 @@ def test_no_test_module_builds_an_in_memory_wav_by_hand():
                 if "wave.open(buf, 'wb')" in ast.unparse(n) and "buf.getvalue()" in ast.unparse(n):
                     achados.append(f"{rel}:{n.lineno}: def {n.name}() writes a WAV into a BytesIO (helpers.pcm_wav / helpers.sine_wav)")
     assert achados == [], "\n".join(achados)
+
+
+def test_edit_yaml_utf8_is_edit_yaml_with_utf8_named(tmp_path):
+    helpers = h()
+    p = tmp_path / "c.yaml"
+    p.write_bytes("nome: João\n".encode("utf8"))
+    assert helpers.edit_yaml_utf8(p, lambda d: d.update(cidade="São Paulo")) is None
+    assert p.read_bytes() == "nome: João\ncidade: São Paulo\n".encode("utf8")
