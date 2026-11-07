@@ -16,7 +16,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import HYPERFRAMES, __version__, paths, perfis
+from . import HYPERFRAMES, __version__, mediaio, paths, perfis
 from .compiler import MARCA_PADRAO_DAGUA, compile_project
 from .contract import Contract, load_lock, validate
 from .fsutil import sha256_file
@@ -138,8 +138,7 @@ def media_hashes(mp4: Path) -> dict:
     fmd5 = dec(["-map", "0:v:0", "-f", "framemd5"]).decode()
     frames = [ln.rsplit(",", 1)[-1].strip() for ln in fmd5.splitlines() if ln and not ln.startswith("#")]
     pcm = dec(["-map", "0:a:0", "-f", "s16le", "-ac", "2", "-ar", "48000"])
-    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(mp4)],
-                               stdin=subprocess.DEVNULL, capture_output=True, text=True).stdout.strip())
+    dur = mediaio.duration_s(mp4, ffprobe=mediaio.PATH_FFPROBE, check=False)
     return {"sha256": sha256_file(mp4), "duration_s": round(dur, 3), "frames": len(frames),
             "video_frames_sha256": hashlib.sha256("\n".join(frames).encode()).hexdigest(),
             "audio_pcm_sha256": hashlib.sha256(pcm).hexdigest(), "frame_md5": frames}
@@ -376,8 +375,7 @@ def make_preview(src: Path, dst: Path, home: Path, log=print, marca: dict | None
     """Draft render -> watermarked 540x960 preview (+ end card when marca.credito). Returns {path, sha256, ...}."""
     import tempfile
     marca = marca or MARCA_PADRAO
-    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(src)],
-                               stdin=subprocess.DEVNULL, capture_output=True, text=True, env=paths.node_env()).stdout.strip())
+    dur = mediaio.duration_s(src, ffprobe=mediaio.PATH_FFPROBE, env=paths.node_env(), check=False)
     logo = preview_logo(home)
     dst.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
@@ -392,8 +390,7 @@ def make_preview(src: Path, dst: Path, home: Path, log=print, marca: dict | None
         p = subprocess.run(cmd, cwd=dst.parent, env=paths.node_env(), stdin=subprocess.DEVNULL, capture_output=True, text=True)
         if p.returncode != 0:
             raise SystemExit(f"render --preview: ffmpeg failed ({p.returncode})\n{(p.stderr or '')[-3000:]}")
-    out_dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(dst)],
-                                   stdin=subprocess.DEVNULL, capture_output=True, text=True, env=paths.node_env()).stdout.strip())
+    out_dur = mediaio.duration_s(dst, ffprobe=mediaio.PATH_FFPROBE, env=paths.node_env(), check=False)
     return {"path": str(dst), "sha256": sha256_file(dst), "duration_s": round(out_dur, 3), "bytes": dst.stat().st_size,
             "watermark": marca["dagua"], "logo": str(logo) if logo else None}
 
