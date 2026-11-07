@@ -415,9 +415,8 @@ def _binary_row() -> dict:
     from . import video_to_skill as v2s
     fix = "simplicio-video video-to-skill setup"
     exe = v2s.managed_binary()
-    asset = v2s.platform_asset(*v2s._platform())
     if exe.is_file() or exe.is_symlink():
-        if asset is not None and not exe.is_symlink() and v2s._sha256_file(exe) == asset["member_sha256"]:
+        if v2s.managed_verified(exe):
             return _row("setup:binary", "ok", f"vts-extract {v2s.VERSION} gerenciado, sha256 conferido ({exe})", None,
                         {"source": "managed", "path": str(exe), "version": v2s.VERSION})
         return _row("setup:binary", "fail", f"{exe} não confere com o sha256 fixado (alterado, link ou outra plataforma): o motor não o usa",
@@ -430,7 +429,7 @@ def _binary_row() -> dict:
                         {"source": "path", "path": achado, "version": versao})
         return _row("setup:binary", "warn", f"o vts-extract do PATH ({achado}) não diz {v2s.VERSION}: o motor não o usa", fix,
                     {"source": "path", "path": achado, "version": versao})
-    if asset is None:
+    if v2s.host_asset() is None:
         return _row("setup:binary", "warn", "sem binário pré-compilado para esta plataforma: compile o vts-extract do upstream e ponha no PATH",
                     None, {"supported": False})
     return _row("setup:binary", "warn", f"vts-extract {v2s.VERSION} ausente; o setup baixa e confere por sha256", fix, {"path": str(exe)})
