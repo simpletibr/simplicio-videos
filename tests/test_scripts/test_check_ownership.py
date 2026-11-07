@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from gitfixture import OWNERSHIP, Repo, run_script
+from gitfixture import OWNERSHIP, OWNERSHIP_REL, Repo, run_script
 
 
 @pytest.fixture
@@ -113,13 +113,62 @@ def test_empty_branch_passes(repo):
 
 def test_ownership_file_edit_is_allowed_only_for_the_issues_own_entry(repo):
     other = OWNERSHIP.replace('"src/simplicio_video/registry.py"', '"src/simplicio_video/registry.py"\n      - "src/simplicio_video/extra.py"')
-    repo.commit_files("docs: touch 32", {"docs/factory/ownership.yaml": other})
+    repo.commit_files("docs: touch 32", {OWNERSHIP_REL: other})
     r = check(repo)
     assert r.returncode == 1 and "ownership.yaml" in r.stdout + r.stderr
 
 
 def test_ownership_file_edit_of_the_issues_own_entry_is_allowed(repo):
     mine = OWNERSHIP.replace('"Makefile"', '"Makefile"\n      - "mk/gate.mk"')
-    repo.commit_files("docs: own entry", {"docs/factory/ownership.yaml": mine})
+    repo.commit_files("docs: own entry", {OWNERSHIP_REL: mine})
     r = check(repo)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ------------------------------------------------------------------ the `backlog` block (U15)
+# The patterns of `owns` that match no file today (work not started, files never made) live in `backlog`, per issue: they are
+# not enforced, and an issue that starts moves them to `owns` in its own entry.
+
+def test_the_map_is_read_from_scripts_ownership_yaml():
+    import check_ownership
+
+    assert check_ownership.OWNERSHIP_REL == OWNERSHIP_REL == "scripts/ownership.yaml"
+
+
+def test_a_file_that_only_the_backlog_of_the_issue_names_fails_and_says_to_move_the_pattern(repo):
+    repo.commit_files("feat: gate", {"mk/gate.mk": "x:\n"})
+    r = check(repo)
+    out = r.stdout + r.stderr
+    assert r.returncode == 1
+    assert "mk/gate.mk" in out and "backlog" in out and "owns" in out
+
+
+def test_the_backlog_of_another_issue_does_not_excuse_the_file(repo):
+    repo.commit_files("feat: manifest", {"src/simplicio_video/manifest.py": "x = 1\n"})
+    r = check(repo)  # issue 31: the pattern is in the backlog of 32
+    out = r.stdout + r.stderr
+    assert r.returncode == 1 and "src/simplicio_video/manifest.py" in out and "backlog" not in out
+
+
+def test_moving_a_pattern_from_the_backlog_to_owns_in_the_own_entry_is_allowed(repo):
+    moved = OWNERSHIP.replace('      - "pyproject.toml#tool.pytest,tool.ruff"\n', '      - "pyproject.toml#tool.pytest,tool.ruff"\n      - "mk/gate.mk"\n') \
+                     .replace('backlog:\n  31:\n    - "mk/gate.mk"\n', "backlog:\n")
+    assert moved != OWNERSHIP
+    repo.commit_files("feat: start mk", {OWNERSHIP_REL: moved, "mk/gate.mk": "x:\n"})
+    r = check(repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_editing_the_backlog_of_another_issue_is_refused(repo):
+    other = OWNERSHIP.replace('    - "src/simplicio_video/manifest.py"\n', '    - "src/simplicio_video/manifest.py"\n    - "src/simplicio_video/novo.py"\n')
+    assert other != OWNERSHIP
+    repo.commit_files("docs: touch the backlog of 32", {OWNERSHIP_REL: other})
+    r = check(repo)
+    assert r.returncode == 1 and "ownership.yaml" in r.stdout + r.stderr
+
+
+def test_an_issue_with_nothing_but_backlog_patterns_cannot_start_until_they_move_to_owns(repo):
+    r = check(repo, "33")
+    out = r.stdout + r.stderr
+    assert r.returncode == 2
+    assert "#33" in out and "backlog" in out and "owns" in out

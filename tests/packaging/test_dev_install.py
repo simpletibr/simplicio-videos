@@ -5,8 +5,8 @@ Breaking change (direct owner request: "faz igual ao simplicio-loop"): the `.ven
 install` (and `./install.sh` called it). Now `simplicio-video install` copies the skill into the agent host, like the loop, and
 the development environment is `scripts/dev_install.sh`, exactly as the loop has one (`bash scripts/dev_install.sh`). It keeps what
 the old install did: Node 22 or newer, ffmpeg with libass and 5 GB free (nothing installed in the system), `uv` (offered, only
-with a yes), the `.venv` with the Python asked for (3.12), the package editable with the extras, the `web/` build when `web/`
-exists, `doctor` at the end and the next steps. No sudo. It does not use the system python at all (so a python3 without PyYAML,
+with a yes), the `.venv` with the Python asked for (3.12), the package editable with the extras, `doctor` at the end and the
+next steps (there is no `web/` build: the workspace the old script waited for never existed, U15). No sudo. It does not use the system python at all (so a python3 without PyYAML,
 macOS with the Xcode tools, is no problem: bug B1 of the PR #116).
 
 The shell script runs here for real, on fakes (`uv`, `node`, `ffmpeg`, `npm`) in a sealed PATH and HOME. The PowerShell script
@@ -151,8 +151,9 @@ def test_dry_run_lista_o_plano_completo(copia):
     saida, baixa = texto(feito), texto(feito).lower()
     assert feito.returncode == 0, saida
     assert "dry" in baixa, "o plano deveria dizer que é dry-run"
-    for trecho in ("3.12", ".venv", "doctor", "web", "ffmpeg", "libass", "22"):
+    for trecho in ("3.12", ".venv", "doctor", "ffmpeg", "libass", "22"):
         assert trecho in baixa, f"plano sem '{trecho}':\n{saida}"
+    assert "web" not in baixa and "#34" not in baixa, f"o plano ainda fala de um web/ que nunca existiu:\n{saida}"
     assert re.search(r"\buv\b", baixa) and re.search(r"node\b", baixa) and re.search(r"5\s*GB", saida, re.IGNORECASE)
 
 
@@ -286,7 +287,8 @@ def test_doctor_que_reprova_faz_o_script_sair_1_e_diz_o_que_fazer(copia):
 
 
 @posix_real
-def test_com_web_o_script_roda_npm_ci_e_o_build(copia):
+def test_mesmo_com_uma_pasta_web_o_script_nao_roda_npm(copia):
+    """The `web/` build step is gone (U15): a folder of that name is just a folder, and `npm` is never called."""
     ferramentas_ok(copia)
     npm = write_fake_tool(copia.bin, "npm", "")
     disco_suficiente(copia.tmp)
@@ -294,8 +296,8 @@ def test_com_web_o_script_roda_npm_ci_e_o_build(copia):
     (copia.repo / "web" / "package.json").write_text("{}\n", encoding="utf-8")
     feito = roda(copia)
     assert feito.returncode == 0, texto(feito)
-    chamadas = (npm.parent / "npm.argv").read_text(encoding="utf-8").splitlines()
-    assert chamadas == ["--prefix web ci", "--prefix web run build"]
+    assert not (npm.parent / "npm.argv").exists(), "npm was called"
+    assert "web/" not in texto(feito)
 
 
 @posix_real

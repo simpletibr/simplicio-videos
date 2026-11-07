@@ -36,15 +36,23 @@ def make(*args, cwd=ROOT, env=None):
 
 def test_makefile_declares_the_extension_points():
     text = makefile().read_text()
-    for var in ("CHECKS", "REGEN", "CHECKS_WEB"):
+    for var in ("CHECKS", "REGEN"):
         assert re.search(rf"^{var}\s*[:?]?=", text, re.M), f"{var} is not defined"
     assert re.search(r"^-include\s+mk/\*\.mk\s*$", text, re.M)
 
 
-@pytest.mark.parametrize("target", ["setup", "check", "check-full", "check-web", "hooks", "regen"])
+@pytest.mark.parametrize("target", ["setup", "check", "check-full", "hooks", "regen"])
 def test_makefile_targets_exist(target):
     r = make("-n", target)
     assert r.returncode == 0, r.stderr
+
+
+def test_there_is_no_web_workspace_target_because_the_workspace_never_existed():
+    """`make check-web` and `CHECKS_WEB` waited for a `web/` workspace (#34) that was never made (U15): no target, no hook."""
+    text = makefile().read_text()
+    assert "CHECKS_WEB" not in text and "check-web" not in text
+    r = make("check-web")
+    assert r.returncode != 0 and "check-web" in r.stderr, "make check-web must be an unknown target"
 
 
 def test_check_runs_the_local_gate_and_check_full_adds_the_slow_tests():
@@ -59,12 +67,6 @@ def test_check_runs_the_local_gate_and_check_full_adds_the_slow_tests():
     marcas = re.search(r'-m\s+"([^"]*)"', linha_pytest[-1])
     tokens = marcas.group(1).split() if marcas else []
     assert "slow" in tokens and "not" not in tokens, linha_pytest[-1]  # `or not slow` seleciona o oposto e não pode passar
-
-
-def test_check_web_succeeds_without_a_web_workspace_and_says_why():
-    r = make("check-web")
-    assert r.returncode == 0, r.stderr
-    assert "#34" in r.stdout
 
 
 @pytest.mark.slow
@@ -83,13 +85,11 @@ def test_tracks_extend_the_gate_through_mk_files(tmp_path):
     shutil.copy(makefile(), tmp_path / "Makefile")
     (tmp_path / "mk").mkdir()
     (tmp_path / "mk" / "demo.mk").write_text(
-        "CHECKS += demo-check\nREGEN += demo-regen\nCHECKS_WEB += demo-web\n"
-        "demo-check: ; @echo DEMO_CHECK_RAN\ndemo-regen: ; @echo DEMO_REGEN_RAN\ndemo-web: ; @echo DEMO_WEB_RAN\n"
+        "CHECKS += demo-check\nREGEN += demo-regen\n"
+        "demo-check: ; @echo DEMO_CHECK_RAN\ndemo-regen: ; @echo DEMO_REGEN_RAN\n"
     )
     assert "DEMO_CHECK_RAN" in make("-n", "check", cwd=tmp_path).stdout
     assert "DEMO_REGEN_RAN" in make("-n", "regen", cwd=tmp_path).stdout
-    web = make("check-web", cwd=tmp_path)
-    assert web.returncode == 0 and "DEMO_WEB_RAN" in web.stdout and "#34" not in web.stdout
 
 
 def test_make_hooks_points_git_at_the_versioned_hooks(tmp_path):
@@ -135,6 +135,16 @@ def test_python_gate_scripts_have_help_with_examples(script):
     r = subprocess.run([sys.executable, str(p), "--help"], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert "--base" in r.stdout and "Exemplos" in r.stdout
+
+
+def test_check_budget_defaults_to_240_seconds_because_the_gate_takes_that_long():
+    """The default of 60 s was never reached (the gate takes 110-350 s), so the warning fired on every run and nobody read it."""
+    script = ROOT / "scripts" / "check.sh"
+    assert 'budget="${CHECK_BUDGET_S:-240}"' in script.read_text()
+    r = subprocess.run(["bash", str(script), "--help"], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    linha = next(ln for ln in r.stdout.splitlines() if "CHECK_BUDGET_S" in ln)
+    assert "padrão: 240" in linha and "60" not in linha, linha
 
 
 # ------------------------------------------------------------------ pyproject

@@ -30,8 +30,19 @@ issues:
     track: host
     owns:
       - "src/simplicio_video/registry.py"
+  33:
+    track: kernel
   50: {track: later, status: backlog}
+
+backlog:
+  31:
+    - "mk/gate.mk"
+  32:
+    - "src/simplicio_video/manifest.py"
+  33:
+    - "src/simplicio_video/kernel/**"
 """
+OWNERSHIP_REL = "scripts/ownership.yaml"
 
 
 def tool(name: str) -> str | None:
@@ -78,7 +89,7 @@ class Repo:
         return self.git("rev-parse", "HEAD")
 
     def seed_main(self, ownership: str = OWNERSHIP) -> str:
-        sha = self.commit_files("chore: base", {"docs/factory/ownership.yaml": ownership, "README.md": "base\n"})
+        sha = self.commit_files("chore: base", {OWNERSHIP_REL: ownership, "README.md": "base\n"})
         return sha
 
     def branch(self, name: str) -> None:
