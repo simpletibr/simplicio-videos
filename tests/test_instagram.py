@@ -1155,8 +1155,12 @@ MODULE = ROOT / "src" / "simplicio_video" / "instagram.py"
 
 def imported(path: Path) -> set[str]:
     """Every module a file imports, relative ones with their leading dots (`from . import tools` -> `.tools`)."""
+    return imported_source(path.read_text(encoding="utf8"))
+
+
+def imported_source(source: str) -> set[str]:
     names = set()
-    for node in ast.walk(ast.parse(path.read_text(encoding="utf8"))):
+    for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
             names |= {a.name for a in node.names}
         elif isinstance(node, ast.ImportFrom):
@@ -1169,16 +1173,21 @@ def imported(path: Path) -> set[str]:
     return names
 
 
-def test_the_module_imports_nothing_that_talks_to_the_network_or_posts():
-    names = imported(MODULE)
+def _guarda_de_rede(source: str) -> list[str]:
+    """What the source of the instagram module imports that talks to the network or posts, as a list of reasons (empty: clean)."""
+    names = imported_source(source)
     tops = {n.split(".")[0] for n in names if not n.startswith(".")}
-    assert not tops & NETWORK, tops & NETWORK
     relatives = {n.lstrip(".") for n in names if n.startswith(".")}
     # no busca, social, realoficial, publish, remote, swap, openverse, toonflow. The three leaves the track declaration needs are the
     # exception: trilha_base (the `Trilha`), rede (`offline`, the one reading of SIMPLICIO_OFFLINE; it also holds the HTTP client of the
     # swap adapters and the Openverse client, which this module never calls) and terceiros (the helpers the sandbox tracks share)
-    assert relatives <= {"tools", "childio", "rede", "rede.offline", "terceiros", "terceiros.commit_do_checkout", "trilha_base",
-                         "trilha_base.Trilha"}, relatives
+    return [*(f"importa {t}" for t in sorted(tops & NETWORK)),
+            *(f"importa .{r}" for r in sorted(relatives - {"tools", "childio", "rede", "rede.offline", "terceiros",
+                                                           "terceiros.commit_do_checkout", "trilha_base", "trilha_base.Trilha"}))]
+
+
+def test_the_module_imports_nothing_that_talks_to_the_network_or_posts():
+    assert _guarda_de_rede(MODULE.read_text(encoding="utf8")) == []
     # childio (the child that dies with the engine) is the one shared helper allowed: it must itself reach nothing on the network
     assert not {n.split(".")[0] for n in imported(ROOT / "src" / "simplicio_video" / "childio.py") if not n.startswith(".")} & NETWORK
     source = MODULE.read_text(encoding="utf8")
@@ -1187,6 +1196,47 @@ def test_the_module_imports_nothing_that_talks_to_the_network_or_posts():
     assert not calls & {"eval", "exec", "os.system", "os.popen", "subprocess.run", "subprocess.call", "subprocess.check_output",
                         "__import__", "importlib.import_module"}, calls
     assert "shell=True" not in source and "env=os.environ" not in source and "API_KEY" not in source and "TOKEN" not in source
+
+
+LEGITIMO = ("from . import childio, tools\n"
+            "from .rede import offline as _offline\n"
+            "from .terceiros import commit_do_checkout as _commit_do_checkout\n"
+            "from .trilha_base import Trilha\n"
+            "T = Trilha('instagram', 'INSTAGRAM_DIR')\n"
+            "def clone():\n    return _offline(), _commit_do_checkout\n")
+MESMO_LEGITIMO_COMO_MODULO = ("from . import childio, rede, terceiros, tools, trilha_base\n"
+                              "T = trilha_base.Trilha('instagram', 'INSTAGRAM_DIR')\n"
+                              "x = (rede.offline(), terceiros.commit_do_checkout)\n")
+# what the guard must refuse: a module that imports the HTTP client (or anything else of rede, terceiros and trilha_base), by the name
+# the reviewer used (a, b, c) and by the other ways to reach it
+MUTANTES = {
+    "a_rede_request": "from . import rede\nrede.request('POST', 'https://example.org/')\n",
+    "b_from_rede_request": "from .rede import request\n",
+    "c_urllib_request": "import urllib.request\n",
+    "d_apelido_do_modulo": "from . import rede as r\nr.request('GET', 'https://example.org/')\n",
+    "e_o_modulo_inteiro_passado_adiante": "from . import rede\nf = rede\n",
+    "f_networkerror": "from .rede import NetworkError\n",
+    "g_import_do_pacote": "import simplicio_video.rede\n",
+    "h_response_de_rede": "from . import rede\nx = rede.Response\n",
+    "i_chave_de_terceiros": "from .terceiros import chave\n",
+    "j_terceiros_inteiro": "from . import terceiros\nterceiros.env_para_terceiro()\n",
+    "k_stop_group": "from .trilha_base import stop_group\n",
+    "l_trilha_base_inteira": "from . import trilha_base\ntrilha_base.stop_group\n",
+    "m_http_client": "from http.client import HTTPSConnection\n",
+    "n_urlopen": "from urllib.request import urlopen\n",
+    "o_nome_solto": "from .rede import offline\nrequest = print\nrequest('x')\n",
+}
+
+
+@pytest.mark.parametrize("fonte", [LEGITIMO, MESMO_LEGITIMO_COMO_MODULO], ids=["from_import", "modulo_com_atributo_permitido"])
+def test_the_network_guard_accepts_what_the_track_declaration_needs(fonte):
+    assert _guarda_de_rede(fonte) == []
+
+
+@pytest.mark.parametrize("nome", sorted(MUTANTES))
+def test_the_network_guard_refuses_each_way_to_reach_the_http_client(nome):
+    """Mutation: the module imports (or uses) more than `rede.offline`, `terceiros.commit_do_checkout` and `trilha_base.Trilha`."""
+    assert _guarda_de_rede(LEGITIMO + MUTANTES[nome]) != [], nome
 
 
 def test_the_engine_does_not_import_the_instagram_module():
