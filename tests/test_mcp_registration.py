@@ -37,8 +37,9 @@ def test_mcp_tools_list_is_identical_to_the_snapshot():
 
 def test_jobs_kinds_are_registered_in_order():
     assert list(jobs.KINDS) == KINDS_DE_HOJE
-    for spec in jobs.KINDS.values():
-        assert set(spec) == {"prepare", "argv", "result"} and all(callable(f) for f in spec.values())
+    for kind in jobs.KINDS:
+        spec = jobs.job_spec(kind)
+        assert spec.kind == kind and all(callable(f) for f in (spec.prepare, spec.argv, spec.result))
 
 
 def _frases_de_saida_do_media(texto: str) -> list:

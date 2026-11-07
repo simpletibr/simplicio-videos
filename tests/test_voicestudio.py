@@ -127,7 +127,7 @@ def test_base_url_rejects_a_bad_port(monkeypatch):
 
 def test_status_initializes_the_session_and_parses_json_text(fake):
     fake.results["check_health"] = _text({"status": "ok", "gpu": "Apple M3 Pro"})
-    report = vs.status()
+    report = vs.VoiceStudio().status()
     assert report["url"] == "http://127.0.0.1:3900"
     assert report["health"]["gpu"] == "Apple M3 Pro"
     assert report["discovery"] == fake.well_known
@@ -141,27 +141,27 @@ def test_status_initializes_the_session_and_parses_json_text(fake):
 def test_status_survives_an_unknown_well_known(fake):
     fake.results["check_health"] = _text({"status": "ok"})
     fake.well_known_status = 404
-    assert vs.status()["discovery"] is None
+    assert vs.VoiceStudio().status()["discovery"] is None
 
 
 def test_voices_accepts_an_array_or_an_object(fake):
     fake.results["list_voices"] = _text([{"id": "v1", "name": "Morgan", "kind": "clone"}])
-    assert vs.voices() == [{"id": "v1", "name": "Morgan", "kind": "clone"}]
+    assert vs.VoiceStudio().list_voices() == [{"id": "v1", "name": "Morgan", "kind": "clone"}]
     fake.results["list_voices"] = _text({"voices": [{"id": "v2"}]})
-    assert vs.voices() == [{"id": "v2"}]
+    assert vs.VoiceStudio().list_voices() == [{"id": "v2"}]
 
 
 def test_languages_and_personalities(fake):
     fake.results["list_languages"] = _text({"total": 646, "popular": ["pt", "en"]})
     fake.results["list_personalities"] = _text([{"name": "Narrator", "instruct": "calm"}])
-    assert vs.languages()["popular"] == ["pt", "en"]
+    assert vs.VoiceStudio().list_languages()["popular"] == ["pt", "en"]
     assert vs.VoiceStudio().list_personalities()[0]["name"] == "Narrator"
 
 
 def test_tool_error_payload_raises_a_clear_error(fake):
     fake.results["list_voices"] = _text({"error": "no profiles yet"})
     with pytest.raises(vs.VoiceStudioError, match="no profiles yet"):
-        vs.voices()
+        vs.VoiceStudio().list_voices()
 
 
 def test_sse_responses_are_parsed(fake):
@@ -176,7 +176,7 @@ def test_speak_decodes_wav_base64_and_writes_the_file(fake, tmp_path):
     fake.results["generate_speech"] = _text({"audio_id": "a1", "audio_duration_s": 1.5,
                                             "wav_base64": base64.b64encode(WAV).decode()})
     out = tmp_path / "voz" / "fala.wav"
-    report = vs.speak("olá", out, profile_id="p1", language="pt-BR")
+    report = vs.VoiceStudio().speak("olá", out, profile_id="p1", language="pt-BR")
     assert out.read_bytes() == WAV
     assert report["out"] == str(out.resolve()) and report["bytes"] == len(WAV)
     assert report["audio_id"] == "a1" and report["duration_s"] == 1.5
@@ -201,7 +201,7 @@ def test_speak_prefers_the_files_mode_url(fake, tmp_path):
 
 def test_speak_refuses_an_empty_text(fake, tmp_path):
     with pytest.raises(vs.VoiceStudioError, match="texto está vazio"):
-        vs.speak("   ", tmp_path / "x.wav")
+        vs.VoiceStudio().speak("   ", tmp_path / "x.wav")
 
 
 def test_describe_and_design_send_the_documented_arguments(fake):
@@ -219,7 +219,7 @@ def test_transcribe_sends_the_audio_as_base64(fake, tmp_path):
     audio = tmp_path / "fala.m4a"
     audio.write_bytes(b"audio-bytes")
     fake.results["transcribe"] = _text({"text": "bom dia", "language": "pt"})
-    assert vs.transcribe(audio)["text"] == "bom dia"
+    assert vs.VoiceStudio().transcribe(audio)["text"] == "bom dia"
     name, arguments = fake.tools[-1]
     assert name == "transcribe"
     assert base64.b64decode(arguments["audio_base64"]) == b"audio-bytes"
@@ -228,7 +228,7 @@ def test_transcribe_sends_the_audio_as_base64(fake, tmp_path):
 def test_transcribe_rest_uses_multipart_field_file(fake, tmp_path):
     audio = tmp_path / "fala.m4a"
     audio.write_bytes(b"audio-bytes")
-    data = vs.transcribe(audio, language="pt", via="rest")
+    data = vs.VoiceStudio().transcribe(audio, language="pt", via="rest")
     assert data["text"] == "transcrição pela API REST"
     body = fake.rest_body
     assert b'name="file"; filename="fala.m4a"' in body
@@ -239,14 +239,14 @@ def test_transcribe_rest_uses_multipart_field_file(fake, tmp_path):
 
 def test_transcribe_missing_file_is_an_error(fake, tmp_path):
     with pytest.raises(vs.VoiceStudioError, match="não encontrado"):
-        vs.transcribe(tmp_path / "nao-existe.wav")
+        vs.VoiceStudio().transcribe(tmp_path / "nao-existe.wav")
 
 
 def test_clone_voice_sends_the_reference_as_base64(fake, tmp_path):
     ref = tmp_path / "ref.wav"
     ref.write_bytes(WAV)
     fake.results["clone_voice"] = _text({"profile_id": "p7", "name": "Minha voz", "kind": "clone"})
-    made = vs.clone_voice(ref, "Minha voz", language="pt-BR")
+    made = vs.VoiceStudio().clone_voice(ref, "Minha voz", language="pt-BR")
     assert made["profile_id"] == "p7"
     name, arguments = fake.tools[-1]
     assert name == "clone_voice"

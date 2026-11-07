@@ -50,9 +50,9 @@ def test_grade_in_the_terminal_accepts_every_output_spelling(forma, calls):
 
 
 def test_output_values_is_the_single_parser():
-    assert edit._output_values(["a", "-o", "/x", "--ou", "y", "--outpu=z", "-ow", "-o=q"]) == ["/x", "y", "z", "w", "q"]
-    assert edit._output_values(["a", "--", "-o", "x"]) == []
-    assert edit._output_values(["a", "--preset", "p"]) == []
+    assert edit.output_values(["a", "-o", "/x", "--ou", "y", "--outpu=z", "-ow", "-o=q"]) == ["/x", "y", "z", "w", "q"]
+    assert edit.output_values(["a", "--", "-o", "x"]) == []
+    assert edit.output_values(["a", "--preset", "p"]) == []
     assert edit._tem_saida(["x.mp4", "--outp", "y"]) is True and edit._tem_saida(["x.mp4"]) is False
 
 

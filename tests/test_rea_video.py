@@ -701,12 +701,12 @@ def test_rea_video_job_result_summarises_the_breakdown(tmp_path):
                                         encoding="utf8")
     (out / "report.html").write_text("<html>", encoding="utf8")
     params = {"args": ["decompose", "/v.mp4", "-o", str(out), "--no-vlm"]}
-    res = jobs.KINDS["rea-video"]["result"](params, None)
+    res = jobs.job_spec("rea-video").result(params, None)
     assert res["out"] == str(out) and res["breakdown"] == str(out / "breakdown.json")
     assert res["report"] == str(out / "report.html") and res["verdict"] == "ai" and res["shots"] == 4
     assert len(res["breakdown_sha256"]) == 64
     (out / "breakdown.json").unlink()
-    assert jobs.KINDS["rea-video"]["result"](params, None) is None
+    assert jobs.job_spec("rea-video").result(params, None) is None
 
 
 def test_mcp_description_names_what_is_open_and_what_stays_in_the_terminal():
@@ -809,7 +809,7 @@ def test_stems_job_result_lists_the_stems(tmp_path):
     st.mkdir(parents=True)
     for n in ("original", "vocals", "music"):
         (st / f"{n}.wav").write_bytes(b"x")
-    res = jobs.KINDS["rea-video"]["result"]({"args": ["stems", "/v.mp4", "-o", str(tmp_path / "st")]}, None)
+    res = jobs.job_spec("rea-video").result({"args": ["stems", "/v.mp4", "-o", str(tmp_path / "st")]}, None)
     assert res["original"] == str(st / "original.wav") and res["vocals"] == str(st / "vocals.wav")
     assert res["music"] == str(st / "music.wav")
 
@@ -823,7 +823,7 @@ def test_job_private_cwd_is_under_the_temp_dir_and_removed_when_the_job_ends(fak
     assert cwd.parent == _private_tmp and cwd.is_dir()
     (out).mkdir()
     (out / "breakdown.json").write_text(json.dumps({"summary": {}}), encoding="utf8")
-    assert jobs.KINDS["rea-video"]["result"](st["params"], None) is not None
+    assert jobs.job_spec("rea-video").result(st["params"], None) is not None
     assert not cwd.exists()
 
 

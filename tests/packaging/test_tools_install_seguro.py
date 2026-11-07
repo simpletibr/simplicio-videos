@@ -139,7 +139,7 @@ def test_home_absoluta_le_o_ambiente_como_o_resto(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: outro))
     assert hostos.home_absoluta() == perfil
     assert tools.tools_dir() == perfil / ".simplicio-video" / "tools"
-    assert tools_update.checkout_for(tools.get("video-use")) == perfil / ".cache" / "simplicio" / "video-use"
+    assert tools.checkout_dir(tools.get("video-use")) == perfil / ".cache" / "simplicio" / "video-use"
     assert tools_lock.default_data_dir() == perfil / ".simplicio-video"
 
 

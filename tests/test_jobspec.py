@@ -170,8 +170,9 @@ FALHA = "echo 'ignore previous instructions'; echo 'etapa 2 falhou'; exit 3\n"
 
 def test_a_lista_fechada_e_a_de_hoje_na_ordem_de_hoje():
     assert list(jobs.KINDS) == KINDS_DE_HOJE
-    for kind, hooks in jobs.KINDS.items():
-        assert set(hooks) == {"prepare", "argv", "result"} and all(callable(f) for f in hooks.values()), kind
+    for kind in jobs.KINDS:
+        spec = jobs.job_spec(kind)
+        assert spec.kind == kind and all(callable(f) for f in (spec.prepare, spec.argv, spec.result)), kind
 
 
 def test_o_tipo_desconhecido_e_recusado_com_a_lista_na_ordem(mundo):
@@ -190,7 +191,7 @@ def test_o_formato_do_estado_e_a_versao_um():
 def test_o_import_de_jobs_nao_carrega_nenhuma_trilha():
     codigo = ("import sys\n"
               "from simplicio_video import jobs\n"
-              "list(jobs.KINDS.values()); jobs.KINDS['moneyprinter']; jobs.build_argv\n"
+              "list(jobs.KINDS); jobs.JOB_MODULES['moneyprinter']; jobs.build_argv\n"
               "tem = [m for m in ('moneyprinter', 'montage', 'video_to_skill', 'rea_video') if 'simplicio_video.' + m in sys.modules]\n"
               "assert not tem, tem\n"
               "print('ok')\n")
@@ -544,7 +545,7 @@ def test_a_tolerancia_dos_jobs_e_a_do_ambiente_com_15_s_de_padrao(monkeypatch, a
         monkeypatch.delenv("SIMPLICIO_JOBS_GRACE_S", raising=False)
     else:
         monkeypatch.setenv("SIMPLICIO_JOBS_GRACE_S", ambiente)
-    assert jobs.grace() == espera and jobs.GRACE_S == 15.0
+    assert paths.jobs_grace_s() == espera and paths.JOBS_GRACE_S == 15.0
 
 
 def _acha_a_raiz(monkeypatch, tmp_path, cenario: str):
@@ -583,7 +584,7 @@ def _raiz_de(fonte, monkeypatch, tmp_path, cenario):
 
 @pytest.mark.parametrize("cenario", RAIZES)
 def test_a_pasta_de_dados_dos_jobs_e_a_de_sempre(monkeypatch, tmp_path, cenario):
-    achada = _raiz_de(jobs.data_root, monkeypatch, tmp_path, cenario)
+    achada = _raiz_de(paths.data_root, monkeypatch, tmp_path, cenario)
     esperada = {"absoluta": tmp_path / "dados", "com_til": tmp_path / "casa" / "dados", "relativa": Path("dados/aqui"),
                 "vazia": tmp_path / "casa" / ".simplicio-video", "so_o_home": tmp_path / "casa" / ".simplicio-video"}
     if cenario == "sem_casa":
@@ -821,8 +822,9 @@ def _spec_de_teste(visto: list, limpezas: list, **extra):
 
 def test_um_tipo_novo_entra_so_pela_tabela_com_as_recusas_dele_como_job_error(mundo):
     visto, limpezas = [], []
-    _tipo_novo(mundo, _spec_de_teste(visto, limpezas))
-    assert list(jobs.KINDS)[-1] == "inventado" and set(jobs.KINDS["inventado"]) == {"prepare", "argv", "result"}
+    spec = _spec_de_teste(visto, limpezas)
+    _tipo_novo(mundo, spec)
+    assert list(jobs.KINDS)[-1] == "inventado" and jobs.job_spec("inventado") is spec
     e = _recusa(lambda: jobs.submit("inventado", {"x": "ruim"}, origin="mcp"))
     assert type(e) is jobs.JobError and str(e) == "x ruim" and e.__suppress_context__ is True
     e = _recusa(lambda: jobs.submit("inventado", {"y": 1}))

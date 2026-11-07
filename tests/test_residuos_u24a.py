@@ -146,9 +146,10 @@ def test_a_lista_fechada_tem_os_ids_e_a_ordem_de_hoje():
     assert len(jobs.KINDS) == 6
     assert "rea-video" in jobs.KINDS and "nada" not in jobs.KINDS
     for kind in KINDS_DE_HOJE:
-        assert set(jobs.KINDS[kind]) == {"prepare", "argv", "result"} and all(callable(f) for f in jobs.KINDS[kind].values()), kind
+        spec = jobs.job_spec(kind)
+        assert spec.kind == kind and all(callable(f) for f in (spec.prepare, spec.argv, spec.result)), kind
     with pytest.raises(KeyError):
-        jobs.KINDS["nada"]
+        jobs.job_spec("nada")
 
 
 def test_listar_os_tipos_e_ler_o_item_de_rea_video_nao_importa_a_trilha():
@@ -157,7 +158,7 @@ def test_listar_os_tipos_e_ler_o_item_de_rea_video_nao_importa_a_trilha():
               f"sys.path.insert(0, {str(ROOT / 'src')!r})\n"
               "from simplicio_video import jobs\n"
               "assert list(jobs.KINDS)[2] == 'rea-video' and 'rea-video' in jobs.KINDS and len(jobs.KINDS) == 6\n"
-              "list(jobs.KINDS.values()); jobs.KINDS['rea-video']\n"
+              "list(jobs.KINDS); jobs.JOB_MODULES['rea-video']\n"
               "assert 'simplicio_video.rea_video' not in sys.modules, 'imported too early'\n"
               "print('ok')\n")
     r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, timeout=120)

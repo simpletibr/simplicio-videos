@@ -137,7 +137,7 @@ def test_media_fetch_without_autorizo_is_refused_before_anything_is_created(tmp_
 
 
 def test_autorizo_is_a_flag_and_does_not_eat_the_next_argument():
-    pos, vals = media._parse(["https://example.com/v.mp4", "-o", "v.mp4", "--autorizo", "--max-mb", "5"])
+    pos, vals = media.parse_argv(["https://example.com/v.mp4", "-o", "v.mp4", "--autorizo", "--max-mb", "5"])
     assert pos == ["https://example.com/v.mp4"]
     assert vals == {"-o": "v.mp4", "--autorizo": "1", "--max-mb": "5"}
 
