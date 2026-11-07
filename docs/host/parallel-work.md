@@ -97,7 +97,7 @@ Test kinds:
 
 ## The gate and landing without CI
 
-`make check` = ruff on new code and changed files, unit + contract + e2e tests with sockets disabled, architecture test, NoLLM test, manifest/schemas/reference freshness, docs links, ownership, TDD order. Target: under 60 seconds, zero network. `make check-full` adds `render`, `integration` and `ui` tests. `make check-web` runs the web workspaces.
+`make check` = ruff on new code and changed files, unit + contract + e2e tests with sockets disabled, architecture test, NoLLM test, manifest/schemas/reference freshness, docs links, ownership, TDD order. Budget: 240 seconds (`CHECK_BUDGET_S` in `scripts/check.sh`; going over only warns), zero network. `make check-full` adds `render`, `integration` and `ui` tests.
 
 No GitHub Actions (org policy). `scripts/land.sh <pr>` holds a lock so only one PR lands at a time (a local merge queue), rebases on `origin/main`, runs the gate and checks, then squash-merges and deletes the branch. A pre-push hook (`make hooks`) runs the gate too. If `main` ever goes red, revert first, investigate second.
 
