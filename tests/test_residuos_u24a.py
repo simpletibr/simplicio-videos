@@ -520,8 +520,8 @@ ESTRANHOS = ["1", "true", "TRUE", " yes ", "On", "on", "\ton\n", "0", "false", "
 
 
 def test_tools_update_nao_define_nem_le_a_variavel_de_offline_por_conta_propria():
-    from simplicio_video import tools_update
-    assert not hasattr(tools_update, "_offline")
+    from simplicio_video import rede, tools_update
+    assert tools_update._offline is rede.offline  # the one function under the name this module used (as toonflow, instagram, montage)
     arvore = _arvore(SRC / "tools_update.py")
     assert not [n.name for n in ast.walk(arvore) if isinstance(n, ast.FunctionDef) and n.name == "_offline"]
     leituras = [n.lineno for n in ast.walk(arvore) if isinstance(n, ast.Call) and n.args and isinstance(n.args[0], ast.Constant)

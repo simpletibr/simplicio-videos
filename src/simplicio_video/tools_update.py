@@ -27,7 +27,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from . import hostos, rede, tools, tools_lock
+from . import hostos, tools, tools_lock
+from .rede import offline as _offline  # the one reading of SIMPLICIO_OFFLINE, under the name this module always used
 
 MODES = ("follow", "pin")
 PYPI_JSON = "https://pypi.org/pypi/{name}/json"
@@ -102,7 +103,7 @@ class Io:
 
 def live_io() -> Io:
     """The real thing. SIMPLICIO_OFFLINE=1 blocks the network: each read that needs it then fails as a track failure."""
-    return Io(network=not rede.offline())
+    return Io(network=not _offline())
 
 
 def _need_network(io: Io, what: str) -> None:

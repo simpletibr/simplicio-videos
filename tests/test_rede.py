@@ -70,10 +70,9 @@ def _offline_de(caminho: str):
     return getattr(importlib.import_module(modulo), nome, None)
 
 
-# the copies that exist today as a function (busca, openverse and swap_providers/http parse it inline: see the request test below).
-# tools_update had one too until U24a: it asks `rede.offline()` now, and `tools_update.live_io().network` is what the parity tests check.
+# the copies that exist today as a function (busca, openverse and swap_providers/http parse it inline: see the request test below)
 COPIAS_DE_OFFLINE = ["simplicio_video.toonflow._offline", "simplicio_video.instagram._offline", "simplicio_video.montage._offline",
-                     "simplicio_video.commands.update._offline"]
+                     "simplicio_video.tools_update._offline", "simplicio_video.commands.update._offline"]
 
 
 @pytest.mark.parametrize("copia", COPIAS_DE_OFFLINE)
