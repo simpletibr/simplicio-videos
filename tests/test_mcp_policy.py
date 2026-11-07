@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from simplicio_video import (busca, catalog, formats, instagram, jobs, matchcut, mcp_server, moneyprinter, openverse, rea_video, scaffold,
+from simplicio_video import (busca, catalog, formats, instagram, jobs, matchcut, mcp_server, moneyprinter, openverse, paths, rea_video, scaffold,
                              social, swap, toonflow, video_to_skill, voicestudio)
 
 LINUX = pytest.mark.skipif(sys.platform != "linux", reason="congelado no Linux (/tmp fora de /var, link simbólico, NUL e invisíveis)")
@@ -84,6 +84,13 @@ def armar(base: Path):
     (base / "ana2").mkdir()
     (base / "ana2" / "breakdown.json").write_text("{}", encoding="utf8")
     (base / "ana2" / "x").symlink_to(base / "a.mp4")
+    (base / "tiles").mkdir()
+    (base / "tiles" / "t_1.png").write_bytes(b"")
+    (base / "ana3").mkdir()
+    (base / "ana3" / "breakdown.json").symlink_to(base / "ana" / "breakdown.json")
+    (base / "ana4" / "remake").mkdir(parents=True)
+    (base / "ana4" / "breakdown.json").write_text("{}", encoding="utf8")
+    (base / "ana4" / "remake" / "jobs.json").symlink_to(base / "a.mp4")
     with pytest.MonkeyPatch.context() as mp:
         for var in list(os.environ):
             if var.startswith("SIMPLICIO_") or var.endswith(("_DIR", "_DATA_DIR", "_PYTHON", "_MODELS")):
@@ -146,7 +153,8 @@ def chamar(tool: str, kwargs: dict, w) -> dict:
         resposta = fn(**_troca(kwargs, w))
     except (Exception, SystemExit) as e:  # noqa: BLE001 - o que a tool deixa escapar também é contrato
         resposta = {"levantou": f"{type(e).__name__}: {e}"}
-    return _reduz(json.loads(json.dumps(resposta, ensure_ascii=False, sort_keys=True, default=str).replace(str(w.base), "{tmp}")))
+    texto = json.dumps(resposta, ensure_ascii=False, sort_keys=True, default=str).replace(str(w.base), "{tmp}")
+    return _reduz(json.loads(texto.replace(str(paths.data_dir()), "{dados}")))  # `{dados}`: a pasta de dados do pacote, onde ele estiver instalado
 
 
 def _reduz(x):
@@ -366,6 +374,11 @@ T156 = 'install: informe --global (home) ou --target <caminho absoluto> do proje
 T157 = 'remover as skills dos hosts: rode `simplicio-video install --uninstall` no terminal; o MCP não faz isso'
 T158 = 'install: --target precisa ser um caminho absoluto'
 T159 = 'atualizar o pacote instala software: rode `simplicio-video update` no terminal; o MCP não faz isso'
+T160 = '`media fetch` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode `simplicio-video clone media fetch` no terminal; o MCP não faz isso'
+T161 = '`media prepare-fetch` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode `simplicio-video clone media prepare-fetch` no terminal; o MCP não faz isso'
+T162 = '`*` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode `simplicio-video clone *` no terminal; o MCP não faz isso'
+T163 = '`--watch x` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode `simplicio-video clone --watch x` no terminal; o MCP não faz isso'
+T164 = '`media  fetch` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode `simplicio-video clone media  fetch` no terminal; o MCP não faz isso'
 
 CASOS = [
     # ----------------------------------------------------------------------------------------------------
@@ -385,79 +398,55 @@ CASOS = [
     # video.validate
     ('validate', {'contrato': '{tmp}/nada.yaml'}, {'levantou': T01}),
     ('validate', {'contrato': '{tmp}/nada.yaml', 'need_lock': True}, {'levantou': T01}),
+    ('validate', {'contrato': ''}, {'levantou': 'SystemExit: contract not found: {tmp}'}),
+    ('validate', {'contrato': '', 'need_lock': True}, {'levantou': 'SystemExit: contract not found: {tmp}'}),
+    ('validate', {'contrato': 'rel.yaml'}, {'levantou': T02}),
+    ('validate', {'contrato': 'rel.yaml', 'need_lock': True}, {'levantou': T02}),
+    ('validate', {'contrato': SRC}, {'levantou': T03}),
+    ('validate', {'contrato': SRC, 'need_lock': True}, {'levantou': T03}),
     # ----------------------------------------------------------------------------------------------------
     # video.voice
     ('voice', {'contrato': '{tmp}/nada.yaml'}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
     ('voice', {'contrato': '{tmp}/nada.yaml', 'provider': 'gemini', 'force': True, 'only': ['l1']}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
+    ('voice', {'contrato': ''}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
+    ('voice', {'contrato': '', 'provider': 'gemini', 'force': True, 'only': ['l1']}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
+    ('voice', {'contrato': 'rel.yaml'}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
+    ('voice', {'contrato': 'rel.yaml', 'provider': 'gemini', 'force': True, 'only': ['l1']}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
+    ('voice', {'contrato': SRC}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
+    ('voice', {'contrato': SRC, 'provider': 'gemini', 'force': True, 'only': ['l1']}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
     # ----------------------------------------------------------------------------------------------------
     # video.render
     ('render', {'contrato': '{tmp}/nada.yaml'}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
     ('render', {'contrato': '{tmp}/nada.yaml', 'backend': 'colab', 'out': 'rel.mp4'}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
     ('render', {'contrato': '{tmp}/nada.yaml', 'backend': 'local', 'out': '{tmp}/saida/x.mp4', 'quality': 'draft', 'timeout': 5}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.run
-    ('run', {'contrato': '{tmp}/nada.yaml'}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
-    ('run', {'contrato': '{tmp}/nada.yaml', 'provider': 'file', 'backend': 'kaggle', 'timeout': 5}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.validate
-    ('validate', {'contrato': ''}, {'levantou': 'SystemExit: contract not found: {tmp}'}),
-    ('validate', {'contrato': '', 'need_lock': True}, {'levantou': 'SystemExit: contract not found: {tmp}'}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.voice
-    ('voice', {'contrato': ''}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
-    ('voice', {'contrato': '', 'provider': 'gemini', 'force': True, 'only': ['l1']}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.render
     ('render', {'contrato': ''}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
     ('render', {'contrato': '', 'backend': 'colab', 'out': 'rel.mp4'}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
     ('render', {'contrato': '', 'backend': 'local', 'out': '{tmp}/saida/x.mp4', 'quality': 'draft', 'timeout': 5}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.run
-    ('run', {'contrato': ''}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
-    ('run', {'contrato': '', 'provider': 'file', 'backend': 'kaggle', 'timeout': 5}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.validate
-    ('validate', {'contrato': 'rel.yaml'}, {'levantou': T02}),
-    ('validate', {'contrato': 'rel.yaml', 'need_lock': True}, {'levantou': T02}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.voice
-    ('voice', {'contrato': 'rel.yaml'}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
-    ('voice', {'contrato': 'rel.yaml', 'provider': 'gemini', 'force': True, 'only': ['l1']}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.render
     ('render', {'contrato': 'rel.yaml'}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
     ('render', {'contrato': 'rel.yaml', 'backend': 'colab', 'out': 'rel.mp4'}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
     ('render', {'contrato': 'rel.yaml', 'backend': 'local', 'out': '{tmp}/saida/x.mp4', 'quality': 'draft', 'timeout': 5}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.run
-    ('run', {'contrato': 'rel.yaml'}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
-    ('run', {'contrato': 'rel.yaml', 'provider': 'file', 'backend': 'kaggle', 'timeout': 5}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.validate
-    ('validate', {'contrato': SRC}, {'levantou': T03}),
-    ('validate', {'contrato': SRC, 'need_lock': True}, {'levantou': T03}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.voice
-    ('voice', {'contrato': SRC}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
-    ('voice', {'contrato': SRC, 'provider': 'gemini', 'force': True, 'only': ['l1']}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
-    # ----------------------------------------------------------------------------------------------------
-    # video.render
     ('render', {'contrato': SRC}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
     ('render', {'contrato': SRC, 'backend': 'colab', 'out': 'rel.mp4'}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
     ('render', {'contrato': SRC, 'backend': 'local', 'out': '{tmp}/saida/x.mp4', 'quality': 'draft', 'timeout': 5}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
     # ----------------------------------------------------------------------------------------------------
     # video.run
+    ('run', {'contrato': '{tmp}/nada.yaml'}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
+    ('run', {'contrato': '{tmp}/nada.yaml', 'provider': 'file', 'backend': 'kaggle', 'timeout': 5}, {'error': 'contract not found: {tmp}/nada.yaml', 'log': '', 'ok': False}),
+    ('run', {'contrato': ''}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
+    ('run', {'contrato': '', 'provider': 'file', 'backend': 'kaggle', 'timeout': 5}, {'error': 'contract not found: {tmp}', 'log': '', 'ok': False}),
+    ('run', {'contrato': 'rel.yaml'}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
+    ('run', {'contrato': 'rel.yaml', 'provider': 'file', 'backend': 'kaggle', 'timeout': 5}, {'error': 'contract not found: {tmp}/rel.yaml', 'log': '', 'ok': False}),
     ('run', {'contrato': SRC}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
     ('run', {'contrato': SRC, 'provider': 'file', 'backend': 'kaggle', 'timeout': 5}, {'error': '{tmp}/a.mp4: not a YAML mapping', 'log': '', 'ok': False}),
     # ----------------------------------------------------------------------------------------------------
     # video.list
-    ('list', {'what': 'templates'}, {'items': {'_chamou': 'catalog.templates', 'args': ['/tmp/ut/u11/src/simplicio_video/data'], 'kw': {}}, 'ok': True}),
-    ('list', {'what': 'motion'}, {'items': {'_chamou': 'catalog.motion', 'args': ['/tmp/ut/u11/src/simplicio_video/data'], 'kw': {}}, 'ok': True}),
+    ('list', {'what': 'templates'}, {'items': {'_chamou': 'catalog.templates', 'args': ['{dados}'], 'kw': {}}, 'ok': True}),
+    ('list', {'what': 'motion'}, {'items': {'_chamou': 'catalog.motion', 'args': ['{dados}'], 'kw': {}}, 'ok': True}),
     ('list', {'what': 'voices'}, {'items': {'_chamou': 'catalog.voices', 'args': [], 'kw': {}}, 'ok': True}),
-    ('list', {'what': 'angles'}, {'items': {'_chamou': 'catalog.angles', 'args': ['/tmp/ut/u11/src/simplicio_video/data'], 'kw': {'grupo': None}}, 'ok': True}),
+    ('list', {'what': 'angles'}, {'items': {'_chamou': 'catalog.angles', 'args': ['{dados}'], 'kw': {'grupo': None}}, 'ok': True}),
     ('list', {'what': 'nada'}, {'levantou': "KeyError: 'nada'"}),
     ('list', {'what': ''}, {'levantou': "KeyError: ''"}),
-    ('list', {'what': 'angles', 'grupo': 'g'}, {'items': {'_chamou': 'catalog.angles', 'args': ['/tmp/ut/u11/src/simplicio_video/data'], 'kw': {'grupo': 'g'}}, 'ok': True}),
+    ('list', {'what': 'angles', 'grupo': 'g'}, {'items': {'_chamou': 'catalog.angles', 'args': ['{dados}'], 'kw': {'grupo': 'g'}}, 'ok': True}),
     # ----------------------------------------------------------------------------------------------------
     # video.clone
     ('clone', {'cmd': 'nao-e-subcomando', 'argv': ['x']}, ERRO("argumentos: cmd 'nao-e-subcomando' não é subcomando desta tool pelo MCP (use: help, version, doctor, check, plan, pricing, status, builds, history, activity, inspect, logs, paths, vocabulary, get, media)")),
@@ -649,6 +638,21 @@ CASOS = [
     ('clone', {'args': 'status'}, CLI('clone', 'status')),
     ('clone', {'args': 'get b1 --to "{tmp}/saida/n o.mp4"'}, CLI('clone', 'get', 'b1', '--to', '{tmp}/saida/n o.mp4')),
     ('clone', {'args': 'get b1 --to {tmp}/saida/n'}, CLI('clone', 'get', 'b1', '--to', '{tmp}/saida/n')),
+    ('clone', {'argv': ['get', 'b1', '--to', '{tmp}/saida/d', '--to=rel']}, ERRO(T20)),
+    ('clone', {'argv': ['get', '--to=/abs', '--to', '{tmp}/saida/d']}, ERRO(T20)),
+    ('clone', {'argv': ['get', 'b1', '--to', '{tmp}/saida/d']}, PASSA),
+    ('clone', {'argv': ['media fetch']}, ERRO(T160)),
+    ('clone', {'argv': ['media fetch', 'x']}, ERRO(T160)),
+    ('clone', {'argv': ['media prepare-fetch']}, ERRO(T161)),
+    ('clone', {'argv': ['media prepare-fetch', 'x']}, ERRO(T161)),
+    ('clone', {'argv': ['*']}, ERRO(T162)),
+    ('clone', {'argv': ['*', 'x']}, ERRO(T162)),
+    ('clone', {'argv': ['--watch x']}, ERRO(T163)),
+    ('clone', {'argv': ['--watch x', 'x']}, ERRO(T163)),
+    ('clone', {'argv': ['media  fetch']}, ERRO(T164)),
+    ('clone', {'argv': ['media  fetch', 'x']}, ERRO(T164)),
+    ('clone', {'argv': ['(vazio)']}, ERRO(T08)),
+    ('clone', {'argv': ['(vazio)', 'x']}, ERRO(T08)),
     # ----------------------------------------------------------------------------------------------------
     # video.montage
     ('montage', {'cmd': 'nao-e-subcomando', 'argv': ['x']}, ERRO("argumentos: cmd 'nao-e-subcomando' não é subcomando desta tool pelo MCP (use: clone, doctor, hyperframes-doctor, preflight, help, pipelines, tools, envelope, estimate, status, run-tool)")),
@@ -1265,6 +1269,52 @@ CASOS = [
     ('edit', {'args': 'render {tmp}/edl.json -o {tmp}/saida/n.mp4'}, CLI('edit', 'render', EDL, '-o', '{tmp}/saida/n.mp4')),
     ('edit', {'args': 'render "{tmp}/edl.json" -o "{tmp}/saida/n o.mp4"'}, CLI('edit', 'render', EDL, '-o', '{tmp}/saida/n o.mp4')),
     ('edit', {'args': 'render {tmp}/edl.json -o rel.mp4'}, ERRO(T47)),
+    ('edit', {'argv': ['render', EDL, '--analyze', '-o', REL]}, ERRO(T47)),
+    ('edit', {'argv': ['render', EDL, '--analyze', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['render', EDL, '--list-presets', '-o', REL]}, ERRO(T47)),
+    ('edit', {'argv': ['render', EDL, '--list-presets', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['render', EDL, '--print-preset', 'x', '-o', REL]}, ERRO(T47)),
+    ('edit', {'argv': ['render', EDL, '--print-preset', 'x', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['render', EDL, '--preset', 'p', '-o', REL]}, ERRO(T47)),
+    ('edit', {'argv': ['transcribe', SRC, '--analyze', '-o', REL]}, ERRO(T45)),
+    ('edit', {'argv': ['transcribe', SRC, '--analyze', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['transcribe', SRC, '--list-presets', '-o', REL]}, ERRO(T45)),
+    ('edit', {'argv': ['transcribe', SRC, '--list-presets', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['transcribe', SRC, '--print-preset', 'x', '-o', REL]}, ERRO(T45)),
+    ('edit', {'argv': ['transcribe', SRC, '--print-preset', 'x', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['transcribe', SRC, '--preset', 'p', '-o', REL]}, ERRO(T45)),
+    ('edit', {'argv': ['verify', SRC, '1', '2', '--analyze', '-o', REL]}, ERRO(T49)),
+    ('edit', {'argv': ['verify', SRC, '1', '2', '--analyze', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['verify', SRC, '1', '2', '--list-presets', '-o', REL]}, ERRO(T49)),
+    ('edit', {'argv': ['verify', SRC, '1', '2', '--list-presets', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['verify', SRC, '1', '2', '--print-preset', 'x', '-o', REL]}, ERRO(T49)),
+    ('edit', {'argv': ['verify', SRC, '1', '2', '--print-preset', 'x', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['verify', SRC, '1', '2', '--preset', 'p', '-o', REL]}, ERRO(T49)),
+    ('edit', {'argv': ['pack', PASTA, '--analyze', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['pack', PASTA, '--analyze', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['pack', PASTA, '--list-presets', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['pack', PASTA, '--list-presets', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['pack', PASTA, '--print-preset', 'x', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['pack', PASTA, '--print-preset', 'x', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['pack', PASTA, '--preset', 'p', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['grade', SRC, '--analyze', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['grade', SRC, '--analyze', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['grade', SRC, '--list-presets', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['grade', SRC, '--list-presets', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['grade', SRC, '--print-preset', 'x', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['grade', SRC, '--print-preset', 'x', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['grade', SRC, '--preset', 'p', '-o', REL]}, ERRO(T51)),
+    ('edit', {'argv': ['render', 'rel.json', '--analyze', '-o', NOVO]}, ERRO(T52)),
+    ('edit', {'argv': ['pack', 'rel', '--list-presets']}, ERRO(T43)),
+    ('edit', {'argv': ['grade', SRC, '-o', NOVO, '--filter', 'eq=contrast=1;movie=x']}, ERRO(T54)),
+    ('edit', {'argv': ['grade', SRC, '-o', NOVO, '--filter', 'eq=a=1;geq=r=1']}, ERRO(T54)),
+    ('edit', {'argv': ['grade', SRC, '-o', NOVO, '--filter', 'eq=a=1,movie=x']}, ERRO(T54)),
+    ('edit', {'argv': ['grade', SRC, '-o', NOVO, '--filter', 'eq=a=1;eq=b=2']}, PASSA),
+    ('edit', {'argv': ['grade', SRC, '-o', NOVO, '--filter', 'eq=a=1;;eq=b=2']}, ERRO(T54)),
+    ('edit', {'argv': ['-h', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['-h', '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['--help', '-o', REL]}, PASSA),
+    ('edit', {'argv': ['--help', '-o', NOVO]}, PASSA),
     # ----------------------------------------------------------------------------------------------------
     # video.formats
     ('formats', {}, {'items': {'_chamou': 'formats.formatos', 'args': [None], 'kw': {}}, 'ok': True}),
@@ -1885,6 +1935,15 @@ CASOS = [
     ('rea-video', {'args': 'summary {tmp}/a.mp4'}, {'log': T109, 'ok': True, 'result': 0}),
     ('rea-video', {'args': 'summary "{tmp}/a.mp4" "x y"'}, ERRO('summary: argumento a mais: x y')),
     ('rea-video', {'args': 'decompose {tmp}/a.mp4 -o {tmp}/saida/novo.mp4'}, {'job': {'_job': 'rea-video', 'confirm_yes': False, 'origin': 'mcp', 'params': {'args': ['decompose', SRC, '-o', NOVO, '--no-vlm']}}, 'next': T110, 'ok': True}),
+    ('rea-video', {'argv': ['tiles', SRC, '-o', '{tmp}/tiles/t.png']}, ERRO('tiles -o: já existe t_1.png ao lado; o tiles grava t_N.png')),
+    ('rea-video', {'argv': ['tiles', SRC, '-o', '{tmp}/tiles/t.jpg']}, {'log': 'exec ["/falso/rea-video", "tiles", "{tmp}/a.mp4", "-o", "{tmp}/tiles/t.jpg"]', 'ok': True, 'result': 0}),
+    ('rea-video', {'argv': ['tiles', SRC, '-o', '{tmp}/tiles/novo.png']}, {'log': 'exec ["/falso/rea-video", "tiles", "{tmp}/a.mp4", "-o", "{tmp}/tiles/novo.png"]', 'ok': True, 'result': 0}),
+    ('rea-video', {'argv': ['review', '{tmp}/ana3']}, ERRO('review {tmp}/ana3: {tmp}/ana3 não é uma pasta de análise (falta o breakdown.json do decompose)')),
+    ('rea-video', {'argv': ['apply-review', '{tmp}/ana3']}, ERRO('apply-review {tmp}/ana3: {tmp}/ana3 não é uma pasta de análise (falta o breakdown.json do decompose)')),
+    ('rea-video', {'argv': ['remake-plan', '{tmp}/ana3/breakdown.json']}, ERRO('remake-plan {tmp}/ana3/breakdown.json: {tmp}/ana3/breakdown.json é um link simbólico; pelo MCP só caminho real')),
+    ('rea-video', {'argv': ['review', '{tmp}/ana4']}, ERRO('review {tmp}/ana4: {tmp}/ana4/remake/jobs.json é um link simbólico')),
+    ('rea-video', {'argv': ['apply-review', '{tmp}/ana4']}, ERRO('apply-review {tmp}/ana4: {tmp}/ana4/remake/jobs.json é um link simbólico')),
+    ('rea-video', {'argv': ['remake-plan', '{tmp}/ana4/breakdown.json']}, ERRO('remake-plan {tmp}/ana4/breakdown.json: {tmp}/ana4/remake/jobs.json é um link simbólico')),
     # ----------------------------------------------------------------------------------------------------
     # video.video-to-skill
     ('video-to-skill', {'cmd': 'nao-e-subcomando', 'argv': ['x']}, ERRO("argumentos: cmd 'nao-e-subcomando' não é subcomando desta tool pelo MCP (use: status, where, check, skill, extract, frame-at, clip, compile, merge)")),
@@ -2482,6 +2541,10 @@ CASOS = [
     ('shorts', {'args': 'cut {tmp}/a.mp4 {tmp}/cues.json -o {tmp}/saida'}, CLI('shorts', 'cut', SRC, CUES, '-o', PASTA)),
     ('shorts', {'args': 'cut "{tmp}/a.mp4" "{tmp}/cues.json" -o "{tmp}/saida/o 1"'}, CLI('shorts', 'cut', SRC, CUES, '-o', '{tmp}/saida/o 1')),
     ('shorts', {'args': ['cut', SRC, 'x', '-o', NOVO]}, CLI('shorts', 'cut', SRC, 'x', '-o', NOVO)),
+    ('shorts', {'argv': ['-h', '-o', REL]}, PASSA),
+    ('shorts', {'argv': ['-h', '-o', NOVO]}, PASSA),
+    ('shorts', {'argv': ['--help', '-o', REL]}, PASSA),
+    ('shorts', {'argv': ['--help', '-o', NOVO]}, PASSA),
     # ----------------------------------------------------------------------------------------------------
     # video.media
     ('media', {'cmd': 'nao-e-subcomando', 'argv': ['x']}, ERRO("argumentos: cmd 'nao-e-subcomando' não é subcomando desta tool pelo MCP (use: fetch, probe, audio, sheet, subs, burn, mask, replace-audio, voice-track)")),
@@ -2774,6 +2837,19 @@ CASOS = [
     ('media', {'args': 'probe "{tmp}/a.mp4" -o "{tmp}/saida/n o.json"'}, CLI('media', 'probe', SRC, '-o', '{tmp}/saida/n o.json')),
     ('media', {'args': ['probe', SRC, '-o', REL]}, ERRO(T155)),
     ('media', {'args': 'probe {tmp}/a.mp4 --json'}, CLI('media', 'probe', SRC, '--json')),
+    ('media', {'argv': ['-h', '-o', REL]}, ERRO(T155)),
+    ('media', {'argv': ['-h', '-o', NOVO]}, PASSA),
+    ('media', {'argv': ['--help', '-o', REL]}, ERRO(T155)),
+    ('media', {'argv': ['--help', '-o', NOVO]}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '--info', '-o', NOVO]}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '-o', NOVO, '--info']}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '--audio-only', '-o', NOVO]}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '-o', NOVO, '--audio-only']}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '--auto-subs', '-o', NOVO]}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '-o', NOVO, '--auto-subs']}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '--keep-length', '-o', NOVO]}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '-o', NOVO, '--keep-length']}, PASSA),
+    ('media', {'argv': ['fetch', 'https://x.example/v', '-o', NOVO, '--autorizo']}, PASSA),
     # ----------------------------------------------------------------------------------------------------
     # video.tools
     ('tools', {}, CLI('tools', '--json')),
@@ -3031,7 +3107,7 @@ def test_the_table_has_a_case_for_each_of_the_32_tools():
 def test_the_table_has_no_repeated_call_and_keeps_its_size():
     chaves = [(t, json.dumps(k, sort_keys=True)) for t, k, _ in CASOS]
     assert len(chaves) == len(set(chaves))
-    assert len(CASOS) >= 2400
+    assert len(CASOS) >= 2600
 
 
 def _aceita(esperado) -> bool:
@@ -3330,3 +3406,14 @@ def test_media_no_longer_resolves_shorts_through_a_module_getattr():
     r = subprocess.run([_sys.executable, "-c", codigo], capture_output=True, text=True, stdin=subprocess.DEVNULL,
                        env={**os.environ, "PYTHONPATH": str(Path(mcp_server.__file__).parents[1])})
     assert r.stdout.split() == ["False", "False", "False"], r.stderr
+
+
+def test_so_terminal_fills_each_placeholder_once_and_leaves_an_unknown_one_as_it_is(pol):
+    v = pol.Verbo("{resto}", False, "m {nome} {nada}", "{tool} {nome}")
+    assert pol.so_terminal("t", v, resto="R") == "m {resto} {nada}: rode `simplicio-video t {resto}` no terminal; o MCP não faz isso"
+
+
+@LINUX
+def test_rea_video_mcp_run_refuses_a_command_that_runs_as_a_job_even_when_called_directly(mundo):
+    with pytest.raises(rea_video.ReaVideoError, match="decompose roda como tarefa em segundo plano; envie pelo video.rea-video"):
+        rea_video.mcp_run(["decompose", str(mundo.base / "a.mp4"), "-o", str(mundo.base / "saida" / "dec")])

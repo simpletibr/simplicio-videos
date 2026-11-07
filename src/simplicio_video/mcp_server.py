@@ -270,11 +270,7 @@ def video_montage(args: str = "", input: dict | None = None, argv: list[str] | N
         return _recusa("montage", "clone")
     if argv[:1] and (argv[0] in _CMD_MONTAGE or argv[0] in mcp_policy.AJUDA):  # run-tool was answered above
         return _cli(["montage", *argv])
-    if argv[:1] == ["setup"]:
-        return _recusa("montage", "setup")
-    if not argv or argv[0] in ("open", "serve"):
-        return _recusa("montage", argv[0] if argv else "open")
-    return _recusa("montage", argv[0])
+    return _recusa("montage", argv[0] if argv else "open")  # setup, open and serve are rows of the table; any other word is `*`
 
 
 def _montage_run_tool(rest: list[str], inputs) -> dict:
