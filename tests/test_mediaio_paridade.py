@@ -625,7 +625,7 @@ def test_os_nomes_que_os_testes_trocam_continuam_no_modulo_e_o_codigo_os_chama(a
     assert vistos == [("swap._run", "ffprobe"), ("swap._run", "ffprobe"), ("sheet._run", "/outro/ffprobe")]
     assert amb.chamadas() == []
     assert callable(shorts.probe) and callable(media.run_media)
-    assert media.shorts is shorts  # tests/test_media.py reads `media.shorts.probe`
+    assert not hasattr(media, "shorts")  # the shim that gave tests/test_media.py `media.shorts.probe` is gone: that test reads shorts itself
 
 
 # ------------------------------------------------------------------ the command line, whole
@@ -751,16 +751,16 @@ def test_shorts_e_media_probe_com_fps_0_0_levantam_zerodivisionerror_crua(amb):
         media.run_media(["probe", str(amb.mp4)])
 
 
-def test_importar_o_media_nao_carrega_o_shorts_mas_media_shorts_continua_a_resolver():
+def test_importar_o_media_nao_carrega_o_shorts_e_media_shorts_nao_resolve_mais():
     codigo = ("import sys\nfrom simplicio_video import media\n"
               "antes = 'simplicio_video.shorts' in sys.modules\n"
-              "depois = media.shorts.__name__, 'simplicio_video.shorts' in sys.modules\n"
+              "depois = hasattr(media, 'shorts'), 'simplicio_video.shorts' in sys.modules\n"
               "print(antes, *depois)")
     r = subprocess.run([sys.executable, "-c", codigo], capture_output=True, text=True, stdin=subprocess.DEVNULL,
                        env={**os.environ, "PYTHONPATH": str(Path(shorts.__file__).parents[1])})
-    assert r.stdout.split() == ["False", "simplicio_video.shorts", "True"], r.stderr
+    assert r.stdout.split() == ["False", "False", "False"], r.stderr
     with pytest.raises(AttributeError):
-        media.nao_existe_mesmo  # noqa: B018 - the lazy attribute only answers for `shorts`
+        media.nao_existe_mesmo  # noqa: B018 - there is no module __getattr__ any more: `shorts` is a name like any other that is not there
 
 
 def test_a_previa_chama_o_ffprobe_pelo_nome_e_deixa_o_dir_travado_para_o_path_do_ambiente_dela(amb, capsys, monkeypatch):

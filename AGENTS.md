@@ -179,6 +179,7 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `jobs.py`: `simplicio-video jobs`: long tasks in the background, in a separate process, with no daemon and no network port.
 - `lockfile.py`: An exclusive file lock with a wait, for the installer: `install`, `uninstall` and `prune` hold it in the target folder, so two of them never read the same receipt and each writes its own. fcntl on POSIX, msvcrt on Windows.
 - `matchcut.py`: match-cut track: an agent skill for product films in the match-cut relay style (https://github.com/Sac-Y/match-cut, MIT).
+- `mcp_policy.py`: The argument policy of the MCP tools in one table: what each tool runs over MCP, what only the terminal does, and the words that say so.
 - `mcp_server.py`: MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
 - `media.py`: `simplicio-video media`: audio-visual operations on any MP4, deterministic and local (ffmpeg and ffprobe only).
 - `mediaio.py`: One way to find ffmpeg/ffprobe and one ffprobe call for the duration and the metadata of a media file.
@@ -225,6 +226,7 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `voice.py`: `simplicio-video voice`: render/cache the narration lines of a contract and write timing.lock.json.
 - `voice_clone.py`: Voice cloning / local-engine providers: voxcpm, openvoice, voicestudio.
 - `voicestudio.py`: VoiceStudio track: local voice studio for TTS, voice cloning, voice design and transcription (https://github.com/debpalash/VoiceStudio, AGPL-3.0).
+- `voz_catalogo.py`: The voice providers as plain data: name, description, whether the provider waits on the network and whether it keeps the raw take.
 - `words.py`: Word timings of a processed narration take (for word-by-word kinetic typography synced to the voice).
 <!-- END GENERATED -->
 

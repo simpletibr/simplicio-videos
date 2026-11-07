@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-from simplicio_video import media
+from simplicio_video import media, shorts
 
 
 def _cues(tmp_path, cues, name="cues.json"):
@@ -116,5 +116,5 @@ def test_mask_e_subs_com_ffmpeg_real(tmp_path):
                     "-shortest", str(src)], check=True)
     out = tmp_path / "masked.mp4"
     media.run_media(["mask", str(src), "--box", "10,200,100,40", "-o", str(out)])
-    info = media.shorts.probe(out)
+    info = shorts.probe(out)
     assert info["width"] == 240 and info["has_audio"] is True

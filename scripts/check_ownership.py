@@ -21,10 +21,15 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
 import sys
+from pathlib import Path
 
 import yaml
+
+_AQUI = str(Path(__file__).resolve().parent)
+if _AQUI not in sys.path:  # `_lib.py` sits next to this script (run as a file it is already there; the tests load the script by path)
+    sys.path.insert(0, _AQUI)
+from _lib import UsageError, git  # noqa: E402
 
 OWNERSHIP_REL = "scripts/ownership.yaml"
 
@@ -34,17 +39,6 @@ Exemplos:
   scripts/check_ownership.py 31 --base 6856ba5        # contra um commit
   scripts/check_ownership.py 32 --base main           # contra um branch local
 """
-
-
-class UsageError(Exception):
-    pass
-
-
-def git(*args: str, check: bool = True) -> str:
-    r = subprocess.run(["git", *args], capture_output=True, text=True)
-    if check and r.returncode:
-        raise UsageError(f"git {' '.join(args)}: {r.stderr.strip()}")
-    return r.stdout
 
 
 def glob_to_regex(pattern: str) -> re.Pattern[str]:

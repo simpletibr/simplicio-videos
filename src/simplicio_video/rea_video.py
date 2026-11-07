@@ -289,7 +289,7 @@ _FLOAT = re.compile(r"^\d+(\.\d+)?$")
 
 # command -> (positionals [(kind, required)], flags {name: kind}, required flag destinations)
 # kinds: file/dir (absolute and existing), abs (absolute, may not exist), int, float, text, bool, ("choice", a, b, ...)
-_SPECS: dict[str, tuple[list[tuple[str, bool]], dict[str, object], tuple[str, ...]]] = {
+SPECS: dict[str, tuple[list[tuple[str, bool]], dict[str, object], tuple[str, ...]]] = {
     "summary": ([("file", True)], {}, ()),
     "probe": ([("file", True)], {"--tags": "bool"}, ()),
     "tiles": ([("file", True)], {"--start": "float", "--end": "float", "--every": "pfloat", "--cols": "int", "--cell": "int",
@@ -303,6 +303,7 @@ _SPECS: dict[str, tuple[list[tuple[str, bool]], dict[str, object], tuple[str, ..
                                       "--ocr-lang": ("choice", "zh", "ja"), "--no-packaging": "bool", "--no-stems": "bool",
                                       "--workers": "int", "--engine": "text", "--meta": "file"}, ("out",)),
 }
+_SPECS = SPECS  # the old name: callers that read it keep working
 _DEST = {"-o": "out", "--out": "out"}
 
 
@@ -394,13 +395,13 @@ def mcp_command(args) -> list[str]:
     except ValueError as e:
         raise ReaVideoError(f"argumentos ilegíveis: {e}") from None
     if not words:
-        raise ReaVideoError("diga o comando: " + ", ".join(_SPECS) + " (setup e o resto, só pelo terminal)")
+        raise ReaVideoError("diga o comando: " + ", ".join(SPECS) + " (setup e o resto, só pelo terminal)")
     cmd, rest = words[0], words[1:]
     if cmd.startswith("-"):
         raise _terminal(f"a opção global {cmd}")
-    if cmd in TERMINAL_ONLY or cmd not in _SPECS:
+    if cmd in TERMINAL_ONLY or cmd not in SPECS:
         raise _terminal(f"o comando {cmd}")
-    pos_spec, flags, required = _SPECS[cmd]
+    pos_spec, flags, required = SPECS[cmd]
     positionals: list[str] = []
     out: list[str] = []
     seen: set[str] = set()

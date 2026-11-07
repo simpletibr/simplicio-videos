@@ -1242,6 +1242,26 @@ def test_the_module_imports_nothing_that_talks_to_the_network_or_posts():
     assert "shell=True" not in source and "env=os.environ" not in source and "API_KEY" not in source and "TOKEN" not in source
 
 
+def test_importing_the_module_loads_no_network_stack_not_even_through_a_sibling():
+    """The guard above reads the SOURCE of instagram.py; this one measures what `import simplicio_video.instagram` really loads, in a
+    clean interpreter (`python -I`), transitively. Before U07b `rede` imported urllib at the top, `trilha_base` imports `rede`, and the
+    module that runs third-party scripts in isolation loaded 13 modules of the network stack (socket, ssl, http.client, urllib.*,
+    email.*) against the one it had before U08b (selectors, which `subprocess` brings). The documented rule is "does not import the
+    network": it holds for what is loaded, not only for what is written."""
+    codigo = ("import json, sys\n"
+              f"sys.path.insert(0, {str(ROOT / 'src')!r})\n"
+              "import pathlib\n"  # before Python 3.13 pathlib itself loads urllib.parse (a string parser), so it is not counted
+              "antes = set(sys.modules)\n"
+              "import simplicio_video.instagram\n"
+              "print(json.dumps(sorted(set(sys.modules) - antes)))\n")
+    r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    carregados = json.loads(r.stdout)
+    rede = sorted(m for m in carregados if m.split(".")[0] in NETWORK | {"_socket", "_ssl", "email"})
+    assert set(rede) <= {"selectors"}, rede  # at most the poll loop of subprocess (POSIX), never a socket
+    assert "simplicio_video.instagram" in carregados and "simplicio_video.rede" in carregados  # it did load the siblings
+
+
 LEGITIMO = ("from . import childio, tools\n"
             "from .rede import offline as _offline\n"
             "from .terceiros import commit_do_checkout as _commit_do_checkout\n"

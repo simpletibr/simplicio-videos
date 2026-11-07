@@ -14,9 +14,11 @@ import os
 import subprocess
 import tempfile
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
-from . import aio, childio, hostos, mediaio, paths, voice_clone, words as wordsmod
+from . import aio, childio, hostos, mediaio, paths, voice_clone, voz_catalogo, words as wordsmod
 from .contract import Contract, r4
 from .fsutil import sha256_file
 
@@ -34,22 +36,9 @@ TRIM_TIGHT = ("silenceremove=start_periods=1:start_threshold=-42dB:start_silence
 GEMINI_MODEL = "gemini-3.8-flash-tts"   # cheaper: gemini-3.8-flash-lite-tts (same schema)
 AUDIO8_MODEL = "Edge0/Audio8-TTS-Realistic-0.6b"  # Apache-2.0; the 0.1B checkpoint has its own license, so it is not the default
 GEMINI_SR = 24000
-PROVIDERS = {
-    "file": "WAV/MP3 per line generated elsewhere (Gemini in Google AI Studio). Default dir assets/audio/vo/external, line-01.wav ...",
-    "local": "Provisional local TTS: Kokoro-82M (Apache-2.0) via kokoro-onnx; needs SIMPLICIO_TTS_PY with kokoro_onnx + models in ~/.local/share/simplicio-tts",
-    "gemini": "Gemini TTS API (GEMINI_API_KEY from aistudio.google.com/apikey; free tier ok): model/voice/estilo from the contract, WAV 24 kHz kept in the file dir so provider=file reproduces it",
-    "voxcpm": "VoxCPM2 (Apache-2.0): voice design (control) or cloning from reference_audio via the `voxcpm` CLI; fixed seed",
-    "openvoice": "OpenVoice V2 (MIT): Kokoro base take converted to the reference_audio speaker (needs OPENVOICE_PY + checkpoints_v2)",
-    "voicestudio": "VoiceStudio (AGPL-3.0, used over local HTTP only): OpenAI-compatible /v1/audio/speech at VOICESTUDIO_URL (default http://localhost:3900); voice = profile id",
-    "audio8": "Audio8 TTS (Apache-2.0 code and 0.6B weights): zero-shot cloning from reference_audio via the `audio8-tts` CLI in its own env (AUDIO8_TTS_BIN)",
-    "elevenlabs": "stub in v0.2 (generate elsewhere, then use provider=file)",
-    "xai": "stub in v0.2 (generate elsewhere, then use provider=file)",
-}
-
-
+# The providers are described by `REGISTRO` (below the provider functions); PROVIDERS, NETWORK_PROVIDERS and GENERATIVE are derived from it.
 # Lines are generated concurrently only for providers that WAIT on the network; local providers burn CPU, so they stay
 # serial (asyncio does not speed up CPU work). The ffmpeg processing of every line stays serial as well.
-NETWORK_PROVIDERS = ("gemini",)
 DEFAULT_CONCURRENCY = 4
 
 
@@ -70,53 +59,69 @@ def duration(p: Path) -> float:
     return mediaio.duration_s(p, ffprobe=mediaio.PATH_FFPROBE)
 
 
+def _bloco(v: dict, prov: str) -> dict:
+    """The `voz.providers.<prov>` block of the contract (empty when it is not there)."""
+    return (v.get("providers") or {}).get(prov, {})
+
+
+def _settings_file(v: dict) -> dict:
+    P = _bloco(v, "file")
+    return {"dir": P.get("dir", "assets/audio/vo/external"), "padroes": P.get("padroes", FILE_PATTERNS)}
+
+
+def _settings_local(v: dict) -> dict:
+    P = _bloco(v, "local")
+    voice = P.get("voice") or (v.get("voice") if v["provider"] == "local" else None) or "pf_dora"
+    return {"engine": P.get("engine", "kokoro"), "voice": voice, "speed": P.get("speed", 1.0), "lang": P.get("lang", "pt-br")}
+
+
+def _settings_gemini(v: dict) -> dict:
+    P = _bloco(v, "gemini")
+    voice = P.get("voice") or (v.get("voice") if v["provider"] == "gemini" else None) or "Sulafat"
+    S = {"model": P.get("model", GEMINI_MODEL), "voice": voice, "estilo": P.get("estilo") or v.get("estilo", "")}
+    if P.get("api", "interactions") != "interactions":  # keep the default cache key identical to v0.2
+        S["api"] = P["api"]
+    return S
+
+
+def _settings_voxcpm(v: dict) -> dict:
+    P = _bloco(v, "voxcpm")
+    return {"control": P.get("control", ""), "reference_audio": P.get("reference_audio", ""), "reference_text": P.get("reference_text", ""),
+            "seed": P.get("seed", 42)}
+
+
+def _settings_audio8(v: dict) -> dict:
+    P = _bloco(v, "audio8")
+    return {"model": P.get("model", AUDIO8_MODEL), "reference_audio": P.get("reference_audio", ""),
+            "reference_text": P.get("reference_text", ""), "device": P.get("device", "")}
+
+
+def _settings_openvoice(v: dict) -> dict:
+    return {"reference_audio": _bloco(v, "openvoice").get("reference_audio", ""), "base": _settings_local(v)}
+
+
+def _settings_voicestudio(v: dict) -> dict:
+    P = _bloco(v, "voicestudio")
+    return {"model": P.get("model", "omnivoice"), "voice": P.get("voice") or (v.get("voice") if v["provider"] == "voicestudio" else None) or "default"}
+
+
+def _settings_bloco(prov: str) -> Callable[[dict], dict]:
+    """The settings of a provider with no fields of its own (the stubs): its block of the contract, as it is."""
+    return lambda v: dict(_bloco(v, prov))
+
+
 def settings_for(c: Contract, prov: str) -> dict:
+    p = REGISTRO.get(prov)
     v = c.data["voz"]
-    P = (v.get("providers") or {}).get(prov, {})
-    if prov == "file":
-        return {"dir": P.get("dir", "assets/audio/vo/external"), "padroes": P.get("padroes", FILE_PATTERNS)}
-    if prov == "local":
-        voice = P.get("voice") or (v.get("voice") if v["provider"] == "local" else None) or "pf_dora"
-        return {"engine": P.get("engine", "kokoro"), "voice": voice, "speed": P.get("speed", 1.0), "lang": P.get("lang", "pt-br")}
-    if prov == "gemini":
-        voice = P.get("voice") or (v.get("voice") if v["provider"] == "gemini" else None) or "Sulafat"
-        S = {"model": P.get("model", GEMINI_MODEL), "voice": voice, "estilo": P.get("estilo") or v.get("estilo", "")}
-        if P.get("api", "interactions") != "interactions":  # keep the default cache key identical to v0.2
-            S["api"] = P["api"]
-        return S
-    if prov == "voxcpm":
-        return {"control": P.get("control", ""), "reference_audio": P.get("reference_audio", ""), "reference_text": P.get("reference_text", ""),
-                "seed": P.get("seed", 42)}
-    if prov == "audio8":
-        return {"model": P.get("model", AUDIO8_MODEL), "reference_audio": P.get("reference_audio", ""),
-                "reference_text": P.get("reference_text", ""), "device": P.get("device", "")}
-    if prov == "openvoice":
-        return {"reference_audio": P.get("reference_audio", ""), "base": settings_for(c, "local")}
-    if prov == "voicestudio":
-        return {"model": P.get("model", "omnivoice"), "voice": P.get("voice") or (v.get("voice") if v["provider"] == "voicestudio" else None) or "default"}
-    return dict(P)
-
-
-# generative providers keep the raw take; gemini keeps the historical dir, the others a per-provider subdir
-GENERATIVE = ("gemini", "voxcpm", "openvoice", "voicestudio", "audio8")
+    return p.settings(v) if p else dict(_bloco(v, prov))
 
 
 def keep_path(fdir: Path, prov: str, idx: int) -> Path:
     return (fdir if prov == "gemini" else fdir / prov) / f"line-{idx + 1:02d}.wav"
 
 
-def _generate(c: Contract, prov: str, S: dict, text: str, dst: Path, ref: Path | None) -> dict | None:
-    if prov == "gemini":
-        return _gemini(S, text, dst)
-    if prov == "voxcpm":
-        voice_clone.voxcpm(S, text, dst, ref)
-    elif prov == "audio8":
-        voice_clone.audio8(S, text, dst, ref)
-    elif prov == "openvoice":
-        voice_clone.openvoice(S, text, dst, ref, lambda t, p: _local(S["base"], t, p))
-    else:
-        voice_clone.voicestudio(S, text, dst)
-    return None
+def _stub(prov: str) -> VoiceError:
+    return VoiceError(f"provider={prov}: stub in simplicio-video v0.2 - generate the takes elsewhere, drop them in the file dir and use --provider file")
 
 
 # ---------------- providers (write a raw take to dst) ----------------
@@ -237,6 +242,92 @@ def _gemini(S: dict, text: str, dst: Path, retries: int = 4) -> dict:
             "usage": res.get("usage") or res.get("usageMetadata")}
 
 
+# ---------------- the registry: what a provider IS (voz_catalogo) and what it DOES (settings, gerar) ----------------
+@dataclass(frozen=True)
+class Provider:
+    """One voice provider.
+
+    `settings(voz)` resolves its settings from the `voz` block of the contract: the order of its keys is the order of `settings` in
+    timing.lock.json and the dict is part of the cache key. `gerar(c, S, text, dst, ref)` writes the raw take of one line to `dst`
+    (`ref` is the reference audio, or None) and returns the request info the lock keeps (only gemini has some). `file` and the stubs
+    never generate: `gerar` says so.
+    """
+    nome: str
+    descricao: str
+    rede: bool
+    guarda_bruto: bool
+    settings: Callable[[dict], dict]
+    gerar: Callable[..., dict | None]
+
+
+# `gerar` looks the function up by name when it is CALLED (tests replace `voice._gemini`, `voice._local` and `voice_clone.*`)
+def _gerar_gemini(c: Contract, S: dict, text: str, dst: Path, ref: Path | None) -> dict:
+    return _gemini(S, text, dst)
+
+
+def _gerar_local(c: Contract, S: dict, text: str, dst: Path, ref: Path | None) -> None:
+    _local(S, text, dst)
+
+
+def _gerar_voxcpm(c: Contract, S: dict, text: str, dst: Path, ref: Path | None) -> None:
+    voice_clone.voxcpm(S, text, dst, ref)
+
+
+def _gerar_audio8(c: Contract, S: dict, text: str, dst: Path, ref: Path | None) -> None:
+    voice_clone.audio8(S, text, dst, ref)
+
+
+def _gerar_openvoice(c: Contract, S: dict, text: str, dst: Path, ref: Path | None) -> None:
+    voice_clone.openvoice(S, text, dst, ref, lambda t, p: _local(S["base"], t, p))
+
+
+def _gerar_voicestudio(c: Contract, S: dict, text: str, dst: Path, ref: Path | None) -> None:
+    voice_clone.voicestudio(S, text, dst)
+
+
+def _gerar_file(c: Contract, S: dict, text: str, dst: Path, ref: Path | None) -> None:
+    raise VoiceError(f"provider=file: nothing to generate, the takes are the files in {S['dir']}")
+
+
+def _gerar_stub(prov: str) -> Callable[..., None]:
+    def gerar(c: Contract, S: dict, text: str, dst: Path, ref: Path | None) -> None:
+        raise _stub(prov)
+    return gerar
+
+
+_COMPORTAMENTO: dict[str, tuple[Callable[[dict], dict], Callable[..., dict | None]]] = {
+    "file": (_settings_file, _gerar_file),
+    "local": (_settings_local, _gerar_local),
+    "gemini": (_settings_gemini, _gerar_gemini),
+    "voxcpm": (_settings_voxcpm, _gerar_voxcpm),
+    "openvoice": (_settings_openvoice, _gerar_openvoice),
+    "voicestudio": (_settings_voicestudio, _gerar_voicestudio),
+    "audio8": (_settings_audio8, _gerar_audio8),
+    "elevenlabs": (_settings_bloco("elevenlabs"), _gerar_stub("elevenlabs")),
+    "xai": (_settings_bloco("xai"), _gerar_stub("xai")),
+}
+REGISTRO: dict[str, Provider] = {f.nome: Provider(f.nome, f.descricao, f.rede, f.guarda_bruto, *_COMPORTAMENTO[f.nome])
+                                 for f in voz_catalogo.FICHAS}
+PROVIDERS = {nome: p.descricao for nome, p in REGISTRO.items()}
+NETWORK_PROVIDERS = tuple(nome for nome, p in REGISTRO.items() if p.rede)
+# generative providers keep the raw take; gemini keeps the historical dir, the others a per-provider subdir (keep_path)
+GENERATIVE = tuple(nome for nome, p in REGISTRO.items() if p.guarda_bruto)
+
+
+def _normaliza(take: Path, raw: Path) -> None:
+    """Any take -> 48 kHz mono WAV. The local provider skips this: it writes its take straight to `raw`."""
+    sh("ffmpeg", "-y", "-v", "error", "-i", str(take), "-ac", "1", "-ar", "48000", str(raw))
+
+
+def _cadeia(raw: Path, dst: Path, chain: str, trim: str) -> None:
+    """The ONE ffmpeg chain of a take: silence trim (TRIM, or TRIM_TIGHT in the retry), then the contract chain at 48 kHz mono as
+    pcm_s16le -bitexact. It is the determinism of contract -> MP4: the bytes of `dst` depend on `raw`, `chain` and `trim`, not on who calls."""
+    cut = raw.with_name("cut.wav")
+    sh("ffmpeg", "-y", "-v", "error", "-i", str(raw), "-af", trim, str(cut))
+    sh("ffmpeg", "-y", "-v", "error", "-i", str(cut), "-af", chain + ",aresample=48000", "-ac", "1",
+       "-c:a", "pcm_s16le", "-bitexact", str(dst))
+
+
 def _digest(ident: list) -> str:
     return hashlib.sha256(json.dumps(ident, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:12]
 
@@ -268,7 +359,7 @@ async def _generate_all(c: Contract, prov: str, S: dict, jobs: list[tuple[int, s
             if errors:
                 return  # a line failed: do not start (and pay for) more
             try:
-                out[idx] = await aio.athread(_generate, c, prov, S, text, dst, None)
+                out[idx] = await aio.athread(REGISTRO[prov].gerar, c, S, text, dst, None)
             except (Exception, SystemExit) as e:  # noqa: BLE001 (VoiceError is a SystemExit: keep it per line, not first-come)
                 errors[idx] = e
 
@@ -304,9 +395,10 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
     v = c.data["voz"]
     prov = provider or v["provider"]
     if prov in ("elevenlabs", "xai"):
-        raise VoiceError(f"provider={prov}: stub in simplicio-video v0.2 - generate the takes elsewhere, drop them in the file dir and use --provider file")
+        raise _stub(prov)
     if prov not in PROVIDERS:
         raise VoiceError(f"unknown provider {prov}")
+    p = REGISTRO[prov]
     S = settings_for(c, prov)
     chain = v.get("processamento", DEFAULT_CHAIN)
     cache = c.rel(v.get("cache_dir", "assets/audio/voz"))
@@ -335,36 +427,32 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
             continue  # phase 1 failed: finalize into the cache every line that WAS generated (and paid), skip the rest
         else:
             with tempfile.TemporaryDirectory() as td:
-                raw, cut = Path(td) / "raw.wav", Path(td) / "cut.wav"
+                raw = Path(td) / "raw.wav"
                 if prov == "file":
-                    sh("ffmpeg", "-y", "-v", "error", "-i", str(src), "-ac", "1", "-ar", "48000", str(raw))
-                elif prov == "local":
-                    _local(S, say, raw)
+                    _normaliza(src, raw)
+                elif not p.guarda_bruto:  # local: synthesised straight into the raw take
+                    p.gerar(c, S, say, raw, ref)
                 else:  # generative: keep the raw take (gemini next to the AI Studio files) so the run is reproducible
                     keep = keep_path(fdir, prov, idx)
-                    gen = pre[idx] if idx in pre else _generate(c, prov, S, say, keep, ref)
+                    gen = pre[idx] if idx in pre else p.gerar(c, S, say, keep, ref)
                     tts_chars += len(say)
-                    sh("ffmpeg", "-y", "-v", "error", "-i", str(keep), "-ac", "1", "-ar", "48000", str(raw))
-                sh("ffmpeg", "-y", "-v", "error", "-i", str(raw), "-af", TRIM, str(cut))
-                sh("ffmpeg", "-y", "-v", "error", "-i", str(cut), "-af", chain + ",aresample=48000", "-ac", "1",
-                   "-c:a", "pcm_s16le", "-bitexact", str(final))
+                    _normaliza(keep, raw)
+                _cadeia(raw, final, chain, TRIM)
             for o in cache.glob(f"{line['id']}-*.wav"):
                 if o != final:
                     o.unlink()
             status = "rendered"
         dur = round(duration(final), 3)
         trim = "normal"
-        take = src if prov == "file" else (keep_path(fdir, prov, idx) if prov in GENERATIVE else None)
+        take = src if prov == "file" else (keep_path(fdir, prov, idx) if p.guarda_bruto else None)
         if dur > line["max_s"] + 1e-6 and take is not None and take.is_file():
             ht = _digest(ident + ["trim-tight"])
             tight = cache / f"{line['id']}-{ht}.wav"
             if not tight.is_file() or force or (only and line["id"] in only):
                 with tempfile.TemporaryDirectory() as td:
-                    raw, cut = Path(td) / "raw.wav", Path(td) / "cut.wav"
-                    sh("ffmpeg", "-y", "-v", "error", "-i", str(take), "-ac", "1", "-ar", "48000", str(raw))
-                    sh("ffmpeg", "-y", "-v", "error", "-i", str(raw), "-af", TRIM_TIGHT, str(cut))
-                    sh("ffmpeg", "-y", "-v", "error", "-i", str(cut), "-af", chain + ",aresample=48000", "-ac", "1",
-                       "-c:a", "pcm_s16le", "-bitexact", str(tight))
+                    raw = Path(td) / "raw.wav"
+                    _normaliza(take, raw)
+                    _cadeia(raw, tight, chain, TRIM_TIGHT)
             dur_t = round(duration(tight), 3)
             if dur_t < dur:
                 final, dur, trim = tight, dur_t, "tight"
@@ -380,7 +468,7 @@ def run(c: Contract, provider: str | None = None, force: bool = False, only: lis
         lock_lines[line["id"]] = {"file": rel, "sha256": digest, "dur_s": dur, "t": line["t"], "max_s": line["max_s"],
                                   "scene": line["scene"], "text": line["texto"], "say": say,
                                   "source": os.path.relpath(src, c.dir) if src else (
-                                      os.path.relpath(keep_path(fdir, prov, idx), c.dir) if prov in GENERATIVE else None),
+                                      os.path.relpath(keep_path(fdir, prov, idx), c.dir) if p.guarda_bruto else None),
                                   "fits": dur <= line["max_s"] + 1e-6, "slack_s": r4(line["max_s"] - dur),
                                   "words": wl, "words_source": wsrc}
         if trim != "normal":
