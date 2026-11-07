@@ -1,6 +1,6 @@
 # Contribuindo
 
-Todo trabalho aqui segue o acordo de [parallel-work.md](arquivo/docs/factory/parallel-work.md) e passa pelo gate local descrito em [docs/host/gate.md](docs/host/gate.md). Não há GitHub Actions: o gate roda na sua máquina.
+Todo trabalho aqui segue o acordo de [parallel-work.md](docs/host/parallel-work.md) e passa pelo gate local descrito em [docs/host/gate.md](docs/host/gate.md). Não há GitHub Actions: o gate roda na sua máquina.
 
 ## Começando
 

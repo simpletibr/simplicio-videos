@@ -8,7 +8,7 @@ last_verified: 2026-11-06
 
 # Gate local, TDD e pouso de PRs
 
-Não há GitHub Actions (política da organização). A `main` fica verde porque todo PR passa pelo mesmo gate **na máquina de quem pousa**, um de cada vez. Decisão e alternativas: [ADR-0005](../decisoes/ADR-0005-gate-sem-ci.md). Acordo de trabalho em paralelo: [parallel-work.md](../../arquivo/docs/factory/parallel-work.md).
+Não há GitHub Actions (política da organização). A `main` fica verde porque todo PR passa pelo mesmo gate **na máquina de quem pousa**, um de cada vez. Decisão e alternativas: [ADR-0005](../decisoes/ADR-0005-gate-sem-ci.md). Acordo de trabalho em paralelo: [parallel-work.md](parallel-work.md).
 
 ## Como rodar
 

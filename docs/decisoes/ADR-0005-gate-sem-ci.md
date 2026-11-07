@@ -2,7 +2,7 @@
 
 - **Status:** aceito. Implementado na issue #31 (`make check`, `scripts/check_ownership.py`, `scripts/check_tdd.py`, `scripts/land.sh`, hooks e templates).
 - **Data:** 07/10/2026 (BRT)
-- **Relaciona:** [docs/host/gate.md](../host/gate.md) (como usar) · [parallel-work.md](../../arquivo/docs/factory/parallel-work.md) (acordo de trabalho em paralelo) · [ownership.yaml](../../scripts/ownership.yaml) · [ADR-0001](ADR-0001-visao-plugin.md) (LLM nunca no caminho padrão)
+- **Relaciona:** [docs/host/gate.md](../host/gate.md) (como usar) · [parallel-work.md](../host/parallel-work.md) (acordo de trabalho em paralelo) · [ownership.yaml](../../scripts/ownership.yaml) · [ADR-0001](ADR-0001-visao-plugin.md) (LLM nunca no caminho padrão)
 
 ## Contexto
 

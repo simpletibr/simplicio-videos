@@ -91,7 +91,7 @@ A `Command` without `summary`, `description` and `examples` is rejected at load 
 
 ## Testing plugins (TDD, contract suites)
 
-The SDK ships pytest contract suites (`simplicio_factory.testkit.contract_suites`): `StageContract`, `PublisherContract`, `MetricsSourceContract`, `StoreContract`, `ThemeContract`, `LocaleContract`. The core ships `PluginContract` (manifest valid, requires satisfied, every command documented, health checks pass, no forbidden imports) in `simplicio_video.plugins`. A plugin test file subclasses the suite for its kind and provides a factory for the subject; the same suite runs against the fake and the real implementation. `plugin new` generates that test file first, red, so work always starts from a failing contract. See [parallel-work.md](parallel-work.md#test-first).
+The SDK ships pytest contract suites (`simplicio_factory.testkit.contract_suites`): `StageContract`, `PublisherContract`, `MetricsSourceContract`, `StoreContract`, `ThemeContract`, `LocaleContract`. The core ships `PluginContract` (manifest valid, requires satisfied, every command documented, health checks pass, no forbidden imports) in `simplicio_video.plugins`. A plugin test file subclasses the suite for its kind and provides a factory for the subject; the same suite runs against the fake and the real implementation. `plugin new` generates that test file first, red, so work always starts from a failing contract. See [parallel-work.md](../../../docs/host/parallel-work.md#test-first).
 
 ## First-party plugin directory convention
 
