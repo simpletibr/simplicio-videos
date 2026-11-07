@@ -41,9 +41,6 @@ _MD_URL_LINK = re.compile(r"\[[^\]\n]*\]\(https?://[^)\s]*\)")
 ALLOWLIST = {
     ("render.py", "colab/render.ipynb"):
         "docstring of render_colab, which returns that path in the JSON field `notebook`: the owner decides (PLAN 5, q.7)",
-    ("cli.py", "colab/render.ipynb"): "help text of `render`; cli.py belongs to U10a, which moves it to paths.doc_url",
-    ("cli.py", "docs/custos.md"): "help text of `render` and of the main epilog; cli.py belongs to U10a",
-    ("cli.py", "docs/decisoes/ADR-0003-fluxo-100-script.md"): "epilog of the main parser; cli.py belongs to U10a",
     ("childio.py", "docs/host/gate.md"): "module docstring for the developers of the guard; childio is untouchable",
     ("engine/remote_render.py", "colab/render.ipynb"): "docstring of the headless script that runs on the remote box",
     ("data/motion/README.md", "docs/recursos.md"): "hand-written note of the motion README, not in U04's files",
