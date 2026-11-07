@@ -1739,3 +1739,15 @@ CASOS_SEM_FECHAR = [  # (nome, texto do config.toml, valores achados): a string 
 @pytest.mark.parametrize("nome,texto,esperado", CASOS_SEM_FECHAR, ids=[c[0] for c in CASOS_SEM_FECHAR])
 def test_s3_string_sem_aspas_de_fechamento_vai_ate_o_fim_da_linha(nome, texto, esperado):
     assert e2e._valores_por_regex(texto) == esperado
+
+
+def test_s3_item_aberto_de_lista_nao_faz_a_leitura_parar_e_o_item_fechado_da_linha_seguinte_tambem_sai():
+    """O `fim` que _ler_texto_toml devolve é onde a leitura parou: a lista segue dali. Se fosse o fim do texto, o 'b-2222'
+    (fechado, na linha seguinte ao item aberto) se perderia."""
+    texto = 'api_keys = [\n  "a-aberto,\n  "b-2222",\n]'
+    assert e2e._valores_por_regex(texto) == {"a-aberto,", "b-2222"}
+
+
+def test_s3_valor_aberto_vazio_nao_vira_valor():
+    """`api_key = "` sem nada depois: o resto da linha é '' e uma string vazia nunca entra como segredo."""
+    assert e2e._valores_por_regex('api_key = "\n') == set()
