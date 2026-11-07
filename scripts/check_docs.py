@@ -30,6 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # arquivo/ is excluded from every check: it holds the owner's work that left the product (sales operation, the factory spec
 # imported from PR #51, the translated READMEs, ...), moved there with `git mv` and kept exactly as it was, so its links still
 # point to where things used to be. A link from a checked page INTO arquivo/ is still checked (the target must exist).
+# Until U16 this was the exclusion of docs/factory/: "The imported factory spec (docs/factory/, from PR #51, closed without merge)
+# is excluded from every check: it is reference text whose links point to pages that do not exist in this repo."
 # tests/test_docs proves the behaviour on temporary trees, so this exclusion does not hide any check from the tests.
 ARCHIVE_PREFIXES = ("arquivo/",)
 # Pages under these folders need front matter (the folder README.md is an index and is exempt).
