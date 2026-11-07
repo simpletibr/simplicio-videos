@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 from . import childio, tools
-from .rede import offline as _offline  # the one reading of SIMPLICIO_OFFLINE; kept as a name here: matchcut and video_to_skill import it from this module
+from .rede import offline as _offline  # the one reading of SIMPLICIO_OFFLINE; kept as a name here because the tests replace `toonflow._offline` (no module imports it from here any more)
 from .trilha_base import Trilha
 from .trilha_base import on_term as _on_term  # same: moneyprinter's and the tests' `_on_term`/`_stop_group` are these
 from .trilha_base import stop_group as _stop_group

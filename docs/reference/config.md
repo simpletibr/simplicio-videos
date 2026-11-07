@@ -19,7 +19,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `KAGGLE_CONFIG_DIR` | Pasta do `kaggle.json` (padrão: `~/.kaggle`). | `src/simplicio_video/remote.py:72` |
 | `KAGGLE_USERNAME` | Usuário do Kaggle para o render remoto (sem ele, lê o `kaggle.json`). | `src/simplicio_video/remote.py:70`<br>`src/simplicio_video/remote.py:71` |
 | `KOKORO_DIR` | Pasta dos modelos do Kokoro (TTS local; padrão `~/.local/share/simplicio-tts`). | `src/simplicio_video/voice.py:136` |
-| `MATCHCUT_DATA_DIR` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/matchcut.py:142` |
+| `MATCHCUT_DATA_DIR` | Pasta onde mora o venv do match-cut: absoluta e fora do checkout, para que um novo clone nunca a apague. | `src/simplicio_video/matchcut.py:142` |
 | `MATCHCUT_DIR` | Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`). | `src/simplicio_video/matchcut.py:142` |
 | `MATCHCUT_MEM_GIB` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/matchcut.py:937` |
 | `MATCHCUT_PYTHON` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/matchcut.py:437` |
