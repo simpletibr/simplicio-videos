@@ -51,7 +51,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import childio, tools
+from . import childio, terceiros, tools
 from .rede import offline as _offline
 from .terceiros import commit_do_checkout as _commit_do_checkout
 from .terceiros import real as _real
@@ -391,13 +391,12 @@ def venv_python() -> Path:
 
 
 # What pip and the venv commands receive: no API keys. Proxy and certificate names stay, so pip still works behind a proxy.
-ENV_PIP = (*ENV_NAMES, "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
-           "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "PIP_CERT", "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL",
-           "PIP_TRUSTED_HOST", "PIP_PROXY")
+ENV_PIP = (*ENV_NAMES, *terceiros.PROXIES, "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "PIP_CERT",
+           "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_TRUSTED_HOST", "PIP_PROXY")
 
 
 def _env_pip() -> dict:
-    return {k: os.environ[k] for k in ENV_PIP if k in os.environ}
+    return terceiros.env_para_terceiro(ENV_PIP, base=os.environ)
 
 
 def _call(argv: list[str], **kw) -> int:

@@ -712,7 +712,8 @@ def test_on_term_levanta_keyboardinterrupt_como_o_ctrl_c(quem):
 
 
 def test_trilha_base_nao_importa_nenhuma_trilha():
-    """The base is below the tracks: it imports `tools`, `rede` and `hostos` (and the standard library), never a track."""
+    """The base is below the tracks: it imports `tools`, `rede` and `paths` (and the standard library), never a track. `paths` since V1: the
+    data folder rule is `paths.data_root()` (it was `hostos.home_absoluta`, called here)."""
     import ast
     fonte = Path(_tb().__file__).read_text(encoding="utf-8")
     importados = set()
@@ -724,4 +725,4 @@ def test_trilha_base_nao_importa_nenhuma_trilha():
     trilhas = {"toonflow", "moneyprinter", "rea_video", "opencut", "matchcut", "instagram", "montage", "video_to_skill", "busca",
                "voicestudio", "download", "clone", "jobs", "cli", "mcp_server"}
     assert not importados & trilhas, importados & trilhas
-    assert importados & {"tools", "rede", "hostos"} == {"tools", "rede", "hostos"}
+    assert importados & {"tools", "rede", "paths"} == {"tools", "rede", "paths"}

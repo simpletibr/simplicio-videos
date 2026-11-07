@@ -3,7 +3,8 @@
 ENVIRONMENT. A child of a third-party track must not get a key, a token or any SIMPLICIO_* of the shell: each module passes a closed
 list of names. `NUCLEO_ENV` is what every one of those lists has in common; `env_para_terceiro(extra)` is that core plus the names the
 module asks for on top (its proxy and certificate variables, its own key, ...), read from the environment and only when they exist.
-A name that is in neither is never passed, whatever the shell has.
+A name that is in neither is never passed, whatever the shell has. `PROXIES` is the one list of the eight proxy names: the modules that
+let a proxy through write `(*terceiros.PROXIES, ...)` instead of typing them again.
 
 HELPERS. `chave`, `dentro`, `real` and `commit_do_checkout` are the copies that instagram, matchcut and video_to_skill each carry
 (`_chave`, `_dentro`, `_real`, `_commit_do_checkout`), with the same bodies. montage has a `_dentro` of its own (it compares real
@@ -20,6 +21,10 @@ from pathlib import Path
 # PATH, HOME, LANG and LC_ALL: the intersection of the lists of download, busca, status (and doctor_trilhas), matchcut, montage,
 # video_to_skill and instagram (tests/test_terceiros.py freezes each of them).
 NUCLEO_ENV: tuple[str, ...] = ("PATH", "HOME", "LANG", "LC_ALL")
+
+# The names under which a shell hands its proxy to a program: HTTP, HTTPS and ALL, the NO_PROXY list of exceptions, each in upper and lower
+# case. Eight lists of the tracks carried this set typed by hand (tests/test_terceiros.py freezes what each one passes).
+PROXIES: tuple[str, ...] = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy")
 
 # macOS (APFS) and Windows compare folder names without regard to case (macOS also to Unicode normalization)
 CASE_INSENSITIVE = sys.platform in ("darwin", "win32")

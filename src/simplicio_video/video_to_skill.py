@@ -55,7 +55,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import childio, download, hostos, paths, tools, trilha_base
+from . import childio, download, hostos, paths, terceiros, tools, trilha_base
 from .rede import offline as _offline
 from .terceiros import real as _real
 from .trilha_base import Trilha
@@ -91,8 +91,7 @@ DOWNLOAD_SUFFIX = ".githubusercontent.com"
 # keeps its data (ffmpeg, models) in `$VTS_DATA_DIR` or the platform data dir, the same one `check --fix --yes` typed by you uses.
 ENV_NAMES = ("PATH", "HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "XDG_DATA_HOME", "VTS_DATA_DIR", "LANG", "LC_ALL", "TMPDIR",
              "TMP", "TEMP", "SYSTEMROOT")
-ENV_NET = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "all_proxy", "no_proxy", "SSL_CERT_FILE",
-           "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE")  # only for a URL: the upstream's yt-dlp downloads it
+ENV_NET = (*terceiros.PROXIES, "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE")  # only for a URL: the upstream's yt-dlp downloads it
 
 JOB_CWD_PREFIX = "video-to-skill-job-"
 PROVENANCE_SCHEMA = "simplicio.video-to-skill-extract/v1"
@@ -537,10 +536,7 @@ class Binary:
 
 
 def _env(net: bool = False) -> dict:
-    env = {k: os.environ[k] for k in ENV_NAMES if k in os.environ}
-    if net:
-        env.update({k: os.environ[k] for k in ENV_NET if k in os.environ})
-    return env
+    return terceiros.env_para_terceiro((*ENV_NAMES, *(ENV_NET if net else ())), base=os.environ)
 
 
 def _version_line(exe: Path) -> str | None:
@@ -1300,7 +1296,7 @@ def _write_provenance(p: dict) -> str | None:
             source["sha256"] = original_sha
     else:
         source = {"kind": "file", "name": os.path.basename(argv[1]), "sha256": original_sha}
-    origin = os.environ.get("SIMPLICIO_JOB_ORIGIN")  # set by the jobs runner: the CLI of a job knows who submitted it
+    origin = paths.job_origin()  # set by the jobs runner: the CLI of a job knows who submitted it
     channel = "job" if origin in ("mcp", "terminal") else "terminal"
     rec = {"schema": PROVENANCE_SCHEMA, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
            "extractor_version": _version(), "pin_tag": _pins()["tag"], "pin_commit": _pins()["commit"], "channel": channel,

@@ -193,9 +193,7 @@ def library_dir() -> Path:
     explicit = os.environ.get("OPENVERSE_LIBRARY_DIR")
     if explicit:
         return Path(explicit).expanduser().resolve()
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return (base / "openverse-library").resolve()
+    return (paths.data_root() / "openverse-library").resolve()
 
 
 def _atomic_write(path: Path, text: str) -> None:

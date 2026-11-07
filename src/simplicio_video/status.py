@@ -35,8 +35,7 @@ def version_info() -> dict:
 # The only variables a version probe gets: the core of terceiros.NUCLEO_ENV plus these, no keys or tokens of the shell. The proxy and
 # certificate variables are here so that the probe works behind the user's proxy, the same list the `busca` passes to the tinyfish
 # binary (#113 2).
-ENV_EXTRA = ("LC_CTYPE", "TMPDIR", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy",
-             "no_proxy", "ALL_PROXY", "all_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_USE_ENV_PROXY")
+ENV_EXTRA = ("LC_CTYPE", "TMPDIR", *terceiros.PROXIES, "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_USE_ENV_PROXY")
 ENV_FERRAMENTA = (*terceiros.NUCLEO_ENV, *ENV_EXTRA)
 
 

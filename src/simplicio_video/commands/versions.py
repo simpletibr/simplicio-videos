@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Optional, Tuple
 
-from .. import distribution, hostos
+from .. import distribution, hostos, paths
 
 CHECK_FILE = "update-check.json"
 
@@ -81,8 +81,7 @@ def release_tuple(text: str) -> Tuple[int, ...]:
 
 def default_state_dir() -> Path:
     """$SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video (the same folder the other tracks use)."""
-    explicit = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    return Path(explicit) if explicit else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
+    return paths.data_root()
 
 
 class CheckInvalid(ValueError):

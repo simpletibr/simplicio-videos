@@ -348,9 +348,9 @@ def test_so_o_busca_pede_a_chave_do_tinyfish_como_extra(monkeypatch):
 
 @pytest.mark.parametrize("modulo, lista", [("download", "ENV_REPASSADO"), ("busca", "ENV_REPASSADO"), ("status", "ENV_FERRAMENTA")])
 def test_a_constante_publica_de_cada_modulo_e_o_nucleo_mais_o_extra_dele(modulo, lista):
-    """The constants stay (the golden test and doctor_trilhas read them): the core first, then what the module has on top. download writes
-    the four core names itself (importing `terceiros` there would put one more module in the `--help` of the CLI), and this is what
-    keeps that copy from drifting."""
+    """The constants stay (the golden test and doctor_trilhas read them): the core first, then what the module has on top. download,
+    busca and status all name the core as `terceiros.NUCLEO_ENV` (and the proxy names as `terceiros.PROXIES`), and this is what keeps
+    the public constant equal to the core plus the module's own extra."""
     import importlib
     from simplicio_video import terceiros
     m = importlib.import_module(f"simplicio_video.{modulo}")

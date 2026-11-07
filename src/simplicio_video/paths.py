@@ -88,8 +88,9 @@ def schema_path(d: Path | None = None) -> Path:
 
 
 def tts_python() -> str:
-    """Python with kokoro-onnx/soundfile for the local provider."""
-    return os.environ.get("SIMPLICIO_TTS_PY", str(hostos.home_dir() / ".local/share/simplicio-tts/cbvenv/bin/python"))
+    """Python with kokoro-onnx/soundfile for the local provider (and the support python video-use needs): $SIMPLICIO_TTS_PY, else the
+    venv of simplicio-tts. An empty variable is the default, as the doctor and video-use's setup.sh always took it."""
+    return os.environ.get("SIMPLICIO_TTS_PY") or str(hostos.home_dir() / ".local/share/simplicio-tts/cbvenv/bin/python")
 
 
 def node_env() -> dict:
@@ -110,6 +111,16 @@ def node_env() -> dict:
 # was the cycle montage <-> jobs <-> moneyprinter): the protocol of a task, where its state lives and how long it is given to stop.
 
 JOBS_GRACE_S = 15.0
+# The variable the jobs runner sets in the CLI it starts ("mcp" or "terminal", who submitted the task) and that video-to-skill reads to
+# record the provenance of an extract: the name is the protocol between the two, so it is written here, once.
+JOB_ORIGIN_ENV = "SIMPLICIO_JOB_ORIGIN"
+
+
+def job_origin() -> str | None:
+    """Who submitted the task this process runs, as the jobs runner wrote it in $SIMPLICIO_JOB_ORIGIN, or None outside a task. Not
+    checked here: the reader decides which values it accepts. (The reader lives next to the name, so that the generated reference of
+    the environment variables, which sees only a name written next to the `environ` that reads it, keeps the row of the variable.)"""
+    return os.environ.get(JOB_ORIGIN_ENV)
 
 
 @dataclass(frozen=True)
@@ -147,11 +158,16 @@ def check_job_keys(params: dict, allowed: set[str], erro: type[Exception]) -> No
         raise erro(f"parâmetros desconhecidos: {', '.join(extra)} (aceitos: {', '.join(sorted(allowed))})")
 
 
-def jobs_root() -> Path:
-    """The data folder of the engine, where `jobs/<id>/job.json` lives ($SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video): the folder
-    an MCP output may never be written into. Not resolved: a relative value stays relative, as it always was."""
+def data_root() -> Path:
+    """The data folder of the engine, where `jobs/<id>/job.json` lives ($SIMPLICIO_VIDEO_DATA, with `~` expanded, else
+    ~/.simplicio-video): the folder an MCP output may never be written into. The one place that reads the variable: the tools lock,
+    the update cache, `busca`, the Openverse library and the data of the tracks add their subfolder (and their own `.resolve()`) to it.
+    Not resolved: a relative value stays relative, as it always was."""
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
     return Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
+
+
+jobs_root = data_root  # the name `jobs` and `montage` (and their tests) call: the same function
 
 
 def jobs_grace_s() -> float:

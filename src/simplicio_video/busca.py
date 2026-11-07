@@ -49,7 +49,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import childio, hostos, rede, terceiros, tools
+from . import childio, hostos, paths, rede, terceiros, tools
 from .busca_ajuda import HELP_DESC, HELP_EPILOG, TETO_PADRAO
 from .fsutil import canonical_json as _canonico
 
@@ -68,8 +68,7 @@ ENV_CHAVE = "TINYFISH_API_KEY"  # documented by `tinyfish auth`; it wins over ~/
 ENV_TETO = "SIMPLICIO_BUSCA_MAX_DIA"
 # The only variables the binary receives: the core of terceiros.NUCLEO_ENV plus these. The key is forwarded only when the owner exported it
 # (the one way the CLI can use it); everything else of the environment (other providers' keys, tokens, SIMPLICIO_*) stays behind.
-ENV_EXTRA = ("TMPDIR", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
-             "ALL_PROXY", "all_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_USE_ENV_PROXY", ENV_CHAVE)
+ENV_EXTRA = ("TMPDIR", *terceiros.PROXIES, "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_USE_ENV_PROXY", ENV_CHAVE)
 ENV_REPASSADO = (*terceiros.NUCLEO_ENV, *ENV_EXTRA)
 ENV_FORCADO = {"NO_COLOR": "1", "TINYFISH_NO_TELEMETRY": "1"}
 ENV_PROXY = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
@@ -286,9 +285,7 @@ def _brt(stamp: str) -> str:
 
 def pasta() -> Path:
     """<SIMPLICIO_VIDEO_DATA or ~/.simplicio-video>/busca: cache/, busca.registro.jsonl and busca.contador.json."""
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return (base / "busca").resolve()
+    return (paths.data_root() / "busca").resolve()
 
 
 def _caminho_registro() -> Path:

@@ -16,6 +16,9 @@ from . import mediaio
 
 SCHEMA = "simplicio.qc-congelado/v1"
 RUIDO = 0.001
+# The examples at the foot of the help of `qc` and of `qc congelado` (the CLI's page of `qc` uses this text too).
+EXEMPLOS = ("exemplos:\n  simplicio-video qc congelado out/video.mp4\n"
+            "  simplicio-video qc congelado out/video.mp4 --min-s 0.3 --json")
 
 
 class QcError(Exception):
@@ -28,8 +31,7 @@ def adiciona_acoes(ap: argparse.ArgumentParser) -> None:
     c = acoes.add_parser("congelado", help="intervalos de quadro congelado (ffmpeg freezedetect)",
                          description="Lista os trechos em que o vídeo fica num mesmo quadro por pelo menos --min-s segundos. "
                                      "Um quadro congelado até o fim do arquivo é fechado com a duração do arquivo.",
-                         epilog="exemplos:\n  simplicio-video qc congelado out/video.mp4\n"
-                                "  simplicio-video qc congelado out/video.mp4 --min-s 0.3 --json")
+                         epilog=EXEMPLOS)
     c.add_argument("mp4", help="MP4 a conferir")
     c.add_argument("--min-s", type=float, default=0.5, metavar="S",
                    help="duração mínima do quadro congelado, em segundos (padrão 0.5)")
