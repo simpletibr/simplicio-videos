@@ -105,7 +105,7 @@ def test_doctor_does_not_spell_out_how_many_tracks_there_are():
 
 
 def test_install_docstring_does_not_list_two_skills_by_hand():
-    doc = install_cmd.__doc__
+    doc = install_cmd._real().__doc__  # (`__doc__` of the lazy proxy would be the proxy's own)
     assert "SKILLS" in doc, "the skills that ship are the ones of skill_sync.SKILLS: say that, not a list that goes stale"
     assert "simplicio-video-social" not in doc
 
