@@ -138,8 +138,20 @@ def test_the_env_vars_of_the_track_are_described_in_the_reference_generator():
 
 
 def test_smoke_trilhas_has_a_read_only_script_for_the_track():
-    text = (ROOT / "scripts" / "smoke_trilhas.py").read_text(encoding="utf8")
-    assert '"video_to_skill": ChamadaMcp("video_video_to_skill", {"args": "status"}, precisa=True)' in text
+    # The same fact the test always asserted, `ChamadaMcp("video_video_to_skill", {"args": "status"}, precisa=True)` for the track, now read
+    # from the real table: MCP_LEITURA is derived from the registry (U09, `Tool.mcp_read`), so the line that used to be searched in the text
+    # of the script no longer exists. The script is loaded as the smoke tests load it (nothing runs: only the table is built).
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location("smoke_trilhas_v2s_docs", ROOT / "scripts" / "smoke_trilhas.py")
+    smoke = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = smoke  # dataclasses look the module up by name while the script runs
+    try:
+        spec.loader.exec_module(smoke)
+    finally:
+        sys.modules.pop(spec.name, None)
+    assert smoke.MCP_LEITURA["video_to_skill"] == smoke.ChamadaMcp("video_video_to_skill", {"args": "status"}, precisa=True)
 
 
 # ------------------------------------------------------------------------------------------------- review of PR #207

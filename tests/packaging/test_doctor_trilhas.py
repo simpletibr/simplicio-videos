@@ -47,10 +47,12 @@ YTDLP_FETCH = "instala na primeira vez que você usar `simplicio-video media fet
 
 
 def _clone_voicestudio() -> str:
-    """No `voicestudio clone` exists: the fix is the git commands that tools.install runs, at the pinned commit."""
+    """No `voicestudio clone` exists: the fix is the git commands that tools.install runs, at the pinned commit. Like tools.install, the clone
+    separates the options from the arguments (`--`): a relative folder that starts with `-` is not an option (U09; it was the one text of
+    the doctor that still printed `git clone --filter=blob:none <source> <dir>`)."""
     t = tools.get("voicestudio")
     destino = tools.checkout_dir(t)
-    return f"git clone --filter=blob:none {t.source} {destino} && git -C {destino} checkout --detach {tools.pinned_ref(t)}"
+    return f"git clone --filter=blob:none -- {t.source} {destino} && git -C {destino} checkout --detach {tools.pinned_ref(t)}"
 
 
 FIX_DE_INSTALAR = {

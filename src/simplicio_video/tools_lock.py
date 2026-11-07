@@ -29,12 +29,14 @@ KINDS = ("git", "npm", "pip")
 MAX_BYTES = 256 * 1024
 MAX_TEXT = 300
 _NAME = re.compile(r"[a-z0-9][a-z0-9_-]{0,39}")  # the registry names: "rea_video" has an underscore
-_GIT_REF = re.compile(r"[0-9a-f]{7,40}")  # a full commit, or the short one a registry pin may keep (video-use)
-_VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){0,3}(?:[-+.][0-9A-Za-z.]{1,40})?")
+# The patterns of "what is a valid ref": public, the one place every module (tools, update, doctor) asks.
+GIT_REF = re.compile(r"[0-9a-f]{7,40}")  # a full commit, or the short one a registry pin may keep (video-use)
+VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){0,3}(?:[-+.][0-9A-Za-z.]{1,40})?")
+NPM_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]{1,40})?")
+SHA256 = re.compile(r"[0-9a-f]{64}")
 _OVERRIDE = re.compile(r"[\x21-\x7e]{1,200}")  # an override is a ref the user typed: printable, no spaces
 _BRANCH = re.compile(r"[A-Za-z0-9._/-]{1,100}")
 _NPM_PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._-]{0,213}/)?[a-z0-9][a-z0-9._-]{0,213}")  # the npm name of an npm track
-_SHA256 = re.compile(r"[0-9a-f]{64}")
 _KEYS = ("kind", "source", "mode", "ref", "branch", "sha256", "status", "error", "resolved_at", "failed_at")
 
 
@@ -73,8 +75,8 @@ def _ref_ok(kind: str, mode: str, ref: str) -> bool:
     if mode == "override":
         return bool(_OVERRIDE.fullmatch(ref))
     if kind == "git":
-        return bool(_GIT_REF.fullmatch(ref))
-    return bool(_VERSION.fullmatch(ref))
+        return bool(GIT_REF.fullmatch(ref))
+    return bool(VERSION.fullmatch(ref))
 
 
 def _clean_entry(name: str, raw: Any) -> dict:
@@ -101,7 +103,7 @@ def _clean_entry(name: str, raw: Any) -> dict:
         entry["branch"] = branch
     if raw.get("sha256") is not None:
         digest = raw.get("sha256")
-        if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+        if not isinstance(digest, str) or not SHA256.fullmatch(digest):
             raise LockInvalid(f"{name}: sha256 inválido")
         entry["sha256"] = digest
     if raw.get("error") is not None:

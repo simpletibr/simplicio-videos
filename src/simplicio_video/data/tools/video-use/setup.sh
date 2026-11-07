@@ -24,7 +24,8 @@ grep -qE "[[:space:]]subtitles[[:space:]]" <<<"$FILTERS" || log "aviso: ffmpeg s
 "$PY" -c "import numpy, PIL, soundfile" 2>/dev/null || { echo "faltam numpy/Pillow/soundfile em $PY" >&2; exit 1; }
 "$PY" -c "import faster_whisper" 2>/dev/null || log "aviso: faster-whisper ausente — transcrição local indisponível (use Scribe com ELEVENLABS_API_KEY)"
 
-if [ ! -d "$VU_DIR/.git" ]; then mkdir -p "$(dirname "$VU_DIR")"; git clone -q "$VU_REPO" "$VU_DIR"; fi
+# `--`: a VIDEO_USE_DIR that is a relative folder starting with `-` is a folder, not an option, for mkdir, dirname and git alike
+if [ ! -d "$VU_DIR/.git" ]; then mkdir -p -- "$(dirname -- "$VU_DIR")"; git clone -q -- "$VU_REPO" "$VU_DIR"; fi
 git -C "$VU_DIR" cat-file -e "$VU_REF^{commit}" 2>/dev/null || git -C "$VU_DIR" fetch -q origin
 git -C "$VU_DIR" -c advice.detachedHead=false checkout -q "$VU_REF"
 log "video-use @ ${VU_REF:0:7} em $VU_DIR"

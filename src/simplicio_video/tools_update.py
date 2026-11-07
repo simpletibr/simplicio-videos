@@ -35,9 +35,7 @@ MAX_JSON = 5 * 1024 * 1024
 READ_TIMEOUT_S = 20  # one read of the network (ls-remote, npm view): past it, the track is reported, the doctor goes on
 _HEAD_REF = re.compile(r"ref: refs/heads/([A-Za-z0-9._/-]{1,100})\s+HEAD")
 _HEAD_SHA = re.compile(r"([0-9a-f]{40})\s+HEAD")
-_NPM_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]{1,40})?")
 _PIP_VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){1,3}")
-_SHA256 = re.compile(r"[0-9a-f]{64}")
 # what a track failure can raise: the tools errors, the OS (a missing program, a dead network), and bad answers from the network
 FAILURES = (tools.ToolError, hostos.SemCasa, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
 
@@ -99,7 +97,7 @@ class Io:
                  now: Optional[Callable[[], int]] = None, which: Optional[Callable] = None,
                  read: Optional[Callable] = None) -> None:
         self.network = network
-        self.run = run or tools._run_subprocess
+        self.run = run or tools.run_subprocess
         self.read = read or (run if run is not None else _run_leitura)
         self.fetch_json = fetch_json or _fetch_json
         self.now = now or (lambda: int(time.time()))
@@ -118,7 +116,7 @@ def _need_network(io: Io, what: str) -> None:
 
 def _must(done, what: str):
     if done.returncode != 0:
-        raise tools.ToolError(f"{what}: {tools._motivo(done) or f'código {done.returncode}'}")
+        raise tools.ToolError(f"{what}: {tools.motivo(done) or f'código {done.returncode}'}")
     return done
 
 
@@ -150,7 +148,7 @@ def resolve_npm(t: tools.Tool, io: Io) -> dict:
         raise tools.ToolError("npm não encontrado no PATH (Node >= 18)")
     done = _must(io.read([npm, "view", t.source, "version"], None), f"npm view {t.source}")
     version = (done.stdout or "").strip()
-    if not _NPM_VERSION.fullmatch(version):
+    if not tools_lock.NPM_VERSION.fullmatch(version):
         raise tools.ToolError(f"npm view {t.source} não devolveu uma versão: {version[:40]!r}")
     return {"ref": version}
 
@@ -168,7 +166,7 @@ def resolve_pip(t: tools.Tool, io: Io) -> dict:
     for file in document.get("urls") or []:
         if isinstance(file, dict) and file.get("packagetype") == "bdist_wheel" and file.get("filename") == wheel:
             digest = (file.get("digests") or {}).get("sha256")
-            if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+            if not isinstance(digest, str) or not tools_lock.SHA256.fullmatch(digest):
                 raise tools.ToolError(f"PyPI: o wheel {wheel} não traz um sha256 válido")
             return {"ref": version, "sha256": digest}
     raise tools.ToolError(f"PyPI: não achei o wheel {wheel}")
@@ -177,8 +175,8 @@ def resolve_pip(t: tools.Tool, io: Io) -> dict:
 def pin_only(t: tools.Tool) -> bool:
     """video-use never follows its upstream: the checkout must stay the commit `edit setup` makes (VU_REF of setup.sh). video_to_skill
     neither: the extractor binary and the SKILL.md are pinned together (data/video_to_skill/pins.json), and a newer SKILL.md may ask
-    for another extractor version."""
-    return t.name in ("video-use", "video_to_skill")
+    for another extractor version. The registry says which (`Tool.pin_only`)."""
+    return t.pin_only
 
 
 def resolve(t: tools.Tool, io: Io) -> dict:
@@ -199,12 +197,9 @@ def pin_target(t: tools.Tool) -> dict:
 
 
 def checkout_for(t: tools.Tool) -> Path:
-    """Where a git track lives. video-use's checkout is kept by data/tools/video-use/setup.sh (VIDEO_USE_DIR, else ~/.cache), not the
-    tools cache: the update moves that one, and the registry marker tells it apart. VIDEO_USE_DIR is taken as it is, as bash takes it
-    in setup.sh (no ~ expansion inside a variable's value); the default is ~/.cache/simplicio/video-use under hostos.home_absoluta (HOME
-    first), the same home the lock uses; with no usable home it raises hostos.SemCasa (a relative `~` would make a folder in the cwd)."""
-    if t.name == "video-use":
-        return Path(os.environ.get("VIDEO_USE_DIR") or hostos.home_absoluta("VIDEO_USE_DIR") / ".cache" / "simplicio" / "video-use")
+    """Where a git track lives: `tools.checkout_dir`. video-use's checkout is kept by data/tools/video-use/setup.sh (VIDEO_USE_DIR, else
+    ~/.cache), not the tools cache: the update moves that one, and the registry marker tells it apart (the registry names that variable in
+    `Tool.checkout_env`, and checkout_dir reads it as bash does in setup.sh: no ~ expansion inside a variable's value)."""
     return tools.checkout_dir(t)
 
 
@@ -250,7 +245,7 @@ def _in_place(t: tools.Tool, previous: Optional[dict], target: dict, mode: str) 
     """True when the track is already at the target (same mode, same ref, last attempt ok, and the files are there): nothing moves."""
     if not previous or previous.get("status") != "ok" or previous.get("mode") != mode:
         return False
-    if not _same_ref(t, previous.get("ref") or "", target["ref"]):
+    if not same_ref(t, previous.get("ref") or "", target["ref"]):
         return False
     if t.kind == "git":
         d = checkout_for(t)
@@ -296,7 +291,7 @@ def refresh(t: tools.Tool, mode: str, previous: Optional[dict], io: Io) -> tuple
 
 
 def _override(t: tools.Tool) -> Optional[str]:
-    return os.environ.get(f"SIMPLICIO_{t.name.upper()}_REF") or None
+    return os.environ.get(tools.override_var(t)) or None
 
 
 def apply_all(doc: dict, mode: str, io: Io, lock_file: Optional[Path] = None) -> tuple[list[str], int]:
@@ -311,7 +306,7 @@ def apply_all(doc: dict, mode: str, io: Io, lock_file: Optional[Path] = None) ->
         if override:
             tracks[t.name] = {"kind": t.kind, "source": t.source, "mode": "override", "status": "ok", "ref": override,
                               "resolved_at": now}
-            lines.append(f"  {t.name:<13} fixada por SIMPLICIO_{t.name.upper()}_REF={override}: não mexi")
+            lines.append(f"  {t.name:<13} fixada por {tools.override_var(t)}={override}: não mexi")
             continue
         entry, outcome, before = refresh(t, mode, old.get(t.name), io)
         tracks[t.name] = entry
@@ -333,7 +328,7 @@ def apply_all(doc: dict, mode: str, io: Io, lock_file: Optional[Path] = None) ->
 # --- what would happen (--check and --dry-run write nothing) ----------------------------------------------------------
 
 
-def _same_ref(t: tools.Tool, current: str, target: str) -> bool:
+def same_ref(t: tools.Tool, current: str, target: str) -> bool:
     if t.kind == "git":  # a registry pin may keep the short commit (video-use)
         return current.startswith(target) or target.startswith(current)
     return current == target
@@ -345,7 +340,7 @@ def report(mode: str, io: Io, *, dry: bool) -> list[str]:
     for t in tools.TOOLS.values():
         override = _override(t)
         if override:
-            lines.append(f"  {t.name:<13} fixada por SIMPLICIO_{t.name.upper()}_REF={override}: o update não mexe")
+            lines.append(f"  {t.name:<13} fixada por {tools.override_var(t)}={override}: o update não mexe")
             continue
         current, _ = tools.effective(t)
         mode_t = "pin" if pin_only(t) else mode
@@ -354,7 +349,7 @@ def report(mode: str, io: Io, *, dry: bool) -> list[str]:
         except FAILURES as exc:
             lines.append(f"  {t.name:<13} não consultado: {exc}")
             continue
-        same = _same_ref(t, current, target["ref"])
+        same = same_ref(t, current, target["ref"])
         if mode_t == "pin":
             if same:
                 lines.append(f"  {t.name:<13} no pin: {current}")
