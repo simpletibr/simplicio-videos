@@ -43,7 +43,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `REA_VIDEO_PYTHON` | Interpretador que cria o venv do rea-video no `setup`, por exemplo `python3.11` para o extra de OCR. Um venv que já existe é mantido. | `src/simplicio_video/rea_video.py:161` |
 | `SIMPLICIO_BUSCA_MAX_DIA` | Teto de chamadas ao TinyFish por dia UTC no `busca` (padrão 20; máximo 1000). `--max-chamadas-dia` vence. O MCP e o plugin só usam este valor ou o padrão. | `src/simplicio_video/busca.py:365` |
 | `SIMPLICIO_COLAB_AUTH` | Modo de autenticação do Colab CLI, repassado a `--auth`. | `src/simplicio_video/remote.py:183`<br>`src/simplicio_video/remote.py:184` |
-| `SIMPLICIO_DRIVE_REMOTE` | Nome do remote do rclone para o Drive (padrão: `gdrive`). | `src/simplicio_video/publish.py:108` |
+| `SIMPLICIO_DRIVE_REMOTE` | Nome do remote do rclone para o Drive (padrão: `gdrive`). | `src/simplicio_video/publish.py:109` |
 | `SIMPLICIO_FFMPEG_DIR` | Pasta do ffmpeg/ffprobe fixados (render local e `swap`). | `src/simplicio_video/mediaio.py:25`<br>`src/simplicio_video/openverse_sheet.py:30`<br>`src/simplicio_video/swap.py:106` |
 | `SIMPLICIO_FFMPEG_SHA256` | SHA-256 esperado do ffmpeg estático de `SIMPLICIO_FFMPEG_URL`. | `src/simplicio_video/render.py:259` |
 | `SIMPLICIO_FFMPEG_URL` | URL de um ffmpeg estático fixado, baixado e verificado pelos renders remotos. | `src/simplicio_video/render.py:257`<br>`src/simplicio_video/render.py:258` |
@@ -54,13 +54,13 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SIMPLICIO_MONTAGE_TIMEOUT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/montage.py:778` |
 | `SIMPLICIO_OFFLINE` | `1` bloqueia rede nas checagens offline (inclui a consulta da última release no `update` e no `doctor --online`). O gate (`make check`) roda com `1`. | `src/simplicio_video/busca.py:602`<br>`src/simplicio_video/commands/update.py:63`<br>`src/simplicio_video/instagram.py:148`<br>`src/simplicio_video/montage.py:36`<br>`src/simplicio_video/openverse.py:783`<br>`src/simplicio_video/swap_providers/http.py:45`<br>`src/simplicio_video/tools_update.py:67`<br>`src/simplicio_video/toonflow.py:59` |
 | `SIMPLICIO_OPENMONTAGE_DIR` | Pasta do OpenMontage (alternativa a `OPENMONTAGE_DIR`). | `src/simplicio_video/montage.py:44` |
-| `SIMPLICIO_RCLONE_BIN` | Caminho do binário do rclone (padrão: o `rclone` do PATH). | `src/simplicio_video/publish.py:116` |
+| `SIMPLICIO_RCLONE_BIN` | Caminho do binário do rclone (padrão: o `rclone` do PATH). | `src/simplicio_video/publish.py:117` |
 | `SIMPLICIO_STT_PY` | Python com o motor de transcrição (STT). Padrão: o Python do TTS local. | `src/simplicio_video/words.py:36` |
 | `SIMPLICIO_TOOLS_DIR` | Pasta das ferramentas opcionais instaladas (padrão: `~/.simplicio-video/tools`). | `src/simplicio_video/montage.py:47`<br>`src/simplicio_video/tools.py:225` |
-| `SIMPLICIO_TTS_PY` | Python com kokoro-onnx e soundfile (TTS local; padrão: `~/.local/share/simplicio-tts/cbvenv`). | `src/simplicio_video/doctor_trilhas.py:535`<br>`src/simplicio_video/paths.py:76` |
+| `SIMPLICIO_TTS_PY` | Python com kokoro-onnx e soundfile (TTS local; padrão: `~/.local/share/simplicio-tts/cbvenv`). | `src/simplicio_video/doctor_trilhas.py:535`<br>`src/simplicio_video/paths.py:86` |
 | `SIMPLICIO_VIDEO_DATA` | Pasta de dados do simplicio-video (padrão: `~/.simplicio-video`). Lida pelas trilhas `montage`, `toonflow`, `moneyprinter` e `rea-video`, pelo `jobs` (estado das tarefas em `jobs/`), pelo `busca` (cache, contador e registro em `busca/`) e pelo `update` (`update-check.json`, que o `doctor` lê sem rede). | `src/simplicio_video/busca.py:288`<br>`src/simplicio_video/commands/update.py:312`<br>`src/simplicio_video/jobs.py:75`<br>`src/simplicio_video/matchcut.py:419`<br>`src/simplicio_video/moneyprinter.py:109`<br>`src/simplicio_video/montage.py:197`<br>`src/simplicio_video/montage.py:49`<br>`src/simplicio_video/openverse.py:196`<br>`src/simplicio_video/rea_video.py:72`<br>`src/simplicio_video/tools_lock.py:48`<br>`src/simplicio_video/toonflow.py:73`<br>`src/simplicio_video/trilha_base.py:46` |
-| `SIMPLICIO_VIDEO_HOME` | Checkout do simplicio-video (dados do motor e raiz do repo). Sem ela, o pacote procura o checkout. | `src/simplicio_video/paths.py:31`<br>`src/simplicio_video/paths.py:64` |
-| `SIMPLICIO_WORKSPACE` | Pasta do workspace da fábrica (padrão: `~/.simplicio-video/workspaces/default`). | `src/simplicio_video/paths.py:48` |
+| `SIMPLICIO_VIDEO_HOME` | Checkout do simplicio-video (dados do motor e raiz do repo). Sem ela, o pacote procura o checkout. | `src/simplicio_video/paths.py:40`<br>`src/simplicio_video/paths.py:74` |
+| `SIMPLICIO_WORKSPACE` | Pasta do workspace da fábrica (padrão: `~/.simplicio-video/workspaces/default`). | `src/simplicio_video/paths.py:58` |
 | `SV_BROWSER_GPU` | `1` liga a GPU do navegador na captura do render. | `src/simplicio_video/render.py:191`<br>`src/simplicio_video/render.py:94` |
 | `SV_BUNDLE` | Caminho do bundle a renderizar no render remoto. | `src/simplicio_video/engine/remote_render.py:190` |
 | `SV_FFMPEG_SHA256` | SHA-256 do ffmpeg estático do render remoto (padrão: o fixado no bundle). | `src/simplicio_video/engine/remote_render.py:220` |
