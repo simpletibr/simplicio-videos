@@ -23,7 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import childio, paths, tools
+from . import childio, paths, terceiros, tools
 from .childio import run_child, under_mcp
 from .rede import offline as _offline
 from .trilha_base import Trilha
@@ -707,8 +707,7 @@ _FF_PROTO = re.compile(r"\s*(subfile|concat|pipe|fd|tcp|udp|http|https|rtmp|file
 # FFREPORT=\"\" would still make ffmpeg write a report file: a log to /dev/null writes nothing.
 _NEUTRAL = {"FFREPORT": "file=/dev/null"}
 _RUN_DIR = "run"  # under data_dir(): the working folder of the strict runs, never the caller's cwd
-_ENV_KEEP = ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TEMP", "TMP", "USER", "SYSTEMROOT", "PATHEXT",
-             "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
+_ENV_KEEP = ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TEMP", "TMP", "USER", "SYSTEMROOT", "PATHEXT", *terceiros.PROXIES,
              "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "NODE_EXTRA_CA_CERTS", "PIP_CERT")
 
 # Runs with the venv's Python (-I). The checkout is inserted in sys.path by the child. Same stdout trick as _CHILD: the
@@ -789,7 +788,7 @@ def _neutral_keys(om_dir: Path) -> list[str]:
 def _child_env(keys=(), neutral=()) -> dict:
     """The environment of a child: what it needs to run, the named provider keys, and the neutral values for the names in
     `neutral` that the child does not already have (nothing else)."""
-    env = {k: os.environ[k] for k in _ENV_KEEP if k in os.environ}
+    env = terceiros.env_para_terceiro(_ENV_KEEP, base=os.environ)
     env.update({k: os.environ[k] for k in keys if k in os.environ})
     for k in neutral:
         if k not in env:
