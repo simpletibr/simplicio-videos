@@ -382,8 +382,8 @@ def test_the_table_has_the_20_track_commands_and_where_to_find_each():
     assert set(cli.COMANDOS) == set(NOMES)
     for cmd, modulo, run, erro in TRILHAS:
         c = cli.COMANDOS[cmd]
-        assert (c.nome, c.modulo, c.run, c.erro) == (cmd, modulo, run, erro), cmd
-        mod = _modulo(c.modulo)
+        mod = c.modulo()  # the loader of the command: it imports the module now
+        assert (c.nome, mod.__name__, c.run, c.erro) == (cmd, f"simplicio_video.{modulo}", run, erro), cmd
         assert callable(getattr(mod, c.run)), cmd
         if c.erro:
             assert issubclass(getattr(mod, c.erro), Exception), cmd
@@ -402,7 +402,7 @@ def test_the_table_says_who_prints_the_help():
         "video-to-skill": "propria"}
     for c in cli.COMANDOS.values():
         if c.ajuda == "propria":
-            assert hasattr(_modulo(c.modulo), c.ajuda_em), c.nome  # the verbs (or the test) that the module answers for
+            assert hasattr(c.modulo(), c.ajuda_em), c.nome  # the verbs (or the test) that the module answers for
 
 
 def test_the_table_is_immutable_data():
@@ -478,3 +478,12 @@ def test_cli_does_not_know_the_internals_of_the_track_modules():
     fonte = CLI_PY.read_text(encoding="utf8")
     for interno in ("rea_video.repassa", "media.SUBCOMMANDS", "edit.SUBCOMMANDS", "video_to_skill.SUBCOMMANDS", "montage.REGISTRY_COMMANDS"):
         assert interno not in fonte, interno
+
+
+def test_every_module_the_table_dispatches_to_is_still_a_static_import_of_cli():
+    """tests/test_childio.py finds the modules the MCP server can reach by reading the imports (inside functions too), and the MCP
+    runs `cli.main`; tests/test_motor_sem_vendas.py refuses an `import_module` by a name it cannot read. So each loader of the
+    table is a plain `from . import x` (`clone.py` was only reachable through the CLI: a dynamic import would drop it from the scan)."""
+    importados = {a.name for n in ast.walk(_cli_tree()) if isinstance(n, ast.ImportFrom) and n.level == 1 for a in n.names}
+    assert {c.modulo().__name__.rpartition(".")[2] for c in cli.COMANDOS.values()} <= importados
+    assert "import_module" not in CLI_PY.read_text(encoding="utf8")

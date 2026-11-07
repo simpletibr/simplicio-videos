@@ -41,7 +41,7 @@ Fluxo completo:
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/matchcut/instagram/rea-video/video-to-skill/social/openverse/busca
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/social/openverse/voicestudio/busca/toonflow/moneyprinter/matchcut/instagram/rea-video/video-to-skill/shorts/media/tools/qc/status/doctor/setup/install/update
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      copia as skills do simplicio-video para o host do agente (11 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
   update       pacote pip: PyPI e reinstala as skills; checkout git: recusa (git pull e scripts/dev_install.sh); --check sai 0, 10 ou 2
@@ -117,7 +117,7 @@ ambiente:
   SIMPLICIO_FFMPEG_DIR  ffmpeg travado no render local (mesmo build em todo backend = mesmos bytes)
   SIMPLICIO_FFMPEG_URL/_SHA256  o mesmo ffmpeg (.tar.xz) baixado e conferido pelos backends remotos
   SV_WORKERS / SV_BROWSER_GPU  workers de captura (auto = núcleos-2) / raster de GPU no Chrome (1 = sem determinismo)
-custo por vídeo (medido e oficial): docs/custos.md · credenciais: docs/decisoes/ADR-0003-fluxo-100-script.md
+custo por vídeo (medido e oficial): https://github.com/simpletibr/simplicio-videos/blob/v0.8.0/docs/custos.md · credenciais: https://github.com/simpletibr/simplicio-videos/blob/v0.8.0/docs/decisoes/ADR-0003-fluxo-100-script.md
 ```
 
 ## simplicio-video busca
@@ -723,13 +723,13 @@ e os créditos vão para <saida>.CREDITS-openverse.md ao lado do MP4.
 backends (todos sem navegador, exceto colab):
   local      PADRÃO. Renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver).
              Referência de hash, sem custo (vídeo de 600 frames: 76,5 s em 8 núcleos).
-  -- opcionais, para clientes via créditos (custo e tempo medidos em docs/custos.md) --
+  -- opcionais, para clientes via créditos (custo e tempo medidos em https://github.com/simpletibr/simplicio-videos/blob/v0.8.0/docs/custos.md) --
   kaggle     bundle -> dataset privado Kaggle -> kernel (T4, internet) -> poll -> baixa o MP4.
              Precisa do CLI `kaggle`, KAGGLE_USERNAME + token (KAGGLE_API_TOKEN ou ~/.kaggle/access_token)
              e conta com telefone verificado (internet no kernel). --accelerator none = CPU (sem cota de GPU).
   colab-cli  Colab oficial por CLI (`pip install google-colab-cli`): new --gpu T4 -> upload -> exec ->
              download -> stop (sempre). Login Google uma vez (código colado no terminal).
-  colab      NÃO renderiza: gera <saida>.colab-bundle.zip para colab/render.ipynb no navegador (manual)
+  colab      NÃO renderiza: gera <saida>.colab-bundle.zip para https://github.com/simpletibr/simplicio-videos/blob/v0.8.0/colab/render.ipynb no navegador (manual)
 Remotos baixam final.mp4 e gravam o mesmo render.manifest.json (+ usage: backend, GPU, tempos) para créditos.
 --json: stdout só o objeto {ok, contrato, backend, preview, output, manifest}; erro vira
   {ok: false, error: {code, message}}. Códigos de erro (error.code): CONTRATO_NAO_ENCONTRADO,

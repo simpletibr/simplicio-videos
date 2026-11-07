@@ -1178,7 +1178,8 @@ def test_help_da_busca_traz_o_aviso_de_terceiro_o_que_ficou_de_fora_e_o_gasto():
 def test_help_geral_lista_busca_e_o_mcp_cita_video_busca():
     r = run_cli("--help")
     assert r.returncode == 0, r.stderr
-    assert "    busca" in r.stdout and "openverse/busca" in r.stdout
+    # the `mcp` line is generated from mcp_server.TOOLS (U10a): `busca` is no longer the last name, after `openverse`
+    assert "    busca" in r.stdout and "/busca/" in r.stdout
 
 
 def test_main_sem_subcomando_imprime_ajuda_e_sai_com_1(capsys):
