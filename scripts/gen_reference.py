@@ -87,6 +87,7 @@ FRONT_MATTER = re.compile(r"^---\n(.*?)\n---\n", re.S)
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]+$")
 ENV_READERS = {"get", "pop", "setdefault"}
 TRILHA_ENV_ARGS = ("env_dir", "env_data")  # the keyword names of the two variables of a `Trilha(...)` (positions 1 and 2)
+TOOL_ENV_ARGS = ("checkout_env",)  # the keyword of a `Tool(...)` that names the variable of a checkout kept outside the tools cache
 
 # What each variable is for. A variable the code reads but this table does not describe is still listed, marked
 # as undescribed, so the gap shows up in the reference instead of being hidden.
@@ -287,10 +288,19 @@ def _variaveis_da_trilha(call) -> list:
     return [*call.args[1:3], *(k.value for k in call.keywords if k.arg in TRILHA_ENV_ARGS)]
 
 
+def _is_tool(func) -> bool:
+    return (isinstance(func, ast.Name) and func.id == "Tool") or (isinstance(func, ast.Attribute) and func.attr == "Tool")
+
+
+def _variaveis_do_tool(call) -> list:
+    """The node that names the variable of a checkout outside the tools cache in a `Tool(...)` call (`checkout_env=`, by keyword)."""
+    return [k.value for k in call.keywords if k.arg in TOOL_ENV_ARGS]
+
+
 def env_reads() -> dict[str, list[str]]:
     """Environment variable names read (or set) by the package, found by ast, with `arquivo:linha` locations. A track names its
     checkout and data variables only as the arguments of `Trilha(...)` (trilha_base reads them through the declaration), so those
-    arguments count as reads, at the line of the call."""
+    arguments count as reads, at the line of the call; so does the `checkout_env` of a `Tool(...)` of the registry (tools.checkout_dir)."""
     found: dict[str, set[str]] = {}
 
     def add(name, rel, line):
@@ -316,6 +326,9 @@ def env_reads() -> dict[str, list[str]]:
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and _is_trilha(node.func):
                 for arg in _variaveis_da_trilha(node):
+                    add(literal(arg), rel, node.lineno)
+            if isinstance(node, ast.Call) and _is_tool(node.func):
+                for arg in _variaveis_do_tool(node):
                     add(literal(arg), rel, node.lineno)
             if isinstance(node, ast.Call) and node.args:
                 func = node.func
