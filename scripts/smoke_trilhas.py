@@ -91,23 +91,19 @@ class ChamadaMcp:
     espera: str = "ok"     # "ok": the answer has ok true; "recusa": must refuse (fetch with no URL, nothing downloaded)
 
 
-# The read-only MCP call of each track, keyed by the registry names of tools.py (TOOLS).
-MCP_LEITURA: dict[str, ChamadaMcp] = {
-    "openmontage": ChamadaMcp("video_montage", {"args": "status --json"}, precisa=True),
-    "opencut": ChamadaMcp("video_opencut", {"args": "where"}, precisa=True),
-    # `clone --help` would pass through to Hypit (npx when it is not installed): the read-only status of the engine is asked instead
-    "hypit": ChamadaMcp("video_clone", {"args": "status --json"}, precisa=True),
-    "toonflow": ChamadaMcp("video_toonflow", {"args": "where"}, precisa=True),
-    "moneyprinter": ChamadaMcp("video_moneyprinter", {"args": "status"}, precisa=True),
-    "matchcut": ChamadaMcp("video_matchcut", {"args": "status"}, precisa=True),
-    "instagram": ChamadaMcp("video_instagram", {"acao": "status"}, precisa=True),
-    "voicestudio": ChamadaMcp("video_voicestudio", {"args": "status"}, precisa=False),
-    "video-use": ChamadaMcp("video_edit", {"args": "--help"}, precisa=False),
-    "tinyfish": ChamadaMcp("video_busca", {"acao": "status"}, precisa=True),
-    "yt-dlp": ChamadaMcp("video_media", {"args": ["fetch"]}, precisa=False, espera="recusa"),
-    "rea_video": ChamadaMcp("video_rea_video", {"args": "where"}, precisa=True),
-    "video_to_skill": ChamadaMcp("video_video_to_skill", {"args": "status"}, precisa=True),
-}
+def _chamada_mcp(nome: str, t: tools.Tool) -> ChamadaMcp:
+    """The read-only MCP call of a track, from its entry of tools.TOOLS (`Tool.mcp_read`). The MCP function is `video_` plus the first word
+    of the track's CLI command (`rea-video` -> `video_rea_video`; `media fetch` -> `video_media`). A track that declares no call stops the
+    script here, loudly: a track the smoke does not know would otherwise pass unchecked."""
+    leitura = t.mcp_read
+    if leitura is None:
+        raise ValueError(f"{nome}: a trilha não declara `mcp_read` em tools.TOOLS (a chamada MCP de leitura do smoke)")
+    valor = list(leitura.value) if isinstance(leitura.value, tuple) else leitura.value
+    return ChamadaMcp("video_" + t.command.split()[0].replace("-", "_"), {leitura.param: valor}, leitura.needs_checkout, leitura.expect)
+
+
+# The read-only MCP call of each track, keyed by the registry names of tools.py (TOOLS): derived from it, never a second table.
+MCP_LEITURA: dict[str, ChamadaMcp] = {nome: _chamada_mcp(nome, t) for nome, t in tools.TOOLS.items()}
 
 # A subcommand that must refuse without its arguments (checked with no URL, so nothing is downloaded).
 CLI_RECUSA = {"yt-dlp": "fetch"}
@@ -397,7 +393,7 @@ def _checar_mcp(nome: str, instalada: bool) -> Resultado:
 def checar_trilha(nome: str) -> list[Resultado]:
     """The checks of one external track: its --help, then `where` and `status` through the CLI (when the --help lists them)
     and its read-only MCP call. Nothing runs past the --help unless the track is installed."""
-    top = tools.COMMANDS.get(nome, nome).split()[0]
+    top = tools.TOOLS[nome].command.split()[0]
     instalada = tools.is_installed(tools.TOOLS[nome])
     pode = instalada or nome in APP_LOCAL  # a desktop app is asked even with no checkout here (it answers or it is closed)
     ajuda_argv = AJUDA_CLI.get(nome, ("--help",))

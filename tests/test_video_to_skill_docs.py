@@ -138,8 +138,10 @@ def test_the_env_vars_of_the_track_are_described_in_the_reference_generator():
 
 
 def test_smoke_trilhas_has_a_read_only_script_for_the_track():
+    # the table of the smoke (MCP_LEITURA) is derived from the registry (U09): the track declares its read-only call in tools.TOOLS, and the
+    # script builds `ChamadaMcp("video_video_to_skill", {"args": "status"}, precisa=True)` from it (test_registro_trilhas.py checks the table)
     text = (ROOT / "scripts" / "smoke_trilhas.py").read_text(encoding="utf8")
-    assert '"video_to_skill": ChamadaMcp("video_video_to_skill", {"args": "status"}, precisa=True)' in text
+    assert tools.get("video_to_skill").mcp_read == tools.McpRead("args", "status") and "tools.TOOLS.items()" in text
 
 
 # ------------------------------------------------------------------------------------------------- review of PR #207
