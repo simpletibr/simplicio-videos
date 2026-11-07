@@ -193,6 +193,10 @@ def _cenarios_de_dados(monkeypatch, tmp_path, env_data: str):
     def raiz_de_dados_com_til():
         monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", "~/raiz-com-til")
 
+    def raiz_de_dados_relativa():
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", "raiz/relativa")
+
     def so_o_home():
         monkeypatch.delenv("SIMPLICIO_VIDEO_DATA", raising=False)
 
@@ -202,10 +206,11 @@ def _cenarios_de_dados(monkeypatch, tmp_path, env_data: str):
 
     return {"explicita": explicita, "explicita_com_til": explicita_com_til, "explicita_relativa": explicita_relativa,
             "explicita_vazia": explicita_vazia_cai_no_resto, "raiz": raiz_de_dados, "raiz_com_til": raiz_de_dados_com_til,
-            "so_o_home": so_o_home, "explicita_vence": a_explicita_vence_a_raiz}
+            "raiz_relativa": raiz_de_dados_relativa, "so_o_home": so_o_home, "explicita_vence": a_explicita_vence_a_raiz}
 
 
-CENARIOS = ["explicita", "explicita_com_til", "explicita_relativa", "explicita_vazia", "raiz", "raiz_com_til", "so_o_home", "explicita_vence"]
+CENARIOS = ["explicita", "explicita_com_til", "explicita_relativa", "explicita_vazia", "raiz", "raiz_com_til", "raiz_relativa",
+            "so_o_home", "explicita_vence"]
 
 
 def _esperado_dados(env_data: str, sub: str) -> Path:
