@@ -2,7 +2,7 @@
 
 - **Status:** aceito. A parte determinística (`simplicio-video ugc list|prompt`) é implementada junto com esta decisão; geração de imagem e de vídeo continua manual, sem código no CLI.
 - **Data:** 02/10/2026 (BRT)
-- **Relaciona:** [ADR-0001](ADR-0001-visao-plugin.md) (esteira determinística; LLM nunca no caminho do render) · [ADR-0003](ADR-0003-fluxo-100-script.md) (fluxo 100% script, Drive, MCP) · trilha: [ugc/README.md](../../ugc/README.md) · fonte: [docs/recursos.md](../recursos.md)
+- **Relaciona:** [ADR-0001](ADR-0001-visao-plugin.md) (esteira determinística; LLM nunca no caminho do render) · [ADR-0003](ADR-0003-fluxo-100-script.md) (fluxo 100% script, Drive, MCP) · trilha: [ugc/README.md](../../arquivo/ugc/README.md) · fonte: [docs/recursos.md](../pesquisa/recursos.md)
 
 ## Contexto
 

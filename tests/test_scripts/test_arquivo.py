@@ -40,6 +40,7 @@ PESQUISAS = [
     "plugin-simplicio-runtime.md",
 ]
 LEGADO = ROOT / "arquivo" / "AGENTS-legado.md"
+CABECALHO_DA_TABELA_DO_MAPA = "| Pasta | O quê | Entrada principal |\n|---|---|---|\n"
 AGENTS = ROOT / "AGENTS.md"
 
 # The five blocks that left AGENTS.md, as they were in origin/main (ef043d7): sha256 of the exact text (see `_blocos_do_legado`).
@@ -124,7 +125,10 @@ def _blocos_do_legado() -> dict[str, str]:
     """`<!-- origem: <chave> -->` opens each block; the text up to the next marker (or the end), without the blank lines around it."""
     texto = LEGADO.read_text(encoding="utf-8")
     partes = re.split(r"^<!-- origem: ([\w-]+) -->\n", texto, flags=re.M)
-    return {chave: corpo.strip("\n") for chave, corpo in zip(partes[1::2], partes[2::2])}
+    blocos = {chave: corpo.strip("\n") for chave, corpo in zip(partes[1::2], partes[2::2])}
+    # The four map rows are shown under the header of the table they came from, so that they render as a table; the header is not theirs.
+    blocos["mapa"] = blocos["mapa"].removeprefix(CABECALHO_DA_TABELA_DO_MAPA)
+    return blocos
 
 
 def test_the_legado_keeps_the_five_dead_blocks_of_agents_md_byte_for_byte():
@@ -146,7 +150,8 @@ def test_agents_md_no_longer_carries_the_dead_blocks_and_points_to_the_legado():
     assert "(arquivo/AGENTS-legado.md)" in texto and "(arquivo/README.md)" in texto, "AGENTS.md needs the pointer to arquivo/"
     for marca in FICA_NO_AGENTS:
         assert marca in texto, f"AGENTS.md lost {marca!r}: that part is live and stays"
-    assert len(AGENTS.read_bytes()) < 54830 - 5000, "the ~6 KB of dead text should be out of AGENTS.md (it had 54,830 bytes)"
+    # ~6 KB of dead text left (it had 54,830 bytes); the social item of the Drive section (1.2 KB) and the pointer (0.6 KB) came back
+    assert len(AGENTS.read_bytes()) < 54830 - 4000, "the dead text should be out of AGENTS.md"
 
 
 # --------------------------------------------------------------------------------------------------------- ownership.yaml

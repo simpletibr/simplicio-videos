@@ -27,4 +27,4 @@ Como o intake escolhe: pergunta B6/B7 do [questionário](../intake/questionario.
 - Não clonar voz de pessoa real sem autorização escrita dela (vale para `voxcpm`, `openvoice` e `voicestudio`; guarde a autorização junto de `reference_audio`). Chaves só no ambiente/`.env` (gitignored).
 
 Detalhes técnicos do pipeline de voz (manifest, hash, sementes, tratamento, mixagem/ducking): [narracao-tts.md](narracao-tts.md).
-Benchmark planejado de TTS open-source: [docs/pipeline-deterministico-gemini.md](../docs/pipeline-deterministico-gemini.md#e-benchmark-de-tts-open-source-depois--gemini-é-o-padrão-por-enquanto).
+Benchmark planejado de TTS open-source: [docs/pesquisa/pipeline-deterministico-gemini.md](../docs/pesquisa/pipeline-deterministico-gemini.md#e-benchmark-de-tts-open-source-depois--gemini-é-o-padrão-por-enquanto).

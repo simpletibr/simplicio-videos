@@ -27,10 +27,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# The imported factory spec (docs/factory/, from PR #51, closed without merge) is excluded from every check: it is
-# reference text whose links point to pages that do not exist in this repo. tests/test_docs proves the behaviour on
-# temporary trees, so this exclusion does not hide any check from the tests.
-SPEC_PREFIXES = ("docs/factory/",)
+# arquivo/ is excluded from every check: it holds the owner's work that left the product (sales operation, the factory spec
+# imported from PR #51, the translated READMEs, ...), moved there with `git mv` and kept exactly as it was, so its links still
+# point to where things used to be. A link from a checked page INTO arquivo/ is still checked (the target must exist).
+# tests/test_docs proves the behaviour on temporary trees, so this exclusion does not hide any check from the tests.
+ARCHIVE_PREFIXES = ("arquivo/",)
 # Pages under these folders need front matter (the folder README.md is an index and is exempt).
 FRONT_MATTER_DIRS = ("docs/host/",)
 FRONT_MATTER_KEYS = ("title", "summary", "commands", "issue", "last_verified")
@@ -190,7 +191,7 @@ def check_page(rel: str, text: str, pages: set[str], cache: dict, root: Path):
 
 
 def run(root: Path) -> int:
-    pages = [p for p in list_pages(root) if not p.startswith(SPEC_PREFIXES)]
+    pages = [p for p in list_pages(root) if not p.startswith(ARCHIVE_PREFIXES)]
     page_set = set(pages)
     problems: list[str] = []
     inbound: dict[str, set[str]] = {p: set() for p in pages}

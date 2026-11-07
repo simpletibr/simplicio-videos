@@ -48,10 +48,6 @@ Qualquer tarefa de áudio ou vídeo (legendar, traduzir texto da tela, dublar, t
 - Nada de publicar: o motor gera o arquivo; a publicação é de outra camada.
 - Voz de pessoa real só com consentimento registrado (ver `voicestudio` e a licença de cada modelo).
 
-## Missão e operação de vendas
-
-Este repositório é só a **execução dos scripts e a geração dos vídeos** (CLI `simplicio-video`). A **missão de vendas e o guia de operação** (preços, mensagens aprovadas, funil, planilha de controle, Paperclip, times, estado atual e próximos passos) ficam no Google Drive, em [`simplicio-video/AGENTS.md`](https://drive.google.com/file/d/19Y0BvZw-st_YasMk39vNkbNGd_4pJ4ir/view?usp=drivesdk) (conta wesleybob4). Leia esse guia antes de qualquer trabalho de venda ativa.
-
 ## O que é
 
 **simplicio-videos** é o plugin de vídeo do **Simplicio Runtime (Simplicio MCP)** ([ADR-0001](docs/decisoes/ADR-0001-visao-plugin.md)). Pedido de vídeo → **esteira determinística** ([docs/esteira.md](docs/esteira.md)):
@@ -129,7 +125,6 @@ Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão
 | `skills/deep-news/` | `SKILL.md`: vídeo deep de post, notícia ou boato: apura com fonte e data por que viralizou, disseca trecho a trecho (psicologia, linguística, emoção, algoritmo e rede) e vira roteiro curto 9:16 | [SKILL.md](skills/deep-news/SKILL.md) |
 | `skills/deep-service/` | `SKILL.md`: vídeo deep para oferecer serviço: o método deep na versão honesta (diagnóstico do público, mecanismo, prova da coleta) e roteiro 9:16 de 30 a 60 s | [SKILL.md](skills/deep-service/SKILL.md) |
 | `skills/deep-product/` | `SKILL.md`: vídeo deep para oferecer produto digital ou físico: demonstração real, mecanismo na versão honesta, condições só da coleta e roteiro 9:16 de 20 a 45 s | [SKILL.md](skills/deep-product/SKILL.md) |
-| `modules/h3-swap-service/` | Módulo opcional e isolado: troca de personagem em vídeo (MiniMax H3 + LoRA) em GPU alugada (Vast/Salad) com fila na Cloudflare. NÃO é importado pelo motor nem entra no wheel/sdist; `api/` (créditos/cobrança) é deploy próprio, fora do pacote (ver o conflito com o boundary no README do módulo). Tudo UNVERIFIED até o benchmark numa GPU real | [README](modules/h3-swap-service/README.md) |
 | `colab/` | `render.ipynb` (render do bundle na GPU, tempos por etapa) + README | [colab/README.md](colab/README.md) |
 | `tests/` | pytest: schema, validate, voice, compile (WJR byte a byte), `--help`, determinismo de hash (render de 1 s), fixture `fixtures/mini/` | — |
 | `intake/` | Etapa 1: questionário (modo auto/completo), regras de extração de site/IG (só público, fonte+data por fato), `intake.schema.json` (`simplicio.intake/v1`), `exemplos/` | [intake/README.md](intake/README.md) |
@@ -138,14 +133,13 @@ Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão
 | `motion/` | Etapa 4: biblioteca — `patterns/<id>/` (`pattern.json`, `block.html`, `preview.png`), `catalog.json` (gerado), `lib/retime.js`, `assets/` (fontes OFL, placeholders), `scripts/` (`preview.sh`, `catalog.mjs`), `pattern.schema.json` | [motion/README.md](src/simplicio_video/data/motion/README.md) |
 | `voices/` | Etapa 5: providers (`gemini.md` = tutorial, `elevenlabs.md`, `xai.md`, `local.md`), `narracao-tts.md` (pipeline, cache, tratamento) | [voices/README.md](voices/README.md) |
 | `tools/` | Ferramentas **opcionais** com versão fixada: `video-use/` (etapa 6 — `setup.sh`, `transcribe_local.py`, `edl_transcript.py`, README com quando usar × HyperFrames direto) | [tools/README.md](tools/README.md) |
-| `ugc/` | **Trilha UGC (gerativa, fora do `render`)**: `pack.json` (10 personagens, `simplicio.ugc-pack/v1`) + `pack.schema.json`, `prompts/` (5 prompts: elenco, imagem, fullbody, roteiros, Seedance). O CLI `ugc list\|prompt` só monta/valida o prompt; imagem e vídeo são gerados à mão. [ADR-0004](docs/decisoes/ADR-0004-ugc-generativo.md) | [ugc/README.md](ugc/README.md) |
 | `docs/` | `decisoes/` (ADRs), `esteira.md`, setup, pipeline determinístico, plugin, pesquisa | [docs/README.md](docs/README.md) |
-| `scripts/kit_gpu/` | **Kit de medição da troca de personagem em GPU de 6 GB** (material de operação e de teste, fora do pacote `simplicio_video`): seis scripts Python autônomos (`checar_maquina`, `preparar_entradas`, `medir_gpu`, `compor_final`, `conferir_troca`, `receita_test_hash`); `numpy`/`opencv`/`torch` são só deles, fora do `pyproject.toml`. Texto, prompt e resultados em `docs/how-to/troca-personagem-gpu/` | [LEIA-ME](docs/how-to/troca-personagem-gpu/LEIA-ME.md) |
-| `prospects/` | **Venda ativa** (fora do git, exceto `exemplo-dia-criancas.csv`): `<lote>/<slug>/{coleta.json, contract.yaml, preview.mp4, result.json}` + `<lote>/lote.csv` | [docs/venda-ativa.md](docs/venda-ativa.md) |
 | `clients/<cliente>/coleta/` | **Fatos** do cliente: `brief.md`, `fontes.md` (com data), `pendencias.md`, site salvo, `colors.json`, checklist | — |
 | `clients/<cliente>/video-NN-videouse/` | Edição com video-use (etapa 6, opcional): `run.sh`, `source.variables.json` (variante da fonte), `edit/` (`edl.json`, transcrições, `takes_packed.md`, `project.md`, `verify/`), `overlay/` (HyperFrames → MOV alfa), `preview/` | README do vídeo |
 | `clients/<cliente>/<video>/contract.yaml` | **Vídeo pelo CLI**: `contract.yaml`, `timing.lock.json`, `render.manifest.json`, `assets/audio/voz/` (falas tratadas), `assets/audio/vo/external/` (WAVs Gemini), README/roteiro, `preview/`. Ex.: Lothus `video-01-dia-das-criancas` | README do vídeo |
 | `clients/<cliente>/video-NN/` | (legado, WJR) Projeto HyperFrames autocontido (`package.json`; rode os comandos **dentro** dele): `spec.json` (variáveis, áudio/cues, voz, clipes), `video.json`, `index.html` (timeline única + `RETIME`), `scripts/` (`build.mjs`, `voice.py`, `master.sh`, `gemini-tts.mjs`), `assets/` (+ `audio/LICENSES.md`), `preview/` | README do vídeo |
+
+Pastas, fluxos e linhas deste mapa que saíram do repositório do motor (UGC, `prospects/`, o módulo `h3-swap-service`, o kit de GPU, a missão e a venda ativa, as entregas no Drive) foram movidos, não apagados: o índice está em [`arquivo/README.md`](arquivo/README.md) e o texto antigo deste arquivo, copiado como estava, em [`arquivo/AGENTS-legado.md`](arquivo/AGENTS-legado.md). `schema/`, `schemas/`, `templates/` e `motion/` são, no pacote, `src/simplicio_video/data/<pasta>/`.
 
 ### Módulos de `src/simplicio_video/`
 
@@ -251,24 +245,12 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 2. Congele em `clients/<slug>/coleta/intake.json` (valide com `intake/intake.schema.json`) + `brief.md`, `fontes.md` (URL + data), `pendencias.md`. Fato dito em conversa = fonte nova ("confirmado por X em DD/MM/AAAA").
 3. Confirme o brief com o usuário antes de seguir.
 
-**Venda ativa em massa (prévias para oferecer)**
-1. Monte o CSV (`nome, cidade, setor, site, instagram, whatsapp, maps, nome_curto, fontes`) com empresas achadas por busca web; registre a fonte de cada @/WhatsApp.
-2. O template sai da coluna `setor` (tabela de roteamento do repositório de operação; saiu do pacote do motor): `--campanha auto` (padrão) = odontologia/infantil no Dia das Crianças, advocacia e estética nos institucionais; `--campanha institucional` = institucional por setor. Advocacia exige `oab`.
-   `prospect` saiu do CLI do motor (#77) e fica no repositório de operação (antes gerava `prospects/<lote>/<slug>/preview.mp4` + `lote.csv`).
-3. Padrão v2 (default): voz Gemini 3.8 Flash TTS Laomedeia animada (a da Lothus v02; reserva Achernar), **logo real** (coluna `logo` do CSV tirada do site/Instagram da empresa, ou logo do site) e ritmo da Lothus v02; nunca gerar/recriar logo. Só dado público e da empresa (LGPD), Instagram sem login (robots.txt do instagram.com proíbe robôs: o @ vem do CSV/site), nunca preço/promoção/fato inventado. **Nada é enviado pelo agente**: o Wesley revisa e envia ([docs/venda-ativa.md](docs/venda-ativa.md)).
-
 **Novo vídeo (etapas 3–7) — pelo CLI**
 1. **Referência (antes de escrever):** busque 2–3 vídeos parecidos (nicho, formato, duração) em [Skillry — Opus 5.5](https://skillry.dev/ai-videos/opus-5-5) (original ao lado do remake, com o prompt do criador) e, se precisar, na web (`simplicio-video busca consulta`; o registro guarda URL e data); anote o que serve de estrutura (gancho, ritmo, nº de cenas, tipo de transição) em `clients/<slug>/coleta/referencias.md` com URL + data. Referência inspira **forma**; **fatos, textos e marca só da coleta**. Não copie prompt, roteiro ou imagem de terceiros (direitos autorais) e não use no vídeo nada que a referência afirme sobre o cliente.
 2. `simplicio-video list templates` → template pelo nicho (renderizável). `simplicio-video init <slug> <Campanha> --template <id>`.
 3. Escreva o contrato (copy só da coleta; cenas, blocos + params, falas com `max_s`, SFX relativos à cena, voz, trilha, drive). Ver [SKILL.md](skills/simplicio-video/SKILL.md).
 4. `validate` → `voice` → `validate --need-lock` → `render` (ou `run`, que faz tudo; `--backend kaggle|colab-cli` renderiza remoto sem navegador). Confira `render.manifest.json` (loudness), STT e a prévia.
 5. Os projetos npm da WJR (`video-01`, `video-02-videouse`) ficam como referência; o `video-01` também tem `contract.yaml` (render idêntico).
-
-**Vídeo UGC (gerativo)** ([ugc/README.md](ugc/README.md) · [ADR-0004](docs/decisoes/ADR-0004-ugc-generativo.md))
-1. Fatos e público vêm de `clients/<slug>/coleta/`; sem fato confirmado, sem fala ("Só fatos reais"). Fora da esteira: sem contrato, template, motion nem `render`, e fora da regra de determinismo.
-2. Elenco, prompt de imagem e roteiros (passos 1, 2, 4) são prompts de LLM em `ugc/prompts/01` a `04`; imagens (passo 3) e clipes (passo 6) são gerativos e manuais (ChatGPT, Higgsfield, Krea).
-3. Os comandos `ugc` saíram do CLI do motor (#77) e ficam no repositório de operação. Renderize 1 clipe por personagem, confira rosto e voz e só então use o áudio como referência de voz nos outros.
-4. Travas: personagem sintético (nunca rosto ou voz de pessoa real sem autorização); sem depoimento fabricado apresentado como cliente real; rótulo de IA da plataforma e CONAR; imagens e MP4 em `out/ugc/<slug>/` e no Drive, nunca no git; chaves só no ambiente; gerar em plataforma paga só com pedido explícito do Wesley.
 
 **Voz / narração** ([voices/](voices/README.md))
 - `gemini`: API do Gemini TTS pelo CLI (`GEMINI_API_KEY`, `gemini-3.8-flash-tts`, Interactions API; cache no lock). `file`: WAVs externos em `assets/audio/vo/external/line-NN.wav` (ex.: AI Studio manual, [voices/gemini.md](voices/gemini.md)).
@@ -300,15 +282,8 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 **Validação antes de commitar**
 - `python -m pytest` · `simplicio-video validate` nos contratos alterados · `node motion/scripts/catalog.mjs --check` (catálogo em dia) · schemas com AJV (`intake`, `template`, `pattern`, `video-spec`) · links relativos dos `.md` sem quebra · `npm run check` no vídeo alterado.
 
-## Entregas no Google Drive
+## Redes sociais e a regra 3
 
-- Vídeo entregue fica no Drive em `simplicio-video/clientes/NOME_CLIENTE/ANO/CAMPANHA`.
-  - `NOME_CLIENTE`: Title_Case com underscore, sem acento (ex.: `WJR_Informatica_Games`, `Lothus_Odontologia`).
-  - `ANO`: ano da campanha (`2026`). `CAMPANHA`: Title_Case com underscore (ex.: `Video_Institucional`, `Dia_Criancas`).
-- Nome do arquivo: `<CLIENTE> - <descricao> - vNN.mp4` (ex.: `Lothus - Dia das Criancas 15s - v01.mp4`); versão nova = `vNN+1`, nunca sobrescrever.
-- O repositório guarda **os links**, nunca o MP4 final como entrega (`out/` é gitignored; `preview/` só leva a prévia leve 720p).
-- Todo link novo entra na tabela **Entregas no Drive** de `clients/<slug>/README.md` (campanha, pasta, arquivo, link, versão/status).
-- Upload: `publish` e a flag de upload do `run` saíram do CLI do motor (#77) e ficam no repositório de operação (rclone, remote `gdrive`; nunca sobrescreve, link pelo ID). O agente **só** faz upload com pedido explícito do Wesley para aquele vídeo. A exceção do fluxo de venda (Pix) também saiu do motor (#77).
 - Redes sociais não são upload no Drive e a regra 3 continua valendo: **O motor não posta.** O módulo `social` não é exceção à regra 3: só planeja e documenta (`social providers|plan|check|recipe`: confere o MP4 contra os limites de cada rede, grava `social.plan.json` e imprime a receita de chamadas MCP; sem rede, sem credencial, nada de publicar no MCP do motor). Quem posta é o agente, com as ferramentas MCP do próprio provedor (Real Oficial, padrão, ou Zernio) e o sim explícito do Wesley para cada postagem. Skill: [`skills/simplicio-video-social/SKILL.md`](skills/simplicio-video-social/SKILL.md) · [ADR-0018](docs/decisoes/ADR-0018-social-planejar-sem-postar.md).
 
 ## Convenções e travas

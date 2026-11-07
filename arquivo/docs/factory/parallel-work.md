@@ -59,7 +59,7 @@ Test kinds:
 
 ## Ownership
 
-[`ownership.yaml`](ownership.yaml) maps every issue to the paths it alone may change; `scripts/check_ownership.py <issue>` fails a PR that touches anything else. Mechanisms that remove conflicts:
+[`ownership.yaml`](../../../scripts/ownership.yaml) maps every issue to the paths it alone may change; `scripts/check_ownership.py <issue>` fails a PR that touches anything else. Mechanisms that remove conflicts:
 
 | Hotspot | Rule |
 |---|---|

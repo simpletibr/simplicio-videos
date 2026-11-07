@@ -22,7 +22,7 @@ ADRS_README = ROOT / "docs" / "decisoes" / "README.md"
 INSTALL_MD = ROOT / "docs" / "how-to" / "install.md"
 PACKAGING_MD = ROOT / "docs" / "host" / "packaging.md"
 SO_MD = ROOT / "docs" / "how-to" / "testar-em-windows-e-macos.md"
-PLUGINS_MD = ROOT / "docs" / "factory" / "plugins.md"
+PLUGINS_MD = ROOT / "arquivo" / "docs" / "factory" / "plugins.md"
 
 
 def _texto(caminho) -> str:

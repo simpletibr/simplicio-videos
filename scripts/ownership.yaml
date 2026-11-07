@@ -58,7 +58,6 @@ issues:
     milestone: M0
     adr: 7
     owns:
-      - "docs/factory/contracts.md"   # o spec manda o PR do kernel atualizar este arquivo (transition, Store, nomes)
       - ".gitignore"   # linha .simplicio-factory/ (estado local do JsonStore)
       - "pyproject.toml#extras.*"
   34:
@@ -169,10 +168,7 @@ issues:
       - "tests/test_docs/**"
       - "docs/reference/**"  # gerado por scripts/gen_reference.py (make regen)
       # correção de link quebrado pela #74 (templates/, motion/, schema/ e schemas/ foram para src/simplicio_video/data/): só o caminho do link muda, nada mais
-      - "docs/pipeline-deterministico-gemini.md"
-      - "docs/plugin-simplicio-runtime.md"
       - "docs/receita-video-cliente.md"
-      - "docs/venda-ativa.md"
       - "docs/video-use-integracao.md"
       - "src/simplicio_video/data/templates/README.md"  # também mudou de profundidade: ../intake e ../../ apontavam para fora
       - "src/simplicio_video/data/templates/assistencia-tecnica-games/README.md"
@@ -301,7 +297,6 @@ issues:
     status: ready
     owns:
       - "pyproject.toml#tool.setuptools.package-data"   # só a linha que põe o template board.html.tpl no wheel (seção é do #74)
-      - "docs/assets/board-html.png"   # captura do dashboard, PNG pequeno
 
   # ------------------------------------------------------------------ M1 geração assistida: attach, recibo e runbook (épico #81)
   87:
@@ -488,7 +483,6 @@ issues:
       - "tests/packaging/test_tools_update.py"
       - "tests/packaging/test_cli_doctor.py#SECOES"
       - "tests/packaging/test_entradas_hostis.py#doctor"  # só as duas asserções de contagem de checks do doctor (12)
-      - "docs/recursos.md"
       - "README.md#External tracks and licenses"
       - "README.pt-BR.md#Trilhas externas e licenças"
       - "CHANGELOG.md#Unreleased"
@@ -496,6 +490,9 @@ issues:
 # Patterns of `owns` that match no file in the repository: work that never started or files that were never made. They are
 # not enforced. An issue that starts moves what it creates from here to its own `owns` (in the same PR, in its own entry), and
 # tests/test_scripts/test_ownership_yaml.py keeps `owns` honest: every pattern there matches a file.
+# U16 moved files to arquivo/ and docs/pesquisa/; the six patterns that named them (docs/factory/contracts.md, docs/venda-ativa.md,
+# docs/assets/board-html.png, docs/recursos.md, docs/pipeline-deterministico-gemini.md, docs/plugin-simplicio-runtime.md) are in
+# the last line of the list of their issue, copied as they were. The issue that needs one of those files updates the pattern to the new path.
 backlog:
   32:
     - "src/simplicio_video/registry.py"
@@ -542,6 +539,7 @@ backlog:
     - "mk/kernel.mk"
     - "docs/host/kernel.md"
     - "docs/decisoes/ADR-0007-*.md"
+    - "docs/factory/contracts.md"   # o spec manda o PR do kernel atualizar este arquivo (transition, Store, nomes)
   34:
     - "web/package.json"
     - "web/tsconfig.base.json"
@@ -648,6 +646,9 @@ backlog:
     - "clients/lothus-odontologia/video-01-dia-das-criancas/roteiro.md"
     - "clients/wjr-informatica-games/video-01/README.md"
     - "clients/wjr-informatica-games/video-01/roteiro.md"
+    - "docs/pipeline-deterministico-gemini.md"
+    - "docs/plugin-simplicio-runtime.md"
+    - "docs/venda-ativa.md"
   48:
     - "tests/e2e_ui/**"
     - "docs/tutorials/panel.md"
@@ -721,6 +722,7 @@ backlog:
     - "tests/factory/plugins/board/test_html.py"
     - "tests/factory/plugins/board/golden/**"
     - "docs/plugins/board.md"   # só a seção html (e o `commands` do front matter)
+    - "docs/assets/board-html.png"   # captura do dashboard, PNG pequeno
   87:
     - "src/simplicio_factory/plugins/media/attach.py"
     - "src/simplicio_factory/plugins/media/receipt.py"
@@ -754,3 +756,5 @@ backlog:
     - "docs/research/agentes/**"
   70:
     - "clients/wjr-informatica-games/coleta/**"   # coleta de cliente saiu do índice (regra do .gitignore)
+  150:
+    - "docs/recursos.md"

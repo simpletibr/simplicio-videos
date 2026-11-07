@@ -169,7 +169,7 @@ Windows e macOS reais continuam **UNVERIFIED** até alguém rodar `python script
 - `compose.yaml` builda a partir do `Dockerfile` e nomeia a imagem `simplicio-video:local`. Não há `image:` pública.
 - `deploy/docker/doctor.sh` é um atalho para `docker compose run --rm simplicio doctor`.
 
-Não publicamos imagem pronta. As builds do ffmpeg trazem obrigações de GPL ou LGPL, e a revisão de licença dos componentes empacotados ainda não foi feita (ver [monetization.md](../factory/monetization.md) e [risks-and-policies.md](../factory/risks-and-policies.md)).
+Não publicamos imagem pronta. As builds do ffmpeg trazem obrigações de GPL ou LGPL, e a revisão de licença dos componentes empacotados ainda não foi feita (ver [monetization.md](../../arquivo/docs/factory/monetization.md) e [risks-and-policies.md](../../arquivo/docs/factory/risks-and-policies.md)).
 
 ## Atualização
 
