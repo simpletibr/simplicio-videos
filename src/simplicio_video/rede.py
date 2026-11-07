@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 _VERDADEIROS = ("1", "true", "yes", "on")
+PREFIXO_OFFLINE = "modo offline (SIMPLICIO_OFFLINE=1): não vou "  # what every refusal in offline mode opens with
 
 
 def offline(env: Mapping[str, str] = os.environ) -> bool:
@@ -32,7 +33,7 @@ def motivo_offline(acao: str) -> str | None:
     não vou <acao>" (`acao` is the rest of the sentence, with whatever the caller adds after it)."""
     if not offline():
         return None
-    return f"modo offline (SIMPLICIO_OFFLINE=1): não vou {acao}"
+    return PREFIXO_OFFLINE + acao
 
 
 class NetworkError(Exception):
