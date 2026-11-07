@@ -374,3 +374,42 @@ def test_o_montage_tem_o_seu_dentro_diferente_e_fica_de_fora():
     from simplicio_video import montage
     fonte = inspect.getsource(montage._dentro)
     assert "os.path.realpath(pasta)" in fonte
+
+
+# ---- U07: terceiros calls the public git of tools --------------------------------------------------------------------------------------
+
+
+def test_commit_do_checkout_de_terceiros_chama_o_git_publico_de_tools(monkeypatch, tmp_path):
+    """Same body, same answer as the copies, but through `tools.git` (the public name): replacing `tools.git` is enough, and the private
+    `tools._git` (which the hermetic fixture turns into a refusal) is not called by name."""
+    from simplicio_video import tools
+    chamadas = []
+    monkeypatch.setattr(tools, "git", lambda *a, cwd=None: chamadas.append((a, cwd)) or "e" * 40)
+    assert _terceiros().commit_do_checkout(tmp_path) == "e" * 40
+    assert chamadas == [(("rev-parse", "HEAD"), tmp_path)]
+
+
+def test_commit_do_checkout_de_terceiros_com_o_git_publico_que_falha_e_texto_vazio(monkeypatch, tmp_path):
+    from simplicio_video import tools
+
+    def quebrado(*a, cwd=None):
+        raise tools.ToolError("git rev-parse: fatal")
+
+    monkeypatch.setattr(tools, "git", quebrado)
+    assert _terceiros().commit_do_checkout(tmp_path) == ""
+
+
+def test_commit_do_checkout_de_terceiros_trata_o_git_que_trava_como_o_que_falha(monkeypatch, tmp_path):
+    """A `GitTimeout` is a `ToolError`: as today, it is an empty commit, not an exception."""
+    from simplicio_video import tools
+
+    def travado(*a, cwd=None):
+        raise tools.GitTimeout("git rev-parse: tempo esgotado")
+
+    monkeypatch.setattr(tools, "git", travado)
+    assert _terceiros().commit_do_checkout(tmp_path) == ""
+
+
+def test_terceiros_nao_usa_o_nome_privado_git_de_tools():
+    arvore = ast.parse(Path(_terceiros().__file__).read_text(encoding="utf-8"))
+    assert [n.lineno for n in ast.walk(arvore) if isinstance(n, ast.Attribute) and n.attr == "_git"] == []
