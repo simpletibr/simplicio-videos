@@ -328,7 +328,7 @@ HELP = ("shorts (vídeo longo -> cortes verticais 9:16, determinístico, só ffm
         "O plano é a decisão (janelas, nota, motivo) e fica versionado; o render só obedece.")
 
 
-def _parse(args: list[str]) -> tuple[list[str], set[str], dict]:
+def parse_argv(args: list[str]) -> tuple[list[str], set[str], dict]:
     flags: set[str] = set()
     vals: dict = {}
     pos: list[str] = []
@@ -345,6 +345,9 @@ def _parse(args: list[str]) -> tuple[list[str], set[str], dict]:
             pos.append(a)
             i += 1
     return pos, flags, vals
+
+
+_parse = parse_argv  # the old name: the MCP server reads the CLI's own parse through the public one, callers of the old name keep working
 
 
 def _num(vals: dict, key: str, default, cast=float):
@@ -365,7 +368,7 @@ def run_shorts(args: list[str]) -> int:
     if first not in ("inspect", "plan", "cut", "run"):
         raise ShortsError("subcomando desconhecido: %s (inspect|plan|cut|run)" % first)
 
-    pos, flags, vals = _parse(args[1:])
+    pos, flags, vals = parse_argv(args[1:])
     if not pos:
         raise ShortsError("%s: informe FONTE.mp4" % first)
     src = Path(pos[0]).expanduser()
