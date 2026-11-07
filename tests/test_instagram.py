@@ -32,7 +32,7 @@ from types import SimpleNamespace
 import pytest
 
 from _orfao import SINAIS, espera_pid, mata_o_que_sobrou, parada_esperada, sinaliza_no_popen, sinais_padrao, sleeper  # noqa: F401
-from helpers import offline_env, ROOT
+from helpers import espera, offline_env, ROOT, vivo
 from simplicio_video import cli, instagram, mcp_server, tools, tools_lock, tools_update
 
 REAL_GIT = tools._git  # the conftest replaces tools._git for every test; the integration test needs the real one
@@ -180,29 +180,6 @@ def spy(monkeypatch):
 
     monkeypatch.setattr(subprocess, "Popen", wrapper)
     return calls
-
-
-def vivo(pid: int) -> bool:
-    """Is the process alive (a zombie that nobody reaped counts as dead)?"""
-    try:
-        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
-    except (OSError, IndexError):
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        return True
-
-
-def espera(condicao, segundos: float = 20.0) -> bool:
-    limite = time.monotonic() + segundos
-    while time.monotonic() < limite:
-        if condicao():
-            return True
-        time.sleep(0.05)
-    return bool(condicao())
 
 
 def run(capsys, *argv):

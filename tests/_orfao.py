@@ -11,10 +11,10 @@ import os
 import signal
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
+from helpers import espera, vivo
 
 POSIX = os.name == "posix"
 SINAIS = [n for n in ("SIGTERM", "SIGHUP", "SIGINT") if hasattr(signal, n)]
@@ -25,29 +25,6 @@ SLEEPER_CODE = "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid
 def sleeper(pidfile: Path) -> list[str]:
     """argv of a child that writes its pid to `pidfile`, then sleeps (it is the orphan the tests look for)."""
     return [sys.executable, "-c", SLEEPER_CODE, str(pidfile)]
-
-
-def vivo(pid: int) -> bool:
-    """Is the process alive (a zombie that nobody reaped counts as dead)?"""
-    try:
-        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
-    except (OSError, IndexError):
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        return True
-
-
-def espera(condicao, segundos: float = 20.0) -> bool:
-    limite = time.monotonic() + segundos
-    while time.monotonic() < limite:
-        if condicao():
-            return True
-        time.sleep(0.05)
-    return bool(condicao())
 
 
 def pid_de(pidfile: Path) -> int | None:

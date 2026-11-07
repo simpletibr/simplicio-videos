@@ -636,3 +636,13 @@ def test_no_test_module_has_its_own_in_process_main_runner():
                     if primeiro == "rc = e.code" or primeiro.startswith("if isinstance(e.code, str):"):
                         achados.append(f"{rel}:{n.lineno}: def {n.name}() runs main(argv) and turns SystemExit into rc (helpers.run_main)")
     assert achados == [], "\n".join(achados)
+
+
+def test_vivo_and_espera_are_defined_once():
+    import ast
+    achados = []
+    for rel, tree in _modulos():
+        for n in tree.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in ("vivo", "espera"):
+                achados.append(f"{rel}:{n.lineno}: def {n.name}() (helpers.procs)")
+    assert achados == [], "\n".join(achados)
