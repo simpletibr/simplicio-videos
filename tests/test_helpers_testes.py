@@ -534,7 +534,7 @@ def _modulos():
     import ast
     for p in sorted(TESTS.rglob("*.py")):
         rel = p.relative_to(TESTS)
-        if rel.parts[0] == "helpers" or rel.as_posix() in ("test_helpers_testes.py", "conftest.py"):
+        if rel.parts[0] in ("helpers", "tools") or rel.as_posix() in ("test_helpers_testes.py", "conftest.py"):  # tools/: standalone scripts
             continue
         yield rel.as_posix(), ast.parse(p.read_text(encoding="utf8"))
 
@@ -664,4 +664,15 @@ def test_no_test_module_isolates_home_and_the_tools_dir_by_hand():
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "_isolated":
                 if "SIMPLICIO_TOOLS_DIR" in ast.unparse(n):
                     achados.append(f"{rel}:{n.lineno}: def _isolated() sets SIMPLICIO_TOOLS_DIR itself (helpers.isolate_tools)")
+    assert achados == [], "\n".join(achados)
+
+
+def test_no_test_module_builds_an_in_memory_wav_by_hand():
+    import ast
+    achados = []
+    for rel, tree in _modulos():
+        for n in tree.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("test_"):
+                if "wave.open(buf, 'wb')" in ast.unparse(n) and "buf.getvalue()" in ast.unparse(n):
+                    achados.append(f"{rel}:{n.lineno}: def {n.name}() writes a WAV into a BytesIO (helpers.pcm_wav / helpers.sine_wav)")
     assert achados == [], "\n".join(achados)

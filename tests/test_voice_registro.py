@@ -22,19 +22,17 @@ import io
 import json
 import os
 import shutil
-import struct
 import subprocess
 import sys
 import tempfile
 import urllib.error
 import urllib.request
-import wave
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
-from helpers import FIXTURE
+from helpers import FIXTURE, pcm_wav as _wav
 from simplicio_video import catalog, childio
 from simplicio_video import contract as ct
 from simplicio_video import voice, voice_clone, voz_catalogo
@@ -69,12 +67,6 @@ DEFAULT_CHAIN = ("highpass=f=85,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=340
 
 
 # ---------------------------------------------------------------- takes made here, in integers (same bytes on every machine)
-def _wav(samples: list[int], sr: int = 24000) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1), w.setsampwidth(2), w.setframerate(sr)
-        w.writeframes(struct.pack(f"<{len(samples)}h", *samples))
-    return buf.getvalue()
 
 
 def _square(seconds: float, period: int = 48, amp: int = 8000, sr: int = 24000) -> list[int]:
