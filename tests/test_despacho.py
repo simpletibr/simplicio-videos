@@ -323,6 +323,32 @@ def test_o_import_da_cli_e_o_help_nao_carregam_o_despacho_mas_cli_do_render_o_ca
     assert d["mesmo"] is True and d["depois"] is True
 
 
+def test_a_cli_continua_recusando_um_nome_que_nao_existe_e_a_outra_leitura_tardia_segue_de_pe():
+    """`cli.__getattr__` serves two names, `MAIN_DESC` and `do_render`; any other still is an AttributeError."""
+    assert not hasattr(cli, "nao_existe") and not hasattr(cli, "do_renderx")
+    with pytest.raises(AttributeError, match="has no attribute 'nao_existe'"):
+        cli.nao_existe  # noqa: B018
+    assert cli.MAIN_DESC.startswith("simplicio-video ")
+
+
+def test_o_alvo_do_monkeypatch_do_render_e_o_despacho_para_a_cli_o_pipeline_e_o_servidor_mcp(mini, folhas, monkeypatch, capsys):
+    """The three callers read `despacho.do_render` when they render, so a test patches ONE name (the old target, `cli.do_render`,
+    is the same function by another name: patching it changes nothing for them)."""
+    from simplicio_video import despacho
+    vistas: list[tuple[str, str]] = []
+
+    def falso(c, backend, **k):
+        vistas.append((backend, k.get("accelerator")))
+        return dict(RETORNOS["kaggle"])
+
+    monkeypatch.setattr(despacho, "do_render", falso)
+    assert _main(["render", "--json", str(mini), "--backend", "kaggle", "--accelerator", "L4"], capsys)[0] == 0
+    assert _main(["render", str(mini), "--backend", "kaggle", "--accelerator", "L4"], capsys)[0] == 0
+    pipeline.run_all(mini, backend="kaggle", accelerator="L4", log=lambda *m: None)
+    assert mcp_server.video_render(str(mini), backend="kaggle", accelerator="L4")["result"]["usage"] == {"credits": 1}
+    assert vistas == [("kaggle", "L4")] * 4 and folhas == []  # no leaf was reached: the patch caught all four calls
+
+
 # ------------------------------------------------------------------------------------ the import graph, lazy imports included
 
 def _arquivos_do_pacote() -> dict[str, Path]:
