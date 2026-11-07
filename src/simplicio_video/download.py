@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from . import tools
+from . import mediaio, tools
 from .fsutil import sha256_file as _sha256
 
 FETCH_SCHEMA = "simplicio.media-fetch/v1"
@@ -156,12 +156,12 @@ def _srt_ocupado(dest: Path, lang: str) -> Path | None:
 
 def _conferir(caminho: Path) -> None:
     """The file must be media ffprobe can read: at least one stream and a duration above zero."""
-    ffprobe = shutil.which("ffprobe")
+    ffprobe = shutil.which(mediaio.PATH_FFPROBE)
     if not ffprobe:
         raise DownloadError("o ffprobe é necessário para conferir o arquivo baixado (instale o ffmpeg)")
     try:
-        r = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", str(caminho)],
-                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+        r = mediaio.run_ffprobe(["-show_entries", "format=duration:stream=codec_type", "-of", "json"], caminho, ffprobe=ffprobe, timeout=60,
+                                check=False)
         dados = json.loads(r.stdout or "{}")
         duracao = float((dados.get("format") or {}).get("duration") or 0)
     except (subprocess.TimeoutExpired, ValueError):
