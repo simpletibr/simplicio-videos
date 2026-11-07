@@ -145,7 +145,9 @@ TOOLS: dict[str, Tool] = {
     "hypit": Tool("hypit", "npm", "@hypit/hypit", "0.3.1", "Hypit license (modified Apache-2.0)",
                   "agentic video cloning; user-installed, never bundled or offered as a hosted service",
                   command="clone", note="its license forbids commercial redistribution and multi-tenant service without permission",
-                  deps=(f"node>={'.'.join(map(str, NODE_MIN))}",), mcp_read=McpRead("args", "status --json")),
+                  deps=(f"node>={'.'.join(map(str, NODE_MIN))}",),
+                  # `clone --help` would pass through to Hypit (npx when it is not installed): the read-only status of the engine is asked instead
+                  mcp_read=McpRead("args", "status --json")),
     "toonflow": Tool("toonflow", "git", "https://github.com/HBAI-Ltd/Toonflow-app",
                      "d2e94aca7b59659ff6b4ca15f03cf134ec7f0e1d", "MIT",
                      "open-source AI studio for short dramas, comic dramas and videos (Bun, web app on localhost); "
