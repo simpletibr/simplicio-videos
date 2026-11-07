@@ -603,7 +603,7 @@ def _exige_rede() -> None:
 
 
 def _ambiente_filho() -> dict:
-    env = terceiros.env_para_terceiro(ENV_EXTRA, base=os.environ)  # base at the call: the default of the function is fixed at import
+    env = terceiros.env_para_terceiro(ENV_EXTRA, base=os.environ)
     env.update(ENV_FORCADO)
     return env
 

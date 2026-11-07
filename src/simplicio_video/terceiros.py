@@ -25,9 +25,11 @@ NUCLEO_ENV: tuple[str, ...] = ("PATH", "HOME", "LANG", "LC_ALL")
 CASE_INSENSITIVE = sys.platform in ("darwin", "win32")
 
 
-def env_para_terceiro(extra: Iterable[str] = (), *, base: Mapping[str, str] = os.environ) -> dict[str, str]:
-    """The environment of a third-party child: the names of NUCLEO_ENV and of `extra` that exist in `base` (the process environment
-    by default), value as it is, and nothing else. A new dict; `base` is not touched."""
+def env_para_terceiro(extra: Iterable[str] = (), *, base: Mapping[str, str] | None = None) -> dict[str, str]:
+    """The environment of a third-party child: the names of NUCLEO_ENV and of `extra` that exist in `base` (the `os.environ` of the call
+    by default: not the object it was at import), value as it is, and nothing else. A new dict; `base` is not touched."""
+    if base is None:
+        base = os.environ
     if isinstance(extra, str):  # a lone name, never its letters
         extra = (extra,)
     return {k: base[k] for k in (*NUCLEO_ENV, *extra) if k in base}

@@ -82,7 +82,7 @@ def _binario() -> Path:
 
 def _ambiente() -> dict:
     from . import terceiros  # at the call: `media --help` and the CLI's own `--help` do not load it
-    return terceiros.env_para_terceiro(ENV_EXTRA, base=os.environ)  # base at the call: the default of the function is fixed at import
+    return terceiros.env_para_terceiro(ENV_EXTRA, base=os.environ)
 
 
 def _ultima_linha(texto: str) -> str:

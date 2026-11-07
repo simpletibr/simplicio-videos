@@ -41,7 +41,7 @@ ENV_FERRAMENTA = (*terceiros.NUCLEO_ENV, *ENV_EXTRA)
 
 
 def _primeira_linha(cmd: list[str]) -> str | None:
-    env = terceiros.env_para_terceiro(ENV_EXTRA, base=os.environ)  # base at the call: the default of the function is fixed at import
+    env = terceiros.env_para_terceiro(ENV_EXTRA, base=os.environ)
     try:
         r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15, env=env)
     except (OSError, subprocess.SubprocessError):
