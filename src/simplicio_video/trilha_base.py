@@ -1,5 +1,5 @@
 """What every external track repeats, in one place: the checkout, its clone, its data folder, the commit really in it, the private cwd of
-a background job and the stop of a process group. Below the tracks: it imports `tools`, `rede` and `hostos`, never a track.
+a background job and the stop of a process group. Below the tracks: it imports `tools`, `rede` and `paths`, never a track.
 
 * `Trilha(nome, env_dir, env_data)` declares a track by its name in tools.TOOLS, the variable that points at its checkout
   (`{NAME}_DIR`, which `tools.checkout_dir` reads) and, when it has a data folder, the variable that points at that (`{NAME}_DATA_DIR`).
@@ -23,7 +23,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import hostos, rede, tools
+from . import paths, rede, tools
 
 
 @dataclass(frozen=True)
@@ -38,14 +38,12 @@ class Trilha:
 
     def data_dir(self) -> Path:
         """Where the track keeps its venv and its data, absolute and outside the checkout, so a re-clone never wipes it: `env_data`,
-        else <SIMPLICIO_VIDEO_DATA, or ~/.simplicio-video under hostos.home_absoluta>/<name with hyphens>-data (`rea_video` keeps
+        else <paths.data_root(): SIMPLICIO_VIDEO_DATA, or ~/.simplicio-video>/<name with hyphens>-data (`rea_video` keeps
         its data in `rea-video-data`)."""
         explicit = os.environ.get(self.env_data) if self.env_data else None
         if explicit:
             return Path(explicit).expanduser().resolve()
-        data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-        base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-        return (base / f"{self.nome.replace('_', '-')}-data").resolve()
+        return (paths.data_root() / f"{self.nome.replace('_', '-')}-data").resolve()
 
     def clone(self, target: Path | None = None, *, erro: type[Exception], acao: str | None = None,
               offline: Callable[[], bool] | None = None) -> Path:

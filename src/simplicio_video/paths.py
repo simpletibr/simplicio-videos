@@ -147,11 +147,16 @@ def check_job_keys(params: dict, allowed: set[str], erro: type[Exception]) -> No
         raise erro(f"parâmetros desconhecidos: {', '.join(extra)} (aceitos: {', '.join(sorted(allowed))})")
 
 
-def jobs_root() -> Path:
-    """The data folder of the engine, where `jobs/<id>/job.json` lives ($SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video): the folder
-    an MCP output may never be written into. Not resolved: a relative value stays relative, as it always was."""
+def data_root() -> Path:
+    """The data folder of the engine, where `jobs/<id>/job.json` lives ($SIMPLICIO_VIDEO_DATA, with `~` expanded, else
+    ~/.simplicio-video): the folder an MCP output may never be written into. The one place that reads the variable: the tools lock,
+    the update cache, `busca`, the Openverse library and the data of the tracks add their subfolder (and their own `.resolve()`) to it.
+    Not resolved: a relative value stays relative, as it always was."""
     data = os.environ.get("SIMPLICIO_VIDEO_DATA")
     return Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
+
+
+jobs_root = data_root  # the name `jobs` and `montage` (and their tests) call: the same function
 
 
 def jobs_grace_s() -> float:

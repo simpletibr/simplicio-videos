@@ -49,7 +49,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import childio, hostos, rede, terceiros, tools
+from . import childio, hostos, paths, rede, terceiros, tools
 from .busca_ajuda import HELP_DESC, HELP_EPILOG, TETO_PADRAO
 from .fsutil import canonical_json as _canonico
 
@@ -286,9 +286,7 @@ def _brt(stamp: str) -> str:
 
 def pasta() -> Path:
     """<SIMPLICIO_VIDEO_DATA or ~/.simplicio-video>/busca: cache/, busca.registro.jsonl and busca.contador.json."""
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return (base / "busca").resolve()
+    return (paths.data_root() / "busca").resolve()
 
 
 def _caminho_registro() -> Path:

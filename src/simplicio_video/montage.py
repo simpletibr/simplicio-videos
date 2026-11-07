@@ -23,7 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import childio, hostos, paths, tools
+from . import childio, paths, tools
 from .childio import run_child, under_mcp
 from .rede import offline as _offline
 from .trilha_base import Trilha
@@ -49,9 +49,7 @@ def default_openmontage_dir() -> Path:
         return Path(explicit).expanduser()
     if os.environ.get("SIMPLICIO_TOOLS_DIR"):
         return tools.tools_dir() / name
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return base / "tools" / name
+    return paths.data_root() / "tools" / name
 
 
 def find_openmontage_dir() -> Path | None:

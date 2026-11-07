@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
-from . import hostos
+from . import hostos, paths
 
 LOCK_FILE = "tools.lock.json"
 SCHEMA = "simplicio.tools-lock/v1"
@@ -47,8 +47,7 @@ class LockInvalid(ValueError):
 def default_data_dir() -> Path:
     """The same folder `update --check` uses for its cache: $SIMPLICIO_VIDEO_DATA, else ~/.simplicio-video. Without a usable home it
     raises hostos.SemCasa: a relative `~` would make a folder named `~` in the cwd."""
-    explicit = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    return Path(explicit) if explicit else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
+    return paths.data_root()
 
 
 def lock_path(data_dir: Optional[Path] = None) -> Path:
