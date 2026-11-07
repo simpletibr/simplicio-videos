@@ -13,10 +13,20 @@ The source of truth is `src/simplicio_video/data/skills/` (what the wheel carrie
 Usage:
   scripts/sync_skills.py            rewrites what is stale (a file that is already right is not touched)
   scripts/sync_skills.py --check    writes nothing; prints the diff and exits 1 when the mirror or the block is stale
+  scripts/sync_skills.py --force    like the first, but also deletes/overwrites what git does not keep (see below)
 
 `make docs` (so `make check`) runs `--check`; `make regen` runs it without the flag.
+
+The regen never destroys work that git does not keep. It decides everything before it writes anything: for each file of `skills/` it
+would delete or overwrite it asks `git status`, and a file that is untracked, ignored, modified or staged (or ANY such file when
+the repo is not in a git work tree) makes it stop with exit 2, list the files and the reason, and write nothing. A tracked, clean file
+(a hand edit or an extra file that was committed) is recoverable and is replaced or removed. Creating a missing file never needs the
+check. `--force` skips the check. Whatever is removed or overwritten is printed with its diff BEFORE the write. The `.gitignore` block
+is generated content ("do not edit"): a stale block is rewritten, and its diff is printed first, without the git check.
+
 Exit codes: 0 = in sync (or regenerated), 1 = `--check` found a difference, 2 = structure error (a skill folder that
-`skill_sync.SKILLS` does not list or the other way round, a missing source, a missing or duplicated block in .gitignore).
+`skill_sync.SKILLS` does not list or the other way round, a missing source, a missing or duplicated block in .gitignore), or the regen
+refused to destroy what git does not keep, or a usage error.
 
 Examples:
   scripts/sync_skills.py --check
@@ -28,6 +38,7 @@ import argparse
 import difflib
 import importlib.util
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,6 +53,9 @@ END = "# END GENERATED skills"
 GITIGNORE_NOTE = ("# as skills que `simplicio-video install` copia para a raiz deste repositório "
                   "(a fonte é src/simplicio_video/data/skills/; bloco gerado por scripts/sync_skills.py, não edite: `make regen`)")
 HOW_TO_FIX = "Rode `make regen` (scripts/sync_skills.py) e inclua o resultado no commit."
+# Variables that would point `git -C ROOT` at another repository (a git hook exports them).
+GIT_REPO_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY",
+                 "GIT_ALTERNATE_OBJECT_DIRECTORIES")
 DIFF_LINES = 30
 
 
@@ -55,7 +69,11 @@ def skill_names() -> tuple[str, ...]:
     if spec is None or spec.loader is None:
         raise StructureError(f"não consegui carregar {SKILL_SYNC.relative_to(ROOT)}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    keep, sys.dont_write_bytecode = sys.dont_write_bytecode, True  # --check and a refusal must not leave a __pycache__ in src/
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = keep
     return tuple(module.SKILLS)
 
 
@@ -135,7 +153,10 @@ def mirror_changes(source: dict[str, tuple], mirror: dict[str, tuple]) -> tuple[
         if have is None:
             report.append(f"  falta   {shown}")
         elif want is None:
-            report.append(f"  sobra   {shown}")
+            report.append(f"  sobra   {shown}" + (f" (link para {have[1]})" if have[0] == "link" else ""))
+            old = text_of(have)
+            if old is not None:
+                report.extend(show(old, "", shown))  # what the removal takes away
         else:
             report.append(f"  difere  {shown}")
             old, new = text_of(have), text_of(want)
@@ -164,7 +185,52 @@ def write_mirror(source: dict[str, tuple], mirror: dict[str, tuple], paths: list
             os.rmdir(folder)
 
 
-def run(check: bool) -> int:
+def git_status() -> tuple[str, list[tuple[str, str]]] | None:
+    """(where ROOT sits inside the repo, [(XY, path)] of `git status` for skills/, ignored files included), or None when ROOT is not
+    in a git work tree (or git is missing or fails). Paths are relative to the top of the repo; folders end with '/'."""
+    env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_VARS}
+
+    def git(*args: str):
+        try:
+            done = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, timeout=60, env=env)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return done.stdout.decode("utf-8", "surrogateescape") if done.returncode == 0 else None
+
+    prefix = git("rev-parse", "--show-prefix")
+    status = git("status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored", "--no-renames", "--", "skills")
+    if prefix is None or status is None:
+        return None
+    return prefix.strip(), [(item[:2], item[3:]) for item in status.split("\0") if len(item) > 3]
+
+
+def git_does_not_keep(rels: list[str]) -> list[tuple[str, str]]:
+    """(path shown, reason) for each file of the mirror in `rels` that git does not keep exactly as it is on disk."""
+    if not rels:
+        return []
+    state = git_status()
+    found = []
+    for rel in rels:
+        shown = f"skills/{rel}"
+        if state is None:
+            found.append((shown, "fora de um repositório git: nada a recuperar"))
+            continue
+        prefix, entries = state
+        key = f"{prefix}{shown}"
+        for xy, path in entries:
+            if path == key or (path.endswith("/") and key.startswith(path)):
+                if xy == "??":
+                    why = "untracked: não está no git"
+                elif xy == "!!":
+                    why = "ignorado pelo .gitignore: o git não o guarda"
+                else:
+                    why = f"alterado e não commitado: git status '{xy}'"
+                found.append((shown, why))
+                break
+    return found
+
+
+def run(check: bool, force: bool = False) -> int:
     names = skill_names()
     source = read_tree(SOURCE) if SOURCE.is_dir() else {}
     check_structure(source, names)
@@ -189,22 +255,41 @@ def run(check: bool) -> int:
         print(HOW_TO_FIX, file=sys.stderr)
         return 1
 
+    # Everything is decided here, before the first write: a file that only gets created needs no check; one that is deleted or
+    # overwritten must be something git keeps as it is.
+    lost = git_does_not_keep([rel for rel in paths if rel in mirror])
+    if lost and not force:
+        print("sync_skills: recusado: o regen apagaria ou sobrescreveria o que o git não guarda (nada foi escrito):", file=sys.stderr)
+        for shown, why in lost:
+            print(f"  {shown}  ({why})", file=sys.stderr)
+        print("Guarde o que vale a pena (git add/commit, ou mova para fora de skills/) e rode `make regen` de novo; "
+              "se pode perder, rode `scripts/sync_skills.py --force`.", file=sys.stderr)
+        return 2
+
+    print("sync_skills: vai mudar (o diff do que sai ou é sobrescrito aparece antes da escrita):")
+    print("\n".join(report))
+    if lost:
+        print("sync_skills: --force: sem volta pelo git para: " + ", ".join(shown for shown, _ in lost))
+    sys.stdout.flush()
     write_mirror(source, mirror, paths)
     if stale_block:
         GITIGNORE.write_text("".join(before) + "\n".join(wanted) + "\n" + "".join(after), encoding="utf-8")
-    print("sync_skills: regerado:")
-    print("\n".join(line for line in report if not line.startswith("      ")))
+    print(f"sync_skills: regerado ({len(paths)} arquivo(s) de skills/" + (", bloco do .gitignore" if stale_block else "") + ")")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Gera o espelho skills/ e o bloco GENERATED skills do .gitignore a partir de src/simplicio_video/data/skills/.",
-        epilog="Exemplos:\n  scripts/sync_skills.py --check\n  scripts/sync_skills.py", formatter_class=argparse.RawDescriptionHelpFormatter)
+        epilog="Exemplos:\n  scripts/sync_skills.py --check\n  scripts/sync_skills.py\n  scripts/sync_skills.py --force", formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true", help="não escreve; imprime o diff e sai 1 se algo estiver desatualizado")
+    parser.add_argument("--force", action="store_true",
+                        help="apaga/sobrescreve também o que o git não guarda (untracked, ignorado, modificado, ou fora de um repo git)")
     args = parser.parse_args(argv)
+    if args.check and args.force:
+        parser.error("--force não se combina com --check (o --check nunca escreve)")
     try:
-        return run(args.check)
+        return run(args.check, args.force)
     except StructureError as e:
         print(f"sync_skills: {e}", file=sys.stderr)
         return 2

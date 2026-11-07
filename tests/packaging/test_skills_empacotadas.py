@@ -404,7 +404,10 @@ def test_com_force_o_regen_aplica_e_mostra_o_que_perdeu_antes_de_escrever(caso, 
     assert r.returncode == 0, r.stdout + r.stderr
     assert perdido in r.stdout, "o log do regen lista cada arquivo removido ou sobrescrito"
     assert not (checkout_git / perdido).is_symlink() and (not (checkout_git / perdido).exists() or perdido.endswith("SKILL.md"))
-    assert _tudo(checkout_git) == _tudo(ROOT)
+    obtido, esperado = _tudo(checkout_git), _tudo(ROOT)
+    # the .gitignore may carry a line of the test outside the block (the ignored-file case): only the generated block must be the real one
+    assert _bloco(obtido.pop(".gitignore").decode()) == _bloco(esperado.pop(".gitignore").decode())
+    assert obtido == esperado
     assert _roda(checkout_git, "--check").returncode == 0
 
 
