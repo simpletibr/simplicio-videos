@@ -500,14 +500,7 @@ def _ambiente() -> dict:
     return env
 
 
-def _matar(proc: subprocess.Popen) -> None:
-    with contextlib.suppress(ProcessLookupError, PermissionError):
-        if hasattr(os, "killpg"):
-            os.killpg(proc.pid, signal.SIGKILL)
-        else:  # pragma: no cover (Windows)
-            proc.kill()
-    with contextlib.suppress(Exception):
-        proc.wait(5)
+_matar = childio.kill_group  # the name the tests replace (a fake child has no pid): the group is stopped in childio
 
 
 def _limites_do_filho(cpu: int):

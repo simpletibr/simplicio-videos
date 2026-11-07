@@ -18,12 +18,11 @@ a folder cannot be searched (a PATH folder with mode 0000, a `~/.simplicio` of a
 from __future__ import annotations
 
 import atexit
+import functools
 import os
-import signal
 import stat
 import subprocess
 import sys
-import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Optional
@@ -91,13 +90,14 @@ def home_absoluta(escolha: Optional[str] = "SIMPLICIO_TOOLS_DIR") -> Path:
 
 
 def _mata_arvore(proc: "subprocess.Popen") -> None:
-    """Kills `proc` and every process it started. POSIX: the group (the child was started in its own session). Windows: taskkill /T.
-    Never raises: a process that is already gone is not an error."""
+    """Kills `proc` and every process it started. POSIX: the group (the child was started in its own session), through
+    childio.kill_group. Windows: taskkill /T. Never raises: a process that is already gone is not an error."""
+    if not hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):  # the REAL interpreter's system, not the simulated one
+        from . import childio  # not at the top: `--help` imports this module and must not import childio (tests/test_help_leve.py)
+        childio.kill_group(proc)
+        return
     try:
-        if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):  # the REAL interpreter's system, not the simulated one
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
-        else:
-            os.killpg(proc.pid, signal.SIGKILL)
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
         pass
     try:
@@ -106,50 +106,43 @@ def _mata_arvore(proc: "subprocess.Popen") -> None:
         pass
 
 
-_VIVOS: set = set()  # the processes run_limitado started and has not seen end: the exit of this process takes them down
-_VIVOS_TRAVA = threading.Lock()
-
-
-def _mata_os_vivos() -> None:
-    with _VIVOS_TRAVA:
-        vivos = list(_VIVOS)
-    for proc in vivos:
-        if proc.poll() is None:
-            _mata_arvore(proc)
-
-
-atexit.register(_mata_os_vivos)
+@functools.cache
+def _arma_a_saida() -> None:
+    """The exit of this process kills the children that are still under childio's guard (atexit): a daemon thread that is waiting on a
+    read dies with the process before it could kill its own group. Armed by the first run_limitado, so a process that never runs
+    one (`--help`) does not import childio."""
+    from . import childio
+    atexit.register(childio.kill_live)
 
 
 def run_limitado(argv, *, timeout: float, cwd=None, env=None) -> "subprocess.CompletedProcess":
     """subprocess.run(capture_output, text, stdin=DEVNULL, timeout=) whose timeout kills the WHOLE process tree. subprocess.run kills
     only the child: `git ls-remote` keeps its `git-remote-https` alive (a proxy that never answers left eight of them running
     minutes after the CLI had exited). The command runs in its own session (POSIX) or process group (Windows), which is what
-    is killed, and the exit of this process kills what is still running (atexit: a daemon thread that is waiting on a read dies with
-    the process before it could kill its own group). Raises subprocess.TimeoutExpired like subprocess.run, and OSError when the program cannot be started.
+    is killed. The child is under childio.guarded_child: a stop signal in the main thread (Ctrl+C, SIGTERM, SIGHUP) kills it, a stop
+    signal to a process under childio.install_exit_guard (the MCP server, where this runs in a worker thread) kills it through
+    childio's registry, and the exit of this process kills what is still running (atexit: a daemon thread that is waiting on a
+    read dies with the process before it could kill its own group). Raises subprocess.TimeoutExpired like subprocess.run, and
+    OSError when the program cannot be started.
 
     Limit: a descendant that leaves the group on its own (`setsid`, `setpgid`, a daemon that double-forks) escapes the kill; git and
     npm do not do that, and nothing here can reach such a process short of a cgroup."""
+    from . import childio
+    _arma_a_saida()
     flags: dict = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP") else {"start_new_session": True}
-    proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", env=env, **flags)
-    with _VIVOS_TRAVA:
-        _VIVOS.add(proc)
+    filho = []
     try:
-        out, err = proc.communicate(timeout=timeout)
+        with childio.guarded_child([str(a) for a in argv], kill=_mata_arvore, cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+                                   env=env, **flags) as proc:
+            filho.append(proc)
+            out, err = proc.communicate(timeout=timeout)  # a timeout, Ctrl-C or any other error: guarded_child kills the tree on the way out
     except subprocess.TimeoutExpired:
-        _mata_arvore(proc)
         try:
-            proc.communicate(timeout=5)  # a descendant that left the group could hold the pipes: do not wait for it
+            filho[0].communicate(timeout=5)  # a descendant that left the group could hold the pipes: do not wait for it
         except subprocess.TimeoutExpired:
             pass
         raise subprocess.TimeoutExpired(list(argv), timeout) from None
-    except BaseException:  # Ctrl-C: the child is in another session and would not get the signal
-        _mata_arvore(proc)
-        raise
-    finally:
-        with _VIVOS_TRAVA:
-            _VIVOS.discard(proc)
     return subprocess.CompletedProcess(list(argv), proc.returncode, out, err)
 
 
