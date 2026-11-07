@@ -93,6 +93,16 @@ def test_motivo_offline_e_a_frase_de_hoje_byte_a_byte(monkeypatch):
         "modo offline (SIMPLICIO_OFFLINE=1): não vou chamar o TinyFish. Só resultados que já estão no cache saem sem rede")
 
 
+def test_prefixo_offline_e_a_abertura_da_frase_e_nao_depende_do_ambiente(monkeypatch):
+    """The opening is a constant: a caller that has its own `_offline` (tests replace it) can build the refusal without asking the
+    environment, and `motivo_offline` is that opening plus the action."""
+    rede = _rede()
+    monkeypatch.delenv("SIMPLICIO_OFFLINE")
+    assert rede.PREFIXO_OFFLINE == PREFIXO
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    assert rede.motivo_offline("clonar o x.") == rede.PREFIXO_OFFLINE + "clonar o x."
+
+
 def test_motivo_offline_fora_do_modo_offline_e_none(monkeypatch):
     rede = _rede()
     monkeypatch.delenv("SIMPLICIO_OFFLINE")
