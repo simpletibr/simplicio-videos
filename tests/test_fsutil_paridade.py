@@ -390,9 +390,10 @@ def _modulos():
         yield p.relative_to(SRC).as_posix(), ast.parse(p.read_text(encoding="utf8"))
 
 
-def test_so_o_fsutil_e_o_installer_hasheiam_um_arquivo_por_funcao_propria():
-    """O que `pronto.py` mede: função de nome `*sha*` que usa hashlib e lê arquivo. O installer lê pelo `hostos.read_regular` (arquivo
-    comum com teto, sem corrida entre a checagem e a leitura) e fica de propósito."""
+def test_so_o_fsutil_e_os_dois_de_arquivo_comum_hasheiam_um_arquivo_por_funcao_propria():
+    """O que `pronto.py` mede: função de nome `*sha*` que usa hashlib e lê arquivo. `installer.sha256_of` e
+    `video_to_skill._sha256_file` leem por `hostos.read_regular` (arquivo comum com teto, fstat no MESMO descritor da leitura: sem
+    corrida entre a checagem e a leitura) e ficam de propósito: o segundo confere o executável do upstream antes de rodá-lo."""
     achadas = set()
     for rel, arvore in _modulos():
         texto = (SRC / rel).read_text(encoding="utf8")
@@ -401,7 +402,23 @@ def test_so_o_fsutil_e_o_installer_hasheiam_um_arquivo_por_funcao_propria():
                 src = ast.get_source_segment(texto, n) or ""
                 if "hashlib" in src and ("open(" in src or "read_bytes" in src or "os.read" in src):
                     achadas.add(f"{rel}:{n.name}")
-    assert achadas == {"fsutil.py:sha256_file", "installer.py:sha256_of"}
+    assert achadas == {"fsutil.py:sha256_file", "installer.py:sha256_of", "video_to_skill.py:_sha256_file"}
+
+
+@pytest.mark.parametrize("nome", ["installer.sha256_of", "video_to_skill._sha256_file"])
+def test_a_checagem_de_arquivo_comum_e_a_leitura_sao_a_mesma_abertura(nome, tmp_path, monkeypatch):
+    """Os dois que conferem um executável ou um recibo abrem o arquivo UMA vez, por `hostos.read_regular` e com o teto: um
+    FIFO posto no caminho entre uma checagem por caminho e uma segunda abertura travaria a chamada."""
+    from simplicio_video import hostos
+
+    pedidos = []
+    real = hostos.read_regular
+    monkeypatch.setattr(hostos, "read_regular", lambda caminho, limite: pedidos.append((caminho, limite)) or real(caminho, limite))
+    p = _arquivo(tmp_path, b"abc")
+    esperado = {"installer.sha256_of": (p, installer.MAX_FILE_BYTES), "video_to_skill._sha256_file": (p, 10)}[nome]
+    args = (p, 10) if nome == "video_to_skill._sha256_file" else (p,)
+    assert TOLERANTES[nome](*args) == hashlib.sha256(b"abc").hexdigest()
+    assert pedidos == [esperado]
 
 
 def test_so_o_fsutil_escreve_o_json_canonico():
