@@ -9,7 +9,7 @@
 #   BASE             ref de comparação (padrão: origin/main, se existir)
 #   PR_LABELS        labels do PR (tdd-exempt dispensa a checagem de TDD)
 #   PYTHON           interpretador (padrão: .venv/bin/python, senão python3)
-#   CHECK_BUDGET_S   orçamento em segundos; passar disso só avisa (padrão: 60)
+#   CHECK_BUDGET_S   orçamento em segundos; passar disso só avisa (padrão: 240; o gate leva de 110 a 350 s em 4 núcleos)
 #   CHECK_JOBS       workers do pytest-xdist (padrão: auto; 1 = serial; sem o xdist instalado roda serial)
 #
 # Exemplos:
@@ -95,7 +95,7 @@ else
 fi
 
 elapsed=$((SECONDS - start))
-budget="${CHECK_BUDGET_S:-60}"
+budget="${CHECK_BUDGET_S:-240}"
 printf '\ncheck: ok em %ss\n' "$elapsed"
 if [ "$elapsed" -gt "$budget" ]; then
   printf 'check: aviso: passou do orçamento de %ss; mova o teste lento para slow\n' "$budget" >&2

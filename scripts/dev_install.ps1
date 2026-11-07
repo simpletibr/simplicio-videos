@@ -11,7 +11,7 @@
 
   Faz, nesta ordem: checa Node 22 ou superior, ffmpeg com libass e 5 GB livres (sem instalar nada no sistema); garante o uv (se faltar,
   oferece instalar com o script oficial e só baixa com a sua confirmação); cria o .venv com o Python pedido e instala o pacote editável
-  com os extras (uv pip install -e); constrói web/ se ele existir; roda `simplicio-video doctor` e imprime os próximos passos. Não pede
+  com os extras (uv pip install -e); roda `simplicio-video doctor` e imprime os próximos passos. Não pede
   administrador, não usa o python do sistema (o uv traz o Python) e rodar de novo não muda nada que já está certo. Um .venv com outro
   Python é um conflito: o script diz o que apagar e não troca sozinho.
 
@@ -135,13 +135,8 @@ if ($DryRun) {
     Write-Output "  5. criar .venv com Python $Python e instalar o pacote ($subExtras):"
     Write-Output "       uv venv --python $Python .venv"
     Write-Output "       uv pip install --python $VenvPy -e `"$(Get-PackageTarget)`""
-    if (Test-Path -LiteralPath (Join-Path $Raiz "web\package.json")) {
-        Write-Output "  6. construir web/ (npm --prefix web ci && npm --prefix web run build)"
-    } else {
-        Write-Output '  6. web/ ainda não existe: registrar "web/ chega com a #34" e seguir'
-    }
-    Write-Output "  7. rodar $Sv doctor"
-    Write-Output "  8. imprimir os próximos passos (install, setup e doctor)"
+    Write-Output "  6. rodar $Sv doctor"
+    Write-Output "  7. imprimir os próximos passos (install, setup e doctor)"
     exit 0
 }
 
@@ -185,16 +180,6 @@ if (Test-Path -LiteralPath ".venv") {
 Write-Output "> instalando o pacote em modo editável ($(Get-PackageTarget))"
 & $Uv pip install --python $VenvPy -e (Get-PackageTarget)
 if ($LASTEXITCODE -ne 0) { Fail "uv pip install falhou (código $LASTEXITCODE)." }
-
-if (Test-Path -LiteralPath "web\package.json") {
-    Write-Output "> construindo web/"
-    & npm --prefix web ci
-    if ($LASTEXITCODE -ne 0) { Fail "npm ci falhou (código $LASTEXITCODE)." }
-    & npm --prefix web run build
-    if ($LASTEXITCODE -ne 0) { Fail "npm run build falhou (código $LASTEXITCODE)." }
-} else {
-    Write-Output "web/ chega com a #34: nada a construir."
-}
 
 Write-Output "> checando o ambiente (simplicio-video doctor)"
 $saidaDoctor = & $Sv doctor

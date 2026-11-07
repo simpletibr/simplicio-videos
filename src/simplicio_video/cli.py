@@ -4,13 +4,21 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
+from typing import Callable, Literal
 
-from . import (CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, clone, edit, matchcut, moneyprinter, montage, opencut,
-               hostos, paths, media, qc, rea_video, shorts, toonflow, video_to_skill, voicestudio)
+from . import CONTRACT_SCHEMA_ID, HYPERFRAMES, __version__, hostos, paths, qc
 from .aio import positive_int
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
+
+def _tools_mcp() -> str:
+    """The names of the `video.*` tools of the MCP server, from its own list: the `--help` cannot forget one (it forgot 10 of 32)."""
+    from . import mcp_server
+    return "/".join(nome.removeprefix("video.") for nome, _fn, _desc in mcp_server.TOOLS)
+
 
 MAIN_DESC = f"""\
 simplicio-video {__version__} — vídeo determinístico a partir de um contrato YAML ({CONTRACT_SCHEMA_ID}).
@@ -45,7 +53,7 @@ Fluxo completo:
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/toonflow/moneyprinter/matchcut/instagram/rea-video/video-to-skill/social/openverse/busca
+  mcp          servidor MCP (stdio) com as tools video.{_tools_mcp()}
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      copia as skills do simplicio-video para o host do agente (11 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
   update       pacote pip: PyPI e reinstala as skills; checkout git: recusa (git pull e scripts/dev_install.sh); --check sai 0, 10 ou 2
@@ -55,7 +63,7 @@ Fluxo completo:
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
 Skill para LLMs: skills/simplicio-video/SKILL.md"""
 
-MAIN_EPILOG = """\
+MAIN_EPILOG = f"""\
 exemplos:
   simplicio-video list templates
   simplicio-video init <cliente> <Campanha> --template saude-odontologia --nome "<Nome do cliente>" --ano 2026
@@ -75,7 +83,7 @@ ambiente:
   SIMPLICIO_FFMPEG_DIR  ffmpeg travado no render local (mesmo build em todo backend = mesmos bytes)
   SIMPLICIO_FFMPEG_URL/_SHA256  o mesmo ffmpeg (.tar.xz) baixado e conferido pelos backends remotos
   SV_WORKERS / SV_BROWSER_GPU  workers de captura (auto = núcleos-2) / raster de GPU no Chrome (1 = sem determinismo)
-custo por vídeo (medido e oficial): docs/custos.md · credenciais: docs/decisoes/ADR-0003-fluxo-100-script.md"""
+custo por vídeo (medido e oficial): {paths.doc_url('docs/custos.md')} · credenciais: {paths.doc_url('docs/decisoes/ADR-0003-fluxo-100-script.md')}"""
 
 
 BACKENDS = ["local", "kaggle", "colab-cli", "colab"]
@@ -185,13 +193,13 @@ def build_parser() -> argparse.ArgumentParser:
                     "backends (todos sem navegador, exceto colab):\n"
                     "  local      PADRÃO. Renderiza aqui (CPU; --gpu usa encoder de GPU do HyperFrames se houver).\n"
                     "             Referência de hash, sem custo (vídeo de 600 frames: 76,5 s em 8 núcleos).\n"
-                    "  -- opcionais, para clientes via créditos (custo e tempo medidos em docs/custos.md) --\n"
+                    f"  -- opcionais, para clientes via créditos (custo e tempo medidos em {paths.doc_url('docs/custos.md')}) --\n"
                     "  kaggle     bundle -> dataset privado Kaggle -> kernel (T4, internet) -> poll -> baixa o MP4.\n"
                     "             Precisa do CLI `kaggle`, KAGGLE_USERNAME + token (KAGGLE_API_TOKEN ou ~/.kaggle/access_token)\n"
                     "             e conta com telefone verificado (internet no kernel). --accelerator none = CPU (sem cota de GPU).\n"
                     "  colab-cli  Colab oficial por CLI (`pip install google-colab-cli`): new --gpu T4 -> upload -> exec ->\n"
                     "             download -> stop (sempre). Login Google uma vez (código colado no terminal).\n"
-                    "  colab      NÃO renderiza: gera <saida>.colab-bundle.zip para colab/render.ipynb no navegador (manual)\n"
+                    f"  colab      NÃO renderiza: gera <saida>.colab-bundle.zip para {paths.doc_url('colab/render.ipynb')} no navegador (manual)\n"
                     "Remotos baixam final.mp4 e gravam o mesmo render.manifest.json (+ usage: backend, GPU, tempos) para créditos.\n"
                     "--json: stdout só o objeto {ok, contrato, backend, preview, output, manifest}; erro vira\n"
                     "  {ok: false, error: {code, message}}. Códigos de erro (error.code): CONTRATO_NAO_ENCONTRADO,\n"
@@ -637,11 +645,169 @@ def _render_json(a) -> int:
     return 0
 
 
-# Subcommands handled before argparse that take the global --json (their own parsers accept it). The hand-parsed ones
-# accept it only on some sub-subcommands, so the global one is passed on only there, right after the sub-subcommand
-# (never at the end, where it could become the value of an option); everywhere else it is a usage error (exit 2).
-_PASSTHROUGH_JSON = ("busca", "qc", "voicestudio", "swap", "jobs", "social", "openverse", "formats")
-_JSON_SO_EM = {"instagram": ("where", "status", "skills"), "moneyprinter": ("generate",), "video-to-skill": ("where", "status")}
+# One loader per command module, each a plain `from . import x` run when the command does (the parser never needs them). Not an
+# import by a name held in the table: tests/test_childio.py walks the imports of the CLI to find every module the MCP server can
+# reach, and tests/test_motor_sem_vendas.py refuses a dynamic import by a name it cannot read.
+def _carrega_busca() -> ModuleType:
+    from . import busca
+    return busca
+
+
+def _carrega_clone() -> ModuleType:
+    from . import clone
+    return clone
+
+
+def _carrega_edit() -> ModuleType:
+    from . import edit
+    return edit
+
+
+def _carrega_formats() -> ModuleType:
+    from . import formats
+    return formats
+
+
+def _carrega_instagram() -> ModuleType:
+    from . import instagram
+    return instagram
+
+
+def _carrega_jobs() -> ModuleType:
+    from . import jobs
+    return jobs
+
+
+def _carrega_matchcut() -> ModuleType:
+    from . import matchcut
+    return matchcut
+
+
+def _carrega_media() -> ModuleType:
+    from . import media
+    return media
+
+
+def _carrega_moneyprinter() -> ModuleType:
+    from . import moneyprinter
+    return moneyprinter
+
+
+def _carrega_montage() -> ModuleType:
+    from . import montage
+    return montage
+
+
+def _carrega_opencut() -> ModuleType:
+    from . import opencut
+    return opencut
+
+
+def _carrega_openverse() -> ModuleType:
+    from . import openverse
+    return openverse
+
+
+def _carrega_qc() -> ModuleType:
+    return qc
+
+
+def _carrega_rea_video() -> ModuleType:
+    from . import rea_video
+    return rea_video
+
+
+def _carrega_shorts() -> ModuleType:
+    from . import shorts
+    return shorts
+
+
+def _carrega_social() -> ModuleType:
+    from . import social
+    return social
+
+
+def _carrega_swap() -> ModuleType:
+    from . import swap
+    return swap
+
+
+def _carrega_toonflow() -> ModuleType:
+    from . import toonflow
+    return toonflow
+
+
+def _carrega_video_to_skill() -> ModuleType:
+    from . import video_to_skill
+    return video_to_skill
+
+
+def _carrega_voicestudio() -> ModuleType:
+    from . import voicestudio
+    return voicestudio
+
+
+@dataclass(frozen=True)
+class Comando:
+    """A track command of the CLI: where it lives, how its errors are told, where `--json` goes and who prints its `--help`.
+
+    These commands are handled before argparse (their words are the module's own, so argparse would only get in the way); the
+    parser keeps their entries just for the help screens.
+
+    modulo, run  the loader of the command's module (it imports it now) and the name of its function `run(argv) -> exit code`
+    erro         the module's error class, told as `<nome>: message` on stderr with exit 1; "" = the module handles its own
+    prefixa_erro False when the message already starts with the command's name (QcError: "qc: ...")
+    json_em      where the global `--json` (before the command) goes: ("*",) = right after the command, whatever follows; a
+                 tuple of verbs = only after one of them; () = the command takes no `--json` (exit 2)
+    ajuda        who prints `<nome> ... --help`: "argparse" = the parser; "upstream" = the program behind the track, and the
+                 parser's page only with `--engine-help`; "propria" = the module, when `ajuda_em` says the words are its own
+    ajuda_em     name of the module's attribute for "propria": a tuple of verbs (the first word is one of them) or a function
+                 of the words after the command that says so. Examples of what it decides: `media burn --help` is the help of
+                 that verb, printed by the module (`media` is "propria" with `SUBCOMMANDS`), `edit grade --help` the same for
+                 edit, and `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this
+                 parser (`repassa`: everything but this track's own commands and help words); `montage tools --help` has an
+                 argparse with examples inside montage.py (`REGISTRY_COMMANDS`); `clone --help` is Hypit's help and the
+                 engine's own page is `clone --engine-help` ("upstream"). A help word after `--` is a value, never a help request
+    """
+    nome: str
+    modulo: Callable[[], ModuleType]
+    run: str
+    erro: str = ""
+    json_em: tuple[str, ...] = ()
+    ajuda: Literal["argparse", "propria", "upstream"] = "argparse"
+    ajuda_em: str = ""
+    prefixa_erro: bool = True
+
+
+COMANDOS: dict[str, Comando] = {c.nome: c for c in (
+    Comando("clone", _carrega_clone, "run_hypit", "CloneError", ajuda="upstream"),
+    Comando("montage", _carrega_montage, "run_montage", "MontageError", ajuda="propria", ajuda_em="REGISTRY_COMMANDS"),
+    Comando("opencut", _carrega_opencut, "run_opencut", "OpenCutError"),
+    Comando("edit", _carrega_edit, "run_edit", "EditError", ajuda="propria", ajuda_em="SUBCOMMANDS"),
+    Comando("shorts", _carrega_shorts, "run_shorts", "ShortsError"),
+    Comando("media", _carrega_media, "run_media", "MediaError", ajuda="propria", ajuda_em="SUBCOMMANDS"),
+    Comando("qc", _carrega_qc, "run_qc", "QcError", json_em=("*",), prefixa_erro=False),
+    Comando("toonflow", _carrega_toonflow, "run_toonflow", "ToonflowError"),
+    Comando("moneyprinter", _carrega_moneyprinter, "run_moneyprinter", "MoneyPrinterError", json_em=("generate",)),
+    Comando("matchcut", _carrega_matchcut, "run_matchcut", "MatchcutError"),
+    Comando("instagram", _carrega_instagram, "run_instagram", "InstagramError", json_em=("where", "status", "skills")),
+    Comando("rea-video", _carrega_rea_video, "run_rea_video", "ReaVideoError", ajuda="propria", ajuda_em="repassa"),
+    Comando("video-to-skill", _carrega_video_to_skill, "run_video_to_skill", "VideoToSkillError", json_em=("where", "status"),
+            ajuda="propria", ajuda_em="SUBCOMMANDS"),
+    Comando("voicestudio", _carrega_voicestudio, "run_voicestudio", json_em=("*",)),
+    Comando("formats", _carrega_formats, "run_formats", "FormatError", json_em=("*",)),
+    Comando("swap", _carrega_swap, "run_swap", json_em=("*",)),
+    Comando("jobs", _carrega_jobs, "run_jobs", json_em=("*",)),
+    Comando("social", _carrega_social, "run_social", json_em=("*",)),
+    Comando("openverse", _carrega_openverse, "run_openverse", json_em=("*",)),
+    Comando("busca", _carrega_busca, "run_busca", json_em=("*",)),
+)}
+
+# The global --json goes to the subcommand that has its own. The hand-parsed ones accept it only on some sub-subcommands, so the
+# global one is passed on only there, right after the sub-subcommand (never at the end, where it could become the value of an
+# option); everywhere else it is a usage error (exit 2). Both tables come from `COMANDOS.json_em`.
+_PASSTHROUGH_JSON = tuple(nome for nome, c in COMANDOS.items() if c.json_em == ("*",))
+_JSON_SO_EM = {nome: c.json_em for nome, c in COMANDOS.items() if c.json_em and c.json_em != ("*",)}
 
 
 def _json_global(ap, args_list: list[str]) -> list[str]:
@@ -666,6 +832,34 @@ def _json_global(ap, args_list: list[str]) -> list[str]:
     return ["--json", *resto]  # argparse decides: it accepts it where the subcommand has --json, else exit 2
 
 
+def _o_parser_imprime_a_ajuda(c: Comando, args_list: list[str]) -> bool:
+    """True when `-h`/`--help` in the words of track command `c` is for this parser (and not for the module or its upstream).
+
+    A help word after `--` is a value, never a request for help."""
+    antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list
+    if c.ajuda == "upstream":  # the help is the upstream's; the engine's own page is the one that has to be asked for
+        return "--engine-help" in antes_do_traco
+    if c.ajuda == "propria":
+        alvo = getattr(c.modulo(), c.ajuda_em)
+        resto = args_list[1:]
+        if (alvo(resto) if callable(alvo) else bool(resto) and resto[0] in alvo):
+            return False
+    return any(h in antes_do_traco for h in ("-h", "--help"))
+
+
+def _erros(c: Comando) -> tuple[type[BaseException], ...]:
+    return (getattr(c.modulo(), c.erro),) if c.erro else ()
+
+
+def _despacha(c: Comando, args: list[str]) -> int:
+    """Runs the module of a track command; its own error class ends here as `<nome>: message` on stderr, exit 1."""
+    try:
+        return getattr(c.modulo(), c.run)(args)
+    except _erros(c) as e:
+        print(f"{c.nome}: {e}" if c.prefixa_erro else e, file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """The CLI. Every command that needs a home folder and has none (no HOME, no passwd entry) ends here with ONE clean message and exit 2,
     never a traceback and never a folder named `~` in the cwd (hostos.SemCasa is raised before anything is created)."""
@@ -683,128 +877,12 @@ def _main(argv: list[str] | None = None) -> int:
     argv = args_list if argv is not None else None
     if argv is None and args_list != sys.argv[1:]:
         argv = args_list
-    if args_list and args_list[0] in ("clone", "montage", "opencut", "edit", "shorts", "media", "qc", "toonflow", "moneyprinter", "matchcut", "instagram", "rea-video", "video-to-skill", "voicestudio", "formats", "swap", "jobs", "social", "openverse", "busca"):
-        antes_do_traco = args_list[:args_list.index("--")] if "--" in args_list else args_list  # after `--` a -h or --help is a value
-        # `rea-video decompose --help` is the help of rea-video itself, so it goes to the upstream, not to this parser
-        ajuda_do_upstream = args_list[0] == "rea-video" and rea_video.repassa(args_list[1:])
-        ajuda_do_media = args_list[0] == "media" and len(args_list) > 1 and args_list[1] in media.SUBCOMMANDS  # `media burn --help`
-        ajuda_do_edit = args_list[0] == "edit" and len(args_list) > 1 and args_list[1] in edit.SUBCOMMANDS  # `edit grade --help`
-        # `video-to-skill extract --help` is the help of that verb, printed by the module
-        ajuda_do_vts = args_list[0] == "video-to-skill" and len(args_list) > 1 and args_list[1] in video_to_skill.SUBCOMMANDS
-        # `clone --help` is Hypit's help; the engine's own is `clone --engine-help`
-        ajuda_do_motor = args_list[0] == "clone" and "--engine-help" in antes_do_traco
-        ajuda_do_upstream = ajuda_do_upstream or (args_list[0] == "clone" and not ajuda_do_motor)
-        # `montage tools --help` etc. have their own argparse (with examples) inside montage.py
-        ajuda_propria = args_list[0] == "montage" and args_list[1:2] and args_list[1] in montage.REGISTRY_COMMANDS
-        ajuda_do_upstream = ajuda_do_upstream or bool(ajuda_propria)
-        if ajuda_do_motor or (not ajuda_do_upstream and not ajuda_do_media and not ajuda_do_edit and not ajuda_do_vts and any(h in antes_do_traco for h in ("-h", "--help"))):
-            ap.parse_args(args_list[:1] + ["--help"])
+    comando = COMANDOS.get(args_list[0]) if args_list else None
+    if comando:
+        if _o_parser_imprime_a_ajuda(comando, args_list):
+            ap.parse_args([comando.nome, "--help"])
             return 0
-        cmd = args_list[0]
-        sub_args = args_list[1:]
-        if cmd == "clone":
-            try:
-                return clone.run_hypit(sub_args)
-            except clone.CloneError as e:
-                print(f"clone: {e}", file=sys.stderr)
-                return 1
-        if cmd == "montage":
-            try:
-                return montage.run_montage(sub_args)
-            except montage.MontageError as e:
-                print(f"montage: {e}", file=sys.stderr)
-                return 1
-        if cmd == "edit":
-            try:
-                return edit.run_edit(sub_args)
-            except edit.EditError as e:
-                print(f"edit: {e}", file=sys.stderr)
-                return 1
-        if cmd == "shorts":
-            try:
-                return shorts.run_shorts(sub_args)
-            except shorts.ShortsError as e:
-                print(f"shorts: {e}", file=sys.stderr)
-                return 1
-        if cmd == "media":
-            try:
-                return media.run_media(sub_args)
-            except media.MediaError as e:
-                print(f"media: {e}", file=sys.stderr)
-                return 1
-        if cmd == "qc":
-            try:
-                return qc.run_qc(sub_args)
-            except qc.QcError as e:
-                print(e, file=sys.stderr)
-                return 1
-        if cmd == "opencut":
-            try:
-                return opencut.run_opencut(sub_args)
-            except opencut.OpenCutError as e:
-                print(f"opencut: {e}", file=sys.stderr)
-                return 1
-        if cmd == "swap":
-            from . import swap
-            return swap.run_swap(sub_args)
-        if cmd == "jobs":
-            from . import jobs
-            return jobs.run_jobs(sub_args)
-        if cmd == "social":
-            from . import social
-            return social.run_social(sub_args)
-        if cmd == "openverse":
-            from . import openverse
-            return openverse.run_openverse(sub_args)
-        if cmd == "busca":
-            from . import busca
-            return busca.run_busca(sub_args)
-        if cmd == "formats":
-            from . import formats
-            try:
-                return formats.run_formats(sub_args)
-            except formats.FormatError as e:
-                print(f"formats: {e}", file=sys.stderr)
-                return 1
-        if cmd == "toonflow":
-            try:
-                return toonflow.run_toonflow(sub_args)
-            except toonflow.ToonflowError as e:
-                print(f"toonflow: {e}", file=sys.stderr)
-                return 1
-        if cmd == "moneyprinter":
-            try:
-                return moneyprinter.run_moneyprinter(sub_args)
-            except moneyprinter.MoneyPrinterError as e:
-                print(f"moneyprinter: {e}", file=sys.stderr)
-                return 1
-        if cmd == "matchcut":
-            try:
-                return matchcut.run_matchcut(sub_args)
-            except matchcut.MatchcutError as e:
-                print(f"matchcut: {e}", file=sys.stderr)
-                return 1
-        if cmd == "instagram":
-            from . import instagram
-            try:
-                return instagram.run_instagram(sub_args)
-            except instagram.InstagramError as e:
-                print(f"instagram: {e}", file=sys.stderr)
-                return 1
-        if cmd == "rea-video":
-            try:
-                return rea_video.run_rea_video(sub_args)
-            except rea_video.ReaVideoError as e:
-                print(f"rea-video: {e}", file=sys.stderr)
-                return 1
-        if cmd == "video-to-skill":
-            try:
-                return video_to_skill.run_video_to_skill(sub_args)
-            except video_to_skill.VideoToSkillError as e:
-                print(f"video-to-skill: {e}", file=sys.stderr)
-                return 1
-        if cmd == "voicestudio":
-            return voicestudio.run_voicestudio(sub_args)
+        return _despacha(comando, args_list[1:])
 
     a = ap.parse_args(argv)
     if a.version:
@@ -881,18 +959,6 @@ def _main(argv: list[str] | None = None) -> int:
         scaffold.write(out, data, a.force)
         print(f"contrato: {out}\npróximo: preencha os TODO (só fatos de coleta/) e rode `simplicio-video validate {out}`")
         return 0
-    if a.cmd == "clone":
-        try:
-            return clone.run_hypit(a.args)
-        except clone.CloneError as e:
-            print(f"clone: {e}", file=sys.stderr)
-            return 1
-    if a.cmd == "montage":
-        try:
-            return montage.run_montage(a.args)
-        except montage.MontageError as e:
-            print(f"montage: {e}", file=sys.stderr)
-            return 1
 
     if a.cmd == "mcp":
         from . import mcp_server

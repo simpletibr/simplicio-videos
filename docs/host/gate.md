@@ -1,7 +1,7 @@
 ---
 title: Gate local, TDD e pouso de PRs
 summary: Como provar que a main está verde com um comando offline, a regra de testes primeiro, o ownership por issue e o pouso serializado sem CI.
-commands: make setup, make check, make check-full, make check-web, make hooks, make regen, scripts/check_ownership.py, scripts/check_tdd.py, scripts/land.sh
+commands: make setup, make check, make check-full, make hooks, make regen, scripts/check_ownership.py, scripts/check_tdd.py, scripts/land.sh
 issue: 31
 last_verified: 2026-11-06
 ---
@@ -16,12 +16,13 @@ Não há GitHub Actions (política da organização). A `main` fica verde porque
 make setup        # cria .venv, instala o extra `test` (pytest, pytest-socket, ruff, shellcheck-py) e liga os hooks
 make check        # o gate: offline, em paralelo com o pytest-xdist (medidas e orçamento em "Tempo do gate")
 make check-full   # check + testes render/integration/ui/slow (podem usar rede)
-make check-web    # workspace web (chega com a #34; por enquanto só avisa e sai com 0)
 make hooks        # git config core.hooksPath .githooks (o pre-push roda `make check`)
-make regen        # regenera os arquivos gerados (plugin.json, schemas, referências)
+make regen        # regenera os arquivos gerados (docs/reference, blocos GENERATED, campos do plugin.json, docs/licenses.md e o espelho skills/)
 ```
 
 Numa cópia limpa: `python3 -m venv .venv && .venv/bin/pip install -e '.[test]' && make check`.
+
+O espelho `skills/` da raiz e o bloco `GENERATED skills` do `.gitignore` saem de `src/simplicio_video/data/skills/` por `scripts/sync_skills.py`: `make regen` regrava e `make docs` (portanto `make check`) roda `--check`. Não edite `skills/` à mão; se `make check` acusar o espelho, rode `make regen`.
 
 `make check` descobre a issue e a base sozinho: a issue vem do nome do branch (`feat/31-gate`, `loop/issue-31`) e a base é `origin/main`. Para forçar: `ISSUE=31 BASE=origin/main make check`. Sem issue ou sem base, as checagens de ownership e TDD são puladas com um aviso.
 
@@ -33,7 +34,7 @@ scripts/check_tdd.py --base origin/main            # testes primeiro (aceita --l
 scripts/check.sh --help                            # variáveis do gate
 ```
 
-As trilhas estendem o gate sem editar o `Makefile`: criam `mk/<trilha>.mk` com `CHECKS += alvo`, `REGEN += alvo` ou `CHECKS_WEB += alvo` e definem o alvo.
+As trilhas estendem o gate sem editar o `Makefile`: criam `mk/<trilha>.mk` com `CHECKS += alvo` ou `REGEN += alvo` e definem o alvo.
 
 ## O que é verificado
 
@@ -55,11 +56,11 @@ As trilhas estendem o gate sem editar o `Makefile`: criam `mk/<trilha>.mk` com `
 
 **Testes herméticos.** Um fixture automático aponta `SIMPLICIO_VIDEO_DATA` para um diretório temporário, limpa `OPENMONTAGE_DIR`/`SIMPLICIO_TOOLS_DIR` e troca `tools._git` por uma função que falha: nenhum teste clona nada nem toca no `~/.simplicio-video`. O OpenMontage fica em `$SIMPLICIO_VIDEO_DATA/tools/openmontage` (padrão `~/.simplicio-video/tools/openmontage`).
 
-**Ownership.** Cada issue só pode alterar os paths de `docs/factory/ownership.yaml`. `path#secao` marca um arquivo compartilhado (o script libera o arquivo e avisa; o revisor confere a seção); `generated` vale para todas as issues e vem de `make regen`. Issue em `status: backlog` não começa. O próprio `ownership.yaml` só pode mudar na entrada da issue.
+**Ownership.** Cada issue só pode alterar os paths de `scripts/ownership.yaml`. `path#secao` marca um arquivo compartilhado (o script libera o arquivo e avisa; o revisor confere a seção); `generated` vale para todas as issues e lista só arquivo inteiro que `make regen` escreve (`docs/reference/**`, `docs/licenses.md`, `skills/**`). Todo padrão de `owns` casa um arquivo (`tests/test_scripts/test_ownership_yaml.py`); o que ainda não casa fica no bloco `backlog` da issue, que não vale como posse: a issue que começa move o que cria para o `owns` dela. Issue em `status: backlog`, ou só com padrões no `backlog`, não começa. O próprio `ownership.yaml` só pode mudar na entrada da issue (`issues` e `backlog`).
 
 ## Tempo do gate
 
-Orçamento: 60 s. Os testes do gate rodam em paralelo com o pytest-xdist (`-n auto --dist loadscope`: um módulo inteiro por worker, para os fixtures de módulo não se repetirem). Sem o xdist, ou com `CHECK_JOBS=1`, rodam em série.
+Orçamento: 240 s (`CHECK_BUDGET_S`; o padrão era 60 s, que o gate nunca cumpriu, e o aviso disparava em toda execução). Os testes do gate rodam em paralelo com o pytest-xdist (`-n auto --dist loadscope`: um módulo inteiro por worker, para os fixtures de módulo não se repetirem). Sem o xdist, ou com `CHECK_JOBS=1`, rodam em série.
 
 Medidas de 2026-11-05 nesta máquina (4 núcleos). Outras sessões rodavam testes no mesmo host durante as medidas (load médio de 5 a 13), então o wall é pessimista; a CPU (usuário + sistema de toda a árvore do `make check`) varia menos:
 
@@ -147,7 +148,7 @@ O `reviewed` é aplicado pelo revisor independente (outro agente ou pessoa rodan
 | `FALHA: <arquivo> não pertence à issue` | o arquivo é de outra issue: comente na dona. Se for gerado, rode `make regen` |
 | `base desconhecida: origin/main` | `git fetch origin` |
 | `lock ocupado` | outro pouso em andamento; se o processo morreu o lock é reaproveitado sozinho |
-| `make check` passou de 60 s | o script avisa. Veja o tempo de CPU na seção "Tempo do gate" antes de mexer: pode ser a máquina ocupada. Se for o teste, marque-o `slow` (`check-full` roda) |
+| `make check` passou de 240 s | o script avisa (`CHECK_BUDGET_S` muda o limite). Veja o tempo de CPU na seção "Tempo do gate" antes de mexer: pode ser a máquina ocupada. Se for o teste, marque-o `slow` (`check-full` roda) |
 | `ruff` acusa um import sem uso num arquivo que você só tocou | o ruff roda em todo `.py` alterado no branch, não só em `src/` e `scripts/`: corrija o import (o achado pode já existir na `main`) |
 | `No module named pip` em `test_dados_pacote` (`check-full`) | a venv foi criada pelo `uv venv` (`scripts/dev_install.sh`), que não traz pip: `uv pip install --python .venv/bin/python pip`, ou crie a venv com `make setup` |
 | rebase com conflito | o `land.sh` aborta o rebase; resolva no branch e rode de novo |

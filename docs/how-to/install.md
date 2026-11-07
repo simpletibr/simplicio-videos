@@ -49,7 +49,7 @@ O `dev_install` aceita três opções (no PowerShell: `-DryRun`, `-With`, `-Pyth
 
 | Opção | O que faz |
 |---|---|
-| `--dry-run` | lista o plano (checagens, uv, `.venv`, extras, `web/`, doctor) e sai sem criar nada |
+| `--dry-run` | lista o plano (checagens, uv, `.venv`, extras, doctor) e sai sem criar nada |
 | `--with EXTRAS` | extras separados por vírgula. Os que existem hoje: `test` (pytest, ruff, shellcheck: o gate), `local-tts` (voz local, sem custo), `mcp` (servidor MCP), `remote` (Kaggle e Colab) |
 | `--python VERSÃO` | Python do `.venv`. O padrão é 3.12, porque os extras do CrewAI exigem Python menor que 3.14 |
 
@@ -205,5 +205,4 @@ Sem a chave, o doctor mostra aviso e o MVP usa a voz local.
 ## Limites atuais
 
 - O doctor ainda não checa plugins: o health check de plugin chega com a #32.
-- Não há build de `web/`: ele chega com a #34. Até lá, o `dev_install` registra isso e segue.
 - Windows e macOS reais são UNVERIFIED até alguém rodar `scripts/smoke_so.py` lá ([guia](testar-em-windows-e-macos.md)); o `scripts/dev_install.ps1` e o `install.ps1` nunca foram executados.

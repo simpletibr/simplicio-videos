@@ -6,7 +6,7 @@ Closes #N
 
 ## Escopo (paths da issue)
 
-- [ ] Só toquei os paths que a issue possui (`docs/factory/ownership.yaml`): `scripts/check_ownership.py N --base origin/main` passa.
+- [ ] Só toquei os paths que a issue possui (`scripts/ownership.yaml`): `scripts/check_ownership.py N --base origin/main` passa.
 - [ ] Arquivos gerados vieram de `make regen`, não de edição à mão.
 
 ## Teste primeiro (commit vermelho)
