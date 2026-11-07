@@ -568,6 +568,20 @@ def test_drop_job_cwd_de_pasta_que_ja_foi_nao_levanta(temporaria, quem):
     drop(p)
 
 
+@pytest.mark.parametrize("prefixo", ["", "a/b-", "a\\b-", "x*", "x?", "[x]-"])
+def test_o_prefixo_da_pasta_de_tarefa_nao_pode_ser_vazio_nem_ter_separador_nem_curinga(temporaria, prefixo):
+    """The sweep removes empty folders under the temp folder by prefix: an empty or glob-like prefix would reach folders that are not ours."""
+    tb = _tb()
+    velha = temporaria / "qualquer-coisa"
+    velha.mkdir()
+    _velho(velha, 30)
+    with pytest.raises(ValueError):
+        tb.job_cwd(prefixo)
+    with pytest.raises(ValueError):
+        tb.drop_job_cwd(velha, prefixo)
+    assert velha.exists()
+
+
 # ---- stop_group() and on_term() ---------------------------------------------------------------------------------------------
 
 
