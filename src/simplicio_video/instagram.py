@@ -46,6 +46,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import childio, tools
+from .rede import offline as _offline
+from .terceiros import commit_do_checkout as _commit_do_checkout
+from .trilha_base import Trilha
 
 try:
     import resource  # POSIX only: the CPU limit of the child
@@ -144,10 +147,6 @@ class InstagramError(Exception):
     pass
 
 
-def _offline() -> bool:
-    return os.environ.get("SIMPLICIO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on")
-
-
 def _ascii(valor, limite: int = 60) -> str:
     """A value that came from outside, safe to put in a message: escaped, on one line, short."""
     return ascii(valor if isinstance(valor, str) else repr(valor))[:limite]
@@ -213,9 +212,12 @@ def _ferramenta(nome, canal: str) -> Ferramenta:
 
 # ---------------------------------------------------------------------------------------------------------- the checkout
 
+T = Trilha("instagram", "INSTAGRAM_DIR")
+
+
 def find_instagram_dir() -> Path | None:
     """The pinned checkout (INSTAGRAM_DIR, else SIMPLICIO_TOOLS_DIR/instagram, else ~/.simplicio-video/tools/instagram)."""
-    return tools.find("instagram")
+    return T.find()
 
 
 def _checkout() -> Path:
@@ -225,41 +227,12 @@ def _checkout() -> Path:
     return d
 
 
-@contextlib.contextmanager
-def _checkout_at(target: Path):
-    """Point tools.install at `target` for the duration of the block, then restore the environment."""
-    previous = os.environ.get("INSTAGRAM_DIR")
-    os.environ["INSTAGRAM_DIR"] = str(target)
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("INSTAGRAM_DIR", None)
-        else:
-            os.environ["INSTAGRAM_DIR"] = previous
-
-
 def clone_instagram(target: Path | None = None) -> Path:
     """Download the pinned commit (target overrides the location). Never in offline mode. The only use of the network here."""
-    if _offline():
-        raise InstagramError(
-            "modo offline (SIMPLICIO_OFFLINE=1): não vou clonar o instagram-agent-skill. "
-            "Rode `simplicio-video instagram clone` fora do modo offline ou aponte INSTAGRAM_DIR para um checkout."
-        )
-    try:
-        if target is None:
-            return Path(tools.install("instagram"))
-        with _checkout_at(Path(target).expanduser()):
-            return Path(tools.install("instagram"))
-    except tools.ToolError as e:
-        raise InstagramError(str(e)) from None
-
-
-def _commit_do_checkout(d: Path) -> str:
-    try:
-        return tools._git("rev-parse", "HEAD", cwd=d)
-    except tools.ToolError:
-        return ""
+    return T.clone(target, erro=InstagramError, offline=_offline, acao=(
+        "clonar o instagram-agent-skill. "
+        "Rode `simplicio-video instagram clone` fora do modo offline ou aponte INSTAGRAM_DIR para um checkout."
+    ))
 
 
 def _mesmo_commit(head: str, ref: str) -> bool:

@@ -23,6 +23,8 @@ from pathlib import Path
 
 from . import childio, hostos, tools
 from .childio import run_child, under_mcp
+from .rede import offline as _offline
+from .trilha_base import Trilha
 
 
 class MontageError(Exception):
@@ -32,8 +34,7 @@ class MontageError(Exception):
 OPENMONTAGE_REPO = tools.get("openmontage").source
 
 
-def _offline() -> bool:
-    return os.environ.get("SIMPLICIO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on")
+T = Trilha("openmontage", "OPENMONTAGE_DIR", "OPENMONTAGE_DATA_DIR")
 
 
 def default_openmontage_dir() -> Path:
@@ -52,38 +53,23 @@ def default_openmontage_dir() -> Path:
 
 
 def find_openmontage_dir() -> Path | None:
-    """The pinned OpenMontage checkout (see default_openmontage_dir), or None when not installed."""
+    """The pinned OpenMontage checkout (see default_openmontage_dir), or None when not installed. Not `T.find()`: with only
+    SIMPLICIO_VIDEO_DATA set that looks in ~/.simplicio-video/tools, and this one looks in $SIMPLICIO_VIDEO_DATA/tools."""
     d = default_openmontage_dir()
     return d.resolve() if d.is_dir() and (d / tools.get("openmontage").marker).exists() else None
 
 
-@contextlib.contextmanager
-def _checkout_at(target: Path):
-    """Point tools.install at `target` for the duration of the block, then restore the environment."""
-    previous = os.environ.get("OPENMONTAGE_DIR")
-    os.environ["OPENMONTAGE_DIR"] = str(target)
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("OPENMONTAGE_DIR", None)
-        else:
-            os.environ["OPENMONTAGE_DIR"] = previous
+_ACAO_CLONAR = ("clonar o OpenMontage. "
+                "Instale fora do modo offline com `simplicio-video montage clone` ou aponte OPENMONTAGE_DIR para um checkout.")
 
 
 def clone_openmontage(target_dir: Path | None = None) -> Path:
     """Install OpenMontage at its pinned commit (target_dir overrides the location). Never in offline mode."""
-    if _offline():
-        raise MontageError(
-            "modo offline (SIMPLICIO_OFFLINE=1): não vou clonar o OpenMontage. "
-            "Instale fora do modo offline com `simplicio-video montage clone` ou aponte OPENMONTAGE_DIR para um checkout."
-        )
-    try:
-        target = Path(target_dir).expanduser() if target_dir is not None else default_openmontage_dir()
-        with _checkout_at(target):
-            return Path(tools.install("openmontage"))
-    except tools.ToolError as e:  # hostos.SemCasa goes up to cli.main: one clean message, exit 2
-        raise MontageError(str(e)) from None
+    if _offline():  # first: without a home, deciding the folder below raises SemCasa, and the refusal comes before that
+        return T.clone(None, erro=MontageError, offline=_offline, acao=_ACAO_CLONAR)
+    # hostos.SemCasa (not a ToolError) goes up to cli.main: one clean message, exit 2
+    return T.clone(target_dir if target_dir is not None else default_openmontage_dir(), erro=MontageError, offline=_offline,
+                   acao=_ACAO_CLONAR)
 
 
 def ensure_openmontage_dir(target_dir: Path | None = None) -> Path:
@@ -187,21 +173,17 @@ class _ChildError(MontageError):
 def data_dir() -> Path:
     """Where the venv lives: $OPENMONTAGE_DATA_DIR, else $SIMPLICIO_VIDEO_DATA/openmontage-data (~/.simplicio-video/openmontage-data)."""
     explicit = os.environ.get("OPENMONTAGE_DATA_DIR")
-    if explicit:
+    if explicit:  # Trilha.data_dir does not warn: the warning for a relative folder is this module's
         path = Path(explicit).expanduser()
         if not path.is_absolute() and explicit not in _WARNED_RELATIVE:
             _WARNED_RELATIVE.add(explicit)
             print(f"montage: aviso: OPENMONTAGE_DATA_DIR relativo ({explicit}) vira {path.resolve()} a partir da pasta atual; "
                   "use um caminho absoluto.", file=sys.stderr)
-        return path.resolve()
-    data = os.environ.get("SIMPLICIO_VIDEO_DATA")
-    base = Path(data).expanduser() if data else hostos.home_absoluta("SIMPLICIO_VIDEO_DATA") / ".simplicio-video"
-    return (base / "openmontage-data").resolve()
+    return T.data_dir()
 
 
 def venv_python() -> Path:
-    sub = ("Scripts", "python.exe") if os.name == "nt" else ("bin", "python")
-    return data_dir() / "venv" / sub[0] / sub[1]
+    return T.venv_python(data_dir())
 
 
 def upstream_python() -> str:
@@ -301,7 +283,7 @@ def status_report() -> dict:
     head = None
     if d is not None:
         try:
-            head = tools._git("rev-parse", "HEAD", cwd=d)
+            head = tools.git("rev-parse", "HEAD", cwd=d)
         except tools.ToolError:
             head = None
     py = venv_python()
@@ -725,7 +707,6 @@ _FF_PROTO = re.compile(r"\s*(subfile|concat|pipe|fd|tcp|udp|http|https|rtmp|file
 # FFREPORT=\"\" would still make ffmpeg write a report file: a log to /dev/null writes nothing.
 _NEUTRAL = {"FFREPORT": "file=/dev/null"}
 _RUN_DIR = "run"  # under data_dir(): the working folder of the strict runs, never the caller's cwd
-_RESULT_DIR = ".resultados"  # under jobs_dir(): one result file per MCP job (the job id is made after the spec)
 _ENV_KEEP = ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TEMP", "TMP", "USER", "SYSTEMROOT", "PATHEXT",
              "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
              "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "NODE_EXTRA_CA_CERTS", "PIP_CERT")

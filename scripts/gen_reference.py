@@ -104,6 +104,7 @@ DESCRIPTIONS = {
     "MONEYPRINTER_DATA_DIR": "Pasta de dados da trilha MoneyPrinterTurbo: venv isolado e storage com os vídeos gerados (padrão: `~/.simplicio-video/moneyprinter-data`, fora do checkout).",
     "MONEYPRINTER_DIR": "Checkout do MoneyPrinterTurbo (alternativa a `SIMPLICIO_TOOLS_DIR/moneyprinter`).",
     "INSTAGRAM_DIR": "Checkout do instagram-agent-skill (alternativa a `SIMPLICIO_TOOLS_DIR/instagram`). O `instagram run` avisa quando ele está em uso e confere o sha256 de cada script do mesmo jeito.",
+    "MATCHCUT_DATA_DIR": "Pasta onde mora o venv do match-cut: absoluta e fora do checkout, para que um novo clone nunca a apague.",
     "MATCHCUT_DIR": "Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`).",
     "VIDEO_USE_DIR": "Checkout do video-use (trilha `edit`), mantido pelo setup.sh em data/tools/video-use; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`).",
     "REA_VIDEO_DATA_DIR": "Pasta de dados da trilha rea-video: o venv próprio e o estado do upstream (padrão: `~/.simplicio-video/rea-video-data`, fora do checkout).",
