@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import base64
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -15,10 +14,10 @@ import pytest
 
 from simplicio_video import cli, mcp_server, swap, swap_providers
 from simplicio_video.swap_providers import fake, http
+from helpers import needs_ffmpeg
 
 FIX = Path(__file__).parent / "fixtures" / "swap"
 FAKE_KEY = "test-gemini-key-not-real-000000"
-needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 
 
 def fx(name: str) -> bytes:

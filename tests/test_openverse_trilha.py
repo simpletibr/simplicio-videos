@@ -22,11 +22,10 @@ import pytest
 import yaml
 
 from audio_medida import freq_dominante, le_wav, potencia_banda_db
-from helpers import have_render_tools
+from helpers import have_render_tools, needs_ffmpeg
 from simplicio_video import compiler, contract as ct, openverse as ov, openverse_contract as oc, render, trilha, voice
 from test_openverse import PEDIDO, _forjar, _mudar_e_reaprovar, amb, aprovado, baixar, env, midia
 
-needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 SR_TOM = 4000  # o tom da trilha de teste: fica na banda de agudos (2.5-6 kHz) que o ducking de voz baixa
 
 

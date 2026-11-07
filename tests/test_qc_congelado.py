@@ -4,17 +4,15 @@ Usa o filtro freezedetect do ffmpeg. O MP4 sintético tem 1 s de quadro fixo (ve
 o comando tem de achar exatamente UM intervalo, com duração perto de 1 s. Sem ffmpeg, o teste pula com motivo.
 """
 import json
-import shutil
 import subprocess
 
 import pytest
 
-from helpers import run_cli
+from helpers import ffmpeg_ou_pula, run_cli
 
 
 def _ffmpeg_ou_pula():
-    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
-        pytest.skip("ffmpeg/ffprobe ausentes neste ambiente: o QC de quadro congelado usa o freezedetect do ffmpeg")
+    ffmpeg_ou_pula("ffmpeg/ffprobe ausentes neste ambiente: o QC de quadro congelado usa o freezedetect do ffmpeg")
 
 
 @pytest.fixture

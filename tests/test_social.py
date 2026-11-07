@@ -21,10 +21,9 @@ from pathlib import Path
 
 import pytest
 
-from helpers import ROOT, run_cli
+from helpers import needs_ffmpeg, ROOT, run_cli
 from simplicio_video import mcp_server, paths, social
 
-needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 
 CAPTION = "Aprenda a montar o seu primeiro anúncio em vídeo. #marketing #video #reels"
 PROBE_OK = {"duration_s": 20.0, "width": 1080, "height": 1920, "fps": 30.0, "video_codec": "h264",

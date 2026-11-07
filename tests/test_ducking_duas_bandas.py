@@ -8,7 +8,6 @@ só durante os trechos de voz. A trilha é a soma de tons de cada banda (40 e 80
 duck_music_db e duck_sfx_db continuam como estavam.
 """
 import json
-import shutil
 from pathlib import Path
 
 import pytest
@@ -17,7 +16,7 @@ import yaml
 import math
 
 from audio_medida import grava_wav, le_wav, potencia_banda_db, tons
-from helpers import FIXTURE
+from helpers import ffmpeg_ou_pula, FIXTURE
 from simplicio_video import compiler, trilha
 from simplicio_video import contract as ct
 from simplicio_video.contract import schema_errors
@@ -36,8 +35,7 @@ COMPONENTES_TRILHA = [(40.0, 0.1), (80.0, 0.1), (1000.0, 0.1), (7000.0, 0.1), (1
 
 
 def _ffmpeg_ou_pula():
-    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
-        pytest.skip("ffmpeg/ffprobe ausentes neste ambiente: o ducking em duas bandas roda com ffmpeg")
+    ffmpeg_ou_pula("ffmpeg/ffprobe ausentes neste ambiente: o ducking em duas bandas roda com ffmpeg")
 
 
 def _delta(entrada, saida, t0, banda):

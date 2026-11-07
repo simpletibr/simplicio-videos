@@ -590,3 +590,18 @@ def test_importing_helpers_registers_no_second_copy_of_the_offline_folder():
     pasta = helpers.offline_env()["PYTHONPATH"].split(os.pathsep)[0]
     assert sys.modules["helpers.env"]._OFFLINE_DIR == [pasta]
     assert not hasattr(conftest, "_OFFLINE_DIR")
+
+
+def test_no_test_module_defines_its_own_ffmpeg_marker_or_ffmpeg_skip():
+    import ast
+    achados = []
+    cond = "not (shutil.which('ffmpeg') and shutil.which('ffprobe'))"
+    for rel, tree in _modulos():
+        for n in tree.body:
+            if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", None) == "needs_ffmpeg":
+                achados.append(f"{rel}:{n.lineno}: needs_ffmpeg = ...")
+            # a helper whose only job is "skip unless ffmpeg and ffprobe" (a test or a fixture that skips among other things is not one)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("test_") and len(n.body) == 1:
+                if isinstance(n.body[0], ast.If) and ast.unparse(n.body[0].test) == cond:
+                    achados.append(f"{rel}:{n.lineno}: def {n.name}() repeats the ffmpeg/ffprobe check")
+    assert achados == [], "use needs_ffmpeg / ffmpeg_ou_pula(motivo) from helpers:\n" + "\n".join(achados)

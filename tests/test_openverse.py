@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from helpers import ROOT
+from helpers import needs_ffmpeg, ROOT
 from simplicio_video import mcp_server, openverse as ov, paths
 from simplicio_video.cli import main
 from simplicio_video.swap_providers import http
@@ -50,7 +50,6 @@ PNG_B = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64 + b"conteudo-sintetico-b"
 MP3 = b"ID3\x04\x00\x00\x00\x00\x00\x00" + b"\xff\xfb\x90\x00" + b"\x00" * 200
 
 REAL_REQUEST = http.request  # guardado antes do fixture trocar por FakeApi
-needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 
 
 # ------------------------------------------------------------------------------------------------ fakes

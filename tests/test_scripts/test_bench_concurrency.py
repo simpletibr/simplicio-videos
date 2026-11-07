@@ -4,15 +4,13 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import shutil
 import subprocess
 import sys
 
 import pytest
-from helpers import ROOT
+from helpers import needs_ffmpeg, ROOT
 
 SCRIPT = ROOT / "scripts" / "bench_concurrency.py"
-needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg ausente")
 
 
 def load():

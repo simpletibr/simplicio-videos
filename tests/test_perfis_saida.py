@@ -11,7 +11,7 @@ import subprocess
 import pytest
 import yaml
 
-from helpers import FIXTURE, have_render_tools, ROOT
+from helpers import ffmpeg_ou_pula, FIXTURE, have_render_tools, ROOT
 from simplicio_video import contract as ct
 from simplicio_video import perfis, render, voice
 from simplicio_video.contract import schema_errors
@@ -30,8 +30,7 @@ def _valor(args, opcao):
 
 
 def _ffmpeg_ou_pula():
-    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
-        pytest.skip("ffmpeg/ffprobe ausentes neste ambiente: o teste do thumb precisa deles para gerar o quadro")
+    ffmpeg_ou_pula("ffmpeg/ffprobe ausentes neste ambiente: o teste do thumb precisa deles para gerar o quadro")
 
 
 # ---------------------------------------------------------------- (1) argumentos por perfil, sem ffmpeg
