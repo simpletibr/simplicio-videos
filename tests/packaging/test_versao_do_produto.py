@@ -96,10 +96,15 @@ def test_o_produto_esta_na_0_8_0_ou_depois():
 
 
 def test_o_changelog_tem_a_secao_0_8_0_com_data_e_o_unreleased_vazio_acima():
+    """O nome é do corte 0.8.0, quando o Unreleased nascia vazio. Com as notas do ciclo untangle ele deixa de ficar vazio, então a
+    asserção de vazio saiu e entrou a mesma da 0.7.0: o Unreleased não repete o que já está na seção 0.8.0. (Renomear quando a regra
+    de ids permitir.)"""
     assert "## 0.8.0 — 2026-11-06" in _changelog()
     titulos = re.findall(r"^## (.+)$", _changelog(), re.M)
     assert titulos[:2] == ["Unreleased", "0.8.0 — 2026-11-06"], titulos[:3]
-    assert _secao("Unreleased").strip() == "", "o Unreleased fica vazio depois do corte; as notas moram na 0.8.0"
+    unreleased = _secao("Unreleased")
+    for da_0_8_0 in ("#207", "c1a1b90", "vts-extract", "32ª"):  # o PR, o commit fixado, o extrator e a 32ª tool da trilha video-to-skill
+        assert da_0_8_0 not in unreleased, f"{da_0_8_0!r} saiu na 0.8.0; as notas moram lá"
 
 
 @pytest.mark.parametrize("trecho", [
