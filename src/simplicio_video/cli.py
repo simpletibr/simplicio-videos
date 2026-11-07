@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import ast
+import functools
 import json
 import sys
 from dataclasses import dataclass
@@ -14,13 +16,40 @@ from .aio import positive_int
 
 SCHEMA_REL = "src/simplicio_video/data/schema/contract.schema.json"
 
+
+def _nomes_das_tools_no_fonte() -> list[str] | None:
+    """The names in `TOOLS` of mcp_server.py, read from its source (a literal list of `("video.<nome>", function, DESC)`); None when
+    the file cannot be read or `TOOLS` is not a literal list of tuples that start with a string any more."""
+    try:
+        arvore = ast.parse(Path(__file__).with_name("mcp_server.py").read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, ValueError):
+        return None
+    for no in arvore.body:
+        if isinstance(no, ast.Assign) and isinstance(no.value, ast.List) and any(isinstance(t, ast.Name) and t.id == "TOOLS" for t in no.targets):
+            nomes = [e.elts[0].value for e in no.value.elts if isinstance(e, ast.Tuple) and e.elts and isinstance(e.elts[0], ast.Constant)
+                     and isinstance(e.elts[0].value, str)]
+            return nomes if nomes and len(nomes) == len(no.value.elts) else None
+    return None
+
+
 def _tools_mcp() -> str:
-    """The names of the `video.*` tools of the MCP server, from its own list: the `--help` cannot forget one (it forgot 10 of 32)."""
-    from . import mcp_server
-    return "/".join(nome.removeprefix("video.") for nome, _fn, _desc in mcp_server.TOOLS)
+    """The names of the `video.*` tools of the MCP server, from its own list: the `--help` cannot forget one (it forgot 10 of 32).
+
+    Read from the source of mcp_server.py, not by importing it: that import brings 19 modules of the package (every track) into a
+    `--help` that only prints this one line. If `TOOLS` stops being a literal list it imports the module: slower, and still the
+    right names (tests/test_help_leve.py fails, so nobody loses the lightness without knowing)."""
+    nomes = _nomes_das_tools_no_fonte()
+    if nomes is None:
+        from . import mcp_server
+        nomes = [nome for nome, _fn, _desc in mcp_server.TOOLS]
+    return "/".join(nome.removeprefix("video.") for nome in nomes)
 
 
-MAIN_DESC = f"""\
+@functools.cache
+def _main_desc() -> str:
+    """The description of the main help. Computed when it is asked for (`cli.MAIN_DESC`, `build_parser`): the line of the `mcp`
+    command lists the tools of the server, and `import cli` must not have to find them."""
+    return f"""\
 simplicio-video {__version__} — vídeo determinístico a partir de um contrato YAML ({CONTRACT_SCHEMA_ID}).
 O LLM raciocina e escreve o contrato; o CLI executa. Mesma entrada => mesma saída.
 
@@ -62,6 +91,13 @@ Fluxo completo:
 
 Schema do contrato: {SCHEMA_REL} (no checkout do plugin; ver `simplicio-video validate --help`).
 Skill para LLMs: skills/simplicio-video/SKILL.md"""
+
+
+def __getattr__(nome: str) -> str:
+    """`cli.MAIN_DESC` (a text that some tests and `docs` read) is made on first use, not when the module is imported."""
+    if nome == "MAIN_DESC":
+        return _main_desc()
+    raise AttributeError(f"module {__name__!r} has no attribute {nome!r}")
 
 MAIN_EPILOG = f"""\
 exemplos:
@@ -115,8 +151,20 @@ def _contract_arg(p):
                    help=f"caminho do contrato YAML ({CONTRACT_SCHEMA_ID}; schema em {SCHEMA_REL})")
 
 
-def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="simplicio-video", description=MAIN_DESC, epilog=MAIN_EPILOG, formatter_class=Fmt)
+def _ajuda_longa(only: str | None, nome: str, carrega: Callable[[], ModuleType]) -> dict[str, str]:
+    """`description` and `epilog` of command `nome` when its long help lives in a module of the package (heavy: it imports the
+    track, or six adapters). Only the page that is going to be printed needs them: `only` is the command whose `--help` it is;
+    None = every page (docs/reference/cli.md is made from that), "" = none (the main help shows the short line of each command)."""
+    if only is not None and only != nome:
+        return {}
+    modulo = carrega()
+    return {"description": modulo.HELP_DESC, "epilog": modulo.HELP_EPILOG}
+
+
+def build_parser(only: str | None = None) -> argparse.ArgumentParser:
+    """The argparse of the CLI. Every command is on it, with its short line (`help=`), whatever `only` says; `only` is which command's
+    long help (description and examples) is read from its module: None = all of them, a name = that one, "" = none."""
+    ap = argparse.ArgumentParser(prog="simplicio-video", description=_main_desc(), epilog=MAIN_EPILOG, formatter_class=Fmt)
     ap.add_argument("--version", action="store_true",
                     help="mostra a versão do motor e sai (com --json: {version, engine})")
     ap.add_argument("--json", dest="ver_json", action="store_true", help="com --version: imprime {version, engine} em JSON")
@@ -393,29 +441,24 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video formats list --objetivo venda\n  simplicio-video formats show caixinha\n  simplicio-video formats prompt caixinha --copia roteiro.txt")
     p.add_argument("args", nargs=argparse.REMAINDER, help="list [--objetivo ...] | show <id> | prompt <id> --copia <arquivo|->")
 
-    from . import swap as _swap
     p = sub.add_parser("swap", formatter_class=Fmt, help="troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)",
-        description=_swap.HELP_DESC, epilog=_swap.HELP_EPILOG)
+        **_ajuda_longa(only, "swap", _carrega_swap))
     p.add_argument("args", nargs=argparse.REMAINDER, help="providers | estimate | run | status <manifesto>")
 
-    from . import jobs as _jobs
     p = sub.add_parser("jobs", formatter_class=Fmt, help="tarefas em segundo plano (swap run, voice) num processo separado",
-        description=_jobs.HELP_DESC, epilog=_jobs.HELP_EPILOG)
+        **_ajuda_longa(only, "jobs", _carrega_jobs))
     p.add_argument("args", nargs=argparse.REMAINDER, help="submit | status | list | cancel | result | clean")
 
-    from . import social as _social
     p = sub.add_parser("social", formatter_class=Fmt, help="redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP",
-        description=_social.HELP_DESC, epilog=_social.HELP_EPILOG)
+        **_ajuda_longa(only, "social", _carrega_social))
     p.add_argument("args", nargs=argparse.REMAINDER, help="providers | plan | check <plano> | recipe <plano>")
 
-    from . import openverse as _openverse
     p = sub.add_parser("openverse", formatter_class=Fmt, help="biblioteca de imagens e áudio do Openverse, revisada por pedido",
-        description=_openverse.HELP_DESC, epilog=_openverse.HELP_EPILOG)
+        **_ajuda_longa(only, "openverse", _carrega_openverse))
     p.add_argument("args", nargs=argparse.REMAINDER, help="search | get <id> | library list|show|review|export|credits")
 
-    from . import busca_ajuda as _busca  # the help text only: `busca` itself is imported when the command runs
     p = sub.add_parser("busca", formatter_class=Fmt, help="pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário",
-        description=_busca.HELP_DESC, epilog=_busca.HELP_EPILOG)
+        **_ajuda_longa(only, "busca", _carrega_busca_ajuda))  # the help text only: `busca` itself is imported when the command runs
     p.add_argument("args", nargs=argparse.REMAINDER, help="consulta \"<texto>\" | pagina <url> | status | log")
 
     p = sub.add_parser("mcp", formatter_class=Fmt, help="servidor MCP (stdio) para o simplicio-runtime",
@@ -653,6 +696,11 @@ def _carrega_busca() -> ModuleType:
     return busca
 
 
+def _carrega_busca_ajuda() -> ModuleType:
+    from . import busca_ajuda
+    return busca_ajuda
+
+
 def _carrega_clone() -> ModuleType:
     from . import clone
     return clone
@@ -870,9 +918,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
 
+def _pagina_pedida(args_list: list[str]) -> str:
+    """The command whose long help may be printed by this run: its name when a `-h`/`--help` is among the words (the first word that
+    is not the global `--json`), "" when none is asked for. `build_parser` reads that command's help from its module and no other."""
+    if "-h" not in args_list and "--help" not in args_list:
+        return ""
+    primeira = next((w for w in args_list if w != "--json"), "")
+    return "" if primeira.startswith("-") else primeira
+
+
 def _main(argv: list[str] | None = None) -> int:
-    ap = build_parser()
     args_list = sys.argv[1:] if argv is None else argv
+    ap = build_parser(only=_pagina_pedida(args_list))
     args_list = _json_global(ap, args_list)
     argv = args_list if argv is not None else None
     if argv is None and args_list != sys.argv[1:]:

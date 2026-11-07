@@ -293,3 +293,48 @@ def test_the_lines_around_the_mcp_line_are_fixed_text():
     assert linhas[i].startswith("  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/")
     assert linhas[i + 1].startswith("  status       ferramentas (instaladas, versão, versão fixada)")
     assert linhas[i - 1].startswith("  busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish")
+
+
+# ------------------------------------------------------------------------------------------------ the names read from the source
+
+def _nomes_do_servidor() -> list[str]:
+    return [nome for nome, _fn, _desc in mcp_server.TOOLS]
+
+
+def test_the_names_read_from_the_source_are_the_names_of_tools():
+    assert cli._nomes_das_tools_no_fonte() == _nomes_do_servidor()
+    assert cli._tools_mcp() == "/".join(nome.removeprefix("video.") for nome in _nomes_do_servidor())
+
+
+@pytest.mark.parametrize("fonte,esperado", [
+    ('TOOLS = [("video.a", f, D), ("video.b", g, E)]\n', ["video.a", "video.b"]),
+    ('X = 1\nTOOLS = [("video.a", f, D)]\n', ["video.a"]),
+    ("TOOLS = [(n, f, d) for n, f, d in outras]\n", None),          # not a literal list
+    ('TOOLS = [("video.a", f, D), (nome, g, E)]\n', None),          # a name that is not a string: do not guess
+    ('TOOLS = [("video.a", f, D), g]\n', None),                     # an item that is not a tuple
+    ("TOOLS = []\n", None),
+    ('TOOLS: list = [("video.a", f, D)]\n', None),                  # another shape of assignment: ask the module
+    ("OUTRA = [('video.a', f, D)]\n", None),
+    ("def isto(:\n", None),                                         # does not parse
+])
+def test_the_source_is_trusted_only_when_tools_is_a_literal_list_of_named_tuples(tmp_path, monkeypatch, fonte, esperado):
+    (tmp_path / "mcp_server.py").write_text(fonte, encoding="utf-8")
+    monkeypatch.setattr(cli, "__file__", str(tmp_path / "cli.py"))
+    assert cli._nomes_das_tools_no_fonte() == esperado
+
+
+def test_without_the_source_the_names_come_from_the_module_and_are_the_same(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "__file__", str(tmp_path / "cli.py"))  # no mcp_server.py there
+    assert cli._nomes_das_tools_no_fonte() is None
+    assert cli._tools_mcp() == "/".join(nome.removeprefix("video.") for nome in _nomes_do_servidor())
+
+
+def test_main_desc_is_made_once():
+    assert cli.MAIN_DESC is cli.MAIN_DESC
+    assert cli._main_desc() is cli.MAIN_DESC
+
+
+def test_an_unknown_attribute_of_the_module_is_still_an_attribute_error():
+    assert not hasattr(cli, "NAO_EXISTE")
+    with pytest.raises(AttributeError, match="NAO_EXISTE"):
+        cli.NAO_EXISTE  # noqa: B018
