@@ -167,6 +167,12 @@ def test_o_shim_de_swap_providers_http_e_a_mesma_coisa_que_rede(nome):
     assert getattr(http, nome) is getattr(rede, nome)
 
 
+def test_o_nome_privado_antigo_do_handler_de_redirecionamento_continua_no_shim():
+    from simplicio_video import rede
+    from simplicio_video.swap_providers import http
+    assert http._NoRedirect is rede.NoRedirect
+
+
 def test_o_shim_nao_tem_corpo_proprio_so_reexporta():
     arvore = ast.parse((PKG / "swap_providers" / "http.py").read_text(encoding="utf-8"))
     assert not [n.name for n in ast.walk(arvore) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
