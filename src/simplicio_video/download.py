@@ -35,9 +35,11 @@ AUDIO_FORMATS = {".m4a": "m4a", ".wav": "wav"}
 SECTION_RE = re.compile(r"^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$")
 LANG_RE = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")  # literal codes only: yt-dlp reads --sub-langs as a regex
 SUB_SUFFIXES = (".srt", ".vtt", ".ass", ".json3", ".ttml", ".srv1", ".srv2", ".srv3")
-# The only variables the downloader receives: no keys, tokens or SIMPLICIO_* from the shell reach a third-party program.
-ENV_REPASSADO = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE",
-                 "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy")
+# The only variables the downloader receives: the core of terceiros.NUCLEO_ENV plus these. No keys, tokens or SIMPLICIO_* from the shell
+# reach a third-party program.
+ENV_EXTRA = ("TMPDIR", "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE",
+             "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy")
+ENV_REPASSADO = ("PATH", "HOME", "LANG", "LC_ALL", *ENV_EXTRA)  # the core first, as terceiros.NUCLEO_ENV (checked by tests/golden)
 AVISO = "o motor não verifica o direito de uso: guarde a autorização com o projeto"
 
 
@@ -79,7 +81,8 @@ def _binario() -> Path:
 
 
 def _ambiente() -> dict:
-    return {k: os.environ[k] for k in ENV_REPASSADO if k in os.environ}
+    from . import terceiros  # at the call: `media --help` and the CLI's own `--help` do not load it
+    return terceiros.env_para_terceiro(ENV_EXTRA, base=os.environ)
 
 
 def _ultima_linha(texto: str) -> str:

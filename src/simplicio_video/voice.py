@@ -1,6 +1,6 @@
 """`simplicio-video voice`: render/cache the narration lines of a contract and write timing.lock.json.
 
-Same processing as the legacy scripts/voice.py (so takes are bit-identical): source -> 48 kHz mono ->
+Same processing as the legacy scripts/voice.py of the per-video projects (no longer in this repository; so takes are bit-identical): source -> 48 kHz mono ->
 silence trim -> contract ffmpeg chain -> pcm_s16le -bitexact. Never time-stretches: a take longer than
 its max_s is an error (after one retry with the tighter silence trim TRIM_TIGHT). Cache key = provider + resolved settings + chain + text-to-say (+ source file hash).
 """
@@ -141,7 +141,7 @@ def _local(S: dict, text: str, dst: Path) -> None:
 
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
-# SIMPLICIO_GEMINI_BASE: only for dry runs against a local mock (scripts/mock_gemini_tts.py); never a real key there.
+# SIMPLICIO_GEMINI_BASE: only for dry runs against a local mock (tests/tools/mock_gemini.py); never a real key there.
 GEMINI_RETRY = (429, 500, 502, 503, 504)
 
 

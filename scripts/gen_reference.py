@@ -280,6 +280,16 @@ def _is_environ(node) -> bool:
     )
 
 
+def _parametros_com_o_ambiente(func) -> set:
+    """The names of the parameters of a function whose default is the process environment (`def offline(env=os.environ)`): inside it
+    `env.get("NAME")` and `env["NAME"]` read the environment, as if written on `os.environ`. The default is what says so: a child `env`
+    dict (a plain local, or a parameter with another default) is not a read of the process."""
+    a = func.args
+    posicionais = [*a.posonlyargs, *a.args]
+    com_padrao = [*zip(posicionais[len(posicionais) - len(a.defaults):], a.defaults), *zip(a.kwonlyargs, a.kw_defaults)]
+    return {arg.arg for arg, padrao in com_padrao if padrao is not None and _is_environ(padrao)}
+
+
 def _is_trilha(func) -> bool:
     return (isinstance(func, ast.Name) and func.id == "Trilha") or (isinstance(func, ast.Attribute) and func.attr == "Trilha")
 
@@ -301,7 +311,8 @@ def _variaveis_do_tool(call) -> list:
 def env_reads() -> dict[str, list[str]]:
     """Environment variable names read (or set) by the package, found by ast, with `arquivo:linha` locations. A track names its
     checkout and data variables only as the arguments of `Trilha(...)` (trilha_base reads them through the declaration), so those
-    arguments count as reads, at the line of the call; so does the `checkout_env` of a `Tool(...)` of the registry (tools.checkout_dir)."""
+    arguments count as reads, at the line of the call; so does the `checkout_env` of a `Tool(...)` of the registry (tools.checkout_dir).
+    A parameter that defaults to the environment (`rede.offline(env=os.environ)`) reads it too: `env.get("NAME")` in that function counts."""
     found: dict[str, set[str]] = {}
 
     def add(name, rel, line):
@@ -311,6 +322,14 @@ def env_reads() -> dict[str, list[str]]:
     for path in sorted(PKG.rglob("*.py")):
         rel = path.relative_to(ROOT).as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        por_parametro = set()  # ids of the nodes that read the environment through a parameter that defaults to it
+        for func in ast.walk(tree):
+            if isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)) and (nomes := _parametros_com_o_ambiente(func)):
+                for no in ast.walk(func):
+                    alvo = no.func.value if isinstance(no, ast.Call) and isinstance(no.func, ast.Attribute) and no.func.attr in ENV_READERS else (
+                        no.value if isinstance(no, ast.Subscript) else None)
+                    if isinstance(alvo, ast.Name) and alvo.id in nomes:
+                        por_parametro.add(id(no))
         consts = {}  # module-level NAME = "VALUE", so os.environ.get(ENV_KEY) resolves to its value
         for stmt in tree.body:
             if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
@@ -333,13 +352,13 @@ def env_reads() -> dict[str, list[str]]:
                     add(literal(arg), rel, node.lineno)
             if isinstance(node, ast.Call) and node.args:
                 func = node.func
-                if isinstance(func, ast.Attribute) and func.attr in ENV_READERS and _is_environ(func.value):
+                if isinstance(func, ast.Attribute) and func.attr in ENV_READERS and (_is_environ(func.value) or id(node) in por_parametro):
                     add(literal(node.args[0]), rel, node.lineno)
                 elif (isinstance(func, ast.Attribute) and func.attr == "getenv") or (
                     isinstance(func, ast.Name) and func.id == "getenv"
                 ):
                     add(literal(node.args[0]), rel, node.lineno)
-            elif isinstance(node, ast.Subscript) and _is_environ(node.value):
+            elif isinstance(node, ast.Subscript) and (_is_environ(node.value) or id(node) in por_parametro):
                 add(literal(node.slice), rel, node.lineno)
     return {name: sorted(locs) for name, locs in sorted(found.items())}
 
