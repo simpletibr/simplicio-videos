@@ -18,6 +18,7 @@ a folder cannot be searched (a PATH folder with mode 0000, a `~/.simplicio` of a
 from __future__ import annotations
 
 import atexit
+import functools
 import os
 import stat
 import subprocess
@@ -25,8 +26,6 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Optional
-
-from . import childio
 
 # macOS GUI and ssh sessions often lack the Homebrew prefixes on PATH (Apple Silicon, then Intel).
 EXTRA_TOOL_DIRS = {"darwin": ["/opt/homebrew/bin", "/usr/local/bin"]}
@@ -94,6 +93,7 @@ def _mata_arvore(proc: "subprocess.Popen") -> None:
     """Kills `proc` and every process it started. POSIX: the group (the child was started in its own session), through
     childio.kill_group. Windows: taskkill /T. Never raises: a process that is already gone is not an error."""
     if not hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):  # the REAL interpreter's system, not the simulated one
+        from . import childio  # not at the top: `--help` imports this module and must not import childio (tests/test_help_leve.py)
         childio.kill_group(proc)
         return
     try:
@@ -106,7 +106,13 @@ def _mata_arvore(proc: "subprocess.Popen") -> None:
         pass
 
 
-atexit.register(childio.kill_live)  # a daemon thread that is waiting on a read dies with the process before it could kill its own group
+@functools.cache
+def _arma_a_saida() -> None:
+    """The exit of this process kills the children that are still under childio's guard (atexit): a daemon thread that is waiting on a
+    read dies with the process before it could kill its own group. Armed by the first run_limitado, so a process that never runs
+    one (`--help`) does not import childio."""
+    from . import childio
+    atexit.register(childio.kill_live)
 
 
 def run_limitado(argv, *, timeout: float, cwd=None, env=None) -> "subprocess.CompletedProcess":
@@ -121,6 +127,8 @@ def run_limitado(argv, *, timeout: float, cwd=None, env=None) -> "subprocess.Com
 
     Limit: a descendant that leaves the group on its own (`setsid`, `setpgid`, a daemon that double-forks) escapes the kill; git and
     npm do not do that, and nothing here can reach such a process short of a cgroup."""
+    from . import childio
+    _arma_a_saida()
     flags: dict = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP") else {"start_new_session": True}
     filho = []
     try:
