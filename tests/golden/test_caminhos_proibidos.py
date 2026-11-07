@@ -93,7 +93,7 @@ UNANIMES = [
 ]
 
 DIVERGENTES = [
-    # U22 decide: voicestudio tem 15 raízes (sem /opt /srv /snap /Applications /var/lib /var/log /var/spool /var/run /var/db); as outras 4 têm 25.
+    # U22 decide: voicestudio tem 16 raízes (sem /opt /srv /snap /Applications /var/lib /var/log /var/spool /var/run /var/db); as outras 4 têm 25.
     ("/opt/x", S, S, S, S, L), ("/srv/x", S, S, S, S, L), ("/snap/x", S, S, S, S, L), ("/Applications/x", S, S, S, S, L),
     ("/var/lib/x", S, S, S, S, L), ("/var/log/x", S, S, S, S, L), ("/var/spool/x", S, S, S, S, L), ("/var/db/x", S, S, S, S, L),
     # U22 decide: só o montage recusa /var inteiro (exceto /var/tmp, que as cinco deixam).
@@ -170,7 +170,7 @@ def test_the_system_root_tables_of_the_copies():
                "/var/spool", "/var/run", "/var/db")
     assert matchcut._RAIZES_POSIX == instagram._RAIZES_POSIX == video_to_skill._RAIZES_POSIX == montage._SISTEMA_POSIX == posix25
     assert len(posix25) == 25
-    # U22 decide: a quinta cópia tem 15 (faltam /opt /srv /snap /Applications /var/lib /var/log /var/spool /var/run /var/db)
+    # U22 decide: a quinta cópia tem 16 (faltam /opt /srv /snap /Applications /var/lib /var/log /var/spool /var/run /var/db)
     assert voicestudio._ROOTS_POSIX == ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys",
                                          "/run", "/System", "/Library", "/private/etc")
     assert set(posix25) - set(voicestudio._ROOTS_POSIX) == {"/opt", "/srv", "/snap", "/Applications", "/var/lib", "/var/log", "/var/spool",
