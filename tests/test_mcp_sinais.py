@@ -10,7 +10,7 @@ import sys
 import time
 
 import pytest
-from _orfao import POSIX, SINAIS, espera, limpa, vivo
+from _orfao import POSIX, SINAIS, espera, lanca_como_shell, limpa, sinais_ignorados, vivo
 
 pytestmark = pytest.mark.skipif(not POSIX, reason="POSIX signals")
 pytest.importorskip("mcp")
@@ -28,7 +28,7 @@ def test_a_stop_signal_to_the_mcp_server_kills_the_child_of_a_running_tool(nome,
     env = offline_env(HOME=str(home), PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}", TINYFISH_API_KEY="x")
     env.pop("SIMPLICIO_OFFLINE", None)  # busca refuses to call the binary offline; this one is a script of ours and never touches the network
     env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])
-    servidor = subprocess.Popen([sys.executable, "-m", "simplicio_video.mcp_server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    servidor = lanca_como_shell([sys.executable, "-m", "simplicio_video.mcp_server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=open(tmp_path / "server.err", "w"), env=env, cwd=tmp_path)
 
     def manda(obj):
@@ -79,7 +79,7 @@ def test_a_burst_of_stop_signals_to_real_mcp_servers_never_hangs_or_leaks_a_chil
             env = offline_env(HOME=str(d), PATH=f"{d / 'bin'}{os.pathsep}{os.environ['PATH']}", TINYFISH_API_KEY="x")
             env.pop("SIMPLICIO_OFFLINE", None)
             env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env["PYTHONPATH"]])
-            p = subprocess.Popen([sys.executable, "-m", "simplicio_video.mcp_server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            p = lanca_como_shell([sys.executable, "-m", "simplicio_video.mcp_server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                  stderr=open(d / "server.err", "w"), env=env, cwd=d)
             servidores.append((d, pidfile, p))
         for d, pidfile, p in servidores:
@@ -108,3 +108,16 @@ def test_a_burst_of_stop_signals_to_real_mcp_servers_never_hangs_or_leaks_a_chil
             p.kill()
             p.wait()
             limpa(None, pidfile)
+
+
+@pytest.mark.parametrize("nome", SINAIS)
+def test_a_stop_signal_to_the_mcp_server_kills_the_child_of_a_running_tool_even_when_pytest_ignores_hup_and_int(nome, tmp_path):
+    """`nohup make check` / `make check &`: pytest starts with SIGHUP and SIGINT ignored. The server the test launches must still
+    start with them at their defaults, as it does from a shell (the engine keeps an ignored signal ignored, on purpose)."""
+    with sinais_ignorados("SIGHUP", "SIGINT"):
+        test_a_stop_signal_to_the_mcp_server_kills_the_child_of_a_running_tool(nome, tmp_path)
+
+
+def test_a_burst_of_stop_signals_to_real_mcp_servers_never_hangs_or_leaks_a_child_even_when_pytest_ignores_hup_and_int(tmp_path):
+    with sinais_ignorados("SIGHUP", "SIGINT"):
+        test_a_burst_of_stop_signals_to_real_mcp_servers_never_hangs_or_leaks_a_child(tmp_path)
