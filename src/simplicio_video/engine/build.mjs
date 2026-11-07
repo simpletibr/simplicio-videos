@@ -4,7 +4,7 @@
 //   0) normalizes optional video plates (spec.clips) or writes black stand-ins + <id>_on flags
 //   1) splits spec.json -> build/variables.json (HyperFrames --variables-file)
 //   2) synthesizes an original track (spec.audio.bpm; styles: default/playful/festive/institucional) + SFX from spec.json "audio" cues, adds the cached VO lines
-//      (spec.json "voice", rendered by scripts/voice.py) and ducks music/SFX under the voice
+//      (spec.json "voice", rendered by `simplicio-video voice`) and ducks music/SFX under the voice
 //   3) mixes them (sidechain pump, SFX ducking, fade in/out) -> build/mix.raw.wav
 //   4) loudness-normalizes with ffmpeg loudnorm (2-pass) -> assets/audio/build/mix.wav
 // Same spec.json => bit-identical audio (seeded PRNG).
@@ -219,7 +219,7 @@ for (const cue of audio.cues) {
   if (cue.duck_db) { const depth = db(-cue.duck_db), a = Math.round(cue.t * SR), rel = Math.round(0.35 * SR), hold = s.length * 0.4;
     for (let k = -480; k < hold + rel; k++) { const j = a + k; if (j < 0 || j >= N) continue; const g = k < 0 ? 1 - (1 - depth) * ((k + 480) / 480) : k < hold ? depth : depth + (1 - depth) * ((k - hold) / rel); duck[j] = Math.min(duck[j], g); } }
 }
-// ---------- voice-over (pre-rendered by scripts/voice.py, cached in assets/audio/vo/) ----------
+// ---------- voice-over (pre-rendered by `simplicio-video voice`, cached in assets/audio/vo/) ----------
 // VO bus is centered and level-matched per line (no extra saturation); its envelope ducks music (and SFX a little).
 const VO = new Float32Array(N), voEnv = new Float32Array(N);
 const voice = spec.voice;
@@ -246,11 +246,11 @@ function readWavMono(path) { // minimal RIFF reader: PCM s16, mono, 48 kHz (what
 }
 if (voice?.enabled) {
   const manPath = join(ROOT, "assets/audio/vo/manifest.json");
-  if (!existsSync(manPath)) throw new Error("voice.enabled but assets/audio/vo/manifest.json missing - run `npm run voice`");
+  if (!existsSync(manPath)) throw new Error("voice.enabled but assets/audio/vo/manifest.json missing - run `simplicio-video voice <contrato>`");
   const man = JSON.parse(readFileSync(manPath, "utf8"));
   for (const line of voice.lines) {
-    const m = man.lines[line.id]; if (!m) throw new Error(`VO ${line.id} not rendered - run \`npm run voice\``);
-    if (m.text !== line.text) throw new Error(`VO ${line.id} text changed in spec.json - run \`npm run voice\``);
+    const m = man.lines[line.id]; if (!m) throw new Error(`VO ${line.id} not rendered - run \`simplicio-video voice <contrato>\``);
+    if (m.text !== line.text) throw new Error(`VO ${line.id} text changed in spec.json - run \`simplicio-video voice <contrato>\``);
     // EQ / compression / room are applied once in voice.py (spec.voice.processing); here only level-match + place
     const x = readWavMono(join(ROOT, m.file));
     let ss = 0; for (let i = 0; i < x.length; i++) ss += x[i] * x[i];

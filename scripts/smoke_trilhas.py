@@ -358,10 +358,8 @@ def _checar_recusa_cli(nome: str, top: str, sub: str, comando_ausente: bool) -> 
 
 
 def _checar_mcp(nome: str, instalada: bool) -> Resultado:
-    chamada = MCP_LEITURA.get(nome)
-    checagem = f"mcp {chamada.funcao}" if chamada else "mcp"
-    if chamada is None:
-        return Resultado(nome, checagem, SKIP, "sem chamada MCP de leitura no smoke", "mcp")
+    chamada = MCP_LEITURA[nome]  # made from tools.TOOLS: every track has its call (`_chamada_mcp` stops the script otherwise)
+    checagem = f"mcp {chamada.funcao}"
     cmd = f"{chamada.funcao}({', '.join(f'{k}={v!r}' for k, v in chamada.kwargs.items())})"
     if not hasattr(mcp_server, chamada.funcao):
         return Resultado(nome, checagem, SKIP, "função ausente em mcp_server", "mcp", cmd)
