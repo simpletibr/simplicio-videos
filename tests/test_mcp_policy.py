@@ -3077,3 +3077,256 @@ def test_the_table_has_the_edges_the_owner_listed(borda, existe):
 @pytest.mark.parametrize("tool", ["montage", "opencut", "toonflow", "moneyprinter", "rea-video"])
 def test_clone_with_a_folder_is_in_the_table_for_every_track_that_clones_into_the_default_folder(tool):
     assert any(k.get("argv", [])[:1] == ["clone"] and len(k["argv"]) > 1 for t, k, _ in CASOS if t == tool and isinstance(k.get("argv"), list))
+
+
+# ------------------------------------------------------------------------------------------- a interface da tabela (mcp_policy)
+# Estes testes descrevem o módulo `simplicio_video.mcp_policy` e os nomes públicos que a refatoração cria. O import é tardio de propósito:
+# a tabela acima não depende dele (ela vale antes e depois).
+
+CMD_POR_TOOL = {
+    "clone": ("help", "version", "doctor", "check", "plan", "pricing", "status", "builds", "history", "activity", "inspect", "logs", "paths",
+              "vocabulary", "get", "media"),
+    "montage": ("clone", "doctor", "hyperframes-doctor", "preflight", "help", "pipelines", "tools", "envelope", "estimate", "status", "run-tool"),
+    "edit": ("setup", "transcribe", "pack", "render", "verify", "grade"),
+    "opencut": ("clone", "status", "where"),
+    "toonflow": ("clone", "mcp", "status", "where"),
+    "moneyprinter": ("where", "clone", "status", "generate", "run"),
+    "matchcut": ("where", "status", "run"),
+    "voicestudio": ("status", "voices", "languages", "personalities", "tts", "transcribe", "clone", "describe", "design", "dub", "dub-export", "mcp"),
+    "rea-video": ("clone", "where", "status", "summary", "probe", "tiles", "stems", "review", "apply-review", "remake-plan", "decompose"),
+    "video-to-skill": ("status", "where", "check", "skill", "extract", "frame-at", "clip", "compile", "merge"),
+    "shorts": ("inspect", "plan", "cut", "run"),
+    "media": ("fetch", "probe", "audio", "sheet", "subs", "burn", "mask", "replace-audio", "voice-track"),
+    "qc": ("congelado",),
+}
+SO_TERMINAL = {
+    "clone": ("build", "studio", "auth", "runtime", "packages", "capture", "transcribe", "measure", "media fetch", "media prepare-fetch", "--watch"),
+    "montage": ("setup", "open", "serve"), "opencut": ("dev",), "edit": ("transcribe-batch",), "toonflow": ("serve",),
+    "moneyprinter": ("setup", "serve"), "matchcut": ("setup", "clone"), "instagram": ("clone",), "install": ("--uninstall",),
+    "update": ("instalar",),
+}
+COM_PASTA = ("montage", "opencut", "toonflow", "moneyprinter", "rea-video")  # mcp=True, mas `clone <dir>` é só do terminal
+
+
+@pytest.fixture(scope="module")
+def pol():
+    import importlib
+    return importlib.import_module("simplicio_video.mcp_policy")
+
+
+def test_verbo_is_a_frozen_dataclass_with_the_four_fields_of_the_card(pol):
+    import dataclasses
+    assert [f.name for f in dataclasses.fields(pol.Verbo)] == ["nome", "mcp", "terminal_motivo", "forma"]
+    v = pol.Verbo("x", True)
+    assert (v.terminal_motivo, v.forma) == (None, None)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        v.mcp = False  # type: ignore[misc]
+
+
+def test_the_table_has_a_row_for_every_tool_that_decides_what_is_terminal_only(pol):
+    assert set(pol.POLITICA) == set(CMD_POR_TOOL) | set(SO_TERMINAL)
+    for tool, verbos in pol.POLITICA.items():
+        assert all(isinstance(v, pol.Verbo) and k == v.nome for k, v in verbos.items()), tool
+
+
+@pytest.mark.parametrize("tool", sorted(CMD_POR_TOOL))
+def test_the_mcp_verbs_of_a_tool_are_the_closed_list_of_its_cmd(pol, tool):
+    assert pol.verbos_mcp(tool) == CMD_POR_TOOL[tool]
+    assert {v for v, x in pol.POLITICA[tool].items() if x.mcp and v != "*"} == set(CMD_POR_TOOL[tool])
+
+
+@pytest.mark.parametrize("tool,constante", [
+    ("clone", "_CMD_CLONE"), ("montage", "_CMD_MONTAGE"), ("opencut", "_CMD_OPENCUT"), ("edit", "_CMD_EDIT"), ("toonflow", "_CMD_TOONFLOW"),
+    ("moneyprinter", "_CMD_MONEYPRINTER"), ("matchcut", "_CMD_MATCHCUT"), ("rea-video", "_CMD_REA_VIDEO"), ("video-to-skill", "_CMD_VIDEO_TO_SKILL"),
+    ("voicestudio", "_CMD_VOICESTUDIO"), ("shorts", "_CMD_SHORTS"), ("media", "_CMD_MEDIA"), ("qc", "_CMD_QC")])
+def test_the_cmd_literal_of_each_tool_is_derived_from_the_table(pol, tool, constante):
+    assert getattr(mcp_server, constante) == pol.verbos_mcp(tool) == CMD_POR_TOOL[tool]
+
+
+@pytest.mark.parametrize("tool", sorted(SO_TERMINAL))
+def test_the_terminal_only_verbs_are_in_the_table_with_their_reason(pol, tool):
+    for nome in SO_TERMINAL[tool]:
+        v = pol.POLITICA[tool][nome]
+        assert v.mcp is False and v.terminal_motivo, (tool, nome)
+        if tool not in ("clone", "montage", "opencut", "edit", "instagram", "install", "update"):
+            continue
+        assert v.forma, (tool, nome)  # these are worded in the standard sentence: reason + the command to type
+
+
+def test_a_verb_that_the_mcp_runs_only_without_a_folder_says_why_the_folder_is_terminal_only(pol):
+    for tool in COM_PASTA:
+        v = pol.POLITICA[tool]["clone"]
+        assert v.mcp is True and v.terminal_motivo, tool
+    assert pol.POLITICA["edit"]["grade"].mcp is True and pol.POLITICA["edit"]["grade"].terminal_motivo
+
+
+def test_every_refusal_text_of_the_table_names_a_reason_and_no_verb_is_both_mcp_and_unexplained_terminal(pol):
+    for tool, verbos in pol.POLITICA.items():
+        for nome, v in verbos.items():
+            assert (v.mcp is False) <= bool(v.terminal_motivo), (tool, nome)
+            assert v.forma is None or v.terminal_motivo, (tool, nome)
+            assert not (v.forma or "").startswith("simplicio-video"), (tool, nome)
+
+
+def test_the_table_agrees_with_the_verbs_each_track_declares(pol):
+    from simplicio_video import edit, media, montage, voicestudio
+    assert pol.verbos_mcp("media") == tuple(media.SUBCOMMANDS)
+    assert pol.verbos_mcp("voicestudio") == tuple(voicestudio.SUBCOMMANDS.split("|"))
+    assert pol.verbos_mcp("video-to-skill") == video_to_skill.MCP_VERBS
+    assert set(montage.READ_ONLY_COMMANDS) <= set(pol.verbos_mcp("montage"))
+    assert set(pol.verbos_mcp("edit")) | {"transcribe-batch"} == set(edit.SUBCOMMANDS)
+    assert set(pol.verbos_mcp("rea-video")) - {"clone", "where", "status"} == set(rea_video.SPECS)
+    assert set(pol.verbos_mcp("moneyprinter")) <= set(moneyprinter.SUBCOMMANDS.split("|"))
+    assert pol.POLITICA["toonflow"]["serve"].terminal_motivo and toonflow.LAN_FLAG in pol.POLITICA["toonflow"]["serve"].terminal_motivo
+
+
+def test_so_terminal_words_the_standard_sentence_when_the_verb_has_a_command_to_type(pol):
+    assert pol.so_terminal("montage", pol.POLITICA["montage"]["clone"]) == (
+        "clonar o OpenMontage num diretório escolhido: rode `simplicio-video montage clone <dir>` no terminal; o MCP não faz isso")
+    assert pol.so_terminal("edit", pol.POLITICA["edit"]["transcribe-batch"]) == (
+        "transcrever em lote usa o ElevenLabs Scribe, um terceiro pago, e só roda com você no terminal: rode `simplicio-video edit "
+        "transcribe-batch` no terminal; o MCP não faz isso")
+    assert pol.so_terminal("update", pol.POLITICA["update"]["instalar"]) == (
+        "atualizar o pacote instala software: rode `simplicio-video update` no terminal; o MCP não faz isso")
+
+
+def test_so_terminal_gives_the_whole_text_when_the_verb_has_no_command_to_type_and_none_for_a_verb_without_reason(pol):
+    assert pol.so_terminal("toonflow", pol.POLITICA["toonflow"]["clone"]) == (
+        "toonflow clone com pasta só pelo terminal; pelo MCP o checkout vai para a pasta padrão")
+    assert pol.so_terminal("matchcut", pol.POLITICA["matchcut"]["setup"]) == (
+        "matchcut setup só pelo terminal: `simplicio-video matchcut setup` (o MCP não baixa código nem instala pacotes)")
+    assert pol.so_terminal("montage", pol.POLITICA["montage"]["doctor"]) is None
+    assert pol.so_terminal("qc", pol.POLITICA["qc"]["congelado"]) is None
+
+
+def test_verbo_looks_a_word_up_and_any_other_word_takes_the_row_of_the_tool_for_every_other_word(pol):
+    assert pol.verbo("montage", "setup") is pol.POLITICA["montage"]["setup"]
+    assert pol.verbo("montage", "clone") is pol.POLITICA["montage"]["clone"]
+    outro = pol.verbo("montage", "demo")
+    assert (outro.nome, outro.mcp) == ("demo", False)
+    assert pol.so_terminal("montage", outro) == (
+        "montage demo roda outra coisa do OpenMontage que o MCP não aceita: rode `simplicio-video montage demo` no terminal; o MCP não faz isso")
+    assert pol.so_terminal("clone", pol.verbo("clone", "get")) == (
+        "`get` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode "
+        "`simplicio-video clone get` no terminal; o MCP não faz isso")
+    assert pol.so_terminal("clone", pol.verbo("clone", "(vazio)")).startswith("`(vazio)` não está na lista do MCP")
+
+
+def test_a_value_in_the_reason_or_the_command_is_filled_in_by_so_terminal(pol):
+    assert pol.so_terminal("clone", pol.POLITICA["clone"]["--watch"], resto="status --watch") == (
+        "--watch não termina até o build acabar e o MCP não tem tempo limite: rode `simplicio-video clone status --watch` no terminal; "
+        "o MCP não faz isso")
+    assert pol.so_terminal("clone", pol.POLITICA["clone"]["media fetch"]) == (
+        "media fetch baixa sem o portão --autorizo: rode `simplicio-video media fetch --autorizo` no terminal; o MCP não faz isso")
+    assert pol.so_terminal("clone", pol.POLITICA["clone"]["media prepare-fetch"]) == (
+        "media prepare-fetch baixa sem o portão --autorizo: rode `simplicio-video media fetch --autorizo` no terminal; o MCP não faz isso")
+
+
+@pytest.mark.parametrize("caminho,seguro", [
+    ("/abs/x.mp4", True), ("/", True), ("/abs/a b/x", True), ("/abs/a\x00b", True), ("/abs/a" + chr(0x200b) + "b", True), ("/abs/..x/y", True),
+    ("rel.mp4", False), ("./x", False), ("", False), ("-x", False), ("~/x", False), ("/abs/../x", False), ("/abs/..", False), ("/..", False),
+])
+def test_caminho_seguro_is_absolute_and_has_no_dotdot_part(pol, caminho, seguro):
+    assert pol.caminho_seguro(caminho) is seguro
+
+
+MSG_SAIDA = "{}: {} precisa ser um caminho absoluto, sem `..` (um relativo cairia na pasta onde o servidor MCP foi iniciado)"
+MSG_CHAVE = ("{}: {} não é uma opção própria com um valor: foi engolido por outra opção, falta o valor, ou está repetido; "
+             "ponha -o com um caminho absoluto")
+
+
+@pytest.mark.parametrize("argv,flags,erro", [
+    (["probe", "/a/x.mp4", "-o", "/abs/o.json"], {"-o": "/abs/o.json"}, None),
+    (["probe", "/a/x.mp4"], {}, None),
+    (["probe", "/a/x.mp4", "-o", "rel.json"], {"-o": "rel.json"}, MSG_SAIDA.format("media", "-o/--out")),
+    (["probe", "/a/x.mp4", "--ou", "/abs/../o"], {"--ou": "/abs/../o"}, MSG_SAIDA.format("media", "-o/--out")),
+    (["probe", "/a/x.mp4", "-o/abs/o", "--outp=rel"], {"-o/abs/o": "1"}, MSG_SAIDA.format("media", "-o/--out")),
+    (["probe", "/a/x.mp4", "--fit", "-o", "/abs/o"], {"--fit": "-o"}, MSG_CHAVE.format("media", "-o")),
+    (["probe", "/a/x.mp4", "-o", "/abs/a", "-o", "/abs/b"], {"-o": "/abs/b"}, MSG_CHAVE.format("media", "-o")),
+    (["probe", "/a/x.mp4", "-o"], {"-o": ""}, MSG_SAIDA.format("media", "-o/--out")),
+    (["probe", "-o", "/abs/o", "--", "-o", "rel"], {"-o": "/abs/o", "--": "-o"}, None),
+])
+def test_saida_absoluta_nova_checks_every_spelling_of_the_output_and_that_each_key_comes_from_one_option(pol, argv, flags, erro):
+    assert pol.saida_absoluta_nova(argv, flags, nome="media", chaves=("-o",)) == erro
+
+
+def test_saida_absoluta_nova_without_the_cli_parse_checks_only_the_spelling_and_can_demand_an_output(pol):
+    assert pol.saida_absoluta_nova(["x", "--fit", "-o", "/abs/o"], None, nome="media", chaves=("-o",)) is None
+    assert pol.saida_absoluta_nova(["x", "-o", "rel"], None, nome="shorts") == MSG_SAIDA.format("shorts", "-o/--out")
+    exigida = "edit render: -o <caminho absoluto> é obrigatório no MCP"
+    assert pol.saida_absoluta_nova(["/e.json"], None, nome="edit render", opcoes="-o/--out/--output", obrigatoria=exigida) == exigida
+    assert pol.saida_absoluta_nova(["/e.json", "--outp=rel"], None, nome="edit render", opcoes="-o/--out/--output", obrigatoria=exigida) == (
+        MSG_SAIDA.format("edit render", "-o/--out/--output"))
+    assert pol.saida_absoluta_nova(["/e.json", "--outp=/abs/o"], None, nome="edit render", opcoes="-o/--out/--output", obrigatoria=exigida) is None
+
+
+def test_the_output_values_come_from_the_public_parser_of_edit_and_the_old_names_are_the_same_objects(pol):
+    from simplicio_video import edit, media, shorts
+    assert edit.output_values(["a", "-o", "/x", "--ou", "y", "--outpu=z", "-ow", "-o=q"]) == ["/x", "y", "z", "w", "q"]
+    assert edit._output_values is edit.output_values and media._parse is media.parse_argv and shorts._parse is shorts.parse_argv
+    assert rea_video._SPECS is rea_video.SPECS and callable(shorts.parse_argv) and callable(media.parse_argv)
+    assert edit.filter_values(["--f", "x", "--filter=y"]) == ["x", "y"]
+
+
+def test_the_policy_that_lived_in_edit_is_in_the_table_module(pol):
+    from simplicio_video import edit
+    for nome in ("colour_filter_ok", "GRADE_FILTERS_MCP", "GRADE_BAD_OPTIONS", "NEEDS_OUT"):
+        assert not hasattr(edit, nome), nome
+    assert pol.colour_filter_ok("eq=contrast=1.05:saturation=0.95") and not pol.colour_filter_ok("movie=x") and not pol.colour_filter_ok("eq=file=x")
+    assert pol.SAIDA_OBRIGATORIA["edit"] == ("transcribe", "render", "verify", "grade")
+    assert "GRADE_READ_ONLY" in dir(edit)  # o CLI também lê: --analyze, --list-presets, --print-preset
+
+
+@pytest.mark.parametrize("argv,ajuda_passa,com_pasta", [
+    (["clone"], False, False), (["clone", "/d"], False, True), (["clone", "/d"], True, True), (["clone", "--help"], False, True),
+    (["clone", "--help"], True, False), (["clone", "/d", "-h"], True, False), (["clone", "-h"], False, True), ([], False, False),
+    (["status", "/d"], False, False), (["CLONE", "/d"], False, False), (["clone", ""], False, True),
+])
+def test_clone_com_pasta_is_clone_with_an_operand_unless_help_is_asked_where_help_passes(pol, argv, ajuda_passa, com_pasta):
+    assert pol.clone_com_pasta(argv, ajuda_passa) is com_pasta
+
+
+@pytest.mark.parametrize("token,remocao", [
+    ("--uninstall", True), ("--uninstall=1", True), ("--unin", True), ("--uni", True), ("--un", False), ("--u", False), ("--prune-project-copies", True),
+    ("--prune", True), ("--prun=x", True), ("--pr", False), ("--UNINSTALL", False), ("--uninstall-x", False), ("-uninstall", False), ("--target", False),
+])
+def test_opcao_de_remocao_matches_a_prefix_of_three_letters_or_more(pol, token, remocao):
+    assert pol.opcao_de_remocao(token) is remocao
+
+
+def test_pede_ajuda_is_dash_h_or_help_anywhere(pol):
+    assert pol.pede_ajuda(["x", "-h"]) and pol.pede_ajuda(["--help"]) and not pol.pede_ajuda(["help"]) and not pol.pede_ajuda([])
+
+
+@pytest.mark.parametrize("argv,permitido", [
+    (["status"], True), (["--help"], True), (["-h"], True), ([], False), (["status", "--watch"], False), (["build"], False),
+    (["get", "b", "--to", "/abs/d"], True), (["get", "b", "--to", "rel"], False), (["get", "b"], False), (["get", "--to=/abs"], False),
+    (["media", "probe", "/abs/a.mp4"], True), (["media", "probe", "rel"], False), (["media", "fetch", "u"], False), (["media", "probe", "--foo"], False),
+])
+def test_hypit_permitido_is_the_closed_allow_list_of_the_clone_tool(pol, argv, permitido):
+    assert pol.hypit_permitido(argv) is permitido
+
+
+def test_the_policy_functions_do_not_live_in_the_wrappers_any_more():
+    for nome in ("_so_terminal", "_so_terminal_hypit", "_saida_do_cli", "_caminho_seguro", "_hypit_permitido", "_media_permitido",
+                 "_opcao_de_remocao", "_pede_ajuda", "_HYPIT_MOTIVO", "_HYPIT_LIVRE"):
+        assert not hasattr(mcp_server, nome), nome
+
+
+def test_mcp_server_has_one_place_that_decides_clone_with_a_folder_and_one_roda_externa():
+    import ast
+    fonte = Path(mcp_server.__file__).read_text(encoding="utf-8")
+    assert fonte.count('["clone"] and len(argv) > 1') == 0
+    arvore = ast.parse(fonte)
+    video_rea = next(n for n in arvore.body if isinstance(n, ast.FunctionDef) and n.name == "video_rea_video")
+    assert not any(isinstance(n, ast.Attribute) and n.attr == "StringIO" for n in ast.walk(video_rea))  # a cópia de _roda_externa saiu
+
+
+def test_media_no_longer_resolves_shorts_through_a_module_getattr():
+    import subprocess
+    import sys as _sys
+    codigo = ("import sys\nfrom simplicio_video import media\n"
+              "print('simplicio_video.shorts' in sys.modules, hasattr(media, 'shorts'), hasattr(media, '__getattr__'))")
+    r = subprocess.run([_sys.executable, "-c", codigo], capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                       env={**os.environ, "PYTHONPATH": str(Path(mcp_server.__file__).parents[1])})
+    assert r.stdout.split() == ["False", "False", "False"], r.stderr
