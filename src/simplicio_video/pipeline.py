@@ -14,7 +14,7 @@ NOTA_UPLOAD = "upload: não é feito pelo motor; o MP4 fica em saida.arquivo e s
 def run_all(contrato: str | Path, provider: str | None = None, backend: str = "local", accelerator: str | None = None,
             quality: str | None = None, timeout: int = 3600, force_voice: bool = False, log=print) -> dict:
     from . import voice
-    from .cli import do_render
+    from .despacho import do_render
     steps: dict = {}
     c = ct.load(contrato)
     rep = ct.validate(c)
