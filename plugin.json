@@ -1261,11 +1261,47 @@
     "install": "pip install -e .  (repo root; Python >= 3.10, Node >= 22, ffmpeg)",
     "help": "simplicio-video --help"
   },
-  "contract_schema": "schema/contract.schema.json",
+  "contract_schema": "src/simplicio_video/data/schema/contract.schema.json",
   "skills": [
     {
       "name": "simplicio-video",
       "path": "skills/simplicio-video/SKILL.md"
+    },
+    {
+      "name": "simplicio-video-social",
+      "path": "skills/simplicio-video-social/SKILL.md"
+    },
+    {
+      "name": "simplicio-video-media",
+      "path": "skills/simplicio-video-media/SKILL.md"
+    },
+    {
+      "name": "simplicio-video-voicestudio",
+      "path": "skills/simplicio-video-voicestudio/SKILL.md"
+    },
+    {
+      "name": "simplicio-video-shorts",
+      "path": "skills/simplicio-video-shorts/SKILL.md"
+    },
+    {
+      "name": "simplicio-video-edit",
+      "path": "skills/simplicio-video-edit/SKILL.md"
+    },
+    {
+      "name": "simplicio-video-trilhas",
+      "path": "skills/simplicio-video-trilhas/SKILL.md"
+    },
+    {
+      "name": "deep-news",
+      "path": "skills/deep-news/SKILL.md"
+    },
+    {
+      "name": "deep-service",
+      "path": "skills/deep-service/SKILL.md"
+    },
+    {
+      "name": "deep-product",
+      "path": "skills/deep-product/SKILL.md"
     }
   ],
   "mcp": {
@@ -1291,12 +1327,12 @@
       "video.openverse",
       "video.voicestudio",
       "video.busca",
-      "video.instagram",
-      "video.rea-video",
-      "video.video-to-skill",
       "video.toonflow",
       "video.moneyprinter",
       "video.matchcut",
+      "video.instagram",
+      "video.rea-video",
+      "video.video-to-skill",
       "video.shorts",
       "video.media",
       "video.tools",

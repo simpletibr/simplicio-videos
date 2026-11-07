@@ -8,6 +8,9 @@ schemas.md; every env var the package reads appears in config.md; events.md says
 from __future__ import annotations
 
 import argparse
+import ast
+import importlib.util
+import json
 import re
 
 import pytest
@@ -120,10 +123,6 @@ def test_cli_md_nao_depende_da_versao_do_python(gerado):
 # `gen_reference.py` writes them between `<!-- BEGIN GENERATED: fatos -->` / `<!-- BEGIN GENERATED: mapa-modulos -->` and
 # `<!-- END GENERATED -->`, and `--check` fails when one is stale. The expected values below are recomputed here from the code
 # and the data files, independently of the generator.
-import ast
-import importlib.util
-import json
-
 FATOS_ARQUIVOS = {
     # file: (language of the labels, the facts that file carries; "pins" is the table of pins per track)
     "README.md": ("en", ("tools", "trilhas", "templates", "padroes", "hyperframes", "hosts", "hosts_globais", "skills", "pins")),
@@ -389,3 +388,35 @@ def test_o_gerador_deixa_os_commands_do_plugin_json_como_estao():
     editado = json.dumps(objeto, indent=2, ensure_ascii=False) + "\n"
     assert json.loads(gen.plugin_json_text(editado))["commands"][0]["description"] == "alterado à mão"
     assert list(json.loads(gen.plugin_json_text(editado))) == list(objeto)
+
+
+# ------------------------------------------------------------------------------------------------- the helpers of the module map
+def test_first_sentence_junta_o_paragrafo_e_corta_na_primeira_frase():
+    gen = _gen_module()
+    doc = "`simplicio-video render`: contract -> workdir (compiler) -> ffmpeg master (-14 LUFS). Backends: local\nor colab.\n\nOutro parágrafo."
+    assert gen.first_sentence(doc) == "`simplicio-video render`: contract -> workdir (compiler) -> ffmpeg master (-14 LUFS)."
+    assert gen.first_sentence("Uma frase só, quebrada\nem duas linhas (https://example.org/a.b, MIT).") == (
+        "Uma frase só, quebrada em duas linhas (https://example.org/a.b, MIT).")
+    assert gen.first_sentence("Fim sem ponto") == "Fim sem ponto"
+
+
+def test_o_mapa_de_modulos_escapa_o_menor_que_fora_do_codigo():
+    """`<slug>` outside a code span would vanish as an HTML tag on the rendered page; inside a code span it is literal already."""
+    gen = _gen_module()
+    assert gen._escape_angle("grava em clients/<slug>/README.md") == "grava em clients/\\<slug>/README.md"
+    assert gen._escape_angle("o `x <y>` fica") == "o `x <y>` fica"
+    bloco = _bloco("AGENTS.md", "mapa-modulos")
+    assert "clients/\\<slug>/README.md" in bloco and "clients/<slug>" not in bloco
+
+
+def test_modulo_sem_docstring_aparece_marcado_no_mapa(tmp_path, monkeypatch):
+    gen = _gen_module()
+    pkg = tmp_path / "simplicio_video"
+    (pkg / "data").mkdir(parents=True)
+    (pkg / "com_doc.py").write_text('"""Faz uma coisa. E outra."""\n', encoding="utf-8")
+    (pkg / "sem_doc.py").write_text("x = 1\n", encoding="utf-8")
+    (pkg / "__main__.py").write_text("x = 1\n", encoding="utf-8")
+    (pkg / "data" / "escondido.py").write_text('"""Dado."""\n', encoding="utf-8")
+    monkeypatch.setattr(gen, "PKG", pkg)
+    itens = [l for l in gen.mapa_modulos_body().splitlines() if l.startswith("- ")]
+    assert itens == ["- `com_doc.py`: Faz uma coisa.", "- `sem_doc.py`: (sem docstring)"]

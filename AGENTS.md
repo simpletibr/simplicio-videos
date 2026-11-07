@@ -100,12 +100,29 @@ python -m pytest                                   # schema, validate, --help, d
 
 Teste real ponta a ponta com as suas chaves e apps (gasta só com `--sim-gastar`, com teto; fora do `make check`): [docs/how-to/e2e-real.md](docs/how-to/e2e-real.md) · `make e2e-real`.
 
+### Números do código
+
+<!-- BEGIN GENERATED: fatos -->
+Gerado do código por `scripts/gen_reference.py`. Não edite aqui: rode `make regen`.
+
+| Fato | Valor |
+|---|---|
+| Tools MCP (`video.*`) | 32 |
+| Trilhas externas | 13 |
+| Templates | 15: 8 `pronto`, 7 `skeleton`; 6 sem `composicao` (não renderizam) |
+| Padrões de motion | 56: 33 `pronto`, 20 `proposto`, 2 `inline`, 1 `lib` |
+| HyperFrames | `hyperframes@0.8.97` |
+| Hosts de agente (`install`) | 12: `aider`, `antigravity`, `claude`, `codex`, `cursor`, `gemini`, `grok`, `kiro`, `openclaw`, `opencode`, `simplicio_agent`, `vscode` |
+| Hosts com pasta global de skills (`install --global`) | 11: `agents`, `amp`, `claude`, `codex`, `copilot`, `cursor`, `grok`, `kiro`, `opencode`, `simplicio_agent`, `vscode` |
+| Skills para agentes | 10 |
+<!-- END GENERATED -->
+
 ## Mapa (todas as pastas)
 
 | Pasta | O quê | Entrada principal |
 |---|---|---|
 | `schema/` | `contract.schema.json` (`simplicio.video-contract/v1`, entrada do CLI) | [receita](docs/receita-video-cliente.md) |
-| `src/simplicio_video/` | CLI Python: `cli.py` (help), `contract.py` (schema + checagens), `voice.py` (providers, `timing.lock.json`), `compiler.py` (contrato → composição), `render.py` (local + bundle, `render.manifest.json`), `remote.py` (Kaggle, Colab CLI), `publish.py` (Drive/rclone), `pipeline.py` (`run`), `clone.py` (Hypit AI), `montage.py` (OpenMontage), `rea_video.py` (rea-video: análise de vídeo de referência num venv próprio; repassa os comandos dele), `swap.py` + `swap_providers/` (troca de personagem: orquestração única, adaptadores gemini/fal/wavespeed/kie/alibaba/fake, `swap.manifest.json`; fal, wavespeed, kie e alibaba UNVERIFIED), `aio.py` (asyncio: thread daemon por chamada bloqueante, `run_sync`; só onde há espera de rede, render e ffmpeg seguem seriais), `jobs.py` (executor de tarefas em segundo plano: runner asyncio por tarefa, estado JSON atômico, `lost`, limpeza), `social.py` (redes sociais sem postar: `providers`, `plan` com `social.plan.json`, `check`, `recipe`; tabela de limites e de provedores em `data/social/`; [ADR-0018](docs/decisoes/ADR-0018-social-planejar-sem-postar.md)), `openverse.py` + `openverse_sheet.py` (biblioteca de imagens e áudio do Openverse: `search` cacheada, `get` com download seguro, `library review` com folha determinística e veredito por par ativo+pedido, `export` só do aprovado com `CREDITS-openverse.md`; dados em `data/openverse/`; zero tokens), `openverse_contract.py` (o portão do contrato: `validate`, `render` e `openverse library verify` conferem, sem rede e sem LLM, os assets com o bloco `openverse: {id, pedido}` e a trilha de fundo (`trilha.music`, #113) via `openverse.verify_asset`; o render confere os bytes da composição compilada, grava a procedência no `render.manifest.json` e `<video>.CREDITS-openverse.md` ao lado do MP4), `busca.py` (busca na internet pelo CLI `tinyfish`, que o motor nunca instala: `consulta`, `pagina`, `status`, `log`; chamada só por lista de argumentos, com ambiente mínimo, tempo e tamanho limitados; cache por hash da consulta, contador por dia com teto, `busca.registro.jsonl` de procedência com sha256; texto de terceiros só em campos `untrusted_*`; dados em `data/busca/`; zero tokens), `video_to_skill.py` (video-to-skill: `clone`, `setup` do binário `vts-extract` fixado por sha256, `status`, `where`, `check`, `skill`, `extract`, `frame-at`, `clip`, `compile`, `merge`, `install`; pins em `data/video_to_skill/pins.json`; o extrator sempre por `childio.guarded_child`; tool MCP `video.video-to-skill`, extract como tarefa), `instagram.py` (instagram-agent-skill: `clone`, `where`, `status`, `skills` e `run` de uma lista fechada de seis scripts locais do upstream, rodados em modo isolado depois de conferir o commit do checkout e o sha256 de cada arquivo; `--out` só no terminal; tool MCP `video.instagram` só de leitura, sem caminho, `--out` nem `--lexicon`; não importa rede e o motor não a importa; [licença em terceiros](docs/legal/terceiros.md)), `mcp_server.py` (tools `video.*`), `commands/` + `auth.py` + `hostos.py` + `distribution.py` + `installer.py` + `skill_sync.py` (operação: `install`, `update`, `doctor`, `setup`, `login`; `installer.py` e `skill_sync.py` copiam a skill de `data/skills/` (fonte da verdade; `skills/` é o espelho) para o host do agente, no contrato do `install` do simplicio-loop; `auth.py` só LÊ o login compartilhado com o Runtime, `hostos.py` isola o que muda entre Linux, macOS e Windows e `distribution.py` diz se é checkout ou pip; [packaging.md](docs/host/packaging.md), [ADR-0019](docs/decisoes/ADR-0019-login-compartilhado.md), [ADR-0020](docs/decisoes/ADR-0020-install-universal-e-update-igual-ao-loop.md)), `engine/` (`build.mjs` trilha/SFX/mix, `master.sh`, `remote_render.py` = script headless dos backends remotos) | `simplicio-video --help` |
+| `src/simplicio_video/` | CLI e servidor MCP em Python, um módulo por assunto; a lista dos módulos, com a primeira frase da docstring de cada um, é gerada logo abaixo ("Módulos de `src/simplicio_video/`"). `engine/` leva ainda `build.mjs` (trilha/SFX/mix) e `master.sh`, e `remote_render.py` é o script headless dos backends remotos | `simplicio-video --help` |
 | `skills/simplicio-video/` | `SKILL.md`: como um LLM escolhe template/motion/voz/tempos e escreve o contrato | [SKILL.md](skills/simplicio-video/SKILL.md) |
 | `skills/simplicio-video-trilhas/` | `SKILL.md`: qual trilha externa atende cada pedido (tabela pedido → trilha → comando → tool MCP → limites), sete receitas encadeadas (remake de referência, curto a partir de tema, cortes verticais, dublagem, OpenMontage, copy de Reels, vídeo vira skill) e as regras (jobs, nada publicado, consentimento, procedência) | [SKILL.md](skills/simplicio-video-trilhas/SKILL.md) |
 | `skills/simplicio-video-social/` | `SKILL.md`: como o agente posta em redes sociais com as ferramentas MCP do provedor (Real Oficial padrão, Zernio), com o sim explícito do usuário por postagem | [SKILL.md](skills/simplicio-video-social/SKILL.md) |
@@ -129,6 +146,89 @@ Teste real ponta a ponta com as suas chaves e apps (gasta só com `--sim-gastar`
 | `clients/<cliente>/video-NN-videouse/` | Edição com video-use (etapa 6, opcional): `run.sh`, `source.variables.json` (variante da fonte), `edit/` (`edl.json`, transcrições, `takes_packed.md`, `project.md`, `verify/`), `overlay/` (HyperFrames → MOV alfa), `preview/` | README do vídeo |
 | `clients/<cliente>/<video>/contract.yaml` | **Vídeo pelo CLI**: `contract.yaml`, `timing.lock.json`, `render.manifest.json`, `assets/audio/voz/` (falas tratadas), `assets/audio/vo/external/` (WAVs Gemini), README/roteiro, `preview/`. Ex.: Lothus `video-01-dia-das-criancas` | README do vídeo |
 | `clients/<cliente>/video-NN/` | (legado, WJR) Projeto HyperFrames autocontido (`package.json`; rode os comandos **dentro** dele): `spec.json` (variáveis, áudio/cues, voz, clipes), `video.json`, `index.html` (timeline única + `RETIME`), `scripts/` (`build.mjs`, `voice.py`, `master.sh`, `gemini-tts.mjs`), `assets/` (+ `audio/LICENSES.md`), `preview/` | README do vídeo |
+
+### Módulos de `src/simplicio_video/`
+
+<!-- BEGIN GENERATED: mapa-modulos -->
+Gerado da primeira frase da docstring de cada módulo de `src/simplicio_video/` (ficam de fora `data/` e os arquivos que não são Python em `engine/`). Não edite aqui: rode `make regen`.
+
+- `__init__.py`: simplicio-video: deterministic contract -> HyperFrames -> MP4 CLI (Simplicio Runtime plugin).
+- `aio.py`: asyncio helpers shared by `swap` and `voice`: concurrency only where the time is spent waiting (network, polling).
+- `busca.py`: Web search and page reading for the videos, through the `tinyfish` CLI (npm `@tiny-fish/cli`), with provenance and a spend cap.
+- `busca_ajuda.py`: Help text of `simplicio-video busca`, apart from `busca.py` so the CLI can print it without importing the module that calls the `tinyfish` binary (the engine -- render, contract, compiler, pipeline -- does not depend on `busca`).
+- `catalog.py`: Catalog lookups: templates, motion patterns, voice providers.
+- `childio.py`: Start a child process without letting it touch the MCP stdio channel, and capture tool output per call.
+- `cli.py`: simplicio-video command line (argparse).
+- `clone.py`: Clone track: Video cloning pipeline using Hypit AI (https://github.com/hypit-ai/hypit).
+- `commands/doctor.py`: `simplicio-video doctor [all] [--json] [--online]`: the environment overview, in the loop's `simplicio.doctor/v1`.
+- `commands/install.py`: `simplicio-video install [--target DIR] [--global] [--host H] [--dry-run] [--check] [--json] [--verify] [--uninstall] [--prune-project-copies]`: copy the bundled skills into the agent host, exactly as the `install` of simplicio-loop does.
+- `commands/setup.py`: `simplicio-video setup [--yes] [--theme ID] [--lang IDIOMA] [--force] [--realoficial]` (issue #43).
+- `commands/update.py`: `simplicio-video update [--check] [--dry-run] [--force]`: update this installation, with the loop's exit codes.
+- `compiler.py`: Compile a contract into a self-contained HyperFrames project (the render workdir).
+- `contract.py`: Load, schema-check and semantically validate a simplicio.video-contract/v1 YAML file.
+- `distribution.py`: How this simplicio-video was installed: as a source checkout (or an editable install) or as a package (pip).
+- `doctor_trilhas.py`: `simplicio-video doctor trilhas [--json] [--online]` and the row `trilhas` of `doctor all`: the state of the thirteen external tracks.
+- `download.py`: `simplicio-video media fetch`: download one public video page to a local MP4 (or audio, a time range, creator subtitles) with yt-dlp (pinned in tools.py); `info` reads metadata only.
+- `edit.py`: Edit track: browser-use/video-use over any MP4/MOV (HyperFrames, OpenMontage or OpenCut output).
+- `engine/openvoice_convert.py`: Headless OpenVoice V2 tone-color conversion (runs in the OpenVoice Python env, not in simplicio-video's).
+- `engine/remote_render.py`: Headless render of a simplicio-video bundle on a remote GPU box (Kaggle kernel or Colab CLI session).
+- `formats.py`: Formatos de anúncio: a biblioteca de 50 exemplos (pasta "Swipe File - 50 Formatos", no Drive) e a montagem do pedido para adaptar uma copy a um formato.
+- `fsutil.py`: File and JSON helpers shared by the whole package: one sha256 of a file and one canonical JSON.
+- `hostos.py`: Host facts for install, update and doctor: which system this is, where tools live and how to find them.
+- `instagram.py`: Instagram agent skill track: thirteen agent skills and six small local tools to write Reels, captions and drafts (https://github.com/Jakeschincariol/instagram-agent-skill, MIT, by Jake Schincariol).
+- `installer.py`: Single host-aware install planner of simplicio-video: copy the bundled skills INTO the agent host.
+- `jobs.py`: `simplicio-video jobs`: long tasks in the background, in a separate process, with no daemon and no network port.
+- `lockfile.py`: An exclusive file lock with a wait, for the installer: `install`, `uninstall` and `prune` hold it in the target folder, so two of them never read the same receipt and each writes its own. fcntl on POSIX, msvcrt on Windows.
+- `matchcut.py`: match-cut track: an agent skill for product films in the match-cut relay style (https://github.com/Sac-Y/match-cut, MIT).
+- `mcp_server.py`: MCP server (stdio) exposing the simplicio-video CLI to the Simplicio Runtime / any MCP client.
+- `media.py`: `simplicio-video media`: audio-visual operations on any MP4, deterministic and local (ffmpeg and ffprobe only).
+- `mediaio.py`: One way to find ffmpeg/ffprobe and one ffprobe call for the duration and the metadata of a media file.
+- `mock_gemini.py`: Local MOCK of the Gemini TTS API for dry runs of `simplicio-video voice --provider gemini` (no network, no key, no cost).
+- `moneyprinter.py`: MoneyPrinterTurbo track: topic-to-short-video generator (LLM script, synthesized voice, stock footage) (https://github.com/harry0703/MoneyPrinterTurbo, MIT).
+- `montage.py`: Montage track: Agentic video production platform using OpenMontage (https://github.com/calesthio/OpenMontage).
+- `opencut.py`: OpenCut track: open-source video editor for manual finishing (MIT).
+- `openverse.py`: Openverse: a local library of images and audio, searched on the public API and reviewed per request.
+- `openverse_contract.py`: Openverse assets in a contract: the offline gate behind `validate`, `render` and `openverse library verify`.
+- `openverse_sheet.py`: Objective signals of the Openverse review sheet (ffmpeg and ffprobe; no network, no LLM).
+- `paths.py`: Locate the plugin home (checkout root with plugin.json) and the engine data (schema/, schemas/, templates/, motion/).
+- `perfis.py`: Perfis de saída: `saida.qualidade` com os valores master, lite e thumb (BRASA, etapa 1).
+- `pipeline.py`: `simplicio-video run`: validate -> voice -> validate --need-lock -> render(backend).
+- `publish.py`: `simplicio-video publish`: upload the final MP4 to Google Drive at the destino given by the caller (rclone, no browser) and record the link in clients/\<slug>/README.md ("Entregas no Drive").
+- `qc.py`: `simplicio-video qc`: controle de qualidade de um MP4 (ffmpeg e ffprobe; sem modelo, sem rede).
+- `rea_video.py`: rea-video track: reverse-engineers a video shot by shot (live action, AI video, 3D, code render, mixed) and plans a remake (https://github.com/JuneYaooo/rea-video, MIT; declared in its pyproject.toml, no LICENSE file at the pin).
+- `realoficial.py`: Real Oficial track: MCP remoto (https://api.realoficial.com.br/mcp) for scheduling/publishing and AI image/video generation.
+- `rede.py`: Network policy of the engine: whether the network may be used at all, and the one HTTP client.
+- `remote.py`: Remote render backends driven 100% by CLI (no browser): Kaggle Notebooks (`kaggle` CLI) and Google Colab (`colab` CLI).
+- `render.py`: `simplicio-video render`: contract -> workdir (compiler) -> engine build (music/SFX/VO mix) -> HyperFrames frames -> ffmpeg master (-14 LUFS).
+- `scaffold.py`: `simplicio-video init`: write a contract skeleton from a sector template (TODOs must be filled by the author).
+- `shorts.py`: Shorts track: um vídeo longo vira N cortes verticais 9:16, determinístico (só ffmpeg).
+- `skill_sync.py`: The folders where each host keeps its skills under the home, and the names of the skills.
+- `social.py`: Social networks, only what is deterministic and local: providers, plan, check and recipe.
+- `status.py`: Estado do motor para o looping (issue #73): `--version --json`, `status` e `status --json [CONTRATO]`.
+- `swap.py`: Character swap: replace the character of an existing video with a reference avatar, provider-agnostic.
+- `swap_providers/__init__.py`: Swap providers: one adapter per provider behind the same interface (see base.py).
+- `swap_providers/_unverified.py`: Shared base of the adapters written from public documentation that could not be checked against the real API (UNVERIFIED): fal, wavespeed, kie and alibaba.
+- `swap_providers/alibaba.py`: Adapter `alibaba` (UNVERIFIED): Alibaba Cloud Model Studio (DashScope, Singapore), model wan2.2-animate-mix.
+- `swap_providers/base.py`: Adapter interface shared by every swap provider.
+- `swap_providers/fake.py`: Adapter `fake`: no network, no key, no cost.
+- `swap_providers/fal.py`: Adapter `fal` (UNVERIFIED): fal queue API, model fal-ai/wan/v2.2-14b/animate/replace.
+- `swap_providers/gemini.py`: Adapter `gemini`: Gemini Omni video editing through the Interactions API.
+- `swap_providers/http.py`: HTTP for the swap adapters and the openverse client: standard library only (urllib).
+- `swap_providers/kie.py`: Adapter `kie` (UNVERIFIED): Kie.ai, model wan/2-2-animate-replace.
+- `swap_providers/wavespeed.py`: Adapter `wavespeed` (UNVERIFIED): WaveSpeedAI, model wavespeed-ai/wan-2.2/animate with mode=replace.
+- `terceiros.py`: What a third-party program receives, and the helpers the sandbox tracks share.
+- `tools.py`: Pinned versions and install location for the external tracks: `montage` (OpenMontage), `opencut` (OpenCut), `clone` (Hypit), `toonflow` (Toonflow), `moneyprinter` (MoneyPrinterTurbo), `matchcut` (match-cut), `instagram` (instagram-agent-skill), `busca` (TinyFish CLI) and `voicestudio` (VoiceStudio), `rea-video` (rea-video), `video-to-skill` (video-to-skill) and `media fetch` (yt-dlp).
+- `tools_lock.py`: The lock file of the external tracks (issue #150): what `simplicio-video update` resolved for each one, in the data folder.
+- `tools_update.py`: `simplicio-video update` for the external tracks (issue #150): follow each track's upstream, or keep the registry pins (--pin).
+- `toonflow.py`: Toonflow track: open-source AI studio for short dramas, comic dramas and videos (https://github.com/HBAI-Ltd/Toonflow-app, MIT).
+- `trilha.py`: Trilha de arquivo do BRASA (etapa 1): arranjo por `cortes` e ducking em duas bandas sob a voz.
+- `trilha_base.py`: What every external track repeats, in one place: the checkout, its clone, its data folder, the commit really in it, the private cwd of a background job and the stop of a process group.
+- `video_to_skill.py`: video-to-skill track: turns a video into an installable agent skill (https://github.com/brenoepics/video-to-skill, MIT, Copyright 2026 Breno Epics).
+- `voice.py`: `simplicio-video voice`: render/cache the narration lines of a contract and write timing.lock.json.
+- `voice_clone.py`: Voice cloning / local-engine providers: voxcpm, openvoice, voicestudio.
+- `voicestudio.py`: VoiceStudio track: local voice studio for TTS, voice cloning, voice design and transcription (https://github.com/debpalash/VoiceStudio, AGPL-3.0).
+- `words.py`: Word timings of a processed narration take (for word-by-word kinetic typography synced to the voice).
+<!-- END GENERATED -->
 
 ## Host
 
