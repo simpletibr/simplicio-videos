@@ -573,3 +573,76 @@ def test_config_md_lista_a_variavel_do_checkout_de_cada_trilha_do_registro(gerad
         assert nome in linhas, f"{nome} é checkout_env de um Tool(...) e falta em config.md"
         assert "sem descrição" not in linhas[nome], nome
         assert f"`{arquivo}:" in linhas[nome], f"{nome}: a linha não aponta para {arquivo}"
+
+
+# ------------------------------------------------------------------------------------------------- variable read through a parameter
+# `rede.offline(env: Mapping[str, str] = os.environ)` is the one reading of SIMPLICIO_OFFLINE (U07): its literal name is the argument of
+# `env.get(...)`, where `env` is a parameter whose default is the process environment. The reference must keep the row of
+# SIMPLICIO_OFFLINE (what a user sets), so the generator reads `<parameter>.get("NAME")` / `<parameter>["NAME"]` as it reads `os.environ`,
+# but only where the parameter defaults to the environment: a child `env` dict is not a read of the process.
+FONTE_DE_PARAMETRO = (
+    "import os\n"                                                            # 1
+    "from os import environ\n"                                               # 2
+    "from collections.abc import Mapping\n"                                  # 3
+    'ENV_C = "C_VAR"\n'                                                      # 4
+    "def a(env: Mapping[str, str] = os.environ) -> bool:\n"                  # 5
+    '    return env.get("A_VAR", "") == "1"\n'                               # 6
+    "def b(base=os.environ):\n"                                              # 7
+    '    return base["B_VAR"]\n'                                             # 8
+    "def c(*, env=environ):\n"                                               # 9
+    "    return env.get(ENV_C)\n"                                            # 10
+    "def d(env=None):\n"                                                     # 11
+    '    return env.get("D_VAR")\n'                                          # 12
+    "def e(env: Mapping[str, str] = os.environ):\n"                          # 13
+    "    outro = {}\n"                                                       # 14
+    '    return outro.get("E_VAR")\n'                                        # 15
+    "def f():\n"                                                             # 16
+    "    env = {}\n"                                                         # 17
+    '    return env.get("F_VAR")\n'                                          # 18
+    "def g(env: Mapping[str, str] = os.environ):\n"                          # 19
+    "    return env.get(nome)\n"                                             # 20
+    "def h(env: Mapping[str, str] = os.environ):\n"                          # 21
+    '    return env.get("minuscula")\n'                                      # 22
+    "def i(env: dict = {}):\n"                                               # 23
+    '    return env.get("I_VAR")\n'                                          # 24
+)
+
+
+def test_o_gerador_le_por_ast_a_variavel_lida_por_um_parametro_que_tem_o_ambiente_como_padrao(monkeypatch, tmp_path):
+    """`env.get("A")`, `base["B"]` and `env.get(CONST)` count where the parameter defaults to `os.environ` (or `environ`), at the line of
+    the read; a parameter with another default, another name in the same function, a local `env`, a computed name and a name that is
+    not a variable do not."""
+    gen = _gen_module()
+    pkg = tmp_path / "src" / "simplicio_video"
+    pkg.mkdir(parents=True)
+    (pkg / "rede_x.py").write_text(FONTE_DE_PARAMETRO, encoding="utf-8")
+    monkeypatch.setattr(gen, "ROOT", tmp_path)
+    monkeypatch.setattr(gen, "PKG", pkg)
+    arq = "src/simplicio_video/rede_x.py"
+    assert gen.env_reads() == {"A_VAR": [f"{arq}:6"], "B_VAR": [f"{arq}:8"], "C_VAR": [f"{arq}:10"]}
+
+
+def test_o_gerador_junta_a_leitura_por_parametro_com_a_leitura_direta(monkeypatch, tmp_path):
+    gen = _gen_module()
+    pkg = tmp_path / "src" / "simplicio_video"
+    pkg.mkdir(parents=True)
+    (pkg / "rede_x.py").write_text(
+        'import os\n'                                                           # 1
+        'def offline(env=os.environ):\n'                                        # 2
+        '    return env.get("SIMPLICIO_OFFLINE", "")\n'                         # 3
+        'def outra():\n'                                                        # 4
+        '    return os.environ.get("SIMPLICIO_OFFLINE", "")\n', encoding="utf-8")  # 5
+    monkeypatch.setattr(gen, "ROOT", tmp_path)
+    monkeypatch.setattr(gen, "PKG", pkg)
+    arq = "src/simplicio_video/rede_x.py"
+    assert gen.env_reads() == {"SIMPLICIO_OFFLINE": [f"{arq}:3", f"{arq}:5"]}
+
+
+def test_config_md_mantem_a_linha_de_simplicio_offline_apontando_para_a_rede(gerado):
+    """Red when the readers of SIMPLICIO_OFFLINE move into `rede.offline` and the row (or its description) is lost: it stays, with the
+    description of the table, and points at the one place that parses it."""
+    linhas = {l.split("`")[1]: l for l in _read(gerado, "config.md").splitlines() if l.startswith("| `")}
+    assert "SIMPLICIO_OFFLINE" in linhas
+    linha = linhas["SIMPLICIO_OFFLINE"]
+    assert "sem descrição" not in linha and "bloqueia rede nas checagens offline" in linha
+    assert "`src/simplicio_video/rede.py:" in linha
