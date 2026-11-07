@@ -11,7 +11,7 @@ Documentos do host: como o repositório é checado, instalado e mantido na máqu
 ## Hosts de agente
 
 <!-- BEGIN GENERATED: fatos -->
-Gerado do código por `scripts/gen_reference.py`. Não edite aqui: rode `make regen`.
+Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão em outro ponto diz outro número, estes são os lidos do código. Não edite aqui: rode `make regen`.
 
 | Fato | Valor |
 |---|---|

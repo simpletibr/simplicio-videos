@@ -35,7 +35,7 @@ Para quem é: quem produz anúncios e vídeos curtos com voz, legenda e cortes, 
 ### Números do código
 
 <!-- BEGIN GENERATED: fatos -->
-Gerado do código por `scripts/gen_reference.py`. Não edite aqui: rode `make regen`.
+Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão em outro ponto diz outro número, estes são os lidos do código. Não edite aqui: rode `make regen`.
 
 | Fato | Valor |
 |---|---|

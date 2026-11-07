@@ -32,7 +32,6 @@ Extras opcionais: `[local-tts]` (as bibliotecas da voz local Kokoro; a voz ainda
 ## O pacote em números
 
 <!-- BEGIN GENERATED: fatos -->
-Gerado do código por `scripts/gen_reference.py`. Não edite aqui: rode `make regen`.
 
 | Fato | Valor |
 |---|---|

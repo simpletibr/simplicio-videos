@@ -35,7 +35,7 @@ Who it is for: people who make ads and short videos with voice, subtitles, and c
 ### Numbers from the code
 
 <!-- BEGIN GENERATED: fatos -->
-Generated from the code by `scripts/gen_reference.py`. Do not edit here: run `make regen`.
+Counts generated from the code (`scripts/gen_reference.py`); where hand-written text elsewhere says another number, these are the ones read from the code. Do not edit here: run `make regen`.
 
 | Fact | Value |
 |---|---|

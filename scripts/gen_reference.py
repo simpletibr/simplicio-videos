@@ -62,9 +62,11 @@ FATOS = {
 # Modules the module map leaves out: the entry shim and the empty package marker. Any other module without a docstring is listed
 # and marked, so the gap shows in AGENTS.md instead of being hidden.
 MAP_SKIP = {"__main__.py", "commands/__init__.py"}
+NO_NOTE = {"PYPI.md"}
 FATOS_TEXT = {
     "en": {
-        "note": "Generated from the code by `scripts/gen_reference.py`. Do not edit here: run `make regen`.",
+        "note": "Counts generated from the code (`scripts/gen_reference.py`); where hand-written text elsewhere says another number, "
+                "these are the ones read from the code. Do not edit here: run `make regen`.",
         "head": ("Fact", "Value"), "pins": ("Track", "Kind", "Pin"),
         "tools": "MCP tools (`video.*`)", "trilhas": "External tracks", "templates": "Templates", "padroes": "Motion patterns",
         "hyperframes": "HyperFrames", "hosts": "Agent hosts (`install`)",
@@ -72,7 +74,8 @@ FATOS_TEXT = {
         "sem_composicao": "{n} without `composicao` (do not render)", "sem_status": "no status",
     },
     "pt": {
-        "note": "Gerado do código por `scripts/gen_reference.py`. Não edite aqui: rode `make regen`.",
+        "note": "Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão em outro ponto diz outro número, "
+                "estes são os lidos do código. Não edite aqui: rode `make regen`.",
         "head": ("Fato", "Valor"), "pins": ("Trilha", "Tipo", "Pin"),
         "tools": "Tools MCP (`video.*`)", "trilhas": "Trilhas externas", "templates": "Templates", "padroes": "Padrões de motion",
         "hyperframes": "HyperFrames", "hosts": "Hosts de agente (`install`)",
@@ -456,7 +459,9 @@ def fatos_body(rel: str) -> str:
         "hosts_globais": names(data["hosts_globais"]),
         "skills": str(data["skills"]),
     }
-    lines = [text["note"], "", f"| {text['head'][0]} | {text['head'][1]} |", "|---|---|"]
+    # PYPI.md is the public page of the package: the maintainer note would show there (the BEGIN/END comments do not render).
+    lines = [""] if rel in NO_NOTE else [text["note"], ""]  # a blank line after the comment keeps the table a block of its own
+    lines += [f"| {text['head'][0]} | {text['head'][1]} |", "|---|---|"]
     lines += [f"| {text[key]} | {cells[key]} |" for key in keys if key in cells]
     if "pins" in keys:
         head = text["pins"]
@@ -491,8 +496,9 @@ def mapa_modulos_body() -> str:
         doc = ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
         summary = _escape_angle(first_sentence(doc)) if doc else "(sem docstring)"
         items.append(f"- `{rel}`: {summary}")
-    note = ("Gerado da primeira frase da docstring de cada módulo de `src/simplicio_video/` (ficam de fora `data/` e os arquivos "
-            "que não são Python em `engine/`). Não edite aqui: rode `make regen`.")
+    note = ("Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Gerado da primeira frase da docstring de "
+            "cada módulo de `src/simplicio_video/` (ficam de fora `data/` e os arquivos que não são Python em `engine/`). "
+            "Não edite aqui: rode `make regen`.")
     return f"{note}\n\n" + "\n".join(items)
 
 
