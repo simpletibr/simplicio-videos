@@ -756,8 +756,33 @@ def test_importar_o_media_nao_carrega_o_shorts_mas_media_shorts_continua_a_resol
               "antes = 'simplicio_video.shorts' in sys.modules\n"
               "depois = media.shorts.__name__, 'simplicio_video.shorts' in sys.modules\n"
               "print(antes, *depois)")
-    r = subprocess.run([sys.executable, "-I", "-c", codigo], capture_output=True, text=True, stdin=subprocess.DEVNULL,
+    r = subprocess.run([sys.executable, "-c", codigo], capture_output=True, text=True, stdin=subprocess.DEVNULL,
                        env={**os.environ, "PYTHONPATH": str(Path(shorts.__file__).parents[1])})
     assert r.stdout.split() == ["False", "simplicio_video.shorts", "True"], r.stderr
     with pytest.raises(AttributeError):
         media.nao_existe_mesmo  # noqa: B018 - the lazy attribute only answers for `shorts`
+
+
+def test_a_previa_chama_o_ffprobe_pelo_nome_e_deixa_o_dir_travado_para_o_path_do_ambiente_dela(amb, capsys, monkeypatch):
+    amb.com_path()
+    amb.com_travado()
+    real = subprocess.run
+    vistos = []
+
+    def espia(args, *a, **k):
+        if Path(args[0]).name == "ffprobe":
+            vistos.append(args[0])
+        return real(args, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", espia)
+    render.make_preview(amb.mp4, amb.tmp / "p" / "preview.mp4", amb.tmp)
+    assert vistos == ["ffprobe", "ffprobe"]
+    assert amb.ids() == ["travado", "travado"]
+
+
+def test_shorts_probe_de_arquivo_ausente_nao_roda_o_ffprobe(amb):
+    amb.com_path()
+    with pytest.raises(shorts.ShortsError) as e:
+        shorts.probe(amb.tmp / "nao-existe.mp4")
+    assert str(e.value) == f"arquivo não existe: {amb.tmp / 'nao-existe.mp4'}"
+    assert amb.chamadas() == []
