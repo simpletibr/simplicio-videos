@@ -181,7 +181,7 @@ def test_the_owns_patterns_that_lost_their_file_went_to_the_backlog_verbatim():
 # ----------------------------------------------------------------------------------------------- the old path of the map
 
 
-@pytest.mark.parametrize("rel", [".github/ISSUE_TEMPLATE/issue.md", "arquivo/docs/factory/parallel-work.md"])
+@pytest.mark.parametrize("rel", [".github/ISSUE_TEMPLATE/issue.md", "docs/host/parallel-work.md"])
 def test_nothing_points_to_the_old_place_of_the_ownership_map(rel):
     """`docs/factory/ownership.yaml` is gone since U15: the links that still named it now name `scripts/ownership.yaml`."""
     texto = (ROOT / rel).read_text(encoding="utf-8")
@@ -189,10 +189,25 @@ def test_nothing_points_to_the_old_place_of_the_ownership_map(rel):
     assert "scripts/ownership.yaml" in texto, rel
 
 
-def test_the_issue_template_points_to_where_the_factory_spec_is_now():
+def test_the_issue_template_points_to_where_the_factory_spec_and_the_working_agreement_are_now():
     texto = (ROOT / ".github" / "ISSUE_TEMPLATE" / "issue.md").read_text(encoding="utf-8")
-    assert "blob/main/docs/factory/" not in texto
-    assert "blob/main/arquivo/docs/factory/README.md" in texto and "blob/main/arquivo/docs/factory/parallel-work.md" in texto
+    assert "blob/main/docs/factory/" not in texto and "blob/main/arquivo/docs/factory/parallel-work.md" not in texto
+    assert "blob/main/arquivo/docs/factory/README.md" in texto and "blob/main/docs/host/parallel-work.md" in texto
+
+
+def test_the_working_agreement_stayed_live_in_docs_host_and_everything_that_cites_it_follows():
+    """`parallel-work.md` is how to work in parallel (CONTRIBUTING, ADR-0005, the gate page and the issue template cite it): it is not
+    archive. It is a host page now (front matter checked by `test_host_front_matter`); the rest of the factory spec stays in arquivo/."""
+    assert (ROOT / "docs" / "host" / "parallel-work.md").is_file()
+    assert not (ROOT / "arquivo" / "docs" / "factory" / "parallel-work.md").exists()
+    cita = {"CONTRIBUTING.md": "(docs/host/parallel-work.md)", "docs/decisoes/ADR-0005-gate-sem-ci.md": "(../host/parallel-work.md)",
+            "docs/host/gate.md": "(parallel-work.md)", "arquivo/docs/factory/README.md": "(../../../docs/host/parallel-work.md)"}
+    for rel, alvo in cita.items():
+        texto = (ROOT / rel).read_text(encoding="utf-8")
+        assert alvo in texto, f"{rel} does not link {alvo}"
+        assert "arquivo/docs/factory/parallel-work.md" not in texto, rel
+    indice = (ROOT / "docs" / "host" / "README.md").read_text(encoding="utf-8")
+    assert "](parallel-work.md)" in indice, "docs/host/README.md does not list the page"
 
 
 # ---------------------------------------------------------------------------------------------------- docs gate and package
