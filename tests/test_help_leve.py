@@ -23,6 +23,7 @@ Three kinds of test:
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import io
 import json
@@ -173,9 +174,14 @@ def test_without_only_the_parser_has_everything():
 @pytest.mark.parametrize("argv,only", [
     (["--help"], ""), (["-h"], ""), ([], ""), (["--version"], ""), (["comando-que-nao-existe"], ""),
     (["swap", "--help"], "swap"), (["--json", "busca", "--help"], "busca"), (["jobs", "-h"], "jobs"), (["init", "-h"], "init"),
-    (["list", "templates"], "")])
+    (["list", "templates"], ""), (["--vers"], ""), (["--hel"], ""), (["--h"], ""), (["--json", "--hel", "swap"], ""),
+    # an option comes first and argparse decides which page prints (`--version swap --help` prints the page of swap): everything, as before
+    (["--version", "swap", "--help"], None), (["--vers", "swap", "-h"], None), (["--js", "swap", "-h"], None),
+    (["--", "jobs", "--help"], None), (["--json", "--version", "social", "--help"], None), (["--version", "--json", "busca", "-h"], None),
+    (["--version", "swap", "--hel"], None), (["--vers", "openverse", "--h"], None)])
 def test_the_cli_asks_for_the_page_it_prints(monkeypatch, argv, only):
-    """The page of a command is built only when that command's `--help` is the thing asked for; any other run asks for none."""
+    """The page of a command is built only when that command's `--help` is the thing asked for; any other run asks for none. When an
+    option stands before the command, which page prints is argparse's call (it takes `--hel`, `--vers` and `--js` too): all of them."""
     pedidos: list = []
     construir = cli.build_parser
 
@@ -203,6 +209,50 @@ def test_running_a_heavy_command_does_not_build_its_long_help(monkeypatch):
         vistos.clear()
         assert cli.main([nome, "providers"]) == 0
         assert vistos == [""], (nome, vistos)  # nothing heavy asked for
+
+
+# `-h` and the abbreviations of `--help` that argparse accepts; the options that may come before the command (abbreviated too)
+FLAGS_DE_AJUDA = ["--help", "-h", "--hel", "--he", "--h"]
+PREFIXOS = [[], ["--json"], ["--version"], ["--"], ["--vers"], ["--js"], ["--json", "--version"], ["--json", "--json"]]
+
+
+def _roda_ate_o_fim(argv: list[str]) -> tuple:
+    """`cli.main(argv)` in-process; a crash is its type and message (a traceback has line numbers that move with every edit)."""
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        try:
+            rc = cli.main(argv)
+        except SystemExit as e:
+            rc = e.code
+        except Exception as e:  # noqa: BLE001 - what is compared is what happens, crash included
+            rc = f"{type(e).__name__}: {e}"
+    return rc, out.getvalue(), err.getvalue()
+
+
+@pytest.mark.parametrize("prefixo", PREFIXOS, ids=lambda p: " ".join(p) or "sem-prefixo")
+@pytest.mark.parametrize("nome", [*sorted(PESADOS), "init", "qc", "doctor", "voice", "list", "opencut", "status"])
+def test_the_help_prints_what_the_parser_with_everything_prints_whatever_the_order_of_the_words(monkeypatch, prefixo, nome):
+    """The oracle: what origin/main did (it always built the parser with everything). The long help of swap, jobs, social, openverse
+    and busca must come out whole wherever argparse prints it, `--version swap --help` and `-- jobs --help` included."""
+    construir = cli.build_parser
+    for flag in FLAGS_DE_AJUDA:
+        argv = [*prefixo, nome, flag]
+        real = _roda_ate_o_fim(argv)
+        with monkeypatch.context() as m:
+            m.setattr(cli, "build_parser", lambda only=None: construir(only=None))
+            esperado = _roda_ate_o_fim(argv)
+        assert real == esperado, argv
+
+
+@pytest.mark.parametrize("argv", [["--version", "swap", "--help"], ["--vers", "swap", "-h"], ["--js", "swap", "-h"], ["--json", "--version", "busca", "-h"],
+                                  ["--json", "--version", "social", "--help"], ["--", "jobs", "--help"]])
+def test_the_long_help_is_whole_when_an_option_comes_before_the_command(argv):
+    """The four ways the first version of this change lost the description and the examples of the page (60 of 60 in the matrix)."""
+    nome = next(w for w in argv if w in PESADOS)
+    rc, out, _ = _roda_ate_o_fim(argv)
+    assert rc == 0
+    assert out == _sub(COMPLETO).choices[nome].format_help()
+    assert _sub(COMPLETO).choices[nome].description in out and _sub(COMPLETO).choices[nome].epilog in out
 
 
 # ------------------------------------------------------------------------------------------------ weight (red before)
@@ -338,3 +388,52 @@ def test_an_unknown_attribute_of_the_module_is_still_an_attribute_error():
     assert not hasattr(cli, "NAO_EXISTE")
     with pytest.raises(AttributeError, match="NAO_EXISTE"):
         cli.NAO_EXISTE  # noqa: B018
+
+
+# ------------------------------------------------------------------------------------------------ TOOLS must stay a literal list
+
+MUTADORES = {"append", "extend", "insert", "remove", "pop", "clear", "sort", "reverse", "__iadd__", "__setitem__", "__delitem__"}
+
+
+def _mudancas_de_tools(fonte: str) -> list[str]:
+    """What, besides the single literal `TOOLS = [...]` at the top level, changes the list: an `append`/`extend`/..., a `+=`, a
+    `TOOLS[i] = x`, a second assignment, a `del`. The names read from the source would not see any of them."""
+    arvore = ast.parse(fonte)
+    achados: list[str] = []
+    atribuicoes = 0
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.Name) and no.id == "TOOLS" and isinstance(no.ctx, (ast.Store, ast.Del)):
+            atribuicoes += 1
+        if isinstance(no, ast.AugAssign) and isinstance(no.target, ast.Name) and no.target.id == "TOOLS":
+            achados.append(f"linha {no.lineno}: TOOLS {type(no.op).__name__}=")
+        if (isinstance(no, ast.Call) and isinstance(no.func, ast.Attribute) and isinstance(no.func.value, ast.Name)
+                and no.func.value.id == "TOOLS" and no.func.attr in MUTADORES):
+            achados.append(f"linha {no.lineno}: TOOLS.{no.func.attr}(...)")
+        if isinstance(no, ast.Subscript) and isinstance(no.value, ast.Name) and no.value.id == "TOOLS" and isinstance(no.ctx, (ast.Store, ast.Del)):
+            achados.append(f"linha {no.lineno}: TOOLS[...] alterado")
+    if atribuicoes != 1:
+        achados.append(f"TOOLS é atribuída {atribuicoes} vezes (só uma, a lista literal)")
+    return achados
+
+
+@pytest.mark.parametrize("fonte,muda", [
+    ('TOOLS = [("video.a", f, D)]\n', False),
+    ('TOOLS = [("video.a", f, D)]\nTOOLS.append(("video.b", g, E))\n', True),
+    ('TOOLS = [("video.a", f, D)]\nTOOLS += [("video.b", g, E)]\n', True),
+    ('TOOLS = [("video.a", f, D)]\nTOOLS.extend(OUTRAS)\n', True),
+    ('TOOLS = [("video.a", f, D)]\nTOOLS.insert(0, x)\n', True),
+    ('TOOLS = [("video.a", f, D)]\nTOOLS[0] = x\n', True),
+    ('TOOLS = [("video.a", f, D)]\ndel TOOLS[0]\n', True),
+    ('TOOLS = [("video.a", f, D)]\nTOOLS = TOOLS + OUTRAS\n', True),
+    ('TOOLS = [("video.a", f, D)]\ndef g():\n    TOOLS.append(x)\n', True),
+    ('TOOLS = [("video.a", f, D)]\nfor n, fn, d in TOOLS:\n    pass\n', False),
+])
+def test_the_checker_of_tools_sees_every_way_to_change_the_list(fonte, muda):
+    assert bool(_mudancas_de_tools(fonte)) is muda, _mudancas_de_tools(fonte)
+
+
+def test_mcp_server_never_changes_tools_after_the_literal_list():
+    """`cli._nomes_das_tools_no_fonte` reads the names from the source. A `TOOLS.append(...)` after the list would give `--help` 32
+    names (and none for the added tool) with no error in production: whoever needs to add a tool this way must change the reader."""
+    fonte = (Path(cli.__file__).with_name("mcp_server.py")).read_text(encoding="utf-8")
+    assert _mudancas_de_tools(fonte) == []
