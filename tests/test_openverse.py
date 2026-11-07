@@ -2362,7 +2362,7 @@ def test_docs_dizem_o_que_o_pedido_exige():
     assert "openverse.py" in ag and "revisão aprovada para aquele pedido" in ag and "crédito" in ag
     assert "Openverse" in (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
     assert "parecer jurídico" in (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
-    assert "openverse" in (ROOT / "docs" / "recursos.md").read_text(encoding="utf8").lower()
+    assert "openverse" in (ROOT / "docs" / "pesquisa" / "recursos.md").read_text(encoding="utf8").lower()
     gen = (ROOT / "scripts" / "gen_reference.py").read_text(encoding="utf8")
     for var in ("OPENVERSE_LIBRARY_DIR", "OPENVERSE_CLIENT_ID", "OPENVERSE_CLIENT_SECRET"):
         assert f'"{var}"' in gen, var

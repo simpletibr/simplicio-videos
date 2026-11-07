@@ -1251,8 +1251,8 @@ def test_override_de_pip_com_outra_versao_o_doctor_avisa_o_que_o_install_faz(amb
 
 
 def test_o_doc_do_override_nao_promete_o_que_o_install_recusa():
-    """docs/recursos.md: pip accepts only the registry's own version; the doctor warns for the rest."""
-    texto = (Path(__file__).resolve().parents[2] / "docs" / "recursos.md").read_text(encoding="utf-8")
+    """docs/pesquisa/recursos.md: pip accepts only the registry's own version; the doctor warns for the rest."""
+    texto = (Path(__file__).resolve().parents[2] / "docs" / "pesquisa" / "recursos.md").read_text(encoding="utf-8")
     linha = next(l for l in texto.splitlines() if l.startswith("- **Override**"))
     assert "pip" in linha and "sha256" in linha and "versão fixada" in linha, linha
 

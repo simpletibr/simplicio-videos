@@ -1245,7 +1245,7 @@ def test_agents_readme_e_skill_documentam_a_busca():
     assert "simplicio-video busca" in skill and "untrusted_" in skill
     cl = (ROOT / "CHANGELOG.md").read_text(encoding="utf8")
     assert "Busca na internet (TinyFish)" in cl
-    rec = (ROOT / "docs" / "recursos.md").read_text(encoding="utf8")
+    rec = (ROOT / "docs" / "pesquisa" / "recursos.md").read_text(encoding="utf8")
     assert "simplicio-video busca" in rec
 
 

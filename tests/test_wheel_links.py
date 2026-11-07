@@ -43,7 +43,7 @@ ALLOWLIST = {
         "docstring of render_colab, which returns that path in the JSON field `notebook`: the owner decides (PLAN 5, q.7)",
     ("childio.py", "docs/host/gate.md"): "module docstring for the developers of the guard; childio is untouchable",
     ("engine/remote_render.py", "colab/render.ipynb"): "docstring of the headless script that runs on the remote box",
-    ("data/motion/README.md", "docs/recursos.md"): "hand-written note of the motion README, not in U04's files",
+    ("data/motion/README.md", "docs/pesquisa/recursos.md"): "hand-written note of the motion README, not in U04's files",
     ("data/templates/assistencia-tecnica-games/README.md", "docs/esteira.md"):
         "template README, not one of the three U04 owns (templates, sazonal, video-use)",
 }
