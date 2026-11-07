@@ -436,7 +436,18 @@ def test_a_variavel_da_origem_da_tarefa_tem_dono_em_paths():
     docs/reference documents): frozen. The jobs runner writes it and video-to-skill reads it, through the constant."""
     assert paths.JOB_ORIGIN_ENV == "SIMPLICIO_JOB_ORIGIN"
     assert _usos_da_constante("SIMPLICIO_JOB_ORIGIN") == {("paths.py", "<modulo>")}
-    assert _refere("jobs.py", "paths", "JOB_ORIGIN_ENV") and _refere("video_to_skill.py", "paths", "JOB_ORIGIN_ENV")
+    assert _refere("jobs.py", "paths", "JOB_ORIGIN_ENV") and _chama(_arvores()["video_to_skill.py"], "paths", "job_origin")
+
+
+def test_paths_job_origin_le_a_variavel_que_o_runner_escreve(monkeypatch):
+    """`paths.job_origin()` is where video-to-skill asks who submitted the task (the reader sits next to the name so that the generated
+    docs/reference/config.md keeps the row of the variable: it only sees a name written next to the `environ` that reads it)."""
+    monkeypatch.delenv("SIMPLICIO_JOB_ORIGIN", raising=False)
+    assert paths.job_origin() is None
+    monkeypatch.setenv("SIMPLICIO_JOB_ORIGIN", "mcp")
+    assert paths.job_origin() == "mcp"
+    monkeypatch.setenv("SIMPLICIO_JOB_ORIGIN", "")
+    assert paths.job_origin() == ""
 
 
 def test_o_esqueleto_do_contrato_traz_o_schema_de_sempre():

@@ -1296,7 +1296,7 @@ def _write_provenance(p: dict) -> str | None:
             source["sha256"] = original_sha
     else:
         source = {"kind": "file", "name": os.path.basename(argv[1]), "sha256": original_sha}
-    origin = os.environ.get("SIMPLICIO_JOB_ORIGIN")  # set by the jobs runner: the CLI of a job knows who submitted it
+    origin = paths.job_origin()  # set by the jobs runner: the CLI of a job knows who submitted it
     channel = "job" if origin in ("mcp", "terminal") else "terminal"
     rec = {"schema": PROVENANCE_SCHEMA, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
            "extractor_version": _version(), "pin_tag": _pins()["tag"], "pin_commit": _pins()["commit"], "channel": channel,

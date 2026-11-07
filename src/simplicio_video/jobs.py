@@ -794,7 +794,7 @@ async def _runner(jid: str) -> int:
         argv = [sys.executable, "-m", "simplicio_video", *build_argv(kind, params, st.get("origin"))]
         proc = await asyncio.create_subprocess_exec(*argv, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
                                                     stderr=asyncio.subprocess.STDOUT, start_new_session=True, cwd=st.get("cwd"),
-                                                    env={**os.environ, "SIMPLICIO_JOB_ORIGIN": str(st.get("origin") or "")})
+                                                    env={**os.environ, paths.JOB_ORIGIN_ENV: str(st.get("origin") or "")})
         update(jid, task_pid=proc.pid, task_pgid=proc.pid, task_start=proc_start(proc.pid), task_boot=boot_id())
         pump = asyncio.create_task(_pump(proc.stdout, jid, box))
         beat = asyncio.create_task(_heartbeat(jid))

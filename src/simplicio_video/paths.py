@@ -111,6 +111,16 @@ def node_env() -> dict:
 # was the cycle montage <-> jobs <-> moneyprinter): the protocol of a task, where its state lives and how long it is given to stop.
 
 JOBS_GRACE_S = 15.0
+# The variable the jobs runner sets in the CLI it starts ("mcp" or "terminal", who submitted the task) and that video-to-skill reads to
+# record the provenance of an extract: the name is the protocol between the two, so it is written here, once.
+JOB_ORIGIN_ENV = "SIMPLICIO_JOB_ORIGIN"
+
+
+def job_origin() -> str | None:
+    """Who submitted the task this process runs, as the jobs runner wrote it in $SIMPLICIO_JOB_ORIGIN, or None outside a task. Not
+    checked here: the reader decides which values it accepts. (The reader lives next to the name, so that the generated reference of
+    the environment variables, which sees only a name written next to the `environ` that reads it, keeps the row of the variable.)"""
+    return os.environ.get(JOB_ORIGIN_ENV)
 
 
 @dataclass(frozen=True)

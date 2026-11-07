@@ -941,7 +941,7 @@ def build_server():
 
 
 def main() -> None:
-    os.environ["SIMPLICIO_MCP"] = "1"  # childio.run_child: children get no stdin and no inherited stdout under the stdio server
+    os.environ[childio.ENV_FLAG] = "1"  # childio.run_child: children get no stdin and no inherited stdout under the stdio server
     # The tools run in worker threads, where guarded_child cannot take a signal: SIGTERM/SIGHUP/Ctrl+C on the server kill the children
     # that are under a guard and end it with 128+n (the jobs runner is detached on purpose and is not under a guard)
     childio.install_exit_guard()

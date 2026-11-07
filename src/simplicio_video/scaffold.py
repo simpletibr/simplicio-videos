@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from . import paths
+from . import CONTRACT_SCHEMA_ID, paths
 
 
 def drive_token(s: str) -> str:
@@ -54,7 +54,7 @@ def skeleton(home: Path, slug: str, campanha: str, template: str, ano: int | Non
     v = t.get("voz", {})
     f = t.get("formato", {})
     return {
-        "schema": "simplicio.video-contract/v1",
+        "schema": CONTRACT_SCHEMA_ID,
         "cliente": {"slug": slug, "nome": nome or "TODO: nome do cliente", "drive_nome": dn, "coleta": "../coleta"},
         "campanha": {"id": camp, "ano": ano, "titulo": f"TODO: título de {camp}"},
         "formato": {"aspect": f.get("aspect", "9:16"), "width": f.get("width", 1080), "height": f.get("height", 1920),
