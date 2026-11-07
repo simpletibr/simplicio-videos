@@ -17,6 +17,7 @@ import sys
 import time
 import wave
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import yaml
@@ -102,6 +103,12 @@ def test_needs_client_skips_only_when_some_contract_is_missing(tmp_path):
     assert "clients/" in helpers.CLIENT_DATA_REASON
 
 
+def test_client_data_reason_is_this_exact_text():
+    # U17c (C1-14): the test above compares the constant with itself, so a reworded reason passed. The text is what `pytest -rs` prints
+    # for every skipped real-client test (the skip report is how the gate's count of those skips is read): fixed here by literal.
+    assert h().CLIENT_DATA_REASON == "contrato real de cliente fora do git (clients/ não é rastreado)"
+
+
 def _contrato_de_cliente(pasta: Path) -> Path:
     (pasta / "coleta").mkdir(parents=True)
     (pasta / "preview").mkdir()
@@ -164,6 +171,34 @@ def test_offline_env_shares_one_sitecustomize_folder_per_process():
     a = helpers.offline_env()["PYTHONPATH"].split(os.pathsep)[0]
     b = helpers.offline_env()["PYTHONPATH"].split(os.pathsep)[0]
     assert a == b and Path(a).is_dir()
+
+
+def test_offline_env_applies_extra_last_so_it_can_override_even_the_offline_switch_and_the_pythonpath(monkeypatch):
+    # U17c (C1-23): `env.update(extra)` is the LAST write. Nobody passes these two as extra today, so moving the update above them
+    # (extra can no longer turn the switch off or replace PYTHONPATH) changed nothing a caller saw. This pins what it does now.
+    helpers = h()
+    monkeypatch.setenv("PYTHONPATH", "/antes")
+    assert helpers.offline_env(SIMPLICIO_OFFLINE="0")["SIMPLICIO_OFFLINE"] == "0"  # the default is "1": extra wins
+    so_este = helpers.offline_env(PYTHONPATH="/so-este")
+    assert so_este["PYTHONPATH"] == "/so-este"  # replaced, not prefixed: the child then runs without the sitecustomize socket guard
+    assert so_este["SIMPLICIO_OFFLINE"] == "1"  # what extra does not name is still set
+    assert helpers.offline_env()["PYTHONPATH"].endswith(os.pathsep + "/antes")  # and without extra the inherited value is kept
+
+
+def test_offline_env_folder_is_removed_when_the_process_that_made_it_exits(tmp_path):
+    # U17c (C1-10): the sitecustomize folder is made once per process and deleted by an atexit hook. Without the hook every pytest
+    # process (each xdist worker too) left one `simplicio-offline-*` folder in the temp dir. A child with the real helpers, whose
+    # TMPDIR is `tmp_path`: when it is gone, `tmp_path` must be empty (a leak would land here, not in the real /tmp).
+    codigo = ("import os, helpers\n"
+              "for _ in range(3):\n"
+              "    pasta = helpers.offline_env()['PYTHONPATH'].split(os.pathsep)[0]\n"
+              "print(pasta, os.path.isfile(os.path.join(pasta, 'sitecustomize.py')))\n")
+    r = _python_limpo(codigo, path=str(tmp_path), TMPDIR=str(tmp_path))
+    assert r.returncode == 0, r.stderr
+    pasta, tinha_o_guarda = r.stdout.split()
+    assert tinha_o_guarda == "True"  # while it ran the folder held the guard (this is not a test of a folder that was never made)
+    assert Path(pasta).parent == tmp_path and Path(pasta).name.startswith("simplicio-offline-")
+    assert sorted(p.name for p in tmp_path.iterdir()) == []  # three calls made one folder (checked above) and the exit removed it
 
 
 def test_offline_env_blocks_sockets_in_the_child_but_not_unix_sockets():
@@ -341,6 +376,23 @@ def test_run_main_text_exit_prints_the_message_to_stderr_and_returns_1(capsys):
     assert helpers.run_main(argparse_like, [], capsys, text_exit=True) == (2, "", "")
 
 
+@pytest.mark.parametrize("text_exit", [False, True])
+@pytest.mark.parametrize("tipo", [RuntimeError, KeyError, AssertionError, KeyboardInterrupt])
+def test_run_main_lets_every_exception_that_is_not_systemexit_propagate(capsys, tipo, text_exit):
+    # U17c (C1-04): only SystemExit becomes an rc. A crash of main(argv) (a bug in the engine, a failed assert inside it) must reach
+    # pytest as itself; turning it into rc=1 would let a test that expects "any failure" pass on a traceback.
+    helpers = h()
+    erro = tipo("quebrou")
+
+    def main(argv):
+        print("antes de quebrar")
+        raise erro
+
+    with pytest.raises(tipo) as visto:
+        helpers.run_main(main, [], capsys, text_exit=text_exit)
+    assert visto.value is erro
+
+
 def test_run_main_passes_argv_through_untouched(capsys):
     helpers = h()
     chegou = []
@@ -474,6 +526,27 @@ def test_isolate_tools_returns_tmp_path(tmp_path):
     helpers = h()
     with pytest.MonkeyPatch.context() as mp:
         assert helpers.isolate_tools(mp, tmp_path) == tmp_path
+
+
+@pytest.mark.parametrize("de_fora", [True, False], ids=["variaveis-ja-existem", "variaveis-ausentes"])
+def test_isolate_tools_leaves_the_environment_as_it_was_once_the_monkeypatch_is_undone(tmp_path, de_fora):
+    # U17c (C1-03): the older tests pre-set HOME through the same `mp` that isolate_tools gets, so an isolate_tools that wrote
+    # os.environ["HOME"] itself (the monkeypatch never learns about it, nothing restores it) still passed. Here the variables are put in
+    # place by hand, outside that monkeypatch, and the whole environment is compared before and after it ends.
+    helpers = h()
+    nomes = ("HOME", "SIMPLICIO_TOOLS_DIR", "SIMPLICIO_VIDEO_DATA", "U17_SOLTA")
+    with mock.patch.dict(os.environ):  # the guard of this test: whatever the code under test leaks is undone when this block ends
+        for nome in nomes:
+            if de_fora:
+                os.environ[nome] = f"/fora/{nome}"
+            else:
+                os.environ.pop(nome, None)
+        antes = dict(os.environ)
+        with pytest.MonkeyPatch.context() as mp:
+            helpers.isolate_tools(mp, tmp_path, data="dados", drop=("U17_SOLTA", "U17_AUSENTE"))
+            assert os.environ["HOME"] == str(tmp_path / "home") and os.environ["SIMPLICIO_TOOLS_DIR"] == str(tmp_path / "tools")
+            assert os.environ["SIMPLICIO_VIDEO_DATA"] == str(tmp_path / "dados") and "U17_SOLTA" not in os.environ
+        assert dict(os.environ) == antes
 
 
 # ------------------------------------------------------------------------------------------------ WAVs sintéticos
