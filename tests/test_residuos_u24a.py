@@ -153,7 +153,9 @@ def test_a_lista_fechada_tem_os_ids_e_a_ordem_de_hoje():
 
 
 def test_listar_os_tipos_e_ler_o_item_de_rea_video_nao_importa_a_trilha():
-    """The module of a track is imported when one of its hooks is called, never by `import jobs` or by looking at the list."""
+    """The module of a track is imported when its `JobSpec` is asked for (`jobs.job_spec(kind)` calls the loader), never by `import jobs`,
+    by listing the kinds or by reading the loader of rea-video from `JOB_MODULES`. That table entry is what "the item of rea-video" of this
+    test's name is now: `jobs.KINDS[kind]`, which built the hooks of a kind, no longer exists (the name stays: ids do not change)."""
     codigo = ("import sys\n"
               f"sys.path.insert(0, {str(ROOT / 'src')!r})\n"
               "from simplicio_video import jobs\n"
