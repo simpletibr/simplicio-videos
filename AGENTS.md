@@ -164,6 +164,7 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `commands/install.py`: `simplicio-video install [--target DIR] [--global] [--host H] [--dry-run] [--check] [--json] [--verify] [--uninstall] [--prune-project-copies]`: copy the bundled skills into the agent host, exactly as the `install` of simplicio-loop does.
 - `commands/setup.py`: `simplicio-video setup [--yes] [--theme ID] [--lang IDIOMA] [--force] [--realoficial]` (issue #43).
 - `commands/update.py`: `simplicio-video update [--check] [--dry-run] [--force]`: update this installation, with the loop's exit codes.
+- `commands/versions.py`: The release parser and the state of the last `update --check`: what `doctor` needs, without the client of GitHub, pip and git.
 - `compiler.py`: Compile a contract into a self-contained HyperFrames project (the render workdir).
 - `contract.py`: Load, schema-check and semantically validate a simplicio.video-contract/v1 YAML file.
 - `distribution.py`: How this simplicio-video was installed: as a source checkout (or an editable install) or as a package (pip).
