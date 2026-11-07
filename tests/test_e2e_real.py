@@ -1698,19 +1698,44 @@ def test_s7_sem_segredo_curto_nao_ha_aviso(tmp_path, capsys):
     assert "menos de 3 caracteres" not in out
 
 
-# 3. lacunas conhecidas da redação (documentadas como xfail(strict=True): o dia em que forem corrigidas, o teste vira XPASS e
-# a marca sai). Nada aqui muda scripts/e2e_real.py.
-@pytest.mark.xfail(strict=True, reason="known gap: AUTHOR(?!IZ) in _NAO_SEGREDO only protects AUTHORIZ*, so AUTHORISATION (British "
-                                       "spelling of the same secret name) loses its AUTH part and is not redacted")
+# 3. antigas lacunas conhecidas da redação (eram xfail(strict=True); corrigidas em scripts/e2e_real.py, hoje são testes normais).
+# Antes: AUTHOR(?!IZ) in _NAO_SEGREDO only protected AUTHORIZ*, so AUTHORISATION (British spelling of the same secret name)
+# lost its AUTH part and was not redacted.
 def test_s3_authorisation_no_config_e_segredo(tmp_path):
     cfg = tmp_path / "config.toml"
     cfg.write_text('AUTHORISATION = "cfg-auth-5555"\n', encoding="utf-8")
     assert "cfg-auth-5555" in e2e._valores_do_config(cfg)
 
 
-@pytest.mark.xfail(strict=True, reason="known gap: an api_key line with an unclosed quote in an invalid config.toml is not redacted: "
-                                       "tomllib refuses the file, and the regex path reads a string only up to its closing quote")
+# Antes: an api_key line with an unclosed quote in an invalid config.toml was not redacted: tomllib refuses the file, and the
+# regex path read a string only up to its closing quote.
 def test_s3_api_key_com_aspas_sem_fechar_em_config_invalido_e_segredo(tmp_path):
     cfg = tmp_path / "config.toml"
     cfg.write_text('[llm]\napi_key = "cfg-aberta-7777\n', encoding="utf-8")
     assert "cfg-aberta-7777" in e2e._valores_do_config(cfg)
+
+
+# As duas correções valem pela regra, não só pelos dois casos acima: AUTHOR só deixa de contar quando NÃO é seguido de IS ou IZ
+# (AUTHORISE, AUTHORIZE e AUTHORIZATION seguem segredo), e a string sem aspas de fechamento vai até o fim da linha.
+@pytest.mark.parametrize("nome", ["AUTHORISATION", "AUTHORISE", "AUTHORIZATION", "AUTHORIZE"])
+def test_s3_author_seguido_de_is_ou_iz_continua_segredo(nome):
+    assert e2e._nome_e_segredo(nome), nome
+
+
+@pytest.mark.parametrize("nome", ["AUTHORING_MODE", "AUTHORED_BY"])
+def test_s3_author_sem_is_nem_iz_continua_fora(nome):
+    assert not e2e._nome_e_segredo(nome), nome
+
+
+CASOS_SEM_FECHAR = [  # (nome, texto do config.toml, valores achados): a string aberta vai até o fim da linha, nem mais nem menos
+    ("aspas simples", "api_key = 'cfg-simples-1111\n", {"cfg-simples-1111"}),
+    ("fim do arquivo sem quebra de linha", 'api_key = "cfg-eof-2222', {"cfg-eof-2222"}),
+    ("a linha seguinte nao entra", 'api_key = "cfg-linha-3333\nmodel = "gpt-4o"\nnome = "x"\n', {"cfg-linha-3333"}),
+    ("item de lista sem fechar", 'api_keys = ["cfg-lista-4444", "cfg-lista-5555\n]\n', {"cfg-lista-4444", "cfg-lista-5555"}),
+    ("barra no fim da linha nao puxa a seguinte", 'api_key = "cfg-barra-7777\\\nmodel = 1\n', {"cfg-barra-7777\\"}),
+]
+
+
+@pytest.mark.parametrize("nome,texto,esperado", CASOS_SEM_FECHAR, ids=[c[0] for c in CASOS_SEM_FECHAR])
+def test_s3_string_sem_aspas_de_fechamento_vai_ate_o_fim_da_linha(nome, texto, esperado):
+    assert e2e._valores_por_regex(texto) == esperado
