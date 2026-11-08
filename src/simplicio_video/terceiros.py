@@ -6,9 +6,11 @@ module asks for on top (its proxy and certificate variables, its own key, ...), 
 A name that is in neither is never passed, whatever the shell has. `PROXIES` is the one list of the eight proxy names: the modules that
 let a proxy through write `(*terceiros.PROXIES, ...)` instead of typing them again.
 
-HELPERS. `chave`, `dentro`, `real` and `commit_do_checkout` are the copies that instagram, matchcut and video_to_skill each carry
-(`_chave`, `_dentro`, `_real`, `_commit_do_checkout`), with the same bodies. montage has a `_dentro` of its own (it compares real
-paths another way) and keeps it.
+HELPERS. `chave`, `dentro`, `real` and `commit_do_checkout` were the copies that instagram, matchcut and video_to_skill each carried
+(`_chave`, `_dentro`, `_real`, `_commit_do_checkout`), with the same bodies. `_real` and `_commit_do_checkout` are now these functions;
+`_chave` and `_dentro` stay in the three modules (their tests flip the `CASE_INSENSITIVE` of the module) and each module hands them to
+`lugar_proibido`. montage no longer has a `_dentro` of its own (it compared real paths another way): its rule asks with the `dentro` of
+this module.
 
 TEXT. `limpa_mcp` (the text an agent gets) and `visivel` (the text a terminal gets) are what matchcut, instagram and video_to_skill each
 carried (`_limpa_mcp`/`limpa_mcp`, `visivel`): the strictest of the three, instagram's, which also drops (or shows) the variation selectors.
@@ -17,11 +19,17 @@ WHERE A TRACK DOES NOT WRITE. matchcut, instagram, montage, video_to_skill and v
 real path?" and the copies disagreed. `lugar_proibido` is ONE rule, the union of what they refused: a path is refused when any of them
 refused it (a track's own checkout and data folder stay that track's own: it passes them as `proprios`). The words of each reason are the
 ones the tracks already used, so a refusal that existed keeps its text.
+
+`/var` as a whole is a system place (all but `/var/tmp`), with one more exception: the trees below `/var` that belong to the user, which are
+the user's temporary folder (`tempfile.gettempdir()`, `$TMPDIR` and `/var/folders`, where macOS keeps it) and the user's real home (on an
+ostree system, Silverblue, Bazzite, CoreOS, `/home` is `/var/home`). The other rules (hidden folder, `.git`, the data folder, a venv, ...)
+still hold inside those trees, and a home or a temporary folder that is `/var` itself frees nothing.
 """
 from __future__ import annotations
 
 import os
 import sys
+import tempfile
 import unicodedata
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
@@ -146,6 +154,44 @@ def _home() -> Path | None:
         return None
 
 
+def _tem_cfg(pasta: Path) -> bool:
+    """Is there a `pyvenv.cfg` right in `pasta`? A name the disk cannot take (ENAMETOOLONG: the folder does not exist) or a folder it will not
+    let us look into says no, and the other places decide: the probe never raises."""
+    try:
+        return (pasta / "pyvenv.cfg").is_file()
+    except OSError:
+        return False
+
+
+def _livres_sob_var() -> Iterable[Path]:
+    """The trees that may live below /var and are the user's: macOS keeps the temporary folder in /var/folders, `tempfile` and $TMPDIR name
+    it, and the real home of the user (an ostree system has /home as /var/home). Asked one at a time, the cheap ones first."""
+    yield Path("/var/folders")
+    if os.environ.get("TMPDIR"):
+        yield Path(os.environ["TMPDIR"])
+    try:
+        yield Path(tempfile.gettempdir())
+    except OSError:  # no usable temporary folder: it names nothing
+        pass
+    casa = _home()
+    if casa is not None:
+        yield casa
+
+
+def _livre_sob_var(real: Path, dentro: Callable[[Path, Path], bool]) -> bool:
+    """Is `real` in one of the user's trees below /var? Only a tree strictly below /var counts: a home or a temporary folder that IS /var (or
+    holds it) frees nothing."""
+    var = Path("/var")
+    for livre in _livres_sob_var():
+        try:
+            livre = livre.resolve()
+        except (OSError, RuntimeError):
+            continue
+        if dentro(livre, var) and not dentro(var, livre) and dentro(real, livre):
+            return True
+    return False
+
+
 def _no_comum(real: Path, dentro: Callable[[Path, Path], bool], chave: Callable[[Path], tuple]) -> str | None:
     """What every track always refused, asked in the order they always asked: a system folder, an auto-start folder, a hidden folder of the
     home, a .git anywhere in the path."""
@@ -167,7 +213,8 @@ def _no_comum(real: Path, dentro: Callable[[Path, Path], bool], chave: Callable[
 
 
 def _no_motor(real: Path, dentro: Callable[[Path, Path], bool], chave: Callable[[Path], tuple]) -> str | None:
-    """The engine's own places: its code, its tools folder, the whole data folder, a site-packages, a venv, and /var (but /var/tmp)."""
+    """The engine's own places: its code, its tools folder, the whole data folder, a site-packages, a venv, and /var (but /var/tmp and the
+    user's own trees below it: the temporary folder and the real home)."""
     if dentro(real, Path(__file__).resolve().parent):
         return CODIGO
     from . import hostos, paths, tools  # at call time: the leaf does not drag the registry of tools in at import
@@ -179,9 +226,9 @@ def _no_motor(real: Path, dentro: Callable[[Path, Path], bool], chave: Callable[
             continue
     if "site-packages" in chave(real):
         return SITE_PACKAGES
-    if any((a / "pyvenv.cfg").is_file() for a in real.parents):
+    if any(_tem_cfg(a) for a in real.parents):
         return VENV
-    if dentro(real, Path("/var")) and not dentro(real, Path("/var/tmp")):
+    if dentro(real, Path("/var")) and not dentro(real, Path("/var/tmp")) and not _livre_sob_var(real, dentro):
         return SISTEMA
     return None
 
@@ -194,8 +241,9 @@ def lugar_proibido(real: Path, proprios: Iterable[tuple[Path | Iterable[Path], s
     first and their words are the track's (its checkout, its data folder). They are asked one at a time, only up to the first that holds
     `real`, so a folder that cannot be found (no home) is not looked for once the answer is known. After them come the places every track
     refuses: a system folder, an auto-start folder, a hidden folder of the home, a .git; and then the engine's own places (its code, tools
-    and data folders, site-packages, a venv, /var but /var/tmp). A path under two of them gets the reason that comes first: `motor_antes`
-    swaps the last two groups, for the track that always told those first (montage). The order never decides WHETHER a path is refused.
+    and data folders, site-packages, a venv, /var but /var/tmp and the user's temporary folder and real home). A path under two of them gets
+    the reason that comes first: `motor_antes` swaps the last two groups, for the track that always told those first (montage). The order
+    never decides WHETHER a path is refused.
 
     `dentro` and `chave` compare folder names: a track that lets its tests flip its own case rule passes its own (the defaults follow
     `CASE_INSENSITIVE` here)."""

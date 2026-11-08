@@ -35,7 +35,7 @@ import pytest
 from helpers import FIXTURE, pcm_wav as _wav
 from simplicio_video import catalog, childio
 from simplicio_video import contract as ct
-from simplicio_video import voice, voice_clone, voz_catalogo
+from simplicio_video import rede, voice, voice_clone, voz_catalogo
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None, reason="needs ffmpeg and ffprobe")
 
@@ -171,6 +171,14 @@ class _Resp(io.BytesIO):
 
     def __exit__(self, *a):
         return False
+
+
+@pytest.fixture(autouse=True)
+def _a_url_abre_pelo_urlopen_do_urllib(monkeypatch):
+    """U22i: gemini and voicestudio open their URL with `rede.urlopen_seguro` (a redirect never takes the key along), and every fake in this file
+    replaces `urllib.request.urlopen`, the network as these tests see it. `urlopen_seguro` is pointed at whatever `urlopen` is at the call, so
+    each fake still gets the request and the timeout, and no line of these tests changes (U22d edits the lines around two of them)."""
+    monkeypatch.setattr(rede, "urlopen_seguro", lambda req, *, timeout: urllib.request.urlopen(req, timeout=timeout))
 
 
 class Mundo:

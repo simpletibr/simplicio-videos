@@ -50,7 +50,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode, urljoin, urlparse
 
-from . import __version__, hostos, paths, rede
+from . import __version__, hostos, paths, redact, rede
 from .fsutil import sha256_file
 
 __all__ = ["OpenverseError", "search", "get", "library_list", "library_show", "review_sheet", "review", "review_status", "export",
@@ -105,12 +105,11 @@ LICENSE_SLUG_RE = re.compile(r"https://creativecommons\.org/(?:licenses/([a-z]+(
 _PD_SLUG = {"zero": "cc0", "mark": "pdm"}  # the public-domain links name the tool, not the license id
 TRILHA_NOTA = "áudio modificado/adaptado pelo simplicio-video (cortes, crossfade, filtro, ducking)"  # the credit of a music bed (#113, CC BY 4.0 §3)
 EXPORT_NAME_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*\.(?:jpg|png|gif|webp|wav|ogg|flac|mp3|m4a)")  # <slug>-<sha8>.<ext>, as export_name builds it
-_SECRET_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_])(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
-                             r"eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AQ\.[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._-]{16,})")
 STOPWORDS = frozenset("""a o as os um uma uns umas de da do das dos em no na nos nas ao aos para por com sem que e ou se
 the an of and in on at to for with by or is are be""".split())
 
 _TOKEN: dict = {}  # OAuth2 token lives in process memory only: it never goes to disk
+redact.register("openverse", lambda: [_TOKEN.get("valor")])  # the one redactor of the engine hides it too (looks `_TOKEN` up at each call)
 
 
 class OpenverseError(Exception):
@@ -127,22 +126,19 @@ def _secret_values() -> list[str]:
     return [v for v in vals if len(v) >= 6]
 
 
-def scrub(text: str) -> str:
-    """Hide the environment credentials, the token and anything shaped like a key."""
-    for v in _secret_values():
-        text = text.replace(v, "***")
-    return _SECRET_TEXT_RE.sub("***", text)
+scrub = redact.scrub  # the one rule of the engine (credentials of the environment, the token, anything shaped like a key) under this module's name for it
 
 
 def _clean_text(value, campo: str, limite: int = MAX_TEXT_CHARS) -> str:
-    """Free text typed by the user (request, reason, reviewer): refuses the environment credential, masks key-shaped text."""
+    """Free text typed by the user (request, reason, reviewer): refuses the Openverse credential (the message names it), and hides the rest of
+    what `redact` knows (the credentials of the other modules, every shape of a key) instead of refusing it."""
     text = " ".join(str(value or "").split())
     for v in _secret_values():
         if v in text:
             raise OpenverseError(f"segredo (credencial do Openverse) encontrado em {campo}: nada foi gravado")
     if len(text) > limite:
         raise OpenverseError(f"{campo} acima de {limite} caracteres")
-    return _SECRET_TEXT_RE.sub("***", text)
+    return scrub(text)
 
 
 # ---------------------------------------------------------------------------------------------------------- licenses

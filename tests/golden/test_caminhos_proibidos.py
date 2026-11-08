@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -115,6 +116,9 @@ UNANIMES = [
     ("{work}/.git/hooks/pre-commit", *(G,) * 5), ("{home}/proj/.git/config", *(G,) * 5),
     # U22a, linhas novas: o que o resto do arquivo só dizia por módulo (a raiz de dados, site-packages) entra na tabela, nos cinco.
     ("{data}/x", *("dados",) * 5), ("{work}/lib/python3/site-packages/x.py", *("site-packages",) * 5),
+    # U22a, revisão independente: a exceção de /var/tmp vale só com a caixa exata onde o disco distingue caixa (Linux): /var/Tmp e /var/TMP são
+    # outras pastas e seguem recusadas como o resto de /var (o montage já as recusava no main).
+    ("/var/Tmp/x", *(S,) * 5), ("/var/TMP/x", *(S,) * 5),
 ]
 
 DIVERGENTES = [
@@ -257,3 +261,37 @@ def test_where_two_reasons_apply_each_module_tells_the_one_it_always_told(mundo,
     for caminho, *esperado in linhas:
         p = sub(mundo, caminho)
         assert dict(zip(MODULOS, (veredito(m, p) for m in MODULOS))) == dict(zip(MODULOS, esperado)), caminho
+
+
+# ------------------------------------------------------------------------ U22a, revisão independente: nome longo demais para o disco
+
+def test_a_name_too_long_for_the_disk_is_no_reason_and_never_a_traceback(mundo):
+    """A sonda de `pyvenv.cfg` da regra única levantava OSError (ENAMETOOLONG) para um componente de mais de 255 bytes, em quatro módulos que no
+    main devolviam '' (o montage já levantava). O nome não existe: não é razão para recusar, e o `--out` do video-to-skill dá a mensagem limpa
+    de sempre (`video-to-skill extract ... --out <300 letras>/x`: rc 1 com a mensagem, não um traceback)."""
+    longo = sub(mundo, "{work}") / ("a" * 300) / "x.txt"
+    assert {m: veredito(m, longo) for m in MODULOS} == {m: L for m in MODULOS}
+    with pytest.raises(video_to_skill.VideoToSkillError, match="não existe"):
+        video_to_skill._new_dir(str(longo), "terminal", "--out")
+
+
+# ----------------------------------------------------- U22a, revisão independente: /var não quebra o temporário nem o home do usuário
+
+def test_the_var_rule_leaves_the_users_temp_dir_and_home_tree_alone_in_the_five_modules(mundo, monkeypatch):
+    """`/var` inteiro quebrava uso legítimo: no macOS o `$TMPDIR` real é /private/var/folders/..., e numa distro ostree (Silverblue, Bazzite, CoreOS)
+    /home é /var/home. A regra segue recusando /var (menos /var/tmp), mas nunca o temporário do usuário (`tempfile.gettempdir()`, `$TMPDIR`,
+    /var/folders) nem a árvore do HOME real; as outras regras (pasta oculta, .git...) valem nessas árvores. Aqui o home e o temporário moram sob
+    um prefixo /var FALSO: nada é criado no /var real. Linhas ACEITO da tabela do PR: no main o montage recusava as duas primeiras famílias
+    (e os outros quatro módulos não olhavam /var); com esta regra os cinco as deixam livres."""
+    home, tmp = "/var/zz-u22a-home/user", "/var/zz-u22a-tmp/T"
+    monkeypatch.setenv("HOME", home)
+    monkeypatch.setenv("TMPDIR", tmp)
+    monkeypatch.setattr(tempfile, "tempdir", tmp)
+    linhas = [
+        (tmp + "/x", L), (tmp + "/a/b.mp4", L), ("/var/folders/ab/cdef/T/x", L),  # o temporário do usuário
+        (home + "/proj/out.mp4", L),  # o home real (ostree: /var/home/<usuário>)
+        (home + "/.ssh/x", O), (home + "/proj/.git/x", G),  # as outras regras valem dentro das duas árvores
+        ("/var/zz-u22a-home/other/x", S), ("/var/zz-u22a-tmp/x", S), ("/var/www/html/x", S), ("/var/cache/x", S),  # o resto de /var segue recusado
+    ]
+    for caminho, esperado in linhas:
+        assert {m: veredito(m, real(caminho)) for m in MODULOS} == {m: esperado for m in MODULOS}, caminho
