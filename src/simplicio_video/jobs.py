@@ -24,7 +24,7 @@ How it works, in a few rules:
 - If the runner dies without writing a final state, the next status/list marks the task `lost` and kills what it left
   (orphan recovery). Finished tasks older than a week are removed on submit and by `jobs clean`.
 - No API key is ever written: the key stays in the environment of the runner and the task. Submitting arguments that
-  contain a key is refused, and every state write and every output line is scrubbed with the swap redaction filter.
+  contain a key is refused, and every state write and every output line is scrubbed with `redact`, the one redactor of the engine.
 """
 from __future__ import annotations
 
@@ -45,11 +45,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
 
-from . import paths
+from . import paths, redact, swap
 from .aio import positive_int
 from .paths import JobSpec
-from .swap import scrub
-from .swap_providers.base import KEY_PATTERN
 
 
 SCHEMA = "simplicio.job/v1"
@@ -90,21 +88,7 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _secrets() -> list[str]:
-    from .swap import _secrets as swap_secrets
-    vals = list(swap_secrets())
-    for name in ("ELEVENLABS_API_KEY", "XAI_API_KEY"):
-        v = os.environ.get(name, "").strip()
-        if len(v) >= 6:
-            vals.append(v)
-    return vals
-
-
-def _scrub(text: str) -> str:
-    text = scrub(text)
-    for v in _secrets():
-        text = text.replace(v, "***")
-    return text
+_scrub = redact.scrub  # the one redactor of the engine (the swap providers' keys, ElevenLabs and xAI are in its list), under this module's name for it
 
 
 def write_json_atomic(path: Path, obj: dict) -> None:
@@ -363,8 +347,7 @@ def clean(older_than_days: float = PRUNE_DAYS) -> list[str]:
 # ----------------------------------------------------------------------------------------------------- the closed list
 
 def _no_secret(params: dict) -> None:
-    text = json.dumps(params, ensure_ascii=False)
-    if KEY_PATTERN.search(text) or any(v in text for v in _secrets()):
+    if redact.has_secret(json.dumps(params, ensure_ascii=False)):
         raise JobError("recusado: os argumentos contêm uma chave de API. A chave só entra pela variável de ambiente do provedor.")
 
 
@@ -374,7 +357,6 @@ def _check_keys(params: dict, allowed: set[str]) -> None:
 
 def _prepare_swap(params: dict, confirm_yes: bool, origin: str) -> tuple[dict, bool, dict]:
     """swap run, confirmed here: the same checks `swap run` does before spending, so a refusal is immediate and visible."""
-    from . import swap
     _check_keys(params, SWAP_KEYS)
     if origin != "terminal":
         raise JobError("swap-run gasta dinheiro: só se submete pelo terminal (simplicio-video jobs submit swap-run ... --autorizo --yes)")
