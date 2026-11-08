@@ -9,16 +9,19 @@ WHAT IT HIDES. (1) The VALUE of an environment variable that holds a credential:
 xAI, Openverse) from `MIN_KNOWN` = 6 characters, one whose name has KEY, SECRET, TOKEN, PASSWORD or PASSWD as a whole `_`-separated word
 (GITHUB_TOKEN; PIP_KEYRING_PROVIDER is not one) and a proxy URL that carries `user:password@` from `MIN_GENERIC` = 8, plus what a module
 `register`s (the OAuth token that Openverse keeps in memory). Each variable gets the lowest limit any of the old functions gave it, and a longer value
-goes before a shorter one that is part of it, so no tail of a key is left in the open. (2) Text SHAPED like a key (`SECRET_RE`). The length of each
-shape is the lowest any old function used (`AIza` + 8, `sk-` + 8, `Bearer` + 16 letters or + 8 with a digit...). Every shape but two needs a non-word
-character before it (the lookbehind of busca and openverse), so `task-based-workflow-x`, which contains `sk-based-workflow-x`, is a phrase and not a
-key. The two that do not are the Google shapes the swap providers used to hide, `AIzaSy` + 25 and `AQ.` + 30: they are long enough not to be a
-word, and a key glued to a word (`key_AIzaSy...`) stays hidden. A private key header is hidden in any case.
+goes before a shorter one that is part of it, so no tail of a key is left in the open. (2) Text SHAPED like a key: the three regexes the old redactors
+had (busca's, openverse's and swap's `KEY_PATTERN`, `SHAPES`), and the rule is the UNION of what they match. Where two of them knew the same
+format the match of either is hidden, so the limit is the lowest of the two (`AIza` + 8, `sk-` + 8, `Bearer` + 16 letters or + 8 with a digit...) and the
+guard the weakest. Every shape but two needs a non-word character before it (the lookbehind of busca and openverse), so `task-based-workflow-x`, which
+contains `sk-based-workflow-x`, is a phrase and not a key. The two that do not are the Google shapes swap hid, `AIzaSy` + 25 and `AQ.` + 30: they are
+long enough not to be a word, and a key glued to a word (`key_AIzaSy...`) stays hidden. A private key header is hidden in any case. Why three regexes
+and not one with all the alternatives: one regex consumes from left to right, and a key that starts inside the stretch another one took (a `Bearer`
+inside the token of an earlier `Bearer`) would be left in the open; each rule run on its own hides what it hid, and `shape_spans` merges the stretches.
 
 WHO CALLS WHAT. `scrub(text, values=None)` hides (1) and then (2) (a loop that cleans line after line passes `secret_values()`, asked once);
 `has_secret(text)` says whether there is anything to hide, for the places that refuse instead of hiding (a TinyFish query, the arguments of a
-background task); `secret_values()` and `mask_values()` are the two halves of (1), for the places that keep the list or the order of their own.
-A module that keeps a secret in memory calls `register`.
+background task); `secret_values()` and `mask_values()` are the two halves of (1), for the places that keep the list or the order of their own, and
+`shape_spans()` is (2) as stretches. A module that keeps a secret in memory calls `register`.
 
 Standard library plus `terceiros` (a leaf): the swap adapters, busca, openverse and jobs import this module, so it imports none of them. `social` does
 not: its guard (tests/social_guard.py) lets it import only `paths` and `fsutil`, so it carries a copy of `SECRET_RE` and the golden test keeps the
@@ -32,39 +35,62 @@ from collections.abc import Callable, Iterable
 
 from . import terceiros
 
-__all__ = ["MASK", "KNOWN_ENV", "PROXY_ENV", "MIN_KNOWN", "MIN_GENERIC", "SECRET_RE", "scrub", "has_secret", "secret_values", "mask_values",
-           "register", "unregister"]
+__all__ = ["MASK", "KNOWN_ENV", "PROXY_ENV", "MIN_KNOWN", "MIN_GENERIC", "SHAPES", "SECRET_RE", "scrub", "has_secret", "secret_values", "mask_values",
+           "shape_spans", "register", "unregister"]
 
 MASK = "***"
 
 # ---------------------------------------------------------------------------------------------------------------- shapes
 
-# What the swap providers hid before this module existed (the `KEY_PATTERN` of swap_providers/base.py): the Google API key and the OAuth-style token
-# (it has `.`, and stops only at a character outside the class). No lookbehind: they are the keys that spend money, and 31 and 33 characters are not a word.
+# The three regexes of the old redactors, each as it was (openverse's capturing group made non-capturing). Run one by one, never as one regex with
+# all the alternatives: see the docstring.
+#
+# swap_providers/base.py (`KEY_PATTERN`): the Google API key and the OAuth-style token (it has `.`, and stops only at a character outside the class).
+# No lookbehind: they are the keys that spend money, and 31 and 33 characters are not a word.
 _GOOGLE = r"AIzaSy[A-Za-z0-9_-]{25,}|AQ\.[A-Za-z0-9_.-]{30,}"
 
-# What busca and openverse hid, at the lowest length of the two. Each needs a non-word character before it. A prefix with a provider length
-# (hf_ and npm_ + 30, glpat- + 20, Stripe sk_/rk_ + 16): `npm_lifecycle_event` and `hf_model_name` are words, not tokens. The first Bearer is the
-# busca one (any case; 20 characters or a digit); the second is the openverse one (`Bearer` + 16 letters), which busca let through.
-_DELIMITED = (r"AIza[0-9A-Za-z_-]{8,}",
-              r"AQ\.[A-Za-z0-9_-]{8,}",
-              r"sk-[A-Za-z0-9_-]{8,}",
-              r"gh[pousr]_[A-Za-z0-9]{8,}",
-              r"github_pat_[A-Za-z0-9_]{20,}",
-              r"xox[a-z]-[A-Za-z0-9-]{8,}",
-              r"eyJ[A-Za-z0-9_-]{10,}",
-              r"ya29\.[A-Za-z0-9_-]{10,}",
-              r"AKIA[0-9A-Z]{16}",
-              r"[sr]k_(?:live|test)_[A-Za-z0-9]{16,}",
-              r"hf_[A-Za-z0-9]{30,}",
-              r"npm_[A-Za-z0-9]{30,}",
-              r"glpat-[A-Za-z0-9_-]{20,}",
-              r"(?i:bearer)\s+(?:(?=[A-Za-z0-9._~+/=-]{20})|(?=[A-Za-z._~+/=-]*[0-9]))[A-Za-z0-9._~+/=-]{8,}",
-              r"Bearer\s+[A-Za-z0-9._-]{16,}")
+# busca: every format needs a non-word character before it. A prefix with a provider length (hf_ and npm_ + 30, glpat- + 20, Stripe sk_/rk_ + 16):
+# `npm_lifecycle_event` and `hf_model_name` are words, not tokens. A bearer value needs a digit or 20+ characters, so `bearer authentication` is a
+# phrase. A private key header is hidden in any case and in any position.
+_BUSCA = (r"(?<![A-Za-z0-9_])(?:AIza[0-9A-Za-z_-]{8,}|AQ\.[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|"
+          r"github_pat_[A-Za-z0-9_]{20,}|xox[a-z]-[A-Za-z0-9-]{8,}|eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AKIA[0-9A-Z]{16}|"
+          r"[sr]k_(?:live|test)_[A-Za-z0-9]{16,}|hf_[A-Za-z0-9]{30,}|npm_[A-Za-z0-9]{30,}|glpat-[A-Za-z0-9_-]{20,}|"
+          r"(?i:bearer)\s+(?:(?=[A-Za-z0-9._~+/=-]{20})|(?=[A-Za-z._~+/=-]*[0-9]))[A-Za-z0-9._~+/=-]{8,})|"
+          r"(?i:-----BEGIN [A-Z ]*PRIVATE KEY-----)")
 
-_PRIVATE_KEY = r"(?i:-----BEGIN [A-Z ]*PRIVATE KEY-----)"
+# openverse (and social, without the lookbehind): the same guard, longer limits, and the one format busca let through, `Bearer` + 16 letters.
+_OPENVERSE = (r"(?<![A-Za-z0-9_])(?:sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
+              r"eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AQ\.[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._-]{16,})")
 
-SECRET_RE = re.compile(rf"{_GOOGLE}|(?<![A-Za-z0-9_])(?:{'|'.join(_DELIMITED)})|{_PRIVATE_KEY}")
+SHAPES = tuple(re.compile(p) for p in (_GOOGLE, _BUSCA, _OPENVERSE))
+# Only for `search` (is there anything to hide): `search` finds a match if any alternative does, whatever was consumed before. `social` carries a copy of
+# this text (it may import only paths and fsutil).
+SECRET_RE = re.compile("|".join((_GOOGLE, _BUSCA, _OPENVERSE)))
+
+
+def shape_spans(text: str) -> list[tuple[int, int]]:
+    """The stretches of `text` that any of the three rules of SHAPES matches, the ones that overlap merged (the same key found by two rules is one
+    stretch). A stretch is a half-open `(start, end)`, in order."""
+    stretches: list[list[int]] = []
+    for start, end in sorted(m.span() for rule in SHAPES for m in rule.finditer(text)):
+        if stretches and start < stretches[-1][1]:
+            stretches[-1][1] = max(stretches[-1][1], end)
+        else:
+            stretches.append([start, end])
+    return [(start, end) for start, end in stretches]
+
+
+def _mask_shapes(text: str) -> str:
+    spans = shape_spans(text)
+    if not spans:
+        return text
+    pieces, last = [], 0
+    for start, end in spans:
+        pieces += (text[last:start], MASK)
+        last = end
+    pieces.append(text[last:])
+    return "".join(pieces)
+
 
 # ---------------------------------------------------------------------------------------------------------------- values
 
@@ -127,7 +153,7 @@ def mask_values(text: str, values: Iterable[str] | None = None) -> str:
 def scrub(text: str, values: Iterable[str] | None = None) -> str:
     """Hide the credentials of the environment (`values`, by default `secret_values()`), then anything shaped like a key. A loop that cleans line
     after line asks for `secret_values()` once and passes it: reading the environment at each line costs far more than the cleaning."""
-    return SECRET_RE.sub(MASK, mask_values(text, values))
+    return _mask_shapes(mask_values(text, values))
 
 
 def has_secret(text: str) -> bool:

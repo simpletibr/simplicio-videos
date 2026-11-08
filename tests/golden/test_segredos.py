@@ -377,7 +377,7 @@ def test_the_stretches_of_the_one_rule_merge_the_ones_that_overlap_and_only_thos
     google = "AIzaSy" + corpo(33)
     assert redact.shape_spans("x " + google + " y") == [(2, 41)]  # a busca e o Google acham a mesma chave: um trecho, não dois
     assert redact.shape_spans("x " + google + " sk-" + corpo(20) + " y") == [(2, 41), (42, 65)]  # duas chaves: dois trechos
-    assert redact.shape_spans("x AQ." + corpo(10) + "." + corpo(25) + " y") == [(2, 39)]  # o do Google (com ponto) cobre o da busca, que parava no ponto
+    assert redact.shape_spans("x AQ." + corpo(10) + "." + corpo(25) + " y") == [(2, 41)]  # o do Google (com ponto) cobre o da busca, que parava no ponto
 
 
 def test_the_one_rule_is_idempotent_and_the_mask_is_not_a_secret():
