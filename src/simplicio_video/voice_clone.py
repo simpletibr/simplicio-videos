@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -61,13 +63,35 @@ def openvoice(S: dict, text: str, dst: Path, ref: Path | None, base_take) -> Non
         childio.check_child([py, str(paths.ENGINE_DIR / "openvoice_convert.py"), ckpt, str(base), str(ref), str(dst)])
 
 
+_BLANK_OR_CONTROL = re.compile(r"[\x00-\x20\x7f]")  # what http.client refuses in a URL (a traceback, not an error): blanks and control characters
+
+
+def _usable_base(base: str) -> bool:
+    """A base urllib can use: http or https, a host, a numeric port if any, ASCII and no blank or control character."""
+    if not base.isascii() or _BLANK_OR_CONTROL.search(base):
+        return False
+    try:
+        parts = urllib.parse.urlsplit(base)
+        parts.port  # raises ValueError for a port that is not 0-65535 (or not a number); urlsplit itself for an IPv6 literal that does not close
+    except ValueError:
+        return False
+    return parts.scheme in ("http", "https") and bool(parts.hostname)
+
+
 def voicestudio_url() -> str:
     """The base of the local app, read in ONE place: voicestudio.base_url() (VOICESTUDIO_URL, OMNIVOICE_URL, the ports, else
-    http://127.0.0.1:3900). Its error for a bad port is this module's, like every other one here: a SystemExit with the provider's prefix."""
+    http://127.0.0.1:3900). Its errors are this module's, like every other one here: a SystemExit with the provider's prefix."""
     try:
-        return voicestudiomod.base_url()
+        base = voicestudiomod.base_url()
     except voicestudiomod.VoiceStudioError as e:
         raise CloneVoiceError(f"provider=voicestudio: {e}") from None
+    if not _usable_base(base):
+        # only an explicit URL can fail (a base built from a port is http://127.0.0.1:<digits>): the first of the two variables that is set decided it.
+        # The value is not echoed: a URL can carry a password.
+        var = "VOICESTUDIO_URL" if os.environ.get("VOICESTUDIO_URL") else "OMNIVOICE_URL"
+        raise CloneVoiceError(f"provider=voicestudio: {var} must be an http:// or https:// URL with a host, such as http://127.0.0.1:3900 "
+                              "(ASCII, no spaces, numeric port)")
+    return base
 
 
 def voicestudio(S: dict, text: str, dst: Path) -> None:

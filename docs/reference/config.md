@@ -6,7 +6,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 
 | Variável | Para quê | Onde o código lê ou define |
 |---|---|---|
-| `AUDIO8_TTS_BIN` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:93` |
+| `AUDIO8_TTS_BIN` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:117` |
 | `BACKLOT_PORT` | Porta do board (Backlot) do OpenMontage; o `montage open` e o `montage serve` a repassam ao upstream. | `src/simplicio_video/montage.py:319` |
 | `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:427` |
 | `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo. | `src/simplicio_video/voice.py:213` |
@@ -32,8 +32,8 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `OPENMONTAGE_DATA_DIR` | Pasta do venv do OpenMontage (padrão: `~/.simplicio-video/openmontage-data`); um caminho relativo vira absoluto a partir da pasta atual, com aviso. | `src/simplicio_video/montage.py:175`<br>`src/simplicio_video/montage.py:39` |
 | `OPENMONTAGE_DIR` | Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage. | `src/simplicio_video/montage.py:39`<br>`src/simplicio_video/montage.py:47` |
 | `OPENVERSE_LIBRARY_DIR` | Pasta da biblioteca do Openverse: `index.json`, `files/<sha256>`, `cache/` e `sheets/` (padrão: `~/.simplicio-video/openverse-library`). | `src/simplicio_video/openverse.py:193` |
-| `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:52` |
-| `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:51` |
+| `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:54` |
+| `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:53` |
 | `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `doctor` procura `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual. | `src/simplicio_video/commands/doctor.py:146`<br>`src/simplicio_video/engine/remote_render.py:178`<br>`src/simplicio_video/tools.py:540` |
 | `PATHEXT` | Extensões executáveis do Windows (`.EXE;.CMD`...). Lida só no Windows, ao procurar `simplicio`, `node`, `ffmpeg` e `npm` no PATH. | `src/simplicio_video/hostos.py:242` |
 | `PIP_BREAK_SYSTEM_PACKAGES` | `1` autoriza o pip a mexer no Python do sistema (PEP 668). O `update` de um pacote instalado por pip respeita: sem ele, um Python gerenciado pelo sistema é recusado com exit 2. | `src/simplicio_video/commands/update.py:73` |
@@ -74,9 +74,9 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `TOONFLOW_DIR` | Checkout do Toonflow (alternativa a `SIMPLICIO_TOOLS_DIR/toonflow`). | `src/simplicio_video/toonflow.py:62` |
 | `VIDEO_TO_SKILL_DIR` | Checkout do video-to-skill (alternativa a `SIMPLICIO_TOOLS_DIR/video_to_skill`). O binário `vts-extract` fica à parte, em `SIMPLICIO_TOOLS_DIR/video-to-skill-bin`. | `src/simplicio_video/video_to_skill.py:516` |
 | `VIDEO_USE_DIR` | Checkout do video-use (trilha `edit`), mantido pelo setup.sh em data/tools/video-use; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`). | `src/simplicio_video/tools.py:203` |
-| `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:77`<br>`src/simplicio_video/voice_clone.py:78`<br>`src/simplicio_video/voicestudio.py:249` |
+| `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:101`<br>`src/simplicio_video/voice_clone.py:102`<br>`src/simplicio_video/voicestudio.py:249` |
 | `VOICESTUDIO_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:109` |
-| `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voicestudio.py:106` |
-| `VOXCPM_BIN` | Executável do VoxCPM (provider `openvoice`, clonagem com clipe de referência). | `src/simplicio_video/voice_clone.py:26` |
-| `VOXCPM_DEVICE` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:42`<br>`src/simplicio_video/voice_clone.py:43` |
+| `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voice_clone.py:91`<br>`src/simplicio_video/voicestudio.py:106` |
+| `VOXCPM_BIN` | Executável do VoxCPM (provider `openvoice`, clonagem com clipe de referência). | `src/simplicio_video/voice_clone.py:28` |
+| `VOXCPM_DEVICE` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:44`<br>`src/simplicio_video/voice_clone.py:45` |
 | `VTS_DATA_DIR` | Pasta de dados do `vts-extract` (ffmpeg, yt-dlp e modelos que o `check --fix --yes` do upstream baixa; padrão: a pasta de dados da plataforma, em `video-to-skill`). O motor repassa a variável ao extrator, mas nunca roda o `check --fix --yes`. | `src/simplicio_video/video_to_skill.py:1212` |
