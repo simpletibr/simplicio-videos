@@ -30,7 +30,8 @@ from pathlib import Path
 from . import mediaio, swap_providers
 from .aio import athread, clamp, positive_int, run_sync
 from .fsutil import sha256_file
-from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError, redact
+from .redact import scrub  # the one redactor of the engine (credentials of the environment, anything shaped like a key) under this module's name for it
+from .swap_providers.base import FX, UNVERIFIED, Estimate, Job, ProviderError, SwapError
 
 __all__ = ["Job", "SwapError", "SwapTimeout", "run_swap", "plan_chunks", "estimate_report", "providers_report"]
 
@@ -88,12 +89,6 @@ def _secrets() -> list[str]:
     return vals
 
 
-def scrub(text: str) -> str:
-    for v in _secrets():
-        text = text.replace(v, "***")
-    return redact(text)
-
-
 def _bin(name: str) -> str:
     return mediaio.ffmpeg_bin(name)
 
@@ -147,7 +142,7 @@ def write_manifest(path: Path, data: dict) -> None:
     for v in _secrets():
         if v in text:
             raise SwapError("segredo (chave de API) encontrado no manifesto: não gravado")
-    text = redact(text)  # a key-shaped string (e.g. pasted in --prompt) is hidden even when it is not in the environment
+    text = scrub(text)  # what is not a provider key but the redactor knows (a key-shaped string pasted in --prompt, a credential of another module) is hidden
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")  # temp + os.replace: a kill never leaves a half manifest
     try:

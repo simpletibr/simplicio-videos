@@ -214,19 +214,34 @@ def sem_credencial(monkeypatch):
 
 
 @pytest.mark.parametrize("amostra,escondem", [
-    ("AIzaSy" + corpo(25), (True, True, False)),
-    ("AIza" + corpo(12, "Qz7"), (True, False, False)),
-    ("ghp_" + corpo(8), (True, False, False)),
+    ("AIzaSy" + corpo(25), (True, True, True)),
+    ("AIza" + corpo(12, "Qz7"), (True, True, True)),
+    ("ghp_" + corpo(8), (True, True, True)),
 ], ids=["AIzaSy+25", "AIza+12", "ghp_+8"])
 def test_which_error_classes_hide_a_key_shaped_text_when_they_are_created(sem_credencial, amostra, escondem):
-    # U22 decide: BuscaError e OpenverseError passam a mensagem pelo redator ao nascer, cada um com o seu; SwapError não passa por nenhum
+    # U22b decidiu: BuscaError, OpenverseError e SwapError passam a mensagem pelo MESMO redator ao nascer (antes: cada um com o seu, e SwapError
+    # não passava por nenhum: a linha AIza+12 era (True, False, False) e a ghp_+8 também; a AIzaSy+25 era (True, True, False))
     msg = f"falhou com {amostra} no meio"
     obtido = (str(busca.BuscaError(msg)), str(openverse.OpenverseError(msg)), str(swap_base.SwapError(msg)))
     assert obtido == tuple(msg.replace(amostra, "***") if esconde else msg for esconde in escondem)
 
 
+@pytest.mark.parametrize("amostra", ["AIzaSy" + corpo(25), "AIza" + corpo(12, "Qz7"), "ghp_" + corpo(8)], ids=["AIzaSy+25", "AIza+12", "ghp_+8"])
+def test_every_swap_error_class_hides_a_key_shaped_text_when_it_is_created(sem_credencial, amostra):
+    # U22b decidiu: as subclasses de SwapError (ProviderError, SwapTimeout, SpendCapExceeded) herdam a redação do nascimento; o `str`, os `args` e o
+    # resto dos campos (retryable, network, code) ficam como eram
+    from simplicio_video import swap
+    msg = f"falhou com {amostra} no meio"
+    for erro in (swap_base.ProviderError(msg, retryable=True, network=True), swap.SwapTimeout(msg), swap.SpendCapExceeded(msg)):
+        assert str(erro) == msg.replace(amostra, "***") and erro.args == (msg.replace(amostra, "***"),)
+    provider = swap_base.ProviderError(msg, retryable=True, network=True)
+    assert (provider.retryable, provider.network, provider.possibly_charged, swap.SpendCapExceeded("x").code) == (True, True, False, 2)
+    assert str(swap_base.SwapError()) == "" and swap_base.SwapError().args == ()  # sem mensagem continua sem argumento
+
+
 def test_what_a_job_result_file_hides_of_the_environment_and_of_key_shapes(sem_credencial, monkeypatch, tmp_path):
-    # U22 decide: jobs._scrub = swap.scrub (chaves dos provedores do swap e 2 formatos do Google) + ELEVENLABS_API_KEY + XAI_API_KEY, escritos à mão
+    # U22b decidiu: jobs._scrub = a regra única (antes: swap.scrub, as chaves dos provedores do swap e 2 formatos do Google, + ELEVENLABS_API_KEY +
+    # XAI_API_KEY escritos à mão; o AIza+12 e a OPENAI_API_KEY passavam para o arquivo)
     monkeypatch.setenv("GEMINI_API_KEY", "valor-gemini-1234")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "valor-eleven-1234")
     monkeypatch.setenv("XAI_API_KEY", "valor-xai-123456")
@@ -235,7 +250,7 @@ def test_what_a_job_result_file_hides_of_the_environment_and_of_key_shapes(sem_c
     obj = {"msg": f"{google25} {google12} valor-gemini-1234 valor-eleven-1234 valor-xai-123456 valor-openai-1234"}
     destino = tmp_path / "res.json"
     jobs.write_json_atomic(destino, obj)
-    assert json.loads(destino.read_text(encoding="utf8")) == {"msg": f"*** {google12} *** *** *** valor-openai-1234"}
+    assert json.loads(destino.read_text(encoding="utf8")) == {"msg": "*** *** *** *** *** ***"}
 
 
 # ============================================================================================ (c) a base do Gemini em voice x provedor do swap
