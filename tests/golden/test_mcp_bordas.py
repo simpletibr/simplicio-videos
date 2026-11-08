@@ -178,15 +178,21 @@ def test_what_a_job_result_file_hides_of_the_environment_and_of_key_shapes(sem_c
     ("http://localhost:8080/v1beta", "http://localhost:8080/v1beta", "http://localhost:8080/v1beta"),
     ("http://127.0.0.1:8080", "http://127.0.0.1:8080", "http://127.0.0.1:8080"),
     ("http://[::1]:8080", "http://[::1]:8080", "http://[::1]:8080"),
-    # U22 decide: voice.gemini_base() não valida nada, e `voice` manda a chave GEMINI_API_KEY em x-goog-api-key para essa base
-    ("http://example.com/v1beta", "http://example.com/v1beta", "SwapError"),
-    ("http://10.0.0.5:9000", "http://10.0.0.5:9000", "SwapError"),
-    ("ftp://example.com/x", "ftp://example.com/x", "SwapError"),
-    ("file:///tmp/mock", "file:///tmp/mock", "SwapError"),
+    # U22 decide (feito em U22c): antes voice.gemini_base() não validava nada, e `voice` mandava a chave GEMINI_API_KEY em x-goog-api-key para essa
+    # base; agora recusa o que o adaptador recusa (VoiceError). O id de cada caso fica o de antes (a base na 2ª coluna): nenhum id some do coletor.
+    pytest.param("http://example.com/v1beta", "VoiceError", "SwapError", id="http://example.com/v1beta-http://example.com/v1beta-SwapError"),
+    pytest.param("http://10.0.0.5:9000", "VoiceError", "SwapError", id="http://10.0.0.5:9000-http://10.0.0.5:9000-SwapError"),
+    pytest.param("ftp://example.com/x", "VoiceError", "SwapError", id="ftp://example.com/x-ftp://example.com/x-SwapError"),
+    pytest.param("file:///tmp/mock", "VoiceError", "SwapError", id="file:///tmp/mock-file:///tmp/mock-SwapError"),
 ])
 def test_voice_gemini_base_accepts_what_the_swap_adapter_refuses(monkeypatch, valor, voice_devolve, swap_devolve):
+    # o nome é de antes de U22c (voice aceitava o que o adaptador recusa); fica, para o id do teste não mudar
     monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", valor)
-    assert voice.gemini_base() == voice_devolve
+    if voice_devolve == "VoiceError":
+        with pytest.raises(voice.VoiceError, match=r"^provider=gemini: SIMPLICIO_GEMINI_BASE precisa ser https \(http só em localhost\): a chave não vai em texto claro$"):
+            voice.gemini_base()
+    else:
+        assert voice.gemini_base() == voice_devolve
     adaptador = swap_gemini.GeminiAdapter()
     if swap_devolve == "SwapError":
         with pytest.raises(swap_base.SwapError, match=r"^SIMPLICIO_GEMINI_BASE precisa ser https \(http só em localhost\): a chave não vai em texto claro$"):
