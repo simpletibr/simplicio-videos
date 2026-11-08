@@ -257,3 +257,15 @@ def test_where_two_reasons_apply_each_module_tells_the_one_it_always_told(mundo,
     for caminho, *esperado in linhas:
         p = sub(mundo, caminho)
         assert dict(zip(MODULOS, (veredito(m, p) for m in MODULOS))) == dict(zip(MODULOS, esperado)), caminho
+
+
+# ------------------------------------------------------------------------ U22a, revisão independente: nome longo demais para o disco
+
+def test_a_name_too_long_for_the_disk_is_no_reason_and_never_a_traceback(mundo):
+    """A sonda de `pyvenv.cfg` da regra única levantava OSError (ENAMETOOLONG) para um componente de mais de 255 bytes, em quatro módulos que no
+    main devolviam '' (o montage já levantava). O nome não existe: não é razão para recusar, e o `--out` do video-to-skill dá a mensagem limpa
+    de sempre (`video-to-skill extract ... --out <300 letras>/x`: rc 1 com a mensagem, não um traceback)."""
+    longo = sub(mundo, "{work}") / ("a" * 300) / "x.txt"
+    assert {m: veredito(m, longo) for m in MODULOS} == {m: L for m in MODULOS}
+    with pytest.raises(video_to_skill.VideoToSkillError, match="não existe"):
+        video_to_skill._new_dir(str(longo), "terminal", "--out")

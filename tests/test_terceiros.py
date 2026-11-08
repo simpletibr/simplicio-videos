@@ -686,3 +686,21 @@ def test_as_tres_trilhas_usam_a_mesma_funcao_de_texto_de_terceiro():
     t = _terceiros()
     assert matchcut._limpa_mcp is instagram._limpa_mcp is video_to_skill.limpa_mcp is t.limpa_mcp
     assert matchcut.visivel is instagram.visivel is video_to_skill.visivel is t.visivel
+
+
+# ---- U22a, revisão independente: nome longo demais para o disco ----------------------------------------------------------------------
+
+def test_um_nome_com_mais_de_255_bytes_nao_faz_a_regra_levantar(lugares):
+    """A sonda de `pyvenv.cfg` olha cada pasta acima do caminho, e o `Path.is_file()` (Python 3.11 a 3.13) levanta OSError (ENAMETOOLONG) para
+    um nome maior do que o disco aceita. Esse nome não existe: não é razão para recusar, nem para um traceback."""
+    t = _terceiros()
+    longo = "a" * 300
+    assert t.lugar_proibido(lugares.work / longo / "x") is None
+    assert t.lugar_proibido(lugares.work / "ok" / longo) is None
+
+
+def test_a_sonda_pula_a_pasta_que_o_disco_nao_consulta_e_olha_a_de_cima(lugares):
+    t = _terceiros()
+    (lugares.work / "meuvenv").mkdir()
+    (lugares.work / "meuvenv" / "pyvenv.cfg").write_text("home = /usr/bin\n")
+    assert t.lugar_proibido(lugares.work / "meuvenv" / ("a" * 300) / "x") == t.VENV
