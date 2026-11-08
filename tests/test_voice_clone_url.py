@@ -29,7 +29,9 @@ from pathlib import Path
 
 import pytest
 
+from helpers import run_main
 from simplicio_video import voice_clone, voicestudio
+from simplicio_video.cli import main
 
 S = {"model": "omnivoice", "voice": "me"}
 VARIAVEIS_DA_BASE = ("VOICESTUDIO_URL", "OMNIVOICE_URL", "VOICESTUDIO_PORT", "OMNIVOICE_PORT")
@@ -39,6 +41,30 @@ PORTA_RUIM = "provider=voicestudio: porta inválida em VOICESTUDIO_PORT/OMNIVOIC
 # digits (http://127.0.0.1:٣), which http.client cannot put in the Host header (UnicodeEncodeError). voicestudio.py refuses them like a letter.
 NAO_ASCII = [("VOICESTUDIO_PORT", "²"), ("OMNIVOICE_PORT", "³"), ("VOICESTUDIO_PORT", "①"), ("OMNIVOICE_PORT", "٣"), ("VOICESTUDIO_PORT", "３"),
              ("VOICESTUDIO_PORT", "３９００"), ("OMNIVOICE_PORT", "٣٩٠٠")]
+# The text of the error for a base that urllib cannot use. It names the variable and the rule and does NOT echo the value (a URL can carry a password).
+BASE_RUIM = ("provider=voicestudio: {var} must be an http:// or https:// URL with a host, such as http://127.0.0.1:3900 "
+             "(ASCII, no spaces, numeric port)")
+# (variable, value, what is wrong with it). Measured on main with VOICESTUDIO_URL: the first three, `   `, `:abc`, `[::1`, the line breaks and the
+# full-width digits are a traceback (ValueError / InvalidURL / UnicodeEncodeError) and `--json run` prints nothing; the others die later with a
+# clean "backend not reachable" (or even work: `ftp://`, `file://` and a trailing blank are accepted). OMNIVOICE_URL was ignored by main.
+TORTAS = [
+    ("VOICESTUDIO_URL", "gpu-box", "sem-esquema"), ("OMNIVOICE_URL", "gpu-box", "sem-esquema"),
+    ("VOICESTUDIO_URL", "127.0.0.1", "so-o-host"), ("OMNIVOICE_URL", "127.0.0.1:3900", "host-e-porta-sem-esquema"),
+    ("VOICESTUDIO_URL", "localhost:3900", "localhost-e-porta"),
+    ("VOICESTUDIO_URL", "   ", "so-espacos"), ("OMNIVOICE_URL", "   ", "so-espacos"),
+    ("OMNIVOICE_URL", "ftp://127.0.0.1:21", "ftp"), ("VOICESTUDIO_URL", "file:///tmp/u22d-x", "file"),
+    ("VOICESTUDIO_URL", "http://", "sem-host"), ("OMNIVOICE_URL", "http://:3900", "sem-host-com-porta"),
+    ("VOICESTUDIO_URL", "http://127.0.0.1:abc", "porta-nao-numerica"), ("OMNIVOICE_URL", "http://127.0.0.1:99999", "porta-fora-da-faixa"),
+    ("VOICESTUDIO_URL", "http://[::1", "ipv6-aberto"),
+    ("OMNIVOICE_URL", "http://127.0.0.1:3900 ", "espaco-no-fim"), ("VOICESTUDIO_URL", "http://127.0.0.1:3900\n", "quebra-de-linha-no-fim"),
+    ("OMNIVOICE_URL", "http://127.0.0.1\n", "quebra-de-linha-sem-porta"),
+    ("VOICESTUDIO_URL", "http://127.0.0.1:３９００", "digitos-largura-total"), ("OMNIVOICE_URL", "http://münchen.example:3900", "nao-ascii"),
+]
+# What stays accepted: any http/https base with a host (and a numeric port if any), with a path, an IPv6 literal, an upper-case scheme. A user:password@
+# in it also stays accepted in U22d (the error text of an unreachable app still echoes the base: a question to the owner, not this letter).
+VALIDAS = [("http://127.0.0.1:3900", "padrao"), ("https://studio.example.com", "https"), ("HTTP://Studio.Local:4000", "esquema-maiusculo"),
+           ("http://[::1]:3900", "ipv6"), ("http://studio.local/voicestudio", "com-caminho"), ("http://studio.local:", "porta-vazia"),
+           ("http://user:pw@studio.local:4000", "com-usuario-e-senha")]
 
 
 @pytest.fixture(autouse=True)
@@ -194,6 +220,60 @@ def test_a_port_that_is_not_ascii_digits_is_the_error_of_the_provider_and_makes_
         voice_clone.voicestudio(S, "hello", dst)
     assert e2.value.code == PORTA_RUIM.format(valor=valor)
     assert rede.pedidos == [] and not dst.parent.exists()
+
+
+# ============================================================================================ CHANGE (review): a base that is not an http(s) URL with a host
+
+@pytest.mark.parametrize("var,valor,nome", TORTAS, ids=[f"{v}-{n}" for v, _, n in TORTAS])
+def test_a_base_that_is_not_an_http_url_with_a_host_is_the_error_of_the_provider_naming_the_variable(monkeypatch, tmp_path, rede, var, valor, nome):
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert isinstance(e.value, SystemExit) and e.value.code == BASE_RUIM.format(var=var)
+    dst = tmp_path / "sub" / "o.wav"
+    with pytest.raises(voice_clone.CloneVoiceError) as e2:  # no Request is built and nothing is sent: not a ValueError, not an ftp:// or file:// open
+        voice_clone.voicestudio(S, "hello", dst)
+    assert e2.value.code == BASE_RUIM.format(var=var)
+    assert rede.pedidos == [] and not dst.parent.exists()
+
+
+@pytest.mark.parametrize("env,var", [
+    ({"VOICESTUDIO_URL": "gpu-box", "OMNIVOICE_URL": "http://ok.example:1"}, "VOICESTUDIO_URL"),  # the first one set decides, even if the second is fine
+    ({"VOICESTUDIO_URL": "gpu-box", "OMNIVOICE_URL": "gpu-box"}, "VOICESTUDIO_URL"),
+    ({"VOICESTUDIO_URL": "", "OMNIVOICE_URL": "gpu-box"}, "OMNIVOICE_URL"),  # an empty one is not set
+], ids=["VOICESTUDIO_URL-torta-e-OMNIVOICE_URL-boa", "as-duas-tortas", "VOICESTUDIO_URL-vazia-e-OMNIVOICE_URL-torta"])
+def test_the_message_names_the_variable_that_decided_the_base(monkeypatch, env, var):
+    com(monkeypatch, env)
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == BASE_RUIM.format(var=var)
+
+
+def test_a_bad_OMNIVOICE_URL_is_not_even_read_when_VOICESTUDIO_URL_is_good_or_a_port_is_what_decides(monkeypatch):
+    com(monkeypatch, {"VOICESTUDIO_URL": "http://ok.example:1", "OMNIVOICE_URL": "gpu-box"})
+    assert voice_clone.voicestudio_url() == "http://ok.example:1"
+    monkeypatch.delenv("VOICESTUDIO_URL")
+    monkeypatch.delenv("OMNIVOICE_URL")
+    com(monkeypatch, {"VOICESTUDIO_PORT": "4001"})  # a base built from a port is always http://127.0.0.1:<digits>
+    assert voice_clone.voicestudio_url() == "http://127.0.0.1:4001"
+
+
+@pytest.mark.parametrize("var", ["VOICESTUDIO_URL", "OMNIVOICE_URL"])
+@pytest.mark.parametrize("valor,nome", VALIDAS, ids=[n for _, n in VALIDAS])
+def test_a_valid_base_is_still_used_as_it_is_without_its_trailing_slash(monkeypatch, var, valor, nome):
+    com(monkeypatch, {var: valor + "/"})
+    assert voice_clone.voicestudio_url() == valor
+
+
+@pytest.mark.parametrize("var,valor", [("VOICESTUDIO_URL", "gpu-box"), ("OMNIVOICE_URL", "gpu-box"), ("OMNIVOICE_URL", "   ")],
+                         ids=["VOICESTUDIO_URL-sem-esquema", "OMNIVOICE_URL-sem-esquema", "OMNIVOICE_URL-so-espacos"])
+def test_json_run_prints_the_error_object_for_a_base_that_is_not_a_url(monkeypatch, mini, capsys, var, valor):
+    # measured: the ValueError of urllib escaped `_run_json` (it catches SystemExit and FileNotFoundError) and `--json run` printed nothing
+    com(monkeypatch, {var: valor})
+    rc, out, _ = run_main(main, ["run", "--json", str(mini), "--provider", "voicestudio"], capsys, text_exit=True)
+    assert rc == 1
+    dados = json.loads(out)
+    assert dados["ok"] is False and dados["error"] == {"code": "RENDER_FALHOU", "message": BASE_RUIM.format(var=var)}
 
 
 # ============================================================================================ CHANGE: the delegation is by name, when it is called
