@@ -122,9 +122,10 @@ def mask_values(text: str, values: Iterable[str] | None = None) -> str:
     return text
 
 
-def scrub(text: str) -> str:
-    """Hide the credentials of the environment, then anything shaped like a key."""
-    return SECRET_RE.sub(MASK, mask_values(text))
+def scrub(text: str, values: Iterable[str] | None = None) -> str:
+    """Hide the credentials of the environment (`values`, by default `secret_values()`), then anything shaped like a key. A loop that cleans line
+    after line asks for `secret_values()` once and passes it: reading the environment at each line costs far more than the cleaning."""
+    return SECRET_RE.sub(MASK, mask_values(text, values))
 
 
 def has_secret(text: str) -> bool:

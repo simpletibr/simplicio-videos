@@ -682,6 +682,7 @@ async def _pump(stream, jid: str, box: dict) -> None:
     line over 64 KiB cannot stop the drain, which would block the task on a full pipe and hang the runner."""
     log = job_dir(jid) / "output.log"
     state = {"size": 0}
+    values = redact.secret_values()  # the environment of the runner does not change while it drains the task: ask once, not at each line
 
     def write(line: str, f) -> None:
         box["tail"].append(line)
@@ -699,7 +700,7 @@ async def _pump(stream, jid: str, box: dict) -> None:
                     f.write("[... saída cortada em 1 MB]\n")
 
     def emit(raw: bytes, f, progress: bool = False) -> None:
-        line = _scrub(raw.decode("utf8", "replace"))
+        line = _scrub(raw.decode("utf8", "replace"), values)
         if progress:  # `\\r` rewrote the line in place: keep only the latest one, not thousands of them in the log
             box["progress"] = line
             return
@@ -728,7 +729,7 @@ async def _pump(stream, jid: str, box: dict) -> None:
             while len(buf) > MAX_LINE:
                 # scrub the whole buffer BEFORE cutting, so a key that straddles the cut is already hidden; a key that is
                 # still incomplete at the end stays in the last OVERLAP bytes, which are never emitted yet
-                buf = _scrub(buf.decode("latin-1")).encode("latin-1")
+                buf = _scrub(buf.decode("latin-1"), values).encode("latin-1")
                 if len(buf) <= MAX_LINE:
                     break
                 cut = min(MAX_LINE, len(buf) - OVERLAP)
