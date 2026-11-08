@@ -9,7 +9,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `AUDIO8_TTS_BIN` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:88` |
 | `BACKLOT_PORT` | Porta do board (Backlot) do OpenMontage; o `montage open` e o `montage serve` a repassam ao upstream. | `src/simplicio_video/montage.py:319` |
 | `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:427` |
-| `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo. | `src/simplicio_video/voice.py:213` |
+| `GEMINI_API_KEY` | Chave da API Gemini (TTS, provider `gemini`; adaptador `gemini` do `swap`). Só no ambiente; nunca no repo. | `src/simplicio_video/voice.py:225` |
 | `GH_TOKEN` | Token do GitHub que o `update` manda só para `api.github.com` ao ler a última release (um redirect para outro host tira o cabeçalho). Só no ambiente. | `src/simplicio_video/commands/update.py:157` |
 | `GITHUB_TOKEN` | O mesmo que `GH_TOKEN`, quando ele não está definido. Só vai para `api.github.com`. | `src/simplicio_video/commands/update.py:157` |
 | `HYPERFRAMES_BROWSER_PATH` | Chrome headless que o HyperFrames usa na captura. Definido pelo render remoto. | `src/simplicio_video/engine/remote_render.py:155` |
@@ -18,7 +18,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `INSTAGRAM_DIR` | Checkout do instagram-agent-skill (alternativa a `SIMPLICIO_TOOLS_DIR/instagram`). O `instagram run` avisa quando ele está em uso e confere o sha256 de cada script do mesmo jeito. | `src/simplicio_video/instagram.py:215` |
 | `KAGGLE_CONFIG_DIR` | Pasta do `kaggle.json` (padrão: `~/.kaggle`). | `src/simplicio_video/remote.py:72` |
 | `KAGGLE_USERNAME` | Usuário do Kaggle para o render remoto (sem ele, lê o `kaggle.json`). | `src/simplicio_video/remote.py:70`<br>`src/simplicio_video/remote.py:71` |
-| `KOKORO_DIR` | Pasta dos modelos do Kokoro (TTS local; padrão `~/.local/share/simplicio-tts`). | `src/simplicio_video/voice.py:141` |
+| `KOKORO_DIR` | Pasta dos modelos do Kokoro (TTS local; padrão `~/.local/share/simplicio-tts`). | `src/simplicio_video/voice.py:142` |
 | `MATCHCUT_DATA_DIR` | Pasta onde mora o venv do match-cut: absoluta e fora do checkout, para que um novo clone nunca a apague. | `src/simplicio_video/matchcut.py:142` |
 | `MATCHCUT_DIR` | Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`). | `src/simplicio_video/matchcut.py:142` |
 | `MATCHCUT_MEM_GIB` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/matchcut.py:929` |
@@ -47,7 +47,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SIMPLICIO_FFMPEG_DIR` | Pasta do ffmpeg/ffprobe fixados (render local e `swap`). | `src/simplicio_video/mediaio.py:36` |
 | `SIMPLICIO_FFMPEG_SHA256` | SHA-256 esperado do ffmpeg estático de `SIMPLICIO_FFMPEG_URL`. | `src/simplicio_video/render.py:258` |
 | `SIMPLICIO_FFMPEG_URL` | URL de um ffmpeg estático fixado, baixado e verificado pelos renders remotos. | `src/simplicio_video/render.py:256`<br>`src/simplicio_video/render.py:257` |
-| `SIMPLICIO_GEMINI_BASE` | Base da API Gemini (padrão: a oficial). Para proxies e testes. | `src/simplicio_video/swap_providers/gemini.py:60`<br>`src/simplicio_video/voice.py:154` |
+| `SIMPLICIO_GEMINI_BASE` | Base da API Gemini (padrão: a oficial). Para proxies e testes. | `src/simplicio_video/swap_providers/gemini.py:60`<br>`src/simplicio_video/voice.py:162` |
 | `SIMPLICIO_JOBS_GRACE_S` | Tolerância, em segundos, entre o SIGINT e o SIGKILL ao cancelar uma tarefa de `jobs` (padrão 15). | `src/simplicio_video/paths.py:177` |
 | `SIMPLICIO_JOB_ORIGIN` | Rótulo de procedência de uma tarefa de `jobs`: `terminal` ou `mcp`. O runner (`jobs.py`) grava no ambiente do processo filho a origem de quem submeteu a tarefa, e a trilha `video-to-skill` a copia para o `PASTA.extract.json` (`submitted_via`). Não é controle de acesso: não autoriza nem bloqueia nada, só registra de onde veio o pedido. | `src/simplicio_video/paths.py:123` |
 | `SIMPLICIO_MCP` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/childio.py:97` |
