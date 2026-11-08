@@ -93,7 +93,7 @@ def sent(monkeypatch):
                                                               "data": base64.b64encode(sine_wav()).decode()}]}]}
         return _Resp(json.dumps(res).encode())
 
-    monkeypatch.setattr(voice.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(voice.rede, "urlopen_seguro", urlopen)  # U22i: voice opens its URL with rede.urlopen_seguro (urlopen with the redirect that drops the key)
     return calls
 
 
