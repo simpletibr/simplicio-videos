@@ -380,6 +380,29 @@ T162 = '`*` não está na lista do MCP (comando desconhecido ou não permitido, 
 T163 = '`--watch x` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode `simplicio-video clone --watch x` no terminal; o MCP não faz isso'
 T164 = '`media  fetch` não está na lista do MCP (comando desconhecido ou não permitido, ou um caminho que não é absoluto): rode `simplicio-video clone media  fetch` no terminal; o MCP não faz isso'
 
+
+# U22h (MUDA CONTRATO): as chamadas de GRAVAÇÃO que passavam ao CLI e agora o MCP recusa (a regra única de onde o MCP grava: lugar proibido pelo
+# `terceiros` e link simbólico em qualquer nome do caminho; `install --target` também recusa `..`). Antes todas eram PASSA/CLI(...). O texto é novo e diz
+# qual regra recusou; toda recusa que a tool já tinha segue com as mesmas palavras (o resto da tabela não mudou).
+H01 = "clone get: o destino --to '/etc/novo.mp4': o MCP não grava em pasta do sistema; escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H02 = "clone media cut: o destino --to '/etc/novo.mp4': o MCP não grava em pasta do sistema; escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H03 = "clone get: o destino --to '{tmp}/home/.ssh/novo.mp4': o MCP não grava em pasta oculta do home (.ssh, .config, .claude...); escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H04 = "clone media cut: o destino --to '{tmp}/home/.ssh/novo.mp4': o MCP não grava em pasta oculta do home (.ssh, .config, .claude...); escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H05 = "clone get: o destino --to '{tmp}/link.mp4': é um link simbólico; o MCP só grava em caminho real, sem link em nenhuma pasta do caminho (o caminho real seria '{tmp}/a.mp4')"
+H06 = "clone media cut: o destino --to '{tmp}/link.mp4': é um link simbólico; o MCP só grava em caminho real, sem link em nenhuma pasta do caminho (o caminho real seria '{tmp}/a.mp4')"
+H07 = "edit render: saída '/etc/novo.mp4': o MCP não grava em pasta do sistema; escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H08 = "edit render: saída '{tmp}/home/.ssh/novo.mp4': o MCP não grava em pasta oculta do home (.ssh, .config, .claude...); escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H09 = "edit render: saída '{tmp}/link.mp4': é um link simbólico; o MCP só grava em caminho real, sem link em nenhuma pasta do caminho (o caminho real seria '{tmp}/a.mp4')"
+H10 = "edit render: a pasta do EDL '{tmp}/link.mp4': é um link simbólico; o MCP só grava em caminho real, sem link em nenhuma pasta do caminho (o caminho real seria '{tmp}/a.mp4')"
+H11 = "edit pack: a pasta EDIT_DIR '{tmp}/link.mp4': é um link simbólico; o MCP só grava em caminho real, sem link em nenhuma pasta do caminho (o caminho real seria '{tmp}/a.mp4')"
+H12 = "install: a pasta de --target '{tmp}/saida/../novo.mp4': precisa ser um caminho absoluto, sem `..` (o MCP não grava em caminho relativo nem com `..`)"
+H13 = "install: a pasta de --target '/etc/novo.mp4': o MCP não grava em pasta do sistema; escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H14 = "install: a pasta de --target '{tmp}/home/.ssh/novo.mp4': o MCP não grava em pasta oculta do home (.ssh, .config, .claude...); escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H15 = "install: a pasta de --target '{tmp}/linkdir/novo.mp4': '{tmp}/linkdir' é um link simbólico; o MCP só grava em caminho real, sem link em nenhuma pasta do caminho (o caminho real seria '{tmp}/saida/novo.mp4')"
+H16 = "media: saída '/etc/novo.mp4': o MCP não grava em pasta do sistema; escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H17 = "media: saída '{tmp}/home/.ssh/novo.mp4': o MCP não grava em pasta oculta do home (.ssh, .config, .claude...); escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+H18 = "shorts: saída '/etc/novo.mp4': o MCP não grava em pasta do sistema; escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+
 CASOS = [
     # ----------------------------------------------------------------------------------------------------
     # video.init
@@ -554,22 +577,22 @@ CASOS = [
     ('clone', {'argv': ['media', 'cut', SRC, '--to', PONTOS]}, ERRO(T21)),
     ('clone', {'argv': ['media', 'cut', SRC, '--ranges', PONTOS]}, ERRO(T21)),
     ('clone', {'argv': ['media', 'tile', SRC, '--transcript', PONTOS]}, ERRO(T21)),
-    ('clone', {'argv': ['get', 'b1', '--output', 'n', '--to', SISTEMA]}, PASSA),
+    ('clone', {'argv': ['get', 'b1', '--output', 'n', '--to', SISTEMA]}, ERRO(H01)),
     ('clone', {'argv': ['get', '--to=/etc/novo.mp4']}, ERRO(T20)),
     ('clone', {'argv': ['media', 'probe', SISTEMA]}, PASSA),
-    ('clone', {'argv': ['media', 'cut', SRC, '--to', SISTEMA]}, PASSA),
+    ('clone', {'argv': ['media', 'cut', SRC, '--to', SISTEMA]}, ERRO(H02)),
     ('clone', {'argv': ['media', 'cut', SRC, '--ranges', SISTEMA]}, PASSA),
     ('clone', {'argv': ['media', 'tile', SRC, '--transcript', SISTEMA]}, PASSA),
-    ('clone', {'argv': ['get', 'b1', '--output', 'n', '--to', OCULTA]}, CLI('clone', 'get', 'b1', '--output', 'n', '--to', '{tmp}/home/.ssh/novo.mp4')),
+    ('clone', {'argv': ['get', 'b1', '--output', 'n', '--to', OCULTA]}, ERRO(H03)),
     ('clone', {'argv': ['get', '--to={home}/.ssh/novo.mp4']}, ERRO(T20)),
     ('clone', {'argv': ['media', 'probe', OCULTA]}, CLI('clone', 'media', 'probe', '{tmp}/home/.ssh/novo.mp4')),
-    ('clone', {'argv': ['media', 'cut', SRC, '--to', OCULTA]}, CLI('clone', 'media', 'cut', SRC, '--to', '{tmp}/home/.ssh/novo.mp4')),
+    ('clone', {'argv': ['media', 'cut', SRC, '--to', OCULTA]}, ERRO(H04)),
     ('clone', {'argv': ['media', 'cut', SRC, '--ranges', OCULTA]}, CLI('clone', 'media', 'cut', SRC, '--ranges', '{tmp}/home/.ssh/novo.mp4')),
     ('clone', {'argv': ['media', 'tile', SRC, '--transcript', OCULTA]}, CLI('clone', 'media', 'tile', SRC, '--transcript', '{tmp}/home/.ssh/novo.mp4')),
-    ('clone', {'argv': ['get', 'b1', '--output', 'n', '--to', LINK]}, PASSA),
+    ('clone', {'argv': ['get', 'b1', '--output', 'n', '--to', LINK]}, ERRO(H05)),
     ('clone', {'argv': ['get', '--to={tmp}/link.mp4']}, ERRO(T20)),
     ('clone', {'argv': ['media', 'probe', LINK]}, PASSA),
-    ('clone', {'argv': ['media', 'cut', SRC, '--to', LINK]}, PASSA),
+    ('clone', {'argv': ['media', 'cut', SRC, '--to', LINK]}, ERRO(H06)),
     ('clone', {'argv': ['media', 'cut', SRC, '--ranges', LINK]}, PASSA),
     ('clone', {'argv': ['media', 'tile', SRC, '--transcript', LINK]}, PASSA),
     ('clone', {'argv': ['get', 'b1', '--output', 'n', '--to', '']}, ERRO(T20)),
@@ -1014,41 +1037,41 @@ CASOS = [
     ('edit', {'argv': ['render', EDL, '--o={tmp}/saida/../novo.mp4']}, ERRO(T47)),
     ('edit', {'argv': ['render', EDL, '--output={tmp}/saida/../novo.mp4']}, ERRO(T47)),
     ('edit', {'argv': ['render', EDL, '--', '-o', PONTOS]}, ERRO(T46)),
-    ('edit', {'argv': ['render', EDL, '-o', SISTEMA]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--o', SISTEMA]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--ou', SISTEMA]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--out', SISTEMA]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--outp', SISTEMA]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--output', SISTEMA]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '-o/etc/novo.mp4']}, PASSA),
-    ('edit', {'argv': ['render', EDL, '-o=/etc/novo.mp4']}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--out=/etc/novo.mp4']}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--o=/etc/novo.mp4']}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--output=/etc/novo.mp4']}, PASSA),
+    ('edit', {'argv': ['render', EDL, '-o', SISTEMA]}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '--o', SISTEMA]}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '--ou', SISTEMA]}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '--out', SISTEMA]}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '--outp', SISTEMA]}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '--output', SISTEMA]}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '-o/etc/novo.mp4']}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '-o=/etc/novo.mp4']}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '--out=/etc/novo.mp4']}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '--o=/etc/novo.mp4']}, ERRO(H07)),
+    ('edit', {'argv': ['render', EDL, '--output=/etc/novo.mp4']}, ERRO(H07)),
     ('edit', {'argv': ['render', EDL, '--', '-o', SISTEMA]}, ERRO(T46)),
-    ('edit', {'argv': ['render', EDL, '-o', OCULTA]}, CLI('edit', 'render', EDL, '-o', '{tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '--o', OCULTA]}, CLI('edit', 'render', EDL, '--o', '{tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '--ou', OCULTA]}, CLI('edit', 'render', EDL, '--ou', '{tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '--out', OCULTA]}, CLI('edit', 'render', EDL, '--out', '{tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '--outp', OCULTA]}, CLI('edit', 'render', EDL, '--outp', '{tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '--output', OCULTA]}, CLI('edit', 'render', EDL, '--output', '{tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '-o{home}/.ssh/novo.mp4']}, CLI('edit', 'render', EDL, '-o{tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '-o={home}/.ssh/novo.mp4']}, CLI('edit', 'render', EDL, '-o={tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '--out={home}/.ssh/novo.mp4']}, CLI('edit', 'render', EDL, '--out={tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '--o={home}/.ssh/novo.mp4']}, CLI('edit', 'render', EDL, '--o={tmp}/home/.ssh/novo.mp4')),
-    ('edit', {'argv': ['render', EDL, '--output={home}/.ssh/novo.mp4']}, CLI('edit', 'render', EDL, '--output={tmp}/home/.ssh/novo.mp4')),
+    ('edit', {'argv': ['render', EDL, '-o', OCULTA]}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '--o', OCULTA]}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '--ou', OCULTA]}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '--out', OCULTA]}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '--outp', OCULTA]}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '--output', OCULTA]}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '-o{home}/.ssh/novo.mp4']}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '-o={home}/.ssh/novo.mp4']}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '--out={home}/.ssh/novo.mp4']}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '--o={home}/.ssh/novo.mp4']}, ERRO(H08)),
+    ('edit', {'argv': ['render', EDL, '--output={home}/.ssh/novo.mp4']}, ERRO(H08)),
     ('edit', {'argv': ['render', EDL, '--', '-o', OCULTA]}, ERRO(T46)),
-    ('edit', {'argv': ['render', EDL, '-o', LINK]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--o', LINK]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--ou', LINK]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--out', LINK]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--outp', LINK]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--output', LINK]}, PASSA),
-    ('edit', {'argv': ['render', EDL, '-o{tmp}/link.mp4']}, PASSA),
-    ('edit', {'argv': ['render', EDL, '-o={tmp}/link.mp4']}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--out={tmp}/link.mp4']}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--o={tmp}/link.mp4']}, PASSA),
-    ('edit', {'argv': ['render', EDL, '--output={tmp}/link.mp4']}, PASSA),
+    ('edit', {'argv': ['render', EDL, '-o', LINK]}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '--o', LINK]}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '--ou', LINK]}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '--out', LINK]}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '--outp', LINK]}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '--output', LINK]}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '-o{tmp}/link.mp4']}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '-o={tmp}/link.mp4']}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '--out={tmp}/link.mp4']}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '--o={tmp}/link.mp4']}, ERRO(H09)),
+    ('edit', {'argv': ['render', EDL, '--output={tmp}/link.mp4']}, ERRO(H09)),
     ('edit', {'argv': ['render', EDL, '--', '-o', LINK]}, ERRO(T46)),
     ('edit', {'argv': ['render', EDL, '-o', '']}, ERRO(T47)),
     ('edit', {'argv': ['render', EDL, '--o', '']}, ERRO(T47)),
@@ -1185,9 +1208,9 @@ CASOS = [
     ('edit', {'argv': ['render', 'a\x00b', '-o', NOVO, '--help']}, PASSA),
     ('edit', {'argv': ['pack', 'a\x00b']}, ERRO(T43)),
     ('edit', {'argv': ['pack', 'a\x00b', '--help']}, PASSA),
-    ('edit', {'argv': ['render', LINK, '-o', NOVO]}, PASSA),
+    ('edit', {'argv': ['render', LINK, '-o', NOVO]}, ERRO(H10)),
     ('edit', {'argv': ['render', LINK, '-o', NOVO, '--help']}, PASSA),
-    ('edit', {'argv': ['pack', LINK]}, PASSA),
+    ('edit', {'argv': ['pack', LINK]}, ERRO(H11)),
     ('edit', {'argv': ['pack', LINK, '--help']}, PASSA),
     ('edit', {'argv': ['render', '-o', NOVO]}, ERRO(T52)),
     ('edit', {'argv': ['pack', PASTA, 'x']}, PASSA),
@@ -2435,10 +2458,10 @@ CASOS = [
     ('shorts', {'argv': ['cut', SRC, CUES, '--o={tmp}/saida/../novo.mp4']}, ERRO(T150)),
     ('shorts', {'argv': ['cut', SRC, CUES, '--output={tmp}/saida/../novo.mp4']}, ERRO(T150)),
     ('shorts', {'argv': ['cut', SRC, CUES, '--', '-o', PONTOS]}, ERRO(T149)),
-    ('shorts', {'argv': ['cut', SRC, CUES, '-o', SISTEMA]}, PASSA),
+    ('shorts', {'argv': ['cut', SRC, CUES, '-o', SISTEMA]}, ERRO(H18)),
     ('shorts', {'argv': ['cut', SRC, CUES, '--o', SISTEMA]}, ERRO(T152)),
     ('shorts', {'argv': ['cut', SRC, CUES, '--ou', SISTEMA]}, ERRO(T152)),
-    ('shorts', {'argv': ['cut', SRC, CUES, '--out', SISTEMA]}, PASSA),
+    ('shorts', {'argv': ['cut', SRC, CUES, '--out', SISTEMA]}, ERRO(H18)),
     ('shorts', {'argv': ['cut', SRC, CUES, '--outp', SISTEMA]}, ERRO(T152)),
     ('shorts', {'argv': ['cut', SRC, CUES, '--output', SISTEMA]}, ERRO(T152)),
     ('shorts', {'argv': ['cut', SRC, CUES, '-o/etc/novo.mp4']}, ERRO(T152)),
@@ -2602,29 +2625,29 @@ CASOS = [
     ('media', {'argv': ['probe', SRC, '--o={tmp}/saida/../novo.mp4']}, ERRO(T155)),
     ('media', {'argv': ['probe', SRC, '--output={tmp}/saida/../novo.mp4']}, ERRO(T155)),
     ('media', {'argv': ['probe', SRC, '--', '-o', PONTOS]}, ERRO(T154)),
-    ('media', {'argv': ['probe', SRC, '-o', SISTEMA]}, PASSA),
-    ('media', {'argv': ['probe', SRC, '--o', SISTEMA]}, PASSA),
-    ('media', {'argv': ['probe', SRC, '--ou', SISTEMA]}, PASSA),
-    ('media', {'argv': ['probe', SRC, '--out', SISTEMA]}, PASSA),
-    ('media', {'argv': ['probe', SRC, '--outp', SISTEMA]}, PASSA),
-    ('media', {'argv': ['probe', SRC, '--output', SISTEMA]}, PASSA),
-    ('media', {'argv': ['probe', SRC, '-o/etc/novo.mp4']}, PASSA),
-    ('media', {'argv': ['probe', SRC, '-o=/etc/novo.mp4']}, PASSA),
-    ('media', {'argv': ['probe', SRC, '--out=/etc/novo.mp4']}, PASSA),
-    ('media', {'argv': ['probe', SRC, '--o=/etc/novo.mp4']}, PASSA),
-    ('media', {'argv': ['probe', SRC, '--output=/etc/novo.mp4']}, PASSA),
+    ('media', {'argv': ['probe', SRC, '-o', SISTEMA]}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '--o', SISTEMA]}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '--ou', SISTEMA]}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '--out', SISTEMA]}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '--outp', SISTEMA]}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '--output', SISTEMA]}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '-o/etc/novo.mp4']}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '-o=/etc/novo.mp4']}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '--out=/etc/novo.mp4']}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '--o=/etc/novo.mp4']}, ERRO(H16)),
+    ('media', {'argv': ['probe', SRC, '--output=/etc/novo.mp4']}, ERRO(H16)),
     ('media', {'argv': ['probe', SRC, '--', '-o', SISTEMA]}, ERRO(T154)),
-    ('media', {'argv': ['probe', SRC, '-o', OCULTA]}, CLI('media', 'probe', SRC, '-o', '{tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '--o', OCULTA]}, CLI('media', 'probe', SRC, '--o', '{tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '--ou', OCULTA]}, CLI('media', 'probe', SRC, '--ou', '{tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '--out', OCULTA]}, CLI('media', 'probe', SRC, '--out', '{tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '--outp', OCULTA]}, CLI('media', 'probe', SRC, '--outp', '{tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '--output', OCULTA]}, CLI('media', 'probe', SRC, '--output', '{tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '-o{home}/.ssh/novo.mp4']}, CLI('media', 'probe', SRC, '-o{tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '-o={home}/.ssh/novo.mp4']}, CLI('media', 'probe', SRC, '-o={tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '--out={home}/.ssh/novo.mp4']}, CLI('media', 'probe', SRC, '--out={tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '--o={home}/.ssh/novo.mp4']}, CLI('media', 'probe', SRC, '--o={tmp}/home/.ssh/novo.mp4')),
-    ('media', {'argv': ['probe', SRC, '--output={home}/.ssh/novo.mp4']}, CLI('media', 'probe', SRC, '--output={tmp}/home/.ssh/novo.mp4')),
+    ('media', {'argv': ['probe', SRC, '-o', OCULTA]}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '--o', OCULTA]}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '--ou', OCULTA]}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '--out', OCULTA]}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '--outp', OCULTA]}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '--output', OCULTA]}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '-o{home}/.ssh/novo.mp4']}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '-o={home}/.ssh/novo.mp4']}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '--out={home}/.ssh/novo.mp4']}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '--o={home}/.ssh/novo.mp4']}, ERRO(H17)),
+    ('media', {'argv': ['probe', SRC, '--output={home}/.ssh/novo.mp4']}, ERRO(H17)),
     ('media', {'argv': ['probe', SRC, '--', '-o', OCULTA]}, ERRO(T154)),
     ('media', {'argv': ['probe', SRC, '-o', '']}, ERRO(T155)),
     ('media', {'argv': ['probe', SRC, '--o', '']}, ERRO(T155)),
@@ -3002,13 +3025,13 @@ CASOS = [
     ('install', {'argv': ['--target']}, ERRO('install: --target precisa de um caminho')),
     ('install', {'argv': ['--target', PASTA]}, CLI('install', '--json', '--target', PASTA, ok=(0, 10))),
     ('install', {'argv': ['--target', REL]}, ERRO(T158)),
-    ('install', {'argv': ['--target', PONTOS]}, CLI('install', '--json', '--target', PONTOS, ok=(0, 10))),
+    ('install', {'argv': ['--target', PONTOS]}, ERRO(H12)),
     ('install', {'argv': ['--target', '']}, ERRO(T158)),
-    ('install', {'argv': ['--target', SISTEMA]}, CLI('install', '--json', '--target', SISTEMA, ok=(0, 10))),
-    ('install', {'argv': ['--target', OCULTA]}, CLI('install', '--json', '--target', '{tmp}/home/.ssh/novo.mp4', ok=(0, 10))),
+    ('install', {'argv': ['--target', SISTEMA]}, ERRO(H13)),
+    ('install', {'argv': ['--target', OCULTA]}, ERRO(H14)),
     ('install', {'argv': ['--target', 'a\x00b']}, ERRO(T158)),
     ('install', {'argv': ['--target', 'a\u200bb']}, ERRO(T158)),
-    ('install', {'argv': ['--target', LINKDIR]}, CLI('install', '--json', '--target', LINKDIR, ok=(0, 10))),
+    ('install', {'argv': ['--target', LINKDIR]}, ERRO(H15)),
     ('install', {'argv': ['--target={tmp}/saida']}, CLI('install', '--json', '--target={tmp}/saida', ok=(0, 10))),
     ('install', {'argv': ['--target=rel']}, ERRO(T158)),
     ('install', {'argv': ['--target=']}, ERRO(T158)),
@@ -3416,3 +3439,250 @@ def test_so_terminal_fills_each_placeholder_once_and_leaves_an_unknown_one_as_it
 def test_rea_video_mcp_run_refuses_a_command_that_runs_as_a_job_even_when_called_directly(mundo):
     with pytest.raises(rea_video.ReaVideoError, match="decompose roda como tarefa em segundo plano; envie pelo video.rea-video"):
         rea_video.mcp_run(["decompose", str(mundo.base / "a.mp4"), "-o", str(mundo.base / "saida" / "dec")])
+
+
+# ------------------------------------------------------------------------------------------------ U22h: onde o MCP grava (a regra única)
+# Os caminhos que o CLI vai GRAVAR (o `-o` de media, shorts e edit, a pasta do EDL e o EDIT_DIR do edit, o `--to` do Hypit, o `--target` do
+# install) passam por UMA regra em `mcp_policy`: `escrita_recusada`. As chamadas de ponta a ponta estão em tests/golden/test_mcp_caminhos.py;
+# aqui está a interface, a regra sozinha e a prova de que nenhuma tool carrega uma cópia dela.
+
+DICA_U22H = "escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+
+
+@pytest.fixture
+def lugares(monkeypatch):
+    """Pastas e links reais num diretório CURTO de /tmp (a recusa corta o caminho em 120 caracteres); HOME, ferramentas e dados apontam para cá."""
+    base = Path(os.path.realpath(tempfile.mkdtemp(prefix="eh-", dir="/tmp")))
+    w = SimpleNamespace(base=base, home=base / "home", work=base / "work", data=base / "data", tools=base / "tools")
+    for pasta in (w.home / ".ssh", w.work / "out", w.data, w.tools):
+        pasta.mkdir(parents=True)
+    (w.work / "a.mp4").write_bytes(b"")
+    (w.work / "lnk_ssh").symlink_to(w.home / ".ssh")
+    (w.work / "lnk_ok").symlink_to(w.work / "out")
+    (w.work / "lnk_file").symlink_to(w.work / "a.mp4")
+    (w.work / "dangling").symlink_to(w.work / "nada")
+    (w.work / "out" / "lnk_in").symlink_to(w.work / "a.mp4")
+    monkeypatch.setenv("HOME", str(w.home))
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(w.tools))
+    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(w.data))
+    for var in ("USERPROFILE", "SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA", "APPDATA"):
+        monkeypatch.delenv(var, raising=False)
+    yield w
+    shutil.rmtree(base, ignore_errors=True)
+
+
+@LINUX
+def test_escrita_recusada_is_none_at_the_places_of_the_user(pol, lugares):
+    w = lugares
+    for caminho in (w.work / "out" / "novo.mp4", w.work / "novo.mp4", w.home / "docs" / "novo.mp4", w.home / "novo.mp4", "/tmp/eh-nao-existe/x",
+                    "/var/tmp/eh-nao-existe/x", "/abs/x", w.work / "out" / "a" / "b" / "c.mp4", f"{w.work}//out/./novo.mp4"):
+        assert pol.escrita_recusada(str(caminho), "q:") is None, caminho
+
+
+@LINUX
+@pytest.mark.parametrize("modelo,constante", [
+    ("/etc/x", "SISTEMA"), ("/usr/lib/x", "SISTEMA"), ("{home}/.ssh/x", "OCULTA"), ("{home}/Library/LaunchAgents/x", "INICIO"),
+    ("{work}/.git/x", "GIT"), ("{data}/x", "DADOS"), ("{tools}/x", "FERRAMENTAS"), ("{work}/lib/python3/site-packages/x", "SITE_PACKAGES"),
+])
+def test_escrita_recusada_says_the_reason_in_the_words_of_the_one_rule_of_terceiros(pol, lugares, modelo, constante):
+    from simplicio_video import terceiros
+    w = lugares
+    caminho = modelo.format(home=w.home, work=w.work, data=w.data, tools=w.tools)
+    motivo = getattr(terceiros, constante)
+    assert pol.escrita_recusada(caminho, "tool: saída") == f"tool: saída {caminho!r}: o MCP não grava {motivo}; {DICA_U22H}"
+
+
+@LINUX
+def test_escrita_recusada_asks_the_rule_where_the_path_really_lands_and_says_so_when_it_differs(pol, lugares):
+    w = lugares
+    assert pol.escrita_recusada("//etc/x", "q:") == f"q: '//etc/x': o MCP não grava em pasta do sistema (o caminho real é '/etc/x'); {DICA_U22H}"
+    assert pol.escrita_recusada("/etc/./x", "q:") == f"q: '/etc/./x': o MCP não grava em pasta do sistema (o caminho real é '/etc/x'); {DICA_U22H}"
+    pelo_link = f"{w.work}/lnk_ssh/x"
+    assert pol.escrita_recusada(pelo_link, "q:") == (f"q: {pelo_link!r}: o MCP não grava em pasta oculta do home (.ssh, .config, .claude...) "
+                                                      f"(o caminho real é '{w.home}/.ssh/x'); {DICA_U22H}")
+    assert pol.escrita_recusada("/etc/x", "q:") == f"q: '/etc/x': o MCP não grava em pasta do sistema; {DICA_U22H}"  # igual ao real: sem a nota
+
+
+@LINUX
+@pytest.mark.parametrize("modelo,primeiro_link,real_", [
+    ("{work}/lnk_file", "{work}/lnk_file", "{work}/a.mp4"),
+    ("{work}/lnk_ok/x.mp4", "{work}/lnk_ok", "{work}/out/x.mp4"),
+    ("{work}/lnk_ok/a/b/x.mp4", "{work}/lnk_ok", "{work}/out/a/b/x.mp4"),
+    ("{work}/out/lnk_in/x.mp4", "{work}/out/lnk_in", "{work}/a.mp4/x.mp4"),
+    ("{work}/dangling/x", "{work}/dangling", "{work}/nada/x"),
+])
+def test_escrita_recusada_names_the_first_name_of_the_chain_that_is_a_link(pol, lugares, modelo, primeiro_link, real_):
+    w = lugares
+    p, elo, seria = (t.format(work=w.work) for t in (modelo, primeiro_link, real_))
+    quem_e = "é um link simbólico" if elo == p else f"{elo!r} é um link simbólico"
+    esperado = f"q: {p!r}: {quem_e}; o MCP só grava em caminho real, sem link em nenhuma pasta do caminho (o caminho real seria {seria!r})"
+    assert pol.escrita_recusada(p, "q:") == esperado
+
+
+@LINUX
+def test_elo_simbolico_walks_the_chain_from_the_root_and_is_none_without_a_link(pol, lugares):
+    w = lugares
+    assert pol.elo_simbolico(str(w.work / "out" / "novo.mp4")) is None
+    assert pol.elo_simbolico("/usr/bin") is None and pol.elo_simbolico("/") is None
+    assert pol.elo_simbolico(str(w.work / "lnk_ok" / "a" / "b")) == str(w.work / "lnk_ok")
+    assert pol.elo_simbolico(str(w.work / "lnk_file")) == str(w.work / "lnk_file")
+    assert pol.elo_simbolico(str(w.work / "dangling")) == str(w.work / "dangling")
+    (w.work / "outro").mkdir()
+    (w.work / "outro" / "l1").symlink_to(w.work / "lnk_ok")  # o primeiro link da cadeia, não o último
+    assert pol.elo_simbolico(str(w.work / "outro" / "l1" / "x")) == str(w.work / "outro" / "l1")
+
+
+@LINUX
+def test_escrita_recusada_refuses_what_is_not_absolute_or_has_dotdot_in_its_own_words(pol, lugares):
+    nota = "precisa ser um caminho absoluto, sem `..` (o MCP não grava em caminho relativo nem com `..`)"
+    for caminho in ("rel/x", "", "~/x", "$HOME/x", "../x", "/tmp/a/../b", "file:///etc/x", "C:/etc/x"):
+        assert pol.escrita_recusada(caminho, "tool: saída") == f"tool: saída {caminho!r}: {nota}", caminho
+
+
+@LINUX
+def test_escrita_recusada_leaves_a_path_with_a_nul_to_the_cli(pol, lugares):
+    assert pol.escrita_recusada(f"{lugares.work}/out/a\x00b.mp4", "q:") is None
+    assert pol.escrita_recusada("/etc/a\x00b", "q:") is None  # nenhum arquivo tem NUL no nome: o CLI falha sozinho, como sempre
+
+
+@LINUX
+def test_escrita_recusada_refuses_what_it_cannot_resolve_or_read_and_never_raises(pol, lugares, monkeypatch):
+    from simplicio_video import terceiros
+    p = f"{lugares.work}/out/x.mp4"
+    with monkeypatch.context() as mp:
+        mp.setattr(terceiros, "real", lambda caminho: None)
+        assert pol.escrita_recusada(p, "q:") == f"q: {p!r}: não consegui resolver o caminho; o MCP só grava em caminho real"
+
+    def sem_permissao(real):
+        raise PermissionError(13, "negado")
+    with monkeypatch.context() as mp:
+        mp.setattr(terceiros, "lugar_proibido", sem_permissao)  # Python < 3.13: is_file() levanta numa pasta que o servidor não pode ler
+        assert pol.escrita_recusada(p, "q:") == (f"q: {p!r}: não consegui conferir o caminho (uma pasta dele não pode ser lida); "
+                                                  "o MCP só grava onde consegue conferir")
+
+
+@LINUX
+def test_escrita_recusada_shows_the_path_escaped_and_cut_so_a_name_on_disk_cannot_write_into_the_message(pol, lugares):
+    perigoso = "/etc/x\n\x1b[31m\u202e.mp4"
+    texto = pol.escrita_recusada(perigoso, "q:")
+    assert "\n" not in texto and "\x1b" not in texto and "\u202e" not in texto and "\\n" in texto and "\\x1b" in texto and "\\u202e" in texto
+    longo = "/etc/" + "d" * 300
+    assert pol.escrita_recusada(longo, "q:").startswith(f"q: {('/etc/' + 'd' * 112 + '...')!r}: o MCP não grava")
+
+
+@LINUX
+def test_saida_em_lugar_seguro_reads_every_spelling_and_every_value_of_the_output_option(pol, lugares):
+    ruim = "/etc/novo.mp4"
+    quem = "edit render: saída"
+    esperado = f"{quem} {ruim!r}: o MCP não grava em pasta do sistema; {DICA_U22H}"
+    for argv in (["render", "e.json", "-o", ruim], ["render", "e.json", f"-o{ruim}"], ["render", "e.json", f"-o={ruim}"], ["render", "e.json", "--output", ruim],
+                 ["render", "e.json", f"--output={ruim}"], ["render", "e.json", "--o", ruim], ["render", "e.json", "--ou", ruim], ["render", "e.json", f"--outp={ruim}"],
+                 ["render", "e.json", "-o", "/tmp/eh-ok", "--out", ruim], ["render", "e.json", "--out", ruim, "-o", "/tmp/eh-ok"]):
+        assert pol.saida_em_lugar_seguro(argv, nome="edit render") == esperado, argv
+    assert pol.saida_em_lugar_seguro(["render", "e.json", "-o", "/tmp/eh-ok", "--", "-o", ruim], nome="edit render") is None  # depois de `--` é palavra
+    assert pol.saida_em_lugar_seguro(["render", "e.json", "-O", ruim], nome="edit render") is None  # `-O` não é a opção
+    assert pol.saida_em_lugar_seguro(["render", "e.json"], nome="edit render") is None
+
+
+@LINUX
+def test_saida_em_lugar_seguro_also_reads_what_the_cli_parse_reads_after_a_dashdash(pol, lugares):
+    """`-- x -o /etc/y`: `--` engole `x`, e o `-o` seguinte é opção para media.parse_argv e shorts.parse_argv; `output_values` para no `--`."""
+    from simplicio_video import media, shorts
+    ruim = "/etc/novo.mp4"
+    argv = ["probe", "a.mp4", "--", "x", "-o", ruim]
+    _, flags = media.parse_argv(argv[1:])
+    from simplicio_video.edit import output_values
+    assert flags["-o"] == ruim and output_values(argv) == []  # o parse do CLI lê o `-o`; `output_values` não
+    esperado = f"media: saída {ruim!r}: o MCP não grava em pasta do sistema; {DICA_U22H}"
+    assert pol.saida_em_lugar_seguro(argv, flags, nome="media", chaves=("-o",)) == esperado
+    assert pol.saida_em_lugar_seguro(argv, None, nome="media") is None  # sem o parse do CLI, só a grafia: a política de hoje não via este `-o`
+    argv2 = ["inspect", "a.mp4", "--", "x", "--out", ruim]
+    _, _, vals = shorts.parse_argv(argv2[1:])
+    assert pol.saida_em_lugar_seguro(argv2, vals, nome="shorts", chaves=("-o", "--out")) == f"shorts: saída {ruim!r}: o MCP não grava em pasta do sistema; {DICA_U22H}"
+    assert pol.saida_em_lugar_seguro(argv2, vals, nome="shorts", chaves=("-o",)) is None  # só as chaves pedidas
+    _, flags_ok = media.parse_argv(["probe", "a.mp4", "-o", "/tmp/eh-ok"])
+    assert pol.saida_em_lugar_seguro(["probe", "a.mp4", "-o", "/tmp/eh-ok"], flags_ok, nome="media", chaves=("-o",)) is None
+
+
+@pytest.mark.parametrize("argv,ajuda", [
+    (["probe", "-h"], True), (["probe", "--help"], True), (["probe", "a.mp4", "-o", "x", "--help"], True),
+    (["probe", "a.mp4", "--", "-h"], False), (["probe", "a.mp4", "--", "x", "--help"], False), (["probe", "-h", "--", "x"], True),
+    (["probe", "--", "--help", "-h"], False), (["audio", "a.mp4", "-o", "x", "--", "--help"], False), (["probe"], False), ([], False),
+    (["--help"], False), (["probe", "a.mp4", "-H"], False),
+])
+def test_media_pede_ajuda_is_help_before_the_first_dashdash_only(pol, argv, ajuda):
+    assert pol.media_pede_ajuda(argv) is ajuda
+
+
+@pytest.mark.parametrize("argv", [["probe", "-h"], ["audio", "x.mp4", "--help"], ["probe", "-h", "--", "x"], ["probe", "--", "-h"], ["probe", "--", "x", "--help"],
+                                  ["sheet", "x", "--", "-h"], ["fetch", "--", "--help"], ["probe", "a.mp4", "-o", "x", "--", "-h"]])
+def test_media_pede_ajuda_agrees_with_what_the_media_command_does_with_the_same_words(pol, argv, capsys):
+    """Contra o código do `media` (run_media): as palavras que ele toma por ajuda imprimem a ajuda e saem; as outras rodam (aqui, falham sem fonte)."""
+    from simplicio_video import media
+    try:
+        rc = media.run_media(argv)
+        impresso = capsys.readouterr().out
+        ajuda_de_verdade = rc == 0 and impresso.startswith("media ")
+    except media.MediaError:
+        ajuda_de_verdade = False
+    assert pol.media_pede_ajuda(argv) is ajuda_de_verdade
+
+
+@pytest.mark.parametrize("argv,destinos", [
+    (["get", "b1", "--output", "n", "--to", "/abs/o.mp4"], ["/abs/o.mp4"]),
+    (["get", "b1", "--to", "/abs/a", "--output", "n"], ["/abs/a"]),
+    (["get", "b1", "--output", "n", "--to", "/abs/a", "--to", "/abs/b"], ["/abs/a", "/abs/b"]),
+    (["get", "b1", "--output", "n"], []),
+    (["media", "cut", "/a/in.mp4", "--start", "0", "--end", "1", "--to", "/abs/x.mp4"], ["/abs/x.mp4"]),
+    (["media", "frames", "/a/in.mp4", "--to", "/abs/f", "--label-time"], ["/abs/f"]),
+    (["media", "tiles", "/a/in.mp4", "--ranges", "/abs/r.json", "--to", "/abs/t"], ["/abs/t"]),
+    (["media", "tile", "/a/in.mp4", "--transcript", "/abs/t.json", "--to", "/abs/t.png"], ["/abs/t.png"]),
+    (["media", "probe", "/a/in.mp4", "--json"], []),
+    (["media", "cut", "/a/in.mp4", "--to", "/abs/x", "--help"], []),
+    (["media", "cut", "/a/in.mp4", "--start", "--to", "/abs/x"], []),  # `--start` engole `--to`: o Hypit não o lê como destino
+    (["status", "b1"], []), (["--help"], []), ([], []),
+])
+def test_hypit_destinos_are_the_to_values_the_hypit_writes_at(pol, argv, destinos):
+    assert pol.hypit_destinos(argv) == destinos
+
+
+@LINUX
+def test_hypit_escrita_recusada_names_the_verb_and_the_first_refused_destination(pol, lugares):
+    ruim = "/etc/x"
+    assert pol.hypit_escrita_recusada(["get", "b1", "--output", "n", "--to", ruim]) == f"clone get: o destino --to {ruim!r}: o MCP não grava em pasta do sistema; {DICA_U22H}"
+    assert pol.hypit_escrita_recusada(["media", "tiles", "/a/in.mp4", "--to", ruim]) == (
+        f"clone media tiles: o destino --to {ruim!r}: o MCP não grava em pasta do sistema; {DICA_U22H}")
+    assert pol.hypit_escrita_recusada(["get", "b1", "--output", "n", "--to", "/tmp/eh-ok", "--to", ruim]).startswith(f"clone get: o destino --to {ruim!r}")
+    assert pol.hypit_escrita_recusada(["get", "b1", "--output", "n", "--to", "/tmp/eh-ok"]) is None
+    assert pol.hypit_escrita_recusada(["media", "probe", ruim]) is None  # o que o Hypit só lê não é destino
+    assert pol.hypit_escrita_recusada(["status", "b1"]) is None and pol.hypit_escrita_recusada([]) is None
+    assert pol.hypit_escrita_recusada(["get", "b1", "--output", "n", "--to", "rel/x"]).startswith("clone get: o destino --to 'rel/x': precisa ser um caminho absoluto")
+
+
+def test_the_media_allow_list_of_hypit_is_read_by_one_walk_for_the_permission_and_for_the_destinations(pol):
+    import inspect
+    assert hasattr(pol, "_media_ler")
+    fonte = inspect.getsource(pol)
+    assert fonte.count("while i < len(resto)") == 1  # a única leitura das palavras do `media` do Hypit
+    for argv in (["media", "cut", "/a/in.mp4", "--to", "rel"], ["media", "cut", "/a/in.mp4", "--nova", "x"], ["media", "cut", "rel.mp4", "--to", "/abs/o"]):
+        assert pol.hypit_permitido(argv) is False
+
+
+def test_no_tool_carries_a_copy_of_the_rule_of_where_the_mcp_writes(pol):
+    """UM ponto: o lugar proibido e a cadeia de links são perguntados numa função só (escrita_recusada/elo_simbolico), em mcp_policy; as tools
+    chamam a política e devolvem o que ela diz."""
+    import ast
+    politica = ast.parse(Path(pol.__file__).read_text(encoding="utf-8"))
+    servidor = ast.parse(Path(mcp_server.__file__).read_text(encoding="utf-8"))
+
+    def chamadas(arvore, nome):
+        return [n for n in ast.walk(arvore) if isinstance(n, ast.Call) and getattr(n.func, "attr", getattr(n.func, "id", None)) == nome]
+
+    assert len(chamadas(politica, "lugar_proibido")) == 1 and chamadas(servidor, "lugar_proibido") == []
+    assert len(chamadas(politica, "islink")) == 1 and chamadas(servidor, "islink") == [] and chamadas(servidor, "is_symlink") == []
+    assert not any(isinstance(n, ast.ImportFrom) and n.module and "terceiros" in n.module for n in ast.walk(servidor))
+    assert not any(isinstance(n, ast.Name) and n.id == "terceiros" for n in ast.walk(servidor))
+    # as chamadas de cada tool: media e shorts pela saída, edit dentro de edit_recusa, o Hypit pelo `--to`, o install pelo `--target`
+    assert len(chamadas(servidor, "saida_em_lugar_seguro")) == 2 and len(chamadas(servidor, "hypit_escrita_recusada")) == 1
+    assert len(chamadas(servidor, "escrita_recusada")) == 1 and len(chamadas(servidor, "media_pede_ajuda")) == 1
+    assert len(chamadas(politica, "escrita_recusada")) == 3  # saida_em_lugar_seguro, a pasta do EDL e a do pack (um laço), hypit_escrita_recusada

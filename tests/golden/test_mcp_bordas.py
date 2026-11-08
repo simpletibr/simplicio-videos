@@ -7,7 +7,8 @@ assert do valor atual com o comentário "U22 decide"; U22 só pode mudar linhas 
 
 Privados exercitados por import direto (caracterização; são as funções que os wrappers MCP/CLI chamam):
   (a) matchcut._confere_saida, instagram._checa_saida, montage._output_refusal, video_to_skill._new_dir, voicestudio._guard_out;
-      matchcut.resposta_mcp, instagram.resposta_mcp. (b) busca.BuscaError, openverse.OpenverseError, swap_providers.base.SwapError,
+      matchcut.resposta_mcp, instagram.resposta_mcp; U22h: as tools do MCP mcp_server.video_media, video_shorts, video_edit, video_clone,
+      video_install (as chamadas, com o CLI trocado por um gravador; a matriz inteira está em tests/golden/test_mcp_caminhos.py). (b) busca.BuscaError, openverse.OpenverseError, swap_providers.base.SwapError,
       jobs.write_json_atomic (-> jobs._scrub). (c) voice.gemini_base, swap_providers.gemini.GeminiAdapter._base.
   (d) voice_clone.voicestudio_url, voicestudio.base_url. (e) cli.build_parser, voice.PROVIDERS. (f) instagram._executa/_limites_do_filho,
   matchcut._executa/_WRAPPER/_limite_de_memoria."""
@@ -26,7 +27,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from simplicio_video import busca, cli, instagram, jobs, matchcut, montage, openverse, video_to_skill, voice, voice_clone, voicestudio
+from simplicio_video import busca, cli, instagram, jobs, matchcut, mcp_server, montage, openverse, video_to_skill, voice, voice_clone, voicestudio
 from simplicio_video.swap_providers import base as swap_base
 from simplicio_video.swap_providers import gemini as swap_gemini
 
@@ -186,6 +187,98 @@ def test_the_voicestudio_read_guard_keeps_the_narrow_rule_it_always_had(mundo, m
         assert le(caminho) == ("ok", caminho), caminho
     assert le(f"{mundo.home}/.ssh/x.wav") == ("recusa", f"AUDIO: o MCP não lê de pasta oculta do home ({mundo.home}/.ssh)")
     assert le(f"{mundo.work}/pd/x.wav") == ("recusa", f"AUDIO: o MCP não lê de pasta do sistema ({mundo.work}/pd)")
+
+
+# ---- U22h: o mesmo para as TOOLS do MCP que gravam por um caminho que o chamador escolhe (media, shorts, edit, clone/Hypit, install)
+# U22 decide: o MCP só exigia caminho absoluto sem `..` (o install --target, só absoluto) e entregava o resto ao CLI: `-o /etc/x`, `-o` por um link para
+#   `.ssh`, `--to /etc/x` do Hypit, `install --target {w}/../etc`. Só o voicestudio (acima) recusava.
+#   U22h decidiu: o caminho que o CLI vai GRAVAR passa pela regra única (terceiros.lugar_proibido) e não pode ter link em nenhum nome (mcp_policy.escrita_recusada).
+#   Cada linha abaixo é um fato da tabela "antes -> depois" do PR: hoje a chamada chega ao CLI ("ACEITA"); passa a ser recusada com o texto escrito aqui.
+
+FONTE = "{work}/a.mp4"
+DICA = "escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+SEM_LINK = "o MCP só grava em caminho real, sem link em nenhuma pasta do caminho"
+LUGAR_SISTEMA = f"o MCP não grava em pasta do sistema; {DICA}"
+LUGAR_OCULTA = f"o MCP não grava em pasta oculta do home (.ssh, .config, .claude...); {DICA}"
+FERRAMENTAS_DO_MCP = {"media": mcp_server.video_media, "shorts": mcp_server.video_shorts, "edit": mcp_server.video_edit, "clone": mcp_server.video_clone,
+                      "install": mcp_server.video_install}
+
+
+def mcp(w, monkeypatch, ferramenta: str, argv: list[str]):
+    """("aceita", o argv que chegou ao CLI) ou ("recusa", o texto), com a pasta de teste trocada por {home}/{work}."""
+    monkeypatch.setattr(mcp_server, "_cli", lambda argv, codigos_ok=(0,): {"ok": True, "cli": list(argv)})
+    sub = lambda t: t.replace("{home}", str(w.home)).replace("{work}", str(w.work)).replace("{data}", str(w.data)).replace("{tools}", str(w.tools))  # noqa: E731
+    r = FERRAMENTAS_DO_MCP[ferramenta](argv=[sub(a) for a in argv])
+    norma = lambda t: str(t).replace(str(w.home), "{home}").replace(str(w.work), "{work}").replace(str(w.data), "{data}").replace(str(w.tools), "{tools}")  # noqa: E731
+    return ("aceita", [norma(a) for a in r["cli"]]) if r["ok"] else ("recusa", norma(r["error"]))
+
+
+# (id do fato, tool, argv, o que passa a ser devolvido), com a pasta de teste trocada por {home}, {work}, {data} e {tools}.
+FATOS_DO_MCP = [
+    ("edit-render-etc", "edit", ["render", "{work}/edl.json", "-o", "/etc/novo.mp4"], f"edit render: saída '/etc/novo.mp4': {LUGAR_SISTEMA}"),
+    ("edit-transcribe-colado", "edit", ["transcribe", FONTE, "-o/etc/novo.json"], f"edit transcribe: saída '/etc/novo.json': {LUGAR_SISTEMA}"),
+    ("edit-verify-ssh", "edit", ["verify", FONTE, "1", "2", "--output={home}/.ssh/novo.png"],
+     f"edit verify: saída '{{home}}/.ssh/novo.png': {LUGAR_OCULTA}"),
+    ("edit-grade-inicio", "edit", ["grade", FONTE, "-o", "{home}/Library/LaunchAgents/x.mp4"],
+     "edit grade: saída '{home}/Library/LaunchAgents/x.mp4': o MCP não grava em pasta de início automático (LaunchAgents, LaunchDaemons, Startup); " + DICA),
+    ("media-probe-git", "media", ["probe", FONTE, "-o", "{work}/.git/hooks/x.json"],
+     "media: saída '{work}/.git/hooks/x.json': o MCP não grava dentro de uma pasta .git; " + DICA),
+    ("media-audio-dados", "media", ["audio", FONTE, "-o", "{data}/x.wav"],
+     "media: saída '{data}/x.wav': o MCP não grava dentro da pasta de dados do motor (jobs, tools, openmontage-data); " + DICA),
+    ("shorts-plan-ferramentas", "shorts", ["plan", FONTE, "--transcript", "{work}/words.json", "-o", "{tools}/p.json"],
+     "shorts: saída '{tools}/p.json': o MCP não grava dentro da pasta de ferramentas do motor; " + DICA),
+    ("shorts-cut-barra-dupla", "shorts", ["cut", FONTE, "{work}/plan.json", "-o", "//etc/novo"],
+     f"shorts: saída '//etc/novo': o MCP não grava em pasta do sistema (o caminho real é '/etc/novo'); {DICA}"),
+    ("media-por-link-para-ssh", "media", ["probe", FONTE, "-o", "{work}/lnk_ssh/x.json"],
+     "media: saída '{work}/lnk_ssh/x.json': o MCP não grava em pasta oculta do home (.ssh, .config, .claude...) (o caminho real é '{home}/.ssh/x.json'); " + DICA),
+    ("shorts-por-link-inofensivo", "shorts", ["inspect", FONTE, "-o", "{work}/lnk_ok/x.json"],
+     f"shorts: saída '{{work}}/lnk_ok/x.json': '{{work}}/lnk_ok' é um link simbólico; {SEM_LINK} (o caminho real seria '{{work}}/out/x.json')"),
+    ("edit-render-pasta-do-edl-por-link", "edit", ["render", "{work}/lnk_ssh/edl.json", "-o", "{work}/out/f.mp4"],
+     "edit render: a pasta do EDL '{work}/lnk_ssh/edl.json': o MCP não grava em pasta oculta do home (.ssh, .config, .claude...) "
+     "(o caminho real é '{home}/.ssh/edl.json'); " + DICA),
+    ("edit-pack-edit-dir-link", "edit", ["pack", "{work}/lnk_ok"],
+     f"edit pack: a pasta EDIT_DIR '{{work}}/lnk_ok': é um link simbólico; {SEM_LINK} (o caminho real seria '{{work}}/out')"),
+    ("clone-get-etc", "clone", ["get", "b1", "--output", "n", "--to", "/etc/novo.mp4"], f"clone get: o destino --to '/etc/novo.mp4': {LUGAR_SISTEMA}"),
+    ("clone-media-cut-ssh", "clone", ["media", "cut", FONTE, "--start", "0", "--end", "1", "--to", "{home}/.ssh/x.mp4"],
+     f"clone media cut: o destino --to '{{home}}/.ssh/x.mp4': {LUGAR_OCULTA}"),
+    ("install-etc", "install", ["--target", "/etc"], f"install: a pasta de --target '/etc': {LUGAR_SISTEMA}"),
+    ("install-ssh", "install", ["--target", "{home}/.ssh"], f"install: a pasta de --target '{{home}}/.ssh': {LUGAR_OCULTA}"),
+    ("install-por-link", "install", ["--target", "{work}/lnk_ok"],
+     f"install: a pasta de --target '{{work}}/lnk_ok': é um link simbólico; {SEM_LINK} (o caminho real seria '{{work}}/out')"),
+    ("install-com-dotdot", "install", ["--target", "{work}/../etc"],
+     "install: a pasta de --target '{work}/../etc': precisa ser um caminho absoluto, sem `..` (o MCP não grava em caminho relativo nem com `..`)"),
+    # os dois jeitos de o CLI ler um -o que a política não via (achados na caça a bypass; valiam na main)
+    ("media-opcao-depois-do-traco", "media", ["probe", FONTE, "--", "x", "-o", "/etc/novo.json"], f"media: saída '/etc/novo.json': {LUGAR_SISTEMA}"),
+    ("shorts-opcao-depois-do-traco", "shorts", ["inspect", FONTE, "--", "x", "-o", "rel/novo.json"],
+     "shorts: saída 'rel/novo.json': precisa ser um caminho absoluto, sem `..` (o MCP não grava em caminho relativo nem com `..`)"),
+    ("media-ajuda-depois-do-traco", "media", ["probe", FONTE, "-o", "/etc/novo.json", "--", "-h"], f"media: saída '/etc/novo.json': {LUGAR_SISTEMA}"),
+]
+
+
+@LINUX
+@pytest.mark.parametrize("fato,ferramenta,argv,depois", FATOS_DO_MCP, ids=[f[0] for f in FATOS_DO_MCP])
+def test_the_mcp_tools_that_write_refuse_what_the_one_rule_of_places_refuses(mundo, monkeypatch, fato, ferramenta, argv, depois):
+    for pasta in (mundo.home / ".ssh", mundo.work / "out"):
+        pasta.mkdir(parents=True, exist_ok=True)
+    (mundo.work / "lnk_ssh").symlink_to(mundo.home / ".ssh")
+    (mundo.work / "lnk_ok").symlink_to(mundo.work / "out")
+    assert mcp(mundo, monkeypatch, ferramenta, argv) == ("recusa", depois)  # U22 decide: hoje ("aceita", [<tool>, *argv]); passa a ser recusada
+
+
+@LINUX
+@pytest.mark.parametrize("ferramenta,argv", [
+    ("edit", ["render", "{work}/edl.json", "-o", "{work}/out/novo.mp4"]),
+    ("media", ["probe", FONTE, "-o", "{home}/docs/novo.json"]),
+    ("shorts", ["cut", FONTE, "{work}/plan.json", "-o", "{work}/data/cortes"]),  # uma pasta `data` do PROJETO (a do motor é a recusada acima)
+    ("clone", ["get", "b1", "--output", "n", "--to", "/tmp/u22h-nao-existe/v.mp4"]),
+    ("install", ["--target", "{work}/projeto"]),
+    ("install", ["--check", "--target", "/etc"]),  # só lê
+    ("media", ["probe", "/etc/novo.mp4"]),  # a fonte é lida
+], ids=["edit-pasta-de-trabalho", "media-home-fora-das-ocultas", "shorts-pasta-data-do-projeto", "clone-tmp", "install-projeto", "install-check-so-le",
+        "media-fonte-em-etc"])
+def test_the_mcp_tools_still_run_what_writes_at_the_places_of_the_user_and_what_only_reads(mundo, monkeypatch, ferramenta, argv):
+    status, cli_argv = mcp(mundo, monkeypatch, ferramenta, argv)
+    assert status == "aceita" and cli_argv[0] in ("edit", "media", "shorts", "clone", "install")
 
 
 RES_MATCHCUT = {"resultado": True, "script": "s", "codigo_saida": 0, "avisos": []}
