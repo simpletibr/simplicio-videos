@@ -222,6 +222,33 @@ def test_a_port_that_is_not_ascii_digits_is_the_error_of_the_provider_and_makes_
     assert rede.pedidos == [] and not dst.parent.exists()
 
 
+LONGAS = [("VOICESTUDIO_PORT", "9" * 4301), ("OMNIVOICE_PORT", "0" * 5000)]
+NOMES_LONGAS = ["VOICESTUDIO_PORT-4301-noves", "OMNIVOICE_PORT-5000-zeros"]
+
+
+@pytest.mark.parametrize("var,valor", LONGAS, ids=NOMES_LONGAS)
+def test_a_port_of_thousands_of_digits_is_the_error_of_the_provider_and_makes_no_request(monkeypatch, tmp_path, rede, var, valor):
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == PORTA_RUIM.format(valor=valor)
+    dst = tmp_path / "sub" / "o.wav"
+    with pytest.raises(voice_clone.CloneVoiceError) as e2:
+        voice_clone.voicestudio(S, "hello", dst)
+    assert e2.value.code == PORTA_RUIM.format(valor=valor)
+    assert rede.pedidos == [] and not dst.parent.exists()
+
+
+@pytest.mark.parametrize("var,valor", LONGAS, ids=NOMES_LONGAS)
+def test_json_run_prints_the_error_object_for_a_port_of_thousands_of_digits(monkeypatch, mini, capsys, var, valor):
+    # measured: the ValueError of int() escaped `_run_json` and `--json run` printed nothing
+    com(monkeypatch, {var: valor})
+    rc, out, _ = run_main(main, ["run", "--json", str(mini), "--provider", "voicestudio"], capsys, text_exit=True)
+    assert rc == 1
+    dados = json.loads(out)
+    assert dados["ok"] is False and dados["error"] == {"code": "RENDER_FALHOU", "message": PORTA_RUIM.format(valor=valor)}
+
+
 # ============================================================================================ CHANGE (review): a base that is not an http(s) URL with a host
 
 @pytest.mark.parametrize("var,valor,nome", TORTAS, ids=[f"{v}-{n}" for v, _, n in TORTAS])

@@ -147,6 +147,29 @@ def test_the_command_says_so_for_a_port_that_is_not_ascii_digits_instead_of_a_tr
     assert err == f"voicestudio: porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)\n"
 
 
+# U22d (review): an ASCII port of thousands of digits made `int()` raise ValueError ("Exceeds the limit (4300 digits) for integer string conversion"):
+# a traceback, and `--json run` printed nothing. A port is 1 to 5 digits (leading zeros aside): a longer text is refused like any bad port, before `int()`.
+LONGAS = ["9" * 4301, "0" * 5000]
+NOMES_LONGAS = ["4301-noves", "5000-zeros"]
+
+
+@pytest.mark.parametrize("var", ["VOICESTUDIO_PORT", "OMNIVOICE_PORT"])
+@pytest.mark.parametrize("valor", LONGAS, ids=NOMES_LONGAS)
+def test_base_url_rejects_a_port_of_thousands_of_digits_like_any_bad_port(monkeypatch, var, valor):
+    monkeypatch.setenv(var, valor)
+    with pytest.raises(vs.VoiceStudioError) as e:
+        vs.base_url()
+    assert str(e.value) == f"porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)"
+
+
+@pytest.mark.parametrize("valor", LONGAS, ids=NOMES_LONGAS)
+def test_the_command_says_so_for_a_port_of_thousands_of_digits_instead_of_a_traceback(monkeypatch, capsys, fake, valor):
+    monkeypatch.setenv("VOICESTUDIO_PORT", valor)
+    rc, out, err = _run(["status"], capsys)
+    assert (rc, out) == (1, "")
+    assert err == f"voicestudio: porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)\n"
+
+
 # ---- MCP handshake and typed tools -------------------------------------------------------------------------------
 
 def test_status_initializes_the_session_and_parses_json_text(fake):
