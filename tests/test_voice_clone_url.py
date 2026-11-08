@@ -1,0 +1,422 @@
+"""U22d: the `voicestudio` voice provider reaches the app at the base of `voicestudio.base_url()`, the ONE reading of it.
+
+Before: `voice_clone.voicestudio_url()` (voice_clone.py:64) read only VOICESTUDIO_URL and defaulted to http://localhost:3900, while
+`voicestudio.base_url()` (voicestudio.py:104) also reads OMNIVOICE_URL, VOICESTUDIO_PORT and OMNIVOICE_PORT and defaults to
+http://127.0.0.1:3900. So `voice --provider voicestudio` and `voicestudio tts` could talk to two different apps of the same machine.
+The owner approved ("Ok U22") that the provider follows `voicestudio.base_url()`; the local name `voicestudio_url` stays (tests patch it)
+and delegates. The golden block (d) of tests/golden/test_mcp_bordas.py holds the table of the four variables; this file holds the rest.
+
+Three kinds of test:
+
+* CHANGE (red before): the request of `voicestudio()` and the message of the unreachable app follow OMNIVOICE_URL and the ports and the
+  default host is 127.0.0.1; an empty VOICESTUDIO_URL is "not set" (it was a request to the path alone, "/v1/audio/speech"); a bad
+  port is `CloneVoiceError` (a SystemExit with the `provider=voicestudio:` prefix of every error of this module), never a traceback and
+  never a request; `voicestudio_url` follows `voicestudio.base_url` when it is called, not when the module is imported;
+* UNCHANGED (green before and after): an explicit VOICESTUDIO_URL, the text of the messages that already exist, the body and the headers
+  of the request, the key (still VOICESTUDIO_API_KEY only: OMNIVOICE_API_KEY stays out of U22d), the local name patched by tests, the
+  name `voice_clone.voicestudio` (the registry looks it up) and `voicestudio.py` never reaching voice, voice_clone or cli (no cycle);
+* PRECEDENCE: which variable wins when several are set (it is the one of `base_url()`).
+"""
+from __future__ import annotations
+
+import ast
+import inspect
+import io
+import json
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+import pytest
+
+from helpers import run_main
+from simplicio_video import voice_clone, voicestudio
+from simplicio_video.cli import main
+
+S = {"model": "omnivoice", "voice": "me"}
+VARIAVEIS_DA_BASE = ("VOICESTUDIO_URL", "OMNIVOICE_URL", "VOICESTUDIO_PORT", "OMNIVOICE_PORT")
+FALHA = "provider=voicestudio: backend not reachable at {onde} (refused). Start VoiceStudio or set VOICESTUDIO_URL."
+PORTA_RUIM = "provider=voicestudio: porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)"
+# `str.isdigit()` is true for more than 0-9: '²' makes `int()` raise ValueError, '٣' and '３９００' pass it (3, 3900) and the base keeps the non-ASCII
+# digits (http://127.0.0.1:٣), which http.client cannot put in the Host header (UnicodeEncodeError). voicestudio.py refuses them like a letter.
+NAO_ASCII = [("VOICESTUDIO_PORT", "²"), ("OMNIVOICE_PORT", "³"), ("VOICESTUDIO_PORT", "①"), ("OMNIVOICE_PORT", "٣"), ("VOICESTUDIO_PORT", "３"),
+             ("VOICESTUDIO_PORT", "３９００"), ("OMNIVOICE_PORT", "٣٩٠٠")]
+# The text of the error for a base that urllib cannot use. It names the variable and the rule and does NOT echo the value (a URL can carry a password).
+BASE_RUIM = ("provider=voicestudio: {var} must be an http:// or https:// URL with a host, such as http://127.0.0.1:3900 "
+             "(ASCII, no spaces, numeric port)")
+# (variable, value, what is wrong with it). Measured on main with VOICESTUDIO_URL: the first three, `   `, `:abc`, `[::1`, the line breaks and the
+# full-width digits are a traceback (ValueError / InvalidURL / UnicodeEncodeError) and `--json run` prints nothing; the others die later with a
+# clean "backend not reachable" (or even work: `ftp://`, `file://` and a trailing blank are accepted). OMNIVOICE_URL was ignored by main.
+TORTAS = [
+    ("VOICESTUDIO_URL", "gpu-box", "sem-esquema"), ("OMNIVOICE_URL", "gpu-box", "sem-esquema"),
+    ("VOICESTUDIO_URL", "127.0.0.1", "so-o-host"), ("OMNIVOICE_URL", "127.0.0.1:3900", "host-e-porta-sem-esquema"),
+    ("VOICESTUDIO_URL", "localhost:3900", "localhost-e-porta"),
+    ("VOICESTUDIO_URL", "   ", "so-espacos"), ("OMNIVOICE_URL", "   ", "so-espacos"),
+    ("OMNIVOICE_URL", "ftp://127.0.0.1:21", "ftp"), ("VOICESTUDIO_URL", "file:///tmp/u22d-x", "file"),
+    ("VOICESTUDIO_URL", "http://", "sem-host"), ("OMNIVOICE_URL", "http://:3900", "sem-host-com-porta"),
+    ("VOICESTUDIO_URL", "http://127.0.0.1:abc", "porta-nao-numerica"), ("OMNIVOICE_URL", "http://127.0.0.1:99999", "porta-fora-da-faixa"),
+    ("VOICESTUDIO_URL", "http://[::1", "ipv6-aberto"),
+    ("OMNIVOICE_URL", "http://127.0.0.1:3900 ", "espaco-no-fim"), ("VOICESTUDIO_URL", "http://127.0.0.1:3900\n", "quebra-de-linha-no-fim"),
+    ("OMNIVOICE_URL", "http://127.0.0.1\n", "quebra-de-linha-sem-porta"),
+    ("VOICESTUDIO_URL", "http://127.0.0.1:３９００", "digitos-largura-total"), ("OMNIVOICE_URL", "http://münchen.example:3900", "nao-ascii"),
+    # what a mutation of the checks found missing (main: `httpx://` dies in urllib with a clean message; the three others are an InvalidURL traceback)
+    ("VOICESTUDIO_URL", "httpx://127.0.0.1:3900", "esquema-parecido"), ("OMNIVOICE_URL", "http://127.0.0.1 ", "espaco-no-fim-sem-porta"),
+    ("VOICESTUDIO_URL", "http://127.0.0.1:3900/a b", "espaco-no-caminho"), ("OMNIVOICE_URL", "http://127.0.0.1\x7f", "del-sem-porta"),
+]
+# What stays accepted: any http/https base with a host (and a numeric port if any), with a path, an IPv6 literal, an upper-case scheme. A user:password@
+# in it also stays accepted in U22d (the error text of an unreachable app still echoes the base: a question to the owner, not this letter).
+VALIDAS = [("http://127.0.0.1:3900", "padrao"), ("https://studio.example.com", "https"), ("HTTP://Studio.Local:4000", "esquema-maiusculo"),
+           ("http://[::1]:3900", "ipv6"), ("http://studio.local/voicestudio", "com-caminho"), ("http://studio.local:", "porta-vazia"),
+           ("http://user:pw@studio.local:4000", "com-usuario-e-senha")]
+
+
+@pytest.fixture(autouse=True)
+def _sem_ambiente(monkeypatch):
+    """The variables that decide the base, and the keys, belong to each test: nothing of the developer's shell leaks in."""
+    for var in (*VARIAVEIS_DA_BASE, "VOICESTUDIO_API_KEY", "OMNIVOICE_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+
+class _Resposta:
+    def __init__(self, dados: bytes = b"RIFFdata"):
+        self.dados = dados
+
+    def read(self) -> bytes:
+        return self.dados
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _Rede:
+    """`urllib.request.urlopen` replaced: each Request the provider sends is kept in `pedidos`; `falha`, when set, is raised instead of answering."""
+
+    def __init__(self):
+        self.pedidos: list = []
+        self.falha: BaseException | None = None
+
+    def urlopen(self, req, timeout=0):
+        self.pedidos.append(req)
+        if self.falha is not None:
+            raise self.falha
+        return _Resposta()
+
+
+@pytest.fixture
+def rede(monkeypatch):
+    r = _Rede()
+    monkeypatch.setattr(urllib.request, "urlopen", r.urlopen)
+    return r
+
+
+def com(monkeypatch, env: dict) -> None:
+    for nome, valor in env.items():
+        monkeypatch.setenv(nome, valor)
+
+
+def falha_de(rede: _Rede, tmp_path, erro: BaseException) -> str:
+    """The message `voicestudio()` dies with when the transport raises `erro`."""
+    rede.falha = erro
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio(S, "hello", tmp_path / "o.wav")
+    return e.value.code
+
+
+# ============================================================================================ CHANGE: the request follows the base of the voicestudio module
+
+@pytest.mark.parametrize("env,url", [
+    ({}, "http://127.0.0.1:3900/v1/audio/speech"),  # was http://localhost:3900
+    ({"VOICESTUDIO_URL": "http://studio.local:4000/"}, "http://studio.local:4000/v1/audio/speech"),  # as today
+    ({"OMNIVOICE_URL": "http://omni.local:5000/"}, "http://omni.local:5000/v1/audio/speech"),  # was ignored: went to localhost:3900
+    ({"VOICESTUDIO_PORT": "4001"}, "http://127.0.0.1:4001/v1/audio/speech"),  # was ignored
+    ({"OMNIVOICE_PORT": "4002"}, "http://127.0.0.1:4002/v1/audio/speech"),  # was ignored
+], ids=["padrao", "VOICESTUDIO_URL", "OMNIVOICE_URL", "VOICESTUDIO_PORT", "OMNIVOICE_PORT"])
+def test_the_speech_request_goes_to_the_base_of_the_voicestudio_module(monkeypatch, tmp_path, rede, env, url):
+    com(monkeypatch, env)
+    dst = tmp_path / "sub" / "o.wav"
+    voice_clone.voicestudio(S, "hello", dst)
+    (req,) = rede.pedidos
+    assert (req.get_method(), req.full_url) == ("POST", url)
+    assert dst.read_bytes() == b"RIFFdata"
+
+
+@pytest.mark.parametrize("env,onde", [
+    ({}, "http://127.0.0.1:3900"),  # was http://localhost:3900
+    ({"VOICESTUDIO_URL": "http://studio.local:4000/"}, "http://studio.local:4000"),  # as today
+    ({"OMNIVOICE_URL": "http://omni.local:5000"}, "http://omni.local:5000"),  # was http://localhost:3900
+    ({"OMNIVOICE_PORT": "4002"}, "http://127.0.0.1:4002"),  # was http://localhost:3900
+], ids=["padrao", "VOICESTUDIO_URL", "OMNIVOICE_URL", "OMNIVOICE_PORT"])
+def test_the_unreachable_message_names_the_base_in_use_with_the_same_text(monkeypatch, tmp_path, rede, env, onde):
+    com(monkeypatch, env)
+    assert falha_de(rede, tmp_path, urllib.error.URLError("refused")) == FALHA.format(onde=onde)
+
+
+# ============================================================================================ PRECEDENCE: the one of voicestudio.base_url()
+
+@pytest.mark.parametrize("env,esperado", [
+    ({"VOICESTUDIO_URL": "http://a.local:1", "OMNIVOICE_URL": "http://b.local:2"}, "http://a.local:1"),  # as today
+    ({"VOICESTUDIO_URL": "http://a.local:1", "VOICESTUDIO_PORT": "4001"}, "http://a.local:1"),  # a base beats a port
+    ({"VOICESTUDIO_URL": "http://a.local:1", "VOICESTUDIO_PORT": "abc"}, "http://a.local:1"),  # ...and the port is not even read
+    ({"OMNIVOICE_URL": "http://b.local:2", "VOICESTUDIO_PORT": "4001"}, "http://b.local:2"),
+    ({"OMNIVOICE_URL": "http://b.local:2", "OMNIVOICE_PORT": "4002"}, "http://b.local:2"),
+    ({"VOICESTUDIO_PORT": "4001", "OMNIVOICE_PORT": "4002"}, "http://127.0.0.1:4001"),  # VOICESTUDIO_PORT before OMNIVOICE_PORT
+    ({"VOICESTUDIO_PORT": "4001", "OMNIVOICE_PORT": "abc"}, "http://127.0.0.1:4001"),  # ...and the second is not even read
+    ({"VOICESTUDIO_URL": "http://a.local:1///"}, "http://a.local:1"),  # every trailing slash goes, as today
+    ({"OMNIVOICE_URL": "http://b.local:2///"}, "http://b.local:2"),
+    ({"VOICESTUDIO_PORT": " 4001 "}, "http://127.0.0.1:4001"),  # the port is trimmed
+    ({"VOICESTUDIO_PORT": "\t4001\t"}, "http://127.0.0.1:4001"),  # ...of any kind of blank (str.strip(), not strip(" "))
+    ({"OMNIVOICE_PORT": "\u00a04002\u00a0"}, "http://127.0.0.1:4002"),
+    ({"VOICESTUDIO_PORT": "1"}, "http://127.0.0.1:1"),  # the two edges of the range
+    ({"OMNIVOICE_PORT": "65535"}, "http://127.0.0.1:65535"),
+], ids=["as-duas-URLs", "URL-e-porta", "URL-e-porta-ruim", "OMNIVOICE_URL-e-VOICESTUDIO_PORT", "OMNIVOICE_URL-e-OMNIVOICE_PORT",
+        "as-duas-portas", "porta-e-porta-ruim", "barras-VOICESTUDIO_URL", "barras-OMNIVOICE_URL", "porta-com-espacos", "porta-com-tab",
+        "porta-com-nbsp", "menor-porta", "maior-porta"])
+def test_which_variable_wins_when_several_are_set(monkeypatch, env, esperado):
+    com(monkeypatch, env)
+    assert voice_clone.voicestudio_url() == esperado
+
+
+@pytest.mark.parametrize("env,esperado", [
+    ({"VOICESTUDIO_URL": ""}, "http://127.0.0.1:3900"),  # was "": the request went to the path alone and died in urllib
+    ({"VOICESTUDIO_URL": "", "OMNIVOICE_URL": "http://b.local:2"}, "http://b.local:2"),
+    ({"VOICESTUDIO_PORT": "", "OMNIVOICE_PORT": "4002"}, "http://127.0.0.1:4002"),
+], ids=["URL-vazia", "URL-vazia-e-OMNIVOICE_URL", "porta-vazia-e-OMNIVOICE_PORT"])
+def test_an_empty_variable_is_a_variable_that_is_not_set(monkeypatch, env, esperado):
+    com(monkeypatch, env)
+    assert voice_clone.voicestudio_url() == esperado
+
+
+# ============================================================================================ CHANGE: a bad port is this module's error
+
+@pytest.mark.parametrize("var,valor", [
+    ("VOICESTUDIO_PORT", "abc"), ("OMNIVOICE_PORT", "abc"), ("VOICESTUDIO_PORT", "0"), ("VOICESTUDIO_PORT", "65536"),
+    ("OMNIVOICE_PORT", "-1"), ("VOICESTUDIO_PORT", "39 00"),
+], ids=["VOICESTUDIO_PORT-abc", "OMNIVOICE_PORT-abc", "zero", "65536", "negativa", "espaco-no-meio"])
+def test_a_bad_port_is_a_clone_voice_error_with_the_text_of_the_voicestudio_module(monkeypatch, var, valor):
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert isinstance(e.value, SystemExit)  # the CLI, `--json` and the jobs catch SystemExit: a VoiceStudioError would be a traceback
+    assert e.value.code == PORTA_RUIM.format(valor=valor)
+    with pytest.raises(voicestudio.VoiceStudioError, match="porta inválida") as origem:  # the message is the one `voicestudio` always had
+        voicestudio.base_url()
+    assert PORTA_RUIM.format(valor=valor) == "provider=voicestudio: " + str(origem.value)
+
+
+@pytest.mark.parametrize("var,valor", [("VOICESTUDIO_PORT", "  "), ("OMNIVOICE_PORT", "\t"), ("VOICESTUDIO_PORT", "\u00a0")],
+                         ids=["VOICESTUDIO_PORT-espacos", "OMNIVOICE_PORT-tab", "VOICESTUDIO_PORT-nbsp"])
+def test_a_port_of_blanks_only_is_the_error_of_the_provider(monkeypatch, var, valor):
+    # main ignored the variable; voicestudio.py refuses it ('' after the trim) and only the EMPTY variable means "not set"
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == PORTA_RUIM.format(valor="")
+
+
+def test_a_bad_port_stops_before_any_request(monkeypatch, tmp_path, rede):
+    com(monkeypatch, {"VOICESTUDIO_PORT": "abc"})
+    dst = tmp_path / "sub" / "o.wav"
+    with pytest.raises(SystemExit) as e:
+        voice_clone.voicestudio(S, "hello", dst)
+    assert e.value.code == PORTA_RUIM.format(valor="abc")
+    assert rede.pedidos == [] and not dst.parent.exists()
+
+
+@pytest.mark.parametrize("var,valor", NAO_ASCII, ids=["VOICESTUDIO_PORT-sobrescrito", "OMNIVOICE_PORT-sobrescrito-3", "VOICESTUDIO_PORT-circulado",
+                                                      "OMNIVOICE_PORT-arabe", "VOICESTUDIO_PORT-largura-total", "VOICESTUDIO_PORT-3900-largura-total",
+                                                      "OMNIVOICE_PORT-3900-arabe"])
+def test_a_port_that_is_not_ascii_digits_is_the_error_of_the_provider_and_makes_no_request(monkeypatch, tmp_path, rede, var, valor):
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == PORTA_RUIM.format(valor=valor)
+    dst = tmp_path / "sub" / "o.wav"
+    with pytest.raises(voice_clone.CloneVoiceError) as e2:
+        voice_clone.voicestudio(S, "hello", dst)
+    assert e2.value.code == PORTA_RUIM.format(valor=valor)
+    assert rede.pedidos == [] and not dst.parent.exists()
+
+
+LONGAS = [("VOICESTUDIO_PORT", "9" * 4301), ("OMNIVOICE_PORT", "0" * 5000)]
+NOMES_LONGAS = ["VOICESTUDIO_PORT-4301-noves", "OMNIVOICE_PORT-5000-zeros"]
+
+
+@pytest.mark.parametrize("var,valor", LONGAS, ids=NOMES_LONGAS)
+def test_a_port_of_thousands_of_digits_is_the_error_of_the_provider_and_makes_no_request(monkeypatch, tmp_path, rede, var, valor):
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == PORTA_RUIM.format(valor=valor)
+    dst = tmp_path / "sub" / "o.wav"
+    with pytest.raises(voice_clone.CloneVoiceError) as e2:
+        voice_clone.voicestudio(S, "hello", dst)
+    assert e2.value.code == PORTA_RUIM.format(valor=valor)
+    assert rede.pedidos == [] and not dst.parent.exists()
+
+
+@pytest.mark.parametrize("var,valor", LONGAS, ids=NOMES_LONGAS)
+def test_json_run_prints_the_error_object_for_a_port_of_thousands_of_digits(monkeypatch, mini, capsys, var, valor):
+    # measured: the ValueError of int() escaped `_run_json` and `--json run` printed nothing
+    com(monkeypatch, {var: valor})
+    rc, out, _ = run_main(main, ["run", "--json", str(mini), "--provider", "voicestudio"], capsys, text_exit=True)
+    assert rc == 1
+    dados = json.loads(out)
+    assert dados["ok"] is False and dados["error"] == {"code": "RENDER_FALHOU", "message": PORTA_RUIM.format(valor=valor)}
+
+
+# ============================================================================================ CHANGE (review): a base that is not an http(s) URL with a host
+
+@pytest.mark.parametrize("var,valor,nome", TORTAS, ids=[f"{v}-{n}" for v, _, n in TORTAS])
+def test_a_base_that_is_not_an_http_url_with_a_host_is_the_error_of_the_provider_naming_the_variable(monkeypatch, tmp_path, rede, var, valor, nome):
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert isinstance(e.value, SystemExit) and e.value.code == BASE_RUIM.format(var=var)
+    dst = tmp_path / "sub" / "o.wav"
+    with pytest.raises(voice_clone.CloneVoiceError) as e2:  # no Request is built and nothing is sent: not a ValueError, not an ftp:// or file:// open
+        voice_clone.voicestudio(S, "hello", dst)
+    assert e2.value.code == BASE_RUIM.format(var=var)
+    assert rede.pedidos == [] and not dst.parent.exists()
+
+
+@pytest.mark.parametrize("env,var", [
+    ({"VOICESTUDIO_URL": "gpu-box", "OMNIVOICE_URL": "http://ok.example:1"}, "VOICESTUDIO_URL"),  # the first one set decides, even if the second is fine
+    ({"VOICESTUDIO_URL": "gpu-box", "OMNIVOICE_URL": "gpu-box"}, "VOICESTUDIO_URL"),
+    ({"VOICESTUDIO_URL": "", "OMNIVOICE_URL": "gpu-box"}, "OMNIVOICE_URL"),  # an empty one is not set
+], ids=["VOICESTUDIO_URL-torta-e-OMNIVOICE_URL-boa", "as-duas-tortas", "VOICESTUDIO_URL-vazia-e-OMNIVOICE_URL-torta"])
+def test_the_message_names_the_variable_that_decided_the_base(monkeypatch, env, var):
+    com(monkeypatch, env)
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == BASE_RUIM.format(var=var)
+
+
+def test_a_bad_OMNIVOICE_URL_is_not_even_read_when_VOICESTUDIO_URL_is_good_or_a_port_is_what_decides(monkeypatch):
+    com(monkeypatch, {"VOICESTUDIO_URL": "http://ok.example:1", "OMNIVOICE_URL": "gpu-box"})
+    assert voice_clone.voicestudio_url() == "http://ok.example:1"
+    monkeypatch.delenv("VOICESTUDIO_URL")
+    monkeypatch.delenv("OMNIVOICE_URL")
+    com(monkeypatch, {"VOICESTUDIO_PORT": "4001"})  # a base built from a port is always http://127.0.0.1:<digits>
+    assert voice_clone.voicestudio_url() == "http://127.0.0.1:4001"
+
+
+@pytest.mark.parametrize("var", ["VOICESTUDIO_URL", "OMNIVOICE_URL"])
+@pytest.mark.parametrize("valor,nome", VALIDAS, ids=[n for _, n in VALIDAS])
+def test_a_valid_base_is_still_used_as_it_is_without_its_trailing_slash(monkeypatch, var, valor, nome):
+    com(monkeypatch, {var: valor + "/"})
+    assert voice_clone.voicestudio_url() == valor
+
+
+@pytest.mark.parametrize("var,valor", [("VOICESTUDIO_URL", "gpu-box"), ("OMNIVOICE_URL", "gpu-box"), ("OMNIVOICE_URL", "   ")],
+                         ids=["VOICESTUDIO_URL-sem-esquema", "OMNIVOICE_URL-sem-esquema", "OMNIVOICE_URL-so-espacos"])
+def test_json_run_prints_the_error_object_for_a_base_that_is_not_a_url(monkeypatch, mini, capsys, var, valor):
+    # measured: the ValueError of urllib escaped `_run_json` (it catches SystemExit and FileNotFoundError) and `--json run` printed nothing
+    com(monkeypatch, {var: valor})
+    rc, out, _ = run_main(main, ["run", "--json", str(mini), "--provider", "voicestudio"], capsys, text_exit=True)
+    assert rc == 1
+    dados = json.loads(out)
+    assert dados["ok"] is False and dados["error"] == {"code": "RENDER_FALHOU", "message": BASE_RUIM.format(var=var)}
+
+
+# ============================================================================================ CHANGE: the delegation is by name, when it is called
+
+def test_voicestudio_url_asks_the_voicestudio_module_each_time_it_is_called(monkeypatch):
+    respostas = iter(["http://um.example:1", "http://dois.example:2"])
+    monkeypatch.setattr(voicestudio, "base_url", lambda: next(respostas))  # a copy of the logic, or a name bound at import, would not follow
+    assert (voice_clone.voicestudio_url(), voice_clone.voicestudio_url()) == ("http://um.example:1", "http://dois.example:2")
+
+
+def test_a_voicestudio_error_of_base_url_becomes_the_error_of_the_provider(monkeypatch):
+    def quebra():
+        raise voicestudio.VoiceStudioError("sem base")
+    monkeypatch.setattr(voicestudio, "base_url", quebra)
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == "provider=voicestudio: sem base"
+
+
+# ============================================================================================ UNCHANGED (green before and after)
+
+def test_the_local_name_stays_patchable_and_the_provider_calls_it(monkeypatch, tmp_path, rede):
+    monkeypatch.setattr(voice_clone, "voicestudio_url", lambda: "http://patched.example:9")
+    voice_clone.voicestudio(S, "hello", tmp_path / "o.wav")
+    (req,) = rede.pedidos
+    assert req.full_url == "http://patched.example:9/v1/audio/speech"
+    assert falha_de(rede, tmp_path, urllib.error.URLError("refused")) == FALHA.format(onde="http://patched.example:9")
+
+
+def test_the_body_and_the_headers_of_the_request_do_not_change(monkeypatch, tmp_path, rede):
+    com(monkeypatch, {"VOICESTUDIO_URL": "http://studio.local:4000"})
+    voice_clone.voicestudio(S, "olá", tmp_path / "o.wav")
+    (req,) = rede.pedidos
+    assert json.loads(req.data) == {"model": "omnivoice", "voice": "me", "input": "olá", "response_format": "wav"}
+    assert req.get_header("Content-type") == "application/json" and req.get_header("Authorization") is None
+
+
+def test_the_key_is_still_VOICESTUDIO_API_KEY_only_and_the_alias_stays_out_of_u22d(monkeypatch, tmp_path, rede):
+    # voicestudio.py:249 reads VOICESTUDIO_API_KEY and OMNIVOICE_API_KEY; the provider (voice_clone.py:72) reads the first only. Not in the ficha.
+    com(monkeypatch, {"OMNIVOICE_API_KEY": "so-o-alias"})
+    voice_clone.voicestudio(S, "hello", tmp_path / "o.wav")
+    com(monkeypatch, {"VOICESTUDIO_API_KEY": "a-chave"})
+    voice_clone.voicestudio(S, "hello", tmp_path / "o.wav")
+    sem_chave, com_chave = rede.pedidos
+    assert sem_chave.get_header("Authorization") is None and com_chave.get_header("Authorization") == "Bearer a-chave"
+
+
+def test_an_http_error_keeps_its_text(monkeypatch, tmp_path, rede):
+    com(monkeypatch, {"OMNIVOICE_URL": "http://omni.local:5000"})
+    erro = urllib.error.HTTPError("http://omni.local:5000/v1/audio/speech", 500, "boom", {}, io.BytesIO(b"boom"))
+    assert falha_de(rede, tmp_path, erro) == "provider=voicestudio: HTTP 500: boom"
+
+
+def test_the_provider_function_keeps_its_name():
+    # the registry (voice._gerar_voicestudio) looks `voice_clone.voicestudio` up by name when it is CALLED: the import of the module under
+    # that same name would shadow it (or be shadowed by it)
+    assert inspect.isfunction(voice_clone.voicestudio) and list(inspect.signature(voice_clone.voicestudio).parameters) == ["S", "text", "dst"]
+    assert inspect.isfunction(voice_clone.voicestudio_url) and list(inspect.signature(voice_clone.voicestudio_url).parameters) == []
+
+
+def _modulos_do_pacote(arquivo: Path) -> set[str]:
+    """The modules of simplicio_video that `arquivo` imports (at the top or inside a function): `from . import x`, `from .x import y`,
+    `from simplicio_video import x`, `from simplicio_video.x import y`, `import simplicio_video.x`."""
+    achados: set[str] = set()
+    for n in ast.walk(ast.parse(arquivo.read_text(encoding="utf8"))):
+        if isinstance(n, ast.ImportFrom):
+            partes = (n.module or "").split(".") if n.module else []
+            if n.level > 0 and partes:
+                achados.add(partes[0])
+            elif n.level > 0 or partes == ["simplicio_video"]:
+                achados.update(a.name for a in n.names)
+            elif partes[:1] == ["simplicio_video"]:
+                achados.add(partes[1])
+        elif isinstance(n, ast.Import):
+            achados.update(a.name.split(".")[1] for a in n.names if a.name.startswith("simplicio_video."))
+    return achados
+
+
+def test_voicestudio_never_reaches_voice_voice_clone_or_cli_through_the_package():
+    # voice_clone imports voicestudio; the other way round, directly or through another module, would be a cycle. The rule is "no cycle", not "no
+    # import of the package": voicestudio may import a module that needs only the standard library (U22a adds `from . import terceiros`).
+    pasta = Path(voicestudio.__file__).parent
+    visto: set[str] = set()
+    pilha = sorted(_modulos_do_pacote(Path(voicestudio.__file__)))
+    while pilha:
+        nome = pilha.pop()
+        arquivo = pasta / f"{nome}.py"
+        if nome in visto or not arquivo.is_file():
+            continue
+        visto.add(nome)
+        pilha.extend(_modulos_do_pacote(arquivo))
+    assert visto.isdisjoint({"voice", "voice_clone", "cli", "voicestudio"}), sorted(visto)
+
+
+def test_the_cycle_check_sees_the_imports_it_is_meant_to_see(tmp_path):
+    # the check above must not pass by blindness: each way of writing an import of a module of the package is read
+    codigo = ("from . import terceiros, voice\nfrom .voice_clone import x\nfrom simplicio_video import cli\nfrom simplicio_video.rede import y\n"
+              "import simplicio_video.hostos\nimport json\nfrom pathlib import Path\n\ndef f():\n    from . import media\n")
+    arquivo = tmp_path / "x.py"
+    arquivo.write_text(codigo, encoding="utf8")
+    assert _modulos_do_pacote(arquivo) == {"terceiros", "voice", "voice_clone", "cli", "rede", "hostos", "media"}

@@ -108,7 +108,7 @@ def base_url() -> str:
         return explicit.rstrip("/")
     port = os.environ.get("VOICESTUDIO_PORT") or os.environ.get("OMNIVOICE_PORT") or str(DEFAULT_PORT)
     port = port.strip()
-    if not port.isdigit() or not 0 < int(port) < 65536:
+    if not (port.isascii() and port.isdigit() and len(port) <= 9) or not 0 < int(port) < 65536:  # short: int() of 4300+ digits raises ValueError
         raise VoiceStudioError(f"porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {port!r} (esperava 1-65535)")
     return f"http://127.0.0.1:{port}"
 

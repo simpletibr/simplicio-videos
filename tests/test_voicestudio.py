@@ -123,6 +123,88 @@ def test_base_url_rejects_a_bad_port(monkeypatch):
         vs.base_url()
 
 
+# U22d: `str.isdigit()` is true for more than 0-9. '²', '³' and '①' make `int()` raise ValueError (a traceback); '٣', '３' and '３９００' pass
+# `int()` (3, 3, 3900), so the base became `http://127.0.0.1:٣` and http.client died in UnicodeEncodeError on the Host header. A port is ASCII
+# digits only: anything else is refused like a letter is, with the same text.
+NAO_ASCII = ["²", "³", "①", "٣", "３", "３９００", "٣٩٠٠"]
+NOMES_NAO_ASCII = ["sobrescrito-2", "sobrescrito-3", "circulado-1", "arabe-3", "largura-total-3", "largura-total-3900", "arabe-3900"]  # ids without escapes
+
+
+@pytest.mark.parametrize("var", ["VOICESTUDIO_PORT", "OMNIVOICE_PORT"])
+@pytest.mark.parametrize("valor", NAO_ASCII, ids=NOMES_NAO_ASCII)
+def test_base_url_rejects_a_port_that_is_not_ascii_digits_like_a_letter(monkeypatch, var, valor):
+    monkeypatch.setenv(var, valor)
+    with pytest.raises(vs.VoiceStudioError) as e:
+        vs.base_url()
+    assert str(e.value) == f"porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)"
+
+
+@pytest.mark.parametrize("valor", ["²", "٣", "３９００"], ids=["sobrescrito-2", "arabe-3", "largura-total-3900"])
+def test_the_command_says_so_for_a_port_that_is_not_ascii_digits_instead_of_a_traceback(monkeypatch, capsys, fake, valor):  # `fake`: no real transport, even when red
+    monkeypatch.setenv("VOICESTUDIO_PORT", valor)
+    rc, out, err = _run(["status"], capsys)
+    assert (rc, out) == (1, "")
+    assert err == f"voicestudio: porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)\n"
+
+
+# U22d (review): an ASCII port of thousands of digits made `int()` raise ValueError ("Exceeds the limit (4300 digits) for integer string conversion"):
+# a traceback, and `--json run` printed nothing. A port is 1 to 5 digits (leading zeros aside): a longer text is refused like any bad port, before `int()`.
+LONGAS = ["9" * 4301, "0" * 5000]
+NOMES_LONGAS = ["4301-noves", "5000-zeros"]
+
+
+@pytest.mark.parametrize("var", ["VOICESTUDIO_PORT", "OMNIVOICE_PORT"])
+@pytest.mark.parametrize("valor", LONGAS, ids=NOMES_LONGAS)
+def test_base_url_rejects_a_port_of_thousands_of_digits_like_any_bad_port(monkeypatch, var, valor):
+    monkeypatch.setenv(var, valor)
+    with pytest.raises(vs.VoiceStudioError) as e:
+        vs.base_url()
+    assert str(e.value) == f"porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)"
+
+
+@pytest.mark.parametrize("valor", LONGAS, ids=NOMES_LONGAS)
+def test_the_command_says_so_for_a_port_of_thousands_of_digits_instead_of_a_traceback(monkeypatch, capsys, fake, valor):
+    monkeypatch.setenv("VOICESTUDIO_PORT", valor)
+    rc, out, err = _run(["status"], capsys)
+    assert (rc, out) == (1, "")
+    assert err == f"voicestudio: porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)\n"
+
+
+# U22d (review): holes the reviewer's mutation found in the port checks: `strip(" ")` for `strip()`, `1 < port` for `0 < port`, `< 65535` for `< 65536`.
+@pytest.mark.parametrize("var", ["VOICESTUDIO_PORT", "OMNIVOICE_PORT"])
+@pytest.mark.parametrize("valor", ["\t4001\t", "\u00a04001\u00a0", " \t\n4001\r "], ids=["tab", "nbsp", "mistura"])
+def test_base_url_trims_every_kind_of_blank_around_the_port(monkeypatch, var, valor):
+    monkeypatch.setenv(var, valor)
+    assert vs.base_url() == "http://127.0.0.1:4001"
+
+
+@pytest.mark.parametrize("valor,esperado", [("1", "http://127.0.0.1:1"), ("65535", "http://127.0.0.1:65535")], ids=["menor-porta", "maior-porta"])
+def test_base_url_accepts_the_two_edges_of_the_port_range(monkeypatch, valor, esperado):
+    monkeypatch.setenv("VOICESTUDIO_PORT", valor)
+    assert vs.base_url() == esperado
+
+
+@pytest.mark.parametrize("valor", ["0", "65536"], ids=["zero", "65536"])
+def test_base_url_rejects_the_first_ports_outside_the_range(monkeypatch, valor):
+    monkeypatch.setenv("VOICESTUDIO_PORT", valor)
+    with pytest.raises(vs.VoiceStudioError) as e:
+        vs.base_url()
+    assert str(e.value) == f"porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)"
+
+
+@pytest.mark.parametrize("valor", ["  ", "\t", "\u00a0", " \t\n"], ids=["espacos", "tab", "nbsp", "mistura"])
+def test_a_port_of_blanks_only_is_refused_and_only_the_empty_variable_means_not_set(monkeypatch, valor):
+    monkeypatch.setenv("VOICESTUDIO_PORT", valor)
+    with pytest.raises(vs.VoiceStudioError) as e:
+        vs.base_url()
+    assert str(e.value) == "porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: '' (esperava 1-65535)"
+    monkeypatch.setenv("OMNIVOICE_PORT", "4002")  # a variable of blanks is set: it does not hand over to the alias
+    with pytest.raises(vs.VoiceStudioError):
+        vs.base_url()
+    monkeypatch.setenv("VOICESTUDIO_PORT", "")  # the EMPTY one is the one that is not set
+    assert vs.base_url() == "http://127.0.0.1:4002"
+
+
 # ---- MCP handshake and typed tools -------------------------------------------------------------------------------
 
 def test_status_initializes_the_session_and_parses_json_text(fake):

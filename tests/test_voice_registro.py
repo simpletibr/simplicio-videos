@@ -566,10 +566,11 @@ def test_voicestudio_errors_name_the_backend(tmp_path, monkeypatch):
 
     def boom(req, timeout=0):
         raise urllib.error.HTTPError(req.full_url, 500, "boom", {}, io.BytesIO(b"boom"))
-    monkeypatch.delenv("VOICESTUDIO_URL", raising=False)
+    for var in ("VOICESTUDIO_URL", "OMNIVOICE_URL", "VOICESTUDIO_PORT", "OMNIVOICE_PORT"):  # U22d: the default base reads the four
+        monkeypatch.delenv(var, raising=False)
     monkeypatch.setattr(urllib.request, "urlopen", down)
     assert _erro(tmp_path / "a", "voicestudio", {"voicestudio": {}}) == (
-        "provider=voicestudio: backend not reachable at http://localhost:3900 (refused). Start VoiceStudio or set VOICESTUDIO_URL.")
+        "provider=voicestudio: backend not reachable at http://127.0.0.1:3900 (refused). Start VoiceStudio or set VOICESTUDIO_URL.")
     monkeypatch.setattr(urllib.request, "urlopen", boom)
     assert _erro(tmp_path / "b", "voicestudio", {"voicestudio": {}}) == "provider=voicestudio: HTTP 500: boom"
 
