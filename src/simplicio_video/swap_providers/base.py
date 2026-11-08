@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..redact import scrub as redact  # the one redactor of the engine (every shape of a key, every credential of the environment), under this module's name
 from . import http
 
 # Reference exchange rate, kept apart from the USD prices so R$ can be shown next to US$.
@@ -19,16 +20,12 @@ FX = {"brl_per_usd": 5.0521, "source": "PTAX de 2026-10-15 (Banco Central do Bra
 UNVERIFIED = "UNVERIFIED"
 
 
-KEY_PATTERN = re.compile(r"AIzaSy[A-Za-z0-9_-]{25,}|AQ\.[A-Za-z0-9_.-]{30,}")  # Google API key and OAuth-style token shapes
-
-
-def redact(text: str) -> str:
-    """Hide anything shaped like an API key, whether or not it is in the environment."""
-    return KEY_PATTERN.sub("***", text)
-
-
 class SwapError(Exception):
-    pass
+    """A swap failure. A text message goes through the redactor when the error is created (as BuscaError and OpenverseError do), so no
+    credential leaves through `str(error)`, whoever prints it."""
+
+    def __init__(self, *args):
+        super().__init__(*(redact(a) if isinstance(a, str) else a for a in args))
 
 
 class ProviderError(SwapError):
