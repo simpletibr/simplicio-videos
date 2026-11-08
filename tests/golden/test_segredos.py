@@ -610,3 +610,40 @@ def test_only_a_value_that_is_a_url_with_a_password_makes_a_proxy_a_credential(m
     monkeypatch.setenv("NO_PROXY", "http://user:pw5678@proxy.local")  # a lista de exceções nunca guarda senha
     assert redact.scrub("x ver http://user:pw1234@proxy.local:3128 no manual y") == "x ver http://user:pw1234@proxy.local:3128 no manual y"
     assert redact.scrub("x http://user:pw5678@proxy.local y") == "x http://user:pw5678@proxy.local y"
+
+
+# ---------------------------------------------------------------------------------------------- o custo: a lista de valores pedida uma vez por tarefa
+
+def test_scrub_hides_only_the_values_it_is_given_when_it_is_given_some(monkeypatch):
+    # o laço que limpa linha a linha (o `_pump` do jobs) pede `secret_values()` uma vez e a passa: ler as ~175 variáveis a cada linha custa 20x o que custava
+    from simplicio_video import redact
+    monkeypatch.setenv("GITHUB_TOKEN", "valor-do-ambiente-1234")
+    assert redact.scrub("x valor-do-ambiente-1234 y", values=[]) == "x valor-do-ambiente-1234 y"
+    assert redact.scrub("x valor-do-ambiente-1234 y", values=["valor-do-ambiente-1234"]) == "x *** y"
+    assert redact.scrub("x valor-do-ambiente-1234 y") == "x *** y"  # sem `values`, o ambiente de agora
+    assert redact.scrub("x AKIA" + corpo(16, "Q7Z") + " y", values=[]) == "x *** y"  # o formato esconde com ou sem lista
+
+
+def test_the_jobs_pump_reads_the_environment_once_and_still_hides_a_credential_in_every_line(monkeypatch, tmp_path):
+    import asyncio
+    from simplicio_video import redact
+
+    class Fluxo:
+        def __init__(self, *blocos):
+            self.blocos = list(blocos)
+
+        async def read(self, n):
+            return self.blocos.pop(0) if self.blocos else b""
+
+    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(tmp_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "valor-do-ambiente-1234")
+    chamadas = []
+    original = redact.secret_values
+    monkeypatch.setattr(redact, "secret_values", lambda: chamadas.append(1) or original())
+    jid = "20261016-000000-0feedbee"
+    jobs.job_dir(jid).mkdir(parents=True)
+    saida = b"".join(b"linha %d com valor-do-ambiente-1234 e AKIA%s\n" % (i, corpo(16, "Q7Z").encode()) for i in range(300))
+    asyncio.run(jobs._pump(Fluxo(saida), jid, {"tail": [], "json": None}))
+    linhas = jobs.read_log(jid).splitlines()
+    assert len(linhas) == 300 and linhas[0] == "linha 0 com *** e ***" and linhas[299] == "linha 299 com *** e ***"
+    assert len(chamadas) == 1  # antes (e sem isto): uma por linha, 300
