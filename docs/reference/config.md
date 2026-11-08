@@ -31,7 +31,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `OPENCUT_DIR` | Pasta do OpenCut, lida pelo próprio editor (trilha `opencut`). | `src/simplicio_video/opencut.py:64` |
 | `OPENMONTAGE_DATA_DIR` | Pasta do venv do OpenMontage (padrão: `~/.simplicio-video/openmontage-data`); um caminho relativo vira absoluto a partir da pasta atual, com aviso. | `src/simplicio_video/montage.py:175`<br>`src/simplicio_video/montage.py:39` |
 | `OPENMONTAGE_DIR` | Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage. | `src/simplicio_video/montage.py:39`<br>`src/simplicio_video/montage.py:47` |
-| `OPENVERSE_LIBRARY_DIR` | Pasta da biblioteca do Openverse: `index.json`, `files/<sha256>`, `cache/` e `sheets/` (padrão: `~/.simplicio-video/openverse-library`). | `src/simplicio_video/openverse.py:193` |
+| `OPENVERSE_LIBRARY_DIR` | Pasta da biblioteca do Openverse: `index.json`, `files/<sha256>`, `cache/` e `sheets/` (padrão: `~/.simplicio-video/openverse-library`). | `src/simplicio_video/openverse.py:189` |
 | `OPENVOICE_CHECKPOINTS` | Pasta dos checkpoints do OpenVoice (provider `openvoice`). | `src/simplicio_video/voice_clone.py:52` |
 | `OPENVOICE_PY` | Python com o OpenVoice instalado (provider `openvoice`). | `src/simplicio_video/voice_clone.py:51` |
 | `PATH` | Lista de pastas de executáveis do sistema. Lida, não configurada pelo produto. O `doctor` procura `simplicio`, `node` e `ffmpeg` só nas pastas absolutas dela, nunca no diretório atual. | `src/simplicio_video/commands/doctor.py:146`<br>`src/simplicio_video/engine/remote_render.py:178`<br>`src/simplicio_video/tools.py:540` |
@@ -41,7 +41,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `REA_VIDEO_DATA_DIR` | Pasta de dados da trilha rea-video: o venv próprio e o estado do upstream (padrão: `~/.simplicio-video/rea-video-data`, fora do checkout). | `src/simplicio_video/rea_video.py:63` |
 | `REA_VIDEO_DIR` | Checkout do rea-video (alternativa a `SIMPLICIO_TOOLS_DIR/rea_video`). | `src/simplicio_video/rea_video.py:63` |
 | `REA_VIDEO_PYTHON` | Interpretador que cria o venv do rea-video no `setup`, por exemplo `python3.11` para o extra de OCR. Um venv que já existe é mantido. | `src/simplicio_video/rea_video.py:133` |
-| `SIMPLICIO_BUSCA_MAX_DIA` | Teto de chamadas ao TinyFish por dia UTC no `busca` (padrão 20; máximo 1000). `--max-chamadas-dia` vence. O MCP e o plugin só usam este valor ou o padrão. | `src/simplicio_video/busca.py:359` |
+| `SIMPLICIO_BUSCA_MAX_DIA` | Teto de chamadas ao TinyFish por dia UTC no `busca` (padrão 20; máximo 1000). `--max-chamadas-dia` vence. O MCP e o plugin só usam este valor ou o padrão. | `src/simplicio_video/busca.py:339` |
 | `SIMPLICIO_COLAB_AUTH` | Modo de autenticação do Colab CLI, repassado a `--auth`. | `src/simplicio_video/remote.py:183`<br>`src/simplicio_video/remote.py:184` |
 | `SIMPLICIO_DRIVE_REMOTE` | Nome do remote do rclone para o Drive (padrão: `gdrive`). | `src/simplicio_video/publish.py:109` |
 | `SIMPLICIO_FFMPEG_DIR` | Pasta do ffmpeg/ffprobe fixados (render local e `swap`). | `src/simplicio_video/mediaio.py:36` |
@@ -69,7 +69,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `SV_QUALITY` | Qualidade do render remoto: `draft`, `looks` ou `delivery`. | `src/simplicio_video/engine/remote_render.py:223` |
 | `SV_SKIP_SETUP` | `1` pula a instalação de dependências do render remoto. | `src/simplicio_video/engine/remote_render.py:205` |
 | `SV_WORKERS` | Workers do HyperFrames no render: `auto` (padrão) ou um inteiro. | `src/simplicio_video/render.py:191`<br>`src/simplicio_video/render.py:91` |
-| `TINYFISH_API_KEY` | Chave da API do TinyFish, lida só pelo binário `tinyfish` (que também a guarda em `~/.tinyfish/config.json`). O `busca` a repassa ao binário se estiver no ambiente e nunca a lê, imprime nem grava; nunca em argumento. | `src/simplicio_video/busca.py:1131`<br>`src/simplicio_video/busca.py:185` |
+| `TINYFISH_API_KEY` | Chave da API do TinyFish, lida só pelo binário `tinyfish` (que também a guarda em `~/.tinyfish/config.json`). O `busca` a repassa ao binário se estiver no ambiente e nunca a lê, imprime nem grava; nunca em argumento. | `src/simplicio_video/busca.py:1111` |
 | `TOONFLOW_DATA_DIR` | Pasta de dados do servidor Toonflow (padrão: `~/.simplicio-video/toonflow-data`, fora do checkout). | `src/simplicio_video/toonflow.py:62` |
 | `TOONFLOW_DIR` | Checkout do Toonflow (alternativa a `SIMPLICIO_TOOLS_DIR/toonflow`). | `src/simplicio_video/toonflow.py:62` |
 | `VIDEO_TO_SKILL_DIR` | Checkout do video-to-skill (alternativa a `SIMPLICIO_TOOLS_DIR/video_to_skill`). O binário `vts-extract` fica à parte, em `SIMPLICIO_TOOLS_DIR/video-to-skill-bin`. | `src/simplicio_video/video_to_skill.py:516` |
