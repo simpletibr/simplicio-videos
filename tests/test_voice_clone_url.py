@@ -164,8 +164,13 @@ def test_the_unreachable_message_names_the_base_in_use_with_the_same_text(monkey
     ({"VOICESTUDIO_URL": "http://a.local:1///"}, "http://a.local:1"),  # every trailing slash goes, as today
     ({"OMNIVOICE_URL": "http://b.local:2///"}, "http://b.local:2"),
     ({"VOICESTUDIO_PORT": " 4001 "}, "http://127.0.0.1:4001"),  # the port is trimmed
+    ({"VOICESTUDIO_PORT": "\t4001\t"}, "http://127.0.0.1:4001"),  # ...of any kind of blank (str.strip(), not strip(" "))
+    ({"OMNIVOICE_PORT": "\u00a04002\u00a0"}, "http://127.0.0.1:4002"),
+    ({"VOICESTUDIO_PORT": "1"}, "http://127.0.0.1:1"),  # the two edges of the range
+    ({"OMNIVOICE_PORT": "65535"}, "http://127.0.0.1:65535"),
 ], ids=["as-duas-URLs", "URL-e-porta", "URL-e-porta-ruim", "OMNIVOICE_URL-e-VOICESTUDIO_PORT", "OMNIVOICE_URL-e-OMNIVOICE_PORT",
-        "as-duas-portas", "porta-e-porta-ruim", "barras-VOICESTUDIO_URL", "barras-OMNIVOICE_URL", "porta-com-espacos"])
+        "as-duas-portas", "porta-e-porta-ruim", "barras-VOICESTUDIO_URL", "barras-OMNIVOICE_URL", "porta-com-espacos", "porta-com-tab",
+        "porta-com-nbsp", "menor-porta", "maior-porta"])
 def test_which_variable_wins_when_several_are_set(monkeypatch, env, esperado):
     com(monkeypatch, env)
     assert voice_clone.voicestudio_url() == esperado
@@ -196,6 +201,16 @@ def test_a_bad_port_is_a_clone_voice_error_with_the_text_of_the_voicestudio_modu
     with pytest.raises(voicestudio.VoiceStudioError, match="porta inválida") as origem:  # the message is the one `voicestudio` always had
         voicestudio.base_url()
     assert PORTA_RUIM.format(valor=valor) == "provider=voicestudio: " + str(origem.value)
+
+
+@pytest.mark.parametrize("var,valor", [("VOICESTUDIO_PORT", "  "), ("OMNIVOICE_PORT", "\t"), ("VOICESTUDIO_PORT", "\u00a0")],
+                         ids=["VOICESTUDIO_PORT-espacos", "OMNIVOICE_PORT-tab", "VOICESTUDIO_PORT-nbsp"])
+def test_a_port_of_blanks_only_is_the_error_of_the_provider(monkeypatch, var, valor):
+    # main ignored the variable; voicestudio.py refuses it ('' after the trim) and only the EMPTY variable means "not set"
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == PORTA_RUIM.format(valor="")
 
 
 def test_a_bad_port_stops_before_any_request(monkeypatch, tmp_path, rede):
