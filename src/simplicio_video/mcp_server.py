@@ -245,6 +245,9 @@ def video_clone(args: str = "", argv: list[str] | None = None, cmd: Literal[_CMD
     argv = _argv(args, argv, cmd, _CMD_CLONE)
     if not mcp_policy.hypit_permitido(argv):
         return {"ok": False, "error": mcp_policy.hypit_recusa(argv)}
+    erro = mcp_policy.hypit_escrita_recusada(argv)
+    if erro:
+        return {"ok": False, "error": erro}
     return _cli(["clone", *argv])
 
 
@@ -773,7 +776,7 @@ def _erro_shorts(argv: list[str]) -> str | None:
     if sub in mcp_policy.SAIDA_OBRIGATORIA["video.shorts"] and not {"-o", "--out"} & vals.keys():
         return (f"shorts {sub}: informe -o/--out com caminho absoluto (sem padrão no MCP: o plano e os cortes iriam para shorts/, "
                 "na pasta onde o servidor foi iniciado)")
-    return None
+    return mcp_policy.saida_em_lugar_seguro(argv, vals, nome="shorts", chaves=("-o", "--out"))
 
 
 _CMD_MEDIA = mcp_policy.verbos_mcp("video.media")
@@ -793,13 +796,14 @@ def video_media(args: list[str] | str = "", argv: list[str] | None = None, cmd: 
 
 def _erro_media(argv: list[str]) -> str | None:
     """The media output rule on the CLI's own parse (media.parse_argv, the same words). A help request writes nothing and is left to the CLI."""
-    if not argv or any(h in argv[1:] for h in ("-h", "--help")):
+    if not argv or mcp_policy.media_pede_ajuda(argv):
         return None
     try:
         _, vals = media.parse_argv(argv[1:])
     except media.MediaError:
         vals = None  # the CLI's own parse rejects these words before anything runs (e.g. a trailing --json): only the spelling is checked
-    return mcp_policy.saida_absoluta_nova(argv, vals, nome="media", chaves=("-o",))
+    return (mcp_policy.saida_absoluta_nova(argv, vals, nome="media", chaves=("-o",))
+            or mcp_policy.saida_em_lugar_seguro(argv, vals, nome="media", chaves=("-o",)))
 
 
 _CMD_QC = mcp_policy.verbos_mcp("video.qc")
@@ -870,6 +874,9 @@ def video_install(args: list[str] | str = "", argv: list[str] | None = None) -> 
                                           "sem isso a pasta seria a de onde o servidor MCP foi iniciado"}
         if tem_alvo and not Path(alvo).is_absolute():
             return {"ok": False, "error": "install: --target precisa ser um caminho absoluto"}
+        erro = mcp_policy.escrita_recusada(alvo, "install: a pasta de --target") if tem_alvo else None
+        if erro:
+            return {"ok": False, "error": erro}
     return _cli(["install", "--json", *argv], codigos_ok=(0, 10))
 
 

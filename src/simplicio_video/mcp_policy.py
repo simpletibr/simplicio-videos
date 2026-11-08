@@ -15,6 +15,13 @@ is in neither the table nor the list is refused by the track itself, with its ow
 The rest is the gate that every path and every output option goes through (`caminho_seguro`, `saida_absoluta_nova`), the closed allow-list
 of the Hypit tool, and the policy of `edit` (what it asks of an output, the colour filters `grade` takes). The wrappers in mcp_server.py
 call these and return what they say.
+
+WHERE THE MCP WRITES. A path the CLI will write at (the `-o` of media, shorts and edit, the folder of the EDL of `edit render` and the
+`EDIT_DIR` of `edit pack`, the `--to` of Hypit's `get` and `media`, the `--target` of `install`) is absolute with no `..` (`caminho_seguro`)
+and then goes through ONE more rule, `escrita_recusada`: it does not land in a place the engine refuses to write (`terceiros.lugar_proibido`:
+a system folder, an auto-start folder, a hidden folder of the home, a `.git`, the engine's own code, tools and data, site-packages, a venv) and
+no name on the way to it is a link (the chain is walked as `rea_video._plain_path` walks it). Each tool says which of its arguments are such
+paths; none of them carries a copy of the rule. The rule is asked AFTER every refusal a tool always had, so those keep their words.
 """
 from __future__ import annotations
 
@@ -23,6 +30,7 @@ import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from . import terceiros
 from .edit import GRADE_READ_ONLY, filter_values, output_values
 
 
@@ -176,9 +184,82 @@ def caminho_seguro(p: str) -> bool:
     return os.path.isabs(p) and ".." not in Path(p).parts
 
 
+# ---- where the MCP lets a tool write: ONE rule for every path a tool hands to the CLI to write at ---------------------------------------
+_DICA = "escolha uma pasta sua (a do projeto, /tmp ou o home fora das pastas ocultas)"
+
+
+def _mostra(texto: str) -> str:
+    """A path as a refusal shows it: escaped (a name on disk can hold a control or a bidirectional character) and cut."""
+    return repr(texto if len(texto) <= 120 else texto[:117] + "...")
+
+
+def elo_simbolico(caminho: str) -> str | None:
+    """The first name on the way to the absolute `caminho`, from the root down, that is a link (a dangling one too), or None. The chain is
+    walked as `rea_video._plain_path` walks it: the path as written, one more name at a time. A name that does not exist is not a link,
+    and nothing below it exists either."""
+    partes = Path(caminho).parts
+    atual = Path(partes[0])
+    for parte in partes[1:]:
+        atual = atual / parte
+        if os.path.islink(atual):
+            return str(atual)
+    return None
+
+
+def escrita_recusada(valor: str, quem: str) -> str | None:
+    """Why the MCP does not let the CLI write at `valor`, in the words of the refusal (`quem` opens it: "media: saída"), or None.
+
+    `valor` is absolute with no `..` (`caminho_seguro`; the caller refused any other with its own words, and one that gets here anyway is
+    refused). Where it really lands (links resolved, `//` and `.` gone) is not a place the engine refuses to write (`terceiros.lugar_proibido`,
+    the one rule of the tracks; the reason is its words), and no name on the way to it is a link: a link is followed by the CLI to wherever it
+    points, which the client does not control. When both hold, the place is what is said, and the real path comes with it. A path with a NUL is
+    left alone: no file has one, and the CLI fails on its own, as it always did. Never raises: what cannot be checked is refused."""
+    if not caminho_seguro(valor):
+        return f"{quem} {_mostra(valor)}: precisa ser um caminho absoluto, sem `..` (o MCP não grava em caminho relativo nem com `..`)"
+    if "\0" in valor:
+        return None
+    try:
+        real = terceiros.real(valor)
+        motivo = terceiros.lugar_proibido(real) if real is not None else None
+    except OSError:  # Python < 3.13: `is_file()` raises on a folder the server may not search. The CLI would fail there too: a refusal, not a crash
+        return f"{quem} {_mostra(valor)}: não consegui conferir o caminho (uma pasta dele não pode ser lida); o MCP só grava onde consegue conferir"
+    if motivo:
+        onde = f" (o caminho real é {_mostra(str(real))})" if str(real) != valor else ""
+        return f"{quem} {_mostra(valor)}: o MCP não grava {motivo}{onde}; {_DICA}"
+    elo = elo_simbolico(valor)
+    if elo is not None:
+        quem_e = "é um link simbólico" if Path(elo) == Path(valor) else f"{_mostra(elo)} é um link simbólico"
+        seria = f" (o caminho real seria {_mostra(str(real))})" if real is not None else ""
+        return f"{quem} {_mostra(valor)}: {quem_e}; o MCP só grava em caminho real, sem link em nenhuma pasta do caminho{seria}"
+    if real is None:
+        return f"{quem} {_mostra(valor)}: não consegui resolver o caminho; o MCP só grava em caminho real"
+    return None
+
+
+def saida_em_lugar_seguro(argv: list[str], flags: dict | None = None, *, nome: str, chaves: tuple[str, ...] = ()) -> str | None:
+    """The second half of the output rule of media, shorts and edit, asked after every refusal they always had (those keep their words):
+    each output is a place the MCP lets the CLI write at, or the refusal. The outputs are what `output_values` reads (every spelling the
+    CLI takes, up to a `--`) and, for media and shorts, what the CLI's own parse reads as `chaves` (`flags`, the dict that parse builds):
+    after a `--` and a word it swallows (`-- x -o /etc/y`) `-o` is still an option to that parse, and `output_values` does not look there.
+    `nome` opens the refusal ("media", "edit render")."""
+    valores = [*output_values(argv), *(flags[chave] for chave in chaves if flags is not None and chave in flags)]
+    for valor in valores:
+        erro = escrita_recusada(valor, f"{nome}: saída")
+        if erro:
+            return erro
+    return None
+
+
 def pede_ajuda(argv: list[str]) -> bool:
     """`-h` or `--help` in the argument list: the help of the command is what the caller asked for (see INSTRUCTIONS in mcp_server)."""
     return any(t in AJUDA for t in argv)
+
+
+def media_pede_ajuda(argv: list[str]) -> bool:
+    """`-h` or `--help` as `media` reads it, with the subcommand first: help only BEFORE the first `--` (`media.run_media` stops looking there;
+    after it they are words, and the call runs). Not `pede_ajuda`: that one sees a `-h` after the `--` and would let the call through."""
+    corte = argv.index("--") if "--" in argv else len(argv)
+    return pede_ajuda(argv[1:corte])
 
 
 def clone_com_pasta(argv: list[str], ajuda_passa: bool = False) -> bool:
@@ -263,6 +344,22 @@ def edit_recusa(argv: list[str]) -> str | None:
         for f in filter_values(rest):
             if not colour_filter_ok(f):
                 return so_terminal("video.edit", POLITICA["video.edit"]["grade"])
+    return None if leitura else _edit_escrita_recusada(sub, rest)
+
+
+def _edit_escrita_recusada(sub: str, rest: list[str]) -> str | None:
+    """What `edit_recusa` asks last, after every refusal it always had: the places `edit` writes at are places the MCP lets the CLI write at
+    (see `escrita_recusada`): each output, the folder of the EDL of `render` (its intermediates go beside it; the upstream resolves a link
+    there) and the `EDIT_DIR` of `pack` (it writes takes_packed.md into it)."""
+    if sub in SAIDA_OBRIGATORIA["video.edit"]:
+        erro = saida_em_lugar_seguro(rest, nome=f"edit {sub}")
+        if erro:
+            return erro
+    onde = {"render": "a pasta do EDL", "pack": "a pasta EDIT_DIR"}.get(sub)
+    for valor in rest[:1] if onde else ():  # the first word: the refusals above saw to it that it is there and absolute
+        erro = escrita_recusada(valor, f"edit {sub}: {onde}")
+        if erro:
+            return erro
     return None
 
 
@@ -273,9 +370,12 @@ _MEDIA_CAMINHO = ("--to", "--ranges", "--transcript")  # options whose value is 
 _MEDIA_FLAG = ("--json", "--label-time", "--every-frame", "--debug", "--verbose", "--no-color")
 
 
-def _media_permitido(resto: list[str]) -> bool:
+def _media_ler(resto: list[str]) -> list[str] | None:
+    """The words of a Hypit `media` verb read against the allow-list: the values of `--to` (where the verb writes), or None when a word is
+    not on the list. The one walk of those words: `_media_permitido` and `hypit_destinos` both read it."""
     if "--help" in resto:
-        return True  # Hypit prints help before it reads anything else
+        return []  # Hypit prints help before it reads anything else
+    destinos: list[str] = []
     i = 0
     while i < len(resto):
         t = resto[i]
@@ -285,15 +385,21 @@ def _media_permitido(resto: list[str]) -> bool:
             i += 2
         elif t in _MEDIA_CAMINHO:
             if i + 1 >= len(resto) or not caminho_seguro(resto[i + 1]):
-                return False
+                return None
+            if t == "--to":
+                destinos.append(resto[i + 1])
             i += 2
         elif t.startswith("--"):
-            return False  # unknown option, or the `--opt=value` form
+            return None  # unknown option, or the `--opt=value` form
         else:
             if not caminho_seguro(t):
-                return False
+                return None
             i += 1
-    return True
+    return destinos
+
+
+def _media_permitido(resto: list[str]) -> bool:
+    return _media_ler(resto) is not None
 
 
 def hypit_permitido(argv: list[str]) -> bool:
@@ -319,3 +425,24 @@ def hypit_recusa(argv: list[str]) -> str:
     if "--watch" in argv:
         return so_terminal("video.clone", tabela["--watch"], resto=" ".join(argv))
     return so_terminal("video.clone", verbo("video.clone", argv[0] if argv else "(vazio)"))
+
+
+def hypit_destinos(argv: list[str]) -> list[str]:
+    """The places an argument list that `hypit_permitido` accepted lets Hypit write at: the `--to` of `get` (the export of one Output) and of
+    the `media` verbs (cut, frames, tile, tiles, boundaries). Nothing else of the allow-list writes."""
+    if argv[:1] == ["get"]:
+        return [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--to"]
+    if argv[:1] == ["media"]:
+        return _media_ler(argv[2:]) or []
+    return []
+
+
+def hypit_escrita_recusada(argv: list[str]) -> str | None:
+    """The refusal of an argument list `hypit_permitido` accepted, when a place Hypit writes at is one the MCP does not let the CLI write at
+    (see `escrita_recusada`), or None."""
+    quem = f"clone {' '.join(argv[:2] if argv[:1] == ['media'] else argv[:1])}: o destino --to"
+    for valor in hypit_destinos(argv):
+        erro = escrita_recusada(valor, quem)
+        if erro:
+            return erro
+    return None
