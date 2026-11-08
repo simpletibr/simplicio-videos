@@ -755,3 +755,54 @@ def test_mcp_description_states_the_new_rules_and_the_result_contract():
     d = mcp_server.DESC_video_voicestudio
     for word in ("loopback", "rc", "já existe", "absolut"):
         assert word in d, word
+
+
+# ---- U22j: the local app is reached even when the environment has a proxy ---------------------------------------------------------------
+
+
+@pytest.mark.allow_hosts(["127.0.0.1", "::1", "localhost"])
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost"])
+def test_default_transport_reaches_the_local_app_and_not_the_proxy_of_the_environment(monkeypatch, host):
+    """RED before U22j: with `http_proxy` in the environment every call to the app (`status`, `voices`, `dub create`...) went to the proxy, with
+    the Bearer key and the JSON-RPC body in the clear, and the app heard nothing: the user was told the app was not reachable."""
+    import os
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    app_ouviu, proxy_ouviu = [], []
+
+    class App(BaseHTTPRequestHandler):
+        def do_POST(self):
+            app_ouviu.append((self.path, self.headers.get("Authorization"), self.rfile.read(int(self.headers["Content-Length"])).decode()))
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"ok": true}')
+
+        def log_message(self, *a):
+            pass
+
+    class Proxy(BaseHTTPRequestHandler):
+        def do_POST(self):
+            proxy_ouviu.append((self.path, self.headers.get("Authorization"), self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode()))
+            self.send_response(403)
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    app, proxy = HTTPServer(("127.0.0.1", 0), App), HTTPServer(("127.0.0.1", 0), Proxy)
+    for srv in (app, proxy):
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    for nome in list(os.environ):
+        if nome.lower().endswith("_proxy"):
+            monkeypatch.delenv(nome)
+    monkeypatch.setenv("http_proxy", f"http://127.0.0.1:{proxy.server_port}")
+    try:
+        status, _, corpo = vs.default_transport("POST", f"http://{host}:{app.server_port}/mcp/", b'{"input": "fala confidencial"}',
+                                                {"Authorization": "Bearer S3CR3T-vs", "Content-Type": "application/json"}, 5)
+    finally:
+        app.shutdown()
+        proxy.shutdown()
+    assert proxy_ouviu == []
+    assert (status, corpo) == (200, b'{"ok": true}')
+    assert app_ouviu == [("/mcp/", "Bearer S3CR3T-vs", '{"input": "fala confidencial"}')]

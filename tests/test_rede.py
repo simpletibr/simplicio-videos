@@ -538,7 +538,8 @@ primeiro, pedidos_do_primeiro = servidor({"/vai": (302, {"Location": outro + "/c
 v = {}
 r = rede.request("GET", primeiro + "/vai", headers={"Authorization": "Bearer segredo"}, follow_redirects=False)
 v["sem_seguir"] = [r.status, r.headers["location"] == outro + "/chegou", len(pedidos_do_primeiro), len(pedidos_do_outro)]
-v["handler_e_o_publico"] = len(usados) == 1 and usados[0] is rede.NoRedirect
+v["handler_e_o_publico"] = (len(usados) == 2 and isinstance(usados[0], urllib.request.ProxyHandler) and usados[0].proxies == {}
+                            and usados[1] is rede.NoRedirect)  # U22j: the server is on loopback, so no proxy; the redirect handler is the public class
 r = rede.request("GET", primeiro + "/vai")
 v["seguindo"] = [r.status, r.body.decode(), len(pedidos_do_outro)]
 print(json.dumps(v))
@@ -1117,3 +1118,310 @@ def test_the_modules_that_send_a_key_open_their_urls_through_urlopen_seguro(arqu
     """RED before U22i: they called `urllib.request.urlopen`."""
     nomes = _nomes_de(PACOTE / arquivo)
     assert "urlopen_seguro" in nomes and "urlopen" not in nomes
+
+
+# ---- U22j: a LOOPBACK destination never goes through a proxy -----------------------------------------------------------------------
+#
+# urllib honours `http_proxy`/`https_proxy`/`no_proxy` of the environment, and `no_proxy` only matches the NAMES it lists (no CIDR, no
+# `127.0.0.1` for `localhost`, no `[::1]`). With a proxy in the environment, a call to the local app (VoiceStudio on `http://127.0.0.1:3900`, the
+# mock of Gemini on `http://localhost:PORT`) went to the proxy, with the key and the text of the speech in the clear, and the app heard
+# nothing. A proxy never reaches the loopback of its client, so `request` and `urlopen_seguro` open a loopback destination WITHOUT a proxy
+# (`ProxyHandler({})`); every other destination keeps exactly the opener it had. `eh_loopback` is the one place that says what loopback is,
+# and it is STRICT: the host that decides is the real one (never a user name, a fragment or a prefix), no name is resolved, and what is not
+# plainly written is not loopback. tests/golden/test_loopback_sem_proxy.py runs it all against a live fake proxy; the tests below pin the
+# definition and the shape of the opener, without a socket.
+
+# (what it is, destination) of every destination that IS this machine
+LOOPBACK_DE_VERDADE = [
+    ("127.0.0.1 com porta", "http://127.0.0.1:3900"),
+    ("127.0.0.1 sem porta", "http://127.0.0.1"),
+    ("127.0.0.1 com caminho, consulta e fragmento", "http://127.0.0.1:3900/v1/audio/speech?x=1#f"),
+    ("127.0.0.1 com a porta vazia", "http://127.0.0.1:/x"),
+    ("https", "https://127.0.0.1:3900"),
+    ("esquema em maiusculas", "HTTP://127.0.0.1:3900"),
+    ("o esquema nao importa", "ftp://localhost/"),
+    ("127.0.0.2", "http://127.0.0.2:3900"),
+    ("o fim de 127.0.0.0/8", "http://127.255.255.255"),
+    ("o meio de 127.0.0.0/8", "http://127.1.2.3:80"),
+    ("localhost", "http://localhost:8080"),
+    ("LOCALHOST", "http://LOCALHOST"),
+    ("LocalHost", "http://LocalHost:1"),
+    ("localhost. (ponto final)", "http://localhost.:8080"),
+    ("LOCALHOST. (ponto final)", "http://LOCALHOST.:1/x"),
+    ("::1", "http://[::1]:3900"),
+    ("::1 sem porta", "http://[::1]"),
+    ("::1 por extenso", "http://[0:0:0:0:0:0:0:1]:9"),
+    ("::1 com zeros a esquerda", "http://[::0001]/"),
+    ("::1 por https", "https://[::1]/"),
+    ("IPv4 mapeado", "http://[::ffff:127.0.0.1]:9"),
+    ("IPv4 mapeado em hexadecimal", "http://[::ffff:7f00:1]/"),
+    ("IPv4 mapeado em maiusculas", "http://[::FFFF:127.0.0.1]"),
+    ("IPv4 mapeado no meio de 127.0.0.0/8", "http://[::ffff:127.9.9.9]"),
+    ("espacos em volta", " http://127.0.0.1:3900 "),
+    ("so o host: 127.0.0.1", "127.0.0.1"),
+    ("so o host: localhost", "localhost"),
+    ("so o host: LOCALHOST.", "LOCALHOST."),
+    ("so o host: ::1 (o que urlsplit(...).hostname devolve)", "::1"),
+    ("so o host: [::1]", "[::1]"),
+    ("so o host: IPv4 mapeado", "::ffff:127.0.0.1"),
+    ("so o host com porta", "127.0.0.1:3900"),
+    ("so o host localhost com porta", "localhost:3900"),
+    ("so o host [::1] com porta", "[::1]:3900"),
+    ("so o host com espacos em volta", " localhost "),
+]
+
+# the same, for what is NOT this machine: remote, written to look like loopback, or not plainly written
+NAO_E_LOOPBACK = [
+    ("host remoto", "https://api.example/"),
+    ("outro IP publico", "http://8.8.8.8"),
+    ("IP privado", "http://10.0.0.1:3900"),
+    ("outro IP privado", "http://192.168.0.5"),
+    ("link-local da nuvem", "http://169.254.169.254"),
+    ("0.0.0.0 (nao e loopback)", "http://0.0.0.0:3900"),
+    ("[::] (nao e loopback)", "http://[::]:9"),
+    ("[fe80::1]", "http://[fe80::1]"),
+    ("128.0.0.1, logo fora de 127.0.0.0/8", "http://128.0.0.1"),
+    ("126.255.255.255, logo fora de 127.0.0.0/8", "http://126.255.255.255"),
+    ("IPv4 mapeado de um IP remoto", "http://[::ffff:8.8.8.8]/"),
+    # what only LOOKS like loopback: the real host (the one urllib connects to, and a proxy reads) decides
+    ("usuario que parece o host: 127.0.0.1@evil.example", "http://127.0.0.1@evil.example/"),
+    ("usuario que parece o host: localhost@evil.example", "http://localhost@evil.example"),
+    ("usuario que parece o host: [::1]@evil.example", "http://[::1]@evil.example"),
+    ("usuario com porta", "http://127.0.0.1:80@evil.example"),
+    ("usuario e senha no loopback (o urllib nem conecta assim)", "http://user:pw@127.0.0.1:3900/"),
+    ("o host so aparece no fragmento", "http://evil.example#@127.0.0.1/"),
+    ("o host so aparece na consulta", "http://evil.example?@127.0.0.1/"),
+    ("barra invertida depois do host remoto", "http://evil.example\\@127.0.0.1/"),
+    ("barra invertida depois do loopback", "http://127.0.0.1\\@evil.example/"),
+    ("127.0.0.1 como prefixo de um nome", "http://127.0.0.1.evil.example/"),
+    ("localhost como prefixo de um nome", "http://localhost.evil.example/"),
+    ("LOCALHOST como prefixo de um nome", "http://LOCALHOST.EVIL.EXAMPLE/"),
+    ("127. como prefixo de um nome", "http://127.evil.example/"),
+    ("termina em localhost", "http://evillocalhost/"),
+    ("comeca por localhost", "http://localhostevil/"),
+    ("subdominio de localhost (so o nome localhost vale)", "http://sub.localhost/"),
+    ("127.0.0.1 seguido de letras", "http://127.0.0.1evil.example"),
+    ("escape percentual no fim do IP", "http://127.0.0.1%2eevil.example/"),
+    ("localhost escrito com escapes", "http://%6c%6f%63%61%6c%68%6f%73%74/"),
+    ("escape nulo", "http://127.0.0.1%00.evil.example/"),
+    ("porta que nao e numero", "http://127.0.0.1:abc/"),
+    ("porta com sinal (o int() do http.client aceitaria)", "http://127.0.0.1:+80/"),
+    ("porta com digitos arabes", "http://127.0.0.1:\u0668\u0660/"),
+    ("duas portas", "http://127.0.0.1:80:90/"),
+    ("lixo depois dos colchetes", "http://[::1]junk/"),
+    ("colchete sem fim", "http://[::1/"),
+    ("colchete sem comeco", "http://::1]/"),
+    ("IPv6 sem colchetes na URL", "http://::1/"),
+    ("IPv4 entre colchetes", "http://[127.0.0.1]/"),
+    ("::1 com escopo escapado", "http://[::1%25lo]/"),
+    ("::1 com escopo", "http://[::1%lo]/"),
+    ("::1 com escopo, so o host", "::1%lo"),
+    ("localhost em largura total (so o ASCII vale)", "http://\uff4c\uff4f\uff43\uff41\uff4c\uff48\uff4f\uff53\uff54/"),
+    ("quebra de linha no meio do host", "http://127.0.0.1\n.evil.example/"),
+    ("tabulacao no host", "http://127.0.0.1\t/"),
+    ("espaco no meio do host", "http://local host/"),
+    ("byte nulo", "http://127.0.0.1\x00/"),
+    ("espaco no caminho", "http://127.0.0.1:3900/a b"),
+    # not a destination at all
+    ("vazio", ""),
+    ("so espacos", "   "),
+    ("sem host", "http://"),
+    ("sem host e com caminho", "http:///x"),
+    ("so um caminho", "/v1/audio/speech"),
+    ("arquivo", "file:///etc/passwd"),
+    ("esquema relativo (o urllib recusa)", "//127.0.0.1/"),
+    ("so o esquema", "http:"),
+    ("so o host: nome qualquer", "evil.example"),
+    ("so o host: IPv6 que nao e loopback", "fe80::1"),
+    ("so o host: lixo com dois pontos", "1:2:3"),
+    ("so o host: IP com porta duplicada", "127.0.0.1:80:90"),
+]
+
+# LIMIT (documented, on purpose): the spellings of 127.0.0.1 that only the resolver of the system reads (short, decimal, hexadecimal, octal,
+# leading zeros, a final dot after an address, a name that a public DNS answers with 127.0.0.1) are NOT recognised, because `eh_loopback` does
+# not resolve anything and Python's `ipaddress` does not read them. They go the way they always went (the proxy of the environment, if there is
+# one): `voice.gemini_base()` (U22c) refuses them for the Gemini key, and nobody writes them in `VOICESTUDIO_URL`. Changing this is a decision,
+# so it is written down here.
+ESCRITAS_QUE_SO_O_RESOLVEDOR_LE = [
+    "http://127.1/", "http://2130706433/", "http://0x7f.0.0.1/", "http://0177.0.0.1/", "http://127.0.0.01/", "http://017700000001/",
+    "http://127.0.0.1./", "http://127.0.0.1.nip.io/", "http://localhost%2e/",
+]
+
+
+@pytest.mark.parametrize("porque,destino", LOOPBACK_DE_VERDADE, ids=[p for p, _ in LOOPBACK_DE_VERDADE])
+def test_eh_loopback_reconhece_o_que_e_esta_maquina(porque, destino):
+    """RED before U22j (`eh_loopback` does not exist): 127.0.0.0/8, ::1, `localhost` and `localhost.` in any case, the IPv4-mapped ones, as a URL
+    or as a bare host."""
+    assert _rede().eh_loopback(destino) is True, porque
+
+
+@pytest.mark.parametrize("porque,destino", NAO_E_LOOPBACK, ids=[p for p, _ in NAO_E_LOOPBACK])
+def test_eh_loopback_so_diz_sim_quando_o_host_de_verdade_e_esta_maquina(porque, destino):
+    """RED before U22j: a remote destination, a remote destination dressed up as loopback and what is not plainly written is not loopback."""
+    assert _rede().eh_loopback(destino) is False, porque
+
+
+@pytest.mark.parametrize("destino", ESCRITAS_QUE_SO_O_RESOLVEDOR_LE)
+def test_eh_loopback_nao_le_as_escritas_exoticas_de_127_0_0_1_e_diz_isso(destino):
+    """RED before U22j. The documented limit: `eh_loopback` reads what `ipaddress` reads and resolves no name, so these keep the opener they had."""
+    assert _rede().eh_loopback(destino) is False
+
+
+@pytest.mark.parametrize("valor", [None, 127, 1.5, b"http://127.0.0.1", bytearray(b"localhost"), ["http://127.0.0.1"], ("localhost",), {"host": "localhost"},
+                                   object(), True], ids=lambda v: type(v).__name__)
+def test_eh_loopback_de_um_valor_que_nao_e_texto_e_falso(valor):
+    """RED before U22j: a destination that is not a string is not loopback (it never raises: the opener of a call must not fail on its choice)."""
+    assert _rede().eh_loopback(valor) is False
+
+
+def test_eh_loopback_de_lixo_nunca_levanta():
+    """RED before U22j: whatever string it is given, it answers (False for all of these) and raises nothing."""
+    lixo = ["[" * 5000, "http://" + "[" * 5000, "http://" + "a" * 100000, "http://" + ":" * 500, "[::1" * 300, "%" * 4000,
+            "http://[" + "::" * 3000 + "]/", "\x00" * 50, "http://\udcff/", "\ud800", "http://127.0.0.1:" + "9" * 5000,
+            "http://[::ffff:" + "1" * 400 + "]/", "://", "a://", "://127.0.0.1", "http://@", "http://@@@/", "http://[]/"]
+    assert [_rede().eh_loopback(x) for x in lixo] == [False] * len(lixo)
+
+
+def test_eh_loopback_e_uma_funcao_pura_que_nao_carrega_a_pilha_de_rede():
+    """RED before U22j: `eh_loopback` reads text; it does not import urllib, socket, ssl or http.client (and nothing is resolved or opened)."""
+    entradas = [d for _, d in LOOPBACK_DE_VERDADE + NAO_E_LOOPBACK]
+    codigo = _PRELUDIO + "import json\nfrom simplicio_video import rede\nentradas = json.loads(%r)\n" % json.dumps(entradas) + """
+resultado = [rede.eh_loopback(e) for e in entradas]
+print(json.dumps({"carregados": sorted(m for m in sys.modules if m.split(".")[0] in %r), "verdadeiros": sum(resultado)}))
+""" % sorted(PILHA_DE_REDE)
+    v = _processo_limpo(codigo)
+    assert v["carregados"] == [] and v["verdadeiros"] == len(LOOPBACK_DE_VERDADE)
+
+
+def test_eh_loopback_le_o_ipv4_mapeado_como_o_ipv4_que_ele_carrega():
+    """RED before U22j. `ipaddress.IPv6Address('::ffff:127.0.0.1').is_loopback` is False before Python 3.13 and True from it; the answer of
+    `eh_loopback` is the same on every version because the IPv4-mapped address is read as the IPv4 address it carries."""
+    verdades = {texto: _rede().eh_loopback(f"http://[{texto}]/") for texto in ("::ffff:127.0.0.1", "::ffff:7f00:1", "::ffff:8.8.8.8", "::ffff:10.0.0.1")}
+    assert verdades == {"::ffff:127.0.0.1": True, "::ffff:7f00:1": True, "::ffff:8.8.8.8": False, "::ffff:10.0.0.1": False}
+
+
+class _ProxiesDoOpener:
+    """The end of the way into urllib, like `_Abertura`, but it writes down what the opener has for a proxy: `OpenerDirector.open` is replaced,
+    and the opener it was called on is REAL (the one `build_opener` made, with whatever the environment says), so what is asserted is the proxies
+    the call would have used, and no socket is opened."""
+
+    def __init__(self, monkeypatch, resposta=None):
+        self.abertas = []
+        outer = self
+        resposta = resposta if resposta is not None else _Resposta(200, b"ok")
+
+        def abre(opener, fullurl, data=None, timeout=None):
+            outer.abertas.append({"proxies": [h.proxies for h in opener.handlers if isinstance(h, urllib.request.ProxyHandler)],
+                                  "handlers": [type(h) for h in opener.handlers], "req": fullurl, "timeout": timeout})
+            return resposta
+
+        monkeypatch.setattr(urllib.request.OpenerDirector, "open", abre)
+
+
+def _com_proxy_no_ambiente(monkeypatch, no_proxy=None) -> dict:
+    """An environment with a proxy for http and for https (and `no_proxy`, if given), and no other proxy variable of any case. Returns what
+    `ProxyHandler().proxies` is then: urllib keeps `no_proxy` in the same dict, under "no"."""
+    for nome in list(os.environ):
+        if nome.lower().endswith("_proxy"):
+            monkeypatch.delenv(nome)
+    monkeypatch.setenv("http_proxy", "http://proxy.example:3128")
+    monkeypatch.setenv("https_proxy", "http://proxy.example:3128")
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+    if no_proxy is None:
+        return dict(PROXIES_DO_AMBIENTE)
+    monkeypatch.setenv("no_proxy", no_proxy)
+    return {**PROXIES_DO_AMBIENTE, "no": no_proxy}
+
+
+PROXIES_DO_AMBIENTE = {"http": "http://proxy.example:3128", "https": "http://proxy.example:3128"}
+DESTINOS_LOOPBACK_DO_OPENER = ["http://127.0.0.1:3900/x", "http://localhost:3900/x", "http://[::1]:3900/x", "https://127.0.0.1:3900/x",
+                               "http://LOCALHOST.:3900/x", "http://127.0.0.2:3900/x", "http://[::ffff:127.0.0.1]:3900/x"]
+DESTINOS_REMOTOS_DO_OPENER = ["https://api.example/x", "http://studio.invalid:3900/x", "http://127.0.0.1.evil.example/x",
+                              "http://127.0.0.1@evil.example/x", "http://evil.example#@127.0.0.1/x", "http://localhost.evil.example:3900/x",
+                              "http://10.0.0.1:3900/x", "http://0.0.0.0:3900/x", "http://127.1:3900/x"]
+
+
+@pytest.mark.parametrize("url", DESTINOS_LOOPBACK_DO_OPENER)
+@pytest.mark.parametrize("seguir", [True, False], ids=["segue", "nao-segue"])
+def test_request_para_loopback_abre_sem_proxy_mesmo_com_proxy_no_ambiente(monkeypatch, url, seguir):
+    """RED before U22j: `request` opened it with the proxies of the environment. Now the opener it uses has one proxy handler, and it is empty;
+    the redirect handler is the one the call asked for (`StripCredentialsRedirect`, or `NoRedirect` when it does not follow)."""
+    _com_proxy_no_ambiente(monkeypatch)
+    aberta = _ProxiesDoOpener(monkeypatch)
+    _rede().request("GET", url, follow_redirects=seguir)
+    (uma,) = aberta.abertas
+    assert uma["proxies"] == [{}]
+    esperado = _rede().StripCredentialsRedirect if seguir else _rede().NoRedirect
+    assert esperado in uma["handlers"] and urllib.request.HTTPRedirectHandler not in uma["handlers"]
+
+
+@pytest.mark.parametrize("url", DESTINOS_REMOTOS_DO_OPENER)
+@pytest.mark.parametrize("seguir", [True, False], ids=["segue", "nao-segue"])
+def test_request_para_o_que_nao_e_loopback_continua_com_os_proxies_do_ambiente(monkeypatch, url, seguir):
+    """GREEN before and after: a destination that is not loopback (however much it looks like it) is opened with the proxies of the environment,
+    exactly as it was."""
+    do_ambiente = _com_proxy_no_ambiente(monkeypatch)
+    aberta = _ProxiesDoOpener(monkeypatch)
+    _rede().request("GET", url, follow_redirects=seguir)
+    (uma,) = aberta.abertas
+    assert uma["proxies"] == [do_ambiente]
+
+
+@pytest.mark.parametrize("url", DESTINOS_LOOPBACK_DO_OPENER)
+def test_urlopen_seguro_para_loopback_abre_sem_proxy_mesmo_com_proxy_no_ambiente(monkeypatch, url):
+    """RED before U22j: the same, for the callers that keep their own errors (voice, voice_clone, voicestudio)."""
+    _com_proxy_no_ambiente(monkeypatch)
+    aberta = _ProxiesDoOpener(monkeypatch)
+    _rede().urlopen_seguro(urllib.request.Request(url, headers={"Authorization": "Bearer S3CR3T"}), timeout=3)
+    (uma,) = aberta.abertas
+    assert uma["proxies"] == [{}] and _rede().StripCredentialsRedirect in uma["handlers"]
+
+
+@pytest.mark.parametrize("url", DESTINOS_REMOTOS_DO_OPENER)
+def test_urlopen_seguro_para_o_que_nao_e_loopback_continua_com_os_proxies_do_ambiente(monkeypatch, url):
+    """GREEN before and after."""
+    do_ambiente = _com_proxy_no_ambiente(monkeypatch)
+    aberta = _ProxiesDoOpener(monkeypatch)
+    _rede().urlopen_seguro(urllib.request.Request(url), timeout=3)
+    (uma,) = aberta.abertas
+    assert uma["proxies"] == [do_ambiente] and _rede().StripCredentialsRedirect in uma["handlers"]
+
+
+def test_urlopen_seguro_decide_pela_url_tambem_quando_recebe_o_texto_e_nao_o_pedido(monkeypatch):
+    """RED before U22j: `urlopen` takes a URL or a Request, and so does `urlopen_seguro`; the destination is read from either."""
+    do_ambiente = _com_proxy_no_ambiente(monkeypatch)
+    aberta = _ProxiesDoOpener(monkeypatch)
+    _rede().urlopen_seguro("http://127.0.0.1:3900/x", timeout=3)
+    _rede().urlopen_seguro("https://api.example/x", timeout=3)
+    assert [a["proxies"] for a in aberta.abertas] == [[{}], [do_ambiente]]
+
+
+@pytest.mark.parametrize("no_proxy", ["*", "localhost,127.0.0.1", "127.0.0.0/8,localhost", "api.example"])
+def test_o_destino_decide_sozinho_o_no_proxy_do_ambiente_nao_muda_nem_o_loopback_nem_o_resto(monkeypatch, no_proxy):
+    """RED before U22j for the loopback half (a `no_proxy` that does not name the destination left it on the proxy): with any `no_proxy`, a
+    loopback destination has no proxy, and a remote one has the proxies of the environment (`no_proxy` is urllib's own business for it, applied
+    when the request is sent, so the handler is the same)."""
+    do_ambiente = _com_proxy_no_ambiente(monkeypatch, no_proxy=no_proxy)
+    aberta = _ProxiesDoOpener(monkeypatch)
+    _rede().request("GET", "http://127.0.0.1:3900/x")
+    _rede().request("GET", "https://api.example/x")
+    assert [a["proxies"] for a in aberta.abertas] == [[{}], [do_ambiente]]
+
+
+def test_cada_chamada_escolhe_o_seu_opener_pela_propria_url(monkeypatch):
+    """RED before U22j: the opener is built per call and chosen by the URL of that call; one call to loopback does not make the next one
+    (to a remote host) skip the proxy, nor the other way round."""
+    do_ambiente = _com_proxy_no_ambiente(monkeypatch)
+    aberta = _ProxiesDoOpener(monkeypatch)
+    for url in ("https://api.example/a", "http://127.0.0.1:3900/b", "https://api.example/c", "http://localhost:3900/d", "http://localhost:3900/e"):
+        _rede().request("GET", url)
+    assert [a["proxies"] for a in aberta.abertas] == [[do_ambiente], [{}], [do_ambiente], [{}], [{}]]
+
+
+def test_request_para_loopback_continua_recusando_no_modo_offline(monkeypatch):
+    """GREEN before and after: loopback is not an exception to SIMPLICIO_OFFLINE for `request` (it refuses before it picks an opener)."""
+    aberta = _ProxiesDoOpener(monkeypatch)
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    with pytest.raises(_rede().NetworkError) as caught:
+        _rede().request("GET", "http://127.0.0.1:3900/x")
+    assert str(caught.value) == "SIMPLICIO_OFFLINE=1: rede bloqueada" and aberta.abertas == []

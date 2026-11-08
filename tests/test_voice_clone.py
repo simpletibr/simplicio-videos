@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -79,3 +80,64 @@ def test_voicestudio_http(monkeypatch, tmp_path):
     voice_clone.voicestudio({"model": "omnivoice", "voice": "me"}, "hello", out)
     srv.shutdown()
     assert seen["path"] == "/v1/audio/speech" and seen["body"]["voice"] == "me" and out.read_bytes() == b"RIFFdata"
+
+
+# ---- U22j: the local app is reached even when the environment has a proxy ---------------------------------------------------------------
+
+
+def _quem_ouviu(monkeypatch):
+    """A local app and a local PROXY, both recording what they are asked, and an environment whose only proxy is that one (no `no_proxy` at all:
+    what urllib would send to a proxy, it sends to this one). Returns (app port, what the app heard, what the proxy heard, stop)."""
+    app_ouviu, proxy_ouviu = [], []
+
+    class App(BaseHTTPRequestHandler):
+        def do_POST(self):
+            app_ouviu.append((self.path, self.headers.get("Authorization"), json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"RIFFdata")
+
+        def log_message(self, *a):
+            pass
+
+    class Proxy(BaseHTTPRequestHandler):
+        def do_POST(self):  # a proxy that is handed a call to the loopback of its client: it cannot make it, and it has read it all
+            corpo = self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode()
+            proxy_ouviu.append((self.path, self.headers.get("Authorization"), corpo))
+            self.send_response(403)
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    app, proxy = HTTPServer(("127.0.0.1", 0), App), HTTPServer(("127.0.0.1", 0), Proxy)
+    for srv in (app, proxy):
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    for nome in list(os.environ):
+        if nome.lower().endswith("_proxy"):
+            monkeypatch.delenv(nome)
+    monkeypatch.setenv("http_proxy", f"http://127.0.0.1:{proxy.server_port}")
+    monkeypatch.setenv("VOICESTUDIO_API_KEY", "S3CR3T-vs")
+
+    def parar():
+        app.shutdown()
+        proxy.shutdown()
+
+    return app.server_port, app_ouviu, proxy_ouviu, parar
+
+
+@pytest.mark.allow_hosts(["127.0.0.1", "::1", "localhost"])
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost"])
+def test_voicestudio_reaches_the_local_app_and_not_the_proxy_of_the_environment(monkeypatch, tmp_path, host):
+    """RED before U22j: with `http_proxy` in the environment the call went to the proxy, with the Bearer key and the text of the speech in the
+    clear, and the app heard nothing (`localhost` too: `no_proxy` was not set, and a `no_proxy` that does not list the host does not help)."""
+    porta, app_ouviu, proxy_ouviu, parar = _quem_ouviu(monkeypatch)
+    monkeypatch.setenv("VOICESTUDIO_URL", f"http://{host}:{porta}")
+    out = tmp_path / "o.wav"
+    try:
+        voice_clone.voicestudio({"model": "omnivoice", "voice": "me"}, "fala confidencial", out)
+    finally:
+        parar()
+    assert proxy_ouviu == []
+    assert [(c, a, b["input"]) for c, a, b in app_ouviu] == [("/v1/audio/speech", "Bearer S3CR3T-vs", "fala confidencial")]
+    assert out.read_bytes() == b"RIFFdata"
