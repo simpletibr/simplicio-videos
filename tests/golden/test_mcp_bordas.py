@@ -178,15 +178,21 @@ def test_what_a_job_result_file_hides_of_the_environment_and_of_key_shapes(sem_c
     ("http://localhost:8080/v1beta", "http://localhost:8080/v1beta", "http://localhost:8080/v1beta"),
     ("http://127.0.0.1:8080", "http://127.0.0.1:8080", "http://127.0.0.1:8080"),
     ("http://[::1]:8080", "http://[::1]:8080", "http://[::1]:8080"),
-    # U22 decide: voice.gemini_base() não valida nada, e `voice` manda a chave GEMINI_API_KEY em x-goog-api-key para essa base
-    ("http://example.com/v1beta", "http://example.com/v1beta", "SwapError"),
-    ("http://10.0.0.5:9000", "http://10.0.0.5:9000", "SwapError"),
-    ("ftp://example.com/x", "ftp://example.com/x", "SwapError"),
-    ("file:///tmp/mock", "file:///tmp/mock", "SwapError"),
+    # U22 decide (feito em U22c): antes voice.gemini_base() não validava nada, e `voice` mandava a chave GEMINI_API_KEY em x-goog-api-key para essa
+    # base; agora recusa o que o adaptador recusa (VoiceError). O id de cada caso fica o de antes (a base na 2ª coluna): nenhum id some do coletor.
+    pytest.param("http://example.com/v1beta", "VoiceError", "SwapError", id="http://example.com/v1beta-http://example.com/v1beta-SwapError"),
+    pytest.param("http://10.0.0.5:9000", "VoiceError", "SwapError", id="http://10.0.0.5:9000-http://10.0.0.5:9000-SwapError"),
+    pytest.param("ftp://example.com/x", "VoiceError", "SwapError", id="ftp://example.com/x-ftp://example.com/x-SwapError"),
+    pytest.param("file:///tmp/mock", "VoiceError", "SwapError", id="file:///tmp/mock-file:///tmp/mock-SwapError"),
 ])
 def test_voice_gemini_base_accepts_what_the_swap_adapter_refuses(monkeypatch, valor, voice_devolve, swap_devolve):
+    # o nome é de antes de U22c (voice aceitava o que o adaptador recusa); fica, para o id do teste não mudar
     monkeypatch.setenv("SIMPLICIO_GEMINI_BASE", valor)
-    assert voice.gemini_base() == voice_devolve
+    if voice_devolve == "VoiceError":
+        with pytest.raises(voice.VoiceError, match=r"^provider=gemini: SIMPLICIO_GEMINI_BASE precisa ser https \(http só em localhost\): a chave não vai em texto claro$"):
+            voice.gemini_base()
+    else:
+        assert voice.gemini_base() == voice_devolve
     adaptador = swap_gemini.GeminiAdapter()
     if swap_devolve == "SwapError":
         with pytest.raises(swap_base.SwapError, match=r"^SIMPLICIO_GEMINI_BASE precisa ser https \(http só em localhost\): a chave não vai em texto claro$"):
@@ -232,18 +238,111 @@ def test_the_provider_choices_of_voice_and_run_and_the_registry_and_the_schema_d
     enum_do_contrato = esquema["properties"]["voz"]["properties"]["provider"]["enum"]
     registro = list(voice.PROVIDERS)
     assert registro == enum_do_contrato == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
-    # U22 decide: nenhuma das duas CLIs aceita audio8, que o contrato e o registro aceitam
-    assert opcoes_provider("voice") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "elevenlabs", "xai"]
-    assert opcoes_provider("run") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio"]
-    assert "audio8" not in opcoes_provider("voice") and "audio8" not in opcoes_provider("run")
-    assert set(opcoes_provider("voice")) - set(opcoes_provider("run")) == {"elevenlabs", "xai"}  # `voice` aceita os dois stubs que sempre falham
+    # U22e decidiu (OK do dono): as duas aceitam o registro inteiro, na ordem dele (a de `list voices` e a do schema). Os stubs ficam nas duas: `voice.run` os recusa, com o motivo de sempre
+    # (o G0 registrava aqui, antes da U22e: "U22 decide: nenhuma das duas CLIs aceita audio8, que o contrato e o registro aceitam")
+    assert opcoes_provider("voice") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
+    assert opcoes_provider("run") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
+    assert "audio8" in opcoes_provider("voice") and "audio8" in opcoes_provider("run")
+    assert set(opcoes_provider("voice")) - set(opcoes_provider("run")) == set()  # era {"elevenlabs", "xai"}: `voice` aceitava os dois stubs que sempre falham e `run` não
+    assert opcoes_provider("voice") == opcoes_provider("run") == registro == enum_do_contrato  # o nome do teste é do G0, que registrou a divergência: hoje as quatro fontes concordam
 
 
+# (o nome é do G0: hoje `voice` e `run` aceitam os dois; o teste prende o que `voice.run` faz com eles, a recusa de sempre)
 @pytest.mark.parametrize("prov", ["elevenlabs", "xai"])
 def test_the_two_stub_providers_voice_accepts_always_fail(prov):
     contrato = SimpleNamespace(data={"voz": {"provider": "file"}})
     with pytest.raises(voice.VoiceError, match=f"provider={prov}: stub in simplicio-video v0.2"):
         voice.run(contrato, provider=prov)
+
+
+# U22e: o que o parser e o motor fazem com cada nome do registro depois que as duas CLIs o aceitam inteiro
+NOMES_DO_REGISTRO = ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
+STUB = "provider={}: stub in simplicio-video v0.2 - generate the takes elsewhere, drop them in the file dir and use --provider file"
+
+
+def le_provider(comando: str, valor: str, flag: str = "--provider"):
+    """O que o parser entende de `<comando> contract.yaml <flag> <valor>` (SystemExit(2) quando recusa)."""
+    return cli.build_parser().parse_args([comando, "contract.yaml", flag, valor])
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+@pytest.mark.parametrize("prov", NOMES_DO_REGISTRO)
+def test_the_parser_of_voice_and_of_run_takes_every_provider_of_the_registry(comando, prov):
+    # U22e: antes nenhuma das duas aceitava audio8, e `run` recusava também os dois stubs
+    assert le_provider(comando, prov).provider == prov
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+def test_the_short_flag_takes_the_same_providers(comando):
+    assert le_provider(comando, "audio8", "-p").provider == "audio8"
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+def test_the_parser_refuses_a_provider_outside_the_registry_and_gives_the_whole_registry(comando, capsys):
+    with pytest.raises(SystemExit) as e:
+        le_provider(comando, "nope")
+    assert e.value.code == 2
+    err = capsys.readouterr().err
+    assert "argument --provider/-p: invalid choice: 'nope'" in err
+    assert "{" + ",".join(NOMES_DO_REGISTRO) + "}" in err  # a linha de uso dá a lista inteira, na ordem do registro
+
+
+def test_the_flag_the_catalog_of_voices_and_the_registry_are_one_list():
+    from simplicio_video import catalog
+
+    assert [v["id"] for v in catalog.voices()] == opcoes_provider("voice") == opcoes_provider("run") == list(voice.PROVIDERS)
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+@pytest.mark.parametrize("prov", ["elevenlabs", "xai"])
+def test_a_stub_provider_passes_the_parser_of_both_and_is_refused_by_voice_with_todays_reason(mini, comando, prov):
+    with pytest.raises(SystemExit) as e:
+        cli.main([comando, str(mini), "--provider", prov])
+    assert e.value.code == STUB.format(prov)
+    assert not (mini.parent / "timing.lock.json").exists()
+
+
+@pytest.mark.parametrize("prov", ["elevenlabs", "xai"])
+def test_run_json_tells_a_stub_like_any_other_voice_failure(mini, prov, capsys):
+    assert cli.main(["run", str(mini), "--provider", prov, "--json"]) == 1
+    saida = json.loads(capsys.readouterr().out)
+    assert saida["ok"] is False and saida["error"] == {"code": "RENDER_FALHOU", "message": STUB.format(prov)}
+
+
+def test_audio8_goes_from_the_voice_command_to_voice_run(mini, monkeypatch):
+    visto: dict = {}
+    monkeypatch.setattr(voice, "run", lambda c, **kw: visto.update(kw))
+    assert cli.main(["voice", str(mini), "--provider", "audio8"]) == 0
+    assert visto["provider"] == "audio8"
+
+
+def test_audio8_goes_from_the_run_command_to_the_pipeline(mini, monkeypatch):
+    from simplicio_video import pipeline
+
+    visto: dict = {}
+    monkeypatch.setattr(pipeline, "run_all", lambda contrato, **kw: visto.update(kw))
+    assert cli.main(["run", str(mini), "--provider", "audio8"]) == 0
+    assert visto["provider"] == "audio8"
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+def test_without_the_flag_the_provider_stays_with_the_contract(mini, monkeypatch, comando):
+    from simplicio_video import pipeline
+
+    visto: dict = {}
+    monkeypatch.setattr(voice, "run", lambda c, **kw: visto.update(kw))
+    monkeypatch.setattr(pipeline, "run_all", lambda contrato, **kw: visto.update(kw))
+    assert cli.build_parser().parse_args([comando, "contract.yaml"]).provider is None
+    assert cli.main([comando, str(mini)]) == 0
+    assert visto["provider"] is None  # `voice.run` e `run_all` resolvem pelo `voz.provider` do contrato
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+@pytest.mark.parametrize("nome", ["Gemini", "GEMINI", "audio-8", "audio8 ", "", "all"])
+def test_the_parser_matches_the_names_of_the_registry_exactly(comando, nome):
+    with pytest.raises(SystemExit) as e:
+        le_provider(comando, nome)
+    assert e.value.code == 2
 
 
 # ============================================================================================ (f) o limite de recursos do filho
