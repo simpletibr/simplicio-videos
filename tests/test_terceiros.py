@@ -704,3 +704,44 @@ def test_a_sonda_pula_a_pasta_que_o_disco_nao_consulta_e_olha_a_de_cima(lugares)
     (lugares.work / "meuvenv").mkdir()
     (lugares.work / "meuvenv" / "pyvenv.cfg").write_text("home = /usr/bin\n")
     assert t.lugar_proibido(lugares.work / "meuvenv" / ("a" * 300) / "x") == t.VENV
+
+
+# ---- U22a, revisão independente: a exceção de /var/tmp segue a regra de caixa do resto (verde antes e depois) -----------------------------
+
+def test_a_excecao_de_var_tmp_e_exata_onde_o_disco_distingue_caixa(lugares, monkeypatch):
+    """No Linux `/var/Tmp` e `/var/TMP` são outras pastas, que não a `/var/tmp`: seguem recusadas como o resto de /var."""
+    t = _terceiros()
+    monkeypatch.setattr(t, "CASE_INSENSITIVE", False)
+    assert t.lugar_proibido(Path("/var/tmp/x")) is None
+    for c in ("/var/Tmp/x", "/var/TMP/x", "/var/tmpx/x", "/var/tmp2/x"):
+        assert t.lugar_proibido(Path(c)) == t.SISTEMA, c
+
+
+def test_a_excecao_de_var_tmp_ignora_a_caixa_so_onde_o_sistema_ignora(lugares, monkeypatch):
+    """Com a flag ligada (macOS, Windows) `/var/Tmp` é a própria `/var/tmp`, e `/ETC` é a pasta do sistema: a mesma flag decide as duas."""
+    t = _terceiros()
+    monkeypatch.setattr(t, "CASE_INSENSITIVE", True)
+    for c in ("/var/tmp/x", "/var/Tmp/x", "/var/TMP/x"):
+        assert t.lugar_proibido(Path(c)) is None, c
+    for c in ("/var/tmpx/x", "/var/tmp2/x", "/ETC/x"):
+        assert t.lugar_proibido(Path(c)) == t.SISTEMA, c
+
+
+@pytest.mark.parametrize("modulo", ["instagram", "matchcut", "video_to_skill"])
+def test_cada_trilha_segue_a_propria_caixa_na_excecao_de_var_tmp(lugares, monkeypatch, modulo):
+    mod = importlib.import_module(f"simplicio_video.{modulo}")
+    alvo = Path("/var/Tmp/x")
+    monkeypatch.setattr(mod, "CASE_INSENSITIVE", False)
+    assert mod._lugar_proibido(alvo) == "em pasta do sistema"
+    monkeypatch.setattr(mod, "CASE_INSENSITIVE", True)
+    assert mod._lugar_proibido(alvo) == ""
+
+
+def test_montage_e_voicestudio_seguem_a_caixa_de_terceiros_na_excecao_de_var_tmp(lugares, monkeypatch):
+    from simplicio_video import montage, voicestudio
+    t = _terceiros()
+    alvo = Path("/var/Tmp/x")
+    monkeypatch.setattr(t, "CASE_INSENSITIVE", False)
+    assert montage._lugar_proibido(alvo) == "em pasta do sistema" and voicestudio._forbidden_place(alvo) == "em pasta do sistema"
+    monkeypatch.setattr(t, "CASE_INSENSITIVE", True)
+    assert montage._lugar_proibido(alvo) == "" and voicestudio._forbidden_place(alvo) is None

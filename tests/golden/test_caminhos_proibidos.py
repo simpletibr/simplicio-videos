@@ -115,6 +115,9 @@ UNANIMES = [
     ("{work}/.git/hooks/pre-commit", *(G,) * 5), ("{home}/proj/.git/config", *(G,) * 5),
     # U22a, linhas novas: o que o resto do arquivo só dizia por módulo (a raiz de dados, site-packages) entra na tabela, nos cinco.
     ("{data}/x", *("dados",) * 5), ("{work}/lib/python3/site-packages/x.py", *("site-packages",) * 5),
+    # U22a, revisão independente: a exceção de /var/tmp vale só com a caixa exata onde o disco distingue caixa (Linux): /var/Tmp e /var/TMP são
+    # outras pastas e seguem recusadas como o resto de /var (o montage já as recusava no main).
+    ("/var/Tmp/x", *(S,) * 5), ("/var/TMP/x", *(S,) * 5),
 ]
 
 DIVERGENTES = [
