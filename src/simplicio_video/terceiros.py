@@ -12,13 +12,18 @@ paths another way) and keeps it.
 
 TEXT. `limpa_mcp` (the text an agent gets) and `visivel` (the text a terminal gets) are what matchcut, instagram and video_to_skill each
 carried (`_limpa_mcp`/`limpa_mcp`, `visivel`): the strictest of the three, instagram's, which also drops (or shows) the variation selectors.
+
+WHERE A TRACK DOES NOT WRITE. matchcut, instagram, montage, video_to_skill and voicestudio each had a copy of "may the engine write at this
+real path?" and the copies disagreed. `lugar_proibido` is ONE rule, the union of what they refused: a path is refused when any of them
+refused it (a track's own checkout and data folder stay that track's own: it passes them as `proprios`). The words of each reason are the
+ones the tracks already used, so a refusal that existed keeps its text.
 """
 from __future__ import annotations
 
 import os
 import sys
 import unicodedata
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
 # PATH, HOME, LANG and LC_ALL: the intersection of the lists of download, busca, status (and doctor_trilhas), matchcut, montage,
@@ -107,3 +112,100 @@ def visivel(texto: str) -> str:
         else:
             saida.append(c)
     return "".join(saida)
+
+
+# ---- where a track does not write: ONE rule ------------------------------------------------------------------------------------------
+
+# The system folders (POSIX, absolute) and the names of the environment variables that hold the Windows ones.
+RAIZES_POSIX: tuple[str, ...] = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys",
+                                 "/run", "/opt", "/srv", "/snap", "/System", "/Library", "/Applications", "/private/etc", "/var/lib",
+                                 "/var/log", "/var/spool", "/var/run", "/var/db")
+RAIZES_WINDOWS: tuple[str, ...] = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
+# Folders whose files the system runs on its own at login: never a place for an output file. The first two parts are relative to the home;
+# the Startup folder of Windows is also looked for under $APPDATA, wherever that is.
+INICIO_AUTOMATICO: tuple[tuple[str, ...], ...] = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
+                                                  ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
+STARTUP_DO_APPDATA: tuple[str, ...] = ("Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+
+# The reasons, in the words the tracks already used (they follow "o motor não grava", so they carry their own preposition).
+SISTEMA = "em pasta do sistema"
+INICIO = "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)"
+OCULTA = "em pasta oculta do home (.ssh, .config, .claude...)"
+GIT = "dentro de uma pasta .git"
+CODIGO = "dentro do código do motor"
+FERRAMENTAS = "dentro da pasta de ferramentas do motor"
+DADOS = "dentro da pasta de dados do motor (jobs, tools, openmontage-data)"
+SITE_PACKAGES = "dentro de site-packages (pacotes de um venv)"
+VENV = "dentro de um venv (pyvenv.cfg)"
+
+
+def _home() -> Path | None:
+    try:
+        return Path(os.path.expanduser("~")).resolve()
+    except (OSError, RuntimeError):
+        return None
+
+
+def _no_comum(real: Path, dentro: Callable[[Path, Path], bool], chave: Callable[[Path], tuple]) -> str | None:
+    """What every track always refused, asked in the order they always asked: a system folder, an auto-start folder, a hidden folder of the
+    home, a .git anywhere in the path."""
+    raizes = [Path(r) for r in RAIZES_POSIX] + [Path(v) for v in (os.environ.get(n) for n in RAIZES_WINDOWS) if v]
+    if any(dentro(real, r) for r in raizes):
+        return SISTEMA
+    home = _home()
+    inicio = [home.joinpath(*partes) for partes in INICIO_AUTOMATICO] if home is not None else []
+    inicio += [Path(base).joinpath(*STARTUP_DO_APPDATA) for base in (os.environ.get("APPDATA"),) if base]
+    if any(dentro(real, pasta) for pasta in inicio):
+        return INICIO
+    if home is not None and dentro(real, home):
+        partes = real.parts[len(home.parts):]
+        if partes and partes[0].startswith("."):
+            return OCULTA
+    if ".git" in chave(real):
+        return GIT
+    return None
+
+
+def _no_motor(real: Path, dentro: Callable[[Path, Path], bool], chave: Callable[[Path], tuple]) -> str | None:
+    """The engine's own places: its code, its tools folder, the whole data folder, a site-packages, a venv, and /var (but /var/tmp)."""
+    if dentro(real, Path(__file__).resolve().parent):
+        return CODIGO
+    from . import hostos, paths, tools  # at call time: the leaf does not drag the registry of tools in at import
+    for texto, pasta in ((FERRAMENTAS, tools.tools_dir), (DADOS, paths.data_root)):
+        try:
+            if dentro(real, pasta()):
+                return texto
+        except hostos.SemCasa:  # no home to find that folder in: it is not asked about (a track that always asked still gets the error)
+            continue
+    if "site-packages" in chave(real):
+        return SITE_PACKAGES
+    if any((a / "pyvenv.cfg").is_file() for a in real.parents):
+        return VENV
+    if dentro(real, Path("/var")) and not dentro(real, Path("/var/tmp")):
+        return SISTEMA
+    return None
+
+
+def lugar_proibido(real: Path, proprios: Iterable[tuple[Path | Iterable[Path], str]] = (), *, motor_antes: bool = False,
+                   dentro: Callable[[Path, Path], bool] = dentro, chave: Callable[[Path], tuple] = chave) -> str | None:
+    """Why the engine does not write at `real` (where the write would really land, links resolved), or None.
+
+    `proprios` are the places that belong to the track that asks, as (folder or folders, words) in the order it always asked them: they come
+    first and their words are the track's (its checkout, its data folder). They are asked one at a time, only up to the first that holds
+    `real`, so a folder that cannot be found (no home) is not looked for once the answer is known. After them come the places every track
+    refuses: a system folder, an auto-start folder, a hidden folder of the home, a .git; and then the engine's own places (its code, tools
+    and data folders, site-packages, a venv, /var but /var/tmp). A path under two of them gets the reason that comes first: `motor_antes`
+    swaps the last two groups, for the track that always told those first (montage). The order never decides WHETHER a path is refused.
+
+    `dentro` and `chave` compare folder names: a track that lets its tests flip its own case rule passes its own (the defaults follow
+    `CASE_INSENSITIVE` here)."""
+    for alvo, texto in proprios:
+        if isinstance(alvo, Path):
+            alvo = (alvo,)
+        if any(dentro(real, pasta) for pasta in alvo):
+            return texto
+    for passo in ((_no_motor, _no_comum) if motor_antes else (_no_comum, _no_motor)):
+        texto = passo(real, dentro, chave)
+        if texto:
+            return texto
+    return None

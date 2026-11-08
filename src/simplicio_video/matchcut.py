@@ -165,14 +165,6 @@ MAX_ERROS_MCP_CHARS = 4000
 CASE_INSENSITIVE = sys.platform in ("darwin", "win32")
 # The only environment names the child receives (the exact names; PYTHONIOENCODING and NUMBA_CACHE_DIR are added). No key, no proxy.
 ENV_NAMES = ("PATH", "HOME", "LANG", "LC_ALL", "TMP", "TEMP", "SYSTEMROOT")
-_RAIZES_POSIX = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys", "/run",
-                 "/opt", "/srv", "/snap", "/System", "/Library", "/Applications", "/private/etc", "/var/lib", "/var/log",
-                 "/var/spool", "/var/run", "/var/db")
-_RAIZES_WINDOWS = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
-# Folders whose files the system runs on its own at login: never a place for an output file (relative to the home).
-_INICIO_AUTOMATICO = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
-                      ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
-_STARTUP_DO_APPDATA = ("Microsoft", "Windows", "Start Menu", "Programs", "Startup")
 
 
 def _ascii(valor, limite: int = 60) -> str:
@@ -439,29 +431,15 @@ def _setup(args: list[str]) -> int:
 # ---------------------------------------------------------------------------------------------------------- paths
 
 def _lugar_proibido(real: Path) -> str:
-    """Why the engine does not write at `real` (where the write would really land, links resolved), or ''."""
-    t = tools.get("matchcut")
-    if _dentro(real, tools.checkout_dir(t)):
-        return "dentro do checkout do match-cut"
-    if _dentro(real, tools.tools_dir()):
-        return "dentro da pasta de ferramentas do motor"
-    if _dentro(real, data_dir()):
-        return "dentro da pasta de dados do match-cut (o venv)"
-    raizes = [Path(r) for r in _RAIZES_POSIX] + [Path(v) for v in (os.environ.get(n) for n in _RAIZES_WINDOWS) if v]
-    if any(_dentro(real, r) for r in raizes):
-        return "em pasta do sistema"
-    home = Path(os.path.expanduser("~")).resolve()
-    inicio = [home.joinpath(*partes) for partes in _INICIO_AUTOMATICO]
-    inicio += [Path(base).joinpath(*_STARTUP_DO_APPDATA) for base in (os.environ.get(n) for n in ("APPDATA",)) if base]
-    if any(_dentro(real, pasta) for pasta in inicio):
-        return "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)"
-    if _dentro(real, home):
-        partes = real.relative_to(home).parts
-        if partes and partes[0].startswith("."):
-            return "em pasta oculta do home (.ssh, .config, .claude...)"
-    if ".git" in _chave(real):
-        return "dentro de uma pasta .git"
-    return ""
+    """Why the engine does not write at `real` (where the write would really land, links resolved), or ''. The rule is the one of
+    `terceiros` (the same for every track: system, auto-start, hidden and .git folders, the engine's own places); the three places that
+    are this track's own are asked first, in these words."""
+    def proprios():  # one at a time: a folder that cannot be found (no home) is only asked for when the path got past the ones before it
+        yield tools.checkout_dir(tools.get("matchcut")), "dentro do checkout do match-cut"
+        yield tools.tools_dir(), terceiros.FERRAMENTAS
+        yield data_dir(), "dentro da pasta de dados do match-cut (o venv)"
+
+    return terceiros.lugar_proibido(real, proprios(), dentro=_dentro, chave=_chave) or ""
 
 
 def _caminho(valor: str, canal: str, nome: str) -> str:

@@ -108,12 +108,6 @@ _PLATFORMS = ("linux-x86_64", "macos-arm64", "macos-x86_64", "windows-x86_64")
 _SYSTEM_OF = {"linux": "Linux", "macos": "Darwin", "windows": "Windows"}
 # macOS (APFS) and Windows compare folder names without regard to case (macOS also to Unicode normalization)
 CASE_INSENSITIVE = sys.platform in ("darwin", "win32")
-_RAIZES_POSIX = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys", "/run",
-                 "/opt", "/srv", "/snap", "/System", "/Library", "/Applications", "/private/etc", "/var/lib", "/var/log",
-                 "/var/spool", "/var/run", "/var/db")
-_RAIZES_WINDOWS = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
-_INICIO_AUTOMATICO = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
-                      ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
 
 
 class VideoToSkillError(Exception):
@@ -670,25 +664,14 @@ def _dentro(caminho: Path, pasta: Path) -> bool:
 
 
 def _lugar_proibido(real: Path) -> str:
-    """Why the engine does not write at `real` (where the write would really land, links resolved), or ''."""
-    t = tools.get("video_to_skill")
-    if _dentro(real, tools.checkout_dir(t)):
-        return "dentro do checkout do video-to-skill"
-    if _dentro(real, tools.tools_dir()):
-        return "dentro da pasta de ferramentas do motor"
-    raizes = [Path(r) for r in _RAIZES_POSIX] + [Path(v) for v in (os.environ.get(n) for n in _RAIZES_WINDOWS) if v]
-    if any(_dentro(real, r) for r in raizes):
-        return "em pasta do sistema"
-    home = Path(os.path.expanduser("~")).resolve()
-    if any(_dentro(real, home.joinpath(*partes)) for partes in _INICIO_AUTOMATICO):
-        return "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)"
-    if _dentro(real, home):
-        partes = real.relative_to(home).parts
-        if partes and partes[0].startswith("."):
-            return "em pasta oculta do home (.ssh, .config, .claude...)"
-    if ".git" in _chave(real):
-        return "dentro de uma pasta .git"
-    return ""
+    """Why the engine does not write at `real` (where the write would really land, links resolved), or ''. The rule is the one of
+    `terceiros` (the same for every track: system, auto-start, hidden and .git folders, the engine's own places); the two places that
+    are this track's own are asked first, in these words."""
+    def proprios():  # one at a time: a folder that cannot be found (no home) is only asked for when the path got past the ones before it
+        yield tools.checkout_dir(tools.get("video_to_skill")), "dentro do checkout do video-to-skill"
+        yield tools.tools_dir(), terceiros.FERRAMENTAS
+
+    return terceiros.lugar_proibido(real, proprios(), dentro=_dentro, chave=_chave) or ""
 
 
 def _abs(valor: str, canal: str, nome: str) -> str:
