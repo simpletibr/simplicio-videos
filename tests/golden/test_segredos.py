@@ -643,7 +643,9 @@ def test_the_jobs_pump_reads_the_environment_once_and_still_hides_a_credential_i
     jid = "20261016-000000-0feedbee"
     jobs.job_dir(jid).mkdir(parents=True)
     saida = b"".join(b"linha %d com valor-do-ambiente-1234 e AKIA%s\n" % (i, corpo(16, "Q7Z").encode()) for i in range(300))
-    asyncio.run(jobs._pump(Fluxo(saida), jid, {"tail": [], "json": None}))
-    linhas = jobs.read_log(jid).splitlines()
-    assert len(linhas) == 300 and linhas[0] == "linha 0 com *** e ***" and linhas[299] == "linha 299 com *** e ***"
-    assert len(chamadas) == 1  # antes (e sem isto): uma por linha, 300
+    longa = b"y" * (jobs.MAX_LINE + 4000) + b" valor-do-ambiente-1234"  # passa de 64 KiB sem quebra: o bloco todo é limpo antes de cortar
+    asyncio.run(jobs._pump(Fluxo(saida, longa, b"\nfim\n"), jid, {"tail": [], "json": None}))
+    texto = jobs.read_log(jid)
+    linhas = texto.splitlines()
+    assert linhas[0] == "linha 0 com *** e ***" and linhas[299] == "linha 299 com *** e ***" and "valor-do-ambiente-1234" not in texto and "AKIA" not in texto
+    assert len(chamadas) == 1  # antes (e sem isto): uma por linha, 300, e mais uma por bloco grande
