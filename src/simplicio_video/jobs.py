@@ -575,6 +575,7 @@ def submit(kind: str, params: dict, *, confirm_yes: bool = False, origin: str = 
         raise JobError(f"tipo de tarefa desconhecido: {kind} (lista fechada: {', '.join(KINDS)})")
     _no_secret(params)
     clean_params, spends, extra = _prepare(kind, dict(params), confirm_yes, origin)
+    _no_secret({"cwd": str(Path.cwd()), **clean_params})  # job.json keeps the cwd and the resolved params and write_json_atomic hides a key shape in them: refuse now, not as a task that fails later
     with contextlib.suppress(Exception):
         clean()
     jid = _new_id()
