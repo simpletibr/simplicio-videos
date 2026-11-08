@@ -14,7 +14,7 @@ Three kinds of test:
   never a request; `voicestudio_url` follows `voicestudio.base_url` when it is called, not when the module is imported;
 * UNCHANGED (green before and after): an explicit VOICESTUDIO_URL, the text of the messages that already exist, the body and the headers
   of the request, the key (still VOICESTUDIO_API_KEY only: OMNIVOICE_API_KEY stays out of U22d), the local name patched by tests, the
-  name `voice_clone.voicestudio` (the registry looks it up) and `voicestudio.py` free of imports of the package (no cycle);
+  name `voice_clone.voicestudio` (the registry looks it up) and `voicestudio.py` never reaching voice, voice_clone or cli (no cycle);
 * PRECEDENCE: which variable wins when several are set (it is the one of `base_url()`).
 """
 from __future__ import annotations
@@ -354,14 +354,51 @@ def test_an_http_error_keeps_its_text(monkeypatch, tmp_path, rede):
     assert falha_de(rede, tmp_path, erro) == "provider=voicestudio: HTTP 500: boom"
 
 
-def test_the_provider_function_keeps_its_name_and_voicestudio_never_imports_the_package():
+def test_the_provider_function_keeps_its_name():
     # the registry (voice._gerar_voicestudio) looks `voice_clone.voicestudio` up by name when it is CALLED: the import of the module under
     # that same name would shadow it (or be shadowed by it)
     assert inspect.isfunction(voice_clone.voicestudio) and list(inspect.signature(voice_clone.voicestudio).parameters) == ["S", "text", "dst"]
     assert inspect.isfunction(voice_clone.voicestudio_url) and list(inspect.signature(voice_clone.voicestudio_url).parameters) == []
-    # voice_clone may import voicestudio (stdlib only); the other way round would be a cycle
-    tree = ast.parse(Path(voicestudio.__file__).read_text(encoding="utf8"))
-    do_pacote = [n.lineno for n in ast.walk(tree)
-                 if (isinstance(n, ast.ImportFrom) and (n.level > 0 or (n.module or "").split(".")[0] == "simplicio_video"))
-                 or (isinstance(n, ast.Import) and any(a.name.split(".")[0] == "simplicio_video" for a in n.names))]
-    assert do_pacote == []
+
+
+def _modulos_do_pacote(arquivo: Path) -> set[str]:
+    """The modules of simplicio_video that `arquivo` imports (at the top or inside a function): `from . import x`, `from .x import y`,
+    `from simplicio_video import x`, `from simplicio_video.x import y`, `import simplicio_video.x`."""
+    achados: set[str] = set()
+    for n in ast.walk(ast.parse(arquivo.read_text(encoding="utf8"))):
+        if isinstance(n, ast.ImportFrom):
+            partes = (n.module or "").split(".") if n.module else []
+            if n.level > 0 and partes:
+                achados.add(partes[0])
+            elif n.level > 0 or partes == ["simplicio_video"]:
+                achados.update(a.name for a in n.names)
+            elif partes[:1] == ["simplicio_video"]:
+                achados.add(partes[1])
+        elif isinstance(n, ast.Import):
+            achados.update(a.name.split(".")[1] for a in n.names if a.name.startswith("simplicio_video."))
+    return achados
+
+
+def test_voicestudio_never_reaches_voice_voice_clone_or_cli_through_the_package():
+    # voice_clone imports voicestudio; the other way round, directly or through another module, would be a cycle. The rule is "no cycle", not "no
+    # import of the package": voicestudio may import a module that needs only the standard library (U22a adds `from . import terceiros`).
+    pasta = Path(voicestudio.__file__).parent
+    visto: set[str] = set()
+    pilha = sorted(_modulos_do_pacote(Path(voicestudio.__file__)))
+    while pilha:
+        nome = pilha.pop()
+        arquivo = pasta / f"{nome}.py"
+        if nome in visto or not arquivo.is_file():
+            continue
+        visto.add(nome)
+        pilha.extend(_modulos_do_pacote(arquivo))
+    assert visto.isdisjoint({"voice", "voice_clone", "cli", "voicestudio"}), sorted(visto)
+
+
+def test_the_cycle_check_sees_the_imports_it_is_meant_to_see(tmp_path):
+    # the check above must not pass by blindness: each way of writing an import of a module of the package is read
+    codigo = ("from . import terceiros, voice\nfrom .voice_clone import x\nfrom simplicio_video import cli\nfrom simplicio_video.rede import y\n"
+              "import simplicio_video.hostos\nimport json\nfrom pathlib import Path\n\ndef f():\n    from . import media\n")
+    arquivo = tmp_path / "x.py"
+    arquivo.write_text(codigo, encoding="utf8")
+    assert _modulos_do_pacote(arquivo) == {"terceiros", "voice", "voice_clone", "cli", "rede", "hostos", "media"}
