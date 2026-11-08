@@ -9,7 +9,7 @@ Privados exercitados por import direto (caracterização; são as funções que 
   (a) matchcut._confere_saida, instagram._checa_saida, montage._output_refusal, video_to_skill._new_dir, voicestudio._guard_out;
       matchcut.resposta_mcp, instagram.resposta_mcp. (b) busca.BuscaError, openverse.OpenverseError, swap_providers.base.SwapError,
       jobs.write_json_atomic (-> jobs._scrub). (c) voice.gemini_base, swap_providers.gemini.GeminiAdapter._base.
-  (d) voice_clone.voicestudio_url, voicestudio.base_url. (e) cli.build_parser, voice.PROVIDERS. (f) instagram._executa/_limites_do_filho,
+  (d) voice_clone.voicestudio_url, voicestudio.base_url. (e) cli.build_parser, voice.PROVIDERS. (f) instagram._executa/run_tool,
   matchcut._executa/_WRAPPER/_limite_de_memoria."""
 from __future__ import annotations
 
@@ -340,29 +340,36 @@ def test_instagram_limits_the_cpu_of_the_child_with_a_preexec_fn_and_matchcut_li
     monkeypatch.setattr(matchcut.childio, "guarded_child", espia("matchcut"))
     matchcut._executa([sys.executable, "-c", "pass"], str(tmp_path), {}, "qc")
     # U22 decide: dois mecanismos para o mesmo fim; sob as threads do MCP o preexec_fn do instagram não é seguro, o wrapper do matchcut é
-    assert callable(visto["instagram"].kw["preexec_fn"]) and "preexec_fn" not in visto["matchcut"].kw
+    # U22f decidiu: um mecanismo só, o wrapper (os limites são postos dentro do filho, que depois faz exec); o nome deste teste é histórico: o id não muda
+    assert "preexec_fn" not in visto["instagram"].kw and "preexec_fn" not in visto["matchcut"].kw  # era callable(visto["instagram"].kw["preexec_fn"])
     assert visto["instagram"].argv == [sys.executable, "-c", "pass"] and visto["matchcut"].argv == [sys.executable, "-c", "pass"]
 
 
 @LINUX
-def test_what_each_mechanism_really_sets_in_the_child(tmp_path):
+def test_what_each_mechanism_really_sets_in_the_child(tmp_path, monkeypatch):
     import resource
 
     sonda = ("import resource, json; print(json.dumps({n: resource.getrlimit(getattr(resource, n)) for n in "
              "('RLIMIT_CPU', 'RLIMIT_AS', 'RLIMIT_CORE')}))")
     pai = {n: list(resource.getrlimit(getattr(resource, n))) for n in ("RLIMIT_CPU", "RLIMIT_AS", "RLIMIT_CORE")}
     quatro_gib = 4 * 1024 ** 3
-    r_ig = subprocess.run([sys.executable, "-c", sonda], capture_output=True, text=True, check=True, cwd=tmp_path,
-                          preexec_fn=instagram._limites_do_filho(max(1, int(instagram.TIMEOUT_S) + instagram.CPU_FOLGA_S)))
+    sonda_do_instagram = tmp_path / "sonda.py"
+    sonda_do_instagram.write_text(sonda, encoding="utf8")
+    monkeypatch.setattr(instagram, "_prepara", lambda f, destino: (sonda_do_instagram, []))  # sem checkout: o "script" é a sonda
+    r_ig = instagram.run_tool("hookscore", ["--hook", "x"])  # U22f: pelo run_tool, o caminho do CLI e do MCP (era subprocess.run com o preexec_fn)
     r_mc = subprocess.run([sys.executable, "-I", "-B", "-X", "utf8", "-c", matchcut._WRAPPER, str(quatro_gib), "-c", sonda],
                           capture_output=True, text=True, check=True, cwd=tmp_path)
-    ig, mc = json.loads(r_ig.stdout), json.loads(r_mc.stdout)
+    assert r_ig["codigo_saida"] == 0, r_ig["stderr"]
+    ig, mc = json.loads(r_ig["stdout"]), json.loads(r_mc.stdout)
     if pai["RLIMIT_CPU"][1] != resource.RLIM_INFINITY:
         pytest.skip("o pai já tem um limite de CPU: um hard menor herdado vence o do instagram")
     assert ig["RLIMIT_CPU"] == [35, 40]  # TIMEOUT_S (30) + CPU_FOLGA_S (5) de CPU, hard +5
-    assert ig["RLIMIT_AS"] == pai["RLIMIT_AS"]  # U22 decide: o instagram não limita memória
+    # U22 decide: o instagram não limita memória
+    # U22f decidiu: limita, como o matchcut (4 GiB de espaço de endereço): o pior caso medido dos 6 scripts reais, com a entrada máxima de 1 MiB, é 115 MiB
+    assert ig["RLIMIT_AS"] == [quatro_gib, quatro_gib]  # era pai["RLIMIT_AS"]: sem limite
     assert ig["RLIMIT_CORE"] == [0, 0]
     assert mc["RLIMIT_AS"] == [quatro_gib, quatro_gib]  # U22 decide: o matchcut limita memória (RLIMIT_AS), não CPU
+    # U22f decidiu: o matchcut segue sem limite de CPU (matchcut.py não é da posse da U22f e os scripts dele rodam de 300 s a 7200 s: matchcut.TIMEOUT_S)
     assert mc["RLIMIT_CPU"] == pai["RLIMIT_CPU"]
     assert mc["RLIMIT_CORE"] == [0, 0]
 
