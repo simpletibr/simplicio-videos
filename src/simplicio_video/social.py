@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import paths
+from . import paths, redact
 from .fsutil import canonical_json as canonical, sha256_file
 
 __all__ = ["SocialError", "providers_report", "limits_table", "make_plan", "check_plan", "recipe", "recipe_text", "run_social"]
@@ -46,8 +46,7 @@ ASPECT_TOLERANCE = 0.02
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,64}$")
 _SECRET_RE = re.compile(r"^(sk-|AIza|gh[pousr]_|xox[a-z]-|eyJ|ya29\.|AQ\.|Bearer\b)|[A-Za-z0-9_-]{32,}")
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-_SECRET_TEXT_RE = re.compile(r"(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|"
-                             r"eyJ[A-Za-z0-9_-]{10,}|ya29\.[A-Za-z0-9_-]{10,}|AQ\.[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._-]{16,})")
+_SECRET_TEXT_RE = redact.SECRET_RE  # the key detector of the caption and the title is the one rule of the engine (shapes only: the plan never reads the environment)
 MP4_BRANDS = {b"isom", b"iso2", b"iso3", b"iso4", b"iso5", b"iso6", b"mp41", b"mp42", b"avc1", b"dash", b"M4V ", b"M4A ", b"f4v ", b"mmp4", b"msdh"}
 SCHEDULE_MAX_DAYS = 30
 _RO_ID_RE = re.compile(r"^[0-9A-Za-z]{26}$")
