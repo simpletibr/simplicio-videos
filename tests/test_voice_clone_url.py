@@ -59,6 +59,9 @@ TORTAS = [
     ("OMNIVOICE_URL", "http://127.0.0.1:3900 ", "espaco-no-fim"), ("VOICESTUDIO_URL", "http://127.0.0.1:3900\n", "quebra-de-linha-no-fim"),
     ("OMNIVOICE_URL", "http://127.0.0.1\n", "quebra-de-linha-sem-porta"),
     ("VOICESTUDIO_URL", "http://127.0.0.1:３９００", "digitos-largura-total"), ("OMNIVOICE_URL", "http://münchen.example:3900", "nao-ascii"),
+    # what a mutation of the checks found missing (main: `httpx://` dies in urllib with a clean message; the three others are an InvalidURL traceback)
+    ("VOICESTUDIO_URL", "httpx://127.0.0.1:3900", "esquema-parecido"), ("OMNIVOICE_URL", "http://127.0.0.1 ", "espaco-no-fim-sem-porta"),
+    ("VOICESTUDIO_URL", "http://127.0.0.1:3900/a b", "espaco-no-caminho"), ("OMNIVOICE_URL", "http://127.0.0.1\x7f", "del-sem-porta"),
 ]
 # What stays accepted: any http/https base with a host (and a numeric port if any), with a path, an IPv6 literal, an upper-case scheme. A user:password@
 # in it also stays accepted in U22d (the error text of an unreachable app still echoes the base: a question to the owner, not this letter).
