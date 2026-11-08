@@ -233,10 +233,12 @@ def test_the_provider_choices_of_voice_and_run_and_the_registry_and_the_schema_d
     registro = list(voice.PROVIDERS)
     assert registro == enum_do_contrato == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
     # U22 decide: nenhuma das duas CLIs aceita audio8, que o contrato e o registro aceitam
-    assert opcoes_provider("voice") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "elevenlabs", "xai"]
-    assert opcoes_provider("run") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio"]
-    assert "audio8" not in opcoes_provider("voice") and "audio8" not in opcoes_provider("run")
-    assert set(opcoes_provider("voice")) - set(opcoes_provider("run")) == {"elevenlabs", "xai"}  # `voice` aceita os dois stubs que sempre falham
+    # U22e decidiu: as duas aceitam o registro inteiro, na ordem dele (a de `list voices` e a do schema). Os stubs ficam nas duas: `voice.run` os recusa, com o motivo de sempre
+    assert opcoes_provider("voice") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
+    assert opcoes_provider("run") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
+    assert "audio8" in opcoes_provider("voice") and "audio8" in opcoes_provider("run")
+    assert set(opcoes_provider("voice")) - set(opcoes_provider("run")) == set()  # era {"elevenlabs", "xai"}: `voice` aceitava os dois stubs que sempre falham e `run` não
+    assert opcoes_provider("voice") == opcoes_provider("run") == registro == enum_do_contrato  # o nome do teste é do G0, que registrou a divergência: hoje as quatro fontes concordam
 
 
 @pytest.mark.parametrize("prov", ["elevenlabs", "xai"])
@@ -244,6 +246,76 @@ def test_the_two_stub_providers_voice_accepts_always_fail(prov):
     contrato = SimpleNamespace(data={"voz": {"provider": "file"}})
     with pytest.raises(voice.VoiceError, match=f"provider={prov}: stub in simplicio-video v0.2"):
         voice.run(contrato, provider=prov)
+
+
+# U22e: o que o parser e o motor fazem com cada nome do registro depois que as duas CLIs o aceitam inteiro
+NOMES_DO_REGISTRO = ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
+STUB = "provider={}: stub in simplicio-video v0.2 - generate the takes elsewhere, drop them in the file dir and use --provider file"
+
+
+def le_provider(comando: str, valor: str, flag: str = "--provider"):
+    """O que o parser entende de `<comando> contract.yaml <flag> <valor>` (SystemExit(2) quando recusa)."""
+    return cli.build_parser().parse_args([comando, "contract.yaml", flag, valor])
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+@pytest.mark.parametrize("prov", NOMES_DO_REGISTRO)
+def test_the_parser_of_voice_and_of_run_takes_every_provider_of_the_registry(comando, prov):
+    # U22e: antes nenhuma das duas aceitava audio8, e `run` recusava também os dois stubs
+    assert le_provider(comando, prov).provider == prov
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+def test_the_short_flag_takes_the_same_providers(comando):
+    assert le_provider(comando, "audio8", "-p").provider == "audio8"
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+def test_the_parser_refuses_a_provider_outside_the_registry_and_gives_the_whole_registry(comando, capsys):
+    with pytest.raises(SystemExit) as e:
+        le_provider(comando, "nope")
+    assert e.value.code == 2
+    err = capsys.readouterr().err
+    assert "argument --provider/-p: invalid choice: 'nope'" in err
+    assert "{" + ",".join(NOMES_DO_REGISTRO) + "}" in err  # a linha de uso dá a lista inteira, na ordem do registro
+
+
+def test_the_flag_the_catalog_of_voices_and_the_registry_are_one_list():
+    from simplicio_video import catalog
+
+    assert [v["id"] for v in catalog.voices()] == opcoes_provider("voice") == opcoes_provider("run") == list(voice.PROVIDERS)
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+@pytest.mark.parametrize("prov", ["elevenlabs", "xai"])
+def test_a_stub_provider_passes_the_parser_of_both_and_is_refused_by_voice_with_todays_reason(mini, comando, prov):
+    with pytest.raises(SystemExit) as e:
+        cli.main([comando, str(mini), "--provider", prov])
+    assert e.value.code == STUB.format(prov)
+    assert not (mini.parent / "timing.lock.json").exists()
+
+
+@pytest.mark.parametrize("prov", ["elevenlabs", "xai"])
+def test_run_json_tells_a_stub_like_any_other_voice_failure(mini, prov, capsys):
+    assert cli.main(["run", str(mini), "--provider", prov, "--json"]) == 1
+    saida = json.loads(capsys.readouterr().out)
+    assert saida["ok"] is False and saida["error"] == {"code": "RENDER_FALHOU", "message": STUB.format(prov)}
+
+
+def test_audio8_goes_from_the_voice_command_to_voice_run(mini, monkeypatch):
+    visto: dict = {}
+    monkeypatch.setattr(voice, "run", lambda c, **kw: visto.update(kw))
+    assert cli.main(["voice", str(mini), "--provider", "audio8"]) == 0
+    assert visto["provider"] == "audio8"
+
+
+def test_audio8_goes_from_the_run_command_to_the_pipeline(mini, monkeypatch):
+    from simplicio_video import pipeline
+
+    visto: dict = {}
+    monkeypatch.setattr(pipeline, "run_all", lambda contrato, **kw: visto.update(kw))
+    assert cli.main(["run", str(mini), "--provider", "audio8"]) == 0
+    assert visto["provider"] == "audio8"
 
 
 # ============================================================================================ (f) o limite de recursos do filho

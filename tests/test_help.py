@@ -54,3 +54,46 @@ def test_subcommand_help_is_complete(sub, must):
         assert "schema/contract.schema.json" in r.stdout
 
 
+# U22e: `voice` and `run` list the providers of the registry (`voice.PROVIDERS`, the order of `list voices`), not two lists by hand
+@pytest.mark.parametrize("sub", ["voice", "run"])
+def test_the_help_of_voice_and_run_lists_the_providers_of_the_registry_in_its_order(sub):
+    import re
+
+    from simplicio_video import voice
+
+    r = run_cli(sub, "--help")
+    assert r.returncode == 0, r.stderr
+    achou = re.search(r"--provider, -p \{([^}]*)\}", r.stdout)
+    assert achou, r.stdout
+    assert achou.group(1).split(",") == list(voice.PROVIDERS)
+
+
+# ...and without loading `voice` to do it (it adds 6 modules, childio among them): not in a help page, not in a refused `--provider`
+SONDA_PROVIDERS = """\
+import contextlib, io, json, sys
+from simplicio_video import cli
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    try:
+        cli.main({argv!r})
+    except SystemExit:
+        pass
+print(json.dumps(sorted(m for m in ("voice", "voice_clone", "childio") if "simplicio_video." + m in sys.modules)))
+"""
+
+
+@pytest.mark.parametrize("argv", [["--help"], ["voice", "--help"], ["run", "--help"],
+                                  ["voice", "contract.yaml", "--provider", "nope"], ["run", "contract.yaml", "--provider", "nope"]],
+                         ids=["main", "voice", "run", "voice-refused", "run-refused"])
+def test_listing_the_providers_does_not_load_the_voice_engine(tmp_path, argv):
+    import json
+    import subprocess
+    import sys
+
+    from helpers import offline_env
+
+    (tmp_path / "home").mkdir()
+    env = offline_env(HOME=str(tmp_path / "home"), SIMPLICIO_VIDEO_DATA=str(tmp_path / "data"), NO_COLOR="1")
+    r = subprocess.run([sys.executable, "-c", SONDA_PROVIDERS.format(argv=argv)], capture_output=True, text=True, cwd=tmp_path, env=env,
+                       timeout=120)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout.splitlines()[-1]) == []
