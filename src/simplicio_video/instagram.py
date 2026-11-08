@@ -478,9 +478,10 @@ def _ambiente() -> dict:
 _matar = childio.kill_group  # the name the tests replace (a fake child has no pid): the group is stopped in childio
 
 
-# Measured on the six real scripts of the pinned commit with the largest input the engine passes (MAX_INPUT_BYTES, 1 MiB): at most 115 MiB of
-# address space (VmPeak), and 128 MiB is the smallest limit under which every run still ends the same. 4 GiB is 35 times that: a script that
-# runs away in memory gets a MemoryError in the child instead of taking the memory of the machine.
+# Measured on the six real scripts of the pinned commit with the largest input the engine passes (MAX_INPUT_BYTES, 1 MiB): the runs that end
+# peak at about 45-140 MiB of address space (VmPeak). The worst input found (1 MiB of 524,288 one-character lines to `hookscore --json`)
+# peaks at 1.74 GiB and still dies on the 2 MiB output cap, with or without this limit. 4 GiB is about 2.3 times that worst case: a script
+# that runs away in memory gets a MemoryError in the child instead of taking the memory of the machine (1 GiB would already do it to that input).
 MAX_MEM_BYTES = 4 * 1024 ** 3  # address-space limit of the child (RLIMIT_AS), in bytes; 0 = none
 
 # Runs in the child before the script: the kernel limits, then exec of the script with the same isolated flags. A wrapper instead of a
@@ -509,8 +510,8 @@ _WRAPPER = (
 
 def _comando(script, argv: list) -> list:
     """The command of the child: the isolated interpreter and, on POSIX, the wrapper that sets its kernel limits and then execs the
-    script (same pid, so the group kill still reaches it). The CPU limit is TIMEOUT_S + CPU_FOLGA_S, never under 1 s (0 would mean
-    none): the kernel ends a script that burns CPU even when the engine is gone (SIGKILL cannot be handled). It limits CPU time, not
+    script (same pid, so the group kill still reaches it). The CPU limit is TIMEOUT_S + CPU_FOLGA_S, never under 1 s (a soft limit of 0
+    ends the script at once): the kernel ends a script that burns CPU even when the engine is gone (SIGKILL cannot be handled). It limits CPU time, not
     wall time: a script that only sleeps is stopped by the engine (the 30 s kill, or SIGTERM/SIGHUP handling), never by this. No core
     dump. The limits are read when the command is built, not at import."""
     base = [sys.executable, "-I", "-B", "-X", "utf8"]

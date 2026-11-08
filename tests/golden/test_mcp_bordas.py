@@ -365,7 +365,8 @@ def test_what_each_mechanism_really_sets_in_the_child(tmp_path, monkeypatch):
         pytest.skip("o pai já tem um limite de CPU: um hard menor herdado vence o do instagram")
     assert ig["RLIMIT_CPU"] == [35, 40]  # TIMEOUT_S (30) + CPU_FOLGA_S (5) de CPU, hard +5
     # U22 decide: o instagram não limita memória
-    # U22f decidiu: limita, como o matchcut (4 GiB de espaço de endereço): o pior caso medido dos 6 scripts reais, com a entrada máxima de 1 MiB, é 115 MiB
+    # U22f decidiu: limita, como o matchcut (4 GiB de espaço de endereço): as execuções que terminam, nos 6 scripts reais com a entrada máxima de 1 MiB, pedem 45-140 MiB;
+    # o pior caso achado (1 MiB de 524.288 linhas de 1 caractere em hookscore --json) chega a 1,74 GiB e morre no teto de saída de 2 MiB com ou sem o limite
     assert ig["RLIMIT_AS"] == [quatro_gib, quatro_gib]  # era pai["RLIMIT_AS"]: sem limite
     assert ig["RLIMIT_CORE"] == [0, 0]
     assert mc["RLIMIT_AS"] == [quatro_gib, quatro_gib]  # U22 decide: o matchcut limita memória (RLIMIT_AS), não CPU

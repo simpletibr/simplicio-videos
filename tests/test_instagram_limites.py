@@ -5,7 +5,8 @@ Why. A fork hook (`preexec_fn`) runs Python code between fork and exec. The Pyth
 threads (the child can deadlock before it ever reaches exec), and the MCP server runs every tool in a worker thread. matchcut already put
 its limits through a wrapper; instagram now does too, with the limits it always had (RLIMIT_CPU 35 s soft / 40 s hard, no core dump)
 plus one it did not have: RLIMIT_AS, 4 GiB of address space. Measured on the six real scripts of the pinned commit with the largest input
-the engine accepts (1 MiB): the peak address space is 115 MiB, and 128 MiB is the smallest limit under which every run still ends the same.
+the engine accepts (1 MiB): the runs that end peak at about 45-140 MiB of address space; the worst input found (524,288 one-character lines
+to `hookscore --json`) peaks at 1.74 GiB and still dies on the 2 MiB output cap, with or without the limit. 4 GiB is about 2.3 times that.
 
 What is proved here, with a real child process (a probe script that prints what the process it runs in really is, standing in for the
 upstream script: `run_tool` is the path the CLI and the MCP take, only the checkout check is skipped, and tests/test_instagram.py covers
@@ -137,7 +138,7 @@ def test_the_limits_follow_the_constants_of_the_module_read_when_the_script_is_r
     monkeypatch.setattr(instagram, "CPU_FOLGA_S", 3)
     monkeypatch.setattr(instagram, "MAX_MEM_BYTES", 512 * MIB)
     assert roda()["rlimit"] == {"RLIMIT_CPU": [15, 20], "RLIMIT_AS": [512 * MIB, 512 * MIB], "RLIMIT_CORE": [0, 0]}  # int(12.5) + 3, hard +5
-    monkeypatch.setattr(instagram, "CPU_FOLGA_S", -100)  # never below one second of CPU: zero would mean no limit
+    monkeypatch.setattr(instagram, "CPU_FOLGA_S", -100)  # never below one second of CPU: a soft limit of zero ends the script at once
     assert roda()["rlimit"]["RLIMIT_CPU"] == [1, 6]
 
 
