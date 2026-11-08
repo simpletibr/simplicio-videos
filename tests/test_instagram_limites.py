@@ -282,6 +282,36 @@ def test_a_limit_the_kernel_refuses_is_skipped_and_the_script_still_runs_with_th
     assert json.loads(res["stdout"])["rlimit"] == {"RLIMIT_CPU": [35, 40], "RLIMIT_AS": [2 << 30, 2 << 30], "RLIMIT_CORE": [0, 0]}
 
 
+PRELUDIO_DO_WRAPPER = r'''
+import sys
+modo = sys.argv[1]
+
+
+class Falso:  # a `resource` whose kernel always says no, with an errno CPython turns into OSError (EINVAL and EPERM become ValueError)
+    RLIMIT_CPU, RLIMIT_CORE, RLIMIT_AS = 0, 4, 9
+
+    @staticmethod
+    def setrlimit(*args):
+        raise OSError(5, "recusado")
+
+
+sys.modules["resource"] = None if modo == "sem_resource" else Falso  # None in sys.modules: `import resource` raises ImportError
+sys.argv = ["-c", "35", "1048576", "-c", "print('rodou')"]
+exec(compile(WRAPPER, "<wrapper>", "exec"))
+'''
+
+
+@POSIX
+@pytest.mark.parametrize("modo", ["sem_resource", "setrlimit_falha_com_oserror"])
+def test_the_wrapper_runs_the_script_even_when_it_cannot_set_a_limit(modo):
+    """The limits are best effort: where `resource` cannot be imported, or setrlimit fails with an errno that is not the ValueError of a
+    refused limit (other platforms), the script still runs, without that limit. A wrapper that stopped would turn a limit it could not
+    set into a script that never runs (its traceback would be the script's exit code)."""
+    codigo = f"WRAPPER = {instagram._WRAPPER!r}\n" + PRELUDIO_DO_WRAPPER
+    r = subprocess.run([sys.executable, "-B", "-c", codigo, modo], capture_output=True, text=True, timeout=60)
+    assert (r.returncode, r.stdout.strip()) == (0, "rodou"), r.stderr
+
+
 @POSIX
 def test_without_the_resource_module_the_script_runs_directly_as_it_always_did(sonda, popens, monkeypatch):
     """Windows has no rlimit (UNVERIFIED there: simulated by taking the module away): no wrapper, no limits, no fork hook, and exec
