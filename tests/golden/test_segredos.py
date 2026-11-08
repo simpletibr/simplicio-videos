@@ -348,7 +348,8 @@ def test_the_one_rule_is_idempotent_and_the_mask_is_not_a_secret():
 INOCENTES = ["task-based-workflow-x", "risk-assessment-abcdefgh", "desk-organizer-set-2026", "disk-images-folder-final", "flask-sqlalchemy-tutorial-1",
              "tutorial sk-learn pipeline", "task-based planning", "o que e um Bearer token", "Bearer authentication", "bearer authentication",
              "AQ. estudo de caso", "FAQ.html", "FAQ.Short-title", "npm_lifecycle_event", "hf_model_name_long", "sk_learn_pipeline_x", "glpat explicado",
-             "AIza", "ghp_", "sk-", "Bearer", "eyJ", "ya29.", "-----BEGIN-----", "xoxo", "AKIA", "high_resolution_preset", "https://example.com/risk-assessment-photo.jpg"]
+             "AIza", "ghp_", "sk-", "Bearer", "eyJ", "ya29.", "-----BEGIN-----", "xoxo", "AKIA", "high_resolution_preset", "https://example.com/risk-assessment-photo.jpg",
+             "ya29x" + corpo(15), "AQx" + corpo(35), "AQx" + corpo(10)]  # o ponto de `ya29.` e de `AQ.` é um ponto
 
 
 @pytest.mark.parametrize("texto", INOCENTES)
@@ -376,6 +377,18 @@ TABELA_BORDAS = [
     ("duas chaves seguidas", "x AIzaSy" + corpo(33) + " sk-" + corpo(20) + " y", "x *** *** y", "hit"),
     ("chave dentro de um JSON", '{"k":"sk-' + corpo(20) + '"}', '{"k":"***"}', "hit"),
     ("chave na query de uma URL", "https://x/y?key=AIzaSy" + corpo(33) + "&a=1", "https://x/y?key=***&a=1", "hit"),
+    # os limiares, um de cada lado (a tabela de cima só tem o lado de baixo de alguns): colados, para que valha o do Google sem lookbehind
+    ("AIzaSy + 24 colado a um sublinhado: abaixo do limiar do Google", "x key_AIzaSy" + corpo(24) + " y", "x key_AIzaSy" + corpo(24) + " y", "miss"),
+    ("AQ. + 29 colado a uma letra (FAQ.): abaixo do limiar do Google", "x FAQ." + corpo(29) + " y", "x FAQ." + corpo(29) + " y", "miss"),
+    ("ghp_ + 7: abaixo do limiar", "x ghp_" + corpo(7) + " y", "x ghp_" + corpo(7) + " y", "miss"),
+    ("github_pat_ + 20: o limiar", "x github_pat_" + corpo(20) + " y", "x *** y", "hit"),
+    ("npm_ + 29: abaixo do limiar", "x npm_" + corpo(29) + " y", "x npm_" + corpo(29) + " y", "miss"),
+    ("Bearer + 20 com til: o limiar da classe da busca", "x Bearer ~" + corpo(19, "Abc") + " y", "x *** y", "hit"),
+    ("Bearer + 19 com til: abaixo do limiar", "x Bearer ~" + corpo(18, "Abc") + " y", "x Bearer ~" + corpo(18, "Abc") + " y", "miss"),
+    ("Bearer + 8 com digito: o limiar", "x Bearer 1" + corpo(7, "abc") + " y", "x *** y", "hit"),
+    ("Bearer + 7 com digito: abaixo do limiar", "x Bearer 1" + corpo(6, "abc") + " y", "x Bearer 1" + corpo(6, "abc") + " y", "miss"),
+    ("bearer minusculo + tabulacao + 22 letras: o espaco em branco da busca", "x bearer\t" + corpo(22, "abc") + " y", "x *** y", "hit"),
+    ("Bearer + tabulacao + 16 letras: o espaco em branco do openverse", "x Bearer\t" + corpo(16, "Abc") + " y", "x *** y", "hit"),
 ]
 
 
@@ -541,3 +554,59 @@ def test_social_refuses_a_caption_or_a_title_with_any_shape_of_the_union_and_tak
     legenda = "o fluxo task-based-workflow-x e o desk-organizer-set #video"
     plano = social.make_plan(str(video), ["youtube", "tiktok"], caption=legenda)
     assert json.loads(Path(plano["path"]).read_text(encoding="utf8"))["caption"] == legenda
+
+
+# ---------------------------------------------------------------------------------------------- o que a mutação própria deixou vivo
+
+def test_a_registered_source_that_raises_does_not_break_the_redaction(monkeypatch):
+    # a mensagem de um erro passa por aqui: uma fonte quebrada não pode virar um segundo erro, e o resto continua escondido
+    from simplicio_video import redact
+    redact.register("quebrada-u22b", lambda: 1 / 0)
+    redact.register("nao-iteravel-u22b", lambda: 42)
+    try:
+        monkeypatch.setenv("GITHUB_TOKEN", "valor-do-ambiente-1234")
+        assert redact.scrub("x valor-do-ambiente-1234 y") == "x *** y"
+        assert redact.has_secret("x valor-do-ambiente-1234 y")
+    finally:
+        redact.unregister("quebrada-u22b")
+        redact.unregister("nao-iteravel-u22b")
+
+
+def test_the_empty_string_is_never_a_value_to_hide():
+    from simplicio_video import redact
+    assert redact.mask_values("abc", [""]) == "abc" and redact.mask_values("abc", []) == "abc" and redact.mask_values("", ["abcdef"]) == ""
+
+
+def test_the_name_of_a_credential_variable_is_matched_in_any_case(monkeypatch):
+    # antes: o `(?i)` da busca; é o que faz `npm_config_token` e `foo_secret` valerem
+    from simplicio_video import redact
+    monkeypatch.setenv("my_api_token", "valor-minusculo-1234")
+    monkeypatch.setenv("Foo_Secret", "valor-misto-1234567")
+    assert redact.scrub("x valor-minusculo-1234 valor-misto-1234567 y") == "x *** *** y"
+
+
+def test_secret_values_come_longest_first_and_a_value_that_holds_a_key_shape_is_hidden_whole(monkeypatch):
+    from simplicio_video import redact
+    monkeypatch.setenv("GEMINI_API_KEY", "abcdef")
+    monkeypatch.setenv("OPENAI_API_KEY", "abcdef-segredo-longo")
+    assert redact.secret_values() == ["abcdef-segredo-longo", "abcdef"]
+    # o valor primeiro, o formato depois: um valor que CONTÉM um formato (`sk-` + 8 depois de um hífen) sai inteiro, não "valor-***-fim"
+    monkeypatch.setenv("GITHUB_TOKEN", "valor-sk-" + corpo(8) + "-fim")
+    assert redact.scrub("x valor-sk-" + corpo(8) + "-fim y") == "x *** y"
+
+
+def test_the_value_of_a_variable_is_hidden_without_the_blanks_at_its_ends(monkeypatch):
+    # `export GITHUB_TOKEN="$(cat arquivo)"` traz o \n do fim: o valor que está no texto não o tem
+    from simplicio_video import redact
+    monkeypatch.setenv("GITHUB_TOKEN", "  valor-do-ambiente-1234\n")
+    monkeypatch.setenv("GEMINI_API_KEY", "abc123\t")
+    assert redact.scrub("x valor-do-ambiente-1234 abc123 y") == "x *** *** y"
+    assert "valor-do-ambiente-1234" in redact.secret_values() and "abc123" in redact.secret_values()
+
+
+def test_only_a_value_that_is_a_url_with_a_password_makes_a_proxy_a_credential(monkeypatch):
+    from simplicio_video import redact
+    monkeypatch.setenv("HTTPS_PROXY", "ver http://user:pw1234@proxy.local:3128 no manual")  # tem a URL, mas o valor não é uma URL de proxy
+    monkeypatch.setenv("NO_PROXY", "http://user:pw5678@proxy.local")  # a lista de exceções nunca guarda senha
+    assert redact.scrub("x ver http://user:pw1234@proxy.local:3128 no manual y") == "x ver http://user:pw1234@proxy.local:3128 no manual y"
+    assert redact.scrub("x http://user:pw5678@proxy.local y") == "x http://user:pw5678@proxy.local y"
