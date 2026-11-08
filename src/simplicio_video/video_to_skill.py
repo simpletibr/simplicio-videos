@@ -332,32 +332,9 @@ def _ascii(valor, limite: int = 60) -> str:
     return ascii(valor if isinstance(valor, str) else repr(valor))[:limite]
 
 
-_RUIM = ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp")
-
-
-def limpa_mcp(texto: str) -> str:
-    """Text for an agent: no control, bidirectional, zero-width, line-separator or tag character (they can hide instructions)."""
-    texto = texto.replace("\r\n", "\n")
-    return "".join(c for c in texto if c in "\n\t" or unicodedata.category(c) not in _RUIM)
-
-
-def visivel(texto: str) -> str:
-    """Text for a terminal: ESC and the other controls become their visible marks (U+2400 block), and C1, bidirectional, zero-width,
-    line-separator, BOM and tag characters become <U+XXXX>; newline and tab stay."""
-    saida = []
-    for c in texto.replace("\r\n", "\n"):
-        n = ord(c)
-        if c in "\n\t":
-            saida.append(c)
-        elif n < 0x20:
-            saida.append(chr(0x2400 + n))
-        elif n == 0x7F:
-            saida.append(chr(0x2421))
-        elif unicodedata.category(c) in _RUIM:
-            saida.append(f"<U+{n:04X}>")
-        else:
-            saida.append(c)
-    return "".join(saida)
+# Text for an agent (`limpa_mcp`) and for a terminal (`visivel`): the one cleaner of `terceiros`, the same for every track.
+limpa_mcp = terceiros.limpa_mcp
+visivel = terceiros.visivel
 
 
 # -------------------------------------------------------------------------------------------------------- safe extraction

@@ -9,6 +9,9 @@ let a proxy through write `(*terceiros.PROXIES, ...)` instead of typing them aga
 HELPERS. `chave`, `dentro`, `real` and `commit_do_checkout` are the copies that instagram, matchcut and video_to_skill each carry
 (`_chave`, `_dentro`, `_real`, `_commit_do_checkout`), with the same bodies. montage has a `_dentro` of its own (it compares real
 paths another way) and keeps it.
+
+TEXT. `limpa_mcp` (the text an agent gets) and `visivel` (the text a terminal gets) are what matchcut, instagram and video_to_skill each
+carried (`_limpa_mcp`/`limpa_mcp`, `visivel`): the strictest of the three, instagram's, which also drops (or shows) the variation selectors.
 """
 from __future__ import annotations
 
@@ -64,3 +67,43 @@ def commit_do_checkout(d: Path) -> str:
         return tools.git("rev-parse", "HEAD", cwd=d)
     except tools.ToolError:
         return ""
+
+
+# ---- the text of a third party, for an agent and for a terminal --------------------------------------------------------------------
+
+# Unicode categories that can hide an instruction or move a terminal: control, format (bidirectional, zero-width, tag, BOM), surrogate, private
+# use, unassigned, line and paragraph separators.
+RUIM = ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp")
+
+
+def seletor_de_variacao(c: str) -> bool:
+    """Variation selectors (U+FE00-FE0F, U+E0100-E01EF) are category Mn but can carry hidden data after a visible character."""
+    n = ord(c)
+    return 0xFE00 <= n <= 0xFE0F or 0xE0100 <= n <= 0xE01EF
+
+
+def limpa_mcp(texto: str) -> str:
+    """Third-party text for an agent: no control, bidirectional, zero-width, line-separator, tag or variation-selector character (they can
+    hide instructions); newline and tab stay."""
+    texto = texto.replace("\r\n", "\n")
+    return "".join(c for c in texto if c in "\n\t" or (not seletor_de_variacao(c) and unicodedata.category(c) not in RUIM))
+
+
+def visivel(texto: str) -> str:
+    """Third-party text for a terminal: ESC and the other controls become their visible marks (U+2400 block), and C1, bidirectional,
+    zero-width, line-separator, BOM, tag and variation-selector characters become <U+XXXX>; newline and tab stay. A terminal never
+    receives an escape sequence that came from a script (and so, possibly, from a third party's text)."""
+    saida = []
+    for c in texto.replace("\r\n", "\n"):
+        n = ord(c)
+        if c in "\n\t":
+            saida.append(c)
+        elif n < 0x20:
+            saida.append(chr(0x2400 + n))
+        elif n == 0x7F:
+            saida.append(chr(0x2421))
+        elif seletor_de_variacao(c) or unicodedata.category(c) in RUIM:
+            saida.append(f"<U+{n:04X}>")
+        else:
+            saida.append(c)
+    return "".join(saida)

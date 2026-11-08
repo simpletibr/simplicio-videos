@@ -224,29 +224,9 @@ def _sinais_encerram_o_motor():
                 signal.signal(sinal, antigo if antigo is not None else signal.SIG_DFL)
 
 
-def _limpa_mcp(texto: str) -> str:
-    """Script text for an agent: no control, bidirectional, zero-width or tag characters (they can hide instructions)."""
-    texto = texto.replace("\r\n", "\n")
-    return "".join(c for c in texto if c in "\n\t" or unicodedata.category(c) not in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"))
-
-
-def visivel(texto: str) -> str:
-    """Script text for a terminal: ESC and the other controls become their visible marks (U+2400 block), and C1, bidirectional,
-    zero-width, line-separator and tag characters become <U+XXXX>; newline and tab stay."""
-    saida = []
-    for c in texto.replace("\r\n", "\n"):
-        n = ord(c)
-        if c in "\n\t":
-            saida.append(c)
-        elif n < 0x20:
-            saida.append(chr(0x2400 + n))
-        elif n == 0x7F:
-            saida.append(chr(0x2421))
-        elif unicodedata.category(c) in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"):
-            saida.append(f"<U+{n:04X}>")
-        else:
-            saida.append(c)
-    return "".join(saida)
+# Script text for an agent (`_limpa_mcp`) and for a terminal (`visivel`): the one cleaner of `terceiros`, the same for every track.
+_limpa_mcp = terceiros.limpa_mcp
+visivel = terceiros.visivel
 
 
 # ---------------------------------------------------------------------------------------------------------- the closed script table
