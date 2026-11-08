@@ -14,7 +14,12 @@ rodam sobre arquivos de verdade da pasta de teste. `{tmp}` e `{home}` nos valore
 as recusas cortam o caminho em 60 caracteres) e o diretório de trabalho do teste.
 
 A tabela foi gerada rodando as chamadas no código de origin/main (0eff833), em dois mundos (pastas diferentes) e em duas ordens, sem
-diferença. Para trocar uma linha por decisão do dono: rode a chamada, confira o texto novo e escreva-o aqui, no mesmo commit da mudança."""
+diferença. Para trocar uma linha por decisão do dono: rode a chamada, confira o texto novo e escreva-o aqui, no mesmo commit da mudança.
+
+U22h (decisão do dono, "Ok U22"): 69 linhas passaram de PASSA/CLI(...) para ERRO(H01..H18): as gravações em lugar proibido, por link simbólico
+ou (no install) com `..` de media, shorts, edit, clone get|media (Hypit) e install --target; o resto da tabela (2558 linhas) não mudou. A
+interface nova (`mcp_policy.escrita_recusada` e companhia) tem os testes no fim deste arquivo e a matriz ponta a ponta está em
+tests/golden/test_mcp_caminhos.py."""
 from __future__ import annotations
 
 import contextlib
@@ -3614,8 +3619,9 @@ def test_media_pede_ajuda_is_help_before_the_first_dashdash_only(pol, argv, ajud
     assert pol.media_pede_ajuda(argv) is ajuda
 
 
-@pytest.mark.parametrize("argv", [["probe", "-h"], ["audio", "x.mp4", "--help"], ["probe", "-h", "--", "x"], ["probe", "--", "-h"], ["probe", "--", "x", "--help"],
-                                  ["sheet", "x", "--", "-h"], ["fetch", "--", "--help"], ["probe", "a.mp4", "-o", "x", "--", "-h"]])
+@pytest.mark.parametrize("argv", [["probe", "-h"], ["audio", "/u22h-nao-existe/x.mp4", "--help"], ["probe", "-h", "--", "x"], ["probe", "--", "-h"],
+                                  ["probe", "--", "x", "--help"], ["sheet", "/u22h-nao-existe/x", "--", "-h"], ["fetch", "--", "--help"],
+                                  ["probe", "/u22h-nao-existe/a.mp4", "-o", "/u22h-nao-existe/x", "--", "-h"]])
 def test_media_pede_ajuda_agrees_with_what_the_media_command_does_with_the_same_words(pol, argv, capsys):
     """Contra o código do `media` (run_media): as palavras que ele toma por ajuda imprimem a ajuda e saem; as outras rodam (aqui, falham sem fonte)."""
     from simplicio_video import media
@@ -3633,6 +3639,7 @@ def test_media_pede_ajuda_agrees_with_what_the_media_command_does_with_the_same_
     (["get", "b1", "--to", "/abs/a", "--output", "n"], ["/abs/a"]),
     (["get", "b1", "--output", "n", "--to", "/abs/a", "--to", "/abs/b"], ["/abs/a", "/abs/b"]),
     (["get", "b1", "--output", "n"], []),
+    (["get", "b1", "--to"], []), (["get", "--to"], []),  # `--to` sem valor: nao ha destino (e o laco nao passa do fim)
     (["media", "cut", "/a/in.mp4", "--start", "0", "--end", "1", "--to", "/abs/x.mp4"], ["/abs/x.mp4"]),
     (["media", "frames", "/a/in.mp4", "--to", "/abs/f", "--label-time"], ["/abs/f"]),
     (["media", "tiles", "/a/in.mp4", "--ranges", "/abs/r.json", "--to", "/abs/t"], ["/abs/t"]),

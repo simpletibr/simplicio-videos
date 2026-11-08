@@ -258,6 +258,17 @@ def test_every_tool_still_writes_at_the_places_of_the_user(mundo, chamada, aceit
     assert chama(mundo, ferramenta, monta(caminho)) == aceita(mundo, ferramenta, monta(caminho))
 
 
+@pytest.mark.parametrize("chamada", UMA_POR_TOOL)
+@pytest.mark.parametrize("modelo", ["{home}/.simplicio-video/jobs/n.mp4", "{home}/.simplicio-video/tools/n.mp4"], ids=["dados", "ferramentas"])
+def test_where_two_reasons_apply_the_one_said_is_the_first_of_the_one_rule(mundo, monkeypatch, chamada, modelo):
+    """O padrão do motor guarda dados e ferramentas em `~/.simplicio-video`, que também é pasta oculta do home. A regra única pergunta nesta ordem
+    (sistema, início automático, oculta do home, `.git`, e só depois o que é do motor) e diz a primeira: a oculta, como diz às outras trilhas."""
+    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(mundo.home / ".simplicio-video"))
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(mundo.home / ".simplicio-video" / "tools"))
+    ferramenta, quem, monta = CHAMADAS[chamada]
+    assert chama(mundo, ferramenta, monta(modelo)) == (RECUSA, lugar(quem, troca(modelo, mundo), OCULTA))
+
+
 # ============================================================================================ todas as grafias da saída
 
 GRAFIAS_DO_EDIT = [("-o", "{p}"), ("-o{p}",), ("-o={p}",), ("--output", "{p}"), ("--output={p}",), ("--o", "{p}"), ("--o={p}",), ("--ou", "{p}"),
