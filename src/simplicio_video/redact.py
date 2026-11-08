@@ -10,15 +10,15 @@ xAI, Openverse) from `MIN_KNOWN` = 6 characters, one whose name has KEY, SECRET,
 (GITHUB_TOKEN; PIP_KEYRING_PROVIDER is not one) and a proxy URL that carries `user:password@` from `MIN_GENERIC` = 8, plus what a module
 `register`s (the OAuth token that Openverse keeps in memory). Each variable gets the lowest limit any of the old functions gave it, and a longer value
 goes before a shorter one that is part of it, so no tail of a key is left in the open. (2) Text SHAPED like a key (`SECRET_RE`). The length of each
-shape is the lowest any old function used (`AIza` + 8, `sk-` + 8, `Bearer` + 16 letters or + 8 with a digit...); one that is only a few
-characters long beyond its prefix needs a non-word character before it (the lookbehind of busca and openverse), so `task-based-workflow-x`, which
-contains `sk-based-workflow-x`, is a phrase and not a key. The two Google shapes that the swap providers used to hide, `AIzaSy` + 25 and `AQ.` + 30,
-have no such guard: they are long enough not to be a word and a key glued to a word (`key_AIzaSy...`) stays hidden. A private key header is hidden
-in any case.
+shape is the lowest any old function used (`AIza` + 8, `sk-` + 8, `Bearer` + 16 letters or + 8 with a digit...). Every shape but two needs a non-word
+character before it (the lookbehind of busca and openverse), so `task-based-workflow-x`, which contains `sk-based-workflow-x`, is a phrase and not a
+key. The two that do not are the Google shapes the swap providers used to hide, `AIzaSy` + 25 and `AQ.` + 30: they are long enough not to be a
+word, and a key glued to a word (`key_AIzaSy...`) stays hidden. A private key header is hidden in any case.
 
-WHO CALLS WHAT. `scrub(text)` hides (1) and then (2); `has_secret(text)` says whether there is anything to hide, for the places that refuse instead of
-hiding (a TinyFish query, the arguments of a background task); `secret_values()` and `mask_values()` are the two halves of (1), for the places that
-keep the list or the order of their own. A module that keeps a secret in memory calls `register`.
+WHO CALLS WHAT. `scrub(text, values=None)` hides (1) and then (2) (a loop that cleans line after line passes `secret_values()`, asked once);
+`has_secret(text)` says whether there is anything to hide, for the places that refuse instead of hiding (a TinyFish query, the arguments of a
+background task); `secret_values()` and `mask_values()` are the two halves of (1), for the places that keep the list or the order of their own.
+A module that keeps a secret in memory calls `register`.
 
 Standard library plus `terceiros` (a leaf): the swap adapters, busca, openverse, social and jobs all import this module, so it imports none of them.
 """
@@ -37,8 +37,8 @@ MASK = "***"
 
 # ---------------------------------------------------------------------------------------------------------------- shapes
 
-# What the swap providers (swap_providers.base.KEY_PATTERN) hid: the Google API key and the OAuth-style token (it has `.`, and stops only at a
-# character outside the class). No lookbehind: they are the keys that spend money, and 31 and 33 characters are not a word.
+# What the swap providers hid before this module existed (the `KEY_PATTERN` of swap_providers/base.py): the Google API key and the OAuth-style token
+# (it has `.`, and stops only at a character outside the class). No lookbehind: they are the keys that spend money, and 31 and 33 characters are not a word.
 _GOOGLE = r"AIzaSy[A-Za-z0-9_-]{25,}|AQ\.[A-Za-z0-9_.-]{30,}"
 
 # What busca and openverse hid, at the lowest length of the two. Each needs a non-word character before it. A prefix with a provider length
