@@ -6,9 +6,11 @@ module asks for on top (its proxy and certificate variables, its own key, ...), 
 A name that is in neither is never passed, whatever the shell has. `PROXIES` is the one list of the eight proxy names: the modules that
 let a proxy through write `(*terceiros.PROXIES, ...)` instead of typing them again.
 
-HELPERS. `chave`, `dentro`, `real` and `commit_do_checkout` are the copies that instagram, matchcut and video_to_skill each carry
-(`_chave`, `_dentro`, `_real`, `_commit_do_checkout`), with the same bodies. montage has a `_dentro` of its own (it compares real
-paths another way) and keeps it.
+HELPERS. `chave`, `dentro`, `real` and `commit_do_checkout` were the copies that instagram, matchcut and video_to_skill each carried
+(`_chave`, `_dentro`, `_real`, `_commit_do_checkout`), with the same bodies. `_real` and `_commit_do_checkout` are now these functions;
+`_chave` and `_dentro` stay in the three modules (their tests flip the `CASE_INSENSITIVE` of the module) and each module hands them to
+`lugar_proibido`. montage no longer has a `_dentro` of its own (it compared real paths another way): its rule asks with the `dentro` of
+this module.
 
 TEXT. `limpa_mcp` (the text an agent gets) and `visivel` (the text a terminal gets) are what matchcut, instagram and video_to_skill each
 carried (`_limpa_mcp`/`limpa_mcp`, `visivel`): the strictest of the three, instagram's, which also drops (or shows) the variation selectors.
