@@ -144,6 +144,18 @@ def _contract_arg(p):
                    help=f"caminho do contrato YAML ({CONTRACT_SCHEMA_ID}; schema em {SCHEMA_REL})")
 
 
+def _provider_arg(p):
+    """`--provider` of `voice` and `run`: one option for both, its choices the voice providers of the registry, in its order.
+
+    The names are read from `voz_catalogo` (plain data) and not from `voice.PROVIDERS`: `voice` brings `childio`, `voice_clone` and
+    more, and a `--help` that lists the providers must not load them (tests/test_help.py, tests/test_help_leve.py). `voice.PROVIDERS`
+    is built from the same table, so the choices are those of `voice.PROVIDERS`, of `list voices` and of the `voz.provider` enum of the
+    schema (tests/golden/test_mcp_bordas.py pins the four). The stubs (elevenlabs, xai) stay in the list: the option overrides
+    `voz.provider`, which accepts them, and `voice.run` is what refuses them, with its own message."""
+    from .voz_catalogo import DESCRICOES
+    p.add_argument("--provider", "-p", choices=list(DESCRICOES), help="override voz.provider")
+
+
 def _ajuda_longa(only: str | None, nome: str, carrega: Callable[[], ModuleType]) -> dict[str, str]:
     """`description` and `epilog` of command `nome` when its long help lives in a module of the package (heavy: it imports the
     track, or six adapters). Only the page that is going to be printed needs them: `only` is the command whose `--help` it is;
@@ -217,7 +229,7 @@ def build_parser(only: str | None = None) -> argparse.ArgumentParser:
                "  simplicio-video voice contract.yaml --provider file    # depois de baixar line-01..NN.wav do AI Studio\n"
                "  simplicio-video voice contract.yaml --force vo2        # refaz só a vo2")
     _contract_arg(p)
-    p.add_argument("--provider", "-p", choices=["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "elevenlabs", "xai"], help="override voz.provider")
+    _provider_arg(p)
     p.add_argument("--force", action="store_true", help="ignora o cache (com ids: só esses)")
     p.add_argument("--concurrency", type=positive_int, default=None, metavar="N",
                    help="falas geradas ao mesmo tempo, só em provedor de rede (gemini; padrão 4; 1 = serial). Provedor local é sempre serial")
@@ -284,7 +296,7 @@ def build_parser(only: str | None = None) -> argparse.ArgumentParser:
                "  simplicio-video run contract.yaml --provider gemini --backend kaggle   # opcional (créditos)\n"
                "  simplicio-video run contract.yaml --backend colab-cli --json")
     _contract_arg(p)
-    p.add_argument("--provider", "-p", choices=["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio"], help="override voz.provider")
+    _provider_arg(p)
     p.add_argument("--force-voice", action="store_true", help="regera todas as falas (ignora o cache)")
     p.add_argument("--backend", "-b", choices=BACKENDS, default="local", help="onde renderizar (padrão: local; kaggle/colab-cli/colab são opcionais, via créditos)")
     p.add_argument("--accelerator", help="ver `render --help` (none = CPU)")
