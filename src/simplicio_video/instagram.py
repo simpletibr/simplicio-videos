@@ -514,7 +514,7 @@ def _comando(script, argv: list) -> list:
     wall time: a script that only sleeps is stopped by the engine (the 30 s kill, or SIGTERM/SIGHUP handling), never by this. No core
     dump. The limits are read when the command is built, not at import."""
     base = [sys.executable, "-I", "-B", "-X", "utf8"]
-    if resource is None or os.name != "posix":  # no rlimit here (Windows, UNVERIFIED), and os.execv does not replace the process there
+    if resource is None:  # no rlimit here (Windows, UNVERIFIED), and os.execv does not replace the process there
         return [*base, str(script), *argv]
     cpu = max(1, int(TIMEOUT_S) + CPU_FOLGA_S)
     return [*base, "-c", _WRAPPER, str(cpu), str(MAX_MEM_BYTES), str(script), *argv]
