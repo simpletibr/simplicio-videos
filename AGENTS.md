@@ -197,6 +197,7 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `qc.py`: `simplicio-video qc`: controle de qualidade de um MP4 (ffmpeg e ffprobe; sem modelo, sem rede).
 - `rea_video.py`: rea-video track: reverse-engineers a video shot by shot (live action, AI video, 3D, code render, mixed) and plans a remake (https://github.com/JuneYaooo/rea-video, MIT; declared in its pyproject.toml, no LICENSE file at the pin).
 - `realoficial.py`: Real Oficial track: MCP remoto (https://api.realoficial.com.br/mcp) for scheduling/publishing and AI image/video generation.
+- `redact.py`: One redactor for every secret the engine could echo: the values of the credentials in the environment and anything shaped like a key, hidden in logs, errors, manifests, job files and third-party text.
 - `rede.py`: Network policy of the engine: whether the network may be used at all, and the one HTTP client.
 - `remote.py`: Remote render backends driven 100% by CLI (no browser): Kaggle Notebooks (`kaggle` CLI) and Google Colab (`colab` CLI).
 - `render.py`: `simplicio-video render`: contract -> workdir (compiler) -> engine build (music/SFX/VO mix) -> HyperFrames frames -> ffmpeg master (-14 LUFS).
