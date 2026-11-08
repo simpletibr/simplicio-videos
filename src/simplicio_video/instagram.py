@@ -21,9 +21,9 @@ How a script is run (`run`):
 - an input file is opened once, checked with fstat on that descriptor (a regular file only), read up to MAX_INPUT_BYTES + 1,
   and the script gets a private copy of exactly the bytes that were read;
 - if the engine itself is asked to stop (SIGTERM or SIGHUP: terminal closed, MCP host stopping, an agent's timeout) the process
-  group of the child is killed and the private folder removed; on POSIX a wrapper inside the child sets an RLIMIT_CPU (and no core
-  dump) and then execs the script, so the kernel ends a script that burns CPU even when the engine is killed outright (SIGKILL). It
-  counts CPU time, not wall time, and none of it exists on Windows (there only the 30 s wall-clock kill and the signal handling remain);
+  group of the child is killed and the private folder removed; on POSIX a wrapper inside the child sets an RLIMIT_CPU and an RLIMIT_AS
+  (no core dump) and then execs the script, so the kernel ends a script that burns CPU even when the engine is killed outright (SIGKILL)
+  and a runaway allocation ends in a MemoryError. RLIMIT_CPU is CPU time, not wall time; Windows has neither (only the 30 s kill and the signals remain);
 - on the terminal the script text is shown with control, bidirectional and zero-width characters turned into visible marks.
 """
 from __future__ import annotations
@@ -478,7 +478,10 @@ def _ambiente() -> dict:
 _matar = childio.kill_group  # the name the tests replace (a fake child has no pid): the group is stopped in childio
 
 
-MAX_MEM_BYTES = 0  # address-space limit of the child (RLIMIT_AS), in bytes; 0 = none
+# Measured on the six real scripts of the pinned commit with the largest input the engine passes (MAX_INPUT_BYTES, 1 MiB): at most 115 MiB of
+# address space (VmPeak), and 128 MiB is the smallest limit under which every run still ends the same. 4 GiB is 35 times that: a script that
+# runs away in memory gets a MemoryError in the child instead of taking the memory of the machine.
+MAX_MEM_BYTES = 4 * 1024 ** 3  # address-space limit of the child (RLIMIT_AS), in bytes; 0 = none
 
 # Runs in the child before the script: the kernel limits, then exec of the script with the same isolated flags. A wrapper instead of a
 # fork hook (which is not safe under the threads of the MCP server); POSIX only: where there is no `resource` module (Windows) the command
