@@ -318,6 +318,26 @@ def test_audio8_goes_from_the_run_command_to_the_pipeline(mini, monkeypatch):
     assert visto["provider"] == "audio8"
 
 
+@pytest.mark.parametrize("comando", ["voice", "run"])
+def test_without_the_flag_the_provider_stays_with_the_contract(mini, monkeypatch, comando):
+    from simplicio_video import pipeline
+
+    visto: dict = {}
+    monkeypatch.setattr(voice, "run", lambda c, **kw: visto.update(kw))
+    monkeypatch.setattr(pipeline, "run_all", lambda contrato, **kw: visto.update(kw))
+    assert cli.build_parser().parse_args([comando, "contract.yaml"]).provider is None
+    assert cli.main([comando, str(mini)]) == 0
+    assert visto["provider"] is None  # `voice.run` e `run_all` resolvem pelo `voz.provider` do contrato
+
+
+@pytest.mark.parametrize("comando", ["voice", "run"])
+@pytest.mark.parametrize("nome", ["Gemini", "GEMINI", "audio-8", "audio8 ", "", "all"])
+def test_the_parser_matches_the_names_of_the_registry_exactly(comando, nome):
+    with pytest.raises(SystemExit) as e:
+        le_provider(comando, nome)
+    assert e.value.code == 2
+
+
 # ============================================================================================ (f) o limite de recursos do filho
 
 @LINUX
