@@ -324,15 +324,60 @@ def textos_de_borda() -> list:
     return [antes + token + depois for token in [t for _, t in AMOSTRAS] + extras for antes, depois in contextos]
 
 
-def test_the_one_rule_hides_every_character_any_rule_of_today_hid():
+def escondido_por(texto: str) -> set:
+    """Os caracteres que a regra única esconde (formato) em `texto`."""
     from simplicio_video import redact
+    return {i for inicio, fim in redact.shape_spans(texto) for i in range(inicio, fim)}
+
+
+def test_the_one_rule_hides_every_character_any_rule_of_today_hid():
     falhas = []
     for texto in textos_de_borda():
-        escondido = posicoes(redact.SECRET_RE, texto)
+        escondido = escondido_por(texto)
         for nome, ref in (("busca", REFERENCIA_BUSCA), ("openverse", REFERENCIA_OPENVERSE), ("swap/jobs/base", REFERENCIA_GOOGLE)):
             if not posicoes(ref, texto) <= escondido:
                 falhas.append((nome, texto))
     assert falhas == []
+
+
+def texto_aleatorio(r) -> str:
+    """Um a cinco pedaços colados: prefixo de formato (ou de palavra comum), enchimento de uma classe e um separador (ou nenhum)."""
+    prefixos = ["AIza", "AIzaSy", "AQ.", "sk-", "sk-proj-", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "xoxb-", "xoxp-", "eyJ", "ya29.", "AKIA",
+                "sk_live_", "rk_test_", "hf_", "npm_", "glpat-", "Bearer ", "bearer ", "Bearer\t", "BEARER ", "-----BEGIN RSA PRIVATE KEY-----",
+                "-----begin private key-----", "task-", "risk-", "FAQ.", "xoxo-", "key_", "a", "9", "_", "x"]
+    classes = ["abcXYZ019", "abcXYZ019_-", "abcXYZ019._-", "abcXYZ019._~+/=-", "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", "abcdefghijklmnopqrstuvwxyz",
+               "0123456789", "~+/=", "-_."]
+    separadores = [" ", "  ", "\t", "\n", "=", ":", '"', "'", "/", "(", ")", ",", ";", "-", "_", ".", "", "", ""]
+    comprimentos = [0, 1, 5, 7, 8, 9, 10, 15, 16, 17, 19, 20, 21, 24, 25, 29, 30, 31, 36, 41, 60]
+    return "".join(r.choice(prefixos) + "".join(r.choice(r.choice(classes)) for _ in range(r.choice(comprimentos))) + r.choice(separadores)
+                   for _ in range(r.randint(1, 5)))
+
+
+def test_the_one_rule_hides_exactly_what_the_three_rules_of_today_hid_in_20000_random_texts():
+    # Um regex só com todas as alternativas engole da esquerda para a direita: um `Bearer` dentro do token de outro `Bearer` deixava o valor do segundo à
+    # vista (12 em cada 20 000 destes textos, 105 em 400 000, medidos). Cada regra de hoje, rodada sozinha, esconde o que escondia, e a regra única é a
+    # união dos trechos delas: nem um caractere a menos (o vazamento) nem um a mais (o falso positivo)
+    import random
+    r = random.Random(20261108)
+    mais, menos = [], []
+    for _ in range(20000):
+        texto = texto_aleatorio(r)
+        hoje = posicoes(REFERENCIA_BUSCA, texto) | posicoes(REFERENCIA_OPENVERSE, texto) | posicoes(REFERENCIA_GOOGLE, texto)
+        agora = escondido_por(texto)
+        if hoje - agora:
+            menos.append(texto)
+        if agora - hoje:
+            mais.append(texto)
+    assert menos == [] and mais == []
+
+
+def test_the_stretches_of_the_one_rule_merge_the_ones_that_overlap_and_only_those():
+    from simplicio_video import redact
+    assert redact.shape_spans("") == [] and redact.shape_spans("task-based-workflow-x e FAQ.html") == []
+    google = "AIzaSy" + corpo(33)
+    assert redact.shape_spans("x " + google + " y") == [(2, 41)]  # a busca e o Google acham a mesma chave: um trecho, não dois
+    assert redact.shape_spans("x " + google + " sk-" + corpo(20) + " y") == [(2, 41), (42, 65)]  # duas chaves: dois trechos
+    assert redact.shape_spans("x AQ." + corpo(10) + "." + corpo(25) + " y") == [(2, 39)]  # o do Google (com ponto) cobre o da busca, que parava no ponto
 
 
 def test_the_one_rule_is_idempotent_and_the_mask_is_not_a_secret():
@@ -377,6 +422,7 @@ TABELA_BORDAS = [
     ("duas chaves seguidas", "x AIzaSy" + corpo(33) + " sk-" + corpo(20) + " y", "x *** *** y", "hit"),
     ("chave dentro de um JSON", '{"k":"sk-' + corpo(20) + '"}', '{"k":"***"}', "hit"),
     ("chave na query de uma URL", "https://x/y?key=AIzaSy" + corpo(33) + "&a=1", "https://x/y?key=***&a=1", "hit"),
+    ("Bearer dentro do token de outro Bearer: o valor do segundo tambem", "x Bearer 1abcdefg.Bearer \t" + corpo(16, "Abc") + " y", "x *** y", "hit"),
     # os limiares, um de cada lado (a tabela de cima só tem o lado de baixo de alguns): colados, para que valha o do Google sem lookbehind
     ("AIzaSy + 24 colado a um sublinhado: abaixo do limiar do Google", "x key_AIzaSy" + corpo(24) + " y", "x key_AIzaSy" + corpo(24) + " y", "miss"),
     ("AQ. + 29 colado a uma letra (FAQ.): abaixo do limiar do Google", "x FAQ." + corpo(29) + " y", "x FAQ." + corpo(29) + " y", "miss"),
