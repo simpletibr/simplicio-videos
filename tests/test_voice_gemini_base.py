@@ -44,6 +44,8 @@ REFUSED = [
     "http://127.0.0.2:8080",
     "http://localhost.evil.com/v1beta",  # names that only start like a loopback
     "http://127.0.0.1.evil.com/v1beta",
+    "http://evil.localhost",  # names that only END like a loopback: a suffix match (endswith) would take them
+    "http://notlocalhost",
     "http://127.0.0.1@evil.com/v1beta",  # the host is what comes after the @
     "http://localhost:80@evil.com/v1beta",
     "http://user:secret@example.com/v1beta",  # credentials in the URL: the fixed text never repeats the value
