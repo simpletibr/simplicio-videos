@@ -203,12 +203,12 @@ def test_the_default_gemini_base_is_the_same_https_url_in_both(monkeypatch):
 # ============================================================================================ (d) a URL do VoiceStudio em voice_clone x voicestudio
 
 @pytest.mark.parametrize("ambiente,clone,estudio", [
-    ({}, "http://localhost:3900", "http://127.0.0.1:3900"),
+    ({}, "http://127.0.0.1:3900", "http://127.0.0.1:3900"),
     ({"VOICESTUDIO_URL": "http://studio.local:4000/"}, "http://studio.local:4000", "http://studio.local:4000"),
-    # U22 decide: voice_clone só lê VOICESTUDIO_URL; voicestudio.base_url() lê também OMNIVOICE_URL e as portas, e usa 127.0.0.1
-    ({"OMNIVOICE_URL": "http://omni.local:5000/"}, "http://localhost:3900", "http://omni.local:5000"),
-    ({"VOICESTUDIO_PORT": "4001"}, "http://localhost:3900", "http://127.0.0.1:4001"),
-    ({"OMNIVOICE_PORT": "4002"}, "http://localhost:3900", "http://127.0.0.1:4002"),
+    # U22d decidiu (OK do dono): voice_clone.voicestudio_url() delega a voicestudio.base_url(): lê também OMNIVOICE_URL e as portas, e o padrão é 127.0.0.1 (era localhost)
+    ({"OMNIVOICE_URL": "http://omni.local:5000/"}, "http://omni.local:5000", "http://omni.local:5000"),
+    ({"VOICESTUDIO_PORT": "4001"}, "http://127.0.0.1:4001", "http://127.0.0.1:4001"),
+    ({"OMNIVOICE_PORT": "4002"}, "http://127.0.0.1:4002", "http://127.0.0.1:4002"),
     ({"VOICESTUDIO_URL": "http://a.local:1", "OMNIVOICE_URL": "http://b.local:2"}, "http://a.local:1", "http://a.local:1"),
 ], ids=["padrao", "VOICESTUDIO_URL", "OMNIVOICE_URL", "VOICESTUDIO_PORT", "OMNIVOICE_PORT", "as-duas-URLs"])
 def test_the_voicestudio_url_of_voice_clone_and_of_the_voicestudio_module(monkeypatch, ambiente, clone, estudio):
