@@ -140,6 +140,16 @@ def test_voice_and_the_swap_adapter_judge_a_base_the_same_way(monkeypatch, value
         assert mine[1] == theirs[1]  # (with spaces around it the adapter returns the text trimmed, voice as it always did)
 
 
+def test_a_blank_base_is_refused_where_the_adapter_reads_it_as_not_set(monkeypatch):
+    # The one place where voice is stricter than the adapter. The adapter trims first, so "   " is "not set" and it takes the official base;
+    # voice never trimmed what it returns, and "   " is not a URL (before U22c: a ValueError in the middle of the request).
+    monkeypatch.setenv(ENV, "   ")
+    with pytest.raises(voice.VoiceError) as e:
+        voice.gemini_base()
+    assert e.value.code == REFUSAL
+    assert swap_gemini.GeminiAdapter()._base() == OFFICIAL
+
+
 @pytest.mark.parametrize("api,tail", [("interactions", "/interactions"), ("generate_content", "/models/gemini-3.8-flash-tts:generateContent")])
 def test_the_request_of_each_api_is_built_on_the_checked_base(monkeypatch, api, tail):
     settings = {**SETTINGS, "api": api}
@@ -164,6 +174,14 @@ def test_the_key_is_not_sent_to_a_base_in_clear(monkeypatch, sent, tmp_path, val
         refusal = e.code
     assert sent == []  # nothing left the machine: no request, so no header with the key
     assert refusal == REFUSAL and not take.exists()
+
+
+def test_without_a_key_the_missing_key_message_still_comes_first(monkeypatch, sent, tmp_path):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv(ENV, "http://example.com/v1beta")
+    with pytest.raises(voice.VoiceError, match=r"^provider=gemini: GEMINI_API_KEY not set\."):  # the message that was already there, as before
+        voice._gemini(SETTINGS, "Oi!", tmp_path / "take.wav")
+    assert sent == []
 
 
 def test_a_run_stops_before_the_first_request_and_writes_nothing(monkeypatch, mini, sent):
