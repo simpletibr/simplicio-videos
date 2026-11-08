@@ -123,6 +123,30 @@ def test_base_url_rejects_a_bad_port(monkeypatch):
         vs.base_url()
 
 
+# U22d: `str.isdigit()` is true for more than 0-9. '²', '³' and '①' make `int()` raise ValueError (a traceback); '٣', '３' and '３９００' pass
+# `int()` (3, 3, 3900), so the base became `http://127.0.0.1:٣` and http.client died in UnicodeEncodeError on the Host header. A port is ASCII
+# digits only: anything else is refused like a letter is, with the same text.
+NAO_ASCII = ["²", "³", "①", "٣", "３", "３９００", "٣٩٠٠"]
+NOMES_NAO_ASCII = ["sobrescrito-2", "sobrescrito-3", "circulado-1", "arabe-3", "largura-total-3", "largura-total-3900", "arabe-3900"]  # ids without escapes
+
+
+@pytest.mark.parametrize("var", ["VOICESTUDIO_PORT", "OMNIVOICE_PORT"])
+@pytest.mark.parametrize("valor", NAO_ASCII, ids=NOMES_NAO_ASCII)
+def test_base_url_rejects_a_port_that_is_not_ascii_digits_like_a_letter(monkeypatch, var, valor):
+    monkeypatch.setenv(var, valor)
+    with pytest.raises(vs.VoiceStudioError) as e:
+        vs.base_url()
+    assert str(e.value) == f"porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)"
+
+
+@pytest.mark.parametrize("valor", ["²", "٣", "３９００"], ids=["sobrescrito-2", "arabe-3", "largura-total-3900"])
+def test_the_command_says_so_for_a_port_that_is_not_ascii_digits_instead_of_a_traceback(monkeypatch, capsys, fake, valor):  # `fake`: no real transport, even when red
+    monkeypatch.setenv("VOICESTUDIO_PORT", valor)
+    rc, out, err = _run(["status"], capsys)
+    assert (rc, out) == (1, "")
+    assert err == f"voicestudio: porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)\n"
+
+
 # ---- MCP handshake and typed tools -------------------------------------------------------------------------------
 
 def test_status_initializes_the_session_and_parses_json_text(fake):

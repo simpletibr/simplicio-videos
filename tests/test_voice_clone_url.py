@@ -35,6 +35,10 @@ S = {"model": "omnivoice", "voice": "me"}
 VARIAVEIS_DA_BASE = ("VOICESTUDIO_URL", "OMNIVOICE_URL", "VOICESTUDIO_PORT", "OMNIVOICE_PORT")
 FALHA = "provider=voicestudio: backend not reachable at {onde} (refused). Start VoiceStudio or set VOICESTUDIO_URL."
 PORTA_RUIM = "provider=voicestudio: porta inválida em VOICESTUDIO_PORT/OMNIVOICE_PORT: {valor!r} (esperava 1-65535)"
+# `str.isdigit()` is true for more than 0-9: '²' makes `int()` raise ValueError, '٣' and '３９００' pass it (3, 3900) and the base keeps the non-ASCII
+# digits (http://127.0.0.1:٣), which http.client cannot put in the Host header (UnicodeEncodeError). voicestudio.py refuses them like a letter.
+NAO_ASCII = [("VOICESTUDIO_PORT", "²"), ("OMNIVOICE_PORT", "³"), ("VOICESTUDIO_PORT", "①"), ("OMNIVOICE_PORT", "٣"), ("VOICESTUDIO_PORT", "３"),
+             ("VOICESTUDIO_PORT", "３９００"), ("OMNIVOICE_PORT", "٣٩٠٠")]
 
 
 @pytest.fixture(autouse=True)
@@ -174,6 +178,21 @@ def test_a_bad_port_stops_before_any_request(monkeypatch, tmp_path, rede):
     with pytest.raises(SystemExit) as e:
         voice_clone.voicestudio(S, "hello", dst)
     assert e.value.code == PORTA_RUIM.format(valor="abc")
+    assert rede.pedidos == [] and not dst.parent.exists()
+
+
+@pytest.mark.parametrize("var,valor", NAO_ASCII, ids=["VOICESTUDIO_PORT-sobrescrito", "OMNIVOICE_PORT-sobrescrito-3", "VOICESTUDIO_PORT-circulado",
+                                                      "OMNIVOICE_PORT-arabe", "VOICESTUDIO_PORT-largura-total", "VOICESTUDIO_PORT-3900-largura-total",
+                                                      "OMNIVOICE_PORT-3900-arabe"])
+def test_a_port_that_is_not_ascii_digits_is_the_error_of_the_provider_and_makes_no_request(monkeypatch, tmp_path, rede, var, valor):
+    com(monkeypatch, {var: valor})
+    with pytest.raises(voice_clone.CloneVoiceError) as e:
+        voice_clone.voicestudio_url()
+    assert e.value.code == PORTA_RUIM.format(valor=valor)
+    dst = tmp_path / "sub" / "o.wav"
+    with pytest.raises(voice_clone.CloneVoiceError) as e2:
+        voice_clone.voicestudio(S, "hello", dst)
+    assert e2.value.code == PORTA_RUIM.format(valor=valor)
     assert rede.pedidos == [] and not dst.parent.exists()
 
 
