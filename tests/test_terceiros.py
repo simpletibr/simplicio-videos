@@ -819,3 +819,28 @@ def test_a_regra_de_var_nao_levanta_sem_pasta_temporaria_usavel(sob_var, monkeyp
     assert t.lugar_proibido(sob_var.tmp_env / "x") is None  # o $TMPDIR ainda diz qual é
     assert t.lugar_proibido(sob_var.home / "proj" / "x") is None
     assert t.lugar_proibido(Path("/var/www/x")) == t.SISTEMA
+
+
+# As árvores do usuário sob /var são comparadas com o MESMO `dentro` do resto da regra (a flag de caixa do módulo; verde antes e depois):
+# o mesmo caminho, só com outra caixa depois de /var, é liberado onde a flag está ligada e recusado onde está desligada.
+CAIXA_SOB_VAR = (Path("/var/ZZ-U22A-TMP/T/x"), Path("/var/ZZ-U22A-TMP/T-ENV/a/b.mp4"), Path("/var/ZZ-U22A-HOME/USER/proj/out.mp4"))
+
+
+@pytest.mark.parametrize("modulo", ["instagram", "matchcut", "video_to_skill"])
+def test_cada_trilha_segue_a_propria_caixa_nas_arvores_do_usuario_sob_var(sob_var, monkeypatch, modulo):
+    mod = importlib.import_module(f"simplicio_video.{modulo}")
+    for alvo in CAIXA_SOB_VAR:
+        monkeypatch.setattr(mod, "CASE_INSENSITIVE", False)
+        assert mod._lugar_proibido(alvo) == "em pasta do sistema", alvo
+        monkeypatch.setattr(mod, "CASE_INSENSITIVE", True)
+        assert mod._lugar_proibido(alvo) == "", alvo
+
+
+def test_montage_e_voicestudio_seguem_a_caixa_de_terceiros_nas_arvores_do_usuario_sob_var(sob_var, monkeypatch):
+    from simplicio_video import montage, voicestudio
+    t = _terceiros()
+    for alvo in CAIXA_SOB_VAR:
+        monkeypatch.setattr(t, "CASE_INSENSITIVE", False)
+        assert montage._lugar_proibido(alvo) == "em pasta do sistema" and voicestudio._forbidden_place(alvo) == "em pasta do sistema", alvo
+        monkeypatch.setattr(t, "CASE_INSENSITIVE", True)
+        assert montage._lugar_proibido(alvo) == "" and voicestudio._forbidden_place(alvo) is None, alvo
