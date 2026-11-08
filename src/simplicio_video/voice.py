@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import aio, childio, hostos, mediaio, paths, voice_clone, voz_catalogo, words as wordsmod
+from . import aio, childio, hostos, mediaio, paths, rede, voice_clone, voz_catalogo, words as wordsmod
 from .contract import Contract, r4
 from .fsutil import sha256_file
 
@@ -223,7 +223,7 @@ def _gemini(S: dict, text: str, dst: Path, retries: int = 4) -> dict:
         req = urllib.request.Request(url, data=data, method="POST",
                                      headers={"x-goog-api-key": key, "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=180) as r:
+            with rede.urlopen_seguro(req, timeout=180) as r:  # urlopen, but a redirect to another host does not take the key along
                 res = json.loads(r.read())
             break
         except urllib.error.HTTPError as e:

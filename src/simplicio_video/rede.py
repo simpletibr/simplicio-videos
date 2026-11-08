@@ -12,7 +12,7 @@ instagram included) imports this module for `offline` alone. `NoRedirect` and `S
 first access (module `__getattr__`, PEP 562) and cached in the module: every access, `from simplicio_video.rede import NoRedirect` included, is one.
 
 `swap_providers/http.py` is this module under its old name (it imports it and takes its place in sys.modules), so `request`, `Response`,
-`NetworkError`, `NoRedirect` and `StripCredentialsRedirect` are the same objects under both names.
+`NetworkError`, `NoRedirect`, `StripCredentialsRedirect` and `urlopen_seguro` (`urlopen` with that handler, for voice, voice_clone and voicestudio) are the same objects under both names.
 """
 from __future__ import annotations
 
@@ -178,3 +178,12 @@ def request(method: str, url: str, headers: dict | None = None, json_body: dict 
         return Response(e.code, err, _lower(getattr(e, "headers", None)))
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise NetworkError(f"falha de rede: {type(e).__name__}") from None
+
+
+def urlopen_seguro(req, *, timeout: float):
+    """`urllib.request.urlopen(req, timeout=timeout)` for the callers that send a key in a header, keep their own errors and so do not go
+    through `request` (voice, voice_clone and voicestudio): the same opener, but a followed redirect goes through `StripCredentialsRedirect`,
+    so the key stays with the netloc it was sent to. It returns the response as `urlopen` does and raises what `urlopen` raises (HTTPError,
+    URLError, OSError): nothing is wrapped, nothing is read, and SIMPLICIO_OFFLINE is not looked at (the caller's call: VoiceStudio is local)."""
+    import urllib.request  # here and not at the top: see the module docstring
+    return urllib.request.build_opener(_strip_credentials_redirect()).open(req, timeout=timeout)
