@@ -45,7 +45,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import childio, tools
+from . import childio, terceiros, tools
 from .rede import offline as _offline
 from .terceiros import commit_do_checkout as _commit_do_checkout
 from .trilha_base import Trilha
@@ -326,18 +326,6 @@ class _Plano:
     usa_stdin: bool = False
 
 
-_RAIZES_POSIX = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys", "/run",
-                 "/opt", "/srv", "/snap", "/System", "/Library", "/Applications", "/private/etc", "/var/lib", "/var/log",
-                 "/var/spool", "/var/run", "/var/db")
-_RAIZES_WINDOWS = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
-
-
-# Folders whose files the system runs on its own at login: never a place for an output file (relative to the home).
-_INICIO_AUTOMATICO = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
-                      ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
-_STARTUP_DO_APPDATA = ("Microsoft", "Windows", "Start Menu", "Programs", "Startup")
-
-
 def _chave(caminho: Path) -> tuple:
     if CASE_INSENSITIVE:
         return tuple(unicodedata.normalize("NFC", parte).casefold() for parte in caminho.parts)
@@ -350,27 +338,14 @@ def _dentro(caminho: Path, pasta: Path) -> bool:
 
 
 def _lugar_proibido(real: Path) -> str:
-    """Why the engine does not write at `real` (where the write would really land, links resolved), or ''."""
-    t = tools.get("instagram")
-    if _dentro(real, tools.checkout_dir(t)):
-        return "dentro do checkout do instagram-agent-skill"
-    if _dentro(real, tools.tools_dir()):
-        return "dentro da pasta de ferramentas do motor"
-    raizes = [Path(r) for r in _RAIZES_POSIX] + [Path(v) for v in (os.environ.get(n) for n in _RAIZES_WINDOWS) if v]
-    if any(_dentro(real, r) for r in raizes):
-        return "em pasta do sistema"
-    home = Path(os.path.expanduser("~")).resolve()
-    inicio = [home.joinpath(*partes) for partes in _INICIO_AUTOMATICO]
-    inicio += [Path(base).joinpath(*_STARTUP_DO_APPDATA) for base in (os.environ.get(n) for n in ("APPDATA",)) if base]
-    if any(_dentro(real, pasta) for pasta in inicio):
-        return "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)"
-    if _dentro(real, home):
-        partes = real.relative_to(home).parts
-        if partes and partes[0].startswith("."):
-            return "em pasta oculta do home (.ssh, .config, .claude...)"
-    if ".git" in _chave(real):
-        return "dentro de uma pasta .git"
-    return ""
+    """Why the engine does not write at `real` (where the write would really land, links resolved), or ''. The rule is the one of
+    `terceiros` (the same for every track: system, auto-start, hidden and .git folders, the engine's own places); the two places that
+    are this track's own are asked first, in these words."""
+    def proprios():  # one at a time: a folder that cannot be found (no home) is only asked for when the path got past the ones before it
+        yield tools.checkout_dir(tools.get("instagram")), "dentro do checkout do instagram-agent-skill"
+        yield tools.tools_dir(), terceiros.FERRAMENTAS
+
+    return terceiros.lugar_proibido(real, proprios(), dentro=_dentro, chave=_chave) or ""
 
 
 def _checa_saida(valor: str, forcar: bool) -> str:
@@ -650,37 +625,10 @@ def run_tool(ferramenta, args, *, texto=None, canal: str = "terminal", forcar: b
             "stdout": out.decode("utf-8", errors="replace"), "stderr": err.decode("utf-8", errors="replace"), "avisos": avisos}
 
 
-def _seletor_de_variacao(c: str) -> bool:
-    """Variation selectors (U+FE00-FE0F, U+E0100-E01EF) are category Mn but can carry hidden data after a visible character."""
-    n = ord(c)
-    return 0xFE00 <= n <= 0xFE0F or 0xE0100 <= n <= 0xE01EF
-
-
-def _limpa_mcp(texto: str) -> str:
-    """Script text for an agent: no control, bidirectional, zero-width or tag characters (they can hide instructions)."""
-    texto = texto.replace("\r\n", "\n")
-    return "".join(c for c in texto if c in "\n\t" or (not _seletor_de_variacao(c)
-                                                      and unicodedata.category(c) not in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp")))
-
-
-def visivel(texto: str) -> str:
-    """Script text for a terminal: ESC and the other controls become their visible marks (U+2400 block), and C1, bidirectional,
-    zero-width, line-separator and tag characters become <U+XXXX>; newline and tab stay. A terminal never receives an escape
-    sequence that came from a script (and so, possibly, from a third party's text)."""
-    saida = []
-    for c in texto.replace("\r\n", "\n"):
-        n = ord(c)
-        if c in "\n\t":
-            saida.append(c)
-        elif n < 0x20:
-            saida.append(chr(0x2400 + n))
-        elif n == 0x7F:
-            saida.append(chr(0x2421))
-        elif _seletor_de_variacao(c) or unicodedata.category(c) in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"):
-            saida.append(f"<U+{n:04X}>")
-        else:
-            saida.append(c)
-    return "".join(saida)
+# Script text for an agent (`_limpa_mcp`) and for a terminal (`visivel`): the one cleaner of `terceiros`, the same for every track.
+# A terminal never receives an escape sequence that came from a script (and so, possibly, from a third party's text).
+_limpa_mcp = terceiros.limpa_mcp
+visivel = terceiros.visivel
 
 
 def resposta_mcp(res: dict) -> dict:
@@ -703,7 +651,7 @@ def _limpa(texto: str, limite: int) -> str:
         categoria = unicodedata.category(c)
         if c in "\t\n\r\v\f\x85\u2028\u2029":
             saida.append(" ")
-        elif categoria not in ("Cc", "Cf", "Cs", "Co", "Cn") and not _seletor_de_variacao(c):
+        elif categoria not in ("Cc", "Cf", "Cs", "Co", "Cn") and not terceiros.seletor_de_variacao(c):
             saida.append(c)
     linha = re.sub(r"\s+", " ", "".join(saida)).strip()
     return linha if len(linha) <= limite else linha[:limite - 1].rstrip() + "…"  # the ellipsis counts: never more than `limite`

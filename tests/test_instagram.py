@@ -1151,8 +1151,12 @@ def imported_source(source: str) -> set[str]:
 # below). Of the three leaves the track declaration needs, only the names it uses: `rede` also holds the HTTP client of the swap adapters
 # and of the Openverse client (urllib, ssl, socket), `terceiros` the helpers of the other sandbox tracks, `trilha_base` the stop of a
 # process group. No busca, social, realoficial, publish, remote, swap, openverse, toonflow.
+# U22a: of `terceiros` the module also takes the one rule of where a track does not write (`lugar_proibido`, with the words of the
+# "tools" folder) and the one cleaner of third-party text (`limpa_mcp`, `visivel`, `seletor_de_variacao`): none of them reaches the network.
 IRMAOS_INTEIROS = {"tools", "childio"}
-SO_ESTES_NOMES = {"rede": {"offline"}, "terceiros": {"commit_do_checkout"}, "trilha_base": {"Trilha"}}
+SO_ESTES_NOMES = {"rede": {"offline"},
+                  "terceiros": {"commit_do_checkout", "lugar_proibido", "FERRAMENTAS", "limpa_mcp", "visivel", "seletor_de_variacao"},
+                  "trilha_base": {"Trilha"}}
 NOMES_DO_CLIENTE_HTTP = {"request", "NetworkError", "Response", "NoRedirect", "urlopen"}  # wherever they appear, as a name or an attribute
 
 

@@ -111,14 +111,81 @@ def mensagens(caminho: str, motivo: str) -> dict:
     ("{home}/.ssh/x.txt", {**mensagens("{home}/.ssh/x.txt", OCULTA), "voicestudio": ("recusa", "--out: o MCP não grava em pasta oculta do home ({home}/.ssh)")}),
     ("/etc/x.txt", {**mensagens("/etc/x.txt", "em pasta do sistema"), "voicestudio": ("recusa", "--out: o MCP não grava em pasta do sistema (/etc)")}),
     # U22 decide: o voicestudio deixa gravar nas pastas de início automático e dentro de .git; os outros 4 recusam
+    # U22a decidiu: o voicestudio recusa as duas, com as palavras que as outras quatro já tinham (as da regra única)
     ("{home}/Library/LaunchAgents/x.plist", {**mensagens("{home}/Library/LaunchAgents/x.plist", INICIO),
-                                              "voicestudio": ("ok", "{home}/Library/LaunchAgents/x.plist")}),
+                                              "voicestudio": ("recusa", f"--out: o MCP não grava {INICIO}")}),
     ("{work}/.git/hooks/x.txt", {**mensagens("{work}/.git/hooks/x.txt", "dentro de uma pasta .git"),
-                                  "voicestudio": ("ok", "{work}/.git/hooks/x.txt")}),
+                                  "voicestudio": ("recusa", "--out: o MCP não grava dentro de uma pasta .git")}),
 ], ids=["livre", "home-oculto", "sistema", "inicio-automatico", "git"])
 def test_the_refusal_each_module_gives_for_an_output_path(mundo, caminho, esperado):
     p = pasta(mundo, caminho)
     assert {m: recusa(m, mundo, p) for m in esperado} == esperado
+
+
+DADOS = "dentro da pasta de dados do motor (jobs, tools, openmontage-data)"
+FERRAMENTAS = "dentro da pasta de ferramentas do motor"
+SITE_PACKAGES = "dentro de site-packages (pacotes de um venv)"
+VENV = "dentro de um venv (pyvenv.cfg)"
+
+
+@LINUX
+@pytest.mark.parametrize("modelo,motivo,excecoes", [
+    # (caminho, o motivo dito; `excecoes` diz o de um módulo que usa outras palavras para o mesmo lugar)
+    ("{data}/x.txt", DADOS, {}),  # a raiz de dados inteira: matchcut, instagram, video_to_skill e voicestudio não a recusavam
+    ("{tools}/x.txt", FERRAMENTAS, {"montage": DADOS}),  # o voicestudio não recusava; o montage conta a pasta de ferramentas como "dados"
+    ("{work}/lib/python3/site-packages/x.txt", SITE_PACKAGES, {}),  # só o montage recusava
+    ("{work}/meuvenv/x.txt", VENV, {}),  # só o montage recusava (o teste cria o pyvenv.cfg)
+], ids=["raiz-de-dados", "ferramentas", "site-packages", "venv"])
+def test_the_places_a_module_did_not_refuse_before_are_refused_in_the_words_some_module_already_had(mundo, modelo, motivo, excecoes):
+    """U22a, linhas novas (a tabela do PR): a regra única acrescenta recusas a cada trilha, e cada uma tem um texto que alguma trilha já dizia."""
+    (mundo.work / "meuvenv").mkdir()
+    (mundo.work / "meuvenv" / "pyvenv.cfg").write_text("home = /usr/bin\n")
+    caminho = modelo.replace("{data}", str(mundo.data)).replace("{tools}", str(mundo.tools))  # as pastas de dados e de ferramentas não são trocadas na mensagem
+    p = pasta(mundo, caminho)
+    esperado = {m: mensagens(caminho, excecoes.get(m, motivo))[m] for m in MODULOS_QUE_RECUSAM}
+    esperado["voicestudio"] = ("recusa", f"--out: o MCP não grava {excecoes.get('voicestudio', motivo)}")
+    assert {m: recusa(m, mundo, p) for m in esperado} == esperado
+
+
+@LINUX
+def test_the_startup_folder_found_by_appdata_is_refused_by_every_module_in_the_words_matchcut_and_instagram_had(mundo, monkeypatch):
+    """O mesmo, para o Startup achado por $APPDATA (só matchcut e instagram o recusavam). O caminho passa dos 60 caracteres que as mensagens
+    mostram (`_ascii`), então aqui confere-se o começo e o fim de cada mensagem, que não dependem do tamanho da pasta de teste."""
+    monkeypatch.setenv("APPDATA", str(mundo.work / "appdata"))
+    p = pasta(mundo, "{work}/appdata/Microsoft/Windows/Start Menu/Programs/Startup/x.bat")
+    r = {m: recusa(m, mundo, p) for m in (*MODULOS_QUE_RECUSAM, "voicestudio")}
+    assert all(status == "recusa" for status, _ in r.values()), r
+    assert r["matchcut"][1].startswith("saída '{work}/appdata/Microsoft/") and r["matchcut"][1].endswith(f": o motor não grava {INICIO}")
+    assert r["instagram"][1].startswith("--out '{work}/appdata/Microsoft/") and r["instagram"][1].endswith(f": o motor não grava {INICIO}")
+    assert r["video_to_skill"][1].startswith("--out '{work}/appdata/Microsoft/") and r["video_to_skill"][1].endswith(f": o motor não grava {INICIO}")
+    assert r["montage"][1] == (f"a saída output_path cai {INICIO} ({{work}}/appdata/Microsoft/Windows/Start Menu/Programs/Startup/x.bat); "
+                               "pelo MCP o motor não grava aí")
+    assert r["voicestudio"][1] == f"--out: o MCP não grava {INICIO}"
+
+
+@LINUX
+def test_the_voicestudio_read_guard_keeps_the_narrow_rule_it_always_had(mundo, monkeypatch):
+    """U22a só muda o `--out` (a gravação): o que o MCP LÊ (`_guard_input`: transcribe, clone, dub create) segue recusando só pasta do sistema
+    (as 16 raízes) e pasta oculta do home, com o mesmo texto. Ler de .git, da pasta de dados, de ferramentas, de início automático, de
+    site-packages ou de um venv continua aceito: nenhuma das outras quatro trilhas tem regra de lugar para ENTRADA, e o diretório temporário do
+    macOS (/private/var/folders) cai em /var, que a gravação passa a recusar."""
+    monkeypatch.setenv("PROGRAMDATA", str(mundo.work / "pd"))  # uma das 4 raízes do Windows, apontada para uma pasta daqui
+    (mundo.work / "meuvenv").mkdir()
+    (mundo.work / "meuvenv" / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+    def le(caminho: str):
+        p = pasta(mundo, caminho)
+        p.write_bytes(b"RIFF")
+        try:
+            return "ok", voicestudio._guard_input(str(p), voicestudio.AUDIO_EXTS, "AUDIO")
+        except voicestudio.VoiceStudioError as e:
+            return "recusa", str(e)
+
+    for caminho in (f"{mundo.work}/.git/x.wav", f"{mundo.data}/x.wav", f"{mundo.tools}/x.wav", f"{mundo.home}/Library/LaunchAgents/x.wav",
+                    f"{mundo.work}/lib/python3/site-packages/x.wav", f"{mundo.work}/meuvenv/x.wav"):
+        assert le(caminho) == ("ok", caminho), caminho
+    assert le(f"{mundo.home}/.ssh/x.wav") == ("recusa", f"AUDIO: o MCP não lê de pasta oculta do home ({mundo.home}/.ssh)")
+    assert le(f"{mundo.work}/pd/x.wav") == ("recusa", f"AUDIO: o MCP não lê de pasta do sistema ({mundo.work}/pd)")
 
 
 RES_MATCHCUT = {"resultado": True, "script": "s", "codigo_saida": 0, "avisos": []}
@@ -128,11 +195,12 @@ TEXTO_COM_SELETORES = "a️b\U000e0100c​d\x1b[31m"
 
 def test_the_text_an_agent_gets_keeps_variation_selectors_in_matchcut_and_not_in_instagram():
     # U22 decide: o seletor de variação (U+FE0F, U+E0100) pode carregar dado escondido; só o instagram o tira da saída entregue ao agente
+    # U22a decidiu: os três o tiram (o nome deste teste é histórico: o id não muda)
     m = matchcut.resposta_mcp({**RES_MATCHCUT, "stdout": TEXTO_COM_SELETORES, "stderr": "e️"})
     i = instagram.resposta_mcp({**RES_INSTAGRAM, "stdout": TEXTO_COM_SELETORES, "stderr": "e️"})
-    assert m["saida"] == "a️b\U000e0100cd[31m" and m["erros"] == "e️"
+    assert m["saida"] == "abcd[31m" and m["erros"] == "e"  # era "a\ufe0fb\U000e0100cd[31m" e "e\ufe0f"
     assert i["saida"] == "abcd[31m" and i["erros"] == "e"
-    assert video_to_skill.limpa_mcp(TEXTO_COM_SELETORES) == "a️b\U000e0100cd[31m"  # o video_to_skill (mcp_run) faz como o matchcut
+    assert video_to_skill.limpa_mcp(TEXTO_COM_SELETORES) == "abcd[31m"  # o video_to_skill (mcp_run) faz como o matchcut; era "a\ufe0fb\U000e0100cd[31m"
 
 
 # ============================================================================================ (b) segredo em erro e em arquivo de job
