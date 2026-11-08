@@ -844,3 +844,30 @@ def test_montage_e_voicestudio_seguem_a_caixa_de_terceiros_nas_arvores_do_usuari
         assert montage._lugar_proibido(alvo) == "em pasta do sistema" and voicestudio._forbidden_place(alvo) == "em pasta do sistema", alvo
         monkeypatch.setattr(t, "CASE_INSENSITIVE", True)
         assert montage._lugar_proibido(alvo) == "" and voicestudio._forbidden_place(alvo) is None, alvo
+
+
+# O `$TMPDIR` e o HOME podem chegar por um LINK (macOS: `/var` é um link para `/private/var`; ostree: `/home` é `/var/home`): vale a pasta para
+# onde o link aponta, que é a que o `real` do caminho de saída já traz (verde antes e depois). O destino é FALSO, sob o /var real: nada é criado lá.
+
+@POSIX
+def test_o_temporario_que_chega_por_um_link_para_var_vale_pela_pasta_para_onde_aponta(lugares, monkeypatch, tmp_path):
+    t = _terceiros()
+    destino = Path("/var/zz-u22a-real/T")
+    link = tmp_path / "link-tmp"
+    link.symlink_to(destino)
+    monkeypatch.setenv("TMPDIR", str(link))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "outro-tmp"))
+    assert t.lugar_proibido(destino / "x") is None
+    assert t.lugar_proibido(Path("/var/zz-u22a-real/T2/x")) == t.SISTEMA  # a pasta ao lado não é a do temporário
+
+
+@POSIX
+def test_o_home_que_chega_por_um_link_para_var_vale_pela_pasta_para_onde_aponta(lugares, monkeypatch, tmp_path):
+    t = _terceiros()
+    destino = Path("/var/zz-u22a-real/home/user")
+    link = tmp_path / "link-home"
+    link.symlink_to(destino)
+    monkeypatch.setenv("HOME", str(link))
+    assert t.lugar_proibido(destino / "proj" / "out.mp4") is None
+    assert t.lugar_proibido(destino / ".ssh" / "x") == t.OCULTA  # as outras regras seguem valendo dentro dela
+    assert t.lugar_proibido(Path("/var/zz-u22a-real/home/outro/x")) == t.SISTEMA
