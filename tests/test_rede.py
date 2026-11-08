@@ -703,6 +703,7 @@ ORIGENS = [
     ("https para http, mesmo host e porta", "https://api.example:8443/a", "http://api.example:8443/b", False),
     ("https para http, outro host", "https://api.example/a", "http://evil.example/b", False),
     ("usuario no destino (https://dono@outro)", "https://api.example/a", "https://api.example@evil.example/b", False),
+    ("barra invertida antes do @ (urlsplit le o host depois dele)", "https://api.example/a", "https://evil.example\\@api.example/b", False),
     ("destino relativo ao esquema", "https://api.example/a", "//evil.example/b", False),
     ("http para outro host", "http://api.example/a", "http://evil.example/b", False),
     ("http para outro host em https", "http://api.example/a", "https://evil.example/b", False),
@@ -795,7 +796,8 @@ def test_the_handler_follows_unlike_no_redirect():
 NOMES_DE_CREDENCIAL = [
     "Authorization", "authorization", "AUTHORIZATION", "Proxy-Authorization", "Cookie", "Cookie2", "x-goog-api-key", "X-Goog-Api-Key",
     "x-api-key", "xi-api-key", "api-key", "x_api_key", "apikey", "X-Auth-Token", "X-Access-Token", "Private-Token",
-    "Ocp-Apim-Subscription-Key", "X-Amz-Security-Token", "X-Client-Secret", "X-Password", "X-Authentication",
+    "Ocp-Apim-Subscription-Key", "X-Amz-Security-Token", "X-Client-Secret", "X-Password", "X-Passwd", "X-Authentication", "X-Auth",
+    "X-Credential", "X-Credentials",
 ]
 NOMES_QUE_FICAM = [
     "Accept", "Accept-Language", "Accept-Encoding", "User-Agent", "X-Trace-Id", "X-Request-Id", "X-DashScope-Async",
@@ -833,6 +835,12 @@ def test_the_origin_is_read_from_the_url_not_from_the_host_a_proxy_put_on_the_re
 @pytest.mark.parametrize("velha", ["https://api.example/a", "http://api.example/a"])
 def test_a_redirect_to_ftp_loses_the_credentials(velha):
     novo = _redireciona(_segue(), velha, "ftp://api.example/b")
+    assert {n.lower() for n in novo.headers} == _COMUNS_EM_MINUSCULAS
+
+
+def test_a_url_the_parser_cannot_read_counts_as_another_origin():
+    """`https://[::1/b` has an IPv6 bracket that never closes: urlsplit refuses it, and the redirect gets no benefit of the doubt."""
+    novo = _redireciona(_segue(), "https://api.example/a", "https://[::1/b")
     assert {n.lower() for n in novo.headers} == _COMUNS_EM_MINUSCULAS
 
 

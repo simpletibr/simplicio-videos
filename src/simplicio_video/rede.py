@@ -107,8 +107,7 @@ def _mesma_origem(antes: str, depois: str) -> bool:
         a, b = urlsplit(antes), urlsplit(depois)
     except ValueError:
         return False
-    de, para = a.scheme.lower(), b.scheme.lower()
-    return a.netloc.lower() == b.netloc.lower() and (de == para or (de, para) == ("http", "https"))
+    return a.netloc.lower() == b.netloc.lower() and (a.scheme == b.scheme or (a.scheme, b.scheme) == ("http", "https"))  # urlsplit lowers the scheme
 
 
 def _strip_credentials_redirect():
@@ -129,9 +128,8 @@ def _strip_credentials_redirect():
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             novo = super().redirect_request(req, fp, code, msg, headers, newurl)  # raises HTTPError where urllib does not follow
             if novo is not None and not _mesma_origem(req.full_url, novo.full_url):  # `full_url`: a proxy rewrites `host` in place
-                for tabela in (novo.headers, novo.unredirected_hdrs):
-                    for nome in [n for n in tabela if _e_credencial(n)]:
-                        del tabela[nome]
+                for nome in [n for n in novo.headers if _e_credencial(n)]:  # urllib copies `headers` only, not `unredirected_hdrs`
+                    del novo.headers[nome]
             return novo
 
     return globals().setdefault("StripCredentialsRedirect", StripCredentialsRedirect)
