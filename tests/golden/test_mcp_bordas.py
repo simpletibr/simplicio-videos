@@ -163,6 +163,31 @@ def test_the_startup_folder_found_by_appdata_is_refused_by_every_module_in_the_w
     assert r["voicestudio"][1] == f"--out: o MCP não grava {INICIO}"
 
 
+@LINUX
+def test_the_voicestudio_read_guard_keeps_the_narrow_rule_it_always_had(mundo, monkeypatch):
+    """U22a só muda o `--out` (a gravação): o que o MCP LÊ (`_guard_input`: transcribe, clone, dub create) segue recusando só pasta do sistema
+    (as 16 raízes) e pasta oculta do home, com o mesmo texto. Ler de .git, da pasta de dados, de ferramentas, de início automático, de
+    site-packages ou de um venv continua aceito: nenhuma das outras quatro trilhas tem regra de lugar para ENTRADA, e o diretório temporário do
+    macOS (/private/var/folders) cai em /var, que a gravação passa a recusar."""
+    monkeypatch.setenv("PROGRAMDATA", str(mundo.work / "pd"))  # uma das 4 raízes do Windows, apontada para uma pasta daqui
+    (mundo.work / "meuvenv").mkdir()
+    (mundo.work / "meuvenv" / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+    def le(caminho: str):
+        p = pasta(mundo, caminho)
+        p.write_bytes(b"RIFF")
+        try:
+            return "ok", voicestudio._guard_input(str(p), voicestudio.AUDIO_EXTS, "AUDIO")
+        except voicestudio.VoiceStudioError as e:
+            return "recusa", str(e)
+
+    for caminho in (f"{mundo.work}/.git/x.wav", f"{mundo.data}/x.wav", f"{mundo.tools}/x.wav", f"{mundo.home}/Library/LaunchAgents/x.wav",
+                    f"{mundo.work}/lib/python3/site-packages/x.wav", f"{mundo.work}/meuvenv/x.wav"):
+        assert le(caminho) == ("ok", caminho), caminho
+    assert le(f"{mundo.home}/.ssh/x.wav") == ("recusa", f"AUDIO: o MCP não lê de pasta oculta do home ({mundo.home}/.ssh)")
+    assert le(f"{mundo.work}/pd/x.wav") == ("recusa", f"AUDIO: o MCP não lê de pasta do sistema ({mundo.work}/pd)")
+
+
 RES_MATCHCUT = {"resultado": True, "script": "s", "codigo_saida": 0, "avisos": []}
 RES_INSTAGRAM = {"resultado": True, "ferramenta": "f", "codigo_saida": 0, "avisos": []}
 TEXTO_COM_SELETORES = "a️b\U000e0100c​d\x1b[31m"
