@@ -21,9 +21,9 @@ How a script is run (`run`):
 - an input file is opened once, checked with fstat on that descriptor (a regular file only), read up to MAX_INPUT_BYTES + 1,
   and the script gets a private copy of exactly the bytes that were read;
 - if the engine itself is asked to stop (SIGTERM or SIGHUP: terminal closed, MCP host stopping, an agent's timeout) the process
-  group of the child is killed and the private folder removed; on POSIX the child also gets an RLIMIT_CPU, so the kernel ends a
-  script that burns CPU even when the engine is killed outright (SIGKILL). RLIMIT_CPU counts CPU time, not wall time, and it does
-  not exist on Windows (there only the 30 s wall-clock kill and the SIGTERM-like handling of the engine remain);
+  group of the child is killed and the private folder removed; on POSIX a wrapper inside the child sets an RLIMIT_CPU (and no core
+  dump) and then execs the script, so the kernel ends a script that burns CPU even when the engine is killed outright (SIGKILL). It
+  counts CPU time, not wall time, and none of it exists on Windows (there only the 30 s wall-clock kill and the signal handling remain);
 - on the terminal the script text is shown with control, bidirectional and zero-width characters turned into visible marks.
 """
 from __future__ import annotations
@@ -51,7 +51,7 @@ from .terceiros import commit_do_checkout as _commit_do_checkout
 from .trilha_base import Trilha
 
 try:
-    import resource  # POSIX only: the CPU limit of the child
+    import resource  # POSIX only: where it is missing (Windows) the child gets no kernel limits and runs without the wrapper
 except ImportError:  # pragma: no cover (Windows)
     resource = None
 
@@ -478,21 +478,48 @@ def _ambiente() -> dict:
 _matar = childio.kill_group  # the name the tests replace (a fake child has no pid): the group is stopped in childio
 
 
-def _limites_do_filho(cpu: int):
-    """What the child sets on itself right after the fork (POSIX): a CPU limit, so the kernel ends a script that burns CPU even
-    when the engine is gone (SIGKILL cannot be handled), and no core dump. It limits CPU time, not wall time: a script that only
-    sleeps is stopped by the engine (the 30 s kill, or SIGTERM/SIGHUP handling), never by this. Not available on Windows."""
-    def aplica():
-        for limite, valores in ((resource.RLIMIT_CPU, (cpu, cpu + 5)), (resource.RLIMIT_CORE, (0, 0))):
-            with contextlib.suppress(ValueError, OSError):  # a lower hard limit inherited from the parent stays
-                resource.setrlimit(limite, valores)
-    return aplica
+MAX_MEM_BYTES = 0  # address-space limit of the child (RLIMIT_AS), in bytes; 0 = none
+
+# Runs in the child before the script: the kernel limits, then exec of the script with the same isolated flags. A wrapper instead of a
+# fork hook (which is not safe under the threads of the MCP server); POSIX only: where there is no `resource` module (Windows) the command
+# never goes through it and the script runs as it is. Arguments: the CPU limit in seconds (the soft one, SIGXCPU; the hard one is 5 s
+# above it, SIGKILL for a script that ignores the signal), the address-space limit in bytes (0: none), then the script and its arguments.
+# A limit the kernel refuses (a lower hard limit inherited from the engine stays) is skipped: the script still runs with the others.
+_WRAPPER = (
+    "import os, sys\n"
+    "try:\n"
+    "    import resource\n"
+    "except ImportError:\n"
+    "    resource = None\n"
+    "if resource is not None:\n"
+    "    cpu, memoria = int(sys.argv[1]), int(sys.argv[2])\n"
+    "    for quem, valores in ((resource.RLIMIT_CPU, (cpu, cpu + 5)), (resource.RLIMIT_CORE, (0, 0)), (resource.RLIMIT_AS, (memoria, memoria))):\n"
+    "        if quem == resource.RLIMIT_AS and memoria <= 0:\n"
+    "            continue\n"
+    "        try:\n"
+    "            resource.setrlimit(quem, valores)\n"
+    "        except (ValueError, OSError):\n"
+    "            pass\n"
+    "os.execv(sys.executable, [sys.executable, '-I', '-B', '-X', 'utf8'] + sys.argv[3:])\n"
+)
+
+
+def _comando(script, argv: list) -> list:
+    """The command of the child: the isolated interpreter and, on POSIX, the wrapper that sets its kernel limits and then execs the
+    script (same pid, so the group kill still reaches it). The CPU limit is TIMEOUT_S + CPU_FOLGA_S, never under 1 s (0 would mean
+    none): the kernel ends a script that burns CPU even when the engine is gone (SIGKILL cannot be handled). It limits CPU time, not
+    wall time: a script that only sleeps is stopped by the engine (the 30 s kill, or SIGTERM/SIGHUP handling), never by this. No core
+    dump. The limits are read when the command is built, not at import."""
+    base = [sys.executable, "-I", "-B", "-X", "utf8"]
+    if resource is None or os.name != "posix":  # no rlimit here (Windows, UNVERIFIED), and os.execv does not replace the process there
+        return [*base, str(script), *argv]
+    cpu = max(1, int(TIMEOUT_S) + CPU_FOLGA_S)
+    return [*base, "-c", _WRAPPER, str(cpu), str(MAX_MEM_BYTES), str(script), *argv]
 
 
 def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, bytes]:
     """Run by argument list: no shell, closed environment, stdin from a file (or nothing), output to temporary files so the
     size can be watched while it runs. Past TIMEOUT_S or the output cap the whole process group is killed and the call fails."""
-    extra = {"preexec_fn": _limites_do_filho(max(1, int(TIMEOUT_S) + CPU_FOLGA_S))} if resource is not None and os.name == "posix" else {}
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as inp, contextlib.ExitStack() as guard:
         if entrada is not None:
             inp.write(entrada)
@@ -502,7 +529,7 @@ def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, b
             # engine's exit; one that lands later (or Ctrl+C) kills the group on the way out of the block (childio.guarded_child)
             proc = guard.enter_context(childio.guarded_child(
                 argv, stdin=inp if entrada is not None else subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd,
-                env=_ambiente(), start_new_session=True, **extra))
+                env=_ambiente(), start_new_session=True))
         except (OSError, subprocess.SubprocessError) as e:
             raise InstagramError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
         limite_tempo = time.monotonic() + TIMEOUT_S
@@ -620,7 +647,7 @@ def run_tool(ferramenta, args, *, texto=None, canal: str = "terminal", forcar: b
         if canal == "terminal" and plano.usa_stdin:
             entrada = _le_stdin()
         cwd = os.getcwd() if canal == "terminal" else privada
-        rc, out, err = _executa([sys.executable, "-I", "-B", "-X", "utf8", str(script), *argv], entrada, cwd)
+        rc, out, err = _executa(_comando(script, argv), entrada, cwd)
     return {"ferramenta": f.nome, "codigo_saida": rc, "resultado": rc in f.resultado,
             "stdout": out.decode("utf-8", errors="replace"), "stderr": err.decode("utf-8", errors="replace"), "avisos": avisos}
 
