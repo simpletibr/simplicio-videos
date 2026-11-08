@@ -146,6 +146,15 @@ def _home() -> Path | None:
         return None
 
 
+def _tem_cfg(pasta: Path) -> bool:
+    """Is there a `pyvenv.cfg` right in `pasta`? A name the disk cannot take (ENAMETOOLONG: the folder does not exist) or a folder it will not
+    let us look into says no, and the other places decide: the probe never raises."""
+    try:
+        return (pasta / "pyvenv.cfg").is_file()
+    except OSError:
+        return False
+
+
 def _no_comum(real: Path, dentro: Callable[[Path, Path], bool], chave: Callable[[Path], tuple]) -> str | None:
     """What every track always refused, asked in the order they always asked: a system folder, an auto-start folder, a hidden folder of the
     home, a .git anywhere in the path."""
@@ -179,7 +188,7 @@ def _no_motor(real: Path, dentro: Callable[[Path, Path], bool], chave: Callable[
             continue
     if "site-packages" in chave(real):
         return SITE_PACKAGES
-    if any((a / "pyvenv.cfg").is_file() for a in real.parents):
+    if any(_tem_cfg(a) for a in real.parents):
         return VENV
     if dentro(real, Path("/var")) and not dentro(real, Path("/var/tmp")):
         return SISTEMA
