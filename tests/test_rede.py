@@ -20,6 +20,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+import urllib.response
 from pathlib import Path
 
 import pytest
@@ -255,7 +256,10 @@ def test_request_devolve_status_corpo_e_cabecalhos_em_minusculas(rede_falsa, cam
     assert (r.status, r.body) == (201, b'{"ok": true}')
     assert r.headers == {"retry-after": "3", "x-ratelimit-remaining": "9"}
     assert r.json() == {"ok": True}
-    assert falsa.timeouts == [7] and falsa.handlers == []  # follows redirects: plain urlopen, no opener
+    assert falsa.timeouts == [7]
+    # follows redirects: an opener whose redirect handler drops the credentials (until U22g it was plain urlopen, no opener)
+    assert len(falsa.handlers) == 1 and len(falsa.handlers[0]) == 1
+    assert falsa.handlers[0][0] is modulo.StripCredentialsRedirect
     assert falsa.requisicoes[0].get_method() == "POST" and falsa.requisicoes[0].full_url == "https://a.example/x"
 
 
@@ -602,6 +606,287 @@ for rodada in range(200):
     for t in threads:
         t.join()
     divergiu += len({id(c) for c in vistos}) != 1 or vistos[0] is not rede.NoRedirect
+print(json.dumps({"divergiu": divergiu}))
+"""
+    assert _processo_limpo(codigo) == {"divergiu": 0}
+
+
+# ---- U22g: following a redirect never takes a credential to another host, or to a weaker scheme ----------------------------------------
+#
+# urllib copies every header of a request into the one it sends after a 3xx. `request` followed redirects with the stock opener, so an
+# `Authorization`, an `x-goog-api-key`... went to whatever host a server named in `Location`, and an https call could go on over plain
+# http with the key. It follows them with `rede.StripCredentialsRedirect` now: the redirect rules of urllib's own handler (which codes,
+# which methods, the body, the hop limit) untouched, and the credential headers dropped from the new request unless it has the same
+# netloc and the same scheme (or the scheme goes from http to https). tests/golden/test_redirect_credenciais.py runs it for real against
+# two loopback servers; the tests below pin the rules without a socket: on the handler itself, and through `request` over a REAL opener
+# (the stock error processor, `http_error_30x`, `urljoin` and the hop limit all run; only the connection is a fake).
+
+_CREDENCIAIS_DO_MOTOR = {"Authorization": "Bearer S3CR3T-a", "x-goog-api-key": "AIzaS3CR3T-b", "x-api-key": "S3CR3T-c",
+                         "Proxy-Authorization": "Basic S3CR3T-d", "Cookie": "s=S3CR3T-e"}
+_COMUNS = {"Accept": "application/json", "User-Agent": "u22g/1", "X-Trace-Id": "t-1"}
+_CABECALHOS = {**_CREDENCIAIS_DO_MOTOR, **_COMUNS}
+_CREDENCIAIS_EM_MINUSCULAS = {nome.lower() for nome in _CREDENCIAIS_DO_MOTOR}
+_COMUNS_EM_MINUSCULAS = {nome.lower() for nome in _COMUNS}
+_CABECALHOS_EM_MINUSCULAS = {nome.lower() for nome in _CABECALHOS}
+
+
+def _segue():
+    """`rede.StripCredentialsRedirect` (red until the class exists)."""
+    return _rede().StripCredentialsRedirect
+
+
+class _Salto(urllib.request.BaseHandler):
+    """A fake network for a REAL opener: answers each URL from `roteiro` (url -> (status, Location or None); a URL it does not list answers
+    200 "ok") and writes down, for each request it is sent, the URL and the headers (lowercase names)."""
+
+    handler_order = 100  # before the stock http/https handlers (500), which are not even in the opener `salto` builds
+
+    def __init__(self, roteiro):
+        self.roteiro = roteiro
+        self.pedidos = []
+
+    def _abre(self, req):
+        self.pedidos.append((req.full_url, {nome.lower(): valor for nome, valor in req.header_items()}))
+        status, local = self.roteiro.get(req.full_url, (200, None))
+        cabecalhos = email.message.Message()
+        if local:
+            cabecalhos["Location"] = local
+        resposta = urllib.response.addinfourl(io.BytesIO(b"ok"), cabecalhos, req.full_url, status)
+        resposta.msg = "fake"
+        return resposta
+
+    http_open = https_open = _abre
+
+
+@pytest.fixture
+def salto(monkeypatch):
+    """`rede.request` over a fake network: whichever way it reaches urllib (`build_opener`, or `urlopen` as it did before U22g) it ends in
+    the same fake, under a REAL opener (the stock error processor and the redirect handler `request` asks for)."""
+    monkeypatch.delenv("SIMPLICIO_OFFLINE", raising=False)
+
+    def instala(roteiro):
+        falsa = _Salto(roteiro)
+
+        def montar(*handlers):
+            opener = urllib.request.OpenerDirector()
+            for handler in (urllib.request.HTTPDefaultErrorHandler, urllib.request.HTTPErrorProcessor, *handlers):
+                opener.add_handler(handler() if isinstance(handler, type) else handler)
+            opener.add_handler(falsa)
+            return opener
+
+        monkeypatch.setattr(urllib.request, "build_opener", montar)
+        monkeypatch.setattr(urllib.request, "urlopen",
+                            lambda req, timeout=None: montar(urllib.request.HTTPRedirectHandler).open(req, timeout=timeout))
+        return falsa
+
+    return instala
+
+
+# (what changes, URL of the request, `Location` of the 3xx, do the credentials go on to the next hop?)
+ORIGENS = [
+    ("mesmo netloc, https", "https://api.example/a", "https://api.example/b", True),
+    ("mesmo netloc, http", "http://api.example/a", "http://api.example/b", True),
+    ("mesmo netloc com porta", "https://api.example:8443/a", "https://api.example:8443/b", True),
+    ("Location relativo", "https://api.example/dir/a", "/b", True),
+    ("Location relativo ao diretorio", "https://api.example/dir/a", "b", True),
+    ("so a consulta e o fragmento mudam", "https://api.example/a?x=1", "https://api.example/a?x=2#f", True),
+    ("host com outra caixa", "https://api.example/a", "https://API.Example/b", True),
+    ("http para https no mesmo netloc: o esquema sobe, nao e downgrade", "http://api.example/a", "https://api.example/b", True),
+    ("outro host", "https://api.example/a", "https://evil.example/b", False),
+    ("subdominio", "https://api.example/a", "https://x.api.example/b", False),
+    ("dominio pai", "https://api.example/a", "https://example/b", False),
+    ("host que so comeca igual", "https://api.example/a", "https://api.example.evil.example/b", False),
+    ("outra porta no mesmo host", "https://api.example:8443/a", "https://api.example:9443/b", False),
+    ("porta padrao escrita (netloc diferente: na duvida, tira)", "https://api.example/a", "https://api.example:443/b", False),
+    ("porta que some", "https://api.example:8443/a", "https://api.example/b", False),
+    ("https para http, mesmo host", "https://api.example/a", "http://api.example/b", False),
+    ("https para http, mesmo host e porta", "https://api.example:8443/a", "http://api.example:8443/b", False),
+    ("https para http, outro host", "https://api.example/a", "http://evil.example/b", False),
+    ("usuario no destino (https://dono@outro)", "https://api.example/a", "https://api.example@evil.example/b", False),
+    ("destino relativo ao esquema", "https://api.example/a", "//evil.example/b", False),
+    ("http para outro host", "http://api.example/a", "http://evil.example/b", False),
+    ("http para outro host em https", "http://api.example/a", "https://evil.example/b", False),
+]
+
+
+@pytest.mark.parametrize("porque,velha,local,leva", ORIGENS, ids=[o[0] for o in ORIGENS])
+def test_the_credentials_go_on_to_the_next_hop_only_while_the_origin_is_the_same(salto, porque, velha, local, leva):
+    """Through `request` and a REAL opener: the credential headers reach the next hop when its netloc and scheme are the ones the caller
+    chose (or the scheme goes from http to https), and never otherwise; the headers that are not a credential go everywhere."""
+    falsa = salto({velha: (302, local)})
+    r = _rede().request("GET", velha, headers=_CABECALHOS)
+    assert r.status == 200 and r.body == b"ok"
+    assert len(falsa.pedidos) == 2, falsa.pedidos
+    (_, primeiro), (destino, segundo) = falsa.pedidos
+    assert _CABECALHOS_EM_MINUSCULAS <= set(primeiro)
+    levados = {nome for nome in _CREDENCIAIS_EM_MINUSCULAS if nome in segundo}
+    assert levados == (_CREDENCIAIS_EM_MINUSCULAS if leva else set()), f"{destino} recebeu {sorted(levados)}"
+    assert _COMUNS_EM_MINUSCULAS <= set(segundo) and all(segundo[n.lower()] == v for n, v in _COMUNS.items())
+
+
+def test_a_chain_drops_the_credentials_at_the_hop_out_and_never_gives_them_back(salto):
+    """api -> api -> evil -> api: the second hop (same netloc) still has them; the third (another host) has none, and neither has the
+    fourth, which is back at the host that had them first: what was dropped is not in the request urllib builds from there on."""
+    a, b, fora, volta = "https://api.example/a", "https://api.example/b", "https://evil.example/c", "https://api.example/d"
+    falsa = salto({a: (302, b), b: (307, fora), fora: (301, volta)})
+    r = _rede().request("GET", a, headers=_CABECALHOS)
+    assert r.status == 200
+    assert [url for url, _ in falsa.pedidos] == [a, b, fora, volta]
+    levados = [sorted(nome for nome in _CREDENCIAIS_EM_MINUSCULAS if nome in cabecalhos) for _, cabecalhos in falsa.pedidos]
+    assert levados == [sorted(_CREDENCIAIS_EM_MINUSCULAS), sorted(_CREDENCIAIS_EM_MINUSCULAS), [], []]
+
+
+def test_a_redirect_loop_ends_where_urllib_ends_it(salto):
+    """The limits (10 hops, 4 visits of one URL) are the ones of urllib's handler: this one only changes the headers."""
+    a, b = "https://api.example/a", "https://api.example/b"
+    de_urllib = salto({a: (302, b), b: (302, a)})  # the stock handler, over the same fake network, is the measure
+    stock = urllib.request.OpenerDirector()
+    for handler in (urllib.request.HTTPDefaultErrorHandler(), urllib.request.HTTPErrorProcessor(), urllib.request.HTTPRedirectHandler(), de_urllib):
+        stock.add_handler(handler)
+    with pytest.raises(urllib.error.HTTPError) as caught:
+        stock.open(urllib.request.Request(a))
+    assert caught.value.code == 302
+    medido = [url for url, _ in de_urllib.pedidos]
+    da_rede = salto({a: (302, b), b: (302, a)})
+    assert _rede().request("GET", a).status == 302  # the HTTPError of the loop, returned as a Response like every other status
+    assert [url for url, _ in da_rede.pedidos] == medido and len(medido) > 4
+
+
+# ---- the handler itself, with no opener ------------------------------------------------------------------------------------------
+
+
+def _redireciona(handler, velha, nova, *, metodo="GET", codigo=302, headers=None, data=None):
+    req = urllib.request.Request(velha, data=data, method=metodo, headers=_CABECALHOS if headers is None else headers)
+    return handler().redirect_request(req, io.BytesIO(b""), codigo, "Found", {}, nova)
+
+
+def _como_o_urllib(handler, velha, nova, metodo, codigo, data):
+    """What `redirect_request` of `handler` gives for this request, as plain values (or the code of the HTTPError it raises)."""
+    try:
+        novo = _redireciona(handler, velha, nova, metodo=metodo, codigo=codigo, data=data)
+    except urllib.error.HTTPError as erro:
+        return ("HTTPError", erro.code)
+    return (novo.get_method(), novo.full_url, novo.data, novo.origin_req_host, novo.unverifiable, {k.lower(): v for k, v in novo.headers.items()})
+
+
+@pytest.mark.parametrize("destino", ["https://api.example/b", "https://evil.example/b"], ids=["mesmo-netloc", "outro-host"])
+@pytest.mark.parametrize("codigo", [301, 302, 303, 307, 308])
+@pytest.mark.parametrize("metodo", ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH"])
+def test_the_method_the_body_and_the_codes_are_what_urllib_does(metodo, codigo, destino):
+    """For every method and code: the same new request as the stock handler (method, URL, body, origin, headers) or the same HTTPError;
+    when the host changes, the only difference is the credential headers."""
+    dados = None if metodo in ("GET", "HEAD") else b'{"a": 1}'
+    esperado = _como_o_urllib(urllib.request.HTTPRedirectHandler, "https://api.example/a", destino, metodo, codigo, dados)
+    obtido = _como_o_urllib(_segue(), "https://api.example/a", destino, metodo, codigo, dados)
+    if esperado[0] != "HTTPError" and "evil" in destino:
+        esperado = (*esperado[:-1], {k: v for k, v in esperado[-1].items() if k not in _CREDENCIAIS_EM_MINUSCULAS})
+    assert obtido == esperado
+
+
+def test_the_handler_follows_unlike_no_redirect():
+    """`NoRedirect` answers None (no new request); this one gives the new request."""
+    novo = _redireciona(_segue(), "https://a.example/", "https://b.example/x")
+    assert novo is not None and novo.full_url == "https://b.example/x"
+    assert issubclass(_segue(), urllib.request.HTTPRedirectHandler) and not issubclass(_segue(), _rede().NoRedirect)
+
+
+# the names that carry a credential (the ones the callers of `request` send, and the generic shapes: any name with the word key, token,
+# secret, password, auth, authorization or cookie in it) and the names that do not
+NOMES_DE_CREDENCIAL = [
+    "Authorization", "authorization", "AUTHORIZATION", "Proxy-Authorization", "Cookie", "Cookie2", "x-goog-api-key", "X-Goog-Api-Key",
+    "x-api-key", "xi-api-key", "api-key", "x_api_key", "apikey", "X-Auth-Token", "X-Access-Token", "Private-Token",
+    "Ocp-Apim-Subscription-Key", "X-Amz-Security-Token", "X-Client-Secret", "X-Password", "X-Authentication",
+]
+NOMES_QUE_FICAM = [
+    "Accept", "Accept-Language", "Accept-Encoding", "User-Agent", "X-Trace-Id", "X-Request-Id", "X-DashScope-Async",
+    "X-OmniVoice-Client-Id", "If-None-Match", "Range", "Cache-Control", "Keep-Alive", "Referer", "X-Monkey-Business",
+]
+
+
+@pytest.mark.parametrize("nome", NOMES_DE_CREDENCIAL)
+def test_a_credential_header_is_dropped_when_the_host_changes_and_kept_when_it_does_not(nome):
+    cabecalhos = {nome: "S3CR3T", "Accept": "application/json"}
+    fora = _redireciona(_segue(), "https://api.example/a", "https://evil.example/b", headers=cabecalhos)
+    dentro = _redireciona(_segue(), "https://api.example/a", "https://api.example/b", headers=cabecalhos)
+    assert nome.capitalize() not in fora.headers and fora.headers == {"Accept": "application/json"}
+    assert dentro.headers == {nome.capitalize(): "S3CR3T", "Accept": "application/json"}
+
+
+@pytest.mark.parametrize("nome", NOMES_QUE_FICAM)
+def test_a_header_that_is_not_a_credential_goes_to_the_other_host(nome):
+    fora = _redireciona(_segue(), "https://api.example/a", "https://evil.example/b", headers={nome: "v"})
+    assert fora.headers == {nome.capitalize(): "v"}
+
+
+@pytest.mark.parametrize("velha,tipo", [("https://api.example/a", "https"), ("http://api.example/a", "http")])
+def test_the_origin_is_read_from_the_url_not_from_the_host_a_proxy_put_on_the_request(velha, tipo):
+    """urllib's ProxyHandler rewrites the request in place (`set_proxy`: its `host` becomes the proxy's); the netloc to compare is the one
+    of the URL the caller asked for, so a same-host redirect keeps the credentials behind a proxy too, and another host still loses them."""
+    for destino, leva in ((velha.rsplit("/", 1)[0] + "/b", True), ("https://evil.example/b", False)):
+        req = urllib.request.Request(velha, headers=_CABECALHOS)
+        req.set_proxy("proxy.example:3128", tipo)
+        novo = _segue()().redirect_request(req, io.BytesIO(b""), 302, "Found", {}, destino)
+        assert (set(_CREDENCIAIS_EM_MINUSCULAS) <= {n.lower() for n in novo.headers}) is leva, destino
+        assert not leva or {n.lower() for n in novo.headers} == _CABECALHOS_EM_MINUSCULAS
+
+
+@pytest.mark.parametrize("velha", ["https://api.example/a", "http://api.example/a"])
+def test_a_redirect_to_ftp_loses_the_credentials(velha):
+    novo = _redireciona(_segue(), velha, "ftp://api.example/b")
+    assert {n.lower() for n in novo.headers} == _COMUNS_EM_MINUSCULAS
+
+
+# ---- built on first use, like NoRedirect -----------------------------------------------------------------------------------------
+
+
+def test_the_handler_is_built_on_first_access_and_is_one_object_for_every_access():
+    codigo = _PRELUDIO + """
+import json
+from simplicio_video import rede
+v = {"urllib_ao_importar": "urllib.request" in sys.modules, "dir_antes": "StripCredentialsRedirect" in dir(rede),
+     "no_dict_antes": "StripCredentialsRedirect" in vars(rede)}
+primeira = rede.StripCredentialsRedirect
+v["urllib_depois_do_acesso"] = "urllib.request" in sys.modules
+v["mesma"] = primeira is rede.StripCredentialsRedirect is getattr(rede, "StripCredentialsRedirect") is vars(rede)["StripCredentialsRedirect"]
+from simplicio_video.rede import StripCredentialsRedirect
+v["from_import"] = StripCredentialsRedirect is primeira
+v["nomes"] = [primeira.__name__, primeira.__qualname__, primeira.__module__]
+import urllib.request
+v["e_handler_do_urllib"] = issubclass(primeira, urllib.request.HTTPRedirectHandler)
+v["outra_que_a_no_redirect"] = primeira is not rede.NoRedirect and not issubclass(primeira, rede.NoRedirect)
+v["dir_depois"] = "StripCredentialsRedirect" in dir(rede)
+print(json.dumps(v))
+"""
+    v = _processo_limpo(codigo)
+    assert v["urllib_ao_importar"] is False and v["urllib_depois_do_acesso"] is True
+    assert v["dir_antes"] is True and v["no_dict_antes"] is False and v["dir_depois"] is True
+    assert v["mesma"] is True and v["from_import"] is True
+    assert v["nomes"] == ["StripCredentialsRedirect", "StripCredentialsRedirect", "simplicio_video.rede"]
+    assert v["e_handler_do_urllib"] is True and v["outra_que_a_no_redirect"] is True
+
+
+def test_the_handler_is_one_class_even_with_several_threads_on_the_first_access():
+    codigo = _PRELUDIO + """
+import json
+import threading
+from simplicio_video import rede
+sys.setswitchinterval(1e-6)
+divergiu = 0
+for rodada in range(200):
+    rede.__dict__.pop("StripCredentialsRedirect", None)  # as if it had never been read
+    largada = threading.Barrier(8)
+    vistos = []
+
+    def acessa():
+        largada.wait()
+        vistos.append(rede.StripCredentialsRedirect)
+
+    threads = [threading.Thread(target=acessa) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    divergiu += len({id(c) for c in vistos}) != 1 or vistos[0] is not rede.StripCredentialsRedirect
 print(json.dumps({"divergiu": divergiu}))
 """
     assert _processo_limpo(codigo) == {"divergiu": 0}
