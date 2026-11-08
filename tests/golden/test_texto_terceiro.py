@@ -98,8 +98,8 @@ TABELA = [
     ("BRAILLE BLANK U+2800", "\u2800", "keep keep keep keep keep keep drop keep keep keep"),
     ("IDEOGRAPHIC SPACE U+3000", "\u3000", "keep keep keep keep keep keep keep keep space space"),
     ("HANGUL FILLER U+3164", "\u3164", "keep keep keep keep keep keep drop space keep keep"),
-    ("VS1 U+FE00", "\ufe00", "keep drop keep keep hex keep keep keep keep keep"),
-    ("VS16 U+FE0F", "\ufe0f", "keep drop keep keep hex keep keep keep keep keep"),
+    ("VS1 U+FE00", "\ufe00", "drop drop drop hex hex hex keep keep keep keep"),  # U22a: era "keep drop keep keep hex keep ..." (só o instagram)
+    ("VS16 U+FE0F", "\ufe0f", "drop drop drop hex hex hex keep keep keep keep"),  # U22a: idem
     ("BOM U+FEFF", "\ufeff", "drop drop drop hex hex hex drop space drop keep"),
     ("ANNOTATION U+FFF9", "\ufff9", "drop drop drop hex hex hex keep space drop keep"),
     ("U+FFFB", "\ufffb", "drop drop drop hex hex hex keep space drop keep"),
@@ -109,8 +109,8 @@ TABELA = [
     ("TAG U+E0001", "\U000e0001", "drop drop drop hex hex hex drop space drop keep"),
     ("TAG U+E0041", "\U000e0041", "drop drop drop hex hex hex drop space drop keep"),
     ("TAG U+E007F", "\U000e007f", "drop drop drop hex hex hex drop space drop keep"),
-    ("VS17 U+E0100", "\U000e0100", "keep drop keep keep hex keep keep space keep keep"),
-    ("VS256 U+E01EF", "\U000e01ef", "keep drop keep keep hex keep keep space keep keep"),
+    ("VS17 U+E0100", "\U000e0100", "drop drop drop hex hex hex keep space keep keep"),  # U22a: era "keep drop keep keep hex keep ..." (só o instagram)
+    ("VS256 U+E01EF", "\U000e01ef", "drop drop drop hex hex hex keep space keep keep"),  # U22a: idem
     ("combining acute U+0301", "\u0301", "keep keep keep keep keep keep keep keep keep keep"),
     ("a com til (precomposto) U+00E3", "\xe3", "keep keep keep keep keep keep keep keep keep keep"),
     ("kanji U+65E5", "\u65e5", "keep keep keep keep keep keep keep keep keep keep"),
@@ -131,12 +131,14 @@ def discordam(grupo: slice) -> set:
 
 def test_the_three_agent_text_versions_disagree_only_on_variation_selectors():
     # U22 decide: instagram tira os seletores de variação (U+FE00-FE0F, U+E0100-E01EF); matchcut e video_to_skill deixam passar
-    assert discordam(AGENTE) == {"VS1 U+FE00", "VS16 U+FE0F", "VS17 U+E0100", "VS256 U+E01EF"}
+    # U22a decidiu: os três tiram (é a mesma função, `terceiros.limpa_mcp`): já não discordam em nada (o nome deste teste é histórico: o id não muda)
+    assert discordam(AGENTE) == set()
 
 
 def test_the_three_terminal_versions_disagree_only_on_variation_selectors():
     # U22 decide: instagram.visivel mostra <U+FE0F> etc.; as outras duas deixam o seletor invisível passar para o terminal
-    assert discordam(TERMINAL) == {"VS1 U+FE00", "VS16 U+FE0F", "VS17 U+E0100", "VS256 U+E01EF"}
+    # U22a decidiu: os três mostram (é a mesma função, `terceiros.visivel`): já não discordam em nada (o nome deste teste é histórico: o id não muda)
+    assert discordam(TERMINAL) == set()
 
 
 def test_the_other_cleaners_agree_only_on_ordinary_text_and_the_emoji_selectors():

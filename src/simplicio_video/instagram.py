@@ -21,9 +21,9 @@ How a script is run (`run`):
 - an input file is opened once, checked with fstat on that descriptor (a regular file only), read up to MAX_INPUT_BYTES + 1,
   and the script gets a private copy of exactly the bytes that were read;
 - if the engine itself is asked to stop (SIGTERM or SIGHUP: terminal closed, MCP host stopping, an agent's timeout) the process
-  group of the child is killed and the private folder removed; on POSIX the child also gets an RLIMIT_CPU, so the kernel ends a
-  script that burns CPU even when the engine is killed outright (SIGKILL). RLIMIT_CPU counts CPU time, not wall time, and it does
-  not exist on Windows (there only the 30 s wall-clock kill and the SIGTERM-like handling of the engine remain);
+  group of the child is killed and the private folder removed; on POSIX a wrapper inside the child sets an RLIMIT_CPU and an RLIMIT_AS
+  (no core dump) and then execs the script, so the kernel ends a script that burns CPU even when the engine is killed outright (SIGKILL)
+  and a runaway allocation ends in a MemoryError. RLIMIT_CPU is CPU time, not wall time; Windows has neither (only the 30 s kill and the signals remain);
 - on the terminal the script text is shown with control, bidirectional and zero-width characters turned into visible marks.
 """
 from __future__ import annotations
@@ -45,13 +45,13 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import childio, tools
+from . import childio, terceiros, tools
 from .rede import offline as _offline
 from .terceiros import commit_do_checkout as _commit_do_checkout
 from .trilha_base import Trilha
 
 try:
-    import resource  # POSIX only: the CPU limit of the child
+    import resource  # POSIX only: where it is missing (Windows) the child gets no kernel limits and runs without the wrapper
 except ImportError:  # pragma: no cover (Windows)
     resource = None
 
@@ -326,18 +326,6 @@ class _Plano:
     usa_stdin: bool = False
 
 
-_RAIZES_POSIX = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys", "/run",
-                 "/opt", "/srv", "/snap", "/System", "/Library", "/Applications", "/private/etc", "/var/lib", "/var/log",
-                 "/var/spool", "/var/run", "/var/db")
-_RAIZES_WINDOWS = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
-
-
-# Folders whose files the system runs on its own at login: never a place for an output file (relative to the home).
-_INICIO_AUTOMATICO = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
-                      ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
-_STARTUP_DO_APPDATA = ("Microsoft", "Windows", "Start Menu", "Programs", "Startup")
-
-
 def _chave(caminho: Path) -> tuple:
     if CASE_INSENSITIVE:
         return tuple(unicodedata.normalize("NFC", parte).casefold() for parte in caminho.parts)
@@ -350,27 +338,14 @@ def _dentro(caminho: Path, pasta: Path) -> bool:
 
 
 def _lugar_proibido(real: Path) -> str:
-    """Why the engine does not write at `real` (where the write would really land, links resolved), or ''."""
-    t = tools.get("instagram")
-    if _dentro(real, tools.checkout_dir(t)):
-        return "dentro do checkout do instagram-agent-skill"
-    if _dentro(real, tools.tools_dir()):
-        return "dentro da pasta de ferramentas do motor"
-    raizes = [Path(r) for r in _RAIZES_POSIX] + [Path(v) for v in (os.environ.get(n) for n in _RAIZES_WINDOWS) if v]
-    if any(_dentro(real, r) for r in raizes):
-        return "em pasta do sistema"
-    home = Path(os.path.expanduser("~")).resolve()
-    inicio = [home.joinpath(*partes) for partes in _INICIO_AUTOMATICO]
-    inicio += [Path(base).joinpath(*_STARTUP_DO_APPDATA) for base in (os.environ.get(n) for n in ("APPDATA",)) if base]
-    if any(_dentro(real, pasta) for pasta in inicio):
-        return "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)"
-    if _dentro(real, home):
-        partes = real.relative_to(home).parts
-        if partes and partes[0].startswith("."):
-            return "em pasta oculta do home (.ssh, .config, .claude...)"
-    if ".git" in _chave(real):
-        return "dentro de uma pasta .git"
-    return ""
+    """Why the engine does not write at `real` (where the write would really land, links resolved), or ''. The rule is the one of
+    `terceiros` (the same for every track: system, auto-start, hidden and .git folders, the engine's own places); the two places that
+    are this track's own are asked first, in these words."""
+    def proprios():  # one at a time: a folder that cannot be found (no home) is only asked for when the path got past the ones before it
+        yield tools.checkout_dir(tools.get("instagram")), "dentro do checkout do instagram-agent-skill"
+        yield tools.tools_dir(), terceiros.FERRAMENTAS
+
+    return terceiros.lugar_proibido(real, proprios(), dentro=_dentro, chave=_chave) or ""
 
 
 def _checa_saida(valor: str, forcar: bool) -> str:
@@ -503,21 +478,52 @@ def _ambiente() -> dict:
 _matar = childio.kill_group  # the name the tests replace (a fake child has no pid): the group is stopped in childio
 
 
-def _limites_do_filho(cpu: int):
-    """What the child sets on itself right after the fork (POSIX): a CPU limit, so the kernel ends a script that burns CPU even
-    when the engine is gone (SIGKILL cannot be handled), and no core dump. It limits CPU time, not wall time: a script that only
-    sleeps is stopped by the engine (the 30 s kill, or SIGTERM/SIGHUP handling), never by this. Not available on Windows."""
-    def aplica():
-        for limite, valores in ((resource.RLIMIT_CPU, (cpu, cpu + 5)), (resource.RLIMIT_CORE, (0, 0))):
-            with contextlib.suppress(ValueError, OSError):  # a lower hard limit inherited from the parent stays
-                resource.setrlimit(limite, valores)
-    return aplica
+# Measured on the six real scripts of the pinned commit with the largest input the engine passes (MAX_INPUT_BYTES, 1 MiB): the runs that end
+# peak at about 45-140 MiB of address space (VmPeak). The worst input found (1 MiB of 524,288 one-character lines to `hookscore --json`)
+# peaks at 1.74 GiB and still dies on the 2 MiB output cap, with or without this limit. 4 GiB is about 2.3 times that worst case: a script
+# that runs away in memory gets a MemoryError in the child instead of taking the memory of the machine (1 GiB would already do it to that input).
+MAX_MEM_BYTES = 4 * 1024 ** 3  # address-space limit of the child (RLIMIT_AS), in bytes; 0 = none
+
+# Runs in the child before the script: the kernel limits, then exec of the script with the same isolated flags. A wrapper instead of a
+# fork hook (which is not safe under the threads of the MCP server); POSIX only: where there is no `resource` module (Windows) the command
+# never goes through it and the script runs as it is. Arguments: the CPU limit in seconds (the soft one, SIGXCPU; the hard one is 5 s
+# above it, SIGKILL for a script that ignores the signal), the address-space limit in bytes (0: none), then the script and its arguments.
+# A limit the kernel refuses (a lower hard limit inherited from the engine stays) is skipped: the script still runs with the others.
+_WRAPPER = (
+    "import os, sys\n"
+    "try:\n"
+    "    import resource\n"
+    "except ImportError:\n"
+    "    resource = None\n"
+    "if resource is not None:\n"
+    "    cpu, memoria = int(sys.argv[1]), int(sys.argv[2])\n"
+    "    for quem, valores in ((resource.RLIMIT_CPU, (cpu, cpu + 5)), (resource.RLIMIT_CORE, (0, 0)), (resource.RLIMIT_AS, (memoria, memoria))):\n"
+    "        if quem == resource.RLIMIT_AS and memoria <= 0:\n"
+    "            continue\n"
+    "        try:\n"
+    "            resource.setrlimit(quem, valores)\n"
+    "        except (ValueError, OSError):\n"
+    "            pass\n"
+    "os.execv(sys.executable, [sys.executable, '-I', '-B', '-X', 'utf8'] + sys.argv[3:])\n"
+)
+
+
+def _comando(script, argv: list) -> list:
+    """The command of the child: the isolated interpreter and, on POSIX, the wrapper that sets its kernel limits and then execs the
+    script (same pid, so the group kill still reaches it). The CPU limit is TIMEOUT_S + CPU_FOLGA_S, never under 1 s (a soft limit of 0
+    ends the script at once): the kernel ends a script that burns CPU even when the engine is gone (SIGKILL cannot be handled). It limits CPU time, not
+    wall time: a script that only sleeps is stopped by the engine (the 30 s kill, or SIGTERM/SIGHUP handling), never by this. No core
+    dump. The limits are read when the command is built, not at import."""
+    base = [sys.executable, "-I", "-B", "-X", "utf8"]
+    if resource is None:  # no rlimit here (Windows, UNVERIFIED), and os.execv does not replace the process there
+        return [*base, str(script), *argv]
+    cpu = max(1, int(TIMEOUT_S) + CPU_FOLGA_S)
+    return [*base, "-c", _WRAPPER, str(cpu), str(MAX_MEM_BYTES), str(script), *argv]
 
 
 def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, bytes]:
     """Run by argument list: no shell, closed environment, stdin from a file (or nothing), output to temporary files so the
     size can be watched while it runs. Past TIMEOUT_S or the output cap the whole process group is killed and the call fails."""
-    extra = {"preexec_fn": _limites_do_filho(max(1, int(TIMEOUT_S) + CPU_FOLGA_S))} if resource is not None and os.name == "posix" else {}
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as inp, contextlib.ExitStack() as guard:
         if entrada is not None:
             inp.write(entrada)
@@ -527,7 +533,7 @@ def _executa(argv: list, entrada: bytes | None, cwd: str) -> tuple[int, bytes, b
             # engine's exit; one that lands later (or Ctrl+C) kills the group on the way out of the block (childio.guarded_child)
             proc = guard.enter_context(childio.guarded_child(
                 argv, stdin=inp if entrada is not None else subprocess.DEVNULL, stdout=out, stderr=err, cwd=cwd,
-                env=_ambiente(), start_new_session=True, **extra))
+                env=_ambiente(), start_new_session=True))
         except (OSError, subprocess.SubprocessError) as e:
             raise InstagramError(f"não consegui executar o script: {getattr(e, 'strerror', None) or type(e).__name__}") from None
         limite_tempo = time.monotonic() + TIMEOUT_S
@@ -645,42 +651,15 @@ def run_tool(ferramenta, args, *, texto=None, canal: str = "terminal", forcar: b
         if canal == "terminal" and plano.usa_stdin:
             entrada = _le_stdin()
         cwd = os.getcwd() if canal == "terminal" else privada
-        rc, out, err = _executa([sys.executable, "-I", "-B", "-X", "utf8", str(script), *argv], entrada, cwd)
+        rc, out, err = _executa(_comando(script, argv), entrada, cwd)
     return {"ferramenta": f.nome, "codigo_saida": rc, "resultado": rc in f.resultado,
             "stdout": out.decode("utf-8", errors="replace"), "stderr": err.decode("utf-8", errors="replace"), "avisos": avisos}
 
 
-def _seletor_de_variacao(c: str) -> bool:
-    """Variation selectors (U+FE00-FE0F, U+E0100-E01EF) are category Mn but can carry hidden data after a visible character."""
-    n = ord(c)
-    return 0xFE00 <= n <= 0xFE0F or 0xE0100 <= n <= 0xE01EF
-
-
-def _limpa_mcp(texto: str) -> str:
-    """Script text for an agent: no control, bidirectional, zero-width or tag characters (they can hide instructions)."""
-    texto = texto.replace("\r\n", "\n")
-    return "".join(c for c in texto if c in "\n\t" or (not _seletor_de_variacao(c)
-                                                      and unicodedata.category(c) not in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp")))
-
-
-def visivel(texto: str) -> str:
-    """Script text for a terminal: ESC and the other controls become their visible marks (U+2400 block), and C1, bidirectional,
-    zero-width, line-separator and tag characters become <U+XXXX>; newline and tab stay. A terminal never receives an escape
-    sequence that came from a script (and so, possibly, from a third party's text)."""
-    saida = []
-    for c in texto.replace("\r\n", "\n"):
-        n = ord(c)
-        if c in "\n\t":
-            saida.append(c)
-        elif n < 0x20:
-            saida.append(chr(0x2400 + n))
-        elif n == 0x7F:
-            saida.append(chr(0x2421))
-        elif _seletor_de_variacao(c) or unicodedata.category(c) in ("Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"):
-            saida.append(f"<U+{n:04X}>")
-        else:
-            saida.append(c)
-    return "".join(saida)
+# Script text for an agent (`_limpa_mcp`) and for a terminal (`visivel`): the one cleaner of `terceiros`, the same for every track.
+# A terminal never receives an escape sequence that came from a script (and so, possibly, from a third party's text).
+_limpa_mcp = terceiros.limpa_mcp
+visivel = terceiros.visivel
 
 
 def resposta_mcp(res: dict) -> dict:
@@ -703,7 +682,7 @@ def _limpa(texto: str, limite: int) -> str:
         categoria = unicodedata.category(c)
         if c in "\t\n\r\v\f\x85\u2028\u2029":
             saida.append(" ")
-        elif categoria not in ("Cc", "Cf", "Cs", "Co", "Cn") and not _seletor_de_variacao(c):
+        elif categoria not in ("Cc", "Cf", "Cs", "Co", "Cn") and not terceiros.seletor_de_variacao(c):
             saida.append(c)
     linha = re.sub(r"\s+", " ", "".join(saida)).strip()
     return linha if len(linha) <= limite else linha[:limite - 1].rstrip() + "…"  # the ellipsis counts: never more than `limite`

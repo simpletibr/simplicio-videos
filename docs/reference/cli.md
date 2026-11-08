@@ -778,9 +778,11 @@ exemplos:
 ## simplicio-video run
 
 ```text
-usage: simplicio-video run [-h] [--provider {file,local,gemini,voxcpm,openvoice,voicestudio}] [--force-voice]
-                           [--backend {local,kaggle,colab-cli,colab}] [--accelerator ACCELERATOR]
-                           [--quality {draft,looks,delivery}] [--timeout TIMEOUT] [--json]
+usage: simplicio-video run [-h]
+                           [--provider {file,local,gemini,voxcpm,openvoice,voicestudio,audio8,elevenlabs,xai}]
+                           [--force-voice] [--backend {local,kaggle,colab-cli,colab}]
+                           [--accelerator ACCELERATOR] [--quality {draft,looks,delivery}] [--timeout TIMEOUT]
+                           [--json]
                            CONTRATO.yaml
 
 Fluxo 100% script: validate -> voice (provider do contrato ou --provider, ex.: gemini) ->
@@ -796,7 +798,7 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio}
+  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio,audio8,elevenlabs,xai}
                                   override voz.provider
   --force-voice                   regera todas as falas (ignora o cache)
   --backend, -b {local,kaggle,colab-cli,colab}
@@ -1082,7 +1084,8 @@ exemplos:
 ## simplicio-video voice
 
 ```text
-usage: simplicio-video voice [-h] [--provider {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}]
+usage: simplicio-video voice [-h]
+                             [--provider {file,local,gemini,voxcpm,openvoice,voicestudio,audio8,elevenlabs,xai}]
                              [--force] [--concurrency N]
                              CONTRATO.yaml [FALA_ID ...]
 
@@ -1105,7 +1108,7 @@ positional arguments:
 
 options:
   -h, --help                      show this help message and exit
-  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio,elevenlabs,xai}
+  --provider, -p {file,local,gemini,voxcpm,openvoice,voicestudio,audio8,elevenlabs,xai}
                                   override voz.provider
   --force                         ignora o cache (com ids: só esses)
   --concurrency N                 falas geradas ao mesmo tempo, só em provedor de rede (gemini; padrão 4; 1 =

@@ -17,8 +17,9 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
-from . import aio, childio, hostos, mediaio, paths, voice_clone, voz_catalogo, words as wordsmod
+from . import aio, childio, hostos, mediaio, paths, rede, voice_clone, voz_catalogo, words as wordsmod
 from .contract import Contract, r4
 from .fsutil import sha256_file
 
@@ -148,10 +149,21 @@ def _local(S: dict, text: str, dst: Path) -> None:
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 # SIMPLICIO_GEMINI_BASE: only for dry runs against a local mock (tests/tools/mock_gemini.py); never a real key there.
 GEMINI_RETRY = (429, 500, 502, 503, 504)
+# The key goes to this base in the `x-goog-api-key` header, so the base is https, or http to this machine. It is the rule of the swap adapter
+# (swap_providers/gemini.py, `GeminiAdapter._base`) with the same words; tests/test_voice_gemini_base.py fails if the two copies drift apart.
+GEMINI_PLAIN_HTTP_HOSTS = ("localhost", "127.0.0.1", "::1")
+GEMINI_BASE_REFUSAL = "SIMPLICIO_GEMINI_BASE precisa ser https (http só em localhost): a chave não vai em texto claro"
 
 
 def gemini_base() -> str:
-    return os.environ.get("SIMPLICIO_GEMINI_BASE", "").rstrip("/") or GEMINI_BASE
+    """The base URL of the Gemini API: SIMPLICIO_GEMINI_BASE or the official one, without the trailing slash.
+
+    Refused (VoiceError) unless it is https, or http to localhost, 127.0.0.1 or ::1: the key would travel in clear."""
+    base = os.environ.get("SIMPLICIO_GEMINI_BASE", "").rstrip("/") or GEMINI_BASE
+    u = urlparse(base.strip())  # the adapter judges the text without the spaces around it
+    if u.scheme != "https" and not (u.scheme == "http" and u.hostname in GEMINI_PLAIN_HTTP_HOSTS):
+        raise VoiceError(f"provider=gemini: {GEMINI_BASE_REFUSAL}")
+    return base
 
 
 def gemini_request(S: dict, text: str) -> tuple[str, dict]:
@@ -223,7 +235,7 @@ def _gemini(S: dict, text: str, dst: Path, retries: int = 4) -> dict:
         req = urllib.request.Request(url, data=data, method="POST",
                                      headers={"x-goog-api-key": key, "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=180) as r:
+            with rede.urlopen_seguro(req, timeout=180) as r:  # urlopen, but a redirect to another host does not take the key along
                 res = json.loads(r.read())
             break
         except urllib.error.HTTPError as e:

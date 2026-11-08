@@ -934,46 +934,17 @@ def _path_values(value, key: str = ""):
             yield key, value
 
 
-_SISTEMA_POSIX = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys",
-                  "/run", "/opt", "/srv", "/snap", "/System", "/Library", "/Applications", "/private/etc", "/var/lib",
-                  "/var/log", "/var/spool", "/var/run", "/var/db")  # /var as a whole is refused too, except /var/tmp
-_SISTEMA_WINDOWS = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
-_INICIO_AUTOMATICO = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
-                      ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
-
-
-def _dentro(caminho: Path, pasta) -> bool:
-    """True when `caminho` is `pasta` or lies under it; both are real paths (links resolved), compared part by part."""
-    b = Path(os.path.realpath(pasta)).parts
-    return Path(caminho).parts[:len(b)] == b
-
-
 def _lugar_proibido(real: Path) -> str:
-    """Why an MCP output may not be written at `real` (links already resolved), or ''. It mirrors instagram._lugar_proibido and
-    adds the engine's own places: its data (jobs, tools, the venv), its code, the checkout, any venv and any site-packages."""
-    if _dentro(real, Path(__file__).resolve().parent):
-        return "dentro do código do motor"
-    if _dentro(real, find_openmontage_dir() or default_openmontage_dir()):
-        return "dentro do checkout do OpenMontage"
-    if any(_dentro(real, pasta) for pasta in (paths.jobs_root(), data_dir(), tools.tools_dir())):
-        return "dentro da pasta de dados do motor (jobs, tools, openmontage-data)"
-    if "site-packages" in real.parts:
-        return "dentro de site-packages (pacotes de um venv)"
-    if any((a / "pyvenv.cfg").is_file() for a in real.parents):
-        return "dentro de um venv (pyvenv.cfg)"
-    raizes = [Path(r) for r in _SISTEMA_POSIX] + [Path(v) for v in (os.environ.get(n) for n in _SISTEMA_WINDOWS) if v]
-    if any(_dentro(real, r) for r in raizes) or (_dentro(real, "/var") and not _dentro(real, "/var/tmp")):
-        return "em pasta do sistema"
-    home = Path(os.path.realpath(os.path.expanduser("~")))
-    if any(_dentro(real, home.joinpath(*partes)) for partes in _INICIO_AUTOMATICO):
-        return "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)"
-    if _dentro(real, home):
-        partes = real.parts[len(home.parts):]
-        if partes and partes[0].startswith("."):
-            return "em pasta oculta do home (.ssh, .config, .claude...)"
-    if ".git" in real.parts:
-        return "dentro de uma pasta .git"
-    return ""
+    """Why an MCP output may not be written at `real` (links already resolved), or ''. The rule is the one of `terceiros` (the same for
+    every track: system, auto-start, hidden and .git folders, the engine's own places). This track asks first about the places that are its
+    own, in its own words and order (its code, the OpenMontage checkout, its data folders), and tells the engine's places (site-packages,
+    a venv, /var) before the system, auto-start, hidden and .git ones, as it always did."""
+    def proprios():  # one at a time: a folder that cannot be found (no home) is only asked for when the path got past the ones before it
+        yield Path(__file__).resolve().parent, terceiros.CODIGO
+        yield find_openmontage_dir() or default_openmontage_dir(), "dentro do checkout do OpenMontage"
+        yield (paths.jobs_root(), data_dir(), tools.tools_dir()), terceiros.DADOS
+
+    return terceiros.lugar_proibido(real, proprios(), motor_antes=True) or ""
 
 
 def _output_refusal(key: str, text: str) -> str | None:

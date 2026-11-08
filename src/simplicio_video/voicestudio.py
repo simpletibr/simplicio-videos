@@ -30,7 +30,8 @@ Facts read at the pinned release (v0.5.7, commit beaae08; the pin lives in tools
   (multipart, field 'file'). /v1/audio/speech is the lane the 'voicestudio' voice provider already uses
   (voice_clone.py), not this module.
 
-Only the standard library is used (urllib, json, base64). Every network call has a timeout, and the app being
+Only the standard library is used (urllib, json, base64), and `terceiros` (itself standard library only) for the one rule of where
+a track does not write. Every network call has a timeout, and the app being
 closed becomes a clear, actionable error instead of a traceback or a hang.
 """
 from __future__ import annotations
@@ -46,6 +47,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+from . import terceiros
 
 DEFAULT_PORT = 3900
 CLIENT_ID = "simplicio-video"
@@ -130,8 +133,9 @@ def is_loopback_base(base: str) -> bool:
         return False
 
 
-def _forbidden_place(real: Path) -> str | None:
-    """Why the MCP tool never touches this (already resolved) path: a system folder or a hidden folder of the home."""
+def _forbidden_input_place(real: Path) -> str | None:
+    """Why the MCP tool never READS this (already resolved) path: a system folder or a hidden folder of the home. Reading keeps the narrow
+    rule it always had (the 16 roots below); the one rule of `terceiros` is where the engine does not WRITE, and `_forbidden_place` uses it."""
     roots = [Path(r) for r in _ROOTS_POSIX]
     roots += [Path(os.environ[v]) for v in _ROOTS_WINDOWS if os.environ.get(v)]
     for root in roots:
@@ -148,6 +152,20 @@ def _forbidden_place(real: Path) -> str | None:
     if home in real.parents and real.relative_to(home).parts[0].startswith("."):
         return f"pasta oculta do home ({home / real.relative_to(home).parts[0]})"
     return None
+
+
+def _forbidden_place(real: Path) -> str | None:
+    """Why the MCP tool never WRITES at this (already resolved) path: the one rule of `terceiros`, the same for every track (system,
+    auto-start, hidden and .git folders, the engine's own places). The two things this module always refused, a system folder and a hidden
+    folder of the home, keep the words it always used, with the folder that matched ("pasta do sistema (/etc)", a noun phrase that `_em`
+    completes); the rest are the words of the rule, which carry their own preposition ("em pasta de início automático (...)",
+    "dentro de uma pasta .git")."""
+    return _forbidden_input_place(real) or terceiros.lugar_proibido(real)
+
+
+def _em(place: str) -> str:
+    """The words that follow "o MCP não grava": a bare place takes "em"; the words of the one rule already carry their preposition."""
+    return place if place.startswith(("em ", "dentro ")) else f"em {place}"
 
 
 def _guard_abs(value, what: str) -> Path:
@@ -168,7 +186,7 @@ def _guard_input(value, exts, what: str) -> str:
         raise VoiceStudioError(f"{what}: não é um arquivo comum: {value}")
     if real.suffix.lower() not in exts:
         raise VoiceStudioError(f"{what}: o arquivo (depois de seguir links) não é de mídia aceita ({', '.join(sorted(exts))}): {real.name}")
-    place = _forbidden_place(real)
+    place = _forbidden_input_place(real)
     if place:
         raise VoiceStudioError(f"{what}: o MCP não lê de {place}")
     return str(real)
@@ -184,7 +202,7 @@ def _guard_out(value, what: str = "--out") -> str:
     real = path.parent.resolve() / path.name
     place = _forbidden_place(real)
     if place:
-        raise VoiceStudioError(f"{what}: o MCP não grava em {place}")
+        raise VoiceStudioError(f"{what}: o MCP não grava {_em(place)}")
     if os.path.lexists(real):
         raise VoiceStudioError(f"{what}: já existe {value} (o MCP não sobrescreve; escolha outro nome)")
     return str(real)
@@ -251,9 +269,10 @@ def _api_key() -> str | None:
 
 def default_transport(method: str, url: str, body: bytes | None, headers: dict, timeout: float):
     """One HTTP call -> (status, headers, body). HTTP errors come back as a status; a closed app is a VoiceStudioError."""
+    from . import rede  # here, so the lines above stay where docs/reference cites them: `rede` is a leaf (standard library only)
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with rede.urlopen_seguro(req, timeout=timeout) as r:  # urlopen, but a redirect to another host does not take the key along
             return r.status, dict(r.headers), r.read()
     except urllib.error.HTTPError as e:  # a response, not a transport failure
         return e.code, dict(e.headers or {}), e.read()

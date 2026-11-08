@@ -308,7 +308,7 @@ def test_app_closed_is_an_actionable_error_and_exit_1(monkeypatch, capsys):
 def test_default_transport_reports_a_closed_app_without_hanging(monkeypatch):
     def refused(*a, **k):
         raise __import__("urllib.error", fromlist=["error"]).URLError(ConnectionRefusedError(61, "Connection refused"))
-    monkeypatch.setattr("urllib.request.urlopen", refused)
+    monkeypatch.setattr("simplicio_video.rede.urlopen_seguro", refused)
     with pytest.raises(vs.VoiceStudioError, match="Abra o VoiceStudio"):
         vs.default_transport("GET", "http://127.0.0.1:3900/x", None, {}, 5)
 
