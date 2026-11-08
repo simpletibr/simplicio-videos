@@ -42,7 +42,7 @@ def fake_api(monkeypatch):
         return _Resp(json.dumps(res).encode())
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    monkeypatch.setattr(voice.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(voice.rede, "urlopen_seguro", urlopen)
     return calls
 
 
@@ -94,7 +94,7 @@ def test_gemini_generate_content_raw_pcm(mini, fake_api):
 
 def test_gemini_retries_429(mini, monkeypatch, fake_api):
     _set_gemini(mini)
-    ok = voice.urllib.request.urlopen
+    ok = voice.rede.urlopen_seguro
     state = {"n": 0}
 
     def flaky(req, timeout=0):
@@ -103,7 +103,7 @@ def test_gemini_retries_429(mini, monkeypatch, fake_api):
             raise urllib.error.HTTPError(req.full_url, 429, "quota", {"Retry-After": "0"}, io.BytesIO(b"{}"))
         return ok(req, timeout)
 
-    monkeypatch.setattr(voice.urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(voice.rede, "urlopen_seguro", flaky)
     voice.run(ct.load(mini), provider="gemini", log=lambda *_: None)
     assert state["n"] == 2
 
@@ -114,6 +114,6 @@ def test_gemini_http_error_is_clear(mini, monkeypatch, fake_api):
     def bad(req, timeout=0):
         raise urllib.error.HTTPError(req.full_url, 403, "denied", {}, io.BytesIO(b'{"error": "API key not valid"}'))
 
-    monkeypatch.setattr(voice.urllib.request, "urlopen", bad)
+    monkeypatch.setattr(voice.rede, "urlopen_seguro", bad)
     with pytest.raises(SystemExit, match="HTTP 403"):
         voice.run(ct.load(mini), provider="gemini", log=lambda *_: None)

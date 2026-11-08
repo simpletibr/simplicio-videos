@@ -11,6 +11,7 @@ No test touches the network: urllib is replaced by fakes.
 from __future__ import annotations
 
 import ast
+import base64
 import email.message
 import importlib
 import io
@@ -898,3 +899,221 @@ for rodada in range(200):
 print(json.dumps({"divergiu": divergiu}))
 """
     assert _processo_limpo(codigo) == {"divergiu": 0}
+
+
+# ---- U22i: `urlopen_seguro`, and the callers that open a URL themselves -----------------------------------------------------------------
+#
+# voice (Gemini TTS), voice_clone (VoiceStudio TTS) and voicestudio (`default_transport`: every call to the app) call urllib directly and keep
+# their own errors, so they never went through `request`: they kept the stock redirect handler that U22g took out of it, and the key in their
+# header went to whatever host a `Location` named. They open the URL with `rede.urlopen_seguro` now: `urlopen` with the same redirect handler
+# as `request`, and nothing else (no NetworkError, no offline check, no reading of the body: each module still says its errors its own way).
+# tests/golden/test_redirect_credenciais.py runs the three modules for real against two loopback servers; the tests below pin the opener, the
+# request and the list of the places that open a URL, without a socket.
+
+
+def test_urlopen_seguro_opens_the_request_with_the_handler_that_drops_the_credential(rede_falsa):
+    """RED before U22i (the function does not exist): the one opener it builds has `StripCredentialsRedirect` as its redirect handler."""
+    falsa = rede_falsa(resposta=_Resposta(200, b"ok"))
+    req = urllib.request.Request("https://a.example/x", data=b"{}", method="POST", headers={"x-goog-api-key": "S3CR3T"})
+    r = _rede().urlopen_seguro(req, timeout=7)
+    assert r is falsa.resposta and falsa.requisicoes == [req] and falsa.timeouts == [7]
+    assert falsa.handlers == [(_rede().StripCredentialsRedirect,)]
+
+
+@pytest.mark.parametrize("erro", [urllib.error.HTTPError("https://a.example/", 429, "Too Many", email.message.Message(), io.BytesIO(b"devagar")),
+                                  urllib.error.URLError("dns"), TimeoutError("lento"), ConnectionResetError("reset"), OSError("disco")],
+                         ids=["HTTPError", "URLError", "TimeoutError", "ConnectionResetError", "OSError"])
+def test_urlopen_seguro_lets_every_error_of_urllib_through_untouched(rede_falsa, erro):
+    """Not a NetworkError (that is `request`): the callers wrap these errors their own way, and the object that comes out is the one that went in."""
+    rede_falsa(erro=erro)
+    with pytest.raises(type(erro)) as caught:
+        _rede().urlopen_seguro(urllib.request.Request("https://a.example/"), timeout=1)
+    assert caught.value is erro
+
+
+def test_urlopen_seguro_does_not_look_at_the_offline_switch(monkeypatch):
+    """Not its call: voice and voicestudio never read SIMPLICIO_OFFLINE (VoiceStudio runs on this machine), so the helper that took the place of
+    their `urlopen` does not either. `request` refuses; this one opens, as `urlopen` did."""
+    falsa = _Rede(monkeypatch)
+    monkeypatch.setenv("SIMPLICIO_OFFLINE", "1")
+    _rede().urlopen_seguro(urllib.request.Request("http://127.0.0.1:3900/"), timeout=1)
+    assert len(falsa.requisicoes) == 1
+
+
+def test_urlopen_seguro_asks_for_a_timeout():
+    """Every network call of the engine has one (voicestudio.py says so in its docstring): a caller cannot forget it."""
+    with pytest.raises(TypeError):
+        _rede().urlopen_seguro(urllib.request.Request("https://a.example/"))
+
+
+@pytest.mark.parametrize("porque,velha,local,leva", ORIGENS, ids=[o[0] for o in ORIGENS])
+def test_urlopen_seguro_hands_the_credentials_on_by_the_same_rule_as_request(salto, porque, velha, local, leva):
+    """The table of `request`, through `urlopen_seguro` and a REAL opener over a fake network: the key reaches the next hop only while its netloc
+    and its scheme are the ones the caller chose (or the scheme goes from http to https); what is not a credential goes everywhere."""
+    falsa = salto({velha: (302, local)})
+    with _rede().urlopen_seguro(urllib.request.Request(velha, headers=_CABECALHOS), timeout=5) as r:
+        assert r.status == 200 and r.read() == b"ok"
+    assert len(falsa.pedidos) == 2, falsa.pedidos
+    (_, primeiro), (destino, segundo) = falsa.pedidos
+    assert _CABECALHOS_EM_MINUSCULAS <= set(primeiro)
+    levados = {nome for nome in _CREDENCIAIS_EM_MINUSCULAS if nome in segundo}
+    assert levados == (_CREDENCIAIS_EM_MINUSCULAS if leva else set()), f"{destino} recebeu {sorted(levados)}"
+    assert _COMUNS_EM_MINUSCULAS <= set(segundo) and all(segundo[n.lower()] == v for n, v in _COMUNS.items())
+
+
+class _Abertura:
+    """The end of every way into urllib: `urlopen` goes through the default opener and `build_opener(...)` makes another, and both end in
+    `OpenerDirector.open`. Replaced, it writes down the handlers of the opener that was used, the request and the timeout, and answers
+    `resposta` (or raises `erro`): written against that seam, the tests below mean the same before and after a caller changes how it gets
+    to urllib."""
+
+    def __init__(self, monkeypatch, resposta=None, erro=None):
+        self.abertas = []
+        outer = self
+
+        def abre(opener, fullurl, data=None, timeout=None):
+            outer.abertas.append({"handlers": [type(h) for h in opener.handlers], "req": fullurl, "timeout": timeout})
+            if erro is not None:
+                raise erro
+            return resposta
+
+        monkeypatch.setattr(urllib.request.OpenerDirector, "open", abre)
+
+
+CHAVE_G, CHAVE_V = "AIzaS3CR3T-wiring", "S3CR3T-wiring"
+GEMINI_JSON = json.dumps({"steps": [{"type": "model_output", "content": [
+    {"type": "audio", "mime_type": "audio/wav", "data": base64.b64encode(b"RIFFfake").decode()}]}]}).encode()
+
+
+def _chama_a_voz_do_gemini(tmp_path, monkeypatch):
+    from simplicio_video import voice
+    monkeypatch.setenv("GEMINI_API_KEY", CHAVE_G)
+    monkeypatch.delenv("SIMPLICIO_GEMINI_BASE", raising=False)
+    voice._gemini({"model": "gemini-mock", "voice": "Kore", "estilo": "calmo"}, "oi", tmp_path / "take.wav")
+
+
+def _chama_a_voz_do_voicestudio(tmp_path, monkeypatch):
+    from simplicio_video import voice_clone
+    monkeypatch.setenv("VOICESTUDIO_API_KEY", CHAVE_V)
+    monkeypatch.setenv("VOICESTUDIO_URL", "http://127.0.0.1:3900")
+    voice_clone.voicestudio({"model": "omnivoice", "voice": "me"}, "oi", tmp_path / "take.wav")
+
+
+def _chama_o_transporte_do_voicestudio(tmp_path, monkeypatch):
+    from simplicio_video import voicestudio
+    voicestudio.default_transport("POST", "http://127.0.0.1:3900/mcp/", b"{}", {"Authorization": f"Bearer {CHAVE_V}", "Content-Type": "application/json"}, 11)
+
+
+# id -> (what calls it, what the server answers, the timeout it opens with, method, URL, the header that carries the key, its value)
+CHAMADORES_DE_URLLIB = {
+    "voice._gemini": (_chama_a_voz_do_gemini, GEMINI_JSON, 180, "POST", "https://generativelanguage.googleapis.com/v1beta/interactions",
+                      "x-goog-api-key", CHAVE_G),
+    "voice_clone.voicestudio": (_chama_a_voz_do_voicestudio, b"RIFFfake", 300, "POST", "http://127.0.0.1:3900/v1/audio/speech",
+                                "authorization", f"Bearer {CHAVE_V}"),
+    "voicestudio.default_transport": (_chama_o_transporte_do_voicestudio, b"{}", 11, "POST", "http://127.0.0.1:3900/mcp/",
+                                      "authorization", f"Bearer {CHAVE_V}"),
+}
+
+
+@pytest.mark.parametrize("quem", list(CHAMADORES_DE_URLLIB))
+def test_the_callers_that_send_a_key_open_the_url_with_the_handler_that_drops_it(monkeypatch, tmp_path, quem):
+    """RED before U22i: they opened it with `urlopen`, whose opener has the stock redirect handler (it copies the key into the request it
+    sends to the next host)."""
+    chama, corpo, *_ = CHAMADORES_DE_URLLIB[quem]
+    abertura = _Abertura(monkeypatch, _Resposta(200, corpo))
+    chama(tmp_path, monkeypatch)
+    assert len(abertura.abertas) == 1
+    tipos = abertura.abertas[0]["handlers"]
+    assert _rede().StripCredentialsRedirect in tipos and urllib.request.HTTPRedirectHandler not in tipos
+
+
+@pytest.mark.parametrize("quem", list(CHAMADORES_DE_URLLIB))
+def test_the_callers_that_send_a_key_send_the_same_request_with_the_same_timeout(monkeypatch, tmp_path, quem):
+    """GREEN before and after: only the way to urllib changes, not what goes through it (URL, method, the key in its header, the timeout)."""
+    chama, corpo, timeout, metodo, url, cabecalho, valor = CHAMADORES_DE_URLLIB[quem]
+    abertura = _Abertura(monkeypatch, _Resposta(200, corpo))
+    chama(tmp_path, monkeypatch)
+    (aberta,) = abertura.abertas
+    req = aberta["req"]
+    assert (req.get_method(), req.full_url, aberta["timeout"]) == (metodo, url, timeout)
+    assert {nome.lower(): v for nome, v in req.header_items()}[cabecalho] == valor
+
+
+# (caller, what urllib raises, what comes out of the caller: the same object, or the name of the type and the text). `{OPEN_APP}` is the
+# sentence voicestudio.py appends to its messages.
+ERROS_DOS_CHAMADORES = [
+    ("voice._gemini", urllib.error.URLError("dns"), "o mesmo"),
+    ("voice._gemini", TimeoutError("lento"), "o mesmo"),
+    ("voice_clone.voicestudio", urllib.error.URLError("refused"), ("CloneVoiceError", "provider=voicestudio: backend not reachable at "
+                                                                  "http://127.0.0.1:3900 (refused). Start VoiceStudio or set VOICESTUDIO_URL.")),
+    ("voice_clone.voicestudio", TimeoutError("lento"), "o mesmo"),
+    ("voicestudio.default_transport", urllib.error.URLError("refused"), ("VoiceStudioError", "não consegui falar com o VoiceStudio em "
+                                                                         "http://127.0.0.1:3900/mcp/ (refused). {OPEN_APP}")),
+    ("voicestudio.default_transport", TimeoutError("lento"), ("VoiceStudioError", "o VoiceStudio em http://127.0.0.1:3900/mcp/ não respondeu "
+                                                              "a tempo (lento). {OPEN_APP}")),
+]
+
+
+@pytest.mark.parametrize("quem,erro,saida", ERROS_DOS_CHAMADORES, ids=[f"{q}-{type(e).__name__}" for q, e, _ in ERROS_DOS_CHAMADORES])
+def test_each_caller_says_the_errors_of_urllib_in_its_own_way_or_not_at_all(monkeypatch, tmp_path, quem, erro, saida):
+    """GREEN before and after: the type and the text of what comes out are the module's own (voice leaves the error of urllib as it is, voice_clone
+    and voicestudio wrap some of them), never `rede`'s: `urlopen_seguro` wraps nothing."""
+    from simplicio_video import voicestudio
+    chama = CHAMADORES_DE_URLLIB[quem][0]
+    _Abertura(monkeypatch, erro=erro)
+    with pytest.raises(BaseException) as caught:  # CloneVoiceError is a SystemExit
+        chama(tmp_path, monkeypatch)
+    if saida == "o mesmo":
+        assert caught.value is erro
+    else:
+        tipo, texto = saida
+        assert type(caught.value).__name__ == tipo and str(caught.value) == texto.format(OPEN_APP=voicestudio.OPEN_APP)
+
+
+# Every place of the engine that opens a URL with the standard library, and why the key of a request cannot reach another host from it. A new
+# one is a review of this table, on purpose: the three that were not here (voice, voice_clone, voicestudio) sent a key to whatever host a redirect
+# named for as long as nobody looked. (A client that is not urllib is not in the scan: `busca` runs the `tinyfish` CLI, `remote`, `publish` and
+# `download` run theirs, and `social` and `realoficial` have no client.)
+CLIENTES_DE_URLLIB = {
+    "rede.py": "`request` (StripCredentialsRedirect, or NoRedirect when it does not follow) and `urlopen_seguro` (StripCredentialsRedirect)",
+    "commands/update.py": "_OPENER with _SameHostRedirect: the GitHub token goes to the API only, is dropped at a redirect to another host, and https "
+                          "never goes down to http",
+    "moneyprinter.py": "_OPENER with _NoRedirect and no proxy: never follows a redirect (x-api-key, loopback)",
+    "openverse.py": "_PinnedHTTPS: the download of a file, to the IP it checked; no credential, never follows (the API goes through `rede.request` "
+                    "with follow_redirects=False)",
+    "tools_update.py": "urlopen of the PyPI document, https only: sends no credential",
+    "video_to_skill.py": "_urlopen with _redirect_handler: sends no credential, and a hop off github.com is refused before it is followed",
+    "engine/remote_render.py": "urlretrieve of a pinned ffmpeg build, on the remote box: sends no credential",
+}
+NOMES_DE_CLIENTE_DE_URLLIB = {"urlopen", "urlretrieve", "build_opener", "install_opener", "OpenerDirector", "HTTPConnection", "HTTPSConnection"}
+PACOTE = ROOT / "src" / "simplicio_video"
+
+
+def _nomes_de(arquivo: Path) -> set[str]:
+    """Every attribute and every bare name the source of `arquivo` mentions, by ast: a docstring or a comment is not a use."""
+    nomes = set()
+    for no in ast.walk(ast.parse(arquivo.read_text(encoding="utf-8"))):
+        if isinstance(no, ast.Attribute):
+            nomes.add(no.attr)
+        elif isinstance(no, ast.Name):
+            nomes.add(no.id)
+    return nomes
+
+
+def test_every_place_that_opens_a_url_with_urllib_is_known():
+    """RED before U22i: voice.py, voice_clone.py and voicestudio.py were not on the list, and each sent a key in a header."""
+    achados = {}
+    for arquivo in sorted(PACOTE.rglob("*.py")):
+        rel = arquivo.relative_to(PACOTE).as_posix()
+        nomes = set() if rel.startswith("data/") else _nomes_de(arquivo) & NOMES_DE_CLIENTE_DE_URLLIB
+        if nomes:
+            achados[rel] = nomes
+    assert sorted(set(achados) - set(CLIENTES_DE_URLLIB)) == [], "abre URL com urllib e nao esta na lista: confira a credencial de cada cabecalho"
+    assert sorted(set(CLIENTES_DE_URLLIB) - set(achados)) == [], "esta na lista e nao abre mais URL com urllib: tire da lista"
+
+
+@pytest.mark.parametrize("arquivo", ["voice.py", "voice_clone.py", "voicestudio.py"])
+def test_the_modules_that_send_a_key_open_their_urls_through_urlopen_seguro(arquivo):
+    """RED before U22i: they called `urllib.request.urlopen`."""
+    nomes = _nomes_de(PACOTE / arquivo)
+    assert "urlopen_seguro" in nomes and "urlopen" not in nomes

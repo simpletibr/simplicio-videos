@@ -73,7 +73,7 @@ def voicestudio(S: dict, text: str, dst: Path) -> None:
         headers["Authorization"] = "Bearer " + os.environ["VOICESTUDIO_API_KEY"]
     req = urllib.request.Request(voicestudio_url() + "/v1/audio/speech", data=json.dumps(body).encode(), headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=300) as r:
+        with _urlopen(req, timeout=300) as r:
             data = r.read()
     except urllib.error.HTTPError as e:
         raise CloneVoiceError(f"provider=voicestudio: HTTP {e.code}: {e.read().decode('utf8', 'replace')[:500]}") from None
@@ -97,3 +97,10 @@ def audio8(S: dict, text: str, dst: Path, ref: Path | None) -> None:
     if S.get("device"):
         cmd += ["--device", S["device"]]
     childio.check_child(cmd)
+
+
+def _urlopen(req, timeout):
+    """`urlopen`, but a redirect to another host does not take the VoiceStudio key along: `rede.urlopen_seguro`, looked up at the call (a test that
+    replaces it replaces it here too). It sits at the end of the file, with its import, so that every line above stays where docs/reference cites it."""
+    from . import rede
+    return rede.urlopen_seguro(req, timeout=timeout)

@@ -269,9 +269,10 @@ def _api_key() -> str | None:
 
 def default_transport(method: str, url: str, body: bytes | None, headers: dict, timeout: float):
     """One HTTP call -> (status, headers, body). HTTP errors come back as a status; a closed app is a VoiceStudioError."""
+    from . import rede  # here, so the lines above stay where docs/reference cites them: `rede` is a leaf (standard library only)
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with rede.urlopen_seguro(req, timeout=timeout) as r:  # urlopen, but a redirect to another host does not take the key along
             return r.status, dict(r.headers), r.read()
     except urllib.error.HTTPError as e:  # a response, not a transport failure
         return e.code, dict(e.headers or {}), e.read()
