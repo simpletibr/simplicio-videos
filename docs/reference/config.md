@@ -6,6 +6,7 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 
 | Variável | Para quê | Onde o código lê ou define |
 |---|---|---|
+| `APPDATA` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/terceiros.py:157` |
 | `AUDIO8_TTS_BIN` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:88` |
 | `BACKLOT_PORT` | Porta do board (Backlot) do OpenMontage; o `montage open` e o `montage serve` a repassam ao upstream. | `src/simplicio_video/montage.py:319` |
 | `CORS_ALLOWED_ORIGINS` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/moneyprinter.py:427` |
@@ -21,13 +22,13 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `KOKORO_DIR` | Pasta dos modelos do Kokoro (TTS local; padrão `~/.local/share/simplicio-tts`). | `src/simplicio_video/voice.py:141` |
 | `MATCHCUT_DATA_DIR` | Pasta onde mora o venv do match-cut: absoluta e fora do checkout, para que um novo clone nunca a apague. | `src/simplicio_video/matchcut.py:142` |
 | `MATCHCUT_DIR` | Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`). | `src/simplicio_video/matchcut.py:142` |
-| `MATCHCUT_MEM_GIB` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/matchcut.py:929` |
-| `MATCHCUT_PYTHON` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/matchcut.py:429` |
+| `MATCHCUT_MEM_GIB` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/matchcut.py:887` |
+| `MATCHCUT_PYTHON` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/matchcut.py:401` |
 | `MONEYPRINTER_DATA_DIR` | Pasta de dados da trilha MoneyPrinterTurbo: venv isolado e storage com os vídeos gerados (padrão: `~/.simplicio-video/moneyprinter-data`, fora do checkout). | `src/simplicio_video/moneyprinter.py:103` |
 | `MONEYPRINTER_DIR` | Checkout do MoneyPrinterTurbo (alternativa a `SIMPLICIO_TOOLS_DIR/moneyprinter`). | `src/simplicio_video/moneyprinter.py:103` |
-| `OMNIVOICE_API_KEY` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:249` |
-| `OMNIVOICE_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:109` |
-| `OMNIVOICE_URL` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:106` |
+| `OMNIVOICE_API_KEY` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:267` |
+| `OMNIVOICE_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:112` |
+| `OMNIVOICE_URL` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:109` |
 | `OPENCUT_DIR` | Pasta do OpenCut, lida pelo próprio editor (trilha `opencut`). | `src/simplicio_video/opencut.py:64` |
 | `OPENMONTAGE_DATA_DIR` | Pasta do venv do OpenMontage (padrão: `~/.simplicio-video/openmontage-data`); um caminho relativo vira absoluto a partir da pasta atual, com aviso. | `src/simplicio_video/montage.py:175`<br>`src/simplicio_video/montage.py:39` |
 | `OPENMONTAGE_DIR` | Pasta do OpenMontage (trilha `montage`). Também lida pelo OpenMontage. | `src/simplicio_video/montage.py:39`<br>`src/simplicio_video/montage.py:47` |
@@ -72,11 +73,11 @@ Lista só os nomes escritos literalmente no código. Variáveis montadas em temp
 | `TINYFISH_API_KEY` | Chave da API do TinyFish, lida só pelo binário `tinyfish` (que também a guarda em `~/.tinyfish/config.json`). O `busca` a repassa ao binário se estiver no ambiente e nunca a lê, imprime nem grava; nunca em argumento. | `src/simplicio_video/busca.py:1131`<br>`src/simplicio_video/busca.py:185` |
 | `TOONFLOW_DATA_DIR` | Pasta de dados do servidor Toonflow (padrão: `~/.simplicio-video/toonflow-data`, fora do checkout). | `src/simplicio_video/toonflow.py:62` |
 | `TOONFLOW_DIR` | Checkout do Toonflow (alternativa a `SIMPLICIO_TOOLS_DIR/toonflow`). | `src/simplicio_video/toonflow.py:62` |
-| `VIDEO_TO_SKILL_DIR` | Checkout do video-to-skill (alternativa a `SIMPLICIO_TOOLS_DIR/video_to_skill`). O binário `vts-extract` fica à parte, em `SIMPLICIO_TOOLS_DIR/video-to-skill-bin`. | `src/simplicio_video/video_to_skill.py:516` |
+| `VIDEO_TO_SKILL_DIR` | Checkout do video-to-skill (alternativa a `SIMPLICIO_TOOLS_DIR/video_to_skill`). O binário `vts-extract` fica à parte, em `SIMPLICIO_TOOLS_DIR/video-to-skill-bin`. | `src/simplicio_video/video_to_skill.py:487` |
 | `VIDEO_USE_DIR` | Checkout do video-use (trilha `edit`), mantido pelo setup.sh em data/tools/video-use; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`). | `src/simplicio_video/tools.py:203` |
-| `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:72`<br>`src/simplicio_video/voice_clone.py:73`<br>`src/simplicio_video/voicestudio.py:249` |
-| `VOICESTUDIO_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:109` |
-| `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voice_clone.py:65`<br>`src/simplicio_video/voicestudio.py:106` |
+| `VOICESTUDIO_API_KEY` | Chave opcional da API local do VoiceStudio (provider `voicestudio`). | `src/simplicio_video/voice_clone.py:72`<br>`src/simplicio_video/voice_clone.py:73`<br>`src/simplicio_video/voicestudio.py:267` |
+| `VOICESTUDIO_PORT` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voicestudio.py:112` |
+| `VOICESTUDIO_URL` | URL da API local do VoiceStudio (padrão: `http://localhost:3900`). | `src/simplicio_video/voice_clone.py:65`<br>`src/simplicio_video/voicestudio.py:109` |
 | `VOXCPM_BIN` | Executável do VoxCPM (provider `openvoice`, clonagem com clipe de referência). | `src/simplicio_video/voice_clone.py:26` |
 | `VOXCPM_DEVICE` | (sem descrição na tabela de gen_reference.py) | `src/simplicio_video/voice_clone.py:42`<br>`src/simplicio_video/voice_clone.py:43` |
-| `VTS_DATA_DIR` | Pasta de dados do `vts-extract` (ffmpeg, yt-dlp e modelos que o `check --fix --yes` do upstream baixa; padrão: a pasta de dados da plataforma, em `video-to-skill`). O motor repassa a variável ao extrator, mas nunca roda o `check --fix --yes`. | `src/simplicio_video/video_to_skill.py:1212` |
+| `VTS_DATA_DIR` | Pasta de dados do `vts-extract` (ffmpeg, yt-dlp e modelos que o `check --fix --yes` do upstream baixa; padrão: a pasta de dados da plataforma, em `video-to-skill`). O motor repassa a variável ao extrator, mas nunca roda o `check --fix --yes`. | `src/simplicio_video/video_to_skill.py:1172` |
