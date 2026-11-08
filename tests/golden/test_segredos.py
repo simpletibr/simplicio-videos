@@ -411,7 +411,9 @@ def test_redact_is_a_leaf_of_the_package_and_the_social_detector_is_its_regex():
             donos.update(a.name for a in no.names)
     assert {d for d in donos if d.startswith(".")} <= {".terceiros", "."}  # só o terceiros (ele mesmo uma folha) e `from . import terceiros`
     assert all(d.split(".")[0] in sys.stdlib_module_names for d in donos if not d.startswith("."))  # o resto é biblioteca padrão
-    assert social._SECRET_TEXT_RE is redact.SECRET_RE  # `social.make_plan` recusa com a regra única
+    # `social` não pode importar `redact` (tests/social_guard.py deixa só paths e fsutil, e `redact` lê o ambiente): o detector é uma CÓPIA, do mesmo
+    # texto e das mesmas flags, e `make_plan` o chama pelo nome de sempre
+    assert social._SECRET_TEXT_RE.pattern == redact.SECRET_RE.pattern and social._SECRET_TEXT_RE.flags == redact.SECRET_RE.flags
 
 
 def test_a_registered_source_is_hidden_and_a_short_or_empty_value_is_not():

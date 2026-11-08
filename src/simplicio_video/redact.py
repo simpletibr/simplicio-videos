@@ -20,7 +20,9 @@ WHO CALLS WHAT. `scrub(text, values=None)` hides (1) and then (2) (a loop that c
 background task); `secret_values()` and `mask_values()` are the two halves of (1), for the places that keep the list or the order of their own.
 A module that keeps a secret in memory calls `register`.
 
-Standard library plus `terceiros` (a leaf): the swap adapters, busca, openverse, social and jobs all import this module, so it imports none of them.
+Standard library plus `terceiros` (a leaf): the swap adapters, busca, openverse and jobs import this module, so it imports none of them. `social` does
+not: its guard (tests/social_guard.py) lets it import only `paths` and `fsutil`, so it carries a copy of `SECRET_RE` and the golden test keeps the
+two patterns equal.
 """
 from __future__ import annotations
 
