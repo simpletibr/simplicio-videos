@@ -14,10 +14,12 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
+import os
 import sys
 import textwrap
 import unicodedata
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -372,8 +374,10 @@ def test_case_insensitive_de_terceiros_segue_a_plataforma():
 def test_o_montage_tem_o_seu_dentro_diferente_e_fica_de_fora():
     """montage._dentro compares real paths with os.path.realpath on both sides: another rule, not a copy (so not in terceiros)."""
     from simplicio_video import montage
-    fonte = inspect.getsource(montage._dentro)
-    assert "os.path.realpath(pasta)" in fonte
+    # U22a: the `_dentro` of montage was one of the five ways of asking "is this path under that folder?" for the places a track does not
+    # write. The one rule (`terceiros.lugar_proibido`) asks with `terceiros.dentro`, which resolves the folder as `os.path.realpath` does
+    # and, on macOS and Windows, ignores case: montage has no `_dentro` of its own any more (the name of this test is historical: the id stays).
+    assert not hasattr(montage, "_dentro")
 
 
 # ---- U07: terceiros calls the public git of tools --------------------------------------------------------------------------------------
@@ -429,3 +433,256 @@ def test_sem_base_o_ambiente_trocado_depois_da_importacao_e_o_que_vale(monkeypat
     assert t.env_para_terceiro({"TMPDIR"}, base={"PATH": "/dado"}) == {"PATH": "/dado"}  # an explicit base still wins
     monkeypatch.setattr(os, "environ", {})
     assert t.env_para_terceiro(("TMPDIR",)) == {}
+
+
+# ---- U22a: where a track does not write (ONE rule), and the text of a third party for an agent and for a terminal ------------------
+
+POSIX25 = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/dev", "/proc", "/sys", "/run", "/opt", "/srv",
+           "/snap", "/System", "/Library", "/Applications", "/private/etc", "/var/lib", "/var/log", "/var/spool", "/var/run", "/var/db")
+WINDOWS4 = ("SYSTEMROOT", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA")
+INICIO3 = (("Library", "LaunchAgents"), ("Library", "LaunchDaemons"),
+           ("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"))
+STARTUP = ("Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+
+
+@pytest.fixture
+def lugares(tmp_path, monkeypatch):
+    """A home, a work folder, a tools folder, a data folder and an APPDATA folder in tmp (real paths), with the environment pointing at them
+    and no Windows system root."""
+    nomes = ("home", "work", "tools", "data", "appdata")
+    w = SimpleNamespace(**{n: Path(os.path.realpath(tmp_path / n)) for n in nomes})
+    for n in nomes:
+        getattr(w, n).mkdir()
+    monkeypatch.setenv("HOME", str(w.home))
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(w.tools))
+    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(w.data))
+    monkeypatch.setenv("APPDATA", str(w.appdata))
+    for var in ("USERPROFILE", *WINDOWS4):
+        monkeypatch.delenv(var, raising=False)
+    return w
+
+
+def _real(caminho: str) -> Path:
+    return Path(os.path.realpath(caminho))
+
+
+def test_a_regra_unica_tem_as_tabelas_que_as_cinco_regras_tinham_juntas():
+    t = _terceiros()
+    assert t.RAIZES_POSIX == POSIX25 and len(set(t.RAIZES_POSIX)) == 25
+    assert t.RAIZES_WINDOWS == WINDOWS4
+    assert t.INICIO_AUTOMATICO == INICIO3
+    assert t.STARTUP_DO_APPDATA == STARTUP
+
+
+def test_os_textos_dos_motivos_sao_os_que_as_trilhas_ja_diziam():
+    t = _terceiros()
+    assert (t.SISTEMA, t.INICIO, t.OCULTA, t.GIT) == (
+        "em pasta do sistema", "em pasta de início automático (LaunchAgents, LaunchDaemons, Startup)",
+        "em pasta oculta do home (.ssh, .config, .claude...)", "dentro de uma pasta .git")
+    assert (t.CODIGO, t.FERRAMENTAS, t.DADOS, t.SITE_PACKAGES, t.VENV) == (
+        "dentro do código do motor", "dentro da pasta de ferramentas do motor",
+        "dentro da pasta de dados do motor (jobs, tools, openmontage-data)", "dentro de site-packages (pacotes de um venv)",
+        "dentro de um venv (pyvenv.cfg)")
+
+
+def test_a_regra_devolve_texto_ou_none_nunca_texto_vazio(lugares):
+    t = _terceiros()
+    assert t.lugar_proibido(lugares.work / "ok.txt") is None
+    assert t.lugar_proibido(_real("/etc/passwd")) == t.SISTEMA
+
+
+@pytest.mark.parametrize("raiz", POSIX25)
+def test_cada_uma_das_25_raizes_recusa_a_pasta_e_o_que_esta_dentro(lugares, raiz):
+    t = _terceiros()
+    alvo = _real(raiz)  # /bin, /lib and /var/run are links on most systems: the callers hand over the real path, so does this test
+    assert t.lugar_proibido(alvo) == t.SISTEMA
+    assert t.lugar_proibido(alvo / "x") == t.SISTEMA
+
+
+@pytest.mark.parametrize("var", WINDOWS4)
+def test_as_quatro_raizes_do_windows_vem_do_ambiente_na_hora(lugares, monkeypatch, var):
+    t = _terceiros()
+    alvo = lugares.work / "win" / "x"
+    assert t.lugar_proibido(alvo) is None
+    monkeypatch.setenv(var, str(lugares.work / "win"))
+    assert t.lugar_proibido(alvo) == t.SISTEMA
+    monkeypatch.setenv(var, "")
+    assert t.lugar_proibido(alvo) is None  # an empty variable is no root
+
+
+def test_var_inteiro_e_pasta_do_sistema_menos_var_tmp(lugares):
+    t = _terceiros()
+    for c in ("/var", "/var/cache/x", "/var/x", "/var/tmpx/y", "/var/www/x"):
+        assert t.lugar_proibido(_real(c)) == t.SISTEMA, c
+    assert t.lugar_proibido(_real("/var/tmp")) is None and t.lugar_proibido(_real("/var/tmp/x")) is None
+
+
+def test_a_pasta_oculta_do_home_e_recusada_mas_nao_o_home_nem_o_resto(lugares):
+    t = _terceiros()
+    for c in (".ssh/x", ".config/a/b", ".claude", ".git/x"):  # a .git at the top of the home is a hidden folder first
+        assert t.lugar_proibido(lugares.home / c) == t.OCULTA, c
+    assert t.lugar_proibido(lugares.home) is None
+    assert t.lugar_proibido(lugares.home / "docs" / "x.mp4") is None
+    assert t.lugar_proibido(lugares.home / "docs" / ".oculta" / "x") is None  # only the first folder under the home counts
+    assert t.lugar_proibido(lugares.work / ".ssh" / "x") is None  # and only under the home
+
+
+@pytest.mark.parametrize("partes", INICIO3)
+def test_as_pastas_de_inicio_automatico_do_home(lugares, partes):
+    t = _terceiros()
+    assert t.lugar_proibido(lugares.home.joinpath(*partes) / "x") == t.INICIO
+    assert t.lugar_proibido(lugares.home.joinpath(*partes)) == t.INICIO
+
+
+def test_o_startup_achado_por_appdata_e_nao_so_o_do_home(lugares, monkeypatch):
+    t = _terceiros()
+    alvo = lugares.appdata.joinpath(*STARTUP) / "x.bat"
+    assert t.lugar_proibido(alvo) == t.INICIO
+    monkeypatch.delenv("APPDATA")
+    assert t.lugar_proibido(alvo) is None
+
+
+def test_git_em_qualquer_ponto_do_caminho_e_so_a_parte_inteira(lugares):
+    t = _terceiros()
+    assert t.lugar_proibido(lugares.work / ".git" / "hooks" / "pre-commit") == t.GIT
+    assert t.lugar_proibido(lugares.work / "proj" / ".git") == t.GIT
+    for c in (".github/x", ".gitignore", "meu.git/x", "git/x"):
+        assert t.lugar_proibido(lugares.work / c) is None, c
+
+
+def test_a_caixa_so_conta_onde_a_plataforma_ignora_a_caixa(lugares, monkeypatch):
+    t = _terceiros()
+    caixas = (_real("/ETC/passwd"), lugares.work / ".GIT" / "x", Path(str(lugares.home).upper()) / ".ssh" / "x",
+              lugares.work / "SITE-PACKAGES" / "x")
+    monkeypatch.setattr(t, "CASE_INSENSITIVE", False)
+    assert [t.lugar_proibido(c) for c in caixas] == [None, None, None, None]
+    monkeypatch.setattr(t, "CASE_INSENSITIVE", True)
+    assert [t.lugar_proibido(c) for c in caixas] == [t.SISTEMA, t.GIT, t.OCULTA, t.SITE_PACKAGES]
+
+
+def test_os_lugares_do_proprio_motor(lugares):
+    t = _terceiros()
+    assert t.lugar_proibido(Path(t.__file__).resolve().parent / "x.py") == t.CODIGO
+    assert t.lugar_proibido(lugares.tools / "x") == t.FERRAMENTAS
+    assert t.lugar_proibido(lugares.data) == t.DADOS and t.lugar_proibido(lugares.data / "jobs" / "x.json") == t.DADOS
+    assert t.lugar_proibido(lugares.work / "lib" / "python3" / "site-packages" / "x.py") == t.SITE_PACKAGES
+    (lugares.work / "meuvenv").mkdir()
+    (lugares.work / "meuvenv" / "pyvenv.cfg").write_text("home = /usr/bin\n")
+    assert t.lugar_proibido(lugares.work / "meuvenv" / "out.mp4") == t.VENV
+    assert t.lugar_proibido(lugares.work / "meuvenv" / "a" / "b" / "out.mp4") == t.VENV  # a pyvenv.cfg in any folder above
+    assert t.lugar_proibido(lugares.work / "outra" / "out.mp4") is None
+
+
+def test_os_lugares_proprios_vem_primeiro_na_ordem_dada_e_com_as_palavras_da_trilha(lugares):
+    t = _terceiros()
+    alvo = lugares.tools / "matchcut" / "x"
+    checkout, ferramentas = (lugares.tools / "matchcut", "dentro do checkout"), (lugares.tools, t.FERRAMENTAS)
+    assert t.lugar_proibido(alvo, [checkout, ferramentas]) == "dentro do checkout"
+    assert t.lugar_proibido(alvo, [ferramentas, checkout]) == t.FERRAMENTAS
+    assert t.lugar_proibido(alvo) == t.FERRAMENTAS  # without the track's own place the rule still refuses the folder
+    assert t.lugar_proibido(lugares.work / "ok", [checkout, ferramentas]) is None
+    assert t.lugar_proibido(lugares.data / "a", [((lugares.work, lugares.data), "dois lugares, um texto")]) == "dois lugares, um texto"
+    assert t.lugar_proibido(lugares.data / "a", [(lugares.data, "um lugar só, um Path")]) == "um lugar só, um Path"
+
+
+def test_os_proprios_sao_pedidos_um_a_um_so_ate_o_primeiro_que_casa(lugares):
+    t = _terceiros()
+    pedidos = []
+
+    def proprios():
+        pedidos.append(1)
+        yield lugares.work, "primeiro"
+        pedidos.append(2)
+        yield lugares.tools, "segundo"
+
+    assert t.lugar_proibido(lugares.work / "x", proprios()) == "primeiro"
+    assert pedidos == [1]
+    assert t.lugar_proibido(lugares.tools / "x", proprios()) == "segundo"
+    assert pedidos == [1, 1, 2]
+
+
+def test_motor_antes_so_troca_qual_das_duas_razoes_e_dita(lugares, monkeypatch):
+    t = _terceiros()
+    dados = lugares.home / ".simplicio-video"  # the default data folder: also a hidden folder of the home
+    (dados / "tools").mkdir(parents=True)
+    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(dados))
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(dados / "tools"))
+    site = _real("/usr") / "lib" / "python3" / "site-packages" / "x.py"
+    casos = [(dados / "jobs" / "x.json", t.OCULTA, t.DADOS), (dados / "tools" / "x", t.OCULTA, t.FERRAMENTAS), (site, t.SISTEMA, t.SITE_PACKAGES),
+             (_real("/var/www/s/.git/x"), t.GIT, t.SISTEMA)]
+    for alvo, depois, antes in casos:
+        assert t.lugar_proibido(alvo) == depois, alvo
+        assert t.lugar_proibido(alvo, motor_antes=True) == antes, alvo
+    assert t.lugar_proibido(lugares.work / "ok", motor_antes=True) is None  # the order never decides WHETHER a path is refused
+
+
+def test_a_comparacao_e_a_que_o_chamador_passa(lugares):
+    t = _terceiros()
+    assert t.lugar_proibido(_real("/etc/x"), dentro=lambda caminho, pasta: False, chave=lambda caminho: ()) is None
+    assert t.lugar_proibido(lugares.work / "x", dentro=lambda caminho, pasta: True) == t.SISTEMA  # the first folder it is asked about
+    assert t.lugar_proibido(lugares.work / "x", chave=lambda caminho: (".git",)) == t.GIT
+
+
+@pytest.mark.parametrize("modulo", ["instagram", "matchcut", "video_to_skill"])
+def test_cada_trilha_passa_a_sua_propria_comparacao_e_a_sua_caixa(lugares, monkeypatch, modulo):
+    """The tests of these tracks flip the `CASE_INSENSITIVE` of the module (a darwin or win32 run does it by itself): the rule has to ask
+    with the `_dentro` and the `_chave` of the module, which read that flag when they are called."""
+    mod = importlib.import_module(f"simplicio_video.{modulo}")
+    alvo = _real("/ETC/passwd")
+    monkeypatch.setattr(mod, "CASE_INSENSITIVE", True)
+    assert mod._lugar_proibido(alvo) == "em pasta do sistema"
+    monkeypatch.setattr(mod, "CASE_INSENSITIVE", False)
+    assert mod._lugar_proibido(alvo) == ""
+
+
+def test_sem_casa_a_regra_nao_levanta_e_segue_sem_o_lugar_que_nao_achou(lugares, monkeypatch):
+    from simplicio_video import hostos, paths, tools
+    t = _terceiros()
+
+    def sem_casa(*a, **k):
+        raise hostos.SemCasa("sem casa")
+
+    monkeypatch.setattr(tools, "tools_dir", sem_casa)
+    monkeypatch.setattr(paths, "data_root", sem_casa)
+    assert t.lugar_proibido(lugares.work / "x") is None
+    assert t.lugar_proibido(_real("/etc/x")) == t.SISTEMA and t.lugar_proibido(lugares.home / ".ssh" / "x") == t.OCULTA
+
+
+def test_a_regra_nao_importa_paths_nem_tools_na_importacao():
+    codigo = "import sys; import simplicio_video.terceiros; print(sorted(m for m in ('simplicio_video.paths', 'simplicio_video.tools', 'simplicio_video.hostos') if m in sys.modules))"
+    import subprocess
+    r = subprocess.run([sys.executable, "-c", codigo], capture_output=True, text=True,
+                       env={**os.environ, "PYTHONPATH": str(Path(_terceiros().__file__).resolve().parent.parent)})
+    assert r.returncode == 0 and r.stdout.strip() == "[]", r.stderr
+
+
+# ---- the text of a third party: one function for the three tracks ------------------------------------------------------------------
+
+def test_o_seletor_de_variacao_nos_limites():
+    t = _terceiros()
+    sim = ("\ufe00", "\ufe0f", "\U000e0100", "\U000e01ef")
+    nao = ("\ufdff", "\ufe10", "\U000e00ff", "\U000e01f0", "a", "\u0301", "\u200d")
+    assert [t.seletor_de_variacao(c) for c in sim] == [True] * 4
+    assert [t.seletor_de_variacao(c) for c in nao] == [False] * len(nao)
+
+
+def test_limpa_mcp_tira_controle_bidi_largura_zero_tag_e_seletor_de_variacao():
+    t = _terceiros()
+    assert t.limpa_mcp("a\x1b[31m\u202e\u200b\ufe0f\U000e0100\U000e0041b\x00") == "a[31mb"
+    assert t.limpa_mcp("a\r\nb\tc\nd\re") == "a\nb\tc\nde"
+    assert t.limpa_mcp("ação, coração 日本語 😀 e\u0301") == "ação, coração 日本語 😀 e\u0301"
+
+
+def test_visivel_marca_o_que_limpa_mcp_tira_em_vez_de_esconder():
+    t = _terceiros()
+    assert t.visivel("a\x1b[31mb\x07\x00\tc\nd") == "a\u241b[31mb\u2407\u2400\tc\nd"
+    assert t.visivel("x\x7f\x9b\u202e\u200b\u2028\U000e0041y") == "x\u2421<U+009B><U+202E><U+200B><U+2028><U+E0041>y"
+    assert t.visivel("a\ufe0fb\U000e0100c\ufe00") == "a<U+FE0F>b<U+E0100>c<U+FE00>"
+    assert t.visivel("ação — 日本 😀 ok\r\nfim\r") == "ação — 日本 😀 ok\nfim\u240d"
+
+
+def test_as_tres_trilhas_usam_a_mesma_funcao_de_texto_de_terceiro():
+    from simplicio_video import instagram, matchcut, video_to_skill
+    t = _terceiros()
+    assert matchcut._limpa_mcp is instagram._limpa_mcp is video_to_skill.limpa_mcp is t.limpa_mcp
+    assert matchcut.visivel is instagram.visivel is video_to_skill.visivel is t.visivel
