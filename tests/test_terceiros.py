@@ -16,6 +16,7 @@ import importlib
 import inspect
 import os
 import sys
+import tempfile
 import textwrap
 import unicodedata
 from pathlib import Path
@@ -745,3 +746,76 @@ def test_montage_e_voicestudio_seguem_a_caixa_de_terceiros_na_excecao_de_var_tmp
     assert montage._lugar_proibido(alvo) == "em pasta do sistema" and voicestudio._forbidden_place(alvo) == "em pasta do sistema"
     monkeypatch.setattr(t, "CASE_INSENSITIVE", True)
     assert montage._lugar_proibido(alvo) == "" and voicestudio._forbidden_place(alvo) is None
+
+
+# ---- U22a, revisão independente: /var inteiro não pode quebrar o temporário nem o home do usuário -------------------------------------
+
+SOB_VAR_HOME = "/var/zz-u22a-home/user"  # pastas FALSAS sob o /var real: nada é criado lá
+SOB_VAR_TMP = "/var/zz-u22a-tmp/T"
+
+
+@pytest.fixture
+def sob_var(lugares, monkeypatch):
+    """O home e o temporário do usuário moram sob /var: no macOS o `$TMPDIR` é /var/folders/..., e numa distro ostree (Silverblue, Bazzite,
+    CoreOS) o /home é /var/home."""
+    monkeypatch.setenv("HOME", SOB_VAR_HOME)
+    monkeypatch.setenv("TMPDIR", SOB_VAR_TMP + "-env")
+    monkeypatch.setattr(tempfile, "tempdir", SOB_VAR_TMP)
+    return SimpleNamespace(home=Path(SOB_VAR_HOME), tmp=Path(SOB_VAR_TMP), tmp_env=Path(SOB_VAR_TMP + "-env"))
+
+
+def test_o_temporario_do_usuario_sob_var_nao_e_recusado(sob_var):
+    t = _terceiros()
+    for c in (sob_var.tmp / "x", sob_var.tmp / "a" / "b.mp4", sob_var.tmp_env / "x", Path("/var/folders/ab/cdef/T/x")):
+        assert t.lugar_proibido(c) is None, c
+
+
+def test_o_home_real_do_usuario_sob_var_nao_e_recusado(sob_var):
+    t = _terceiros()
+    for c in (sob_var.home / "proj" / "out.mp4", sob_var.home / "Videos" / "a.mp4"):
+        assert t.lugar_proibido(c) is None, c
+
+
+def test_o_resto_de_var_segue_recusado_com_o_temporario_e_o_home_sob_var(sob_var):
+    t = _terceiros()
+    for c in ("/var", "/var/www/html/x", "/var/media/x", "/var/data/x", "/var/opt/x", "/var/local/x", "/var/cache/x",
+              "/var/zz-u22a-home/other/x", "/var/zz-u22a-home/x", "/var/zz-u22a-tmp/x", "/var/zz-u22a-tmp/T2/x"):
+        assert t.lugar_proibido(Path(c)) == t.SISTEMA, c
+    assert t.lugar_proibido(Path("/var/tmp/x")) is None  # a única exceção de antes
+
+
+def test_as_outras_regras_valem_dentro_das_arvores_liberadas(sob_var, monkeypatch):
+    t = _terceiros()
+    assert t.lugar_proibido(sob_var.home / ".ssh" / "x") == t.OCULTA
+    assert t.lugar_proibido(sob_var.home / "proj" / ".git" / "x") == t.GIT
+    assert t.lugar_proibido(sob_var.tmp / ".git" / "x") == t.GIT
+    assert t.lugar_proibido(sob_var.home / "Library" / "LaunchAgents" / "x.plist") == t.INICIO
+    assert t.lugar_proibido(sob_var.tmp / "lib" / "python3" / "site-packages" / "x.py") == t.SITE_PACKAGES
+    monkeypatch.setenv("SIMPLICIO_VIDEO_DATA", str(sob_var.home / "simplicio-data"))
+    monkeypatch.setenv("SIMPLICIO_TOOLS_DIR", str(sob_var.home / "ferramentas"))
+    assert t.lugar_proibido(sob_var.home / "simplicio-data" / "jobs" / "x") == t.DADOS
+    assert t.lugar_proibido(sob_var.home / "ferramentas" / "x") == t.FERRAMENTAS
+    # as raízes de sistema de dentro de /var também: um home em /var/lib continua sendo pasta do sistema
+    monkeypatch.setenv("HOME", "/var/lib/zz-u22a-svc")
+    assert t.lugar_proibido(Path("/var/lib/zz-u22a-svc/x")) == t.SISTEMA
+
+
+def test_um_home_ou_temporario_que_e_o_proprio_var_nao_libera_nada(lugares, monkeypatch):
+    t = _terceiros()
+    monkeypatch.setenv("HOME", "/var")
+    monkeypatch.setenv("TMPDIR", "/var")
+    monkeypatch.setattr(tempfile, "tempdir", "/var")
+    for c in ("/var/x", "/var/www/x", "/var/zz-u22a-home/x"):
+        assert t.lugar_proibido(Path(c)) == t.SISTEMA, c
+
+
+def test_a_regra_de_var_nao_levanta_sem_pasta_temporaria_usavel(sob_var, monkeypatch):
+    t = _terceiros()
+
+    def sem_temporario():
+        raise FileNotFoundError("sem pasta temporária utilizável")
+
+    monkeypatch.setattr(tempfile, "gettempdir", sem_temporario)
+    assert t.lugar_proibido(sob_var.tmp_env / "x") is None  # o $TMPDIR ainda diz qual é
+    assert t.lugar_proibido(sob_var.home / "proj" / "x") is None
+    assert t.lugar_proibido(Path("/var/www/x")) == t.SISTEMA
