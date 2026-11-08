@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -560,6 +562,58 @@ def test_jobs_refuses_arguments_with_the_value_of_a_credential_of_any_module(mon
 
 def test_jobs_lets_a_path_that_only_looks_like_a_key_through():
     jobs._no_secret({"contrato": "/tmp/task-based-workflow-x/risk-assessment/c.yaml", "refs": ["/data/desk-organizer-set-2026.png"]})
+
+
+# O `job.json` passa por `write_json_atomic` -> `redact.scrub`, e o runner relê dele o `cwd` e os `params`. A regra única esconde também os formatos curtos
+# (`sk-` + 8, `AKIA` + 16): uma pasta chamada `sk-demo-app` virava `.../***` no arquivo, o submit dizia `queued` e a tarefa terminava `failed`
+# (FileNotFoundError em `.../***`), sem aviso. A checagem dos argumentos crus não via isso: o caminho relativo só vira absoluto em `_prepare`, e o `cwd` nunca
+# foi argumento. U22b decidiu: o submit recusa na hora, com a mesma mensagem de sempre, o `cwd` e os `params` já resolvidos; o limiar do `sk-` continua 8.
+RECUSA_DE_CHAVE = r"^recusado: os argumentos contêm uma chave de API\. A chave só entra pela variável de ambiente do provedor\.$"
+
+
+@pytest.fixture
+def sem_runner(monkeypatch):
+    """Sem processo filho: registra o pedido de runner e devolve um pid que existe."""
+    chamadas = []
+    monkeypatch.setattr(jobs, "_spawn_runner", lambda jid: chamadas.append(jid) or os.getpid())
+    return chamadas
+
+
+@pytest.mark.parametrize("como", ["cwd", "contrato-relativo", "contrato-por-link"])
+@pytest.mark.parametrize("pasta", ["sk-demo-app-xxxxxxxx", "AKIAIOSFODNN7EXAMPLE"])
+def test_jobs_refuses_at_submit_a_cwd_or_a_resolved_path_that_looks_like_a_key(monkeypatch, tmp_path, mini, sem_runner, pasta, como):
+    com_formato = tmp_path / pasta
+    shutil.copytree(mini.parent, com_formato)
+    if como == "cwd":  # o contrato é absoluto e comum: só a pasta de trabalho tem o formato de chave
+        monkeypatch.chdir(com_formato)
+        contrato = str(mini)
+    elif como == "contrato-relativo":  # o caso do revisor: `contract.yaml` de dentro da pasta (o argumento cru não tem formato, o absoluto tem)
+        monkeypatch.chdir(com_formato)
+        contrato = "contract.yaml"
+    else:  # a pasta de trabalho é comum e o argumento cru é só `contrato.yaml`: só o caminho que o link resolve tem o formato de chave
+        comum = tmp_path / "meu-projeto"
+        comum.mkdir()
+        try:
+            (comum / "contrato.yaml").symlink_to(com_formato / "contract.yaml")
+        except (OSError, NotImplementedError):
+            pytest.skip("este sistema não cria link simbólico")
+        monkeypatch.chdir(comum)
+        contrato = "contrato.yaml"
+    with pytest.raises(jobs.JobError, match=RECUSA_DE_CHAVE):
+        jobs.submit("voice", {"contrato": contrato, "provider": "file"})
+    assert sem_runner == [] and not jobs.jobs_dir().exists()  # nenhum runner pedido e nada gravado: nem a pasta das tarefas
+
+
+@pytest.mark.parametrize("pasta", ["meu-projeto", "task-based-workflow-x"])
+def test_jobs_accepts_an_ordinary_cwd_and_a_phrase_and_keeps_both_whole_in_the_state(monkeypatch, tmp_path, mini, sem_runner, pasta):
+    # `task-based-workflow-x` contém `sk-based-workflow-x`, mas depois de uma letra: é uma frase, não uma chave (a guarda do começo do formato)
+    dentro = tmp_path / pasta
+    shutil.copytree(mini.parent, dentro)
+    monkeypatch.chdir(dentro)
+    st = jobs.submit("voice", {"contrato": "contract.yaml", "provider": "file"})
+    assert st["state"] == "queued" and sem_runner == [st["id"]]
+    assert st["cwd"] == str(Path.cwd()) and st["params"]["contrato"] == str(Path.cwd() / "contract.yaml")  # o que o runner relê, sem `***`
+    assert "***" not in (jobs.job_dir(st["id"]) / "job.json").read_text(encoding="utf8")
 
 
 def test_the_swap_manifest_hides_the_union_and_still_refuses_a_provider_key(monkeypatch, tmp_path):
