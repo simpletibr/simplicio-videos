@@ -232,8 +232,8 @@ def test_the_provider_choices_of_voice_and_run_and_the_registry_and_the_schema_d
     enum_do_contrato = esquema["properties"]["voz"]["properties"]["provider"]["enum"]
     registro = list(voice.PROVIDERS)
     assert registro == enum_do_contrato == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
-    # U22 decide: nenhuma das duas CLIs aceita audio8, que o contrato e o registro aceitam
-    # U22e decidiu: as duas aceitam o registro inteiro, na ordem dele (a de `list voices` e a do schema). Os stubs ficam nas duas: `voice.run` os recusa, com o motivo de sempre
+    # U22e decidiu (OK do dono): as duas aceitam o registro inteiro, na ordem dele (a de `list voices` e a do schema). Os stubs ficam nas duas: `voice.run` os recusa, com o motivo de sempre
+    # (o G0 registrava aqui, antes da U22e: "U22 decide: nenhuma das duas CLIs aceita audio8, que o contrato e o registro aceitam")
     assert opcoes_provider("voice") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
     assert opcoes_provider("run") == ["file", "local", "gemini", "voxcpm", "openvoice", "voicestudio", "audio8", "elevenlabs", "xai"]
     assert "audio8" in opcoes_provider("voice") and "audio8" in opcoes_provider("run")
@@ -241,6 +241,7 @@ def test_the_provider_choices_of_voice_and_run_and_the_registry_and_the_schema_d
     assert opcoes_provider("voice") == opcoes_provider("run") == registro == enum_do_contrato  # o nome do teste é do G0, que registrou a divergência: hoje as quatro fontes concordam
 
 
+# (o nome é do G0: hoje `voice` e `run` aceitam os dois; o teste prende o que `voice.run` faz com eles, a recusa de sempre)
 @pytest.mark.parametrize("prov", ["elevenlabs", "xai"])
 def test_the_two_stub_providers_voice_accepts_always_fail(prov):
     contrato = SimpleNamespace(data={"voz": {"provider": "file"}})
