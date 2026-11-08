@@ -964,14 +964,17 @@ def test_urlopen_seguro_hands_the_credentials_on_by_the_same_rule_as_request(sal
 class _Abertura:
     """The end of every way into urllib: `urlopen` goes through the default opener and `build_opener(...)` makes another, and both end in
     `OpenerDirector.open`. Replaced, it writes down the handlers of the opener that was used, the request and the timeout, and answers
-    `resposta`: written against that seam, the tests below mean the same before and after a caller changes how it gets to urllib."""
+    `resposta` (or raises `erro`): written against that seam, the tests below mean the same before and after a caller changes how it gets
+    to urllib."""
 
-    def __init__(self, monkeypatch, resposta):
+    def __init__(self, monkeypatch, resposta=None, erro=None):
         self.abertas = []
         outer = self
 
         def abre(opener, fullurl, data=None, timeout=None):
             outer.abertas.append({"handlers": [type(h) for h in opener.handlers], "req": fullurl, "timeout": timeout})
+            if erro is not None:
+                raise erro
             return resposta
 
         monkeypatch.setattr(urllib.request.OpenerDirector, "open", abre)
@@ -1034,6 +1037,37 @@ def test_the_callers_that_send_a_key_send_the_same_request_with_the_same_timeout
     req = aberta["req"]
     assert (req.get_method(), req.full_url, aberta["timeout"]) == (metodo, url, timeout)
     assert {nome.lower(): v for nome, v in req.header_items()}[cabecalho] == valor
+
+
+# (caller, what urllib raises, what comes out of the caller: the same object, or the name of the type and the text). `{OPEN_APP}` is the
+# sentence voicestudio.py appends to its messages.
+ERROS_DOS_CHAMADORES = [
+    ("voice._gemini", urllib.error.URLError("dns"), "o mesmo"),
+    ("voice._gemini", TimeoutError("lento"), "o mesmo"),
+    ("voice_clone.voicestudio", urllib.error.URLError("refused"), ("CloneVoiceError", "provider=voicestudio: backend not reachable at "
+                                                                  "http://127.0.0.1:3900 (refused). Start VoiceStudio or set VOICESTUDIO_URL.")),
+    ("voice_clone.voicestudio", TimeoutError("lento"), "o mesmo"),
+    ("voicestudio.default_transport", urllib.error.URLError("refused"), ("VoiceStudioError", "não consegui falar com o VoiceStudio em "
+                                                                         "http://127.0.0.1:3900/mcp/ (refused). {OPEN_APP}")),
+    ("voicestudio.default_transport", TimeoutError("lento"), ("VoiceStudioError", "o VoiceStudio em http://127.0.0.1:3900/mcp/ não respondeu "
+                                                              "a tempo (lento). {OPEN_APP}")),
+]
+
+
+@pytest.mark.parametrize("quem,erro,saida", ERROS_DOS_CHAMADORES, ids=[f"{q}-{type(e).__name__}" for q, e, _ in ERROS_DOS_CHAMADORES])
+def test_each_caller_says_the_errors_of_urllib_in_its_own_way_or_not_at_all(monkeypatch, tmp_path, quem, erro, saida):
+    """GREEN before and after: the type and the text of what comes out are the module's own (voice leaves the error of urllib as it is, voice_clone
+    and voicestudio wrap some of them), never `rede`'s: `urlopen_seguro` wraps nothing."""
+    from simplicio_video import voicestudio
+    chama = CHAMADORES_DE_URLLIB[quem][0]
+    _Abertura(monkeypatch, erro=erro)
+    with pytest.raises(BaseException) as caught:  # CloneVoiceError is a SystemExit
+        chama(tmp_path, monkeypatch)
+    if saida == "o mesmo":
+        assert caught.value is erro
+    else:
+        tipo, texto = saida
+        assert type(caught.value).__name__ == tipo and str(caught.value) == texto.format(OPEN_APP=voicestudio.OPEN_APP)
 
 
 # Every place of the engine that opens a URL with the standard library, and why the key of a request cannot reach another host from it. A new

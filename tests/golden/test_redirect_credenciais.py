@@ -432,6 +432,8 @@ CHAVES = ("authorization", "x-goog-api-key")  # what a destination that needs th
 
 def servidor(nome):
     class Atende(http.server.BaseHTTPRequestHandler):
+        timeout = 3  # a request that announces a body and never sends it (a caller that lost its body) fails in 3 s, not when the client's timeout ends
+
         def _atende(self):
             tamanho = int(self.headers.get("Content-Length") or 0)
             corpo = self.rfile.read(tamanho).decode("latin-1") if tamanho else ""
