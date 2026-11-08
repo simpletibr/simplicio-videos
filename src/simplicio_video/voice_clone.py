@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import childio, hostos, paths
+from . import childio, hostos, paths, voicestudio as voicestudiomod  # `voicestudio` below is the provider function, not the module
 
 
 class CloneVoiceError(SystemExit):
@@ -62,7 +62,12 @@ def openvoice(S: dict, text: str, dst: Path, ref: Path | None, base_take) -> Non
 
 
 def voicestudio_url() -> str:
-    return os.environ.get("VOICESTUDIO_URL", "http://localhost:3900").rstrip("/")
+    """The base of the local app, read in ONE place: voicestudio.base_url() (VOICESTUDIO_URL, OMNIVOICE_URL, the ports, else
+    http://127.0.0.1:3900). Its error for a bad port is this module's, like every other one here: a SystemExit with the provider's prefix."""
+    try:
+        return voicestudiomod.base_url()
+    except voicestudiomod.VoiceStudioError as e:
+        raise CloneVoiceError(f"provider=voicestudio: {e}") from None
 
 
 def voicestudio(S: dict, text: str, dst: Path) -> None:
