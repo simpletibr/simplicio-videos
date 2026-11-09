@@ -102,7 +102,7 @@ def test_o_changelog_tem_a_secao_0_8_0_com_data_e_o_unreleased_vazio_acima():
     negrito de cada bullet; mais os nomes que identificam a trilha video-to-skill (o commit e a tag fixados, o extrator, a 32ª tool)."""
     assert "## 0.8.0 — 2026-11-06" in _changelog()
     titulos = re.findall(r"^## (.+)$", _changelog(), re.M)
-    assert titulos[:2] == ["Unreleased", "0.8.0 — 2026-11-06"], titulos[:3]
+    assert titulos[:3] == ["Unreleased", "0.8.1 — 2026-11-09", "0.8.0 — 2026-11-06"], titulos[:4]  # o corte 0.8.1 entra entre os dois
     unreleased, da_0_8_0 = _secao("Unreleased"), _secao("0.8.0 — ")
     prs = sorted(set(re.findall(r"#\d+", da_0_8_0)))
     manchetes = sorted(set(re.findall(r"^- \*\*(.+?)\*\*", da_0_8_0, re.M)))
@@ -132,4 +132,33 @@ def test_a_secao_0_8_0_nao_diz_que_pypi_tag_ou_release_da_0_8_0_ja_existem():
     secao = _secao("0.8.0 — ")
     for proibido in ("publicado no PyPI", "publicado em 2026", "tag `v0.8.0` (commit", "GitHub Release `v0.8.0`", "pip install simplicio-video==0.8.0"):
         assert proibido not in secao, proibido
+
+
+def test_o_produto_esta_na_0_8_1_ou_depois():
+    versao = tuple(int(n) for n in re.match(r"(\d+)\.(\d+)\.(\d+)", __version__).groups())
+    assert versao >= (0, 8, 1), f"a versão {__version__} é anterior ao corte 0.8.1"
+
+
+def test_o_changelog_tem_a_secao_0_8_1_com_data_e_o_unreleased_acima_sem_repetir_o_corte():
+    """O corte 0.8.1 leva o ciclo untangle e a onda U22 (#250 a #257). A seção é lida de si mesma, como a da 0.8.0: nenhum número de PR
+    nem manchete em negrito dela se repete no Unreleased (as notas moram na seção do corte)."""
+    titulos = re.findall(r"^## (.+)$", _changelog(), re.M)
+    assert titulos[:3] == ["Unreleased", "0.8.1 — 2026-11-09", "0.8.0 — 2026-11-06"], titulos[:4]
+    unreleased, da_0_8_1 = _secao("Unreleased"), _secao("0.8.1 — ")
+    prs = sorted(set(re.findall(r"#\d+", da_0_8_1)))
+    manchetes = sorted(set(re.findall(r"^- \*\*(.+?)\*\*", da_0_8_1, re.M)))
+    assert prs and manchetes, "a seção 0.8.1 perdeu os números de PR ou os bullets: o teste não leria nada"
+    repetidos = [m for m in manchetes if m in unreleased]
+    repetidos += [p for p in prs if re.search(re.escape(p) + r"(?!\d)", unreleased)]  # #2070 não conta como #207
+    assert not repetidos, f"o Unreleased repete o que saiu na 0.8.1 (as notas moram lá): {repetidos}"
+
+
+@pytest.mark.parametrize("trecho", [
+    "onda U22",  # the contract-changing wave
+    "### Segurança (onda U22, muda contrato)",  # its section
+    "#250", "#251", "#252", "#253", "#254", "#255", "#256", "#257",  # the eight merged PRs
+    "9 módulos",  # the --help module count after #250
+])
+def test_a_secao_0_8_1_cita_a_onda_u22(trecho):
+    assert trecho in _secao("0.8.1 — ")
 
