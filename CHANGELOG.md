@@ -4,6 +4,9 @@ O que mudou em cada issue. `simplicio-video update --check` mostra o diff deste 
 
 ## Unreleased
 
+### Novidades
+- **Trilha `social-research`**: o [social-media-research-skills](https://github.com/wesleysimplicio/social-media-research-skills) (MIT), commit fixado `64ba7b4`. São 13 skills de agente para pesquisa em redes sociais (posts fora da curva, comentários, público, concorrentes, anúncios, tendências) que chamam a API do ScrapeCreators (paga, com a chave do usuário) a partir do agente. O comando `simplicio-video social-research` tem `clone`, `skills`, `skill NOME`, `where [--skills]` e `status`; o `skill` só devolve o texto com o checkout no commit em uso e o sha256 do SKILL.md conferido. A tool MCP `video.social-research` (33ª) é só de leitura (`skills`, `skill`, `where`, `status`); `clone` só no terminal. O motor não roda script, não chama o ScrapeCreators e não posta. Agora são 14 trilhas.
+
 ## 0.8.1 — 2026-11-09
 
 Reúne o que entrou na `main` depois da 0.8.0 (b0f92ad): os PRs do ciclo "untangle" (branches `refactor/untangle-*`, de #209 em diante), uma refatoração feita para não mudar o que o motor faz, **com uma exceção deliberada: a onda U22 (#250 a #257), que muda contrato** (o que o motor recusa, esconde e aceita). O que muda para quem usa está em Segurança, Mudanças e Correções; fora disso, `--json`, `--help`, o snapshot das 32 tools do MCP e os bytes do contrato ao MP4 seguem iguais (medido nos PRs e conferido de novo contra a 0.8.0, em Linux; a onda U22 foi medida contra a `main` de antes dela). Este corte (versão e notas) é a PR de release; o pacote da 0.8.1 no PyPI sai do commit do merge dela, e a tag `v0.8.1` e a GitHub Release ficam com o dono.

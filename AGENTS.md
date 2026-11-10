@@ -107,8 +107,8 @@ Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão
 
 | Fato | Valor |
 |---|---|
-| Tools MCP (`video.*`) | 32 |
-| Trilhas externas | 13 |
+| Tools MCP (`video.*`) | 33 |
+| Trilhas externas | 14 |
 | Templates | 15: 8 `pronto`, 7 `skeleton`; 6 sem `composicao` (não renderizam) |
 | Padrões de motion | 56: 33 `pronto`, 20 `proposto`, 2 `inline`, 1 `lib` |
 | HyperFrames | `hyperframes@0.8.97` |
@@ -205,6 +205,7 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `shorts.py`: Shorts track: um vídeo longo vira N cortes verticais 9:16, determinístico (só ffmpeg).
 - `skill_sync.py`: The folders where each host keeps its skills under the home, and the names of the skills.
 - `social.py`: Social networks, only what is deterministic and local: providers, plan, check and recipe.
+- `social_research.py`: Social media research skills track: thirteen agent skills for social media research (https://github.com/wesleysimplicio/social-media-research-skills, MIT).
 - `status.py`: Estado do motor para o looping (issue #73): `--version --json`, `status` e `status --json [CONTRATO]`.
 - `swap.py`: Character swap: replace the character of an existing video with a reference avatar, provider-agnostic.
 - `swap_providers/__init__.py`: Swap providers: one adapter per provider behind the same interface (see base.py).
