@@ -572,7 +572,7 @@ def test_mcp_social_erros_voltam_como_json(tmp_path):
 def test_plugin_json_tem_verbos_fechados_do_social_e_nenhum_de_publicar():
     data = json.loads((ROOT / "plugin.json").read_text(encoding="utf8"))
     verbos = {c["verb"]: c for c in data["commands"]}
-    sociais = {v for v in verbos if v.startswith("video.social")}
+    sociais = {v for v in verbos if v.startswith("video.social.")}
     assert sociais == {"video.social.providers", "video.social.plan", "video.social.check", "video.social.recipe"}
     for v in sociais:
         c = verbos[v]

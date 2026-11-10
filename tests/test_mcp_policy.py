@@ -1,7 +1,7 @@
 """U11 (caracterização, VERDE antes da refatoração): a política de argv do MCP, tool por tool, gravada do comportamento de HOJE.
 
 O MCP é um portão de segurança: decide o que só vale no terminal (`clone <dir>`, `setup`, `install`, `--yes`, URL, `--fix`, saída em
-caminho absoluto e novo, `..` recusado, `-o`/`--o`/`--ou`/`-oX`/`-o=X`/`--`). A tabela `CASOS` tem, para cada uma das 32 tools de
+caminho absoluto e novo, `..` recusado, `-o`/`--o`/`--ou`/`-oX`/`-o=X`/`--`). A tabela `CASOS` tem, para cada uma das 33 tools de
 `mcp_server.TOOLS`, chamadas (`kwargs`) e a resposta EXATA (ok/erro e texto, byte a byte) que a tool dá hoje, com as bordas do dono:
 `--o`, `--ou`, `-oX`, `-o=X`, `--`, `clone <dir>`, caminho relativo, `..`, pasta de sistema, pasta oculta do home, `--out` que já existe,
 link simbólico, argumento vazio, opção que começa com `-`, valor com NUL e caractere invisível. Ela é o contrato escrito: a
@@ -34,7 +34,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from simplicio_video import (busca, catalog, formats, instagram, jobs, matchcut, mcp_server, moneyprinter, openverse, paths, rea_video, scaffold,
+from simplicio_video import (busca, catalog, formats, instagram, jobs, social_research, matchcut, mcp_server, moneyprinter, openverse, paths, rea_video, scaffold,
                              social, swap, toonflow, video_to_skill, voicestudio)
 
 LINUX = pytest.mark.skipif(sys.platform != "linux", reason="congelado no Linux (/tmp fora de /var, link simbólico, NUL e invisíveis)")
@@ -127,6 +127,7 @@ def armar(base: Path):
         for modulo, nomes in ((formats, ("formatos", "formato", "pedido")), (swap, ("providers_report", "estimate_report")),
                               (social, ("providers_report", "make_plan", "check_plan")), (busca, ("consulta", "pagina", "status", "log")),
                               (instagram, ("skills_info", "skill_info", "where_info", "status_info", "run_tool")),
+                              (social_research, ("skills_info", "skill_info", "where_info", "status_info")),
                               (catalog, ("templates", "motion", "voices", "angles")),
                               (openverse, ("search", "library_list", "library_show", "review_sheet", "review"))):
             for nome in nomes:
@@ -319,6 +320,8 @@ T96 = '{"args": ["/abs/x.mp4"], "canal": "mcp"}'
 T97 = '`nome` só vale com acao=skill (o nome de uma skill de `skills`)'
 T98 = 'skill recebe só `nome` (o nome de uma skill de `skills`); sem ferramenta, texto nem opcoes'
 T99 = 'baixar o instagram-agent-skill é código de terceiros vindo da rede: rode `simplicio-video instagram clone` no terminal; o MCP não faz isso'
+TSR_CLONE = 'baixar o social-media-research-skills é código de terceiros vindo da rede: rode `simplicio-video social-research clone` no terminal; o MCP não faz isso'
+TSR_NOME = '`nome` só vale com acao=skill (o nome de uma skill de `skills`)'
 T100 = "acao desconhecida: 'swipe' (skills|skill|where|status|run); clone, --out e --lexicon só no terminal"
 T101 = "acao desconhecida: 'nada' (skills|skill|where|status|run); clone, --out e --lexicon só no terminal"
 T102 = "acao desconhecida: '' (skills|skill|where|status|run); clone, --out e --lexicon só no terminal"
@@ -1758,6 +1761,18 @@ CASOS = [
     ('instagram', {'acao': 'run', 'ferramenta': 'hookscore', 'texto': 'oi', 'opcoes': ['--out', NOVO]}, {'ok': True, 'res': {'_chamou': 'instagram.run_tool', 'args': ['hookscore', ['--out', NOVO]], 'kw': {'canal': 'mcp', 'texto': 'oi'}}}),
     ('instagram', {'acao': 'run', 'ferramenta': 'hookscore', 'texto': 'oi', 'opcoes': ['--lexicon', 'x']}, {'ok': True, 'res': {'_chamou': 'instagram.run_tool', 'args': ['hookscore', ['--lexicon', 'x']], 'kw': {'canal': 'mcp', 'texto': 'oi'}}}),
     # ----------------------------------------------------------------------------------------------------
+    # video.social-research
+    ('social-research', {}, {'_chamou': 'social_research.status_info', 'args': [], 'kw': {}, 'ok': True}),
+    ('social-research', {'acao': 'skills'}, {'_chamou': 'social_research.skills_info', 'args': [], 'kw': {}, 'ok': True}),
+    ('social-research', {'acao': 'skill', 'nome': 'trend-discovery'}, {'_chamou': 'social_research.skill_info', 'args': ['trend-discovery'], 'kw': {}, 'ok': True}),
+    ('social-research', {'acao': 'skill', 'nome': '../../etc/passwd'}, {'_chamou': 'social_research.skill_info', 'args': ['../../etc/passwd'], 'kw': {}, 'ok': True}),
+    ('social-research', {'acao': 'where'}, {'_chamou': 'social_research.where_info', 'args': [], 'kw': {}, 'ok': True}),
+    ('social-research', {'acao': 'status'}, {'_chamou': 'social_research.status_info', 'args': [], 'kw': {}, 'ok': True}),
+    ('social-research', {'acao': 'skills', 'nome': 'x'}, ERRO(TSR_NOME)),
+    ('social-research', {'acao': 'clone'}, ERRO(TSR_CLONE)),
+    ('social-research', {'acao': 'clone', 'nome': 'x'}, ERRO(TSR_NOME)),
+    ('social-research', {'acao': 'run'}, ERRO("acao desconhecida: 'run' (skills|skill|where|status); clone só no terminal")),
+    # ----------------------------------------------------------------------------------------------------
     # video.rea-video
     ('rea-video', {'cmd': 'nao-e-subcomando', 'argv': ['x']}, ERRO("argumentos: cmd 'nao-e-subcomando' não é subcomando desta tool pelo MCP (use: clone, where, status, summary, probe, tiles, stems, review, apply-review, remake-plan, decompose)")),
     ('rea-video', {'cmd': 'where', 'argv': ['where']}, ERRO(T84)),
@@ -3125,9 +3140,9 @@ def test_every_mcp_tool_answers_each_call_of_the_table_exactly_as_before_the_pol
     assert chamar("video." + tool, kwargs, mundo) == _esperado(tool, kwargs, esperado), kwargs
 
 
-def test_the_table_has_a_case_for_each_of_the_32_tools():
+def test_the_table_has_a_case_for_each_of_the_33_tools():
     nomes = [nome.removeprefix("video.") for nome, _, _ in mcp_server.TOOLS]
-    assert len(nomes) == 32
+    assert len(nomes) == 33
     assert {t for t, _, _ in CASOS} == set(nomes)
     assert all(sum(1 for t, _, _ in CASOS if t == nome) >= 1 for nome in nomes)
 
@@ -3206,7 +3221,7 @@ CMD_POR_TOOL = {
 SO_TERMINAL = {
     "clone": ("build", "studio", "auth", "runtime", "packages", "capture", "transcribe", "measure", "media fetch", "media prepare-fetch", "--watch"),
     "montage": ("setup", "open", "serve"), "opencut": ("dev",), "edit": ("transcribe-batch",), "toonflow": ("serve",),
-    "moneyprinter": ("setup", "serve"), "matchcut": ("setup", "clone"), "instagram": ("clone",), "install": ("--uninstall",),
+    "moneyprinter": ("setup", "serve"), "matchcut": ("setup", "clone"), "instagram": ("clone",), "social-research": ("clone",), "install": ("--uninstall",),
     "update": ("instalar",),
 }
 COM_PASTA = ("montage", "opencut", "toonflow", "moneyprinter", "rea-video")  # mcp=True, mas `clone <dir>` é só do terminal
