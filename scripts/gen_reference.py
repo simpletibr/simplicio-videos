@@ -105,6 +105,7 @@ DESCRIPTIONS = {
     "MONEYPRINTER_DIR": "Checkout do MoneyPrinterTurbo (alternativa a `SIMPLICIO_TOOLS_DIR/moneyprinter`).",
     "INSTAGRAM_DIR": "Checkout do instagram-agent-skill (alternativa a `SIMPLICIO_TOOLS_DIR/instagram`). O `instagram run` avisa quando ele está em uso e confere o sha256 de cada script do mesmo jeito.",
     "SOCIAL_RESEARCH_DIR": "Checkout do social-media-research-skills (alternativa a `SIMPLICIO_TOOLS_DIR/social_research`). O `social-research skill` confere o commit e o sha256 de cada SKILL.md do mesmo jeito.",
+    "LAST30DAYS_DIR": "Checkout do last30days-skill (alternativa a `SIMPLICIO_TOOLS_DIR/last30days`). O `last30days skill` confere o commit e o sha256 do SKILL.md do mesmo jeito.",
     "MATCHCUT_DATA_DIR": "Pasta onde mora o venv do match-cut: absoluta e fora do checkout, para que um novo clone nunca a apague.",
     "MATCHCUT_DIR": "Checkout do match-cut (alternativa a `SIMPLICIO_TOOLS_DIR/matchcut`).",
     "VIDEO_USE_DIR": "Checkout do video-use (trilha `edit`), mantido pelo setup.sh em data/tools/video-use; o `update` segue esta pasta (padrão `~/.cache/simplicio/video-use`).",

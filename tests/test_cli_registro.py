@@ -36,7 +36,7 @@ from helpers import ROOT
 CLI_PY = ROOT / "src" / "simplicio_video" / "cli.py"
 
 # (command, module of the package, function that runs it, error class that the CLI turns into `<cmd>: message`, "" = none).
-# Frozen from cli.py of origin/main (a7ac9e3): the 21 commands that the CLI handles before argparse.
+# Frozen from cli.py of origin/main (a7ac9e3): the 22 commands that the CLI handles before argparse.
 TRILHAS = [
     ("clone", "clone", "run_hypit", "CloneError"),
     ("montage", "montage", "run_montage", "MontageError"),
@@ -50,6 +50,7 @@ TRILHAS = [
     ("matchcut", "matchcut", "run_matchcut", "MatchcutError"),
     ("instagram", "instagram", "run_instagram", "InstagramError"),
     ("social-research", "social_research", "run_social_research", "SocialResearchError"),
+    ("last30days", "last30days", "run_last30days", "Last30DaysError"),
     ("rea-video", "rea_video", "run_rea_video", "ReaVideoError"),
     ("video-to-skill", "video_to_skill", "run_video_to_skill", "VideoToSkillError"),
     ("voicestudio", "voicestudio", "run_voicestudio", ""),
@@ -64,7 +65,7 @@ NOMES = [t[0] for t in TRILHAS]
 
 # `--json` before the command moves to it (where the command takes it): everywhere, or only after one of these verbs.
 JSON_EM_QUALQUER_LUGAR = ("busca", "qc", "voicestudio", "swap", "jobs", "social", "openverse", "formats")
-JSON_SO_EM = {"instagram": ("where", "status", "skills"), "social-research": ("where", "status", "skills", "skill"), "moneyprinter": ("generate",), "video-to-skill": ("where", "status")}
+JSON_SO_EM = {"instagram": ("where", "status", "skills"), "social-research": ("where", "status", "skills", "skill"), "last30days": ("where", "status", "skill"), "moneyprinter": ("generate",), "video-to-skill": ("where", "status")}
 
 
 # ------------------------------------------------------------------------------------------------ the sealed box
@@ -181,6 +182,9 @@ GOLDEN: dict[str, tuple[int | str, str, str]] = {
     'social-research --help': (0, '~usage: simplicio-video social-research [-h] ...', ''),
     'social-research sub-invalido': (1, '', 'social-research: subcomando desconhecido: nao-existe-xyz (clone|where|status|skills|skill)\n'),
     '--json social-research': (2, '', '~usage: simplicio-video [-h] [--version] [--json] COMANDO ...'),
+    'last30days --help': (0, '~usage: simplicio-video last30days [-h] ...', ''),
+    'last30days sub-invalido': (1, '', 'last30days: subcomando desconhecido: nao-existe-xyz (clone|where|status|skill)\n'),
+    '--json last30days': (2, '', '~usage: simplicio-video [-h] [--version] [--json] COMANDO ...'),
     'rea-video --help': (0, '~usage: simplicio-video rea-video [-h] ...', ''),
     'rea-video sub-invalido': (1, '', 'rea-video: rea-video não está instalado no venv: rode `simplicio-video rea-video clone` e depois `simplicio-video rea-video setup`.\n'),
     '--json rea-video': (2, '', '~usage: simplicio-video [-h] [--version] [--json] COMANDO ...'),
@@ -382,7 +386,7 @@ def test_the_two_json_tables_are_the_ones_of_before():
 
 # ------------------------------------------------------------------------------------------------ the table
 
-def test_the_table_has_the_21_track_commands_and_where_to_find_each():
+def test_the_table_has_the_22_track_commands_and_where_to_find_each():
     assert set(cli.COMANDOS) == set(NOMES)
     for cmd, modulo, run, erro in TRILHAS:
         c = cli.COMANDOS[cmd]
@@ -434,7 +438,7 @@ def test_the_main_help_the_cli_prints_is_the_generated_one(caixa):
     rc, out, _ = roda(["--help"], caixa)
     assert rc == 0
     assert _tools_do_help(out) == [nome.removeprefix("video.") for nome, _fn, _desc in mcp_server.TOOLS]
-    assert len(_tools_do_help(out)) == len(mcp_server.TOOLS) == 33
+    assert len(_tools_do_help(out)) == len(mcp_server.TOOLS) == 34
 
 
 def test_the_main_help_points_to_the_versioned_url_of_the_docs_not_to_a_checkout_path(caixa):

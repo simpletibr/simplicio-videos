@@ -107,8 +107,8 @@ Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão
 
 | Fato | Valor |
 |---|---|
-| Tools MCP (`video.*`) | 33 |
-| Trilhas externas | 14 |
+| Tools MCP (`video.*`) | 34 |
+| Trilhas externas | 15 |
 | Templates | 15: 8 `pronto`, 7 `skeleton`; 6 sem `composicao` (não renderizam) |
 | Padrões de motion | 56: 33 `pronto`, 20 `proposto`, 2 `inline`, 1 `lib` |
 | HyperFrames | `hyperframes@0.8.97` |
@@ -178,6 +178,7 @@ Complementa a linha `src/simplicio_video/` da tabela acima (essa é à mão). Ge
 - `instagram.py`: Instagram agent skill track: thirteen agent skills and six small local tools to write Reels, captions and drafts (https://github.com/Jakeschincariol/instagram-agent-skill, MIT, by Jake Schincariol).
 - `installer.py`: Single host-aware install planner of simplicio-video: copy the bundled skills INTO the agent host.
 - `jobs.py`: `simplicio-video jobs`: long tasks in the background, in a separate process, with no daemon and no network port.
+- `last30days.py`: last30days track: one agent skill that researches a topic over the last 30 days across Reddit, X, YouTube, Hacker News and others, ranked by engagement (https://github.com/mvanhorn/last30days-skill, MIT).
 - `lockfile.py`: An exclusive file lock with a wait, for the installer: `install`, `uninstall` and `prune` hold it in the target folder, so two of them never read the same receipt and each writes its own. fcntl on POSIX, msvcrt on Windows.
 - `matchcut.py`: match-cut track: an agent skill for product films in the match-cut relay style (https://github.com/Sac-Y/match-cut, MIT).
 - `mcp_policy.py`: The argument policy of the MCP tools in one table: what each tool runs over MCP, what only the terminal does, and the words that say so.

@@ -76,6 +76,7 @@ Fluxo completo:
   matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; baixa o commit fixado e roda 7 scripts locais dele (setup, run), o uso do skill exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
   social-research social-media-research-skills (MIT): 13 skills de agente de pesquisa em redes sociais (posts fora da curva, comentários, concorrentes, anúncios, tendências) via ScrapeCreators com a sua chave; o motor só baixa, lista e lê
+  last30days   last30days-skill (MIT): skill de agente que pesquisa um tema nos últimos 30 dias (Reddit, X, YouTube, HN e outros) por engajamento; o motor só baixa e lê o SKILL.md conferido (https://github.com/mvanhorn/last30days-skill)
   rea-video    rea-video (MIT): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake; instala o commit fixado num venv próprio e repassa os comandos dele (https://github.com/JuneYaooo/rea-video)
   video-to-skill video-to-skill (MIT, Breno Epics): transforma um vídeo numa skill de agente instalável; extrator local fixado (vts-extract 0.3.0, sha256 por plataforma): clone, setup, check, extract, frame-at, clip, compile, merge, install; o `check --fix --yes` do upstream é seu (https://github.com/brenoepics/video-to-skill)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
@@ -404,6 +405,16 @@ def build_parser(only: str | None = None) -> argparse.ArgumentParser:
         epilog="exemplos:\n  simplicio-video social-research clone\n  simplicio-video social-research skills\n"
                "  simplicio-video social-research skill outlier-post-finder\n  simplicio-video social-research where --skills\n  simplicio-video social-research status")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | where [--skills] | status | skills | skill NAME")
+
+    p = sub.add_parser("last30days", formatter_class=Fmt, help="last30days-skill (MIT): skill de agente que pesquisa um tema nos últimos 30 dias; o motor só baixa e lê",
+        description="Baixa o last30days-skill (MIT; o repositório está em `simplicio-video tools`) no commit fixado em tools.py "
+                    "e devolve o corpo do skills/last30days/SKILL.md depois de conferir o commit e o sha256, como texto de terceiros. "
+                    "Rodada a partir do agente, a skill roda scripts Python 3.12+, pode ler cookies do navegador para o X e chama "
+                    "terceiros pagos (ScrapeCreators, Perplexity e outros) com as suas chaves; o motor não roda esses scripts, não lê "
+                    "cookies, não pede chave e não posta. O checkout fica em LAST30DAYS_DIR ou em SIMPLICIO_TOOLS_DIR/last30days.",
+        epilog="exemplos:\n  simplicio-video last30days clone\n  simplicio-video last30days skill\n"
+               "  simplicio-video last30days where --skills\n  simplicio-video last30days status")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | where [--skills] | status | skill")
 
     p = sub.add_parser("rea-video", formatter_class=Fmt, help="rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake",
         description="Instala o rea-video (https://github.com/JuneYaooo/rea-video, MIT) no commit fixado em tools.py, num venv próprio, "
@@ -738,6 +749,11 @@ def _carrega_social_research() -> ModuleType:
     return social_research
 
 
+def _carrega_last30days() -> ModuleType:
+    from . import last30days
+    return last30days
+
+
 def _carrega_jobs() -> ModuleType:
     from . import jobs
     return jobs
@@ -858,6 +874,7 @@ COMANDOS: dict[str, Comando] = {c.nome: c for c in (
     Comando("instagram", _carrega_instagram, "run_instagram", "InstagramError", json_em=("where", "status", "skills")),
     Comando("social-research", _carrega_social_research, "run_social_research", "SocialResearchError",
             json_em=("where", "status", "skills", "skill")),
+    Comando("last30days", _carrega_last30days, "run_last30days", "Last30DaysError", json_em=("where", "status", "skill")),
     Comando("rea-video", _carrega_rea_video, "run_rea_video", "ReaVideoError", ajuda="propria", ajuda_em="repassa"),
     Comando("video-to-skill", _carrega_video_to_skill, "run_video_to_skill", "VideoToSkillError", json_em=("where", "status"),
             ajuda="propria", ajuda_em="SUBCOMMANDS"),

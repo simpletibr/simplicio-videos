@@ -124,6 +124,9 @@ POLITICA: dict[str, dict[str, Verbo]] = {
     "video.social-research": {
         "clone": Verbo("clone", False, "baixar o social-media-research-skills é código de terceiros vindo da rede", "social-research clone"),
     },
+    "video.last30days": {
+        "clone": Verbo("clone", False, "baixar o last30days-skill é código de terceiros vindo da rede", "last30days clone"),
+    },
     "video.voicestudio": _mcp("status", "voices", "languages", "personalities", "tts", "transcribe", "clone", "describe", "design", "dub", "dub-export", "mcp"),
     "video.rea-video": {
         "clone": Verbo("clone", True, _CLONE_NA_PASTA_PADRAO),

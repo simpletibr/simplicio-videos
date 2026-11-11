@@ -196,6 +196,16 @@ TOOLS: dict[str, Tool] = {
                             command="social-research", marker="skills/outlier-post-finder/SKILL.md", clone_verb="clone", mcp_read=McpRead("acao", "status"),
                             note="the skills call the ScrapeCreators API (a paid third party, with the user's own key) from the agent; "
                                  "the engine never calls ScrapeCreators, never asks for or passes on a key, and never posts"),
+    "last30days": Tool("last30days", "git", "https://github.com/mvanhorn/last30days-skill",
+                       "07021dcf411070747d2585f590c3c8c502bf6991", "MIT",
+                       "one agent skill (SKILL.md prompt plus Python scripts) that researches a topic over the last 30 days across "
+                       "Reddit, X, YouTube, Hacker News and others, ranked by engagement; the engine downloads the pinned commit "
+                       "and returns the SKILL.md body after checking its sha256, it never runs the upstream scripts",
+                       command="last30days", marker="skills/last30days/SKILL.md", clone_verb="clone", mcp_read=McpRead("acao", "status"),
+                       note="the skill itself (run from Claude Code via `/plugin install last30days` or from the clone) needs "
+                            "Python 3.12+, may read browser cookies for X and calls paid third parties (ScrapeCreators, "
+                            "Perplexity and others) with the user's own keys; the engine never runs its scripts, never reads "
+                            "browser cookies, never asks for or passes on a key, and never posts"),
     "voicestudio": Tool("voicestudio", "git", "https://github.com/debpalash/VoiceStudio",
                          "beeaae08204f0de5f49d4a087ef2b0ea8fecfcb9", "AGPL-3.0",
                          "local voice studio: cloned/designed voice profiles, TTS and transcription over a loopback "

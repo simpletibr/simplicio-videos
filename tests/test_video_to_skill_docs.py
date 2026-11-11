@@ -37,7 +37,7 @@ def test_the_readme_counts_come_from_the_code():
     assert f"| Trilhas externas | {n_tracks} |" in _facts_block(README_PT)
     assert f"| MCP server | `simplicio-video-mcp` | {n_tools} `video.*` tools |" in README
     assert f"lists {n_tools} `video.*` tools over the stdio protocol" in README
-    assert "lists all fourteen tracks" in README and "all twelve" not in README
+    assert "lists all fifteen tracks" in README and "all fourteen" not in README
     assert f"| Servidor MCP | `simplicio-video-mcp` | {n_tools} tools `video.*`" in README_PT
     assert f"lista {n_tools} tools `video.*`" in README_PT and "31 tools `video.*`" not in README_PT and "lists 31" not in README
 
