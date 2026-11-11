@@ -24,12 +24,13 @@ Who it is for: people who make ads and short videos with voice, subtitles, and c
 | Social planning | `social` | Ready | Never posts. Publishing belongs to another layer |
 | Openverse library | `openverse` | Ready | Review per request. The license comes from the source |
 | Web research | `busca` | Ready | Needs TinyFish and a key. Daily call cap |
-| External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `social-research`, `edit`, `rea-video`, `video-to-skill` | Installed on demand, pinned version | Licenses differ; see the tracks table |
+| External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `social-research`, `last30days`, `edit`, `rea-video`, `video-to-skill` | Installed on demand, pinned version | Licenses differ; see the tracks table |
 | Instagram agent skills and scripts | `instagram` | Ready on the pinned commit; installs on demand. The six scripts ran for real; no agent was run with the skills | Local, no key, no LLM. The heuristics are in English and score Portuguese badly. It never posts |
 | Social media research agent skills | `social-research` | Ready on the pinned commit; installs on demand. The skills were not run with an agent here | The skills call ScrapeCreators (paid, your key) from the agent; the engine only downloads, lists and reads them. It never posts |
+| Last 30 days research agent skill | `last30days` | Ready on the pinned commit; installs on demand. The skill was not run with an agent here | The skill (run from the agent) needs Python 3.12+, may read browser cookies for X and calls paid third parties with your keys; the engine only downloads and reads the SKILL.md. It never posts |
 | Video to agent skill | `video-to-skill` | New. Ready on the pinned release (tag v0.3.0); `clone` and `setup` install on demand. The extractor ran for real on a synthetic 4 s clip; no real tutorial was processed | Local. The extractor is a downloaded binary checked by sha256. Transcription needs voice models that only you download. Verifying a generated skill is not covered by the engine's guarantees |
 | Reverse-engineer a reference video | `rea-video` | Ready on the pinned commit; installs on demand. A synthetic clip was tested end to end, real footage was not | Local by default. With `--vlm`, frames go to a vision model you configure |
-| MCP server | `simplicio-video-mcp` | 33 `video.*` tools | No `swap run` spending, no software removal |
+| MCP server | `simplicio-video-mcp` | 34 `video.*` tools | No `swap run` spending, no software removal |
 | Audio cleanup | not available yet | In a PR, not on main yet | not applicable |
 | Dubbing with preserved background | `voicestudio dub create` and `dub-export` | Uploads the video to the app and exports the finished job, with music and effects, provided background separation was on in the app | The dub itself runs in the app |
 
@@ -40,8 +41,8 @@ Counts generated from the code (`scripts/gen_reference.py`); where hand-written 
 
 | Fact | Value |
 |---|---|
-| MCP tools (`video.*`) | 33 |
-| External tracks | 14 |
+| MCP tools (`video.*`) | 34 |
+| External tracks | 15 |
 | Templates | 15: 8 `pronto`, 7 `skeleton`; 6 without `composicao` (do not render) |
 | Motion patterns | 56: 33 `pronto`, 20 `proposto`, 2 `inline`, 1 `lib` |
 | HyperFrames | `hyperframes@0.8.97` |
@@ -59,6 +60,7 @@ Counts generated from the code (`scripts/gen_reference.py`); where hand-written 
 | `matchcut` | git | `b51c98f` |
 | `instagram` | git | `d03c56b` |
 | `social_research` | git | `64ba7b4` |
+| `last30days` | git | `07021dc` |
 | `voicestudio` | git | `beeaae0` |
 | `video-use` | git | `b877063` |
 | `tinyfish` | npm | `0.57.0` |
@@ -148,7 +150,7 @@ Not on main yet. This section gets the commands when the audio cleanup PR is mer
 
 ## MCP
 
-- Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 33 `video.*` tools over the stdio protocol, `video.rea-video`, `video.video-to-skill` and `video.instagram` among them.
+- Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 34 `video.*` tools over the stdio protocol, `video.rea-video`, `video.video-to-skill` and `video.instagram` among them.
 - Tool list: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Excluded on purpose, for safety:**
   - `swap run`: spends credits;
@@ -185,7 +187,7 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
 ## Incorporated projects (external tracks)
 
-The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), a PyPI version with a sha256 (yt-dlp), or a release binary checked by sha256 (video-to-skill); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all fourteen tracks.
+The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), a PyPI version with a sha256 (yt-dlp), or a release binary checked by sha256 (video-to-skill); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all fifteen tracks.
 
 Which track answers each request (a table of request, track, command, MCP tool and limits) and how to chain two or more is in the skill [`simplicio-video-trilhas`](skills/simplicio-video-trilhas/SKILL.md), written in Portuguese like the other skills.
 
@@ -199,6 +201,7 @@ Which track answers each request (a table of request, track, command, MCP tool a
 | [match-cut](https://github.com/Sac-Y/match-cut) | MIT | `matchcut` | `where`, `status`, `run` (seven scripts, absolute paths) |
 | [instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) | MIT | `instagram` | `skills`, `skill NAME`, `where`, `status`, `run` |
 | [social-media-research-skills](https://github.com/wesleysimplicio/social-media-research-skills) | MIT | `social-research` | `skills`, `skill NAME`, `where`, `status` |
+| [last30days-skill](https://github.com/mvanhorn/last30days-skill) | MIT | `last30days` | `skill`, `where`, `status` |
 | [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (local HTTP only) | `voicestudio` | all subcommands; absolute new outputs |
 | [video-use](https://github.com/browser-use/video-use) | MIT | `edit` | all except `transcribe-batch`; absolute outputs |
 | [rea-video](https://github.com/JuneYaooo/rea-video) | MIT (declared in `pyproject.toml`) | `rea-video` | `where`, `status`, `clone`, `summary`, `probe`, `tiles`, `review`, `apply-review`, `remake-plan`; `decompose` and `stems` as a job |
@@ -299,6 +302,18 @@ Thirteen agent skills for social media research: outlier posts, comment mining, 
 - **MCP (read-only):** `video.social-research` with `acao` = `skills`, `skill` (with `nome`), `where`, or `status`. `clone` is terminal only.
 - **To use the skills in your agent:** copy the folder that `simplicio-video social-research where --skills` prints into the agent's skills folder, and set the ScrapeCreators key the way the upstream README says.
 - **Example:** `simplicio-video social-research skill outlier-post-finder`
+
+### last30days-skill (`last30days`)
+
+[mvanhorn/last30days-skill](https://github.com/mvanhorn/last30days-skill) · MIT
+
+One agent skill that researches what people said about a topic in the last 30 days across Reddit, X, YouTube, TikTok, Hacker News, Polymarket, GitHub, and the web, ranked by engagement. The engine only downloads the pinned commit (`07021dc`) and returns the body of `skills/last30days/SKILL.md` after checking the commit and the file's sha256. It never runs the upstream scripts, never reads browser cookies, never asks for or passes on a key, and never posts.
+
+- **Command:** `last30days clone [folder]`, `skill` (the `SKILL.md` body, at most 64 KiB, as third-party text), `where [--skills]`, `status` (the sha256 of the `SKILL.md`). `--json` on everything except `clone`.
+- **Checkout:** `LAST30DAYS_DIR`, or `SIMPLICIO_TOOLS_DIR/last30days`.
+- **MCP (read-only):** `video.last30days` with `acao` = `skill`, `where`, or `status`. `clone` is terminal only.
+- **The skill itself:** run from Claude Code (`/plugin install last30days`, or the folder `simplicio-video last30days where --skills` prints), it needs Python 3.12+, may read your browser cookies for X, and calls paid third parties (ScrapeCreators, Perplexity, and others) with your own keys. That happens in your agent, not in the engine.
+- **Example:** `simplicio-video last30days skill`
 
 ### VoiceStudio (`voicestudio`)
 

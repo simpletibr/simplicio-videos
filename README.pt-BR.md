@@ -24,12 +24,13 @@ Para quem é: quem produz anúncios e vídeos curtos com voz, legenda e cortes, 
 | Planejamento de redes | `social` | Pronto | Não posta. A publicação fica em outra camada |
 | Biblioteca Openverse | `openverse` | Pronto | Revisão por pedido. A licença é da fonte |
 | Pesquisa na web | `busca` | Pronto | Exige TinyFish e chave. Teto diário de chamadas |
-| Trilhas externas | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `social-research`, `edit`, `rea-video`, `video-to-skill` | Instalação sob demanda, versão fixada | A licença varia; veja a tabela de trilhas |
+| Trilhas externas | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `social-research`, `last30days`, `edit`, `rea-video`, `video-to-skill` | Instalação sob demanda, versão fixada | A licença varia; veja a tabela de trilhas |
 | Skills e scripts de Instagram | `instagram` | Pronto no commit fixado; instala sob demanda. Os seis scripts rodaram de verdade; nenhum agente foi rodado com as skills | Local, sem chave, sem LLM. As heurísticas são em inglês e pontuam mal o português. Não posta |
 | Skills de agente para pesquisa em redes sociais | `social-research` | Pronto no commit fixado; instala sob demanda. As skills não foram rodadas com um agente aqui | As skills chamam o ScrapeCreators (pago, sua chave) a partir do agente; o motor só baixa, lista e lê. Não posta |
+| Skill de agente para pesquisa dos últimos 30 dias | `last30days` | Pronto no commit fixado; instala sob demanda. A skill não foi rodada com um agente aqui | A skill (rodada pelo agente) pede Python 3.12+, pode ler cookies do navegador para o X e chama terceiros pagos com as suas chaves; o motor só baixa e lê o SKILL.md. Não posta |
 | Vídeo em skill de agente | `video-to-skill` | Novo. Pronto na release fixada (tag v0.3.0); `clone` e `setup` instalam sob demanda. O extrator rodou de verdade num clipe sintético de 4 s; nenhum tutorial real foi processado | Local. O extrator é um binário baixado e conferido por sha256. A transcrição pede modelos de voz que só você baixa. Verificar uma skill gerada não está nas garantias do motor |
 | Engenharia reversa de vídeo de referência | `rea-video` | Pronto no commit fixado; instala sob demanda. Clipe sintético testado de ponta a ponta; vídeo real, não | Local por padrão. Com `--vlm`, os quadros vão a um modelo de visão que você configura |
-| Servidor MCP | `simplicio-video-mcp` | 33 tools `video.*` | Sem gasto em `swap run` nem remoção de software |
+| Servidor MCP | `simplicio-video-mcp` | 34 tools `video.*` | Sem gasto em `swap run` nem remoção de software |
 | Limpeza de áudio | não há ainda | Em PR, não está no main | não se aplica |
 | Dublagem com fundo preservado | `voicestudio dub create` e `dub-export` | Sobe o vídeo ao app e exporta o job pronto, com música e efeitos, desde que a separação de fundo tenha estado ligada no app | A dublagem em si roda no app |
 
@@ -40,8 +41,8 @@ Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão
 
 | Fato | Valor |
 |---|---|
-| Tools MCP (`video.*`) | 33 |
-| Trilhas externas | 14 |
+| Tools MCP (`video.*`) | 34 |
+| Trilhas externas | 15 |
 | Templates | 15: 8 `pronto`, 7 `skeleton`; 6 sem `composicao` (não renderizam) |
 | Padrões de motion | 56: 33 `pronto`, 20 `proposto`, 2 `inline`, 1 `lib` |
 | HyperFrames | `hyperframes@0.8.97` |
@@ -59,6 +60,7 @@ Contagens geradas do código (`scripts/gen_reference.py`); onde um texto à mão
 | `matchcut` | git | `b51c98f` |
 | `instagram` | git | `d03c56b` |
 | `social_research` | git | `64ba7b4` |
+| `last30days` | git | `07021dc` |
 | `voicestudio` | git | `beeaae0` |
 | `video-use` | git | `b877063` |
 | `tinyfish` | npm | `0.57.0` |
@@ -203,7 +205,7 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 
 ## MCP
 
-- Servidor: `simplicio-video-mcp` (stdio). Testado: responde `initialize` e lista 33 tools `video.*` pelo protocolo stdio, entre elas `video.rea-video`, `video.video-to-skill` e `video.instagram`.
+- Servidor: `simplicio-video-mcp` (stdio). Testado: responde `initialize` e lista 34 tools `video.*` pelo protocolo stdio, entre elas `video.rea-video`, `video.video-to-skill` e `video.instagram`.
 - Lista das tools: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Ficam de fora por segurança:**
   - `swap run`: gasta créditos;
@@ -229,7 +231,7 @@ Ainda não existe no main. Esta seção ganha os comandos quando a PR de limpeza
 
 ## Projetos incorporados (trilhas externas)
 
-O motor não importa nenhum destes projetos. Cada um roda como programa separado, instalado sob demanda numa versão fixada: um commit (git), uma versão do npm (Hypit, TinyFish), uma versão do PyPI com sha256 (yt-dlp) ou um binário de release conferido por sha256 (video-to-skill); as versões estão na tabela de licenças mais abaixo. Duas exceções: o TinyFish CLI você instala, e o app do VoiceStudio você abre. O CLI `simplicio-video` chama cada um; vários comandos aceitam `--json`; e o servidor MCP expõe cada um até o ponto dito no item. Nenhum comando do motor posta ou publica. Para ver o estado no seu computador, rode `simplicio-video tools` (instalada ou não, versão fixada, licença) ou `simplicio-video status --json`, que lista as catorze trilhas.
+O motor não importa nenhum destes projetos. Cada um roda como programa separado, instalado sob demanda numa versão fixada: um commit (git), uma versão do npm (Hypit, TinyFish), uma versão do PyPI com sha256 (yt-dlp) ou um binário de release conferido por sha256 (video-to-skill); as versões estão na tabela de licenças mais abaixo. Duas exceções: o TinyFish CLI você instala, e o app do VoiceStudio você abre. O CLI `simplicio-video` chama cada um; vários comandos aceitam `--json`; e o servidor MCP expõe cada um até o ponto dito no item. Nenhum comando do motor posta ou publica. Para ver o estado no seu computador, rode `simplicio-video tools` (instalada ou não, versão fixada, licença) ou `simplicio-video status --json`, que lista as quinze trilhas.
 
 Qual trilha responde a cada pedido (tabela pedido, trilha, comando, tool MCP e limites) e como encadear duas ou mais está na skill [`simplicio-video-trilhas`](skills/simplicio-video-trilhas/SKILL.md).
 
@@ -243,6 +245,7 @@ Qual trilha responde a cada pedido (tabela pedido, trilha, comando, tool MCP e l
 | [match-cut](https://github.com/Sac-Y/match-cut) | MIT | `matchcut` | `where`, `status`, `run` (sete scripts, caminhos absolutos) |
 | [instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) | MIT | `instagram` | `skills`, `skill NOME`, `where`, `status`, `run` |
 | [social-media-research-skills](https://github.com/wesleysimplicio/social-media-research-skills) | MIT | `social-research` | `skills`, `skill NOME`, `where`, `status` |
+| [last30days-skill](https://github.com/mvanhorn/last30days-skill) | MIT | `last30days` | `skill`, `where`, `status` |
 | [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (só HTTP local) | `voicestudio` | todos os subcomandos; saídas absolutas e novas |
 | [video-use](https://github.com/browser-use/video-use) | MIT | `edit` | todos, exceto `transcribe-batch`; saídas absolutas |
 | [rea-video](https://github.com/JuneYaooo/rea-video) | MIT (declarada no `pyproject.toml`) | `rea-video` | `where`, `status`, `clone`, `summary`, `probe`, `tiles`, `review`, `apply-review`, `remake-plan`; `decompose` e `stems` como tarefa |
@@ -343,6 +346,18 @@ Treze skills de agente para pesquisa em redes sociais: posts fora da curva, mine
 - **MCP (só leitura):** `video.social-research` com `acao` = `skills`, `skill` (com `nome`), `where` ou `status`. O `clone` é só do terminal.
 - **Para usar as skills no seu agente:** copie a pasta que `simplicio-video social-research where --skills` mostra para a pasta de skills do agente e configure a chave do ScrapeCreators como o README do upstream manda.
 - **Exemplo:** `simplicio-video social-research skill outlier-post-finder`
+
+### last30days-skill (`last30days`)
+
+[mvanhorn/last30days-skill](https://github.com/mvanhorn/last30days-skill) · MIT
+
+Uma skill de agente que pesquisa o que se disse de um tema nos últimos 30 dias em Reddit, X, YouTube, TikTok, Hacker News, Polymarket, GitHub e na web, ordenado por engajamento. O motor só baixa o commit fixado (`07021dc`) e devolve o corpo do `skills/last30days/SKILL.md` depois de conferir o commit e o sha256 do arquivo. Não roda os scripts do upstream, não lê cookies do navegador, não pede nem repassa chave e não posta.
+
+- **Comando:** `last30days clone [pasta]`, `skill` (o corpo do `SKILL.md`, até 64 KiB, como texto de terceiros), `where [--skills]`, `status` (o sha256 do `SKILL.md`). `--json` em todos, menos no `clone`.
+- **Checkout:** `LAST30DAYS_DIR` ou `SIMPLICIO_TOOLS_DIR/last30days`.
+- **MCP (só leitura):** `video.last30days` com `acao` = `skill`, `where` ou `status`. O `clone` é só do terminal.
+- **A skill em si:** rodada pelo Claude Code (`/plugin install last30days` ou a pasta que `simplicio-video last30days where --skills` mostra), pede Python 3.12+, pode ler os cookies do seu navegador para o X e chama terceiros pagos (ScrapeCreators, Perplexity e outros) com as suas chaves. Isso acontece no seu agente, não no motor.
+- **Exemplo:** `simplicio-video last30days skill`
 
 ### VoiceStudio (`voicestudio`)
 
