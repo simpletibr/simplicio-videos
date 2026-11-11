@@ -326,7 +326,7 @@ def test_main_desc_names_the_tools_of_the_server_in_its_order_without_importing_
     d = json.loads(r.stdout)
     assert d["importou"] is False, "reading MAIN_DESC imported the MCP server (19 modules) just to list its tools"
     assert _linha_mcp(d["desc"]) == [nome.removeprefix("video.") for nome, _fn, _desc in mcp_server.TOOLS]
-    assert len(_linha_mcp(d["desc"])) == 33
+    assert len(_linha_mcp(d["desc"])) == 34
 
 
 def test_main_desc_is_what_the_main_help_prints():

@@ -61,18 +61,18 @@ SNAPSHOT = json.loads((ROOT / "tests" / "data" / "mcp_tools_list.snapshot.json")
 # --- o que as tabelas paralelas diziam em origin/main (a7ac9e3), por trilha ----------------------------------------------------
 
 COMANDOS = {"video-use": "edit", "openmontage": "montage", "opencut": "opencut", "hypit": "clone", "toonflow": "toonflow",
-            "moneyprinter": "moneyprinter", "matchcut": "matchcut", "instagram": "instagram", "social_research": "social-research", "tinyfish": "busca",
+            "moneyprinter": "moneyprinter", "matchcut": "matchcut", "instagram": "instagram", "social_research": "social-research", "last30days": "last30days", "tinyfish": "busca",
             "voicestudio": "voicestudio", "rea_video": "rea-video", "video_to_skill": "video-to-skill", "yt-dlp": "media fetch"}
 CLONE = {"openmontage": "simplicio-video montage clone", "opencut": "simplicio-video opencut clone",
          "toonflow": "simplicio-video toonflow clone", "moneyprinter": "simplicio-video moneyprinter clone",
          "matchcut": "simplicio-video matchcut clone", "instagram": "simplicio-video instagram clone",
-         "social_research": "simplicio-video social-research clone",
+         "social_research": "simplicio-video social-research clone", "last30days": "simplicio-video last30days clone",
          "rea_video": "simplicio-video rea-video clone", "video_to_skill": "simplicio-video video-to-skill clone",
          "video-use": "simplicio-video edit setup"}
 # (name, required, minimum version or None), the form doctor_trilhas.DEPS had
 DEPS = {"openmontage": [("ffmpeg", True, None)], "opencut": [("bun", True, None), ("docker", False, None)],
         "hypit": [("node", True, (22, 15))], "toonflow": [("bun", True, None), ("docker", False, None)],
-        "moneyprinter": [("ffmpeg", True, None)], "matchcut": [("ffmpeg", True, None)], "instagram": [], "social_research": [],
+        "moneyprinter": [("ffmpeg", True, None)], "matchcut": [("ffmpeg", True, None)], "instagram": [], "social_research": [], "last30days": [],
         "rea_video": [("ffmpeg", True, None)], "video_to_skill": [("ffmpeg", False, None)], "voicestudio": [("bun", False, None)],
         "video-use": [("ffmpeg", True, None), ("SIMPLICIO_TTS_PY", True, None)],
         "tinyfish": [("node", True, (24,)), ("npm", True, None)], "yt-dlp": [("ffmpeg", False, None)]}
@@ -91,6 +91,7 @@ MCP_LEITURA = {
     "matchcut": ("video_matchcut", {"args": "status"}, True, "ok"),
     "instagram": ("video_instagram", {"acao": "status"}, True, "ok"),
     "social_research": ("video_social_research", {"acao": "status"}, True, "ok"),
+    "last30days": ("video_last30days", {"acao": "status"}, True, "ok"),
     "voicestudio": ("video_voicestudio", {"args": "status"}, False, "ok"),
     "video-use": ("video_edit", {"args": "--help"}, False, "ok"),
     "tinyfish": ("video_busca", {"acao": "status"}, True, "ok"),
@@ -102,27 +103,27 @@ MCP_LEITURA = {
 # --- parte 1: o que o usuário vê, byte a byte (sha256 do texto normalizado) ---------------------------------------------------
 
 GOLDEN = {
-    "vazia/tools-json": "3a75b3e034bc6bc80a085a2ed4877252c9eadc6248be8c9e175e0dc1edcca53c",
-    "vazia/tools-texto": "b60fa5efcc1545567133c69af0eabd97c64e5781efea9c866339ed4f56eff7e1",
-    "vazia/status-json": "ba8a60cfbadc132653d514ab5dbcaa060e99d5c9c7afd6883f0f412a580c8b1e",
-    "vazia/doctor-trilhas-json": "f2765b03950ff68b5ee9ec57148ee9d0094a385787bfe31f7ff49336a22194da",
-    "vazia/doctor-trilhas-texto": "db9df05ec3ad5ae97d5faa608892527b1fea6af92481bdcacc056eb8d560a906",
-    "saudavel/tools-json": "daca8e52a9ddb387634738a4c39e351f5376d099caed7fb63fdadc8f0b073639",
-    "saudavel/status-json": "a22f9778bdd429502ce316cba432dd812aa521af8bf64874921690fc9dbeb2c3",
-    "saudavel/doctor-trilhas-json": "99bb149c2df881fe51da501ed2b910e5f4bbc4ed2f91109798b7aeb74df4a75b",
-    "saudavel/doctor-trilhas-texto": "99a9bc4fda9046a8ef8247170cd0d4164abf55accb8c7f16cfbbb778353bc41b",
-    "saudavel/doctor-trilhas-online": "59e8fe31993f931bdb15230806cc1af529f59e9ee357ba186b368595374f7f24",
-    "saudavel/doctor-json-linha-trilhas": "1ccdf1d2f43e214f897d6534a93ee1d7f9d67855da041b482667af14700e4a08",
-    "overrides/tools-json": "17648306a5918f46b0a9e3af5b455ceb13c8ad1ba17be2f1ae50bc8d587252fe",
-    "overrides/tools-texto": "8ac7496a98c70516057059834d2bcd09ee2c81e9f8a7c46247ed4bfdb1264d03",
-    "overrides/doctor-trilhas-json": "d343fc11f5ff4eec9d1ec90ec6a532f10fa72ed4cb01880112e054563d84e4cb",
-    "overrides/doctor-trilhas-online": "20b0bfc0490482333e84dd463337c61886ace7d0d9c4c3e0d09b8183af40879b",
-    "update/seguir": "dc3210d4afcc6e32367af6b33cc4769457d5478cd3d08d348e1e6f872a442473",
-    "update/fixar": "e45b158d67a85e1767d3b4745fbedab70bbef4cf3eaa2536d9bc1a16c1bf24bf",
-    "update/relatorio-seguir": "85546f7a488986551ff5c7e7277eb961d589b5734c35f4fd6b84cca06f48be22",
-    "update/relatorio-fixar": "5b7412b4672e2c672a335320e67baff1c7c56831f24d99d9dea70da929eafd48",
-    "update/relatorio-simulado": "55d781bb05b273d87fea667027eec01626e420ec085ccaf63e63c35915ad3ab3",
-    "update/overrides": "75c46df62c5316e7ef4ca5bb6bff9f3083f68c2016c7cf94d3b173771f59d4cb",
+    "vazia/tools-json": "f22a340357633a18210e5873d4dac17b41a839dcd92004ed744b7da830ec5f68",
+    "vazia/tools-texto": "aa4e249a669f814cc5d4174392b19ed5b155107e19245d64728f4ebf957fd526",
+    "vazia/status-json": "4151ea9fedb697f42e2edba84514a25de953f4b7e8a57f3e350f70c50a842b89",
+    "vazia/doctor-trilhas-json": "8438cd576dbd2c9d99f64c041f66191b04fe39b0a3eeaa14e7a49a76bd446879",
+    "vazia/doctor-trilhas-texto": "0aba6ab3511e03baf8ef26dee86d74fdca4b194be48c538fd9005f8037550ccf",
+    "saudavel/tools-json": "7b93f085cec049781c862b8f09fad715a4464340cc167e7f33415a8197e8982f",
+    "saudavel/status-json": "464f23d60b629ace979ad119be4ecddc92ffa11fa9182663fb89d98fab2c9b1a",
+    "saudavel/doctor-trilhas-json": "f85de5ec7a24bb9e3922d79cd4f269cecd1d4937d58292ff53f41530410a1770",
+    "saudavel/doctor-trilhas-texto": "bae06baac04e2588a7cbbffa0bf3793afb9c30d25bd258558e3acc09d9e235c0",
+    "saudavel/doctor-trilhas-online": "d64e95d27f690112c4b2aa7c372cffb791cf25442123388bdba30a671800359a",
+    "saudavel/doctor-json-linha-trilhas": "6b17b46b6d2b8b2b92204df646cb7c80cfee7a4bc3deda12f353303cae6eedc1",
+    "overrides/tools-json": "4ac09bbcba8037ca66828fe9439756c691927a4337b017d01eec21b24fbae690",
+    "overrides/tools-texto": "f8e1ae3fb5c66c52ce5207d5598729e6a4f80338f61b233416a023b593e69327",
+    "overrides/doctor-trilhas-json": "01b1975d96afd50f1029cc3b6db408e0ef1b1290c736a7e2aa24cfb98bf0fae4",
+    "overrides/doctor-trilhas-online": "30aeee37b24853e5089eee41b08dd6f12edb42fa79a94ee703a8f46cf959a649",
+    "update/seguir": "0745ee04ead4980d90503f9ac25da3cef7a8617210afa7e29b447f82fff7b953",
+    "update/fixar": "308bb83b9ad1ce2bc686985992fc1513722f711b0193e397bc5c27626064458b",
+    "update/relatorio-seguir": "55baf1c0ab7f7f613d22af2d31fa33e469b5d5e0ae785dd1600e60bc961c3b99",
+    "update/relatorio-fixar": "97fe9c2428b76ba991cef7e8f0431f0bf88710826f54d1839cbd83f7c594fe30",
+    "update/relatorio-simulado": "abd80e583b6ee0e1cfa27d86e7a7c40321b2ab20c206ca07970c54cae4552611",
+    "update/overrides": "339fe44b77a2b35880cbaf590cabcc78621654e556c9275b4cb4ec2ea6d38dcd",
 }
 
 
@@ -224,8 +225,9 @@ def test_o_update_mostra_e_grava_o_mesmo_de_sempre(ambiente_update, monkeypatch)
 # --- parte 1b: as tabelas de hoje, congeladas por trilha ---------------------------------------------------------------------
 
 
-def test_os_catorze_nomes_e_a_ordem_do_registro_nao_mudam():
+def test_os_quinze_nomes_e_a_ordem_do_registro_nao_mudam():
     assert list(tools.TOOLS) == ["openmontage", "opencut", "hypit", "toonflow", "moneyprinter", "matchcut", "instagram", "social_research",
+                                 "last30days",
                                  "voicestudio",                                  "video-use", "tinyfish", "yt-dlp", "rea_video", "video_to_skill"]  # the order of the JSON and of the doctor
 
 
@@ -618,9 +620,9 @@ def test_os_defaults_silenciosos_de_hoje_estao_declarados_no_registro():
     MCP' do smoke. Agora cada um é um campo do registro; os que ficam vazios são exceções ESCRITAS aqui."""
     git = {n for n, t in tools.TOOLS.items() if t.kind == "git"}
     assert {n for n in git if tools.get(n).clone_verb is None} == GIT_SEM_VERBO
-    assert {n for n in git if tools.get(n).setup_probe is None} == git - SETUP == {"instagram", "social_research", "voicestudio", "video-use"}
+    assert {n for n in git if tools.get(n).setup_probe is None} == git - SETUP == {"instagram", "social_research", "last30days", "voicestudio", "video-use"}
     assert {n for n in git if tools.get(n).integrity is None} == git - INTEGRIDADE
-    assert {n for n, t in tools.TOOLS.items() if not t.deps} == {"instagram", "social_research"}
+    assert {n for n, t in tools.TOOLS.items() if not t.deps} == {"instagram", "social_research", "last30days"}
     assert {n for n, t in tools.TOOLS.items() if t.kind == "pip"} == {"yt-dlp"}  # `_clone_de` ends in the message of the only pip track
     assert {n for n, t in tools.TOOLS.items() if t.kind == "npm"} == {"hypit", "tinyfish"}
     assert {n for n, t in tools.TOOLS.items() if t.mcp_read is None} == set()

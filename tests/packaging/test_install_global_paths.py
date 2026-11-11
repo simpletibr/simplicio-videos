@@ -145,7 +145,7 @@ def test_doctor_json_is_the_same_text_as_before(saude, tmp_path, capsys):
     update_row = doc["checks"][0]
     assert update_row["summary"] == ("nenhuma checagem em cache; rode `simplicio-video update --check` ou "
                                      "`simplicio-video doctor --online`")
-    assert _sha(text) == "7d4b615815b82c2bb545f2a0ebb6eb8f4b7dab6578ad6141bf278c25284a9374", f"{_sha(text)}\n{text}"
+    assert _sha(text) == "8a02287d7f9f819798b5b19ed56a8f76a36f638dba7dfdd007c4f7d150d4e11f", f"{_sha(text)}\n{text}"
 
 
 def test_doctor_counts_the_tracks_of_the_registry(saude, tmp_path, capsys):

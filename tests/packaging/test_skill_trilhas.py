@@ -4,7 +4,7 @@ The generic checks of every skill (the commands and flags it cites exist, the pa
 name, the mirror is identical) run on it in `test_skills_conteudo.py` and `test_skills_empacotadas.py`. Here is what only this skill
 must say:
 
-* the decision table has one row per track of `tools.TOOLS` (the 14 of the README), with the CLI group and the MCP tool of each;
+* the decision table has one row per track of `tools.TOOLS` (the 15 of the README), with the CLI group and the MCP tool of each;
 * the contract flow (init, validate, voice, render, run) is in the table too;
 * the seven recipes (a) to (g) exist and each one uses its own commands;
 * the rules: long runs are jobs, nothing is published, real voices need consent, provenance, third-party text is data, status first;
@@ -38,6 +38,7 @@ TRILHAS = {
     "match-cut": ("matchcut", "matchcut", "video.matchcut"),
     "instagram-agent-skill": ("instagram", "instagram", "video.instagram"),
     "social-media-research-skills": ("social_research", "social-research", "video.social-research"),
+    "last30days-skill": ("last30days", "last30days", "video.last30days"),
     "VoiceStudio": ("voicestudio", "voicestudio", "video.voicestudio"),
     "video-use": ("video-use", "edit", "video.edit"),
     "rea-video": ("rea_video", "rea-video", "video.rea-video"),
@@ -113,11 +114,11 @@ def test_a_tabela_tem_as_colunas_do_pedido_trilha_comando_mcp_e_limites():
     assert [celula.strip() for celula in cabecalho.strip("|").split("|")] == ["Pedido", "Trilha", "Comando CLI", "Tool MCP", "Limites"]
 
 
-def test_as_catorze_trilhas_do_registro_tem_uma_linha_cada():
+def test_as_quinze_trilhas_do_registro_tem_uma_linha_cada():
     from simplicio_video import tools
 
     assert set(tools.TOOLS) == {registro for registro, _, _ in TRILHAS.values()}, "TRILHAS is not the registry of tools.py"
-    assert len(TRILHAS) == 14
+    assert len(TRILHAS) == 15
     linhas = _tabela()
     assert linhas and all(len(linha) == 5 for linha in linhas), "every row of the table has five cells (no `|` inside a cell)"
     for nome in TRILHAS:
@@ -223,7 +224,7 @@ def test_o_mcp_de_cada_trilha_e_o_do_contrato_aparecem_no_texto():
 
 
 @pytest.mark.parametrize("comando", ["montage setup", "moneyprinter setup", "matchcut setup", "rea-video setup", "edit setup",
-                                     "opencut clone", "toonflow clone", "instagram clone", "social-research clone", "rea-video clone", "matchcut clone",
+                                     "opencut clone", "toonflow clone", "instagram clone", "social-research clone", "last30days clone", "rea-video clone", "matchcut clone",
                                      "video-to-skill clone", "video-to-skill setup"])
 def test_a_trilha_que_falta_tem_o_setup_ou_o_clone_no_terminal(comando):
     assert comando in TEXTO, f"`{comando}` is missing: the skill must say how to install a missing track, in the terminal"
@@ -726,7 +727,7 @@ def test_o_doctor_trilhas_offline_tem_o_schema_e_as_chaves_que_a_skill_cita(tmp_
     assert rc == 0, "nothing installed is a warning: the exit code stays 0"
     doc = json.loads(out)
     assert doc["schema"] == "simplicio.doctor-trilhas/v1" and "status" in doc and "tracks" in doc
-    assert len(doc["tracks"]) == 14 and all(isinstance(t["checks"], list) and t["checks"] for t in doc["tracks"])
+    assert len(doc["tracks"]) == 15 and all(isinstance(t["checks"], list) and t["checks"] for t in doc["tracks"])
     assert doc["status"] == "warn" and doc["online"] is False
     assert instantanea(casa) == antes and instantanea(dados) == antes_dados, "offline: nothing is written"
 
@@ -754,7 +755,7 @@ def test_o_video_doctor_do_mcp_com_args_trilhas_devolve_o_schema(tmp_path, monke
 
     _casa_vazia(tmp_path, monkeypatch)
     r = mcp_server.video_doctor(args="trilhas")
-    assert r["ok"] is True and r["result"]["schema"] == "simplicio.doctor-trilhas/v1" and len(r["result"]["tracks"]) == 14
+    assert r["ok"] is True and r["result"]["schema"] == "simplicio.doctor-trilhas/v1" and len(r["result"]["tracks"]) == 15
     assert "video.doctor(args=\"trilhas\")" in TEXTO and 'args="trilhas"' in _secao_doctor()
 
 
