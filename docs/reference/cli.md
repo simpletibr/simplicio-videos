@@ -34,6 +34,7 @@ Fluxo completo:
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; baixa o commit fixado e roda 7 scripts locais dele (setup, run), o uso do skill exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
+  social-research social-media-research-skills (MIT): 13 skills de agente de pesquisa em redes sociais (posts fora da curva, comentários, concorrentes, anúncios, tendências) via ScrapeCreators com a sua chave; o motor só baixa, lista e lê
   rea-video    rea-video (MIT): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake; instala o commit fixado num venv próprio e repassa os comandos dele (https://github.com/JuneYaooo/rea-video)
   video-to-skill video-to-skill (MIT, Breno Epics): transforma um vídeo numa skill de agente instalável; extrator local fixado (vts-extract 0.3.0, sha256 por plataforma): clone, setup, check, extract, frame-at, clip, compile, merge, install; o `check --fix --yes` do upstream é seu (https://github.com/brenoepics/video-to-skill)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
@@ -41,7 +42,7 @@ Fluxo completo:
   social       redes sociais sem postar: provedores (Real Oficial padrão, Zernio), plano de postagem com limites por rede, receita de chamadas MCP
   openverse    biblioteca de imagens e áudio do Openverse revisada por pedido: search, get, library (list, show, review, export, credits); licença das fontes, não é parecer jurídico
   busca        pesquisa e leitura de páginas na internet pelo CLI tinyfish (TinyFish), com fonte e data por resultado e teto de chamadas por dia: consulta, pagina, status, log; a consulta é enviada a um terceiro
-  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/social/openverse/voicestudio/busca/toonflow/moneyprinter/matchcut/instagram/rea-video/video-to-skill/shorts/media/tools/qc/status/doctor/setup/install/update
+  mcp          servidor MCP (stdio) com as tools video.init/validate/voice/render/run/list/clone/montage/edit/opencut/formats/swap/jobs/social/openverse/voicestudio/busca/toonflow/moneyprinter/matchcut/instagram/social-research/rea-video/video-to-skill/shorts/media/tools/qc/status/doctor/setup/install/update
   status       ferramentas (instaladas, versão, versão fixada) e, com CONTRATO, o estado do render (--json para o looping)
   install      copia as skills do simplicio-video para o host do agente (11 hosts; projeto, ou o home com --global; sem hooks); ambiente do checkout: scripts/dev_install.sh
   update       pacote pip: PyPI e reinstala as skills; checkout git: recusa (git pull e scripts/dev_install.sh); --check sai 0, 10 ou 2
@@ -52,51 +53,53 @@ Schema do contrato: src/simplicio_video/data/schema/contract.schema.json (no che
 Skill para LLMs: skills/simplicio-video/SKILL.md
 
 options:
-  -h, --help        show this help message and exit
-  --version         mostra a versão do motor e sai (com --json: {version, engine})
-  --json            com --version: imprime {version, engine} em JSON
+  -h, --help         show this help message and exit
+  --version          mostra a versão do motor e sai (com --json: {version, engine})
+  --json             com --version: imprime {version, engine} em JSON
 
 comandos (na ordem do fluxo):
   COMANDO
-    init            gera o esqueleto de contrato para <cliente> <campanha>
-    validate        valida o contrato (schema, assets, durações, falas)
-    voice           gera/cacheia as falas e grava timing.lock.json
-    render          compila e renderiza (padrão local; kaggle/colab-cli/colab opcionais via créditos)
-    run             voice -> validate -> render num comando só (para no MP4)
-    clone           trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA
-    montage         trilha Montage (OpenMontage): produção de vídeo com agentes de IA
-    edit            edição por EDL com video-use sobre qualquer MP4
-    shorts          cortes verticais 9:16 de um vídeo longo (determinístico, só ffmpeg)
-    media           áudio e vídeo sobre qualquer MP4 (fetch, probe, audio, sheet, subs, burn, mask, replace-
-                    audio, voice-track); ffmpeg, e yt-dlp no fetch
-    qc              controle de qualidade de um MP4: quadro congelado (congelado), ffmpeg freezedetect
-    opencut         editor OpenCut (open-source) para acabamento manual
-    toonflow        Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
-    moneyprinter    MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
-    matchcut        match-cut (MIT): skill de agente para vídeo de produto; baixa, aponta e roda 7 scripts
-                    locais
-    instagram       instagram-agent-skill (MIT): skills de agente e scripts locais para Reels e legenda; não
-                    posta
-    rea-video       rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake
-    video-to-skill  video-to-skill (MIT): transforma um vídeo numa skill de agente instalável (extrator local
-                    fixado)
-    voicestudio     VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900
-    formats         biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
-    swap            troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
-    jobs            tarefas em segundo plano (swap run, voice) num processo separado
-    social          redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP
-    openverse       biblioteca de imagens e áudio do Openverse, revisada por pedido
-    busca           pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário
-    mcp             servidor MCP (stdio) para o simplicio-runtime
-    tools           lista as trilhas externas fixadas (versão, comando, instalada)
-    status          ferramentas instaladas, versões fixadas e estado do render
-    list            lista templates, padrões de motion, providers de voz ou ângulos de anúncio
-    install         copia as skills do simplicio-video para o host do agente (o projeto, ou o home com
-                    --global)
-    update          atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar
-    doctor          diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace e
-                    trilhas
-    setup           primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
+    init             gera o esqueleto de contrato para <cliente> <campanha>
+    validate         valida o contrato (schema, assets, durações, falas)
+    voice            gera/cacheia as falas e grava timing.lock.json
+    render           compila e renderiza (padrão local; kaggle/colab-cli/colab opcionais via créditos)
+    run              voice -> validate -> render num comando só (para no MP4)
+    clone            trilha Clone (Hypit AI): clonagem de vídeos com agentes de IA
+    montage          trilha Montage (OpenMontage): produção de vídeo com agentes de IA
+    edit             edição por EDL com video-use sobre qualquer MP4
+    shorts           cortes verticais 9:16 de um vídeo longo (determinístico, só ffmpeg)
+    media            áudio e vídeo sobre qualquer MP4 (fetch, probe, audio, sheet, subs, burn, mask, replace-
+                     audio, voice-track); ffmpeg, e yt-dlp no fetch
+    qc               controle de qualidade de um MP4: quadro congelado (congelado), ffmpeg freezedetect
+    opencut          editor OpenCut (open-source) para acabamento manual
+    toonflow         Toonflow (MIT): estúdio de séries e vídeos com IA, app web local
+    moneyprinter     MoneyPrinterTurbo (MIT): tema vira vídeo curto, trilha externa de apoio
+    matchcut         match-cut (MIT): skill de agente para vídeo de produto; baixa, aponta e roda 7 scripts
+                     locais
+    instagram        instagram-agent-skill (MIT): skills de agente e scripts locais para Reels e legenda; não
+                     posta
+    social-research  social-media-research-skills (MIT): 13 skills de agente para pesquisa em redes sociais; o
+                     motor só baixa, lista e lê
+    rea-video        rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake
+    video-to-skill   video-to-skill (MIT): transforma um vídeo numa skill de agente instalável (extrator local
+                     fixado)
+    voicestudio      VoiceStudio (AGPL-3.0): voz local por API/MCP em :3900
+    formats          biblioteca de 50 formatos de anúncio (Drive) e pedido para adaptar uma copy
+    swap             troca o personagem de um vídeo por um avatar (agnóstico de fornecedor)
+    jobs             tarefas em segundo plano (swap run, voice) num processo separado
+    social           redes sociais sem postar: provedores, plano de postagem e receita de chamadas MCP
+    openverse        biblioteca de imagens e áudio do Openverse, revisada por pedido
+    busca            pesquisa e leitura de páginas na internet (TinyFish), com procedência e teto diário
+    mcp              servidor MCP (stdio) para o simplicio-runtime
+    tools            lista as trilhas externas fixadas (versão, comando, instalada)
+    status           ferramentas instaladas, versões fixadas e estado do render
+    list             lista templates, padrões de motion, providers de voz ou ângulos de anúncio
+    install          copia as skills do simplicio-video para o host do agente (o projeto, ou o home com
+                     --global)
+    update           atualiza: pip (PyPI) num pacote instalado; num checkout git recusa e diz o que rodar
+    doctor           diagnóstico: update, runtime, Python, Node 22, ffmpeg+libass, disco, portas, workspace e
+                     trilhas
+    setup            primeira execução: cria o workspace (tema, idioma, autonomia L1, orçamentos zero)
 
 exemplos:
   simplicio-video list templates
@@ -880,6 +883,27 @@ exemplos:
   simplicio-video social check out/social.plan.json
   simplicio-video social recipe out/social.plan.json --clip-id <id do clip no Real Oficial>
   simplicio-video social recipe out/social.plan.json --provider zernio --json
+```
+
+## simplicio-video social-research
+
+```text
+usage: simplicio-video social-research [-h] ...
+
+Baixa o social-media-research-skills (MIT; o repositório está em `simplicio-video tools`) no commit fixado em tools.py, lista as 13 skills e devolve o corpo de uma delas depois de conferir o commit e o sha256. As skills chamam o ScrapeCreators (pago, com a sua chave) a partir do agente; o motor não roda script, não chama o ScrapeCreators e não posta. O checkout fica em SOCIAL_RESEARCH_DIR ou em SIMPLICIO_TOOLS_DIR/social_research.
+
+positional arguments:
+  args        clone [dir] | where [--skills] | status | skills | skill NAME
+
+options:
+  -h, --help  show this help message and exit
+
+exemplos:
+  simplicio-video social-research clone
+  simplicio-video social-research skills
+  simplicio-video social-research skill outlier-post-finder
+  simplicio-video social-research where --skills
+  simplicio-video social-research status
 ```
 
 ## simplicio-video status

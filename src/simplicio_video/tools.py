@@ -188,6 +188,14 @@ TOOLS: dict[str, Tool] = {
                            "YouTube Shorts hooks (AUC 0.83 to catch bad hooks, 0.56 to pick winners): in Portuguese they score badly or "
                            "are ignored. The skills are prompts for an agent, not code. Nothing here posts or publishes: the engine never "
                            "posts, the skills write and the user posts"),
+    "social_research": Tool("social_research", "git", "https://github.com/wesleysimplicio/social-media-research-skills",
+                            "64ba7b4dea71e130d2712ffb6c1c1024b3b7c4b2", "MIT",
+                            "thirteen agent skills (SKILL.md prompts) for social media research: outlier posts, comment mining, "
+                            "competitor and creator teardowns, ad libraries, trends; the engine downloads the pinned commit, lists the "
+                            "skills and returns a skill body after checking its sha256, it never runs a script",
+                            command="social-research", marker="skills/outlier-post-finder/SKILL.md", clone_verb="clone", mcp_read=McpRead("acao", "status"),
+                            note="the skills call the ScrapeCreators API (a paid third party, with the user's own key) from the agent; "
+                                 "the engine never calls ScrapeCreators, never asks for or passes on a key, and never posts"),
     "voicestudio": Tool("voicestudio", "git", "https://github.com/debpalash/VoiceStudio",
                          "beeaae08204f0de5f49d4a087ef2b0ea8fecfcb9", "AGPL-3.0",
                          "local voice studio: cloned/designed voice profiles, TTS and transcription over a loopback "

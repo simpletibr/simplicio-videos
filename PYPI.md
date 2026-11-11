@@ -35,8 +35,8 @@ Extras opcionais: `[local-tts]` (as bibliotecas da voz local Kokoro; a voz ainda
 
 | Fato | Valor |
 |---|---|
-| Tools MCP (`video.*`) | 32 |
-| Trilhas externas | 13 |
+| Tools MCP (`video.*`) | 33 |
+| Trilhas externas | 14 |
 | HyperFrames | `hyperframes@0.8.97` |
 | Hosts de agente (`install`) | 12: `aider`, `antigravity`, `claude`, `codex`, `cursor`, `gemini`, `grok`, `kiro`, `openclaw`, `opencode`, `simplicio_agent`, `vscode` |
 <!-- END GENERATED -->

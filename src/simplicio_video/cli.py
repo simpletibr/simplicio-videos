@@ -75,6 +75,7 @@ Fluxo completo:
   moneyprinter MoneyPrinterTurbo (MIT): tema vira vídeo curto (roteiro por LLM, voz, estoque); generate roda a API por trás e traz o MP4 com hash; serve só em 127.0.0.1, pede --lan para a rede (https://github.com/harry0703/MoneyPrinterTurbo)
   matchcut     match-cut (MIT): skill de agente para vídeo de produto com cortes de correspondência; baixa o commit fixado e roda 7 scripts locais dele (setup, run), o uso do skill exige login e créditos no Renoise (https://github.com/Sac-Y/match-cut)
   instagram    instagram-agent-skill (MIT): 13 skills de agente e 6 scripts locais para Reels, legenda e rascunho (hookscore, beats, caption, humanize, detect, swipe); heurísticas em inglês; só o clone usa a rede; o motor não posta (https://github.com/Jakeschincariol/instagram-agent-skill)
+  social-research social-media-research-skills (MIT): 13 skills de agente de pesquisa em redes sociais (posts fora da curva, comentários, concorrentes, anúncios, tendências) via ScrapeCreators com a sua chave; o motor só baixa, lista e lê
   rea-video    rea-video (MIT): analisa um vídeo de referência shot a shot (real, IA, 3D, código) e planeja a remake; instala o commit fixado num venv próprio e repassa os comandos dele (https://github.com/JuneYaooo/rea-video)
   video-to-skill video-to-skill (MIT, Breno Epics): transforma um vídeo numa skill de agente instalável; extrator local fixado (vts-extract 0.3.0, sha256 por plataforma): clone, setup, check, extract, frame-at, clip, compile, merge, install; o `check --fix --yes` do upstream é seu (https://github.com/brenoepics/video-to-skill)
   voicestudio  VoiceStudio (AGPL-3.0): app local de voz em :3900 (TTS, clonagem e transcrição) por API OpenAI-compatible e MCP; fora do render determinístico (https://github.com/debpalash/VoiceStudio)
@@ -394,6 +395,15 @@ def build_parser(only: str | None = None) -> argparse.ArgumentParser:
                "  simplicio-video instagram run beats -- roteiro.txt --target 30\n  simplicio-video instagram run caption -- legenda.txt\n"
                "  simplicio-video instagram where --skills\n  simplicio-video instagram status")
     p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | where [--skills] | status | skills | run FERRAMENTA [--forcar] [--bruto] [-- argumentos]")
+
+    p = sub.add_parser("social-research", formatter_class=Fmt, help="social-media-research-skills (MIT): 13 skills de agente para pesquisa em redes sociais; o motor só baixa, lista e lê",
+        description="Baixa o social-media-research-skills (MIT; o repositório está em `simplicio-video tools`) no commit fixado em tools.py, "
+                    "lista as 13 skills e devolve o corpo de uma delas depois de conferir o commit e o sha256. As skills chamam o ScrapeCreators "
+                    "(pago, com a sua chave) a partir do agente; o motor não roda script, não chama o ScrapeCreators e não posta. "
+                    "O checkout fica em SOCIAL_RESEARCH_DIR ou em SIMPLICIO_TOOLS_DIR/social_research.",
+        epilog="exemplos:\n  simplicio-video social-research clone\n  simplicio-video social-research skills\n"
+               "  simplicio-video social-research skill outlier-post-finder\n  simplicio-video social-research where --skills\n  simplicio-video social-research status")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="clone [dir] | where [--skills] | status | skills | skill NAME")
 
     p = sub.add_parser("rea-video", formatter_class=Fmt, help="rea-video (MIT): analisa um vídeo de referência shot a shot e planeja a remake",
         description="Instala o rea-video (https://github.com/JuneYaooo/rea-video, MIT) no commit fixado em tools.py, num venv próprio, "
@@ -723,6 +733,11 @@ def _carrega_instagram() -> ModuleType:
     return instagram
 
 
+def _carrega_social_research() -> ModuleType:
+    from . import social_research
+    return social_research
+
+
 def _carrega_jobs() -> ModuleType:
     from . import jobs
     return jobs
@@ -841,6 +856,8 @@ COMANDOS: dict[str, Comando] = {c.nome: c for c in (
     Comando("moneyprinter", _carrega_moneyprinter, "run_moneyprinter", "MoneyPrinterError", json_em=("generate",)),
     Comando("matchcut", _carrega_matchcut, "run_matchcut", "MatchcutError"),
     Comando("instagram", _carrega_instagram, "run_instagram", "InstagramError", json_em=("where", "status", "skills")),
+    Comando("social-research", _carrega_social_research, "run_social_research", "SocialResearchError",
+            json_em=("where", "status", "skills", "skill")),
     Comando("rea-video", _carrega_rea_video, "run_rea_video", "ReaVideoError", ajuda="propria", ajuda_em="repassa"),
     Comando("video-to-skill", _carrega_video_to_skill, "run_video_to_skill", "VideoToSkillError", json_em=("where", "status"),
             ajuda="propria", ajuda_em="SUBCOMMANDS"),

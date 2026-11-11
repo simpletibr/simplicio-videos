@@ -41,7 +41,7 @@ dt = _Lazy("simplicio_video.doctor_trilhas")
 saude = _caixa.saude
 caixa = _caixa.caixa
 
-TRILHAS = list(tools.TOOLS)  # the registry order: the thirteen tracks
+TRILHAS = list(tools.TOOLS)  # the registry order: the fourteen tracks
 SCHEMA = "simplicio.doctor-trilhas/v1"
 YTDLP_FETCH = "instala na primeira vez que você usar `simplicio-video media fetch` (exige uma URL e --autorizo)"
 
@@ -63,6 +63,7 @@ FIX_DE_INSTALAR = {
     "moneyprinter": "simplicio-video moneyprinter clone",
     "matchcut": "simplicio-video matchcut clone",
     "instagram": "simplicio-video instagram clone",
+    "social_research": "simplicio-video social-research clone",
     "rea_video": "simplicio-video rea-video clone",
     "video_to_skill": "simplicio-video video-to-skill clone",
     "video-use": "simplicio-video edit setup",
@@ -218,6 +219,7 @@ def monta_saudavel(saude, monkeypatch) -> Path:
     _venv(e.data / "matchcut-data" / "venv")
 
     _fixa(monkeypatch, "instagram", _repo(tools_dir / "instagram", {"skills/ig-reel/hookscore.py": "# falso\n"}))
+    _fixa(monkeypatch, "social_research", _repo(tools_dir / "social_research", {"skills/outlier-post-finder/SKILL.md": "# falso\n"}))
 
     _fixa(monkeypatch, "rea_video", _repo(tools_dir / "rea_video", {"rea_video/cli.py": "# falso\n"}))
     _venv(e.data / "rea-video-data" / "venv", "rea-video")
@@ -283,10 +285,10 @@ def test_o_schema_e_o_da_trilhas(ambiente):
     assert dt.SCHEMA == SCHEMA
 
 
-def test_lista_as_treze_trilhas_do_registro_na_ordem_dele(ambiente):
+def test_lista_as_catorze_trilhas_do_registro_na_ordem_dele(ambiente):
     doc = dt.collect()
     assert doc["schema"] == SCHEMA and doc["online"] is False
-    assert [t["name"] for t in doc["tracks"]] == TRILHAS and len(doc["tracks"]) == 13
+    assert [t["name"] for t in doc["tracks"]] == TRILHAS and len(doc["tracks"]) == 14
     chaves = {"name", "command", "status", "summary", "installed", "version", "pin", "pin_source", "pin_registry", "pin_match",
               "upstream", "checks"}
     for track in doc["tracks"]:
@@ -320,7 +322,7 @@ def test_o_status_geral_e_o_pior_das_trilhas(ambiente, monkeypatch):
 def test_sem_nenhuma_trilha_todas_avisam_e_nenhuma_falha(ambiente):
     doc = dt.collect()
     assert doc["status"] == "warn", _pendencias(doc)
-    assert [t["status"] for t in doc["tracks"]] == ["warn"] * 13
+    assert [t["status"] for t in doc["tracks"]] == ["warn"] * 14
     assert all(not t["installed"] for t in doc["tracks"])
 
 
@@ -341,7 +343,7 @@ def test_sem_git_as_trilhas_de_checkout_avisam_com_a_dependencia(ambiente):
     for launcher in ambiente.caixa.bin.glob("git*"):
         launcher.unlink()
     doc = dt.collect()
-    for nome in ("openmontage", "opencut", "toonflow", "moneyprinter", "matchcut", "instagram", "rea_video", "voicestudio",
+    for nome in ("openmontage", "opencut", "toonflow", "moneyprinter", "matchcut", "instagram", "social_research", "rea_video", "voicestudio",
                  "video_to_skill", "video-use"):
         assert _c(_trilha(doc, nome), "dep:git")["status"] == "warn", nome
     assert not [c for c in _trilha(doc, "yt-dlp")["checks"] if c["name"] == "dep:git"]
@@ -806,7 +808,7 @@ def test_doctor_all_tem_uma_linha_trilhas_com_o_resumo(ambiente, capsys):
     assert len(linhas) == 1, [c["name"] for c in rel["checks"]]
     row = linhas[0]
     assert row["status"] == "warn" and row["fix"] == "simplicio-video doctor trilhas"
-    assert "0 de 13" in row["summary"]
+    assert "0 de 14" in row["summary"]
     assert [t["name"] for t in row["detail"]["tracks"]] == TRILHAS
     assert rc == 0 and "Traceback" not in out + err
 
@@ -822,7 +824,7 @@ def test_doctor_all_com_as_trilhas_em_dia_e_ok(ambiente, monkeypatch, capsys):
     monta_saudavel(ambiente, monkeypatch)
     rc, rel, out, err = _json(capsys)
     row = [c for c in rel["checks"] if c["name"] == "trilhas"][0]
-    assert row["status"] == "ok" and row["fix"] is None and "13 de 13" in row["summary"]
+    assert row["status"] == "ok" and row["fix"] is None and "14 de 14" in row["summary"]
 
 
 # --- the MCP tool video.doctor: the same command, read-only ------------------------------------------------------------

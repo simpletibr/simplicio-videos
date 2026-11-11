@@ -24,11 +24,12 @@ Who it is for: people who make ads and short videos with voice, subtitles, and c
 | Social planning | `social` | Ready | Never posts. Publishing belongs to another layer |
 | Openverse library | `openverse` | Ready | Review per request. The license comes from the source |
 | Web research | `busca` | Ready | Needs TinyFish and a key. Daily call cap |
-| External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `edit`, `rea-video`, `video-to-skill` | Installed on demand, pinned version | Licenses differ; see the tracks table |
+| External tracks | `montage`, `opencut`, `clone`, `toonflow`, `moneyprinter`, `matchcut`, `instagram`, `social-research`, `edit`, `rea-video`, `video-to-skill` | Installed on demand, pinned version | Licenses differ; see the tracks table |
 | Instagram agent skills and scripts | `instagram` | Ready on the pinned commit; installs on demand. The six scripts ran for real; no agent was run with the skills | Local, no key, no LLM. The heuristics are in English and score Portuguese badly. It never posts |
+| Social media research agent skills | `social-research` | Ready on the pinned commit; installs on demand. The skills were not run with an agent here | The skills call ScrapeCreators (paid, your key) from the agent; the engine only downloads, lists and reads them. It never posts |
 | Video to agent skill | `video-to-skill` | New. Ready on the pinned release (tag v0.3.0); `clone` and `setup` install on demand. The extractor ran for real on a synthetic 4 s clip; no real tutorial was processed | Local. The extractor is a downloaded binary checked by sha256. Transcription needs voice models that only you download. Verifying a generated skill is not covered by the engine's guarantees |
 | Reverse-engineer a reference video | `rea-video` | Ready on the pinned commit; installs on demand. A synthetic clip was tested end to end, real footage was not | Local by default. With `--vlm`, frames go to a vision model you configure |
-| MCP server | `simplicio-video-mcp` | 32 `video.*` tools | No `swap run` spending, no software removal |
+| MCP server | `simplicio-video-mcp` | 33 `video.*` tools | No `swap run` spending, no software removal |
 | Audio cleanup | not available yet | In a PR, not on main yet | not applicable |
 | Dubbing with preserved background | `voicestudio dub create` and `dub-export` | Uploads the video to the app and exports the finished job, with music and effects, provided background separation was on in the app | The dub itself runs in the app |
 
@@ -39,8 +40,8 @@ Counts generated from the code (`scripts/gen_reference.py`); where hand-written 
 
 | Fact | Value |
 |---|---|
-| MCP tools (`video.*`) | 32 |
-| External tracks | 13 |
+| MCP tools (`video.*`) | 33 |
+| External tracks | 14 |
 | Templates | 15: 8 `pronto`, 7 `skeleton`; 6 without `composicao` (do not render) |
 | Motion patterns | 56: 33 `pronto`, 20 `proposto`, 2 `inline`, 1 `lib` |
 | HyperFrames | `hyperframes@0.8.97` |
@@ -57,6 +58,7 @@ Counts generated from the code (`scripts/gen_reference.py`); where hand-written 
 | `moneyprinter` | git | `4b7b965` |
 | `matchcut` | git | `b51c98f` |
 | `instagram` | git | `d03c56b` |
+| `social_research` | git | `64ba7b4` |
 | `voicestudio` | git | `beeaae0` |
 | `video-use` | git | `b877063` |
 | `tinyfish` | npm | `0.57.0` |
@@ -146,7 +148,7 @@ Not on main yet. This section gets the commands when the audio cleanup PR is mer
 
 ## MCP
 
-- Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 32 `video.*` tools over the stdio protocol, `video.rea-video`, `video.video-to-skill` and `video.instagram` among them.
+- Server: `simplicio-video-mcp` (stdio). Tested: it answers `initialize` and lists 33 `video.*` tools over the stdio protocol, `video.rea-video`, `video.video-to-skill` and `video.instagram` among them.
 - Tool list: [docs/reference/mcp-tools.md](docs/reference/mcp-tools.md).
 - **Excluded on purpose, for safety:**
   - `swap run`: spends credits;
@@ -183,7 +185,7 @@ Gerado de `docs/host/*.md` (front matter). Não edite aqui: rode `make regen`.
 
 ## Incorporated projects (external tracks)
 
-The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), a PyPI version with a sha256 (yt-dlp), or a release binary checked by sha256 (video-to-skill); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all thirteen tracks.
+The engine does not import any of these projects. Each one runs as a separate program, installed on demand at a pinned version: a commit (git), an npm version (Hypit, TinyFish), a PyPI version with a sha256 (yt-dlp), or a release binary checked by sha256 (video-to-skill); the versions are in the licenses table below. Two exceptions: you install the TinyFish CLI yourself, and you open the VoiceStudio app. The `simplicio-video` CLI calls each one; many commands accept `--json`; and the MCP server exposes each one up to the point stated in its entry. No engine command posts or publishes. To see the state on your machine, run `simplicio-video tools` (installed or not, pinned version, license) or `simplicio-video status --json`, which lists all fourteen tracks.
 
 Which track answers each request (a table of request, track, command, MCP tool and limits) and how to chain two or more is in the skill [`simplicio-video-trilhas`](skills/simplicio-video-trilhas/SKILL.md), written in Portuguese like the other skills.
 
@@ -196,6 +198,7 @@ Which track answers each request (a table of request, track, command, MCP tool a
 | [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | MIT | `moneyprinter` | `where`, `clone`, `status`, and `generate` and `run` as a job |
 | [match-cut](https://github.com/Sac-Y/match-cut) | MIT | `matchcut` | `where`, `status`, `run` (seven scripts, absolute paths) |
 | [instagram-agent-skill](https://github.com/Jakeschincariol/instagram-agent-skill) | MIT | `instagram` | `skills`, `skill NAME`, `where`, `status`, `run` |
+| [social-media-research-skills](https://github.com/wesleysimplicio/social-media-research-skills) | MIT | `social-research` | `skills`, `skill NAME`, `where`, `status` |
 | [VoiceStudio](https://github.com/debpalash/VoiceStudio) | AGPL-3.0 (local HTTP only) | `voicestudio` | all subcommands; absolute new outputs |
 | [video-use](https://github.com/browser-use/video-use) | MIT | `edit` | all except `transcribe-batch`; absolute outputs |
 | [rea-video](https://github.com/JuneYaooo/rea-video) | MIT (declared in `pyproject.toml`) | `rea-video` | `where`, `status`, `clone`, `summary`, `probe`, `tiles`, `review`, `apply-review`, `remake-plan`; `decompose` and `stems` as a job |
@@ -284,6 +287,18 @@ Thirteen agent skills for Instagram (Reels, captions, and others) and six local 
 - **MCP (read-only):** `skills`, `skill NAME` (the `SKILL.md` text comes back in `untrusted_conteudo`, as third-party text, cut at 64 KiB with `truncado`; the name must be one `skills` lists, never a path), `where`, `status`, and `run` for `hookscore`, `beats`, `caption`, `detect`, and `humanize`, with the text in the `texto` parameter. The output comes back marked as third-party text.
 - **Terminal only:** `clone` (downloads third-party code from the network), `swipe`, and writing to a file (`--out`).
 - **Example:** `simplicio-video instagram run caption -- legenda.txt`
+
+### social-media-research-skills (`social-research`)
+
+[wesleysimplicio/social-media-research-skills](https://github.com/wesleysimplicio/social-media-research-skills) · MIT
+
+Thirteen agent skills for social media research: outlier posts, comment mining, audience research, competitor and creator teardowns, ad libraries, influencer prospecting, transcripts, and trends, across TikTok, Instagram, YouTube, Reddit, X, LinkedIn, and others. The skills are prompts that call the [ScrapeCreators](https://scrapecreators.com) API (paid, with your own key) from the agent. The engine only downloads the pinned commit (`64ba7b4`), lists the skills, and returns the body of one of them after checking the commit and the file's sha256. It never runs a script, never calls ScrapeCreators, never asks for a key, and never posts.
+
+- **Command:** `social-research clone [folder]`, `skills`, `skill NAME` (the `SKILL.md` body of a listed skill, at most 64 KiB, as third-party text), `where [--skills]`, `status` (the sha256 of each `SKILL.md`). `--json` on everything except `clone`.
+- **Checkout:** `SOCIAL_RESEARCH_DIR`, or `SIMPLICIO_TOOLS_DIR/social_research`.
+- **MCP (read-only):** `video.social-research` with `acao` = `skills`, `skill` (with `nome`), `where`, or `status`. `clone` is terminal only.
+- **To use the skills in your agent:** copy the folder that `simplicio-video social-research where --skills` prints into the agent's skills folder, and set the ScrapeCreators key the way the upstream README says.
+- **Example:** `simplicio-video social-research skill outlier-post-finder`
 
 ### VoiceStudio (`voicestudio`)
 
